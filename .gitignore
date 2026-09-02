@@ -1,0 +1,12 @@
+# Сборочные артефакты Xcode — тяжёлые (500+ МБ), пересобираются с нуля
+build_sim/
+build_dev_signed/
+DerivedData/
+
+# Генерируется xcodegen из project.yml (см. ARCHITECTURE.md — общий
+# .pbxproj был источником конфликтов, поэтому в репозитории только .yml)
+TaskFlow.xcodeproj/
+
+xcuserdata/
+*.xcuserstate
+.DS_Store
