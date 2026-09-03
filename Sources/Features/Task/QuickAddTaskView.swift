@@ -42,9 +42,12 @@ struct QuickAddTaskView: View {
     @Environment(LabelStore.self) private var labelStore
     @FocusState private var isTitleFocused: Bool
     @State private var activePicker: QuickAddPicker?
-    /// Тост «голос не подключён» — реакция на тап по заглушке микрофона
-    /// (см. `trailingActionButton`), не пустая кнопка без отклика.
     @State private var toastMessage: TaskToastMessage?
+    /// Диктовка — тот же движок и тот же приём, что у `micKeyboardBar` в
+    /// полной форме (просьба владельца 03.09.2026: «микрофон не работает,
+    /// пишет "пока не подключён", хотя модель скачана» — заглушка убрана,
+    /// теперь настоящая запись/распознавание).
+    @State private var dictation = DictationEngine.shared
 
     /// Имя с префиксом `QuickAdd` — не `Picker`, чтобы не затенять
     /// одноимённый системный `SwiftUI.Picker` в этом файле.
@@ -185,33 +188,77 @@ struct QuickAddTaskView: View {
         }
     }
 
-    /// Справа — микрофон (заглушка, см. header-комментарий проекта про
-    /// отсутствие живого ASR-провода), меняется на «Сохранить», как только
-    /// есть что сохранять — второй заявленный в задаче способ сохранения
-    /// («по кнопке») рядом с Return на клавиатуре.
+    /// Справа — голос (та же диктовка, что у `micKeyboardBar` полной формы),
+    /// меняется на «Сохранить», как только есть что сохранять — второй
+    /// заявленный в задаче способ сохранения («по кнопке») рядом с Return
+    /// на клавиатуре. Заливка красная в обоих состояниях — владелец
+    /// 03.09.2026: «микрофон-то такой не в цвет», серый кружок с приглушённой
+    /// иконкой терялся рядом с чипами.
     private var trailingActionButton: some View {
         Button {
             if viewModel.isSaveEnabled {
                 save()
             } else {
-                // Пустое название — тут не «Сохранить», а голос. Задание
-                // просит «понятную заглушку», не мёртвую кнопку без реакции —
-                // тост тем же компонентом, что уже есть у экранов задачи.
-                toastMessage = TaskToastMessage("Голосовой ввод пока не подключён")
+                Task { await toggleDictation() }
             }
         } label: {
             ZStack {
                 Circle()
-                    .fill(viewModel.isSaveEnabled ? Color.tfRed : Color.tfCard2)
+                    .fill(Color.tfRed)
                     .frame(width: QuickAddMetrics.rowHeight, height: QuickAddMetrics.rowHeight)
-                Image(systemName: viewModel.isSaveEnabled ? "arrow.up" : "mic.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(viewModel.isSaveEnabled ? .white : Color.tfDim)
+                trailingActionIcon
             }
         }
         .buttonStyle(TFTapScaleStyle())
-        .disabled(viewModel.isSaving)
-        .accessibilityLabel(viewModel.isSaveEnabled ? "Сохранить" : "Голосовой ввод (не подключён)")
+        .disabled(viewModel.isSaving || dictation.recordingState == .transcribing)
+        .accessibilityLabel(trailingActionAccessibilityLabel)
+    }
+
+    @ViewBuilder
+    private var trailingActionIcon: some View {
+        Group {
+            if viewModel.isSaveEnabled {
+                Image(systemName: "arrow.up")
+            } else {
+                switch dictation.recordingState {
+                case .recording:
+                    // Владелец 03.09.2026: «найди иконку не микрофона, а
+                    // звуковой волны, желательно анимированную» — тот же
+                    // символ и `symbolEffect`, что у `micKeyboardBar`.
+                    Image(systemName: "waveform")
+                        .symbolEffect(.variableColor.iterative, isActive: true)
+                case .transcribing:
+                    ProgressView().tint(.white)
+                case .idle, .failed:
+                    Image(systemName: "waveform")
+                }
+            }
+        }
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundStyle(.white)
+    }
+
+    private var trailingActionAccessibilityLabel: String {
+        if viewModel.isSaveEnabled { return "Сохранить" }
+        return dictation.recordingState == .recording ? "Остановить запись и распознать" : "Голосовой ввод"
+    }
+
+    /// Тап по названию поля — если запись уже идёт, останавливаем и
+    /// распознаём (тот же приём, что у полной формы: повторный тап — стоп).
+    private func toggleDictation() async {
+        switch dictation.recordingState {
+        case .idle, .failed:
+            await dictation.startRecording()
+        case .recording:
+            guard let text = await dictation.stopRecordingAndTranscribe() else { return }
+            if viewModel.title.isEmpty {
+                viewModel.title = text
+            } else {
+                viewModel.title += (viewModel.title.hasSuffix(" ") ? "" : " ") + text
+            }
+        case .transcribing:
+            break
+        }
     }
 
     private func save() {
