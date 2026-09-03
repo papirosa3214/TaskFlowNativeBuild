@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UIKit
 
 // Вид «Один день» — spec/SCREENS-1.md §3.5/§5.1, порт `DayHours.tsx`.
 //
@@ -10,11 +11,24 @@ import Combine
 // - фон-«хвост» часовых линий после полуночи — фиксировано 5 декоративных
 //   строк (веб замеряет точный остаток места под кнопкой; здесь константа,
 //   см. `TodayHoursMetrics.decorativeHoursBelow`);
-// - точка захвата плашки при перетаскивании — всегда «под пальцем», без
-//   вычисления смещения от исходной позиции (в вебе есть для плашек на
-//   сетке, у пула и так 0) — упрощение, не влияет на итоговое время;
-// - виброотклик на пересечение часа/деления не реализован (нет прямого
-//   аналога дискретного «нотч»-фидбека без Core Haptics-обвязки в общем коде).
+//
+// ⚠️ 03.09.2026, владелец после первой волны: «прыгает куда-то, время
+// вообще не понимаю как регулировать» + «полоска отцентрована, а плашка
+// относительно неё ровно посерединке — должна быть вверху» — оба симптома
+// от ОДНОЙ причины, ниже больше не упрощение:
+// - точка захвата была «всегда под пальцем» без смещения от исходной
+//   позиции — палец на середине высокой плашки двигал время на половину
+//   её длительности мимо ожидаемого. Теперь `grabOffsetY` фиксируется в
+//   начале жеста (`value.startLocation` минус верх плашки) и вычитается
+//   из каждого обновления — плашка остаётся под тем же пальцем, откуда её
+//   взяли, а не «телепортируется» под него целиком;
+// - `DragState.y` подавался в `timeFromOffset` (документированно «смещение
+//   от ВЕРХА сетки») как сырая позиция пальца, а `ghostView` рисовал его
+//   же как ЦЕНТР плашки (`y - height/2`) — те же координаты читались
+//   двумя разными способами. Переименовано в `topY`, везде один смысл.
+// - виброотклик добавлен: при захвате (`.medium`, «взял ли я её вообще»)
+//   и на каждую смену привязанного времени во время движения
+//   (`UISelectionFeedbackGenerator`, тот самый «щелчок» по делениям).
 struct TodayHoursView: View {
     let day: TodayHourDay
     /// Цвет плашки — по проекту задачи (та же логика, что в списке/доске).
@@ -29,12 +43,20 @@ struct TodayHoursView: View {
         let title: String
         let color: Color
         let height: CGFloat
-        var y: CGFloat
+        /// Y верхнего края плашки в системе координат сетки — НЕ пальца и
+        /// НЕ центра (см. заголовочный комментарий файла).
+        var topY: CGFloat
     }
 
     @State private var dragState: DragState?
     @State private var previewTime: String?
     @State private var gridFrame: CGRect = .zero
+    /// Смещение «где на плашке схватили» относительно её верхнего края —
+    /// фиксируется один раз при старте жеста.
+    @State private var grabOffsetY: CGFloat = 0
+    /// Последнее время, на которое уже был виброотклик — чтобы щёлкать
+    /// один раз на каждую смену деления, а не на каждый пиксель движения.
+    @State private var lastTickTime: String?
 
     private var untimed: [ApiTask] {
         day.tasks.filter { hoursFromTime($0.startTime) == nil }
@@ -115,7 +137,7 @@ struct TodayHoursView: View {
         .padding(.vertical, 6)
         .contentShape(Rectangle())
         .opacity(dragState?.taskID == task.id ? 0.3 : 1)
-        .gesture(dragGesture(for: task, height: TodayHoursMetrics.minH))
+        .gesture(dragGesture(for: task, top: nil, height: TodayHoursMetrics.minH))
         .onTapGesture { if dragState == nil { onOpenTask(task.id) } }
     }
 
@@ -170,7 +192,7 @@ struct TodayHoursView: View {
         .overlay(alignment: .topLeading) {
             if let dragState {
                 ghostView(dragState)
-                    .offset(x: TodayHoursMetrics.gutterW, y: dragState.y - dragState.height / 2)
+                    .offset(x: TodayHoursMetrics.gutterW, y: dragState.topY)
                     .allowsHitTesting(false)
             }
         }
@@ -210,7 +232,7 @@ struct TodayHoursView: View {
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
             .opacity(hidden ? 0 : 1)
             .position(x: left + width / 2, y: block.top + block.height / 2)
-            .gesture(dragGesture(for: block.task, height: block.height))
+            .gesture(dragGesture(for: block.task, top: block.top, height: block.height))
             .onTapGesture { if dragState == nil { onOpenTask(block.task.id) } }
     }
 
@@ -247,24 +269,37 @@ struct TodayHoursView: View {
     // с ScrollView на native без доп. обвязки — минимальный сдвиг 12pt отличает
     // жест от тапа и от вертикальной прокрутки достаточно надёжно).
 
-    private func dragGesture(for task: ApiTask, height: CGFloat) -> some Gesture {
+    /// `top` — верхний край плашки ДО перетаскивания (`block.top`), нужен
+    /// только чтобы вычислить точку захвата один раз в начале жеста. У пула
+    /// (задача ещё без времени) верхнего края нет — `nil`, смещение 0: куда
+    /// палец, туда и время, как и раньше.
+    private func dragGesture(for task: ApiTask, top: CGFloat?, height: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 12, coordinateSpace: .named("hoursGrid"))
             .onChanged { value in
-                let y = value.location.y - gridFrame.minY
+                let fingerY = value.location.y - gridFrame.minY
                 let color = projectColor(task)
                 if dragState?.taskID != task.id {
-                    dragState = DragState(taskID: task.id, title: task.title, color: color, height: max(TodayHoursMetrics.minH, height), y: y)
+                    let startFingerY = value.startLocation.y - gridFrame.minY
+                    grabOffsetY = top.map { startFingerY - $0 } ?? 0
+                    lastTickTime = nil
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    dragState = DragState(taskID: task.id, title: task.title, color: color, height: max(TodayHoursMetrics.minH, height), topY: fingerY - grabOffsetY)
                 } else {
-                    dragState?.y = y
+                    dragState?.topY = fingerY - grabOffsetY
                 }
-                previewTime = timeFromOffset(y)
+                let time = timeFromOffset(fingerY - grabOffsetY)
+                previewTime = time
+                if time != lastTickTime {
+                    lastTickTime = time
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
             }
             .onEnded { value in
-                let y = value.location.y - gridFrame.minY
+                let topY = value.location.y - gridFrame.minY - grabOffsetY
                 dragState = nil
                 previewTime = nil
-                guard y >= -TodayHoursMetrics.hourH else { return }
-                onSchedule(task.id, day.date, timeFromOffset(y))
+                guard topY >= -TodayHoursMetrics.hourH else { return }
+                onSchedule(task.id, day.date, timeFromOffset(topY))
             }
     }
 
