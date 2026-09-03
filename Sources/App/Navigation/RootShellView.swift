@@ -148,8 +148,9 @@ struct RootShellView: View {
                     .onTapGesture { isCreateMenuOpen = false }
             }
 
-            // На чате нижней панели нет: её место занимает панель ввода
-            // (владелец 01.09.2026). Выход — стрелка «назад» в шапке чата.
+            // Панель прячется на чате (её место занимает панель ввода,
+            // владелец 01.09.2026) И на любом пуше текущей вкладки — см.
+            // `shouldHideTabBar`.
             VStack(spacing: 0) {
                 if isCreateMenuOpen {
                     TFCreateMenu(items: createMenuItems)
@@ -175,8 +176,8 @@ struct RootShellView: View {
                     onCreateTap: { isCreateMenuOpen.toggle() }
                 )
             }
-            .opacity(selectedTab == .chat ? 0 : 1)
-            .allowsHitTesting(selectedTab != .chat)
+            .opacity(shouldHideTabBar ? 0 : 1)
+            .allowsHitTesting(!shouldHideTabBar)
         }
         .environment(\.chatBackAction, {
             isCreateMenuOpen = false
@@ -307,6 +308,18 @@ struct RootShellView: View {
     private var todayBadgeCount: Int {
         guard todayBadgeSeenDate != DateFormats.todayString() else { return 0 }
         return taskStore.tasks.count { $0.status == .active && $0.isDueToday }
+    }
+
+    /// Свой (не системный) `TFTabBar` не умеет родное `hidesBottomBarWhenPushed`
+    /// сам по себе — он отдельный узел `ZStack`, поверх ЛЮБОГО экрана текущей
+    /// вкладки, включая запушенные. Раньше это было незаметно (пуши без
+    /// клавиатуры), но на экране с клавиатурой (редактор заметки) стало
+    /// видно прямо: чужой нижний бар «едет» вместе с клавиатурой — владелец
+    /// 03.09.2026: «поднимается меню... оно не типовое, какая-то странная
+    /// отсебятина». Прячем панель, как только на вкладке есть хоть один
+    /// пуш — то же правило, что раньше было только у чата.
+    private var shouldHideTabBar: Bool {
+        selectedTab == .chat || !(paths[selectedTab]?.isEmpty ?? true)
     }
 
     private func navigationStack(for tab: Tab) -> some View {
