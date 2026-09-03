@@ -19,13 +19,16 @@ struct SubtaskFeedView: View {
     /// убран, дублировал бы её же).
     var doneCount: Int { subtasks.count { $0.done } }
 
+    // Была обёрнута в `TFFieldGroup` (карточка-фон, тот же приём, что у
+    // группы «Срок/Проект/Приоритет/Метки») — просьба владельца 03.09.2026:
+    // «заметка не в фоне, название не в фоне — а подзадача почему в фоне?»
+    // `TFFieldGroup` не трогаю (общий компонент, та группа полей — другое,
+    // её не касалось), здесь просто больше не оборачиваю в неё.
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFFieldGroup {
-                ForEach(Array(subtasks.enumerated()), id: \.element.id) { index, subtask in
-                    row(subtask)
-                    if index != subtasks.count - 1 { TFFieldDivider() }
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(subtasks.enumerated()), id: \.element.id) { index, subtask in
+                row(subtask)
+                if index != subtasks.count - 1 { TFFieldDivider() }
             }
         }
     }
