@@ -23,8 +23,6 @@ struct NoteEditorScreen: View {
     @State private var focusedController: NoteBlockTextController?
     @State private var activeMarks: Set<InlineMark> = []
 
-    @State private var isAIMenuOpen = false
-    @State private var isMoreMenuOpen = false
     @State private var showMovePicker = false
     @State private var showDeleteConfirm = false
     @State private var showLinkPrompt = false
@@ -38,17 +36,36 @@ struct NoteEditorScreen: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            content
-        }
+        content
         .background(Color.tfBackground)
         .overlay(alignment: .bottomTrailing) {
             if focusedBlockID != nil && !viewModel.aiBusy { micKeyboardBar }
         }
-        // Нативная сворачивающаяся шапка.
-        .navigationTitle(viewModel.document.derivedTitle.isEmpty ? "Заметка" : viewModel.document.derivedTitle)
-        .navigationBarTitleDisplayMode(.large)
+        // Была своя ZStack-шапка (крестик, «✨», «…» в попапах) поверх ещё и
+        // системного .navigationTitle(.large) — та же двойная шапка, что
+        // чинили весь день (просьба владельца 03.09.2026: «нативные кнопки
+        // везде одним элементом»). Теперь tfNativeHeader + toolbar, попапы —
+        // нативный Menu, тем же приёмом, что у фильтров «Сегодня».
+        //
+        // ⚠️ Изначально AI и «Ещё» были ДВУМЯ отдельными ToolbarItem с Menu
+        // (как задумано по спеке — разные пиктограммы). На живом кадре
+        // (iOS 26.5 Simulator) это давало два бага сразу: заголовок «Новая
+        // заметка» пропадал целиком, а иконка каждого Menu отрисовывалась
+        // счетверённо/строенно в схлопнутом виде (проверено idb describe-all:
+        // в дереве доступности реально ОДНА кнопка — это чисто рендер-баг
+        // «Liquid Glass» тулбара на запушенном .inline экране, не логическая
+        // ошибка; смена содержимого меню, задержка скриншота на 8+ сек и
+        // прямой тап по иконке — на исход не влияли, тап открывал меню
+        // корректно). Баг воспроизводится и с одним-единственным Menu-айтемом
+        // в toolbar этого пуш-экрана — то есть дело не в паре соседних Menu.
+        // Слияние в один Menu не убирает баг отрисовки иконки, но убирает
+        // пропажу заголовка (в один Menu упирается тот же приём, что у
+        // рабочего kebabMenu в NotesScreen.swift) — берём это компромиссом,
+        // как более лёгкий вариант, чем два отдельных Menu.
+        .tfNativeHeader(headerTitle, displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { combinedMenu }
+        }
         .task { await viewModel.load() }
         .onDisappear { viewModel.flushOnExit() }
         .onChange(of: viewModel.pendingFocus) { _, pending in
@@ -170,68 +187,6 @@ struct NoteEditorScreen: View {
         return count
     }
 
-    // MARK: - Шапка (compact: назад слева, sparkles+dots справа, заголовок
-    // по центру — `TFScreenHeader.compact` этот набор поддерживает, НО
-    // подсветку активного sparkles на открытом меню он не даёт (`actions`
-    // там только иконки без состояния) — своя шапка той же геометрии,
-    // тот же разрыв уже назван соседом в `NotesScreen.swift`.
-
-    private var header: some View {
-        ZStack {
-            HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.tfText)
-                        .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                }
-                .buttonStyle(TFTapScaleStyle())
-
-                Spacer()
-
-                Button { isAIMenuOpen = true } label: {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 18))
-                        .foregroundStyle(isAIMenuOpen ? Color.tfRed : Color.tfText)
-                        .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                        .background(isAIMenuOpen ? Color.tfRed.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: TFRadius.md))
-                }
-                .buttonStyle(TFTapScaleStyle())
-                .disabled(viewModel.aiBusy)
-                .opacity(viewModel.aiBusy ? 0.3 : 1)
-                .popover(isPresented: $isAIMenuOpen, arrowEdge: .top) { aiMenu }
-                    .presentationCompactAdaptation(.popover)
-
-                Button { isMoreMenuOpen = true } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 18))
-                        .foregroundStyle(Color.tfText)
-                        .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                }
-                .buttonStyle(TFTapScaleStyle())
-                .popover(isPresented: $isMoreMenuOpen, arrowEdge: .top) { moreMenu }
-                    .presentationCompactAdaptation(.popover)
-            }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-
-            Text(headerTitle)
-                .tfText(.title)
-                .foregroundStyle(Color.tfText)
-                .lineLimit(1)
-                .allowsHitTesting(false)
-        }
-        .frame(height: 48)
-        // Тот же общий фон шапок, см. комментарий в TaskFormScreen.
-        // Штатный фон навбара — вызывающий код добавляет
-        // .toolbarBackground(.ultraThinMaterial, for: .navigationBar) +
-        // .toolbarBackgroundVisibility(.automatic, for: .navigationBar).
-        // (FrostedGlass удалён — см. коммит 9 в native-app.)
-        // Свой `.background(Color.tfCard)`: safeAreaInset, не навбар —
-        // штатный toolbarBackground не доходит, а раньше был FrostedGlass
-        // (Claude_Bot приёмка 02.09.2026).
-        .background(.ultraThinMaterial)
-    }
-
     /// «заголовком автоматически становится первый непустой блок… или
     /// «Новая заметка» пока не начали печатать» (spec).
     private var headerTitle: String {
@@ -244,62 +199,40 @@ struct NoteEditorScreen: View {
         return title.isEmpty ? "" : " «\(title)»"
     }
 
-    private var aiMenu: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            menuItem(icon: "pencil.line", title: "Продолжить мысль") {
-                isAIMenuOpen = false
-                Task { await runAssist(.continueThought) }
+    private var combinedMenu: some View {
+        Menu {
+            Section("AI") {
+                Button { Task { await runAssist(.continueThought) } } label: {
+                    Label("Продолжить мысль", systemImage: "pencil.line")
+                }
+                Button { Task { await runAssist(.shorten) } } label: {
+                    Label("Сократить текст", systemImage: "scissors")
+                }
+                Button { Task { await runAssist(.expand) } } label: {
+                    Label("Развить в шаги", systemImage: "list.bullet.indent")
+                }
+                Button {
+                    let selection = focusedController?.selectedText()
+                    Task { await viewModel.runExtractTasks(selectedText: selection) }
+                } label: {
+                    Label("Собрать задачи из текста", systemImage: "checklist")
+                }
             }
-            menuItem(icon: "scissors", title: "Сократить текст") {
-                isAIMenuOpen = false
-                Task { await runAssist(.shorten) }
-            }
-            menuItem(icon: "list.bullet.indent", title: "Развить в шаги") {
-                isAIMenuOpen = false
-                Task { await runAssist(.expand) }
-            }
-            menuItem(icon: "checklist", title: "Собрать задачи из текста") {
-                isAIMenuOpen = false
-                let selection = focusedController?.selectedText()
-                Task { await viewModel.runExtractTasks(selectedText: selection) }
-            }
-        }
-        .padding(.vertical, TFSpacing.xs)
-        .frame(width: 260)
-    }
+            .disabled(viewModel.aiBusy)
 
-    private var moreMenu: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            menuItem(icon: "folder", title: "Переместить в папку") {
-                isMoreMenuOpen = false
-                showMovePicker = true
+            Button { showMovePicker = true } label: {
+                Label("Переместить в папку", systemImage: "folder")
             }
-            menuItem(icon: "square.and.arrow.up", title: "Выгрузить в Markdown") {
-                isMoreMenuOpen = false
-                Task { await exportMarkdown() }
+            Button { Task { await exportMarkdown() } } label: {
+                Label("Выгрузить в Markdown", systemImage: "square.and.arrow.up")
             }
-            menuItem(icon: "trash", title: "Удалить заметку", destructive: true) {
-                isMoreMenuOpen = false
-                showDeleteConfirm = true
+            Divider()
+            Button(role: .destructive) { showDeleteConfirm = true } label: {
+                Label("Удалить заметку", systemImage: "trash")
             }
+        } label: {
+            Image(systemName: "ellipsis")
         }
-        .padding(.vertical, TFSpacing.xs)
-        .frame(width: 260)
-    }
-
-    private func menuItem(icon: String, title: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: TFSpacing.md) {
-                Image(systemName: icon).frame(width: 20)
-                Text(title).tfText(.body)
-                Spacer()
-            }
-            .foregroundStyle(destructive ? Color.tfCoral : Color.tfText)
-            .padding(.horizontal, TFSpacing.lg)
-            .padding(.vertical, TFSpacing.sm)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(TFTapRowStyle())
     }
 
     // MARK: - Меню AI / «Ещё» — действия

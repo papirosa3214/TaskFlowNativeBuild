@@ -90,13 +90,27 @@ final class NoteEditorViewModel {
     /// Принудительный немедленный сброс при уходе с экрана — без ожидания
     /// debounce (spec: «иначе последние нажатия клавиш теряются»). Не ждёт
     /// ответа сервера (экран к этому моменту уже закрывается), как и веб.
+    ///
+    /// Пустая заметка при выходе — удаляем, а не сохраняем: «Создать
+    /// заметку» создаёт её на сервере СРАЗУ, ещё до единого нажатия клавиши
+    /// (spec) — если уйти, ничего не напечатав, раньше черновик так и
+    /// оставался висеть в Дневнике безымянным навсегда (просьба владельца
+    /// 03.09.2026: «чтобы по уму создавались», источник кучи «Без названия»,
+    /// см. LOCK-072/073 в AGENT-WORK-SCOPES.md). Правило одно и то же и для
+    /// только что созданной, и для когда-то не пустой, а теперь вычищенной
+    /// заметки — пустая заметка ценности не несёт независимо от истории.
     func flushOnExit() {
-        guard saveTask != nil else { return }
         saveTask?.cancel()
         saveTask = nil
-        let fields: [String: JSONValue] = ["title": .string(document.derivedTitle), "content": .string(document.encodeToJSONString())]
         let client = apiClient
         let id = noteID
+        if document.isEffectivelyEmpty {
+            Task.detached {
+                try? await client.deleteNote(id: id)
+            }
+            return
+        }
+        let fields: [String: JSONValue] = ["title": .string(document.derivedTitle), "content": .string(document.encodeToJSONString())]
         Task.detached {
             _ = try? await client.patchNote(id: id, fields: fields)
         }

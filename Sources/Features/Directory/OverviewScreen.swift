@@ -42,16 +42,17 @@ struct OverviewScreen: View {
         // Штатная SwiftUI-шапка. Кнопка поиска переехала из
         // самодельного TFScreenHeader в `.toolbar { .topBarTrailing }` —
         // дубль заголовка «Обзор» (системный + наш поверх) ушёл.
-        // `toolbarTitleDisplayMode(.large)` — iOS 17+ (кросс-платформенный
-        // аналог `navigationBarTitleDisplayMode`, тот депрекейтнут на iOS 27).
-        .navigationTitle("Обзор")
-        .toolbarTitleDisplayMode(.large)
-        // Штатный фон навбара — замена кастомного `FrostedGlass`.
-        // `toolbarBackground(_:for:)` с Material — iOS 16.0+; `.automatic`
-        // фон виден только когда контент заехал под навбар (та самая
-        // механика, которую раньше давал наш blur с масками).
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .toolbarBackgroundVisibility(.automatic, for: .navigationBar)
+        //
+        // ⚠️ Раньше здесь ещё стояли `.toolbarBackground(.ultraThinMaterial,
+        // for: .navigationBar)` + `.toolbarBackgroundVisibility(.automatic,
+        // for:)` — этот экран пропустили при чистке остальных (см.
+        // `TFNativeHeader.swift`), и это была ручная имитация того, что
+        // iOS 26 и так рисует сама («scroll edge effect»): именно из-за неё
+        // при скролле вверх на «Обзоре» дёргался серый фон в шапке (жалоба
+        // владельца 03.09.2026 — «когда наверх закидываю, меняется фон» —
+        // тот же баг, что чинили в самом начале на «Проектах»). `tfNativeHeader`
+        // без ручного `toolbarBackground` — тот же приём, что и везде.
+        .tfNativeHeader("Обзор")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
