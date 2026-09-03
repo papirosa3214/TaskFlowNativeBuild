@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Вид «Три дня» — spec/SCREENS-1.md §3.5 `DayHours` (та же сетка, что у
 // «Сегодня», просто три колонки вместо одной). Числа — замер владельца,
@@ -10,11 +11,22 @@ import SwiftUI
 // контракта («не хватает чужого — сделай локально»), в отчёте предлагаю
 // оркестратору поднять в `DesignSystem`.
 //
-// Перетаскивание — И пул («без времени» → на сетку), И уже поставленная
-// плашка на новое время/колонку (просьба владельца 03.09.2026: «задержал
-// и передвинул эту плашку по времени», то же самое уже умеет «Сегодня» —
-// там своим `DragGesture`, здесь удобнее лечь на уже готовый `.draggable`/
-// `.dropDestination` пула, `onSchedule` тот же для обоих источников).
+// Перетаскивание — И пул («без времени» → на сетку, системный `.draggable`/
+// `.dropDestination` — тут работает нормально, точка не движется по сетке
+// вообще, дропнуть можно в любую точку), И уже поставленная плашка на
+// новое время/день (просьба владельца 03.09.2026: «задержал и передвинул
+// эту плашку по времени»).
+//
+// ⚠️ Для уже поставленной плашки `.draggable`/`.dropDestination` ПРОБОВАЛИ
+// первым (просто ради переиспользования готового пула) — не подошло:
+// владелец, тем же вечером: «беру просто как тень, но она по сетке вообще
+// не ездит». Системный drag не отслеживал перемещение поверх абсолютно
+// спозиционированных (`.position()`) блоков внутри `GeometryReader`
+// достаточно надёжно. Заменено на свой `DragGesture` — тот же приём, что
+// уже проверен и работает в «Сегодня» (`TodayHoursView.dragGesture`),
+// расширенный на несколько дневных колонок сразу: день, над которым сейчас
+// палец, вычисляется по X внутри общего именованного пространства координат
+// `upcomingHoursGrid`.
 private let hourH: CGFloat = 124.0 / 3.0
 private let gutterW: CGFloat = 161.0 / 3.0
 private let snapMin = 15
@@ -33,8 +45,34 @@ struct UpcomingHoursView: View {
     let days: [UpcomingHourColumn]
     let projectColor: (ApiTask) -> Color
     let onTaskTap: (String) -> Void
-    /// Перенесли задачу из пула на сетку — назначить дату (колонки) и время.
+    /// Перенесли задачу из пула ИЛИ передвинули уже поставленную — назначить
+    /// дату (колонки) и время.
     let onSchedule: (String, String, String) -> Void
+
+    private struct DragState {
+        let taskID: String
+        let title: String
+        let color: Color
+        let height: CGFloat
+        /// Y верхнего края плашки в системе координат сетки (не пальца и не
+        /// центра — см. заголовочный комментарий `TodayHoursView.swift`,
+        /// та же логика).
+        var topY: CGFloat
+        var dayIndex: Int
+    }
+
+    @State private var dragState: DragState?
+    @State private var previewTime: String?
+    @State private var gridFrame: CGRect = .zero
+    /// Смещение «где на плашке схватили» относительно её верхнего края —
+    /// фиксируется один раз при старте жеста, 0 для пула (там перетаскивание
+    /// системное, не через эту переменную).
+    @State private var grabOffsetY: CGFloat = 0
+    @State private var lastTickTime: String?
+    /// Держим генераторы живыми и прогретыми (не пересоздаём на каждое
+    /// срабатывание) — тот же приём, что и в `TodayHoursView`.
+    @State private var grabHaptic = UIImpactFeedbackGenerator(style: .heavy)
+    @State private var tickHaptic = UISelectionFeedbackGenerator()
 
     private var untimed: [ApiTask] {
         days.flatMap(\.tasks).filter { $0.startTime == nil }
@@ -47,17 +85,7 @@ struct UpcomingHoursView: View {
             }
             ScrollViewReader { proxy in
                 ScrollView {
-                    ZStack(alignment: .topLeading) {
-                        gridRows
-                        HStack(spacing: 0) {
-                            Color.clear.frame(width: gutterW)
-                            ForEach(days) { day in
-                                dayColumn(day)
-                            }
-                        }
-                        nowLine
-                    }
-                    .frame(height: hourH * 24)
+                    gridBody
                 }
                 .onAppear {
                     // Автопрокрутка к текущему часу с запасом 120px сверху (спека §3.5).
@@ -70,6 +98,38 @@ struct UpcomingHoursView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .coordinateSpace(name: "upcomingHoursGrid")
+    }
+
+    private var gridBody: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                gridRows
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: gutterW)
+                    ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
+                        dayColumn(day, index: index)
+                    }
+                }
+                nowLine
+            }
+            .frame(width: geo.size.width, height: hourH * 24, alignment: .topLeading)
+            .onAppear {
+                gridFrame = geo.frame(in: .named("upcomingHoursGrid"))
+                grabHaptic.prepare()
+                tickHaptic.prepare()
+            }
+            .onChange(of: geo.size) { _, _ in gridFrame = geo.frame(in: .named("upcomingHoursGrid")) }
+        }
+        .frame(height: hourH * 24)
+        .overlay(alignment: .topLeading) {
+            if let dragState {
+                let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
+                ghostView(dragState, width: max(4, columnWidth - rightInset))
+                    .offset(x: gutterW + CGFloat(dragState.dayIndex) * columnWidth, y: dragState.topY)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     // MARK: - Пул задач без времени
@@ -106,7 +166,7 @@ struct UpcomingHoursView: View {
         }
     }
 
-    private func dayColumn(_ day: UpcomingHourColumn) -> some View {
+    private func dayColumn(_ day: UpcomingHourColumn, index: Int) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 Color.clear
@@ -117,11 +177,12 @@ struct UpcomingHoursView: View {
                         return true
                     }
                 ForEach(Self.layoutDay(day.tasks)) { block in
+                    let isDragged = dragState?.taskID == block.task.id
                     UpcomingTimedBlock(
                         task: block.task,
                         color: projectColor(block.task),
                         durKnown: block.durKnown
-                    ) { onTaskTap(block.task.id) }
+                    )
                         .frame(width: Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols))
                         .frame(height: block.height)
                         .position(
@@ -129,14 +190,74 @@ struct UpcomingHoursView: View {
                                 + Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols) / 2,
                             y: block.top + block.height / 2
                         )
-                        // Уже поставленную плашку тоже можно взять и
-                        // перетащить на новое время/день — тот же `id`,
-                        // тот же `onSchedule` на приёме, что и у пула.
-                        .draggable(block.task.id)
+                        .opacity(isDragged ? 0 : 1)
+                        .contentShape(Rectangle())
+                        .gesture(dragGesture(for: block.task, dayIndex: index, top: block.top, height: block.height))
+                        .onTapGesture { if dragState == nil { onTaskTap(block.task.id) } }
                 }
             }
         }
         .overlay(alignment: .trailing) { Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width) }
+    }
+
+    // MARK: - Перетаскивание уже поставленной плашки (см. заголовочный комментарий файла)
+
+    /// `top` — верхний край плашки ДО перетаскивания (`block.top`), нужен
+    /// только чтобы вычислить точку захвата один раз в начале жеста.
+    private func dragGesture(for task: ApiTask, dayIndex: Int, top: CGFloat, height: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .named("upcomingHoursGrid"))
+            .onChanged { value in
+                let fingerX = value.location.x - gridFrame.minX
+                let fingerY = value.location.y - gridFrame.minY
+                let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
+                let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
+                if dragState?.taskID != task.id {
+                    let startFingerY = value.startLocation.y - gridFrame.minY
+                    grabOffsetY = startFingerY - top
+                    lastTickTime = nil
+                    grabHaptic.impactOccurred()
+                    grabHaptic.prepare()
+                    dragState = DragState(
+                        taskID: task.id, title: task.title, color: projectColor(task),
+                        height: max(minBlockH, height), topY: fingerY - grabOffsetY, dayIndex: overDay
+                    )
+                } else {
+                    dragState?.topY = fingerY - grabOffsetY
+                    dragState?.dayIndex = overDay
+                }
+                let time = Self.timeFromOffset(fingerY - grabOffsetY)
+                previewTime = time
+                if time != lastTickTime {
+                    lastTickTime = time
+                    tickHaptic.selectionChanged()
+                    tickHaptic.prepare()
+                }
+            }
+            .onEnded { value in
+                let fingerX = value.location.x - gridFrame.minX
+                let topY = value.location.y - gridFrame.minY - grabOffsetY
+                let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
+                let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
+                dragState = nil
+                previewTime = nil
+                guard topY >= -hourH, days.indices.contains(overDay) else { return }
+                onSchedule(task.id, days[overDay].date, Self.timeFromOffset(topY))
+            }
+    }
+
+    private func ghostView(_ state: DragState, width: CGFloat) -> some View {
+        Text(state.title)
+            .tfText(.meta)
+            .foregroundStyle(Color.tfHourChipInk)
+            .lineLimit(nil)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(width: width, height: state.height, alignment: .topLeading)
+            .background(state.color)
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
+            .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 6)
+            .scaleEffect(1.015)
     }
 
     private var nowLine: some View {
@@ -299,34 +420,38 @@ private struct UpcomingUntimedRow: View {
 
 /// Плашка задачи на сетке — сплошная заливка цветом проекта, тёмный текст
 /// (WCAG-аудит §3.5: белый текст не проходит норму ни на одном цвете палитры).
+/// Раньше был `Button` — владелец 03.09.2026, после `.draggable`/
+/// `.dropDestination` на уже поставленной плашке: «беру как тень, но не
+/// ездит» (системный drag не отслеживал перетаскивание внутри
+/// `.position()`-блока надёжно). Заменено на свой `DragGesture`, тот же
+/// проверенный приём, что уже в «Сегодня» (`TodayHoursView`) — там ровно
+/// по той же причине тап сделан `.onTapGesture` снаружи, а не `Button`
+/// внутри (Button конкурирует с `DragGesture` за жест на одном и том же
+/// касании). Тап и жест перетаскивания теперь оба навешаны в `dayColumn`.
 private struct UpcomingTimedBlock: View {
     let task: ApiTask
     let color: Color
     let durKnown: Bool
-    let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            Text(task.title)
-                .tfText(.meta)
-                .foregroundStyle(Color.tfHourChipInk)
-                .strikethrough(task.status == .completed)
-                .lineLimit(nil)
-                .multilineTextAlignment(.leading)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .buttonStyle(.plain)
-        .background(color)
-        .opacity(task.status == .completed ? 0.5 : 1)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
-        .mask(alignment: .top) {
-            if durKnown {
-                Rectangle()
-            } else {
-                LinearGradient(colors: [.black, .black, .clear], startPoint: .top, endPoint: .bottom)
+        Text(task.title)
+            .tfText(.meta)
+            .foregroundStyle(Color.tfHourChipInk)
+            .strikethrough(task.status == .completed)
+            .lineLimit(nil)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(color)
+            .opacity(task.status == .completed ? 0.5 : 1)
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
+            .mask(alignment: .top) {
+                if durKnown {
+                    Rectangle()
+                } else {
+                    LinearGradient(colors: [.black, .black, .clear], startPoint: .top, endPoint: .bottom)
+                }
             }
-        }
     }
 }
