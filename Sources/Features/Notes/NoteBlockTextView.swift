@@ -359,8 +359,22 @@ struct NoteKeyboardAccessoryBar: View {
         Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width, height: 20).padding(.horizontal, TFSpacing.xs)
     }
 
+    /// Владелец 03.09.2026: «на кнопки, когда нажимаю, чтобы вибрировало» —
+    /// именно у панельки, не глобально (`TFTapScaleStyle` — DesignSystem,
+    /// общий на всё приложение, трогать нельзя, ARCHITECTURE.md). `.light` —
+    /// тот же стиль, что уже взят для щелчка клавиши в `TFKeyboardHaptics`
+    /// (ближайший по смыслу прецедент в проекте: часто повторяющийся тап по
+    /// мелкой кнопке), не `.soft`, каким в остальном приложении помечен
+    /// свайп-жест — это другая, более тяжёлая моторика.
+    private func tapHaptic() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
     private func toolbarButton(_ icon: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            tapHaptic()
+            action()
+        } label: {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(active ? Color.tfRed : Color.tfSub)
@@ -372,7 +386,10 @@ struct NoteKeyboardAccessoryBar: View {
 
     private func headingButton(_ level: Int) -> some View {
         let active = isBlockKind { if case .heading(let l) = $0 { l == level } else { false } }
-        return Button { viewModel.toggleHeading(level, blockID: focus.blockID) } label: {
+        return Button {
+            tapHaptic()
+            viewModel.toggleHeading(level, blockID: focus.blockID)
+        } label: {
             Text("H\(level)")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(active ? Color.tfRed : Color.tfSub)
@@ -420,6 +437,7 @@ struct NoteKeyboardAccessoryBar: View {
 
     private var micButton: some View {
         Button {
+            tapHaptic()
             Task { await toggleDictation() }
         } label: {
             Group {
