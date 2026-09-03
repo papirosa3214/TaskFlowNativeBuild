@@ -13,11 +13,24 @@ import SwiftUI
 /// просьба владельца 03.09.2026: «невидимая плашка чуть выше панели,
 /// естественный стопор», без ручной заплатки на каждом ScrollView-экране.
 /// `.chat` — исключение: там вместо панели своя строка ввода снизу.
+///
+/// `reservesTabBarSpace` — тем же вечером панель научилась прятаться на
+/// ЛЮБОМ пуше (`RootShellView.shouldHideTabBar`), а эта невидимая плашка —
+/// нет: она вешалась одинаково и на корневые вкладки, и на запушенные
+/// экраны, поэтому под скрытой панелью оставался пустой зарезервированный
+/// зазор её высоты — на экране с клавиатурой (редактор заметки) он «ехал»
+/// вместе с ней, ровно как раньше сама панель. Владелец 03.09.2026:
+/// «менюшку убрал, но подложку — нет, она так же само поднимается».
+/// Корневые вкладки (`navigationStack(for:)`, там панель видна) передают
+/// `true`; все прочие вызовы — это `.navigationDestination`-пуши (вложенные
+/// в т.ч. — второй, третий уровень пуша тоже пуш, панель на нём скрыта
+/// точно так же), поэтому по умолчанию `false` — самих таких мест по
+/// экранам десятки, отдельно помечать каждое не нужно.
 @ViewBuilder
-func routeDestination(_ route: AppRoute) -> some View {
+func routeDestination(_ route: AppRoute, reservesTabBarSpace: Bool = false) -> some View {
     routeContent(route)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if route != .chat {
+            if reservesTabBarSpace && route != .chat {
                 Color.clear.frame(height: TFTabBarMetrics.heightCompact + TFSpacing.sm)
             }
         }

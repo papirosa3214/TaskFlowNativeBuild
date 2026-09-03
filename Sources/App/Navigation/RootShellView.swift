@@ -331,8 +331,8 @@ struct RootShellView: View {
 
     private func navigationStack(for tab: Tab) -> some View {
         NavigationStack(path: pathBinding(for: tab)) {
-            routeDestination(tab.route)
-                .navigationDestination(for: AppRoute.self) { routeDestination($0) }
+            routeDestination(tab.route, reservesTabBarSpace: true)
+                .navigationDestination(for: AppRoute.self) { routeDestination($0, reservesTabBarSpace: false) }
         }
     }
 
