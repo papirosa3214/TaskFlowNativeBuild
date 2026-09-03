@@ -11,22 +11,25 @@ import UIKit
 // контракта («не хватает чужого — сделай локально»), в отчёте предлагаю
 // оркестратору поднять в `DesignSystem`.
 //
-// Перетаскивание — И пул («без времени» → на сетку, системный `.draggable`/
-// `.dropDestination` — тут работает нормально, точка не движется по сетке
-// вообще, дропнуть можно в любую точку), И уже поставленная плашка на
-// новое время/день (просьба владельца 03.09.2026: «задержал и передвинул
-// эту плашку по времени»).
+// Перетаскивание — И пул («без времени» → на сетку), И уже поставленная
+// плашка на новое время/день (просьба владельца 03.09.2026: «задержал и
+// передвинул эту плашку по времени»). Оба случая — свой `DragGesture`,
+// тот же приём, что уже проверен и работает в «Сегодня»
+// (`TodayHoursView.dragGesture`), расширенный на несколько дневных колонок
+// сразу: день, над которым сейчас палец, вычисляется по X внутри общего
+// именованного пространства координат `upcomingHoursGrid`.
 //
-// ⚠️ Для уже поставленной плашки `.draggable`/`.dropDestination` ПРОБОВАЛИ
-// первым (просто ради переиспользования готового пула) — не подошло:
-// владелец, тем же вечером: «беру просто как тень, но она по сетке вообще
-// не ездит». Системный drag не отслеживал перемещение поверх абсолютно
-// спозиционированных (`.position()`) блоков внутри `GeometryReader`
-// достаточно надёжно. Заменено на свой `DragGesture` — тот же приём, что
-// уже проверен и работает в «Сегодня» (`TodayHoursView.dragGesture`),
-// расширенный на несколько дневных колонок сразу: день, над которым сейчас
-// палец, вычисляется по X внутри общего именованного пространства координат
-// `upcomingHoursGrid`.
+// ⚠️ Системный `.draggable`/`.dropDestination` ПРОБОВАЛИ первым для ОБОИХ
+// случаев (там, где готово из коробки — меньше кода) — не подошло ни разу:
+// сперва для уже поставленной плашки, владелец 03.09.2026: «беру просто
+// как тень, но она по сетке вообще не ездит», а после переноса пула на тот
+// же приём выяснилось — тень СИСТЕМНОГО drag на этом экране вообще не
+// цепляет `.dropDestination` внутри `GeometryReader`+`.position()`-раскладки
+// надёжно, не только у уже поставленных плашек. Оставлять два разных
+// механизма на одном экране (пул системным, плашки — своим) тоже было
+// ошибкой само по себе — расхождение в поведении подряд путало владельца.
+// Сейчас оба источника — один и тот же `dragGesture(for:dayIndex:top:height:)`,
+// `top == nil` у пула (нет исходной позиции — куда палец, туда и время).
 private let hourH: CGFloat = 124.0 / 3.0
 private let gutterW: CGFloat = 161.0 / 3.0
 private let snapMin = 15
@@ -146,8 +149,10 @@ struct UpcomingHoursView: View {
         VStack(spacing: 0) {
             ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
                 if index > 0 { TFDivider() }
-                UpcomingUntimedRow(task: task) { onTaskTap(task.id) }
-                    .draggable(task.id)
+                UpcomingUntimedRow(task: task)
+                    .opacity(dragState?.taskID == task.id ? 0.3 : 1)
+                    .gesture(dragGesture(for: task, dayIndex: 0, top: nil, height: minBlockH))
+                    .onTapGesture { if dragState == nil { onTaskTap(task.id) } }
             }
         }
         .background(Color.tfCard)
@@ -182,13 +187,6 @@ struct UpcomingHoursView: View {
     private func dayColumn(_ day: UpcomingHourColumn, index: Int) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                Color.clear
-                    .dropDestination(for: String.self) { items, location in
-                        guard let id = items.first else { return false }
-                        let time = Self.timeFromOffset(location.y)
-                        onSchedule(id, day.date, time)
-                        return true
-                    }
                 ForEach(Self.layoutDay(day.tasks)) { block in
                     let isDragged = dragState?.taskID == block.task.id
                     UpcomingTimedBlock(
@@ -213,11 +211,16 @@ struct UpcomingHoursView: View {
         .overlay(alignment: .trailing) { Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width) }
     }
 
-    // MARK: - Перетаскивание уже поставленной плашки (см. заголовочный комментарий файла)
+    // MARK: - Перетаскивание — И пул, И уже поставленная плашка (см. заголовочный комментарий файла)
 
-    /// `top` — верхний край плашки ДО перетаскивания (`block.top`), нужен
-    /// только чтобы вычислить точку захвата один раз в начале жеста.
-    private func dragGesture(for task: ApiTask, dayIndex: Int, top: CGFloat, height: CGFloat) -> some Gesture {
+    /// `dayIndex` — исходное значение, только для конструктора `DragState`
+    /// (пул им не владеет, передаёт 0 — сразу же на первом `onChanged`
+    /// перевычисляется из X пальца). `top` — верхний край плашки ДО
+    /// перетаскивания (`block.top`), нужен только чтобы вычислить точку
+    /// захвата один раз в начале жеста; `nil` у пула (задача ещё без
+    /// времени, точки захвата нет — куда палец, туда и время, как у
+    /// «Сегодня»).
+    private func dragGesture(for task: ApiTask, dayIndex: Int, top: CGFloat?, height: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 12, coordinateSpace: .named("upcomingHoursGrid"))
             .onChanged { value in
                 let fingerX = value.location.x - gridFrame.minX
@@ -226,7 +229,7 @@ struct UpcomingHoursView: View {
                 let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
                 if dragState?.taskID != task.id {
                     let startFingerY = value.startLocation.y - gridFrame.minY
-                    grabOffsetY = startFingerY - top
+                    grabOffsetY = top.map { startFingerY - $0 } ?? 0
                     lastTickTime = nil
                     grabHaptic.impactOccurred()
                     grabHaptic.prepare()
@@ -401,33 +404,32 @@ struct UpcomingDayColumnsHeader: View {
 }
 
 /// Плашка задачи без времени в пуле — spec §3.5, `UntimedRow`.
+/// Раньше был `Button` — тот же конфликт Button+`DragGesture`, что и у
+/// `UpcomingTimedBlock` (см. её комментарий). Тап и перетаскивание
+/// навешаны в `untimedPool` двумя независимыми модификаторами.
 private struct UpcomingUntimedRow: View {
     let task: ApiTask
-    let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 8) {
-                if task.priority <= 3, let p = TaskPriority(rawValue: task.priority) {
-                    TFPriorityFlag(p)
-                }
-                if !task.subtasks.isEmpty {
-                    Text("\(task.subtasks.count { $0.done })/\(task.subtasks.count)")
-                        .font(.system(size: 11)).monospacedDigit().foregroundStyle(Color.tfDim)
-                }
-                Text(task.title)
-                    .tfText(.action)
-                    .foregroundStyle(task.status == .completed ? Color.tfSub : Color.tfText)
-                    .strikethrough(task.status == .completed)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
+        HStack(spacing: 8) {
+            if task.priority <= 3, let p = TaskPriority(rawValue: task.priority) {
+                TFPriorityFlag(p)
             }
-            .padding(.leading, 12)
-            .padding(.trailing, 12)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+            if !task.subtasks.isEmpty {
+                Text("\(task.subtasks.count { $0.done })/\(task.subtasks.count)")
+                    .font(.system(size: 11)).monospacedDigit().foregroundStyle(Color.tfDim)
+            }
+            Text(task.title)
+                .tfText(.action)
+                .foregroundStyle(task.status == .completed ? Color.tfSub : Color.tfText)
+                .strikethrough(task.status == .completed)
+                .lineLimit(1)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(TFTapRowStyle())
+        .padding(.leading, 12)
+        .padding(.trailing, 12)
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
     }
 }
 
