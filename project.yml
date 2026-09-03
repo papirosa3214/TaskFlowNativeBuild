@@ -27,6 +27,11 @@ targets:
       # ни иконка приложения, ни альтернативные значки, и
       # `supportsAlternateIcons` возвращал false.
       - path: Resources/Assets.xcassets
+    dependencies:
+      # Распознавание речи на устройстве (просьба владельца 03.09.2026 —
+      # «подключи уже искусственный интеллект»): NVIDIA Parakeet TDT v3,
+      # портированный в CoreML — см. `Sources/Core/Speech/DictationEngine.swift`.
+      - package: FluidAudio
     info:
       path: Resources/Info.plist
       properties:
@@ -40,6 +45,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: Приложение обращается к серверу задач в домашней сети.
+        NSMicrophoneUsageDescription: Нужен для голосового ввода задач и заметок.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.native
@@ -114,6 +120,9 @@ packages:
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.18.0
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio.git
+    from: 0.12.4
 
 schemes:
   TaskFlow:

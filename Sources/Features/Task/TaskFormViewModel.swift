@@ -44,11 +44,11 @@ final class TaskFormViewModel {
         !title.trimmingCharacters(in: .whitespaces).isEmpty || !taskDescription.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    /// `startDictation` — сам диктовку не подключает (в проекте нигде нет
-    /// живого ASR-провода на native, см. `NATIVE-PARTS.md`), только держит
-    /// флаг для экрана: сфокусировать поле названия и показать кнопку
-    /// микрофона (по просьбе оркестратора — открыть форму «в нужном
-    /// состоянии», без самого распознавания).
+    /// `startDictation` — держит флаг для экрана: сфокусировать поле
+    /// названия и показать кнопку микрофона (по просьбе оркестратора —
+    /// открыть форму «в нужном состоянии»). Само распознавание при тапе по
+    /// кнопке живёт в `DictationEngine.shared`, не здесь — эта модель про
+    /// то, в каком СОСТОЯНИИ открылась форма, не про звук.
     let startDictation: Bool
 
     /// `presetDueToday`/`startDictation` — контракт `INTEGRATION.md`

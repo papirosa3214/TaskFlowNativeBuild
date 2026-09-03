@@ -29,6 +29,7 @@ struct NoteEditorScreen: View {
     @State private var linkPromptText = ""
     @State private var shareURL: URL?
     @State private var showShareSheet = false
+    @State private var dictation = DictationEngine.shared
 
     init(noteID: String) {
         self.noteID = noteID
@@ -390,21 +391,53 @@ struct NoteEditorScreen: View {
         viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
     }
 
-    // MARK: - Микрофон (spec §0.7) — только видимость по фокусу поля, как
-    // и в `TaskFormScreen`/`ChatComposer`: в проекте нет живого ASR-провода
-    // на native (см. их комментарии), само распознавание не подключаю.
+    // MARK: - Микрофон (spec §0.7) — видимость по фокусу поля, запись и
+    // распознавание — `DictationEngine.shared` (просьба владельца 03.09.2026,
+    // `Sources/Core/Speech/DictationEngine.swift`).
 
     private var micKeyboardBar: some View {
-        Button {} label: {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 18))
-                .foregroundStyle(Color.tfText)
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                .background(.ultraThinMaterial, in: Circle())
+        Button {
+            Task { await toggleDictation() }
+        } label: {
+            Group {
+                switch dictation.recordingState {
+                case .recording:
+                    Image(systemName: "waveform")
+                        .symbolEffect(.variableColor.iterative, isActive: true)
+                case .transcribing:
+                    ProgressView().tint(Color.tfText)
+                default:
+                    Image(systemName: "mic.fill")
+                }
+            }
+            .font(.system(size: 18))
+            .foregroundStyle(dictation.recordingState == .recording ? Color.tfRed : Color.tfText)
+            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+            .background(.ultraThinMaterial, in: Circle())
         }
         .buttonStyle(TFTapScaleStyle())
+        .disabled(dictation.recordingState == .transcribing)
         .padding(.trailing, TFSpacing.lg)
         .padding(.bottom, TFSpacing.lg)
+    }
+
+    /// Тап — старт записи, повторный тап — стоп + вставка распознанного
+    /// текста в текущий блок (тот же приём, что у AI-результата в
+    /// `runAssist`: `insertPlainParagraph` + `updateRuns`). Просьба владельца
+    /// 03.09.2026 «подключи распознавание речи» — `DictationEngine`.
+    private func toggleDictation() async {
+        switch dictation.recordingState {
+        case .idle, .failed:
+            await dictation.startRecording()
+        case .recording:
+            guard let text = await dictation.stopRecordingAndTranscribe(),
+                  let id = focusedBlockID, let ctrl = focusedController
+            else { return }
+            ctrl.insertPlainParagraph(text)
+            viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
+        case .transcribing:
+            break
+        }
     }
 }
 

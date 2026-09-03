@@ -11,14 +11,18 @@ import SwiftUI
 /// состояние НЕДОСТИЖИМО: это и есть то самое нативное приложение на iPhone,
 /// заглушка не рендерится никогда, ветка сознательно не портирована.
 ///
-/// ⚠️ Секция «На телефоне» — честный гэп. Веб качает модели Whisper через
-/// `argmaxinc/whisperkit-coreml` и локальную LLM через отдельный нативный
-/// мост (`localAI.ts`/`localLLM.ts`, Capacitor-плагины); в этом чисто
-/// SwiftUI-проекте такой инфраструктуры пока нет (ни `WhisperKit` в
-/// зависимостях `project.yml`, ни менеджера локальных весов в `Core/`) —
-/// заводить её не моя задача (экран настроек, не пайплайн распознавания) и
-/// не мой файл (`project.yml`). Строки ниже показывают ЧЕСТНОЕ состояние
-/// «не скачана» из общего словаря статусов, а не имитируют скачивание.
+/// ⚠️ Секция «На телефоне», 03.09.2026: «Распознавание речи» подключена —
+/// не `WhisperKit`/`argmaxinc`, как на вебе, а NVIDIA Parakeet TDT v3 через
+/// `FluidAudio` (SPM, `project.yml`) — владелец сам назвал модель («маленькая,
+/// все хвалят, мультиязычная») и явно попросил не городить пикер из
+/// нескольких движков. Реальный статус (не заглушка): строка тянет
+/// `DictationEngine.shared.modelState`, тап при «скачать» реально качает и
+/// греет модель. Логика записи/распознавания и приёмник UI — там же
+/// (`Sources/Core/Speech/DictationEngine.swift`), не в этом файле.
+///
+/// «Расшифровка действий» — другой по природе движок (локальная LLM,
+/// объясняющая, чем занят агент, не спич-ту-текст) — пока НЕ подключена,
+/// честный гэп остаётся: строка так и показывает «не скачана».
 struct VoiceModelsScreen: View {
     @State private var serverStatus: AIStatusResponse?
     @State private var isLoadingServerStatus = true
@@ -26,6 +30,7 @@ struct VoiceModelsScreen: View {
     @State private var isLogEnabled = DictationLog.isEnabled()
     @State private var logEntries = DictationLog.readEntries()
     @State private var pendingArchiveCount = DictationArchiveQueue.pendingCount()
+    @State private var dictation = DictationEngine.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,7 +47,10 @@ struct VoiceModelsScreen: View {
         }
         .tfNativeHeader("Модели и голоса")
         .background(Color.tfBackground)
-        .task { await loadServerStatus() }
+        .task {
+            dictation.refreshModelState()
+            await loadServerStatus()
+        }
     }
 
     private func loadServerStatus() async {
@@ -58,12 +66,23 @@ struct VoiceModelsScreen: View {
             SettingsCapsLabel("На телефоне")
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
-                    VoiceModelRow(
-                        icon: "mic", title: "Распознавание речи",
-                        subtitle: "Диктовка задач, заметок и комментариев",
-                        value: "не скачана", dot: .off
-                    )
+                    Button {
+                        Task { await dictation.downloadModelIfNeeded() }
+                    } label: {
+                        VoiceModelRow(
+                            icon: "mic", title: "Распознавание речи",
+                            subtitle: speechSubtitle,
+                            value: speechValue, dot: speechDot
+                        )
+                    }
+                    .buttonStyle(TFTapRowStyle())
+                    .disabled(!isSpeechRowTappable)
+
                     TFDivider(inset: rowDividerInset)
+                    // «Расшифровка действий» — отдельный движок (локальная
+                    // LLM, объясняющая, чем занят агент), не распознавание
+                    // речи. Владелец 03.09.2026 попросил начать с диктовки —
+                    // эта строка честно ждёт своей очереди.
                     VoiceModelRow(
                         icon: "sparkles", title: "Расшифровка действий",
                         subtitle: "Объясняет, чем занят агент в задаче",
@@ -72,10 +91,38 @@ struct VoiceModelsScreen: View {
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
-            Text("Модели на устройстве ещё не подключены в этой сборке — раздел покажет их честным «не скачана», пока в проект не добавлен модуль распознавания.")
+            Text("Распознавание речи — Parakeet TDT v3 (NVIDIA), полностью на телефоне, без сервера, понимает русский и ещё два десятка языков. Модель качается один раз при первом использовании.")
                 .tfText(.caption)
                 .foregroundStyle(Color.tfDim)
                 .padding(.horizontal, TFSpacing.screenHorizontal + TFSpacing.xs)
+        }
+    }
+
+    private var speechSubtitle: String {
+        if case .failed(let message) = dictation.modelState { return message }
+        return "Диктовка задач, заметок и комментариев"
+    }
+    private var speechValue: String {
+        switch dictation.modelState {
+        case .unknown: "…"
+        case .notDownloaded: "скачать"
+        case .downloading(let progress): "\(Int((progress * 100).rounded()))%"
+        case .ready: "готова"
+        case .failed: "ошибка"
+        }
+    }
+    private var speechDot: VoiceDotState {
+        switch dictation.modelState {
+        case .ready: .ok
+        case .downloading: .warn
+        case .failed: .warn
+        case .unknown, .notDownloaded: .off
+        }
+    }
+    private var isSpeechRowTappable: Bool {
+        switch dictation.modelState {
+        case .notDownloaded, .failed: true
+        case .unknown, .downloading, .ready: false
         }
     }
 

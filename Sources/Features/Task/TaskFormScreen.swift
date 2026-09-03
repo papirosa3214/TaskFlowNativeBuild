@@ -26,6 +26,7 @@ struct TaskFormScreen: View {
     @Environment(LabelStore.self) private var labelStore
     @Environment(SessionStore.self) private var session
     @FocusState private var isTitleFocused: Bool
+    @State private var dictation = DictationEngine.shared
 
     /// Перенесено из `TaskDetailScreen` вместе с меню «…».
     @State private var pendingAction: AgentOwnerActionKind?
@@ -66,10 +67,9 @@ struct TaskFormScreen: View {
 
     /// `presetDueToday`/`startDictation` — контракт `INTEGRATION.md`,
     /// обновлён оркестратором по ходу этой задачи (`/task/new?due=today`,
-    /// `/task/new?dictate=1` из `CreateMenu` веба). Диктовку саму не
-    /// подключаю (в проекте нет живого ASR-провода на native, см.
-    /// `NATIVE-PARTS.md`) — только состояние: поле названия сфокусировано,
-    /// кнопка микрофона показана (по прямой просьбе оркестратора).
+    /// `/task/new?dictate=1` из `CreateMenu` веба): поле названия
+    /// сфокусировано, кнопка микрофона показана. Само распознавание при
+    /// тапе — `DictationEngine.shared` (просьба владельца 03.09.2026).
     init(taskID: String?, presetDueToday: Bool = false, startDictation: Bool = false) {
         self.taskID = taskID
         self._viewModel = State(initialValue: TaskFormViewModel(taskID: taskID, presetDueToday: presetDueToday, startDictation: startDictation))
@@ -346,21 +346,50 @@ struct TaskFormScreen: View {
     }
 
     /// `MicKeyboardBar` — spec/SCREENS-2.md §0.7: плавающая круглая кнопка
-    /// 44×44 над клавиатурой, полупрозрачное стекло. Здесь ТОЛЬКО видимость
-    /// по фокусу поля названия — само распознавание не подключено (см. header).
+    /// 44×44 над клавиатурой, полупрозрачное стекло. Тап — старт записи,
+    /// повторный тап — стоп + распознавание (`DictationEngine`, просьба
+    /// владельца 03.09.2026 «подключи распознавание речи»). Текст дописывается
+    /// в название через пробел, а не заменяет — так же, как обычная печать.
     private var micKeyboardBar: some View {
         Button {
-            // Не подключено — см. комментарий у `init`.
+            Task { await toggleDictation() }
         } label: {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 18))
-                .foregroundStyle(Color.tfText)
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                .background(.ultraThinMaterial, in: Circle())
+            Group {
+                switch dictation.recordingState {
+                case .recording:
+                    Image(systemName: "waveform")
+                        .symbolEffect(.variableColor.iterative, isActive: true)
+                case .transcribing:
+                    ProgressView().tint(Color.tfText)
+                default:
+                    Image(systemName: "mic.fill")
+                }
+            }
+            .font(.system(size: 18))
+            .foregroundStyle(dictation.recordingState == .recording ? Color.tfRed : Color.tfText)
+            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+            .background(.ultraThinMaterial, in: Circle())
         }
         .buttonStyle(TFTapScaleStyle())
+        .disabled(dictation.recordingState == .transcribing)
         .padding(.trailing, TFSpacing.lg)
         .padding(.bottom, TFSpacing.lg)
+    }
+
+    private func toggleDictation() async {
+        switch dictation.recordingState {
+        case .idle, .failed:
+            await dictation.startRecording()
+        case .recording:
+            guard let text = await dictation.stopRecordingAndTranscribe() else { return }
+            if viewModel.title.isEmpty {
+                viewModel.title = text
+            } else {
+                viewModel.title += (viewModel.title.hasSuffix(" ") ? "" : " ") + text
+            }
+        case .transcribing:
+            break
+        }
     }
 
     // MARK: - Тело

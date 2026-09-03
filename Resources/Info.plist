@@ -27,6 +27,8 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Приложение обращается к серверу задач в домашней сети.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Нужен для голосового ввода задач и заметок.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
