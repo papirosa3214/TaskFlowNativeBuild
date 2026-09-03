@@ -219,6 +219,13 @@ struct QuickAddTaskView: View {
         Task {
             if await viewModel.save(taskStore: taskStore) {
                 onSaved()
+            } else {
+                // Раньше при ошибке (сеть/сервер) шторка молча оставалась на
+                // месте — `saveErrorMessage` уходил в баннер полной формы
+                // (`TaskFormScreen`), которого у компактной нет. Владелец
+                // 03.09.2026: «печатаю, нажимаю ОК, но она не появилась» —
+                // без тоста это неотличимо от зависшей кнопки.
+                toastMessage = TaskToastMessage(viewModel.saveErrorMessage ?? "Не удалось сохранить задачу", isError: true)
             }
         }
     }
