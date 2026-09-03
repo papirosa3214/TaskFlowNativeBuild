@@ -148,13 +148,23 @@ struct NoteEditorScreen: View {
             TFErrorBanner(viewModel.actionErrorMessage)
                 .padding(.horizontal, TFSpacing.screenHorizontal)
             editorBody
-            Text(viewModel.statusLabel)
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 16)
-                .padding(.horizontal, TFSpacing.screenHorizontal + 4)
-                .padding(.top, TFSpacing.xs)
+            // Была безусловной — идентична по идее прошлой «плашке» под
+            // таббар (RouteDestinationView.swift): резервировала полоску
+            // ~20pt в самом низу, даже когда сохранять нечего (`statusLabel
+            // == ""`), а у «Дневника» (NotesScreen) такого нет вообще —
+            // владелец 03.09.2026 нашёл её тем же приёмом, каким сверял
+            // прошлую: «сравни этот экранчик с экраном заметки». Теперь
+            // строка есть в дереве, только когда действительно есть что
+            // показать.
+            if !viewModel.statusLabel.isEmpty {
+                Text(viewModel.statusLabel)
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 16)
+                    .padding(.horizontal, TFSpacing.screenHorizontal + 4)
+                    .padding(.top, TFSpacing.xs)
+            }
         }
     }
 
