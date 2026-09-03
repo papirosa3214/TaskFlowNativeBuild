@@ -308,7 +308,15 @@ struct NoteKeyboardAccessoryBar: View {
         .padding(.horizontal, TFSpacing.screenHorizontal)
         .padding(.vertical, TFSpacing.sm)
         .frame(height: NoteKeyboardAccessoryHost.height)
-        .background(.regularMaterial)
+        // Было `.regularMaterial` (блюр) — владелец 03.09.2026: «чёрный
+        // блюр ещё не убрал, он под текстом» — на тёмной теме материал
+        // читается тёмным полупрозрачным пятном под последней строкой
+        // текста. Плоский фон, тот же токен, что у самого экрана — ничего
+        // не просвечивает, лишнего слоя нет.
+        .background(Color.tfBackground)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+        }
     }
 
     private var toolbar: some View {
