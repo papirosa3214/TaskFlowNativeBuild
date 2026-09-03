@@ -117,10 +117,12 @@ struct SubtaskEditListView: View {
                     .foregroundStyle(Color.tfText)
                     .onSubmit { commitRename(subtask) }
             } else {
+                // Было `.strikethrough(subtask.done)` — просьба владельца
+                // 03.09.2026: «не надо зачёркивать, не вижу, как называется
+                // подзадача» — приглушённого цвета (`tfSub`) достаточно.
                 Text(subtask.title)
                     .tfText(.body)
                     .foregroundStyle(subtask.done ? Color.tfSub : Color.tfText)
-                    .strikethrough(subtask.done)
                     .onTapGesture {
                         renamingId = subtask.id
                         renameText = subtask.title

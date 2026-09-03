@@ -58,10 +58,22 @@ struct SubtaskFeedView: View {
                 }
                 .buttonStyle(TFTapScaleStyle())
 
+                // Было `.strikethrough(subtask.done)` — просьба владельца
+                // 03.09.2026: «не надо зачёркивать, я не вижу, как называется
+                // подзадача». Приглушённый цвет (`tfSub`) один и так
+                // достаточно сигналит «готово», не мешая читать текст.
+                //
+                // Пробовал здесь `TFJustifiedText` (просьба «выравнивание по
+                // ширине») — откатил: у названий подзадач в этом проекте
+                // много технических «слов без пробелов» (`UpcomingFilterSheet`,
+                // имена файлов) — justify на таком тексте растягивает буквы
+                // ВНУТРИ слова, не только пробелы между словами, живым кадром
+                // выглядело хуже кривого левого края, не лучше. Компонент
+                // (`TFJustifiedText.swift`) остался — годится для обычной
+                // прозы без длинных нерасшиваемых кусков, не для этой строки.
                 Text(subtask.title)
                     .tfText(.body)
                     .foregroundStyle(subtask.done ? Color.tfSub : Color.tfText)
-                    .strikethrough(subtask.done)
                 Spacer()
                 if hasDetails(subtask) {
                     Image(systemName: expandedId == subtask.id ? "chevron.up" : "chevron.down")
