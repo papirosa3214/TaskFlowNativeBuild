@@ -14,8 +14,16 @@ import SwiftUI
 /// обрывается линией.
 public struct TFHeaderBackdrop: View {
     let tail: CGFloat
+    let opacity: Double
 
-    public init(tail: CGFloat = 26) { self.tail = tail }
+    /// `opacity` — плотность верхней (сплошной) части, 1 = как экран,
+    /// меньше — сквозь неё чуть проступает то, что уходит под низ (просьба
+    /// владельца 03.09.2026 для ленты «Планирования»: «верхний край —
+    /// процентов на 90 непрозрачный», не сплошной и не блюр).
+    public init(tail: CGFloat = 26, opacity: Double = 1) {
+        self.tail = tail
+        self.opacity = opacity
+    }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -46,7 +54,7 @@ public struct TFHeaderBackdrop: View {
     /// читалось как перевёрнутый градиент. Теперь плотная часть точно
     /// совпадает с фоном экрана, а мягкий переход остаётся только в хвосте.
     private var glass: some View {
-        Rectangle().fill(Color.tfBackground)
+        Rectangle().fill(Color.tfBackground.opacity(opacity))
     }
 }
 

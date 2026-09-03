@@ -48,9 +48,10 @@ struct UpcomingDayStrip: View {
     }
 }
 
-/// Содержимое нижней шторки раскрытого дня — используется только в
-/// НЕДЕЛЬНОМ виде (spec §3.6). Подключается через общий `.tfBottomSheet`
-/// (`DesignSystem`) — заголовок и «Готово» уже даёт его хром.
+/// Содержимое нижней шторки раскрытого дня — открывается и в НЕДЕЛЬНОМ, и в
+/// МЕСЯЧНОМ виде (spec §3.6). Заголовок и «Готово» рисует не этот файл, а
+/// `NavigationStack`/toolbar в `UpcomingScreen.daySheet` — нативная шапка
+/// шторки, не самодельная (см. LOCK-051/052 в AGENT-WORK-SCOPES.md).
 struct UpcomingDaySheetContent: View {
     let date: String
     let tasks: [ApiTask]

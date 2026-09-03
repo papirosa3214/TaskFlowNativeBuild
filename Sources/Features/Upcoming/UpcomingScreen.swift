@@ -25,9 +25,6 @@ public struct UpcomingScreen: View {
     }
 
     @State private var filters = UpcomingTaskFilters.empty
-    @State private var filterSheetOpen = false
-    @State private var filterSheetOpenPlanner = false
-    @State private var actionsMenuOpen = false
     @State private var selectedDate: String?
     @State private var openDay: String?
     @State private var pushedTaskID: String?
@@ -64,45 +61,32 @@ public struct UpcomingScreen: View {
 
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if !plannerVisibleProjectIds.isEmpty {
-                UpcomingPlannerProjectChips(
-                    projects: projectStore.projects, visibleProjectIds: plannerVisibleProjectIds,
-                    onAdd: { filterSheetOpenPlanner = true; filterSheetOpen = true }
-                )
-            }
         }
         .tfNativeHeader("Планирование", displayMode: .inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { filterSheetOpen = true } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                }
-                .accessibilityLabel("Фильтры")
-
-                Button { actionsMenuOpen = true } label: {
+            ToolbarItem(placement: .topBarTrailing) {
+                filterMenu
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Вид", selection: Binding(get: { view }, set: { view = $0 })) {
+                        Label("Список", systemImage: "list.bullet").tag(ViewMode.list)
+                        Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(ViewMode.week)
+                        Label("Месяц", systemImage: "calendar").tag(ViewMode.month)
+                        Label("Три дня", systemImage: "clock").tag(ViewMode.hours)
+                    }
+                    .pickerStyle(.inline)
+                } label: {
                     Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Выбрать представление")
+                .accessibilityIdentifier("upcoming.view-switcher")
             }
         }
         .background(Color.tfBackground)
-        .confirmationDialog("Вид", isPresented: $actionsMenuOpen, titleVisibility: .visible) {
-            // ⚠️ Замена `ActionsMenu` (плоский попап, спека §5.2) на системный
-            // `confirmationDialog` — тот же приём, что `TaskFlowApp`/`RootShellView`
-            // уже применили для `CreateMenu`; текущий вид отмечен галочкой
-            // в тексте пункта вместо красного полужирного (spec-требование
-            // «текущий вид — красным полужирным» тут не воспроизведено дословно).
-            viewModeButton(.list, "Список")
-            viewModeButton(.week, "Неделя")
-            viewModeButton(.month, "Месяц")
-            viewModeButton(.hours, "Три дня")
-            Button("Отмена", role: .cancel) {}
-        }
         .sheet(item: Binding(get: { openDay.map(IdentifiableDate.init) }, set: { _ in openDay = nil })) { day in
             daySheet(date: day.id)
         }
-        .sheet(isPresented: $filterSheetOpen) { filterSheet }
         .sheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
         .navigationDestination(isPresented: Binding(
             get: { pushedTaskID != nil }, set: { if !$0 { pushedTaskID = nil } }
@@ -170,20 +154,32 @@ public struct UpcomingScreen: View {
         }
     }
 
+    /// Нативная шторка — тот же приём, что `TodayScreen.sheetTaskID`: свой
+    /// `NavigationStack` ради toolbar (крестик слева, «Готово» справа),
+    /// системный хендл вместо самодельного (просьба владельца 03.09.2026 —
+    /// «пусть Apple сама сделает скругление и открытие-закрытие», от нас
+    /// только правильное расположение задач).
     @ViewBuilder
     private func daySheet(date openDay: String) -> some View {
-        TFBottomSheetContent(
-            title: UpcomingDaySheetTitle.text(openDay), actionTitle: "Готово",
-            action: { self.openDay = nil }, onClose: { self.openDay = nil }
-        ) {
+        NavigationStack {
             UpcomingDaySheetContent(
                 date: openDay, tasks: byDate[openDay] ?? [],
                 onTaskTap: { self.openDay = nil; pushedTaskID = $0 },
                 onPrevDay: { self.openDay = UpcomingDate.addDays(openDay, -1) },
                 onNextDay: { self.openDay = UpcomingDate.addDays(openDay, 1) }
             )
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .tfNativeHeader(UpcomingDaySheetTitle.text(openDay), displayMode: .inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { self.openDay = nil } label: { Image(systemName: "xmark") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Готово") { self.openDay = nil }
+                }
+            }
         }
-        .presentationDragIndicator(.hidden)
+        .presentationDragIndicator(.visible) // родной хендл шторки, свой больше не рисуем
         .presentationCornerRadius(TFRadius.sheet)
         .presentationBackground(Color.tfCard)
         .presentationDetents([.medium, .large])
@@ -201,29 +197,102 @@ public struct UpcomingScreen: View {
         )
     }
 
-    private var filterSheet: some View {
-        TFBottomSheetContent(onClose: { filterSheetOpen = false }) {
-            UpcomingFilterSheetContent(
-                filters: $filters,
-                projectOptions: UpcomingFilterEngine.projectOptions(optionDatedTasks),
-                labelOptions: UpcomingFilterEngine.labelOptions(optionDatedTasks),
-                assigneeOptions: UpcomingFilterEngine.assigneeOptions(optionDatedTasks),
-                planner: UpcomingPlannerProjectsConfig(
-                    projects: projectStore.projects, visibleProjectIds: plannerVisibleProjectIds,
-                    onToggle: togglePlannerVisibleProject
-                ),
-                openPlannerOnAppear: filterSheetOpenPlanner,
-                onClose: { filterSheetOpen = false }
-            )
+    /// Нативное системное меню — тот же приём, что `TodayScreen.filterMenu`:
+    /// стеклянный попап вместо самодельной шторки-карточки (просьба владельца
+    /// 03.09.2026 — «Планирование» должно быть нативным, как «Сегодня»).
+    /// Полоска чипов «Показывать в разделе» с кнопкой «+» отсюда пропала по
+    /// той же причине, что и у «Сегодня» (см. TodayScreen.swift): у `Menu`
+    /// нет способа открыть себя программно на нужном пункте, а сам выбор
+    /// проектов никуда не делся — он в подменю «Показывать в разделе» ниже.
+    private var filterMenu: some View {
+        let projectOptions = UpcomingFilterEngine.projectOptions(optionDatedTasks)
+        let labelOptions = UpcomingFilterEngine.labelOptions(optionDatedTasks)
+        let assigneeOptions = UpcomingFilterEngine.assigneeOptions(optionDatedTasks)
+        return Menu {
+            Menu {
+                filterOption("Все проекты", selected: filters.projectId == nil) { filters.projectId = nil }
+                if projectOptions.isEmpty {
+                    Text("Нет задач с проектом")
+                } else {
+                    ForEach(projectOptions) { option in
+                        filterOption(option.label, selected: filters.projectId == option.id) { filters.projectId = option.id }
+                    }
+                }
+            } label: {
+                Label("Проект", systemImage: "folder")
+            }
+
+            Menu {
+                filterOption("Все метки", selected: filters.labelId == nil) { filters.labelId = nil }
+                if labelOptions.isEmpty {
+                    Text("Нет задач с метками")
+                } else {
+                    ForEach(labelOptions) { option in
+                        filterOption(option.label, selected: filters.labelId == option.id) { filters.labelId = option.id }
+                    }
+                }
+            } label: {
+                Label("Метка", systemImage: "tag")
+            }
+
+            Menu {
+                filterOption("Все исполнители", selected: filters.assigneeKey == nil) { filters.assigneeKey = nil }
+                if assigneeOptions.hasUnassigned {
+                    filterOption("Без исполнителя", selected: filters.assigneeKey == "__none") { filters.assigneeKey = "__none" }
+                }
+                if assigneeOptions.list.isEmpty && !assigneeOptions.hasUnassigned {
+                    Text("Нет данных об исполнителях")
+                } else {
+                    ForEach(assigneeOptions.list) { option in
+                        filterOption(option.name, selected: filters.assigneeKey == option.id) { filters.assigneeKey = option.id }
+                    }
+                }
+            } label: {
+                Label("Исполнитель", systemImage: "person")
+            }
+
+            Divider()
+
+            Toggle(isOn: Binding(get: { filters.showCompleted }, set: { filters.showCompleted = $0 })) {
+                Label("Показывать выполненные", systemImage: "checkmark.circle")
+            }
+
+            Menu {
+                if projectStore.projects.isEmpty {
+                    Text("Нет проектов")
+                } else {
+                    ForEach(projectStore.projects) { project in
+                        filterOption(project.name, selected: plannerVisibleProjectIds.contains(project.id)) {
+                            togglePlannerVisibleProject(project.id)
+                        }
+                    }
+                }
+            } label: {
+                Label("Показывать в разделе", systemImage: "eye")
+            }
+
+            if filters.isActive {
+                Divider()
+                Button(role: .destructive) { filters = .empty } label: {
+                    Label("Сбросить фильтры", systemImage: "arrow.counterclockwise")
+                }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .foregroundStyle(filters.isActive ? Color.tfRed : Color.tfText)
         }
-        .presentationDragIndicator(.hidden)
-        .presentationCornerRadius(TFRadius.sheet)
-        .presentationBackground(Color.tfCard)
-        .onDisappear { filterSheetOpenPlanner = false }
+        .accessibilityLabel("Фильтры")
+        .accessibilityIdentifier("upcoming.filters")
     }
 
-    private func viewModeButton(_ mode: ViewMode, _ title: String) -> some View {
-        Button(view == mode ? "\(title) ✓" : title) { view = mode }
+    private func filterOption(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            if selected {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     private var openDaySheetBinding: Binding<Bool> {

@@ -60,13 +60,24 @@ struct UpcomingListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            calendarStrip
-            if let selectedDate {
-                selectedPill(selectedDate)
+        // Лента-выборщик — не сосед списка сверху, а `safeAreaInset`: список
+        // резервирует ей место, но визуально продолжает уходить под неё при
+        // скролле (тот же приём, что дал бы `ZStack`, только без ручного
+        // измерения высоты — просьба владельца 03.09.2026, тот же эффект
+        // затухания, что и у плашек дат ниже).
+        list
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    calendarStrip
+                    if let selectedDate {
+                        selectedPill(selectedDate)
+                    }
+                }
+                .background(
+                    TFHeaderBackdrop(tail: 20, opacity: 0.9)
+                        .padding(.bottom, -20)
+                )
             }
-            list
-        }
     }
 
     // MARK: - Лента-выборщик
@@ -80,12 +91,18 @@ struct UpcomingListView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text("\(UpcomingDate.monthsAbbrDot[pickerMonth]) \(pickerYear) г.")
+                        // Единственная строка месяца на всю ленту (была дублем:
+                        // до 03.09.2026 у недельной полосы была ЕЩЁ своя строка
+                        // месяца — по факту актуальная для показанной недели,
+                        // а эта не обновлялась при свайпе недель — visible
+                        // баг «два месяца наверху». Теперь одна строка следит
+                        // за активным режимом сама.
+                        Text(headerMonthLabel)
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.tfRed)
+                            .foregroundStyle(Color.tfText)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.tfRed)
+                            .foregroundStyle(Color.tfText)
                             .rotationEffect(.degrees(calMode == .week ? 180 : 0))
                     }
                 }
@@ -93,7 +110,13 @@ struct UpcomingListView: View {
                 Spacer()
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.top, TFSpacing.xs)
+            // Было .xs — просьба владельца 03.09.2026: слишком тесно сразу под
+            // шапкой, дать вздохнуть. Цвет — тоже по просьбе: не красный акцент,
+            // нейтральный текстовый, как заголовок «Планирование» над ним.
+            .padding(.top, TFSpacing.md)
+            // Отступ до сетки снизу — с размер шрифта строки месяца (14pt),
+            // тоже по просьбе владельца (была вплотную, без зазора).
+            .padding(.bottom, 14)
 
             if calMode == .month {
                 monthGrid
@@ -102,6 +125,21 @@ struct UpcomingListView: View {
             }
         }
         .animation(.easeInOut(duration: TFDuration.slow), value: calMode)
+    }
+
+    /// В режиме месяца — месяц просматриваемой сетки (`pickerMonth/Year`); в
+    /// режиме недели — месяц реально показанной недели (`activeWeekMonday`),
+    /// который меняется свайпом и не совпадает с `pickerMonth` после свайпа
+    /// через границу месяца.
+    /// Полное название месяца («Сентябрь», не «Сент.») — просьба владельца 03.09.2026.
+    private var headerMonthLabel: String {
+        switch calMode {
+        case .month:
+            return "\(UpcomingDate.monthsNom[pickerMonth]) \(pickerYear) г."
+        case .week:
+            let (year, month) = UpcomingDate.weekMonth(monday: activeWeekMonday)
+            return "\(UpcomingDate.monthsNom[month]) \(year) г."
+        }
     }
 
     private var monthGrid: some View {
@@ -147,9 +185,19 @@ struct UpcomingListView: View {
                     .tfText(.input)
                     .monospacedDigit()
                     .fontWeight(filled ? .semibold : .regular)
-                    .foregroundStyle(filled ? .white : (dim ? Color.tfDim.opacity(0.5) : Color.tfText))
+                    // «Сегодня» — сплошной круг (осталось как было). «Выбрано» —
+                    // не такой же круг, а мягкий бейдж: просьба владельца
+                    // 03.09.2026, два разных состояния не должны выглядеть
+                    // одинаково.
+                    .foregroundStyle(isToday ? .white : (isSelected ? Color.tfRed : (dim ? Color.tfDim.opacity(0.5) : Color.tfText)))
                     .frame(width: 30, height: 30)
-                    .background(filled ? Circle().fill(Color.tfRed) : nil)
+                    .background {
+                        if isToday {
+                            Circle().fill(Color.tfRed)
+                        } else if isSelected {
+                            RoundedRectangle(cornerRadius: TFRadius.md).fill(Color.tfRed.opacity(0.15))
+                        }
+                    }
                 if hasTasks && !filled {
                     Circle().fill(Color.tfRed).frame(width: 4, height: 4)
                 } else {
@@ -166,12 +214,6 @@ struct UpcomingListView: View {
         let days = (0..<7).map { UpcomingDate.addDays(activeWeekMonday, $0) }
         let today = UpcomingDate.todayString()
         return VStack(spacing: 2) {
-            Text(monthOfWeekLabel(activeWeekMonday))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.tfRed)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-
             HStack(spacing: TFSpacing.xs) {
                 ForEach(Array(days.enumerated()), id: \.offset) { i, ds in
                     let isToday = ds == today
@@ -218,11 +260,6 @@ struct UpcomingListView: View {
         .padding(.top, TFSpacing.xs)
     }
 
-    private func monthOfWeekLabel(_ monday: String) -> String {
-        let (year, month) = UpcomingDate.weekMonth(monday: monday)
-        return "\(UpcomingDate.monthsAbbrDot[month]) \(year)"
-    }
-
     private func selectedPill(_ date: String) -> some View {
         Button { selectedDate = nil } label: {
             HStack(spacing: 8) {
@@ -247,10 +284,14 @@ struct UpcomingListView: View {
     private var list: some View {
         Group {
             if let selectedDate, (groupedTasks[selectedDate] ?? []).isEmpty {
+                // maxHeight + alignment: .top — без этого короткая строка
+                // центрировалась по всей высоте экрана, а вместе с ней «падала»
+                // вниз и лента-календарь над ней (просьба владельца 03.09.2026:
+                // «календарь вниз спадает, непонятно почему»).
                 Text("Нет задач на эту дату")
                     .tfText(.body)
                     .foregroundStyle(Color.tfDim)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, 40)
             } else {
                 ScrollView {
@@ -283,13 +324,16 @@ struct UpcomingListView: View {
     }
 
     private func dateHeader(_ date: String) -> some View {
-        let isToday = date == UpcomingDate.todayString()
-        return Text(UpcomingDate.formatFullDate(date))
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(isToday ? Color.tfRed : Color.tfSub)
+        Text(UpcomingDate.formatFullDate(date))
+            // Было 13pt/.semibold/tfSub (tfRed для сегодня) — просьба владельца
+            // 03.09.2026: всем без исключения белым, покрупнее и пожирнее.
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(Color.tfText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, 6)
-            .background(Color.tfBackground)
+        // Без подложки вообще — просьба владельца 03.09.2026, тот же приём,
+        // что у соседних подзаголовков секций в TodayListView.header(_:):
+        // прилипает, но полностью прозрачный, никакого фона под текстом.
     }
 }
