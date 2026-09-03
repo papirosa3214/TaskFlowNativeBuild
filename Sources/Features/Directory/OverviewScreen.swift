@@ -78,20 +78,25 @@ struct OverviewScreen: View {
 
     // MARK: - Сетка 2×2 статусов агентов — числа считаются на клиенте (spec §5.3)
 
+    // Раньше вся плашка заливалась цветом (`tint.opacity(bgOpacity)`) — просьба
+    // владельца 03.09.2026: «не всю плашку цветом закрашивай, а только
+    // иконку» — плюс своя раскладка цветов по смыслу (в работе — зелёная,
+    // на проверке — синяя, заблокировано — оранжевая, пропали — красная) и
+    // цифра остаётся нейтральной, красится только иконка.
     private var statusGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: TFSpacing.sm), GridItem(.flexible())], spacing: TFSpacing.sm) {
             statusTile(route: .agentWork, title: "В работе", count: workingCount,
-                       icon: "waveform.path.ecg", tint: .tfBlue, bgOpacity: 0.15)
+                       icon: "waveform.path.ecg", tint: .tfGreen)
             statusTile(route: .agentWork, title: "На проверке", count: reviewCount,
-                       icon: "checkmark", tint: Color(hex: "#fbbf24"), bgOpacity: 0.15)
+                       icon: "checkmark", tint: .tfBlue)
             statusTile(route: .agentWork, title: "Заблокированы", count: blockedCount,
-                       icon: "flag", tint: .tfCoral, bgOpacity: 0.20)
+                       icon: "flag", tint: .tfOrange)
             statusTile(route: .agentWork, title: "Пропали", count: staleCount,
-                       icon: "cpu", tint: .tfCoral, bgOpacity: 0.20)
+                       icon: "cpu", tint: .tfRed)
         }
     }
 
-    private func statusTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color, bgOpacity: Double) -> some View {
+    private func statusTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color) -> some View {
         let active = count > 0
         return NavigationLink(value: route) {
             HStack(alignment: .top) {
@@ -102,7 +107,7 @@ struct OverviewScreen: View {
                         .lineLimit(1)
                     Text("\(count)")
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(active ? tint : Color.tfText)
+                        .foregroundStyle(Color.tfText)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: icon)
@@ -111,7 +116,7 @@ struct OverviewScreen: View {
             }
             .padding(TFSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(active ? tint.opacity(bgOpacity) : Color.tfCard)
+            .background(Color.tfCard)
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         }
         .buttonStyle(TFTapScaleStyle())
@@ -119,26 +124,27 @@ struct OverviewScreen: View {
 
     // MARK: - Сводка недели
 
+    // Была фиолетово-красным градиентом иконка + коралловый тег "SECOND
+    // BRAIN" — просьба владельца 03.09.2026: «сводка недели осталась
+    // чёрно-бело-цветной» на фоне причёсанного остального «Обзора» (LOCK
+    // причёсывания под стиль «Моделей и голосов»). Нейтрально, как соседние
+    // навигационные строки.
     private var weeklySummaryCard: some View {
         Button {
             // Инертно — WeeklySummaryModal не входит в мою зону экранов.
         } label: {
             HStack(spacing: 14) {
-                RoundedRectangle(cornerRadius: TFRadius.lg)
-                    .fill(LinearGradient(colors: [Color(hex: "#FF2D55"), Color(hex: "#FF9500")], startPoint: .bottomLeading, endPoint: .topTrailing))
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color.tfDim)
                     .frame(width: 36, height: 36)
-                    .overlay {
-                        Image(systemName: "brain.head.profile")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.white)
-                    }
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: TFSpacing.sm) {
                         Text("Сводка недели")
                             .tfText(.body)
                             .fontWeight(.semibold)
                             .foregroundStyle(Color.tfText)
-                        TFAccentTag("SECOND BRAIN", color: Color(hex: "#FF2D55"))
+                        TFAccentTag("SECOND BRAIN", color: .tfDim)
                     }
                     Text("Победы, хвосты и фокус на цели недели")
                         .tfText(.caption)
@@ -156,17 +162,17 @@ struct OverviewScreen: View {
         .buttonStyle(TFTapRowStyle())
     }
 
+    // `tint` больше не красит саму иконку/подложку (просьба владельца
+    // 03.09.2026 — причесать под лаконичный стиль «Моделей и голосов»,
+    // цветные плашки под каждой строкой убраны, параметр оставлен ради
+    // совместимости вызова, но игнорируется намеренно).
     private func navCard(route: AppRoute, icon: String, tint: Color, title: String, subtitle: String) -> some View {
         NavigationLink(value: route) {
             HStack(spacing: TFSpacing.md) {
-                RoundedRectangle(cornerRadius: TFRadius.lg)
-                    .fill(tint.opacity(0.15))
+                Image(systemName: icon)
+                    .tfText(.input)
+                    .foregroundStyle(Color.tfDim)
                     .frame(width: 32, height: 32)
-                    .overlay {
-                        Image(systemName: icon)
-                            .tfText(.input)
-                            .foregroundStyle(tint)
-                    }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .tfText(.body)

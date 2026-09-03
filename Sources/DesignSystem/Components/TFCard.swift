@@ -36,13 +36,57 @@ public struct TFSectionHeader: View {
     }
 }
 
-/// Строка настроек/справочника с цветным квадратом-иконкой слева, заголовком,
-/// подписью и шевроном справа (settings.png, overview.png) — универсальный
-/// «пункт меню», из которого собираются списки настроек/справочников.
+// Единый словарь статусов-точек (изначально spec §16 «Модели и голоса» —
+// работает/прогревается/скачивается/не скачана/нет связи/не найдена;
+// 03.09.2026 переехал сюда из `VoiceModelsScreen.swift` public'ом — тот же
+// приём понадобился `ServerStatusSection`, просьба владельца «эти же точки»).
+public enum VoiceDotState { case ok, warn, off }
+
+public struct VoiceStatusDot: View {
+    let state: VoiceDotState
+    public init(state: VoiceDotState) { self.state = state }
+    public var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+    }
+    private var color: Color {
+        switch state {
+        case .ok: .tfGreen
+        case .warn: .tfYellow
+        case .off: Color.tfDim.opacity(0.5)
+        }
+    }
+}
+
+/// Строка настроек/справочника с иконкой слева, заголовком, подписью и
+/// шевроном справа — универсальный «пункт меню», из которого собираются
+/// списки настроек/справочников.
+///
+/// `iconStyle` — просьба владельца 03.09.2026: похвалил именно `VoiceModelRow`
+/// («Модели и голоса» — лаконично, не цветасто, только точки-индикаторы) и
+/// попросил причесать под него Настройки/Обзор. `.tinted` (цветной квадрат-
+/// плашка под иконкой) — старое поведение, оставлено по умолчанию ради
+/// обратной совместимости с местами, которые этой правки не касаются
+/// (`SearchScreen`); `.plain` — новый вариант, голая серая иконка без
+/// подложки, тот же приём, что у `VoiceModelRow`/`TFFieldRow`.
+///
+/// `titleDot` — та же просьба: `ServerStatusSection` красил статус эмоджи
+/// («🟢»/«🔴») прямо внутри длинной строки значения — вместе с длинным
+/// заголовком это распирало ряд и текст переносился посреди слова. Точка
+/// перед заголовком — компактный сигнал без эмодзи, тот же приём, что у
+/// `VoiceModelRow`.
 public struct TFListRow: View {
+    public enum IconStyle {
+        case tinted
+        case plain
+    }
+
     let icon: String
     let iconTint: Color
+    let iconStyle: IconStyle
     let title: String
+    let titleDot: VoiceDotState?
     let subtitle: String?
     let trailing: AnyView?
     let action: (() -> Void)?
@@ -50,14 +94,18 @@ public struct TFListRow: View {
     public init(
         icon: String,
         iconTint: Color = .tfRed,
+        iconStyle: IconStyle = .tinted,
         title: String,
+        titleDot: VoiceDotState? = nil,
         subtitle: String? = nil,
         trailing: AnyView? = nil,
         action: (() -> Void)? = nil
     ) {
         self.icon = icon
         self.iconTint = iconTint
+        self.iconStyle = iconStyle
         self.title = title
+        self.titleDot = titleDot
         self.subtitle = subtitle
         self.trailing = trailing
         self.action = action
@@ -65,18 +113,16 @@ public struct TFListRow: View {
 
     public var body: some View {
         let row = HStack(spacing: TFSpacing.md) {
-            RoundedRectangle(cornerRadius: TFRadius.md)
-                .fill(iconTint.opacity(0.18))
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Image(systemName: icon)
-                        .font(.system(size: TFIconSize.sm))
-                        .foregroundStyle(iconTint)
-                }
+            iconView
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
+                HStack(spacing: TFSpacing.xs) {
+                    if let titleDot { VoiceStatusDot(state: titleDot) }
+                    Text(title)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
                 if let subtitle {
                     Text(subtitle)
                         .tfText(.action)
@@ -101,6 +147,26 @@ public struct TFListRow: View {
             Button(action: action) { row }.buttonStyle(TFTapRowStyle())
         } else {
             row
+        }
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        switch iconStyle {
+        case .tinted:
+            RoundedRectangle(cornerRadius: TFRadius.md)
+                .fill(iconTint.opacity(0.18))
+                .frame(width: 40, height: 40)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: TFIconSize.sm))
+                        .foregroundStyle(iconTint)
+                }
+        case .plain:
+            Image(systemName: icon)
+                .font(.system(size: TFIconSize.sm))
+                .foregroundStyle(Color.tfDim)
+                .frame(width: 40, height: 40)
         }
     }
 }

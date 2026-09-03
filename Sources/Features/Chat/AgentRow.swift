@@ -144,17 +144,29 @@ struct AgentRow: View {
                 }
             }
             Spacer(minLength: TFSpacing.sm)
-            roleBadge
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(agent.online == true ? Color.tfGreen : Color.tfDim)
-                    .frame(width: 7, height: 7)
-                Text(agent.online == true ? "Онлайн" : "Офлайн")
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfSub)
+            // Бейдж роли + «онлайн»/лимит раньше жались в один горизонтальный
+            // ряд с аватаркой и именем — на длинных сочетаниях («Оркестратор»
+            // + «Офлайн» + «без лимита») ряду не хватало ширины, и SwiftUI
+            // рвал слова посередине («Офлай[перенос]н») — жалоба владельца
+            // 03.09.2026: «буквы складывались в разнобой». Колонка справа,
+            // каждая строка — сама по себе, ничего больше не делит ширину.
+            VStack(alignment: .trailing, spacing: 4) {
+                roleBadge
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(agent.online == true ? Color.tfGreen : Color.tfDim)
+                        .frame(width: 7, height: 7)
+                    Text(agent.online == true ? "Онлайн" : "Офлайн")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
                 Text(limitsText)
                     .tfText(.caption)
                     .foregroundStyle(Color.tfSub)
+                    .lineLimit(1)
+                    .fixedSize()
             }
         }
         .padding(.horizontal, TFSpacing.lg)
@@ -162,13 +174,16 @@ struct AgentRow: View {
         .contentShape(Rectangle())
     }
 
+    // Была сплошная заливка (белый текст на цветном фоне) — просьба владельца
+    // 03.09.2026: «не прям цветную, а фоном» — тот же приглушённый приём, что
+    // у `TFAccentTag`/`TFLabelPill` (цветной текст на `color.opacity(0.18)`).
     private var roleBadge: some View {
         Text(roleBadgeLabel)
             .tfText(.meta)
-            .foregroundStyle(.white)
+            .foregroundStyle(roleBadgeColor)
             .padding(.horizontal, TFSpacing.sm)
             .padding(.vertical, 2)
-            .background(roleBadgeColor)
+            .background(roleBadgeColor.opacity(0.18))
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
     }
 

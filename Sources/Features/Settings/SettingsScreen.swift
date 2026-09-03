@@ -77,7 +77,7 @@ struct SettingsScreen: View {
                     }
                 )
             } else {
-                TFListRow(icon: "person", title: "Аккаунт")
+                TFListRow(icon: "person", iconStyle: .plain, title: "Аккаунт")
             }
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -86,22 +86,22 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var userSettingsSection: some View {
         section(title: "Пользовательские настройки") {
-            toggleRow(icon: "moon", tint: .tfRed, title: "Тема", valueLabel: viewModel.isDarkTheme ? "Тёмная" : "Светлая", isOn: $viewModel.isDarkTheme)
+            toggleRow(icon: "moon", title: "Тема", valueLabel: viewModel.isDarkTheme ? "Тёмная" : "Светлая", isOn: $viewModel.isDarkTheme)
             if viewModel.isBiometryAvailable {
                 TFDivider(inset: rowDividerInset)
-                toggleRow(icon: viewModel.biometryKind == .faceID ? "faceid" : "touchid", tint: .tfTeal, title: viewModel.biometryLabel, valueLabel: viewModel.isBiometryEnabled ? "Включён" : "Выключен", isOn: $viewModel.isBiometryEnabled)
+                toggleRow(icon: viewModel.biometryKind == .faceID ? "faceid" : "touchid", title: viewModel.biometryLabel, valueLabel: viewModel.isBiometryEnabled ? "Включён" : "Выключен", isOn: $viewModel.isBiometryEnabled)
             }
             TFDivider(inset: rowDividerInset)
             Button {
                 appIconSheetOpen = true
             } label: {
-                TFListRow(icon: "photo", iconTint: .tfPink, title: "Иконка",
+                TFListRow(icon: "photo", iconStyle: .plain, title: "Иконка",
                           trailing: AnyView(infoValue(appIcon.title)))
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.app-icon")
             TFDivider(inset: rowDividerInset)
-            toggleRow(icon: "keyboard", tint: .tfBlue, title: "Своя клавиатура", valueLabel: viewModel.isCustomKeyboardEnabled ? "Включена" : "Системная", isOn: $viewModel.isCustomKeyboardEnabled)
+            toggleRow(icon: "keyboard", title: "Своя клавиатура", valueLabel: viewModel.isCustomKeyboardEnabled ? "Включена" : "Системная", isOn: $viewModel.isCustomKeyboardEnabled)
         }
     }
 
@@ -109,7 +109,7 @@ struct SettingsScreen: View {
     private var aiSection: some View {
         section(title: "Искусственный интеллект") {
             NavigationLink(value: AppRoute.voiceModels) {
-                TFListRow(icon: "sparkles", iconTint: .tfPurple, title: "Искусственный интеллект", trailing: AnyView(chevron))
+                TFListRow(icon: "sparkles", iconStyle: .plain, title: "Искусственный интеллект", trailing: AnyView(chevron))
             }
             .buttonStyle(.plain)
         }
@@ -118,13 +118,13 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var generalSection: some View {
         section(title: "Общие") {
-            navRow(icon: "bookmark", tint: .tfOrange, title: "Шаблоны задач", route: .templates)
+            navRow(icon: "bookmark", title: "Шаблоны задач", route: .templates)
             TFDivider(inset: rowDividerInset)
-            navRow(icon: "tag", tint: .tfRed, title: "Метки", route: .labels)
+            navRow(icon: "tag", title: "Метки", route: .labels)
             TFDivider(inset: rowDividerInset)
-            navRow(icon: "person.3.fill", tint: .tfRed, title: "Команда", route: .agents)
+            navRow(icon: "person.3.fill", title: "Команда", route: .agents)
             TFDivider(inset: rowDividerInset)
-            navRow(icon: "link", tint: .tfTeal, title: "Интеграции (Google, Apple)", route: .integrations)
+            navRow(icon: "link", title: "Интеграции (Google, Apple)", route: .integrations)
         }
     }
 
@@ -166,9 +166,9 @@ struct SettingsScreen: View {
         }
     }
 
-    private func navRow(icon: String, tint: Color, title: String, route: AppRoute) -> some View {
+    private func navRow(icon: String, title: String, route: AppRoute) -> some View {
         NavigationLink(value: route) {
-            TFListRow(icon: icon, iconTint: tint, title: title, trailing: AnyView(chevron))
+            TFListRow(icon: icon, iconStyle: .plain, title: title, trailing: AnyView(chevron))
         }
         .buttonStyle(.plain)
     }
@@ -183,9 +183,9 @@ struct SettingsScreen: View {
             .foregroundStyle(Color.tfDim)
     }
 
-    private func toggleRow(icon: String, tint: Color, title: String, valueLabel: String, isOn: Binding<Bool>) -> some View {
+    private func toggleRow(icon: String, title: String, valueLabel: String, isOn: Binding<Bool>) -> some View {
         TFListRow(
-            icon: icon, iconTint: tint, title: title,
+            icon: icon, iconStyle: .plain, title: title,
             trailing: AnyView(HStack(spacing: TFSpacing.sm) {
                 infoValue(valueLabel)
                 TFToggle(isOn: isOn)

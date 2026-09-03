@@ -447,12 +447,14 @@ struct TaskFormScreen: View {
                 Image(systemName: "sparkles").font(.system(size: 14, weight: .semibold))
                 Text("Структурировать с AI").tfText(.body).fontWeight(.semibold)
             }
-            .foregroundStyle(.white)
+            // Была фиолетово-розовая заливка градиентом — просьба владельца
+            // 03.09.2026: причесать под лаконичный стиль «Моделей и голосов»
+            // (без цветных плашек), тот же нейтральный `tfCard2`, что у
+            // «Сегодня»/«Завтра» в `DueDateFieldView`.
+            .foregroundStyle(Color.tfText)
             .padding(.horizontal, TFSpacing.lg)
             .padding(.vertical, TFSpacing.sm)
-            .background(
-                LinearGradient(colors: [.tfPurple, .tfPink], startPoint: .leading, endPoint: .trailing)
-            )
+            .background(Color.tfCard2)
             .clipShape(Capsule())
         }
         .buttonStyle(TFTapScaleStyle())

@@ -141,11 +141,11 @@ struct ServerStatusSection: View {
             VStack(spacing: 0) {
                 switch viewModel.phase {
                 case .failed:
-                    TFListRow(icon: "xmark.circle", iconTint: .tfCoral, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("не отвечает 🔴", color: .tfCoral)))
+                    TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", titleDot: .warn, trailing: AnyView(valueText("не отвечает", color: .tfCoral)))
                     TFDivider(inset: rowDividerInset)
-                    TFListRow(icon: "waveform.path.ecg", title: "Повторить проверку", action: { Task { await viewModel.load() } })
+                    TFListRow(icon: "waveform.path.ecg", iconStyle: .plain, title: "Повторить проверку", action: { Task { await viewModel.load() } })
                 case .loading:
-                    TFListRow(icon: "waveform.path.ecg", title: "Сервер 192.168.1.110", trailing: AnyView(valueText("проверяю связь…")))
+                    TFListRow(icon: "server.rack", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("проверяю связь…")))
                 case .loaded:
                     loadedRows
                 }
@@ -158,23 +158,27 @@ struct ServerStatusSection: View {
     private var loadedRows: some View {
         if let status = viewModel.status {
             TFListRow(
-                icon: "waveform.path.ecg", iconTint: .tfTeal,
+                // Была "waveform.path.ecg" (кардиограмма) — просьба владельца
+                // 03.09.2026: «иконка вообще не про сервер» — server.rack
+                // буквально изображает сервер. Зелёную точку тоже убрал по
+                // его слову: этот ряд рисуется только когда `/server-status`
+                // ОТВЕТИЛ (иначе — ветка `.failed` со своей иконкой и «не
+                // отвечает»), так что аптайм на экране сам по себе уже
+                // значит «онлайн» — отдельный сигнал был лишним.
+                icon: "server.rack", iconStyle: .plain,
                 title: "Сервер (192.168.1.110)",
-                trailing: AnyView(valueText("В сети 🟢 · \(ServerStatusFormat.uptime(status.uptimeSec))"))
+                trailing: AnyView(valueText(ServerStatusFormat.uptime(status.uptimeSec)))
             )
+            // Строка «Локальная LLM» отсюда убрана — просьба владельца
+            // 03.09.2026: «это же про интеллект, закинь её в искусственный
+            // интеллект» — и она там уже реально есть (не дубль завожу, а
+            // убираю настоящий): `VoiceModelsScreen.onServerSection`,
+            // строка `serverModelTitle`/`serverModelValue`, тот же Ollama-
+            // статус с того же /server-status. Здесь остаётся только то, что
+            // именно про инфраструктуру сервера (аптайм/пинг/версия/будильник).
             TFDivider(inset: rowDividerInset)
             TFListRow(
-                icon: "cpu", iconTint: status.ollamaOnline ? .tfTeal : .tfCoral,
-                title: "Локальная LLM (Ollama)",
-                trailing: AnyView(valueText(
-                    status.ollamaOnline
-                        ? "\(status.ollamaModel.replacingOccurrences(of: ":latest", with: "")) в сети 🟢"
-                        : "Недоступна 🔴"
-                ))
-            )
-            TFDivider(inset: rowDividerInset)
-            TFListRow(
-                icon: "bolt.fill", iconTint: .tfBlue,
+                icon: "bolt.fill", iconStyle: .plain,
                 title: "Проверить связь (Пинг)",
                 trailing: AnyView(HStack(spacing: TFSpacing.xs) {
                     valueText(viewModel.pingResult ?? (viewModel.isPinging ? "Замеряю…" : "Проверить"))
@@ -185,14 +189,14 @@ struct ServerStatusSection: View {
             if let commit = status.commit {
                 TFDivider(inset: rowDividerInset)
                 TFListRow(
-                    icon: "tag", iconTint: .tfBlue,
+                    icon: "tag", iconStyle: .plain,
                     title: "Версия",
                     trailing: AnyView(valueText(status.commitAt.flatMap(ServerStatusFormat.commitDate).map { "\(commit) · \($0)" } ?? commit))
                 )
             }
             TFDivider(inset: rowDividerInset)
             TFListRow(
-                icon: "bell.fill", iconTint: .tfCoral,
+                icon: "bell.fill", iconStyle: .plain,
                 title: "Будильник (служба)",
                 trailing: AnyView(HStack(spacing: TFSpacing.sm) {
                     valueText(viewModel.agentService?.active == true ? "Включён" : "Выключен")
@@ -205,7 +209,7 @@ struct ServerStatusSection: View {
             )
             TFDivider(inset: rowDividerInset)
             TFListRow(
-                icon: "list.bullet", iconTint: .tfPurple,
+                icon: "list.bullet", iconStyle: .plain,
                 title: "Задачи",
                 trailing: AnyView(valueText(status.dbBytes.map { "\(status.tasksActive) из \(status.tasksTotal) · \(ServerStatusFormat.bytes($0))" }
                     ?? "\(status.tasksActive) из \(status.tasksTotal)"))
@@ -215,7 +219,10 @@ struct ServerStatusSection: View {
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
 
+    // `.lineLimit(1)` — без него длинные строки («модель · время работы»)
+    // рвались посреди слова, когда не хватало горизонтального места рядом с
+    // длинным заголовком (жалоба владельца 03.09.2026: «буквы в разнобой»).
     private func valueText(_ text: String, color: Color = .tfSub) -> some View {
-        Text(text).tfText(.body).foregroundStyle(color)
+        Text(text).tfText(.body).foregroundStyle(color).lineLimit(1).fixedSize()
     }
 }

@@ -176,7 +176,10 @@ struct VoiceModelsScreen: View {
     }
 
     /// Порт `serverModelName` (`src/lib/aiStatus.ts`) — «qwen3.6-27b-iq4-16k:latest» → «Qwen 3.6 · 27B».
-    private static func humanServerModelName(_ raw: String) -> String {
+    /// Не `private` — тем же приёмом сокращает модель `ServerStatusSection`
+    /// (просьба владельца 03.09.2026: «просто Qwen 27B и всё, я и так пойму,
+    /// какая это модель» — сырое `qwen3.6-27b-iq4-16k` не влезало в строку).
+    static func humanServerModelName(_ raw: String) -> String {
         guard !raw.isEmpty else { return "Неизвестная модель" }
         let base = raw.split(separator: ":").first.map(String.init) ?? raw
         let lowerBase = base.lowercased()
@@ -295,24 +298,11 @@ struct VoiceModelsScreen: View {
 }
 
 // MARK: - Единый словарь статусов (spec §16: работает/прогревается/скачивается/не скачана/нет связи/не найдена)
-
-enum VoiceDotState { case ok, warn, off }
-
-private struct VoiceStatusDot: View {
-    let state: VoiceDotState
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 8, height: 8)
-    }
-    private var color: Color {
-        switch state {
-        case .ok: .tfGreen
-        case .warn: .tfYellow
-        case .off: Color.tfDim.opacity(0.5)
-        }
-    }
-}
+//
+// `VoiceDotState`/`VoiceStatusDot` переехали в `TFCard.swift` (DesignSystem,
+// 03.09.2026) — тот же приём точки-индикатора понадобился и в
+// `ServerStatusSection` (просьба владельца: «эти же точки, что в
+// искусственном интеллекте»), а раздваивать компонент по экранам ни к чему.
 
 /// Одна строка раздела ИИ — иконка/точка-статус/заголовок/подпись/значение
 /// (`ModelRow` в вебе — здесь намеренно с префиксом `Voice`, модуль один на
