@@ -109,7 +109,9 @@ struct TodayScreen: View {
                     }
                 }
                 }
-                .padding(.bottom, TFTabBarMetrics.heightCompact + TFSpacing.lg)
+                // Отступ под панель вкладок теперь общий, из RootShellView
+                // (safeAreaInset) — свой убран, было бы задвоение.
+                .padding(.bottom, TFSpacing.lg)
         }
         .background(Color.tfBackground.ignoresSafeArea())
         .tfNativeHeader(TodayDate.formatWeekdayLabel(headerDate))

@@ -129,6 +129,15 @@ struct RootShellView: View {
             }
             #endif
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Отступ под TFTabBar — теперь в самой `routeDestination` (см.
+            // RouteDestinationView.swift): `.safeAreaInset`, повешенный
+            // ЗДЕСЬ, снаружи `NavigationStack`, до запушенных экранов не
+            // доходил вообще (`.navigationDestination` строит их отдельным
+            // вызовом `routeDestination`, вне зоны действия этого модификатора
+            // — проверено кадром симулятора 03.09.2026, баг было видно
+            // «живьём»). Инсет только на корневых вкладках без единого пуша
+            // был бы бесполезен: почти весь список экранов в приложении —
+            // как раз запушенные.
 
             if isCreateMenuOpen {
                 // Подложка ловит тап мимо и закрывает меню БЕЗ затемнения

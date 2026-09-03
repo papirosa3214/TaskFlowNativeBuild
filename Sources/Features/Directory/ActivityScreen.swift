@@ -69,11 +69,10 @@ struct ActivityScreen: View {
         }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Назад рисует сам NavigationStack; в toolbar
-        // остаётся только фильтр.
-        .navigationTitle("Активность")
-        .toolbarTitleDisplayMode(.large)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .toolbarBackgroundVisibility(.automatic, for: .navigationBar)
+        // остаётся только фильтр. Было ручное `.toolbarBackground` — просьба
+        // владельца 03.09.2026 («нативные кнопки, нативный фильтр везде
+        // одним элементом») — `tfNativeHeader`, как на остальных экранах.
+        .tfNativeHeader("Активность")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

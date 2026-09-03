@@ -99,17 +99,34 @@ struct ProjectTasksScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
-        // Своя шапка уже несёт заголовок и кнопку «назад» — системный навбар
-        // поверх неё давал ВТОРУЮ стрелку и лишнюю полосу.
-        .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            DirectoryCompactHeader(
-                title: project?.name ?? "Проект",
-                actions: project != nil ? [TFHeaderAction(icon: "plus") { showNewTask = true }] : [],
-                accessory: project.map { p in
-                    { AnyView(Circle().fill(Color(hex: p.color ?? TFHexDefault.unassigned)).frame(width: 10, height: 10)) }
+        // Штатная шапка (просьба владельца 03.09.2026 — «нативные кнопки
+        // везде одним элементом»). Была `DirectoryCompactHeader` (свой
+        // ZStack) ради цветного кружка проекта перед заголовком —
+        // `tfNativeHeader` такого слота не даёт (только `String`), но у
+        // toolbar есть штатное место как раз под это: `.principal` меняет
+        // содержимое заголовка на произвольное вью, сам разруливая место с
+        // соседним «+» (тот самый наезд текста на кнопку, LOCK-060/061,
+        // здесь в принципе невозможен на системном toolbar).
+        .tfNativeHeader(project?.name ?? "Проект", displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 6) {
+                    if let project {
+                        Circle().fill(Color(hex: project.color ?? TFHexDefault.unassigned)).frame(width: 10, height: 10)
+                    }
+                    Text(project?.name ?? "Проект")
+                        .tfText(.title)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(1)
                 }
-            )
+            }
+            if project != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showNewTask = true } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
         }
         .task {
             if projectStore.projects.isEmpty { await projectStore.load() }

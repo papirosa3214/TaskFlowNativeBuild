@@ -55,41 +55,24 @@ struct NotificationsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
-        // Своя кнопка «назад» уже есть в шапке; без скрытия системного навбара
-        // на экране два значка «назад» (владелец 01.09.2026).
-        .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top, spacing: 0) { header }
-        .navigationDestination(item: $route) { routeDestination($0) }
-        .task { await notificationStore.load() }
-    }
-
-    // MARK: - Шапка (кастомная — нужна текстовая кнопка справа, `TFHeaderAction` только иконки)
-
-    private var header: some View {
-        ZStack {
-            HStack {
-                DirectoryBackButton()
-                Spacer()
+        // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
+        // 03.09.2026 — «нативные кнопки везде одним элементом»). Была своя
+        // ZStack-шапка ради текстовой кнопки «Прочитать все» — системный
+        // toolbar принимает текстовую кнопку точно так же, как иконку,
+        // отдельный слот под это не нужен был вовсе.
+        .tfNativeHeader("Уведомления")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Task { await markAllRead() }
                 } label: {
-                    Text("Прочитать все").tfText(.action).foregroundStyle(Color.tfSub)
+                    Text("Прочитать все")
                 }
-                .buttonStyle(TFTapFadeStyle())
                 .disabled(isMarkingAllRead || allRead)
-                .opacity((isMarkingAllRead || allRead) ? 0.4 : 1)
             }
-            Text("Уведомления").tfText(.title).foregroundStyle(Color.tfText).lineLimit(1).allowsHitTesting(false)
         }
-        .padding(.horizontal, TFSpacing.screenHorizontal)
-        .frame(height: 48)
-        // Свой `.background(.ultraThinMaterial)`, потому что toolbarBackground
-        // системного навбара сюда не доходит (экран скрывает навбар через
-        // `.toolbar(.hidden, for: .navigationBar)`). Без фона шапка сливается
-        // с `Color.tfBackground` экрана (Claude_Bot приёмка 02.09.2026).
-        // Полупрозрачный blur, как в вебе (frosted glass) — НЕ сплошной
-        // `.background(Color.tfCard)`, как было в коммите 13.
-        .background(.ultraThinMaterial)
+        .navigationDestination(item: $route) { routeDestination($0) }
+        .task { await notificationStore.load() }
     }
 
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }

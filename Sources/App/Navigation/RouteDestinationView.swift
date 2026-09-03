@@ -5,8 +5,26 @@ import SwiftUI
 /// `…ScreenStub`; по мере готовности экрана оркестратор меняет его ветку
 /// одной строкой, структуру `switch` трогать не нужно.
 /// Писатели экранов сюда не ходят (файл в `Sources/App/`, правило 2 контракта).
+///
+/// Отступ снизу под `TFTabBar` — здесь, а не в каждом экране по отдельности
+/// и не в `RootShellView` (там `.safeAreaInset` до запушенных экранов не
+/// доходит — см. её комментарий). Единственная общая точка, через которую
+/// проходят и корневые вкладки, и все `.navigationDestination`-пуши —
+/// просьба владельца 03.09.2026: «невидимая плашка чуть выше панели,
+/// естественный стопор», без ручной заплатки на каждом ScrollView-экране.
+/// `.chat` — исключение: там вместо панели своя строка ввода снизу.
 @ViewBuilder
 func routeDestination(_ route: AppRoute) -> some View {
+    routeContent(route)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if route != .chat {
+                Color.clear.frame(height: TFTabBarMetrics.heightCompact + TFSpacing.sm)
+            }
+        }
+}
+
+@ViewBuilder
+private func routeContent(_ route: AppRoute) -> some View {
     switch route {
     case .today:
         TodayScreen()

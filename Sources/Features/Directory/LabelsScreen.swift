@@ -68,17 +68,14 @@ struct LabelsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
-        // Штатная SwiftUI-шапка. Кнопка «назад» — через DirectoryBackButton
-        // в .topBarLeading. Дубль заголовка снят (шаблон шага 1 из 92aa0973).
-        .navigationTitle("Метки")
-        .toolbarTitleDisplayMode(.large)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .toolbarBackgroundVisibility(.automatic, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                DirectoryBackButton()
-            }
-        }
+        // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
+        // 03.09.2026 — «нативные кнопки везде одним элементом»). Была ручная
+        // `DirectoryBackButton()` в toolbar ПОВЕРХ уже автоматической
+        // системной стрелки навигационного стека — та самая «две кнопки
+        // назад» (LOCK-019/020), которую когда-то уже чинили, но правка тут
+        // не прижилась: кнопка так и осталась в коде. Убрана окончательно —
+        // системная стрелка и так есть, своя тут не нужна вовсе.
+        .tfNativeHeader("Метки")
         .task {
             if labelStore.labels.isEmpty { await labelStore.load() }
             if taskStore.tasks.isEmpty { await taskStore.load() }

@@ -55,20 +55,30 @@ struct LabelTasksScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
-        // Своя шапка уже несёт заголовок и кнопку «назад» — системный навбар
-        // поверх неё давал ВТОРУЮ стрелку и лишнюю полосу.
-        .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            DirectoryCompactHeader(
-                title: label?.name ?? "Метка",
-                accessory: label.map { l in
-                    { AnyView(
+        // Штатная шапка (просьба владельца 03.09.2026 — «нативные кнопки
+        // везде одним элементом»). Была `DirectoryCompactHeader` (свой
+        // ZStack) специально ради цветной иконки метки перед заголовком —
+        // `tfNativeHeader` такого слота не даёт (только `String`), но у
+        // toolbar есть штатное место как раз под это: `.principal` меняет
+        // содержимое заголовка на произвольное вью, без ручной геометрии и
+        // без риска наехать на кнопки вокруг (тот баг, что чинили в
+        // DirectoryCompactHeader, тут в принципе невозможен — `.principal`
+        // сам разруливает место с соседними toolbar-элементами).
+        .tfNativeHeader(label?.name ?? "Метка", displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 6) {
+                    if let label {
                         Image(systemName: "tag")
                             .tfText(.row)
-                            .foregroundStyle(Color(hex: l.color ?? TFHexDefault.unassigned))
-                    ) }
+                            .foregroundStyle(Color(hex: label.color ?? TFHexDefault.unassigned))
+                    }
+                    Text(label?.name ?? "Метка")
+                        .tfText(.title)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(1)
                 }
-            )
+            }
         }
         .task {
             if labelStore.labels.isEmpty { await labelStore.load() }
