@@ -150,34 +150,41 @@ struct RootShellView: View {
 
             // Панель прячется на чате (её место занимает панель ввода,
             // владелец 01.09.2026) И на любом пуше текущей вкладки — см.
-            // `shouldHideTabBar`.
-            VStack(spacing: 0) {
-                if isCreateMenuOpen {
-                    TFCreateMenu(items: createMenuItems)
-                        .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar)
-                        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+            // `shouldHideTabBar`. Раньше пряталась через `.opacity(0)` —
+            // владелец 03.09.2026, увидев результат: «подложку-то ты
+            // оставил какую-то, надо убрать вообще все слои, внизу ставить
+            // только фон» — `.opacity` не убирает саму панель из дерева, её
+            // фон-подложка (градиент под safe area, см. `TFTabBar.swift`)
+            // технически всё ещё рендерится, просто прозрачной. Настоящее
+            // «пусто внизу» — панель вообще не строится, когда скрыта.
+            if !shouldHideTabBar {
+                VStack(spacing: 0) {
+                    if isCreateMenuOpen {
+                        TFCreateMenu(items: createMenuItems)
+                            .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar)
+                            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+                    }
+                    TFTabBar(
+                        items: tabItems,
+                        selectedIndex: selectedIndexBinding,
+                        isCreateMenuOpen: isCreateMenuOpen,
+                        onSelect: { index in
+                            guard let tab = Tab(rawValue: index) else { return }
+                            // Повторный тап по УЖЕ активной вкладке возвращает в её
+                            // корень — как в родных приложениях. Без этого из
+                            // «Проектов» нельзя было вернуться в «Обзор» тапом по
+                            // самой вкладке: она уже выбрана, ничего не менялось.
+                            if tab == selectedTab {
+                                paths[tab] = NavigationPath()
+                            } else {
+                                selectedTab = tab
+                            }
+                        },
+                        onCreateTap: { isCreateMenuOpen.toggle() }
+                    )
                 }
-                TFTabBar(
-                    items: tabItems,
-                    selectedIndex: selectedIndexBinding,
-                    isCreateMenuOpen: isCreateMenuOpen,
-                    onSelect: { index in
-                        guard let tab = Tab(rawValue: index) else { return }
-                        // Повторный тап по УЖЕ активной вкладке возвращает в её
-                        // корень — как в родных приложениях. Без этого из
-                        // «Проектов» нельзя было вернуться в «Обзор» тапом по
-                        // самой вкладке: она уже выбрана, ничего не менялось.
-                        if tab == selectedTab {
-                            paths[tab] = NavigationPath()
-                        } else {
-                            selectedTab = tab
-                        }
-                    },
-                    onCreateTap: { isCreateMenuOpen.toggle() }
-                )
+                .transition(.opacity)
             }
-            .opacity(shouldHideTabBar ? 0 : 1)
-            .allowsHitTesting(!shouldHideTabBar)
         }
         .environment(\.chatBackAction, {
             isCreateMenuOpen = false
