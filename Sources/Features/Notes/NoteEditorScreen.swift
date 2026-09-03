@@ -39,8 +39,18 @@ struct NoteEditorScreen: View {
     var body: some View {
         content
         .background(Color.tfBackground)
-        .overlay(alignment: .bottomTrailing) {
-            if focusedBlockID != nil && !viewModel.aiBusy { micKeyboardBar }
+        .safeAreaInset(edge: .bottom) {
+            // Раньше формат-панель сидела статично у верха экрана, а
+            // микрофон плавал `.overlay` отдельным кружком поверх текста —
+            // владелец 03.09.2026: «прилепить ленту к верху клавиатуры»
+            // + на живом устройстве (не симулятор) кружок микрофона
+            // рисовался ТРЁМЯ копиями сразу, пока открыта клавиатура
+            // (скриншот). `.overlay(alignment: .bottomTrailing)` в паре
+            // с раскладкой текстовых `UIViewRepresentable`-блоков и
+            // клавиатурой давал лишние проходы layout — плавающего слоя
+            // больше нет, обе панели объединены в одну, приклеенную
+            // к клавиатуре через `safeAreaInset`.
+            if focusedBlockID != nil && !viewModel.aiBusy { keyboardAccessoryBar }
         }
         // Была своя ZStack-шапка (крестик, «✨», «…» в попапах) поверх ещё и
         // системного .navigationTitle(.large) — та же двойная шапка, что
@@ -118,7 +128,6 @@ struct NoteEditorScreen: View {
         } else {
             TFErrorBanner(viewModel.loadErrorMessage)
                 .padding(.horizontal, TFSpacing.screenHorizontal)
-            toolbar
             TFErrorBanner(viewModel.aiErrorMessage, variant: .block)
                 .padding(.horizontal, TFSpacing.screenHorizontal)
                 .padding(.top, TFSpacing.xs)
@@ -266,7 +275,24 @@ struct NoteEditorScreen: View {
         if await viewModel.deleteNote() { dismiss() }
     }
 
-    // MARK: - Тулбар форматирования (spec §2.1)
+    // MARK: - Панель над клавиатурой: форматирование (spec §2.1) + голос
+
+    /// Обёртка вокруг `toolbar` и `micKeyboardBar` — раньше это были два
+    /// независимых слоя (статичная лента у верха экрана + плавающий поверх
+    /// текста кружок микрофона), теперь одна строка, показывается целиком
+    /// через `safeAreaInset` в `body` (см. комментарий там).
+    private var keyboardAccessoryBar: some View {
+        HStack(spacing: TFSpacing.sm) {
+            toolbar
+            micKeyboardBar
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+        .padding(.vertical, TFSpacing.sm)
+        .background(Color.tfBackground)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+        }
+    }
 
     private var toolbar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -309,15 +335,7 @@ struct NoteEditorScreen: View {
                     viewModel.insertHorizontalRule(afterBlockID: focusedBlockID)
                 }
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.vertical, TFSpacing.sm)
         }
-        .background(Color.tfBackground)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
-        }
-        .disabled(viewModel.aiBusy || focusedBlockID == nil)
-        .opacity((viewModel.aiBusy || focusedBlockID == nil) ? 0.4 : 1)
     }
 
     private var divider: some View {
@@ -391,9 +409,10 @@ struct NoteEditorScreen: View {
         viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
     }
 
-    // MARK: - Микрофон (spec §0.7) — видимость по фокусу поля, запись и
-    // распознавание — `DictationEngine.shared` (просьба владельца 03.09.2026,
-    // `Sources/Core/Speech/DictationEngine.swift`).
+    // MARK: - Микрофон (spec §0.7), теперь правый край `keyboardAccessoryBar`
+    // (видимость всей панели — по фокусу поля, см. `body`) — запись и
+    // распознавание через `DictationEngine.shared` (просьба владельца
+    // 03.09.2026, `Sources/Core/Speech/DictationEngine.swift`).
 
     private var micKeyboardBar: some View {
         Button {
@@ -417,8 +436,6 @@ struct NoteEditorScreen: View {
         }
         .buttonStyle(TFTapScaleStyle())
         .disabled(dictation.recordingState == .transcribing)
-        .padding(.trailing, TFSpacing.lg)
-        .padding(.bottom, TFSpacing.lg)
     }
 
     /// Тап — старт записи, повторный тап — стоп + вставка распознанного
