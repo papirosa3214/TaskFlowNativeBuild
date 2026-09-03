@@ -134,6 +134,14 @@ struct UpcomingHoursView: View {
 
     // MARK: - Пул задач без времени
 
+    /// Оформление 1-в-1 с пулом «Сегодня» (`TodayHoursView.untimedPool`) —
+    /// владелец 03.09.2026: «в трёх днях прицепил к краям, а в Сегодня
+    /// аккуратненько висит». Там разница шла ещё и с внешней стороны —
+    /// `TodayScreen` даёт всему `TodayHoursView` `.padding(.horizontal:)`
+    /// снаружи, здесь `UpcomingHoursView` идёт от края до края (у сетки
+    /// часов с тремя колонками свободного места и так впритык, ужимать
+    /// не стоит) — поэтому боковой отступ добавлен ЛОКАЛЬНО, только пулу,
+    /// а не всему экрану.
     private var untimedPool: some View {
         VStack(spacing: 0) {
             ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
@@ -143,6 +151,11 @@ struct UpcomingHoursView: View {
             }
         }
         .background(Color.tfCard)
+        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
+        .tfShadow(TFShadow.dropdown)
+        .frame(maxHeight: 132)
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.bottom, TFSpacing.md)
     }
 
     // MARK: - Сетка часов
