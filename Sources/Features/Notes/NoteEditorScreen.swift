@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // ═══════════ NoteEditorScreen — редактор заметки (spec/SCREENS-2.md §2) ═══════════
 //
@@ -19,17 +20,21 @@ struct NoteEditorScreen: View {
     @State private var controllerStore = NoteBlockControllerStore()
     @Environment(\.dismiss) private var dismiss
 
-    @State private var focusedBlockID: UUID?
-    @State private var focusedController: NoteBlockTextController?
-    @State private var activeMarks: Set<InlineMark> = []
+    /// Фокус блока, живые метки форматирования и запрос ссылки — теперь на
+    /// отдельном `@Observable`, не здесь: `NoteKeyboardAccessoryBar` (лента
+    /// форматирования + микрофон) с 03.09.2026 живёт ВНЕ дерева этого экрана,
+    /// как `inputAccessoryView` каждого блочного `UITextView` (см.
+    /// `NoteBlockTextView.swift`) — обычный `@State` этого View ей не виден,
+    /// нужен общий объект-ссылка. Подробности — `NoteEditorFocusState`.
+    @State private var focus = NoteEditorFocusState()
+    /// Тот самый `inputAccessoryView` — один на экран, назначается каждому
+    /// блоку одним и тем же экземпляром (см. `editorBody`).
+    @State private var accessoryHost: NoteKeyboardAccessoryHost?
 
     @State private var showMovePicker = false
     @State private var showDeleteConfirm = false
-    @State private var showLinkPrompt = false
-    @State private var linkPromptText = ""
     @State private var shareURL: URL?
     @State private var showShareSheet = false
-    @State private var dictation = DictationEngine.shared
 
     init(noteID: String) {
         self.noteID = noteID
@@ -39,19 +44,20 @@ struct NoteEditorScreen: View {
     var body: some View {
         content
         .background(Color.tfBackground)
-        .safeAreaInset(edge: .bottom) {
-            // Раньше формат-панель сидела статично у верха экрана, а
-            // микрофон плавал `.overlay` отдельным кружком поверх текста —
-            // владелец 03.09.2026: «прилепить ленту к верху клавиатуры»
-            // + на живом устройстве (не симулятор) кружок микрофона
-            // рисовался ТРЁМЯ копиями сразу, пока открыта клавиатура
-            // (скриншот). `.overlay(alignment: .bottomTrailing)` в паре
-            // с раскладкой текстовых `UIViewRepresentable`-блоков и
-            // клавиатурой давал лишние проходы layout — плавающего слоя
-            // больше нет, обе панели объединены в одну, приклеенную
-            // к клавиатуре через `safeAreaInset`.
-            if focusedBlockID != nil && !viewModel.aiBusy { keyboardAccessoryBar }
-        }
+        // Раньше формат-панель сидела статично у верха экрана, а микрофон
+        // плавал `.overlay` отдельным кружком поверх текста — владелец
+        // 03.09.2026: «прилепить ленту к верху клавиатуры» + на живом
+        // устройстве (не симулятор) кружок микрофона рисовался ТРЁМЯ копиями
+        // сразу, пока открыта клавиатура (скриншот). Первая попытка чинить
+        // это через `.safeAreaInset(edge: .bottom)` не решила дело: это
+        // всё ещё СВОЙ, SwiftUI-уровня слой, который клавиатура не двигает
+        // как часть себя — он просто пере-анимируется отдельно и в моменте
+        // выглядит как «две клавиатуры» (владелец, тем же вечером: «панель
+        // тоже двигается... а такого не должно быть»). Правильный нативный
+        // способ — реальный `inputAccessoryView` каждого блочного
+        // `UITextView` (см. `NoteBlockTextView.swift`, `accessoryHost`
+        // ниже): тогда лента — буквально часть клавиатуры для UIKit,
+        // отдельного слоя для рассинхронизации просто не существует.
         // Была своя ZStack-шапка (крестик, «✨», «…» в попапах) поверх ещё и
         // системного .navigationTitle(.large) — та же двойная шапка, что
         // чинили весь день (просьба владельца 03.09.2026: «нативные кнопки
@@ -77,7 +83,15 @@ struct NoteEditorScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { combinedMenu }
         }
-        .task { await viewModel.load() }
+        .task {
+            // Создаётся один раз на весь экран (тот же `NoteKeyboardAccessoryHost`
+            // ставится каждому блоку — см. `editorBody`), не зависит от
+            // загрузки документа, поэтому до `viewModel.load()`.
+            if accessoryHost == nil {
+                accessoryHost = NoteKeyboardAccessoryHost(viewModel: viewModel, focus: focus)
+            }
+            await viewModel.load()
+        }
         .onDisappear { viewModel.flushOnExit() }
         .onChange(of: viewModel.pendingFocus) { _, pending in
             guard let pending else { return }
@@ -89,8 +103,8 @@ struct NoteEditorScreen: View {
                 viewModel.pendingFocus = nil
             }
         }
-        .alert("Адрес ссылки", isPresented: $showLinkPrompt) {
-            TextField("https://", text: $linkPromptText)
+        .alert("Адрес ссылки", isPresented: $focus.showLinkPrompt) {
+            TextField("https://", text: $focus.linkPromptText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
@@ -153,20 +167,21 @@ struct NoteEditorScreen: View {
                         orderedIndex: orderedIndex(for: block),
                         showPlaceholder: viewModel.document.isEffectivelyEmpty && block.id == viewModel.document.blocks.first?.id,
                         controller: controllerStore.controller(for: block.id),
+                        accessoryView: accessoryHost?.view,
                         onChange: { id, runs in viewModel.updateRuns(blockID: id, runs: runs) },
                         onFocus: { id, ctrl in
-                            focusedBlockID = id
-                            focusedController = ctrl
-                            activeMarks = ctrl.activeMarks
+                            focus.blockID = id
+                            focus.controller = ctrl
+                            focus.activeMarks = ctrl.activeMarks
                         },
                         onBlur: { id in
-                            if focusedBlockID == id {
-                                focusedBlockID = nil
-                                focusedController = nil
-                                activeMarks = []
+                            if focus.blockID == id {
+                                focus.blockID = nil
+                                focus.controller = nil
+                                focus.activeMarks = []
                             }
                         },
-                        onMarksChange: { id, marks in if focusedBlockID == id { activeMarks = marks } },
+                        onMarksChange: { id, marks in if focus.blockID == id { focus.activeMarks = marks } },
                         onSplit: { id, offset in viewModel.handleSplit(blockID: id, atUTF16Offset: offset) },
                         onBackspaceAtStart: { id in viewModel.handleBackspaceAtStart(blockID: id) },
                         onToggleChecked: { viewModel.toggleTaskChecked(blockID: block.id) }
@@ -222,7 +237,7 @@ struct NoteEditorScreen: View {
                     Label("Развить в шаги", systemImage: "list.bullet.indent")
                 }
                 Button {
-                    let selection = focusedController?.selectedText()
+                    let selection = focus.controller?.selectedText()
                     Task { await viewModel.runExtractTasks(selectedText: selection) }
                 } label: {
                     Label("Собрать задачи из текста", systemImage: "checklist")
@@ -250,13 +265,13 @@ struct NoteEditorScreen: View {
     /// Есть выделение — правим прямо в textView этого блока (замена на
     /// месте); нет — весь документ (см. `NoteEditorViewModel.runAssist`).
     private func runAssist(_ action: JournalAssistAction) async {
-        let hasSelection = focusedController?.hasSelection ?? false
-        let selection = hasSelection ? focusedController?.selectedText() : nil
+        let hasSelection = focus.controller?.hasSelection ?? false
+        let selection = hasSelection ? focus.controller?.selectedText() : nil
         guard let result = await viewModel.runAssist(action, selectedText: selection),
               !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return }
 
-        if hasSelection, let id = focusedBlockID, let ctrl = focusedController {
+        if hasSelection, let id = focus.blockID, let ctrl = focus.controller {
             ctrl.insertPlainParagraph(result)
             viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
         } else {
@@ -277,184 +292,19 @@ struct NoteEditorScreen: View {
 
     // MARK: - Панель над клавиатурой: форматирование (spec §2.1) + голос
 
-    /// Обёртка вокруг `toolbar` и `micKeyboardBar` — раньше это были два
-    /// независимых слоя (статичная лента у верха экрана + плавающий поверх
-    /// текста кружок микрофона), теперь одна строка, показывается целиком
-    /// через `safeAreaInset` в `body` (см. комментарий там).
-    private var keyboardAccessoryBar: some View {
-        HStack(spacing: TFSpacing.sm) {
-            toolbar
-            micKeyboardBar
-        }
-        .padding(.horizontal, TFSpacing.screenHorizontal)
-        .padding(.vertical, TFSpacing.sm)
-        .background(Color.tfBackground)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
-        }
-    }
-
-    private var toolbar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                toolbarButton("bold", active: activeMarks.contains(.bold)) { toggleMark(.bold) }
-                toolbarButton("italic", active: activeMarks.contains(.italic)) { toggleMark(.italic) }
-                toolbarButton("underline", active: activeMarks.contains(.underline)) { toggleMark(.underline) }
-                toolbarButton("strikethrough", active: activeMarks.contains(.strike)) { toggleMark(.strike) }
-                toolbarButton("highlighter", active: activeMarks.contains(.highlight)) { toggleMark(.highlight) }
-                toolbarButton("curlybraces", active: activeMarks.contains(.code)) { toggleMark(.code) }
-                toolbarButton("link", active: activeMarks.contains(.link)) { handleLinkTap() }
-
-                divider
-
-                headingButton(1)
-                headingButton(2)
-                headingButton(3)
-
-                divider
-
-                toolbarButton("list.bullet", active: isBlockKind { if case .bulletItem = $0 { true } else { false } }) {
-                    viewModel.toggleList(.bullet, blockID: focusedBlockID)
-                }
-                toolbarButton("list.number", active: isBlockKind { if case .orderedItem = $0 { true } else { false } }) {
-                    viewModel.toggleList(.ordered, blockID: focusedBlockID)
-                }
-                toolbarButton("checklist", active: isBlockKind { if case .taskItem = $0 { true } else { false } }) {
-                    viewModel.toggleList(.task, blockID: focusedBlockID)
-                }
-
-                divider
-
-                toolbarButton("quote.opening", active: isBlockKind { $0 == .blockquote }) {
-                    viewModel.toggleQuote(blockID: focusedBlockID)
-                }
-                toolbarButton("chevron.left.forwardslash.chevron.right", active: isBlockKind { if case .codeBlock = $0 { true } else { false } }) {
-                    viewModel.toggleCodeBlock(blockID: focusedBlockID)
-                }
-                toolbarButton("minus", active: false) {
-                    viewModel.insertHorizontalRule(afterBlockID: focusedBlockID)
-                }
-            }
-        }
-    }
-
-    private var divider: some View {
-        Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width, height: 20).padding(.horizontal, TFSpacing.xs)
-    }
-
-    private func toolbarButton(_ icon: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(active ? Color.tfRed : Color.tfSub)
-                .frame(width: 36, height: 36)
-                .background(active ? Color.tfRed.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: TFRadius.md))
-        }
-        .buttonStyle(TFTapScaleStyle())
-    }
-
-    private func headingButton(_ level: Int) -> some View {
-        let active = isBlockKind { if case .heading(let l) = $0 { l == level } else { false } }
-        return Button { viewModel.toggleHeading(level, blockID: focusedBlockID) } label: {
-            Text("H\(level)")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(active ? Color.tfRed : Color.tfSub)
-                .frame(width: 36, height: 36)
-                .background(active ? Color.tfRed.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: TFRadius.md))
-        }
-        .buttonStyle(TFTapScaleStyle())
-    }
-
-    private func isBlockKind(_ predicate: (BlockKind) -> Bool) -> Bool {
-        guard let idx = viewModel.document.blocks.firstIndex(where: { $0.id == focusedBlockID }) else { return false }
-        return predicate(viewModel.document.blocks[idx].kind)
-    }
-
-    private func toggleMark(_ mark: InlineMark) {
-        guard let id = focusedBlockID, let ctrl = focusedController else { return }
-        switch mark {
-        case .bold: ctrl.toggleBold()
-        case .italic: ctrl.toggleItalic()
-        case .underline: ctrl.toggleUnderline()
-        case .strike: ctrl.toggleStrike()
-        case .highlight: ctrl.toggleHighlight()
-        case .code: ctrl.toggleCode()
-        case .link: return // ссылка — свой обработчик (нужен URL), см. handleLinkTap
-        }
-        activeMarks = ctrl.activeMarks
-        viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
-    }
-
-    /// «Снимаем ссылку, если курсор уже внутри неё; иначе… спрашиваем URL»
-    /// (spec §2.1, п.7 «Ссылка»).
-    private func handleLinkTap() {
-        guard let id = focusedBlockID, let ctrl = focusedController else { return }
-        if let href = ctrl.currentLinkHref, !href.isEmpty {
-            ctrl.removeLink()
-            activeMarks = ctrl.activeMarks
-            viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
-        } else {
-            guard ctrl.hasSelection else { return } // «применяет ссылку к выделенному тексту» — без выделения нечего помечать
-            linkPromptText = "https://"
-            showLinkPrompt = true
-        }
-    }
-
+    /// Панель форматирования + микрофон переехали в `NoteKeyboardAccessoryBar`
+    /// (`NoteBlockTextView.swift`) — она больше не часть дерева этого экрана,
+    /// а `inputAccessoryView` блочных `UITextView` (см. `body`, `editorBody`).
+    /// Здесь остаётся только реакция на диалог «Адрес ссылки»: сам alert
+    /// живёт на экране (спрашивать URL — не дело клавиатурной панели), а
+    /// `focus.showLinkPrompt`/`linkPromptText` панель выставляет напрямую.
     private func applyLinkFromPrompt() {
-        guard let id = focusedBlockID, let ctrl = focusedController else { return }
-        let trimmed = linkPromptText.trimmingCharacters(in: .whitespaces)
+        guard let id = focus.blockID, let ctrl = focus.controller else { return }
+        let trimmed = focus.linkPromptText.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, trimmed != "https://" else { return }
         ctrl.applyLink(href: trimmed)
-        activeMarks = ctrl.activeMarks
+        focus.activeMarks = ctrl.activeMarks
         viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
-    }
-
-    // MARK: - Микрофон (spec §0.7), теперь правый край `keyboardAccessoryBar`
-    // (видимость всей панели — по фокусу поля, см. `body`) — запись и
-    // распознавание через `DictationEngine.shared` (просьба владельца
-    // 03.09.2026, `Sources/Core/Speech/DictationEngine.swift`).
-
-    private var micKeyboardBar: some View {
-        Button {
-            Task { await toggleDictation() }
-        } label: {
-            Group {
-                switch dictation.recordingState {
-                case .recording:
-                    Image(systemName: "waveform")
-                        .symbolEffect(.variableColor.iterative, isActive: true)
-                case .transcribing:
-                    ProgressView().tint(Color.tfText)
-                default:
-                    Image(systemName: "mic.fill")
-                }
-            }
-            .font(.system(size: 18))
-            .foregroundStyle(dictation.recordingState == .recording ? Color.tfRed : Color.tfText)
-            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            .background(.ultraThinMaterial, in: Circle())
-        }
-        .buttonStyle(TFTapScaleStyle())
-        .disabled(dictation.recordingState == .transcribing)
-    }
-
-    /// Тап — старт записи, повторный тап — стоп + вставка распознанного
-    /// текста в текущий блок (тот же приём, что у AI-результата в
-    /// `runAssist`: `insertPlainParagraph` + `updateRuns`). Просьба владельца
-    /// 03.09.2026 «подключи распознавание речи» — `DictationEngine`.
-    private func toggleDictation() async {
-        switch dictation.recordingState {
-        case .idle, .failed:
-            await dictation.startRecording()
-        case .recording:
-            guard let text = await dictation.stopRecordingAndTranscribe(),
-                  let id = focusedBlockID, let ctrl = focusedController
-            else { return }
-            ctrl.insertPlainParagraph(text)
-            viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
-        case .transcribing:
-            break
-        }
     }
 }
 
@@ -468,6 +318,9 @@ private struct NoteBlockRow: View {
     let orderedIndex: Int?
     let showPlaceholder: Bool
     let controller: NoteBlockTextController
+    /// `inputAccessoryView` (лента форматирования + микрофон), один и тот
+    /// же объект на все блоки экрана — см. `NoteEditorScreen.accessoryHost`.
+    let accessoryView: UIView?
 
     let onChange: (UUID, [RichRun]) -> Void
     let onFocus: (UUID, NoteBlockTextController) -> Void
@@ -495,6 +348,7 @@ private struct NoteBlockRow: View {
                     }
                     NoteBlockTextView(
                         blockID: block.id, runs: block.runs, blockKind: block.kind, controller: controller,
+                        accessoryView: accessoryView,
                         onChange: onChange, onFocus: onFocus, onBlur: onBlur, onMarksChange: onMarksChange,
                         onSplit: onSplit, onBackspaceAtStart: onBackspaceAtStart
                     )
