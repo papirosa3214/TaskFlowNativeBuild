@@ -1,4 +1,6 @@
 import SwiftUI
+import SDWebImage
+import SDWebImageWebPCoder
 
 /// Точка входа. Собирает единственные экземпляры клиента/сессии/сторов на
 /// время жизни приложения и раздаёт их через `.environment(...)` — экраны
@@ -14,6 +16,12 @@ struct TaskFlowApp: App {
     @State private var notificationStore: NotificationStore
 
     init() {
+        // Анимированные аватарки агентов (просьба владельца 03.09.2026:
+        // «раньше были анимированными») — голый WebP-декодер в SDWebImage
+        // из коробки не идёт, регистрируется явно один раз на старте,
+        // раньше первого обращения к `AnimatedImage` (см. `AgentRow.swift`).
+        SDImageCodersManager.shared.addCoder(SDImageWebPCoder.shared)
+
         // Один `APIClient` на всё приложение — сторы делят его между собой,
         // токен он читает сам из Keychain на каждый запрос (см. APIClient.swift).
         let client = APIClient()

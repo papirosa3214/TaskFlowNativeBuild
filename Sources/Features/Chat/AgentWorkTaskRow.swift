@@ -1,4 +1,5 @@
 import SwiftUI
+import SDWebImageSwiftUI
 
 // Строка задачи для «Работы агента» — 1:1 живого `src/components/TaskRow.tsx`
 // (общий компонент, которым и рендерится этот самый экран в вебе,
@@ -20,20 +21,16 @@ private struct AgentWorkAvatarView: View {
     let tint: Color
     let size: CGFloat
 
+    // `AnimatedImage` вместо `AsyncImage` — см. комментарий у AgentAvatarView
+    // (AgentRow.swift), просьба владельца 03.09.2026, тот же приём.
     var body: some View {
         if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
-            AsyncImage(url: url) { phase in
-                if case .success(let image) = phase {
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: size, height: size)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-                } else {
-                    initialsCircle
-                }
-            }
+            AnimatedImage(url: url, placeholder: { initialsCircle })
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
         } else {
             initialsCircle
         }

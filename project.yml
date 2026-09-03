@@ -32,6 +32,12 @@ targets:
       # «подключи уже искусственный интеллект»): NVIDIA Parakeet TDT v3,
       # портированный в CoreML — см. `Sources/Core/Speech/DictationEngine.swift`.
       - package: FluidAudio
+      # Анимированные аватарки агентов (просьба владельца 03.09.2026:
+      # «раньше были анимированными, стали статичными») — голый `AsyncImage`
+      # не умеет GIF/WebP, показывает только первый кадр. См.
+      # `AgentAvatarView` в `Sources/Features/Chat/AgentRow.swift`.
+      - package: SDWebImageSwiftUI
+      - package: SDWebImageWebPCoder
     info:
       path: Resources/Info.plist
       properties:
@@ -123,6 +129,12 @@ packages:
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio.git
     from: 0.12.4
+  SDWebImageSwiftUI:
+    url: https://github.com/SDWebImage/SDWebImageSwiftUI.git
+    from: 3.1.3
+  SDWebImageWebPCoder:
+    url: https://github.com/SDWebImage/SDWebImageWebPCoder.git
+    from: 0.14.6
 
 schemes:
   TaskFlow:

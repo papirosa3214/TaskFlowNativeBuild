@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import PhotosUI
+import SDWebImageSwiftUI
 
 // Аватар агента с произвольным пикселем — веб использует 36px (строка) и
 // 48px (форма правки), ни один не входит в `TFAvatar.Size` (18/20/30/32).
@@ -8,6 +9,14 @@ import PhotosUI
 // намеренно точно, а не «похоже»: числа обязаны совпасть дословно. Стоило
 // бы завести в `TFAvatar` вариант с произвольным `CGFloat` — вне моей
 // папки, см. отчёт.
+//
+// `AnimatedImage` (SDWebImageSwiftUI) вместо голого `AsyncImage` — просьба
+// владельца 03.09.2026: «аватарки перестали анимированными быть» —
+// `AsyncImage` декодирует только первый кадр, GIF/WebP статикой. Живые
+// картинки-«питомцы» уже присылаются сервером по трём разным путям
+// (`avatarUrl`/`avatarUrlWorking`/`avatarUrlBlocked`, см. `AgentRow.
+// resolvedAvatarPath` ниже) — сама подстановка «какая картинка когда»
+// не моя, это уже было; здесь только возвращена способность её проиграть.
 private struct AgentAvatarView: View {
     let urlPath: String?
     let initials: String
@@ -16,18 +25,12 @@ private struct AgentAvatarView: View {
 
     var body: some View {
         if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
-            AsyncImage(url: url) { phase in
-                if case .success(let image) = phase {
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: size, height: size)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-                } else {
-                    initialsCircle
-                }
-            }
+            AnimatedImage(url: url, placeholder: { initialsCircle })
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
         } else {
             initialsCircle
         }

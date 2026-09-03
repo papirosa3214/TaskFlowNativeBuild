@@ -20,19 +20,24 @@ struct OverviewScreen: View {
     /// В отчёте — оркестратору, кто и когда возьмёт эту модалку.
     var body: some View {
         ScrollView {
-            VStack(spacing: TFSpacing.md) {
+            // Раньше зазоры были смешанные — `.md` (12pt) между секциями,
+            // но `.sm` (8pt) внутри группы навигационных карточек, и подпись
+            // «Активность и статистика» переносилась на 2 строки, из-за чего
+            // эта карточка выходила выше соседних. Просьба владельца
+            // 03.09.2026: «все плашки разной высоты, зазоры между ними
+            // разной высоты — прям очень не нравится». Один плоский VStack,
+            // один зазор (`.sm`) везде, подписи карточек в одну строку.
+            VStack(spacing: TFSpacing.sm) {
                 statusGrid
                 weeklySummaryCard
-                VStack(spacing: TFSpacing.sm) {
-                    navCard(route: .projects, icon: "tray", tint: .tfRed,
-                            title: "Проекты", subtitle: "Задачи по проектам и документация")
-                    navCard(route: .notifications, icon: "bell", tint: Color(hex: "#f59e0b"),
-                            title: "Уведомления", subtitle: "История событий и напоминаний")
-                    navCard(route: .activity, icon: "waveform.path.ecg", tint: Color(hex: "#4a9fd8"),
-                            title: "Активность и статистика", subtitle: "Графики продуктивности и выполненные задачи")
-                    navCard(route: .settings, icon: "gearshape", tint: .white.opacity(0.7),
-                            title: "Настройки", subtitle: "Профиль, ИИ, сервер и внешний вид")
-                }
+                navCard(route: .projects, icon: "tray", tint: .tfRed,
+                        title: "Проекты", subtitle: "Задачи по проектам и документация")
+                navCard(route: .notifications, icon: "bell", tint: Color(hex: "#f59e0b"),
+                        title: "Уведомления", subtitle: "История событий и напоминаний")
+                navCard(route: .activity, icon: "waveform.path.ecg", tint: Color(hex: "#4a9fd8"),
+                        title: "Активность и статистика", subtitle: "Графики продуктивности и выполненные задачи")
+                navCard(route: .settings, icon: "gearshape", tint: .white.opacity(0.7),
+                        title: "Настройки", subtitle: "Профиль, ИИ, сервер и внешний вид")
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.sm)
@@ -133,22 +138,26 @@ struct OverviewScreen: View {
         Button {
             // Инертно — WeeklySummaryModal не входит в мою зону экранов.
         } label: {
-            HStack(spacing: 14) {
+            HStack(spacing: TFSpacing.md) {
+                // 32×32 — тот же размер, что у иконок navCard ниже (было
+                // 36×36, лишний повод для разной высоты строк).
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 18))
                     .foregroundStyle(Color.tfDim)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: TFSpacing.sm) {
                         Text("Сводка недели")
                             .tfText(.body)
                             .fontWeight(.semibold)
                             .foregroundStyle(Color.tfText)
+                            .lineLimit(1)
                         TFAccentTag("SECOND BRAIN", color: .tfDim)
                     }
                     Text("Победы, хвосты и фокус на цели недели")
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
@@ -178,9 +187,11 @@ struct OverviewScreen: View {
                         .tfText(.body)
                         .fontWeight(.medium)
                         .foregroundStyle(Color.tfText)
+                        .lineLimit(1)
                     Text(subtitle)
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
