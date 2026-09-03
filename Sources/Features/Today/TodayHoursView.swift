@@ -57,6 +57,15 @@ struct TodayHoursView: View {
     /// Последнее время, на которое уже был виброотклик — чтобы щёлкать
     /// один раз на каждую смену деления, а не на каждый пиксель движения.
     @State private var lastTickTime: String?
+    /// Генераторы держим живыми (не создаём заново на каждое срабатывание) и
+    /// прогреваем `.prepare()` заранее — владелец 03.09.2026: «иногда не
+    /// срабатывает», «чуть помощнее». Тот же приём, что уже описан в
+    /// `TFKeyboardHaptics.swift` («держать двигатель прогретым»), здесь —
+    /// системный `UIFeedbackGenerator`, не Core Haptics, но принцип общий:
+    /// генератор с холодного старта иногда даёт слабый или пропущенный
+    /// первый удар.
+    @State private var grabHaptic = UIImpactFeedbackGenerator(style: .heavy)
+    @State private var tickHaptic = UISelectionFeedbackGenerator()
 
     private var untimed: [ApiTask] {
         day.tasks.filter { hoursFromTime($0.startTime) == nil }
@@ -184,7 +193,11 @@ struct TodayHoursView: View {
                 .frame(width: geo.size.width, height: CGFloat(totalHours) * TodayHoursMetrics.hourH, alignment: .topLeading)
                 .contentShape(Rectangle())
                 .gesture(daySwipeGesture)
-                .onAppear { gridFrame = geo.frame(in: .named("hoursGrid")) }
+                .onAppear {
+                    gridFrame = geo.frame(in: .named("hoursGrid"))
+                    grabHaptic.prepare()
+                    tickHaptic.prepare()
+                }
                 .onChange(of: geo.size) { _, _ in gridFrame = geo.frame(in: .named("hoursGrid")) }
             }
             .frame(height: CGFloat(totalHours) * TodayHoursMetrics.hourH)
@@ -282,7 +295,8 @@ struct TodayHoursView: View {
                     let startFingerY = value.startLocation.y - gridFrame.minY
                     grabOffsetY = top.map { startFingerY - $0 } ?? 0
                     lastTickTime = nil
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    grabHaptic.impactOccurred()
+                    grabHaptic.prepare() // сразу перезаряжаем на следующий захват
                     dragState = DragState(taskID: task.id, title: task.title, color: color, height: max(TodayHoursMetrics.minH, height), topY: fingerY - grabOffsetY)
                 } else {
                     dragState?.topY = fingerY - grabOffsetY
@@ -291,7 +305,8 @@ struct TodayHoursView: View {
                 previewTime = time
                 if time != lastTickTime {
                     lastTickTime = time
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    tickHaptic.selectionChanged()
+                    tickHaptic.prepare()
                 }
             }
             .onEnded { value in

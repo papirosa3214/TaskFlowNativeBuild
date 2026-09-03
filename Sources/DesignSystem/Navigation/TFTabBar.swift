@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Нижняя навигация — spec/DESIGN-TOKENS.md §4 «Нижняя навигация» +
 // spec/SCREENS-1.md §2.1 (уточнение координатора 31.08.2026, разведка
@@ -128,6 +129,7 @@ public struct TFTabBar: View {
         let item = items[index]
         let isActive = selectedIndex == index
         return Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
             onSelect(index)
         } label: {
             ZStack {
@@ -182,7 +184,10 @@ public struct TFTabBar: View {
     }
 
     private var createButton: some View {
-        Button(action: onCreateTap) {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            onCreateTap()
+        } label: {
             ZStack {
                 Circle()
                     .fill(Color.tfRed)
