@@ -38,9 +38,13 @@ struct SettingsScreen: View {
         .environment(viewModel)
         .tfBottomSheet(isPresented: $isEditProfilePresented) {
             if let user = displayedUser {
-                EditProfileSheet(user: user) { updated in
-                    profileOverride = updated
-                }
+                EditProfileSheet(
+                    user: user,
+                    avatarURLOverride: profileOverride?.avatarUrl,
+                    settings: viewModel,
+                    onSaved: { updated in profileOverride = updated },
+                    onAvatarChanged: { newURL in patchAvatarURL(newURL, baseUser: user) }
+                )
             }
         }
         .tfBottomSheet(isPresented: $appIconSheetOpen) {
@@ -58,29 +62,32 @@ struct SettingsScreen: View {
                     user: user,
                     avatarURLOverride: profileOverride?.avatarUrl,
                     onEdit: { isEditProfilePresented = true },
-                    onAvatarChanged: { newURL in
-                        // Строка выше про override — тот же приём, что для
-                        // имени: `SessionStore.currentUser` не обновляем
-                        // (нет публичного сеттера), только локальный вид.
-                        var patched = displayedUser ?? user
-                        patched = ApiUser(
-                            id: patched.id, name: patched.name, email: patched.email,
-                            role: patched.role, type: patched.type, avatarColor: patched.avatarColor,
-                            initials: patched.initials, status: patched.status, createdAt: patched.createdAt,
-                            isSystemBot: patched.isSystemBot, createdBy: patched.createdBy,
-                            avatarUrl: newURL?.isEmpty == false ? newURL : nil,
-                            avatarUrlWorking: patched.avatarUrlWorking, avatarUrlBlocked: patched.avatarUrlBlocked,
-                            lastSeenAt: patched.lastSeenAt, activity: patched.activity, online: patched.online,
-                            lastAction: patched.lastAction, lastActionTitle: patched.lastActionTitle, limits: patched.limits
-                        )
-                        profileOverride = patched
-                    }
+                    onAvatarChanged: { newURL in patchAvatarURL(newURL, baseUser: user) }
                 )
             } else {
                 TFListRow(icon: "person", iconStyle: .plain, title: "Аккаунт")
             }
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    /// Общий патч локального вида после смены/удаления фото — переиспользуют
+    /// и строка профиля (тап по аватарке), и шторка «Изменить» (кнопка
+    /// «Убрать фото», просьба владельца 03.09.2026 — см. `EditProfileSheet`).
+    /// `SessionStore.currentUser` не обновляем (нет публичного сеттера),
+    /// только локальный вид (`profileOverride`).
+    private func patchAvatarURL(_ newURL: String?, baseUser: ApiUser) {
+        let patched = displayedUser ?? baseUser
+        profileOverride = ApiUser(
+            id: patched.id, name: patched.name, email: patched.email,
+            role: patched.role, type: patched.type, avatarColor: patched.avatarColor,
+            initials: patched.initials, status: patched.status, createdAt: patched.createdAt,
+            isSystemBot: patched.isSystemBot, createdBy: patched.createdBy,
+            avatarUrl: newURL?.isEmpty == false ? newURL : nil,
+            avatarUrlWorking: patched.avatarUrlWorking, avatarUrlBlocked: patched.avatarUrlBlocked,
+            lastSeenAt: patched.lastSeenAt, activity: patched.activity, online: patched.online,
+            lastAction: patched.lastAction, lastActionTitle: patched.lastActionTitle, limits: patched.limits
+        )
     }
 
     @ViewBuilder

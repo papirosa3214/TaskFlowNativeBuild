@@ -8,20 +8,45 @@ import PhotosUI
 /// `name`/`avatarColor` — смены логина/пароля там нет. Это гэп Core, не
 /// делаю вид, что смена email/пароля работает: поля для них здесь НЕ
 /// заведены (честнее, чем нерабочие текстовые поля), отмечено в отчёте.
+///
+/// «Убрать фото» раньше висело ОТДЕЛЬНОЙ кнопкой прямо в строке профиля,
+/// рядом с «Изменить» — просьба владельца 03.09.2026: «если у меня есть
+/// кнопка изменить, зачем тогда рядышком убрать фото — я проваливаюсь и
+/// какие-то манипуляции делаю, там и должны быть». Перенесено сюда, внутрь
+/// «Изменить»: тап по аватарке в строке профиля по-прежнему меняет фото
+/// напрямую (стандартный жест — тапнуть на свою же фотку), а «убрать» —
+/// действие правки, значит внутри правки.
+///
+/// ⚠️ Живой креш при открытии этой шторки (даже на коде ДО сегодняшних
+/// правок, проверено — временно откатывал файл и переигрывал тап):
+/// `@Environment(SettingsViewModel.self)` внутри `.sheet`-контента падал
+/// глубоко в SwiftUI (`EnvironmentValues.subscript.getter` →
+/// `_assertionFailure`, ни одного кадра нашего кода в трейсе) — похоже на
+/// баг рантайма iOS 26.5 (Observation + `.sheet`), не в этом файле. Обход:
+/// `SettingsViewModel` явным параметром конструктора вместо `@Environment`
+/// — `SettingsScreen` его и так уже держит в `@State`.
 struct EditProfileSheet: View {
     let user: ApiUser
+    let avatarURLOverride: String?
+    let settings: SettingsViewModel
     let onSaved: (ApiUser) -> Void
+    let onAvatarChanged: (String?) -> Void
 
-    @Environment(SettingsViewModel.self) private var settings
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
     @State private var isSaving = false
+    @State private var isRemovingAvatar = false
     @State private var errorMessage: String?
 
-    init(user: ApiUser, onSaved: @escaping (ApiUser) -> Void) {
+    private var avatarURL: String? { avatarURLOverride ?? user.avatarUrl }
+
+    init(user: ApiUser, avatarURLOverride: String?, settings: SettingsViewModel, onSaved: @escaping (ApiUser) -> Void, onAvatarChanged: @escaping (String?) -> Void) {
         self.user = user
+        self.settings = settings
+        self.avatarURLOverride = avatarURLOverride
         self.onSaved = onSaved
+        self.onAvatarChanged = onAvatarChanged
         _name = State(initialValue: user.name)
     }
 
@@ -38,6 +63,21 @@ struct EditProfileSheet: View {
                     .tfText(.caption)
                     .foregroundStyle(Color.tfSub)
                 TFTextField("Ваше имя", text: $name, icon: "person")
+            }
+
+            if avatarURL != nil {
+                Button {
+                    Task { await removeAvatar() }
+                } label: {
+                    HStack(spacing: TFSpacing.sm) {
+                        Image(systemName: "photo.badge.xmark")
+                        Text(isRemovingAvatar ? "Убираю…" : "Убрать фото профиля")
+                    }
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfCoral)
+                }
+                .buttonStyle(TFTapFadeStyle())
+                .disabled(isRemovingAvatar || isSaving)
             }
 
             HStack(spacing: TFSpacing.md) {
@@ -62,11 +102,26 @@ struct EditProfileSheet: View {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
     }
+
+    private func removeAvatar() async {
+        errorMessage = nil
+        isRemovingAvatar = true
+        defer { isRemovingAvatar = false }
+        do {
+            try await settings.deleteAvatar()
+            onAvatarChanged("")
+        } catch {
+            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
+    }
 }
 
 /// Кружок аватарки в шапке профиля — тап открывает `PhotosPicker` (смена
-/// фото), рядом кнопки «Изменить» (имя, шторка выше) и «Убрать фото»
-/// (только если фото уже есть) — 1:1 структура `AccountAvatarRow` в вебе.
+/// фото), рядом кнопка «Изменить» (имя + убрать фото, шторка выше).
+///
+/// «Убрать фото» раньше была тут же отдельной кнопкой — просьба владельца
+/// 03.09.2026, см. комментарий у `EditProfileSheet`: перенесена внутрь
+/// правки, здесь остался только прямой тап по самой аватарке (загрузка).
 struct ProfileAccountRow: View {
     let user: ApiUser
     let avatarURLOverride: String?
@@ -111,13 +166,6 @@ struct ProfileAccountRow: View {
                     .background(Color.tfCard2)
                     .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
                     .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-                if avatarURL != nil {
-                    Button("Убрать фото") { Task { await removeAvatar() } }
-                        .buttonStyle(TFTapFadeStyle())
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.tfSub)
-                        .disabled(isBusy)
-                }
             }
             TFErrorBanner(errorMessage)
         }
@@ -155,18 +203,6 @@ struct ProfileAccountRow: View {
             guard let data = try await item.loadTransferable(type: Data.self) else { return }
             let url = try await settings.uploadAvatar(data: data, mime: "image/jpeg")
             onAvatarChanged(url)
-        } catch {
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-
-    private func removeAvatar() async {
-        errorMessage = nil
-        isBusy = true
-        defer { isBusy = false }
-        do {
-            try await settings.deleteAvatar()
-            onAvatarChanged("")
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }

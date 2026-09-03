@@ -171,6 +171,23 @@ struct AgentRow: View {
                     .lineLimit(1)
                     .fixedSize()
             }
+
+            // Правка раньше открывалась ТОЛЬКО свайпом — без видимой
+            // подсказки это выглядело как «кнопка изменить пропала» (просьба
+            // владельца 03.09.2026: «как минимум нажать кнопочку там
+            // изменить»). Свайп остаётся (быстрый жест для тех, кто уже
+            // знает), но теперь есть и обычная тапаемая «…» с тем же
+            // «Изменить»/«Удалить».
+            if editable {
+                Menu {
+                    Button { startEdit() } label: { Label("Изменить", systemImage: "pencil") }
+                    Button(role: .destructive) { onRequestDelete(agent) } label: { Label("Удалить", systemImage: "trash") }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(Color.tfDim)
+                        .frame(width: 24, height: TFHitTarget.min)
+                }
+            }
         }
         .padding(.horizontal, TFSpacing.lg)
         .padding(.vertical, TFSpacing.md)
