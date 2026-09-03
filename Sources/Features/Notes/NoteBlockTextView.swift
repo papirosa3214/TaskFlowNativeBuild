@@ -302,6 +302,7 @@ struct NoteKeyboardAccessoryBar: View {
 
     var body: some View {
         HStack(spacing: TFSpacing.sm) {
+            dismissKeyboardButton
             toolbar
             micButton
         }
@@ -441,6 +442,28 @@ struct NoteKeyboardAccessoryBar: View {
             focus.linkPromptText = "https://"
             focus.showLinkPrompt = true
         }
+    }
+
+    /// Слева от ленты — владелец 03.09.2026: «не хватает этого момента»,
+    /// построена тем же приёмом, что и `micButton` (тот же размер/материал/
+    /// кружок). `resignFirstResponder` глобально, без явной ссылки на
+    /// текущий `UITextView` — эта панель сама не знает, какой блок сейчас
+    /// первый респондер, а глобальный `sendAction` находит его сам, тем же
+    /// способом, каким системная кнопка «спрятать клавиатуру» работает
+    /// в других приложениях.
+    private var dismissKeyboardButton: some View {
+        Button {
+            tapHaptic()
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        } label: {
+            Image(systemName: "keyboard.chevron.compact.down")
+                .font(.system(size: 18))
+                .foregroundStyle(Color.tfText)
+                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .buttonStyle(TFTapScaleStyle())
+        .accessibilityLabel("Скрыть клавиатуру")
     }
 
     private var micButton: some View {

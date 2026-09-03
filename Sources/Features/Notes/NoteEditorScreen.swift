@@ -79,7 +79,12 @@ struct NoteEditorScreen: View {
         // пропажу заголовка (в один Menu упирается тот же приём, что у
         // рабочего kebabMenu в NotesScreen.swift) — берём это компромиссом,
         // как более лёгкий вариант, чем два отдельных Menu.
-        .tfNativeHeader(headerTitle, displayMode: .inline)
+        // Было имя самой заметки (спека §2: «заголовком становится первый
+        // непустой блок… или "Новая заметка"») — владелец 03.09.2026:
+        // «между кнопкой назад и троеточием не название заметки, а раздел
+        // "Дневник", как и в предыдущем [экране списка] названии» — то же
+        // слово, что у `NotesScreen.tfNativeHeader("Дневник", ...)`.
+        .tfNativeHeader("Дневник", displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { combinedMenu }
         }
@@ -220,13 +225,6 @@ struct NoteEditorScreen: View {
             i -= 1
         }
         return count
-    }
-
-    /// «заголовком автоматически становится первый непустой блок… или
-    /// «Новая заметка» пока не начали печатать» (spec).
-    private var headerTitle: String {
-        let title = viewModel.document.derivedTitle
-        return title.isEmpty ? "Новая заметка" : title
     }
 
     private var deleteTitleSuffix: String {
