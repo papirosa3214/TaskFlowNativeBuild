@@ -1,43 +1,5 @@
 import SwiftUI
 
-/// Переключатель каналов «Оркестратор Claude» / «Агенты» — 1:1 `ChannelTabs`
-/// (`src/screens/ChatScreen.tsx`), встроен в шапку через слот `below`
-/// (spec/SCREENS-2.md §0.1: уезжает и затухает вместе с ней, не отдельным
-/// блоком под ней — снято живьём на вебе 28.08.2026 по той же причине).
-private struct ChannelTabs: View {
-    let value: ChatChannel
-    let counterpartName: String
-    let onChange: (ChatChannel) -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            tab(.owner, label: counterpartName)
-            tab(.agents, label: "Агенты")
-        }
-        .padding(3)
-        .frame(height: 44)
-        .background(Color.tfCard2)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.top, TFSpacing.sm)
-    }
-
-    private func tab(_ channel: ChatChannel, label: String) -> some View {
-        Button {
-            onChange(channel)
-        } label: {
-            Text(label)
-                .tfText(.row)
-                .foregroundStyle(value == channel ? Color.tfText : Color.tfSub)
-                .frame(maxWidth: .infinity)
-                .frame(height: 38)
-                .background(value == channel ? Color.tfCard : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-        }
-        .buttonStyle(TFTapFadeStyle())
-    }
-}
-
 /// Чат координации — `/chat` (SCREENS-2 §3). Никакого стриминга токенов
 /// нет (спека прямо это оговаривает) — сообщения приходят целиком, живой
 /// сигнал только один: `TypingLine`.
@@ -51,20 +13,6 @@ struct ChatScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TFScreenHeader(
-                viewModel.headerTitle,
-                variant: .compact,
-                leading: chatBack.map { back in { AnyView(DirectoryBackButton(action: back)) } },
-                actions: [TFHeaderAction(icon: "chart.bar") { /* ChatStatsSheet — вне охвата, см. отчёт */ }],
-                below: viewModel.bothChannelsVisible ? {
-                    AnyView(ChannelTabs(
-                        value: viewModel.activeChannel,
-                        counterpartName: viewModel.counterpartFirstName,
-                        onChange: { viewModel.switchChannel(to: $0) }
-                    ))
-                } : nil
-            )
-
             TFErrorBanner(viewModel.historyErrorMessage.map { _ in "Не удалось загрузить чат" })
                 .padding(.horizontal, TFSpacing.lg)
                 .padding(.top, TFSpacing.sm)
@@ -74,11 +22,56 @@ struct ChatScreen: View {
 
             ChatComposer(viewModel: viewModel)
         }
-        // Своя шапка уже несёт заголовок и кнопку «назад» — системный навбар
-        // поверх неё давал ВТОРУЮ стрелку и лишнюю полосу.
-        // Нативная сворачивающаяся шапка по официальным гайдам SwiftUI.
-        .navigationTitle(viewModel.headerTitle)
-        .navigationBarTitleDisplayMode(.large)
+        // Была своя ZStack-шапка (`TFScreenHeader`) поверх ещё и системного
+        // `.navigationTitle(.large)` без `.toolbar(.hidden)` — та же двойная
+        // шапка, что чинили весь день на остальных экранах (просьба
+        // владельца 03.09.2026: «нативные кнопки везде одним элементом» —
+        // этот экран пропустили при прошлой зачистке). `chatBack` не `nil?`
+        // — он ставится безусловно в `RootShellView` на всё время жизни
+        // вкладки «Чат» (см. её же комментарий), так что кнопка «назад» в
+        // toolbar тут не опциональна.
+        //
+        // Переключатель канала (был отдельной плашкой под шапкой) и кнопка
+        // статистики (была пустой заглушкой — «ChatStatsSheet вне охвата»)
+        // слиты в одно меню «…» — просьба владельца 03.09.2026: «минималистично,
+        // не надо прям всё выпячивать, мне нужно — я кликну». Статистика
+        // внутри при этом настоящая (`GET /chat/stats`, модель и запрос уже
+        // были готовы — не хватало только этого экрана).
+        .tfNativeHeader(viewModel.headerTitle, displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { chatBack?() } label: {
+                    Image(systemName: "chevron.left")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if viewModel.bothChannelsVisible {
+                        Section("Канал") {
+                            Button {
+                                viewModel.switchChannel(to: .owner)
+                            } label: {
+                                if viewModel.activeChannel == .owner { Label(viewModel.counterpartFirstName, systemImage: "checkmark") }
+                                else { Text(viewModel.counterpartFirstName) }
+                            }
+                            Button {
+                                viewModel.switchChannel(to: .agents)
+                            } label: {
+                                if viewModel.activeChannel == .agents { Label("Агенты", systemImage: "checkmark") }
+                                else { Text("Агенты") }
+                            }
+                        }
+                    }
+                    Button {
+                        viewModel.openStats()
+                    } label: {
+                        Label("Статистика", systemImage: "chart.bar")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+            }
+        }
         .background(Color.tfBackground)
         .accessibilityIdentifier("chat.screen")
         .task {
@@ -91,6 +84,13 @@ struct ChatScreen: View {
         }
         .onDisappear {
             viewModel.stop()
+        }
+        .tfBottomSheet(isPresented: $viewModel.isStatsSheetOpen, title: "Статистика чата") {
+            ChatStatsSheetContent(
+                stats: viewModel.stats,
+                isLoading: viewModel.isLoadingStats,
+                errorMessage: viewModel.statsErrorMessage
+            )
         }
     }
 
@@ -132,6 +132,74 @@ struct ChatScreen: View {
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.2)) {
             proxy.scrollTo("typing-line", anchor: .bottom)
+        }
+    }
+}
+
+/// Содержимое шторки «Статистика» (`GET /chat/stats`, spec §3.9) — просьба
+/// владельца 03.09.2026: «кого больше озадачивают» и т.п., подключил кнопку
+/// в шапке к уже готовому эндпоинту (не была подключена никем раньше).
+private struct ChatStatsSheetContent: View {
+    let stats: ApiChatStats?
+    let isLoading: Bool
+    let errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.lg) {
+            if isLoading && stats == nil {
+                TFLoading(.block)
+            } else if let errorMessage {
+                TFErrorBanner(errorMessage, variant: .block)
+            } else if let stats {
+                Text("Всего сообщений: \(stats.total)")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfText)
+
+                if !stats.to.isEmpty { entryGroup(title: "Кому пишут больше всего", entries: stats.to) }
+                if !stats.from.isEmpty { entryGroup(title: "От кого больше всего", entries: stats.from) }
+                if !stats.pairs.isEmpty { pairGroup(stats.pairs) }
+            }
+        }
+        .padding(.bottom, TFSpacing.xl)
+    }
+
+    private func entryGroup(title: String, entries: [ApiChatStatsEntry]) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader(title)
+            TFCard(padding: 0) {
+                VStack(spacing: 0) {
+                    ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                        HStack {
+                            Text(entry.name).tfText(.body).foregroundStyle(Color.tfText)
+                            Spacer()
+                            Text("\(entry.count)").tfText(.body).foregroundStyle(Color.tfSub)
+                        }
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.vertical, TFSpacing.md)
+                        if index < entries.count - 1 { TFDivider(inset: TFSpacing.lg) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func pairGroup(_ pairs: [ApiChatStatsPair]) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader("Кто кому пишет")
+            TFCard(padding: 0) {
+                VStack(spacing: 0) {
+                    ForEach(Array(pairs.enumerated()), id: \.offset) { index, pair in
+                        HStack {
+                            Text("\(pair.from) → \(pair.to)").tfText(.body).foregroundStyle(Color.tfText).lineLimit(1)
+                            Spacer()
+                            Text("\(pair.count)").tfText(.body).foregroundStyle(Color.tfSub)
+                        }
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.vertical, TFSpacing.md)
+                        if index < pairs.count - 1 { TFDivider(inset: TFSpacing.lg) }
+                    }
+                }
+            }
         }
     }
 }

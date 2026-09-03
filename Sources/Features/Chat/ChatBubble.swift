@@ -117,9 +117,14 @@ struct ChatBubble: View {
     let mine: Bool
     let toMe: Bool
 
+    // Аватар раньше показывался только у чужих сообщений (веб 1:1) — просьба
+    // владельца 03.09.2026: «надо, чтобы она была тоже с его стороны, моя —
+    // с моей» — своя аватарка теперь тоже видна, справа у своих сообщений,
+    // тем же компонентом (`message.fromUser*` у своего сообщения — это и
+    // есть сам владелец). Сознательное расхождение с вебом, не гэп.
     var body: some View {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
-            if mine { Spacer(minLength: 40) }
+            if mine { Spacer(minLength: TFSpacing.sm) }
 
             if !mine {
                 // Размер — веб 28px точечно; в шкале `TFAvatar.Size` ближайшее 30 (см. отчёт).
@@ -179,7 +184,15 @@ struct ChatBubble: View {
             }
             .frame(maxWidth: 300, alignment: mine ? .trailing : .leading) // ~78% экрана 420pt (веб max-w-[78%])
 
-            if !mine { Spacer(minLength: 40) }
+            if mine {
+                ChatUserAvatar(
+                    avatarUrlPath: message.fromUserAvatarUrl,
+                    initials: message.fromUserInitials ?? "?",
+                    tint: Color(hex: message.fromUserColor ?? TFHexDefault.unassigned)
+                )
+            } else {
+                Spacer(minLength: 40)
+            }
         }
         .padding(.horizontal, TFSpacing.lg)
     }

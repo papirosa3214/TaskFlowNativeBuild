@@ -49,6 +49,15 @@ final class ChatViewModel {
 
     private(set) var typists: [ChatTypist] = []
 
+    /// Статистика (`GET /chat/stats`, spec §3.9 — «кто кого озадачивает»).
+    /// Кнопка в шапке раньше была пустой заглушкой (`ChatStatsSheet — вне
+    /// охвата») — эндпоинт и модель `ApiChatStats` уже были готовы (не мои),
+    /// просьба владельца 03.09.2026 — подключить, раз оно реально есть.
+    private(set) var stats: ApiChatStats?
+    private(set) var isLoadingStats = false
+    var statsErrorMessage: String?
+    var isStatsSheetOpen = false
+
     private(set) var currentUserId: String?
     private var isOwner = false
     private var isOrchestrator = false
@@ -136,6 +145,23 @@ final class ChatViewModel {
         guard bothChannelsVisible, newChannel != channel else { return }
         channel = newChannel
         Task { await loadHistory() }
+    }
+
+    func openStats() {
+        isStatsSheetOpen = true
+        guard stats == nil, !isLoadingStats else { return }
+        Task { await loadStats() }
+    }
+
+    func loadStats() async {
+        isLoadingStats = true
+        statsErrorMessage = nil
+        defer { isLoadingStats = false }
+        do {
+            stats = try await api.chatStats()
+        } catch {
+            statsErrorMessage = "Не удалось загрузить статистику"
+        }
     }
 
     private func reloadAll() async {
