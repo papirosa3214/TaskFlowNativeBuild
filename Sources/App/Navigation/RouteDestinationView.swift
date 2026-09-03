@@ -29,6 +29,8 @@ func routeDestination(_ route: AppRoute) -> some View {
         TaskFormScreen(taskID: taskID)
     case .notes:
         NotesScreen()
+    case .noteFolder(let folderID):
+        NotesScreen(focusFolderID: folderID)
     case .noteEditor(let noteID):
         NoteEditorScreen(noteID: noteID)
     case .projects:

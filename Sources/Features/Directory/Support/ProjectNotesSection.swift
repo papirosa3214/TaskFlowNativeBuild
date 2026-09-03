@@ -71,7 +71,7 @@ struct ProjectNotesSection: View {
 
     private func folderSection(_ folder: APIClient.DirectoryProjectDocs.FolderRef) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            NavigationLink(value: AppRoute.notes) {
+            NavigationLink(value: AppRoute.noteFolder(folderID: folder.id)) {
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: "folder")
                         .tfText(.title)

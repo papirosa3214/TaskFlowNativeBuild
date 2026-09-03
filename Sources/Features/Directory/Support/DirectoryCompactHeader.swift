@@ -19,18 +19,19 @@ struct DirectoryCompactHeader: View {
     var accessory: (() -> AnyView)?
 
     var body: some View {
-        ZStack {
-            HStack {
-                DirectoryBackButton()
-                Spacer()
-                if !actions.isEmpty {
-                    HStack(spacing: TFSpacing.headerActionsGap) {
-                        ForEach(actions) { action in
-                            TFIconButton(action.icon, size: 18, action: action.handler)
-                        }
-                    }
-                }
-            }
+        // Было ZStack с заголовком по центру ВСЕГО экрана, без учёта ширины
+        // кнопок вокруг — у длинного названия проекта/метки текст наезжал на
+        // «+» справа (просьба владельца 03.09.2026: «с шапкой что-то не то»,
+        // видно на любом проекте с названием подлиннее). Теперь заголовок —
+        // во флекс-зоне между двумя зеркальными по ширине (`TFHitTarget.min`)
+        // зонами кнопок: `lineLimit(1)` при нехватке места обрезает многоточием,
+        // а не залезает на «+». Как побочный эффект центрирование уже не
+        // идеально-абсолютное при 2+ иконках справа — сегодня везде максимум
+        // одна, этого достаточно.
+        HStack(spacing: TFSpacing.sm) {
+            DirectoryBackButton()
+                .frame(width: TFHitTarget.min, alignment: .leading)
+
             HStack(spacing: 6) {
                 accessory?()
                 Text(title)
@@ -38,7 +39,14 @@ struct DirectoryCompactHeader: View {
                     .foregroundStyle(Color.tfText)
                     .lineLimit(1)
             }
-            .allowsHitTesting(false)
+            .frame(maxWidth: .infinity)
+
+            HStack(spacing: TFSpacing.headerActionsGap) {
+                ForEach(actions) { action in
+                    TFIconButton(action.icon, size: 18, action: action.handler)
+                }
+            }
+            .frame(width: TFHitTarget.min, alignment: .trailing)
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
         .frame(height: 48)

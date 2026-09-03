@@ -18,6 +18,12 @@ public enum AppRoute: Hashable {
     /// `nil` — создание новой задачи, иначе правка существующей.
     case taskForm(taskID: String?)
     case notes
+    /// Дневник, сразу открытый на конкретной папке (просьба владельца
+    /// 03.09.2026: шеврон «Документация» у проекта вёл на общий несвязанный
+    /// корень Заметок — не та папка, что показана в превью карточки проекта).
+    /// `.notes` без параметра НЕ трогаем — контракт `INTEGRATION.md` его
+    /// таким и описывает, этот case — целенаправленное добавление сверх него.
+    case noteFolder(folderID: Int)
     case noteEditor(noteID: String)
     case projects
     case projectTasks(projectID: String)

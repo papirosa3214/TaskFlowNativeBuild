@@ -25,8 +25,17 @@ public extension APIClient {
         try await request(.patch, "/notes/\(id)", body: fields)
     }
 
+    /// Ответ обёрнут в объект `{ "folders": [...] }`, не голый массив — та же
+    /// форма, что уже подтверждена для `GET /notes` → `{ "notes": [...] }`
+    /// (см. `NotesAPI.swift`, `NoteListResponse`). Раньше ждали `[ApiJournalFolder]`
+    /// напрямую — декодер видел объект вместо массива и ронял запрос целиком:
+    /// «Документация» проекта не могла открыться ни на одну папку (просьба
+    /// владельца 03.09.2026, подтверждено кадром с текстом реальной ошибки —
+    /// `DecodingError.typeMismatch: expected Array, found a dictionary`).
     func journalFolders() async throws -> [ApiJournalFolder] {
-        try await request(.get, "/journal/folders")
+        struct Response: Decodable { let folders: [ApiJournalFolder] }
+        let response: Response = try await request(.get, "/journal/folders")
+        return response.folders
     }
 
     func createJournalFolder(name: String, parentId: Int? = nil) async throws -> ApiJournalFolder {

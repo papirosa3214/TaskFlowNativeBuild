@@ -2,21 +2,21 @@ import SwiftUI
 
 // ═══════════ NotesScreen — «Дневник» (spec/SCREENS-2.md §1) ═══════════
 //
-// Экран не корневая вкладка (попадает сюда пушем из CreateMenu «Заметка» —
-// `RootShellView.createMenuItems`), поэтому нужна стрелка «Назад». Спека
-// §0.1 обещает, что её рисует сама `ScreenHeader`, но у `TFScreenHeader`
-// леэдинг реализован ТОЛЬКО для `.compact` (см. код компонента) — у
-// `.large` слота `leading` нет вовсе. Модифицировать DesignSystem нельзя
-// (правило ARCHITECTURE.md), поэтому здесь — свой маленький заголовок
-// той же геометрии/шрифта/фона, что и `TFScreenHeader.large`, плюс
-// leading-слот. Разрыв назван в отчёте — по-хорошему `TFScreenHeader`
-// стоит доращивать каркасному исполнителю.
+// Была своя рисованная шапка (обходила то, что у `TFScreenHeader.large`
+// нет leading-слота под стрелку «Назад») — просьба владельца 03.09.2026
+// («шапка кривущая, нужны нативные кнопки») перевела её на `tfNativeHeader`
+// + системный `Menu` вместо самодельного `.popover`, тем же приёмом, что
+// уже стоит на Today/Settings/Upcoming/Agents. Системная стрелка «Назад»
+// подставляется стеком навигации сама — свою больше не рисуем.
 public struct NotesScreen: View {
     @State private var viewModel = NotesViewModel()
-    @Environment(\.dismiss) private var dismiss
 
-    @State private var isKebabMenuOpen = false
-    @State private var isSelectionMenuOpen = false
+    /// Открыть сразу на этой папке (её и предков разворачиваем, к ней же
+    /// скроллим) — просьба владельца 03.09.2026: шеврон «Документация» у
+    /// проекта вёл на общий несвязанный корень Дневника, не на папку,
+    /// показанную в превью карточки проекта. `nil` — обычный корень, как раньше.
+    private let focusFolderID: Int?
+
     @State private var showRenameSheet = false
     @State private var renameText = ""
     @State private var showMovePicker = false
@@ -25,11 +25,12 @@ public struct NotesScreen: View {
     @State private var shareURLs: [URL] = []
     @State private var showShareSheet = false
 
-    public init() {}
+    public init(focusFolderID: Int? = nil) {
+        self.focusFolderID = focusFolderID
+    }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            header
+        ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     TFErrorBanner(viewModel.foldersErrorMessage)
@@ -61,13 +62,33 @@ public struct NotesScreen: View {
                 }
                 .padding(.vertical, TFSpacing.sm)
             }
+            .task {
+                await viewModel.load()
+                guard let focusFolderID else { return }
+                expandAncestors(of: focusFolderID)
+                // Короткая пауза — дать LazyVStack отрисовать развёрнутые
+                // строки, прежде чем скроллить к ним (иначе scrollTo не
+                // находит ещё не выложенный id).
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                withAnimation { proxy.scrollTo("f:\(focusFolderID)", anchor: .top) }
+            }
         }
         .background(Color.tfBackground)
-        .navigationBarBackButtonHidden(true)
-        // Нативная сворачивающаяся шапка.
-        .navigationTitle("Заметки")
-        .navigationBarTitleDisplayMode(.large)
-        .task { await viewModel.load() }
+        .tfNativeHeader("Дневник", displayMode: .inline)
+        .toolbar {
+            if viewModel.isSelecting {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Отмена") { viewModel.exitSelecting() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    selectionMenu
+                }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    kebabMenu
+                }
+            }
+        }
         // Редактор берём из общей фабрики маршрутов: пока экран не написан,
         // она отдаёт заглушку, и список заметок от этого не ломается.
         .navigationDestination(item: $pendingNoteID) { id in
@@ -94,121 +115,49 @@ public struct NotesScreen: View {
         }
     }
 
-    // MARK: - Заголовок (см. комментарий в начале файла)
-
-    private var header: some View {
-        VStack(spacing: 0) {
-            HStack {
-                if viewModel.isSelecting {
-                    Button("Отмена") { viewModel.exitSelecting() }
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfText)
-                } else {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(Color.tfText)
-                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                    }
-                    .buttonStyle(TFTapScaleStyle())
-                }
-
-                Spacer()
-
-                if viewModel.isSelecting {
-                    Button {
-                        isSelectionMenuOpen = true
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.tfText)
-                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                    }
-                    .buttonStyle(TFTapScaleStyle())
-                    .disabled(!viewModel.hasSelection)
-                    .opacity(viewModel.hasSelection ? 1 : 0.3)
-                    .popover(isPresented: $isSelectionMenuOpen, arrowEdge: .top) { selectionMenu }
-                        .presentationCompactAdaptation(.popover)
-                } else {
-                    Button {
-                        isKebabMenuOpen = true
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.tfText)
-                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                    }
-                    .buttonStyle(TFTapScaleStyle())
-                    .popover(isPresented: $isKebabMenuOpen, arrowEdge: .top) { kebabMenu }
-                        .presentationCompactAdaptation(.popover)
-                }
-            }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            // 48 и общий фон вместо 56 и `.ultraThinMaterial`: полоса была
-            // светлее ленты и выше остальных шапок, а заголовок вдвое крупнее —
-            // владелец 01.09.2026 увидел это как «разнобой в цветах и шрифтах».
-            .frame(height: 48)
-            // Свой `.background(.ultraThinMaterial)`: шапка лежит в safeAreaInset,
-            // не в NavigationBar — штатный `toolbarBackground` сюда не
-            // доходит, а раньше был FrostedGlass (Claude_Bot приёмка 02.09.2026).
-            // Полупрозрачный blur, как в вебе (frosted glass) — НЕ сплошной
-            // `.background(Color.tfCard)`, как было в коммите 12.
-            .background(.ultraThinMaterial)
-        }
-        // Штатный фон навбара — вызывающий код добавляет
-        // .toolbarBackground(.ultraThinMaterial, for: .navigationBar) +
-        // .toolbarBackgroundVisibility(.automatic, for: .navigationBar).
-        // (FrostedGlass удалён — см. коммит 9 в native-app.)
-        .overlay {
-            Text("Дневник")
-                .tfText(.title)
-                .foregroundStyle(Color.tfText)
-                .lineLimit(1)
-                .allowsHitTesting(false)
-        }
-    }
+    // MARK: - Меню «…» (нативные, см. комментарий в начале файла)
 
     private var kebabMenu: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            popoverItem(icon: "doc.text", title: "Создать заметку") {
-                isKebabMenuOpen = false
-                Task { await createNoteAndNavigate() }
+        Menu {
+            Button { Task { await createNoteAndNavigate() } } label: {
+                Label("Создать заметку", systemImage: "doc.text")
             }
-            popoverItem(icon: "folder", title: "Создать папку") {
-                isKebabMenuOpen = false
-                viewModel.isCreatingFolder = true
+            Button { viewModel.isCreatingFolder = true } label: {
+                Label("Создать папку", systemImage: "folder")
             }
-            popoverItem(icon: "checklist", title: "Выбрать элементы") {
-                isKebabMenuOpen = false
-                viewModel.enterSelecting()
+            Button { viewModel.enterSelecting() } label: {
+                Label("Выбрать элементы", systemImage: "checklist")
             }
-            popoverItem(icon: "square.and.arrow.up", title: "Выгрузить всё в Markdown") {
-                isKebabMenuOpen = false
+            Button {
                 Task {
                     shareURLs = await viewModel.exportAllToMarkdownFiles()
                     if !shareURLs.isEmpty { showShareSheet = true }
                 }
+            } label: {
+                Label("Выгрузить всё в Markdown", systemImage: "square.and.arrow.up")
             }
+        } label: {
+            Image(systemName: "ellipsis")
         }
-        .padding(.vertical, TFSpacing.xs)
-        .frame(width: 260)
+        .accessibilityLabel("Действия")
     }
 
     private var selectionMenu: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            popoverItem(icon: "pencil", title: "Переименовать", disabled: !viewModel.canRenameSelection) {
-                isSelectionMenuOpen = false
+        Menu {
+            Button {
                 renameText = ""
                 showRenameSheet = true
+            } label: {
+                Label("Переименовать", systemImage: "pencil")
             }
-            popoverItem(icon: "folder", title: "Переместить в папку", disabled: viewModel.selectedNoteIDs.isEmpty) {
-                isSelectionMenuOpen = false
-                showMovePicker = true
+            .disabled(!viewModel.canRenameSelection)
+
+            Button { showMovePicker = true } label: {
+                Label("Переместить в папку", systemImage: "folder")
             }
-            popoverItem(icon: "square.and.arrow.up", title: "Выгрузить в Markdown") {
-                isSelectionMenuOpen = false
+            .disabled(viewModel.selectedNoteIDs.isEmpty)
+
+            Button {
                 Task {
                     var urls: [URL] = []
                     for id in viewModel.selectedNoteIDs {
@@ -220,33 +169,20 @@ public struct NotesScreen: View {
                     shareURLs = urls
                     if !shareURLs.isEmpty { showShareSheet = true }
                 }
+            } label: {
+                Label("Выгрузить в Markdown", systemImage: "square.and.arrow.up")
             }
-            popoverItem(icon: "trash", title: "Удалить", destructive: true) {
-                isSelectionMenuOpen = false
-                showDeleteConfirm = true
-            }
-        }
-        .padding(.vertical, TFSpacing.xs)
-        .frame(width: 260)
-    }
 
-    private func popoverItem(icon: String, title: String, disabled: Bool = false, destructive: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: TFSpacing.md) {
-                Image(systemName: icon)
-                    .frame(width: 20)
-                Text(title)
-                    .tfText(.body)
-                Spacer()
+            Divider()
+
+            Button(role: .destructive) { showDeleteConfirm = true } label: {
+                Label("Удалить", systemImage: "trash")
             }
-            .foregroundStyle(destructive ? Color.tfCoral : Color.tfText)
-            .padding(.horizontal, TFSpacing.lg)
-            .padding(.vertical, TFSpacing.sm)
-            .contentShape(Rectangle())
+        } label: {
+            Image(systemName: "ellipsis")
         }
-        .buttonStyle(TFTapRowStyle())
-        .disabled(disabled)
-        .opacity(disabled ? 0.35 : 1)
+        .disabled(!viewModel.hasSelection)
+        .accessibilityLabel("Действия с выбранным")
     }
 
     // MARK: - Инлайн-форма «Создать папку»
@@ -373,6 +309,17 @@ public struct NotesScreen: View {
     private func createNoteAndNavigate() async {
         if let id = await viewModel.createNote() {
             pendingNoteID = id
+        }
+    }
+
+    /// Разворачивает саму папку и всех её предков по цепочке `parentId` —
+    /// иначе целевая папка (и её заметки) остаётся свёрнутой глубоко в
+    /// дереве, а `scrollTo` в `.task` выше не находит невыложенную строку.
+    private func expandAncestors(of folderID: Int) {
+        var current: Int? = folderID
+        while let id = current {
+            viewModel.expandedFolderIDs.insert(id)
+            current = viewModel.folders.first { $0.id == id }?.parentId
         }
     }
 }
