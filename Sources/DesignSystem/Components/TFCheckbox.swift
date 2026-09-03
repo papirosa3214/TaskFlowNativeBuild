@@ -81,7 +81,14 @@ public struct TFSubtaskStatusRing: View {
                             .foregroundStyle(.white)
                     }
             case .running:
-                DashedRing(active: true)
+                // Была `DashedRing(active: true)` (пунктирное кольцо, волна
+                // цвета по кругу) — просьба владельца 03.09.2026: назвал
+                // конкретную иконку из `icones` (`svg-spinners--12-dots-
+                // scale-rotate`) для замены. SwiftUI не рендерит SVG сама
+                // (в проекте нет декодера) — тот же рисунок 12 точек по
+                // кругу, каждая гаснет/уменьшается по мере отставания от
+                // «головы» волны, пересобран нативными фигурами.
+                DotsScaleRotate()
             case .pending:
                 DashedRing(active: false)
             case .blocked:
@@ -182,6 +189,49 @@ private struct DashedRing: View {
     /// Цвет-волна — 0.8s, фаза 0..1 по кругу.
     private func glow(_ t: TimeInterval) -> Double {
         (t.truncatingRemainder(dividingBy: glowPeriod)) / glowPeriod
+    }
+}
+
+/// 12 точек по кругу, «голова» волны полная и яркая, хвост гаснет и
+/// уменьшается — та же идея, что у `icones`/Iconify `svg-spinners--12-dots-
+/// scale-rotate` (просьба владельца 03.09.2026, точный SVG не тянем — в
+/// проекте нет SVG-рендерера, пересобрано нативными фигурами на том же
+/// `TimelineView(.animation)`, что и `DashedRing`, тот же приём — читаем
+/// время кадра, не дискретный `@State`).
+private struct DotsScaleRotate: View {
+    private let dotCount = 12
+    private let period: Double = 1.2 // один оборот волны
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let progress = (t.truncatingRemainder(dividingBy: period)) / period
+
+            ZStack {
+                ForEach(0..<dotCount, id: \.self) { i in
+                    dot(index: i, progress: progress)
+                }
+            }
+            .frame(width: 21, height: 21)
+        }
+    }
+
+    private func dot(index: Int, progress: Double) -> some View {
+        let angle = Angle.degrees(Double(index) / Double(dotCount) * 360)
+        // Фаза этой точки относительно «головы» волны — 0 у головы (ярко),
+        // 1 у хвоста (тускло/мелко), волна бежит по кругу против часовой.
+        var phase = progress - Double(index) / Double(dotCount)
+        phase = phase.truncatingRemainder(dividingBy: 1)
+        if phase < 0 { phase += 1 }
+        let intensity = 1 - phase
+
+        return Circle()
+            .fill(Color.tfText)
+            .frame(width: 3.4, height: 3.4)
+            .scaleEffect(0.35 + 0.65 * intensity)
+            .opacity(0.2 + 0.8 * intensity)
+            .offset(y: -9)
+            .rotationEffect(angle)
     }
 }
 

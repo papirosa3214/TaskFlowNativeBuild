@@ -141,4 +141,15 @@ public extension Color {
     init(hex: String) {
         self.init(uiColor: UIColor(hex: hex))
     }
+
+    /// Обратный путь `Color → "#RRGGBB"` — просьба владельца 03.09.2026:
+    /// «RGB-шкала, чтобы сам выбирал оттенки» у меток — нативный `ColorPicker`
+    /// отдаёт `Color`, а модель хранит цвет hex-строкой, нужен мост обратно.
+    func toHex() -> String {
+        let resolved = resolve(in: EnvironmentValues())
+        let r = Int((resolved.red * 255).rounded())
+        let g = Int((resolved.green * 255).rounded())
+        let b = Int((resolved.blue * 255).rounded())
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
 }

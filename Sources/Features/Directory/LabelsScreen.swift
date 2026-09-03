@@ -215,7 +215,7 @@ private struct LabelCreateForm: View {
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
 
-            DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26)
+            DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26, allowsCustomColor: true)
 
             TFErrorBanner(labelStore.errorMessage, variant: .block)
 
@@ -272,7 +272,7 @@ private struct LabelEditForm: View {
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
 
-            DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26)
+            DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26, allowsCustomColor: true)
 
             TFErrorBanner(errorMessage, variant: .block)
 

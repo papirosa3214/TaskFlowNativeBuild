@@ -151,6 +151,14 @@ struct SubtaskEditListView: View {
 
 /// `AddSubtaskRow` — spec §3.7: плейсхолдер «Добавить подзадачу...», галочка
 /// справа появляется только когда в поле есть текст, Enter добавляет и чистит поле.
+///
+/// Была в карточке (`Color.tfCard` + скруглённый фон) — просьба владельца
+/// 03.09.2026: «название задачи без оболочки, описание без оболочки —
+/// подзадача тоже должна быть без оболочки, это всё текстовые вещи,
+/// должно быть однородно». Фон убран — тот же голый текстовый ввод, что у
+/// названия/описания задачи. Уже добавленные подзадачи (`draftRow`/`row`
+/// выше) — другое: это готовые пункты списка, не поле ввода, их фон не
+/// трогаю.
 struct AddSubtaskRow: View {
     @Binding var text: String
     var onSubmit: () -> Void
@@ -171,9 +179,6 @@ struct AddSubtaskRow: View {
                 .buttonStyle(TFTapScaleStyle())
             }
         }
-        .padding(.horizontal, TFField.cardInsetH)
         .frame(minHeight: TFField.height)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
     }
 }

@@ -27,6 +27,13 @@ struct DirectoryColorSwatches: View {
     let colors: [String]
     @Binding var selected: String
     var size: CGFloat = 24
+    /// Просьба владельца 03.09.2026 (метки): «RGB-шкала, а не только
+    /// выделенные цвета — чтобы сам выбирал вплоть до оттенков». Фиксный
+    /// набор — 1:1 веб (см. комментарий у `DirectoryColors`), трогать его
+    /// не стал; добавил ЕЩЁ один кружок сверх — нативный `ColorPicker`
+    /// (спектр/RGB-ползунки/hex, всё системное, без своего UI). По умолчанию
+    /// выключено — не меняет `ProjectsScreen`, который этого не просил.
+    var allowsCustomColor: Bool = false
 
     var body: some View {
         HStack(spacing: TFSpacing.sm) {
@@ -45,6 +52,18 @@ struct DirectoryColorSwatches: View {
                         }
                 }
                 .buttonStyle(TFTapScaleStyle())
+            }
+            if allowsCustomColor {
+                ColorPicker(
+                    "",
+                    selection: Binding(
+                        get: { Color(hex: selected) },
+                        set: { selected = $0.toHex() }
+                    ),
+                    supportsOpacity: false
+                )
+                .labelsHidden()
+                .frame(width: size, height: size)
             }
         }
     }
