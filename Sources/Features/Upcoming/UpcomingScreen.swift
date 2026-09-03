@@ -332,11 +332,13 @@ public struct UpcomingScreen: View {
         }
     }
 
-    /// Состояния общие для всех 4 видов (спека §5.2: рендерятся один раз, до
-    /// ветвления по `view`) — здесь только тот случай, что не покрыт
+    /// Состояния общие для оставшихся 3 видов (Неделя/Месяц/Три дня) — в
+    /// «Список» такой баннер владелец 03.09.2026 явно попросил НЕ добавлять
+    /// («убираем из списков эту хрень»): там сброс фильтров живёт только
+    /// пунктом внутри Menu фильтров, и всё. Здесь — случай, что не покрыт
     /// загрузкой/ошибкой: фильтры вычистили список подчистую.
     private var emptyFilterBanner: AnyView? {
-        guard selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
+        guard view != .list, selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
               !datedTasks.isEmpty, tasks.isEmpty else { return nil }
         return AnyView(
             HStack(spacing: 6) {

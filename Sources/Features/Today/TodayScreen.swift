@@ -58,19 +58,6 @@ struct TodayScreen: View {
                     TFErrorBanner(taskStore.errorMessage, variant: .inline)
                         .padding(.horizontal, TFSpacing.lg)
 
-                    if c.filteredEmpty {
-                        HStack(spacing: 6) {
-                            Text("Под выбранные фильтры ничего не подошло")
-                            Button("Сбросить фильтры") { vm.filters = .empty }
-                                .foregroundStyle(Color.tfRed)
-                                .fontWeight(.medium)
-                        }
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfDim)
-                        .padding(.horizontal, TFSpacing.lg)
-                        .padding(.top, TFSpacing.sm)
-                    }
-
                     Group {
                         switch vm.layout {
                         case .list:

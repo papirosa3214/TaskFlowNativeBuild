@@ -48,36 +48,41 @@ struct UpcomingListView: View {
         UpcomingDate.groupByDate(tasks)
     }
 
-    /// `visibleDates` (spec): выбранная дата — только она; иначе непрерывная
-    /// лента 365 дней вперёд от сегодня + любые задачи дальше этого окна.
+    /// `visibleDates` (spec): выбранная дата — только она; иначе только даты,
+    /// на которые реально есть задачи.
+    ///
+    /// Было: непрерывная лента 365 дней вперёд от сегодня (пустые дни всё
+    /// равно не рисуются — `if !dayTasks.isEmpty` ниже режет их до `EmptyView`)
+    /// + сами задачи. 364 холостых итерации `ForEach` ничего не рисовали, но
+    /// `LazyVStack` всё равно резервировал под них место при оценке высоты —
+    /// отсюда просьба владельца 03.09.2026: «зазор между сеткой и первым
+    /// событием» (десятки лишних пунктов вперёд до первой настоящей секции).
     private var visibleDates: [String] {
         if let selectedDate { return [selectedDate] }
-        var set = Set<String>()
-        let today = UpcomingDate.todayString()
-        for i in 0..<365 { set.insert(UpcomingDate.addDays(today, i)) }
-        set.formUnion(groupedTasks.keys)
-        return set.sorted()
+        return groupedTasks.keys.sorted()
     }
 
     var body: some View {
-        // Лента-выборщик — не сосед списка сверху, а `safeAreaInset`: список
-        // резервирует ей место, но визуально продолжает уходить под неё при
-        // скролле (тот же приём, что дал бы `ZStack`, только без ручного
-        // измерения высоты — просьба владельца 03.09.2026, тот же эффект
-        // затухания, что и у плашек дат ниже).
         list
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    calendarStrip
-                    if let selectedDate {
-                        selectedPill(selectedDate)
-                    }
-                }
-                .background(
-                    TFHeaderBackdrop(tail: 20, opacity: 0.9)
-                        .padding(.bottom, -20)
-                )
-            }
+    }
+
+    /// Лента-выборщик — не сосед списка сверху, а `safeAreaInset` на самом
+    /// `ScrollView` (не на обёртке `Group`/`if-else` — там `.safeAreaInset`
+    /// задваивал отступ, ScrollView начинался на добрые 60pt ниже, чем
+    /// заканчивалась сама лента: просьба владельца 03.09.2026, «зазор между
+    /// сеткой и первым событием»). Список резервирует ей место, но визуально
+    /// продолжает уходить под неё при скролле — тот же эффект затухания, что
+    /// и у плашек дат ниже.
+    @ViewBuilder
+    private var header: some View {
+        VStack(spacing: 0) {
+            calendarStrip
+            if let selectedDate { selectedPill(selectedDate) }
+        }
+        .background(
+            TFHeaderBackdrop(tail: 20, opacity: 0.9)
+                .padding(.bottom, -20)
+        )
     }
 
     // MARK: - Лента-выборщик
@@ -281,9 +286,9 @@ struct UpcomingListView: View {
 
     // MARK: - Список
 
+    @ViewBuilder
     private var list: some View {
-        Group {
-            if let selectedDate, (groupedTasks[selectedDate] ?? []).isEmpty {
+        if let selectedDate, (groupedTasks[selectedDate] ?? []).isEmpty {
                 // maxHeight + alignment: .top — без этого короткая строка
                 // центрировалась по всей высоте экрана, а вместе с ней «падала»
                 // вниз и лента-календарь над ней (просьба владельца 03.09.2026:
@@ -293,6 +298,7 @@ struct UpcomingListView: View {
                     .foregroundStyle(Color.tfDim)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, 40)
+                    .safeAreaInset(edge: .top, spacing: 0) { header }
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0, pinnedViews: selectedDate == nil ? [.sectionHeaders] : []) {
@@ -319,8 +325,8 @@ struct UpcomingListView: View {
                     }
                     .padding(.top, TFSpacing.md)
                 }
+                .safeAreaInset(edge: .top, spacing: 0) { header }
             }
-        }
     }
 
     private func dateHeader(_ date: String) -> some View {
