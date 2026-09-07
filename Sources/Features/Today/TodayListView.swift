@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Вид «Список» — spec §5.1. Секции сверху вниз: «Ждут вас» → «Просрочено» →
+// Вид «Список» — spec §5.1. Секции сверху вниз: «Просрочено» → «Ждут вас» →
 // дата-заголовок (только если выше уже была секция) → задачи на сегодня.
 // `AppleCalendarEvents` (события календаря устройства) — вне спеки Волны 1
 // (`spec/NATIVE-PARTS.md` относит интеграцию с системным календарём к
@@ -21,17 +21,6 @@ struct TodayListView: View {
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-            if !waitingTasks.isEmpty {
-                Section {
-                    ForEach(waitingTasks) { task in
-                        TodayTaskRow(task: task, overdue: task.dueDate != nil && task.dueDate! < today,
-                                     onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
-                                     onReschedule: { onReschedule(task) }, onDelete: { onDelete(task) })
-                    }
-                } header: {
-                    header(.waiting)
-                }
-            }
             if !overdueTasks.isEmpty {
                 Section {
                     ForEach(overdueTasks) { task in
@@ -41,6 +30,17 @@ struct TodayListView: View {
                     }
                 } header: {
                     header(.overdue)
+                }
+            }
+            if !waitingTasks.isEmpty {
+                Section {
+                    ForEach(waitingTasks) { task in
+                        TodayTaskRow(task: task, overdue: task.dueDate != nil && task.dueDate! < today,
+                                     onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
+                                     onReschedule: { onReschedule(task) }, onDelete: { onDelete(task) })
+                    }
+                } header: {
+                    header(.waiting)
                 }
             }
             Section {
@@ -62,7 +62,9 @@ struct TodayListView: View {
             let info = secs[index]
             HStack(spacing: 6) {
                 if let icon = info.icon {
-                    Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Color.tfText)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: kind == .overdue ? .bold : .regular))
+                        .foregroundStyle(info.color)
                 }
                 Text(info.title)
                     .font(.system(size: 17, weight: .semibold))
@@ -89,12 +91,12 @@ struct TodaySectionInfo: Equatable {
     /// Единственное место, где решается состав и порядок секций.
     static func list(waiting: [ApiTask], overdue: [ApiTask], today: [ApiTask], todayDate: String) -> [TodaySectionInfo] {
         var result: [TodaySectionInfo] = []
+        if !overdue.isEmpty {
+            result.append(.init(kind: .overdue, title: "Просрочено", icon: "exclamationmark", color: .tfRed))
+        }
         if !waiting.isEmpty {
             result.append(.init(kind: .waiting, title: "Ждут вас",
                                 icon: "person.crop.circle.badge.clock", color: .tfText))
-        }
-        if !overdue.isEmpty {
-            result.append(.init(kind: .overdue, title: "Просрочено", icon: nil, color: .tfRed))
         }
         if !today.isEmpty {
             result.append(.init(kind: .today, title: TodayDate.formatDueLabel(todayDate),
