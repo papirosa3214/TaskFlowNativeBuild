@@ -13,17 +13,21 @@ struct TodayBoardView: View {
     let onAddTask: () -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: TFSpacing.md) {
-                ForEach(columns) { column in
-                    columnView(column)
-                        .frame(width: 260)
+        GeometryReader { proxy in
+            let columnWidth = max(280, proxy.size.width - 48)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: TFSpacing.sm) {
+                    ForEach(columns) { column in
+                        columnView(column)
+                            .frame(width: columnWidth, height: proxy.size.height)
+                            .scrollTargetLayout()
+                    }
                 }
+                .padding(.horizontal, TFSpacing.lg)
+                .scrollTargetLayout()
             }
-            .padding(.horizontal, TFSpacing.lg)
-            .scrollTargetLayout()
+            .scrollTargetBehavior(.viewAligned)
         }
-        .scrollTargetBehavior(.viewAligned)
     }
 
     private func columnView(_ column: TodayBoardColumn) -> some View {
@@ -41,37 +45,39 @@ struct TodayBoardView: View {
                 }
             }
 
-            if column.tasks.isEmpty {
-                Text("Нет задач")
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(maxWidth: .infinity, minHeight: 60)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: TFRadius.lg)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                            .foregroundStyle(Color.tfStroke)
-                    }
-            } else {
-                VStack(spacing: TFSpacing.sm) {
-                    ForEach(column.tasks) { task in
-                        boardCard(task)
+            ScrollView {
+                if column.tasks.isEmpty {
+                    Text("Нет задач")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(maxWidth: .infinity, minHeight: 60)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: TFRadius.lg)
+                                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                .foregroundStyle(Color.tfStroke)
+                        }
+                } else {
+                    VStack(spacing: TFSpacing.sm) {
+                        ForEach(column.tasks) { task in
+                            boardCard(task)
+                        }
                     }
                 }
-            }
 
-            if column.id == .today {
-                Button(action: onAddTask) {
-                    HStack(spacing: TFSpacing.sm) {
-                        Image(systemName: "plus")
-                        Text("Добавить задачу")
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.tfRed)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .background(Color.tfRed.opacity(0.05))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: TFRadius.lg)
-                            .strokeBorder(Color.tfRed.opacity(0.4), lineWidth: 1)
+                if column.id == .today {
+                    Button(action: onAddTask) {
+                        HStack(spacing: TFSpacing.sm) {
+                            Image(systemName: "plus")
+                            Text("Добавить задачу")
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.tfRed)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(Color.tfRed.opacity(0.05))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: TFRadius.lg)
+                                .strokeBorder(Color.tfRed.opacity(0.4), lineWidth: 1)
+                        }
                     }
                 }
             }

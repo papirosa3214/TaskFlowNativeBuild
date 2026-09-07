@@ -41,6 +41,8 @@ struct TodaySectionView: View {
         Group {
             if layout == .hours {
                 hoursContent(c: c)
+            } else if layout == .board {
+                listOrBoardContent(c: c)
             } else {
                 ScrollView {
                     listOrBoardContent(c: c)
