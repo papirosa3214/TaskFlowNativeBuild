@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Видимая часть следующей колонки: достаточно, чтобы подсказать свайп,
+/// но не настолько много, чтобы текущая карточка снова стала узкой.
+private let boardNextColumnPeek: CGFloat = 28
+
 // Доска «Сегодня» — spec §3.4/§5.1: колонки «Ждут вас»/«Просрочено»/«Сегодня»,
 // БЕЗ группировки по проектам (владелец, прямое решение) — поэтому drag
 // между колонками здесь не пишет `project_id` (в вебе карточка просто
@@ -13,21 +17,25 @@ struct TodayBoardView: View {
     let onAddTask: () -> Void
 
     var body: some View {
-        GeometryReader { proxy in
-            let columnWidth = max(280, proxy.size.width - 48)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: TFSpacing.sm) {
-                    ForEach(columns) { column in
-                        columnView(column)
-                            .frame(width: columnWidth, height: proxy.size.height)
-                            .scrollTargetLayout()
-                    }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: TFSpacing.md) {
+                ForEach(columns) { column in
+                    columnView(column)
+                        .containerRelativeFrame(.horizontal) { availableWidth, _ in
+                            max(280, availableWidth - TFSpacing.lg * 2 - boardNextColumnPeek)
+                        }
+                        .frame(maxHeight: .infinity, alignment: .top)
                 }
-                .padding(.horizontal, TFSpacing.lg)
-                .scrollTargetLayout()
             }
-            .scrollTargetBehavior(.viewAligned)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, TFSpacing.lg)
+            .scrollTargetLayout()
         }
+        .frame(maxHeight: .infinity, alignment: .top)
+        // После отпускания всегда защёлкиваемся на одной ближайшей колонке.
+        // `automatic` позволял инерции пролетать несколько широких досок и
+        // создавал ощущение ленты без собственных границ.
+        .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
     }
 
     private func columnView(_ column: TodayBoardColumn) -> some View {
@@ -45,43 +53,46 @@ struct TodayBoardView: View {
                 }
             }
 
-            ScrollView {
-                if column.tasks.isEmpty {
-                    Text("Нет задач")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfDim)
-                        .frame(maxWidth: .infinity, minHeight: 60)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: TFRadius.lg)
-                                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                                .foregroundStyle(Color.tfStroke)
-                        }
-                } else {
-                    VStack(spacing: TFSpacing.sm) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: TFSpacing.sm) {
+                    if column.tasks.isEmpty {
+                        Text("Нет задач")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfDim)
+                            .frame(maxWidth: .infinity, minHeight: 60)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: TFRadius.lg)
+                                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                    .foregroundStyle(Color.tfStroke)
+                            }
+                    } else {
                         ForEach(column.tasks) { task in
                             boardCard(task)
                         }
                     }
-                }
 
-                if column.id == .today {
-                    Button(action: onAddTask) {
-                        HStack(spacing: TFSpacing.sm) {
-                            Image(systemName: "plus")
-                            Text("Добавить задачу")
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.tfRed)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Color.tfRed.opacity(0.05))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: TFRadius.lg)
-                                .strokeBorder(Color.tfRed.opacity(0.4), lineWidth: 1)
+                    if column.id == .today {
+                        Button(action: onAddTask) {
+                            HStack(spacing: TFSpacing.sm) {
+                                Image(systemName: "plus")
+                                Text("Добавить задачу")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.tfRed)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(Color.tfRed.opacity(0.05))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: TFRadius.lg)
+                                    .strokeBorder(Color.tfRed.opacity(0.4), lineWidth: 1)
+                            }
                         }
                     }
                 }
+                .padding(.bottom, TFSpacing.lg)
             }
+            .frame(maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func boardCard(_ task: ApiTask) -> some View {
