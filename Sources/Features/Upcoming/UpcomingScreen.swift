@@ -152,9 +152,8 @@ public struct UpcomingScreen: View {
                 UpcomingMonthView(
                     initialMonday: monthGridInitialMonday,
                     initialMonth: UpcomingDate.yearMonth(UpcomingDate.todayString()),
-                    byDate: byDate, openDay: openDay,
-                    onDayTap: { d in openDay = openDay == d ? nil : d },
-                    onTaskTap: { pushedTaskID = $0 },
+                    byDate: byDate,
+                    onDayTap: { openDay = $0 },
                     onVisibleMonthChange: { y, m in gridMonth = (y, m) }
                 )
             }

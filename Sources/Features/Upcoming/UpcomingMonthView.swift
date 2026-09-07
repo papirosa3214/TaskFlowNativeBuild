@@ -34,9 +34,7 @@ struct UpcomingMonthView: View {
     /// на прошедшем месяце, а не на текущем.
     let initialMonth: (year: Int, month: Int)
     let byDate: [String: [ApiTask]]
-    let openDay: String?
     let onDayTap: (String) -> Void
-    let onTaskTap: (String) -> Void
     let onVisibleMonthChange: (Int, Int) -> Void
 
     @State private var weeks: [String] = []
@@ -45,16 +43,14 @@ struct UpcomingMonthView: View {
 
     init(
         initialMonday: String, initialMonth: (year: Int, month: Int),
-        byDate: [String: [ApiTask]], openDay: String?,
-        onDayTap: @escaping (String) -> Void, onTaskTap: @escaping (String) -> Void,
+        byDate: [String: [ApiTask]],
+        onDayTap: @escaping (String) -> Void,
         onVisibleMonthChange: @escaping (Int, Int) -> Void
     ) {
         self.initialMonday = initialMonday
         self.initialMonth = initialMonth
         self.byDate = byDate
-        self.openDay = openDay
         self.onDayTap = onDayTap
-        self.onTaskTap = onTaskTap
         self.onVisibleMonthChange = onVisibleMonthChange
     }
 
@@ -114,8 +110,6 @@ struct UpcomingMonthView: View {
     private func weekBlock(monday: String, index: Int) -> some View {
         let days = (0..<7).map { UpcomingDate.addDays(monday, $0) }
         let monthStartIndex = days.firstIndex { UpcomingDate.day($0) == 1 }
-        let openHere = openDay != nil && days.contains(openDay!)
-
         return VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(days, id: \.self) { ds in
@@ -155,10 +149,6 @@ struct UpcomingMonthView: View {
                     }
                 }
             }
-
-            if openHere, let openDay {
-                UpcomingDayStrip(date: openDay, tasks: byDate[openDay] ?? [], onTaskTap: onTaskTap)
-            }
         }
     }
 
@@ -166,7 +156,6 @@ struct UpcomingMonthView: View {
         let today = UpcomingDate.todayString()
         let isToday = ds == today
         let startsMonth = UpcomingDate.day(ds) == 1
-        let isOpen = ds == openDay
         let tasks = byDate[ds] ?? []
         let shown = Array(tasks.prefix(monthChipLimit))
         let rest = tasks.count - shown.count
@@ -191,9 +180,6 @@ struct UpcomingMonthView: View {
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .top)
         .frame(height: monthRowH, alignment: .top)
-        .background(isOpen ? Color.tfCard : .clear)
-        .clipShape(isOpen ? RoundedRectangle(cornerRadius: TFRadius.lg) : RoundedRectangle(cornerRadius: 0))
-        .clipped()
         .contentShape(Rectangle())
         .onTapGesture { onDayTap(ds) }
     }
