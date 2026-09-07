@@ -129,6 +129,8 @@ private struct ProjectCreateForm: View {
     @State private var name = ""
     @State private var color = DirectoryColors.project[0]
     @State private var isSaving = false
+    /// Полка базы знаний. `nil` — общая база TaskFlow.
+    @State private var datasetId: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
@@ -141,6 +143,10 @@ private struct ProjectCreateForm: View {
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
 
             DirectoryColorSwatches(colors: DirectoryColors.project, selected: $color, size: 24)
+
+            // У нового проекта документов ещё нет, переносить нечего —
+            // предупреждение о переиндексации здесь не нужно.
+            KnowledgeDatasetPicker(selection: $datasetId)
 
             TFErrorBanner(projectStore.errorMessage, variant: .block)
 
@@ -182,7 +188,9 @@ private struct ProjectCreateForm: View {
         guard !trimmed.isEmpty else { return }
         isSaving = true
         defer { isSaving = false }
-        if await projectStore.create(name: trimmed, color: color) != nil {
+        if await projectStore.create(
+            name: trimmed, color: color, knowledgeDatasetId: datasetId
+        ) != nil {
             onCreated()
         }
     }
@@ -202,6 +210,12 @@ private struct ProjectEditForm: View {
     @State private var color: String
     @State private var isSaving = false
     @State private var errorMessage: String?
+    /// Полка базы знаний. `nil` — общая база TaskFlow.
+    @State private var datasetId: String?
+    /// Текст предупреждения от сервера (409): сколько документов переедет и
+    /// сколько примерно займёт переиндексация. Пока он не пуст — показан
+    /// диалог, и до ответа владельца ничего не сохраняется.
+    @State private var reindexPrompt: String?
 
     init(project: ApiProject, apiClient: APIClient, onSaved: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.project = project
@@ -210,6 +224,7 @@ private struct ProjectEditForm: View {
         self.onCancel = onCancel
         _name = State(initialValue: project.name)
         _color = State(initialValue: project.color ?? DirectoryColors.project[0])
+        _datasetId = State(initialValue: project.knowledgeDatasetId)
     }
 
     var body: some View {
@@ -223,6 +238,15 @@ private struct ProjectEditForm: View {
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
 
             DirectoryColorSwatches(colors: DirectoryColors.project, selected: $color, size: 24)
+
+            KnowledgeDatasetPicker(
+                selection: $datasetId,
+                reindexWarning: datasetChanged && documentCount > 0
+                    ? "Смена базы знаний = переиндексация: \(documentCount) док. уедут "
+                      + "в другую базу и будут посчитаны заново. Это займёт время, и "
+                      + "пока идёт индексация, эти документы в поиске не находятся."
+                    : nil
+            )
 
             TFErrorBanner(errorMessage, variant: .block)
 
@@ -257,16 +281,56 @@ private struct ProjectEditForm: View {
         .padding(TFSpacing.lg)
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
+        // Текст диалога — тот, что прислал сервер: там точное число
+        // документов и оценка минут, а не догадка клиента.
+        .confirmationDialog(
+            "Переиндексация",
+            isPresented: Binding(
+                get: { reindexPrompt != nil },
+                set: { if !$0 { reindexPrompt = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Перенести и переиндексировать", role: .destructive) {
+                Task { await save(confirmReindex: true) }
+            }
+            Button("Отмена", role: .cancel) { reindexPrompt = nil }
+        } message: {
+            Text(reindexPrompt ?? "")
+        }
     }
 
-    private func save() async {
+    /// Документов у проекта — из карточки (`docs_count`). Нужно, чтобы не
+    /// пугать предупреждением там, где переносить нечего.
+    private var documentCount: Int { project.docsCount ?? 0 }
+
+    private var datasetChanged: Bool { datasetId != project.knowledgeDatasetId }
+
+    private func save(confirmReindex: Bool = false) async {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         isSaving = true
         defer { isSaving = false }
+
+        var fields: [String: JSONValue] = [
+            "name": .string(trimmed),
+            "color": .string(color),
+        ]
+        // Датасет шлём только когда он реально поменялся: лишнее поле в теле
+        // заставило бы сервер считать это сменой и требовать подтверждения.
+        if datasetChanged {
+            fields["knowledge_dataset_id"] = datasetId.map { JSONValue.string($0) } ?? .null
+            if confirmReindex { fields["confirm_reindex"] = .bool(true) }
+        }
+
         do {
-            _ = try await apiClient.patchProject(id: project.id, fields: ["name": .string(trimmed), "color": .string(color)])
+            _ = try await apiClient.patchProject(id: project.id, fields: fields)
+            reindexPrompt = nil
             onSaved()
+        } catch APIError.conflict(let message) {
+            // 409 — сервер ничего не записал и просит подтверждения; в
+            // сообщении уже есть число документов и оценка времени.
+            reindexPrompt = message
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? "Не удалось переименовать проект"
         }

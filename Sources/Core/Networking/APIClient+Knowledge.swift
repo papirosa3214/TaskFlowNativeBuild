@@ -56,7 +56,40 @@ public struct ApiKnowledgeDocument: Decodable, Identifiable, Sendable, Hashable 
     }
 }
 
+/// Датасет RAGFlow — «полка», на которую ложится документация проекта.
+/// Разделение нужно, чтобы специфический проект не подмешивал свои документы
+/// туда, где ищут рабочее (владелец 08.09.2026).
+public struct ApiKnowledgeDataset: Decodable, Identifiable, Sendable, Hashable {
+    public let id: String
+    public let name: String
+    public let documentCount: Int?
+    /// Датасет, куда попадают проекты без собственного выбора.
+    public let isDefault: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case documentCount = "document_count"
+        case isDefault = "is_default"
+    }
+}
+
 public extension APIClient {
+
+    func knowledgeDatasets() async throws -> [ApiKnowledgeDataset] {
+        struct Response: Decodable { let datasets: [ApiKnowledgeDataset] }
+        let response: Response = try await request(.get, "/knowledge/datasets")
+        return response.datasets
+    }
+
+    func createKnowledgeDataset(name: String) async throws -> ApiKnowledgeDataset {
+        struct Response: Decodable { let id: String; let name: String }
+        let response: Response = try await request(
+            .post, "/knowledge/datasets", body: ["name": JSONValue.string(name)]
+        )
+        return ApiKnowledgeDataset(
+            id: response.id, name: response.name, documentCount: 0, isDefault: false
+        )
+    }
 
     func knowledgeSearch(query: String, topK: Int = 8) async throws -> [ApiKnowledgeChunk] {
         struct Response: Decodable { let results: [ApiKnowledgeChunk] }

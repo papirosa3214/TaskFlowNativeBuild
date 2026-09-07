@@ -29,9 +29,17 @@ public final class ProjectStore {
     }
 
     @discardableResult
-    public func create(name: String, color: String? = nil, withDocs: Bool = false) async -> ApiProject? {
+    public func create(
+        name: String,
+        color: String? = nil,
+        withDocs: Bool = false,
+        knowledgeDatasetId: String? = nil
+    ) async -> ApiProject? {
         do {
-            let created = try await apiClient.createProject(name: name, color: color, withDocs: withDocs)
+            let created = try await apiClient.createProject(
+                name: name, color: color, withDocs: withDocs,
+                knowledgeDatasetId: knowledgeDatasetId
+            )
             projects.append(created)
             return created
         } catch {

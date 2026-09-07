@@ -8,10 +8,20 @@ public extension APIClient {
     }
 
     /// `withDocs=true` создаёт и линкует папку заметок (`journal_folders`).
-    func createProject(name: String, color: String? = nil, withDocs: Bool = false) async throws -> ApiProject {
+    func createProject(
+        name: String,
+        color: String? = nil,
+        withDocs: Bool = false,
+        knowledgeDatasetId: String? = nil
+    ) async throws -> ApiProject {
         var body: [String: JSONValue] = ["name": .string(name)]
         if let color { body["color"] = .string(color) }
         if withDocs { body["with_docs"] = .bool(true) }
+        // Пусто — проект едет в общий датасет TaskFlow, как было до появления
+        // выбора (08.09.2026).
+        if let knowledgeDatasetId, !knowledgeDatasetId.isEmpty {
+            body["knowledge_dataset_id"] = .string(knowledgeDatasetId)
+        }
         return try await request(.post, "/projects", body: body)
     }
 

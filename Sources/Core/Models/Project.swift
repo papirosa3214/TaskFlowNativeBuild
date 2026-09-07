@@ -29,6 +29,10 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
     public let lastActivityAt: String?
     /// Записей в папке документации проекта.
     public let docsCount: Int?
+    /// Свой датасет базы знаний (RAGFlow). Пусто — общий датасет TaskFlow.
+    /// Владелец 08.09.2026: специфический проект не должен подмешивать свою
+    /// документацию туда, где ищут рабочее.
+    public let knowledgeDatasetId: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, color
@@ -41,6 +45,7 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         case overdueCount = "overdue_count"
         case lastActivityAt = "last_activity_at"
         case docsCount = "docs_count"
+        case knowledgeDatasetId = "knowledge_dataset_id"
     }
 
     public init(from decoder: Decoder) throws {
@@ -58,19 +63,22 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         overdueCount = try c.decodeIfPresent(Int.self, forKey: .overdueCount)
         lastActivityAt = try c.decodeIfPresent(String.self, forKey: .lastActivityAt)
         docsCount = try c.decodeIfPresent(Int.self, forKey: .docsCount)
+        knowledgeDatasetId = try c.decodeIfPresent(String.self, forKey: .knowledgeDatasetId)
     }
 
     public init(
         id: String, name: String, color: String?, ownerId: String?, createdAt: String?,
         position: Int?, pinned: Bool, notesFolderId: Int?, taskCount: Int?,
         completedCount: Int? = nil, overdueCount: Int? = nil,
-        lastActivityAt: String? = nil, docsCount: Int? = nil
+        lastActivityAt: String? = nil, docsCount: Int? = nil,
+        knowledgeDatasetId: String? = nil
     ) {
         self.id = id; self.name = name; self.color = color; self.ownerId = ownerId
         self.createdAt = createdAt; self.position = position; self.pinned = pinned
         self.notesFolderId = notesFolderId; self.taskCount = taskCount
         self.completedCount = completedCount; self.overdueCount = overdueCount
         self.lastActivityAt = lastActivityAt; self.docsCount = docsCount
+        self.knowledgeDatasetId = knowledgeDatasetId
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -88,5 +96,6 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(overdueCount, forKey: .overdueCount)
         try c.encodeIfPresent(lastActivityAt, forKey: .lastActivityAt)
         try c.encodeIfPresent(docsCount, forKey: .docsCount)
+        try c.encodeIfPresent(knowledgeDatasetId, forKey: .knowledgeDatasetId)
     }
 }
