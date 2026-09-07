@@ -29,7 +29,10 @@ struct ProjectsScreen: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 2) {
+            // Интервал 8pt, а не 2pt: карточки (`ProjectCard`) — отдельные
+            // объекты со скруглением, слипшийся ряд из них читается как
+            // сломанная таблица.
+            LazyVStack(spacing: TFSpacing.sm) {
                 if showCreate {
                     ProjectCreateForm(onCreated: { showCreate = false }, onCancel: { showCreate = false })
                 }
@@ -43,7 +46,8 @@ struct ProjectsScreen: View {
                     } else {
                         DirectorySwipeRow(
                             onEdit: { editingID = project.id },
-                            onDelete: { requestDelete(project) }
+                            onDelete: { requestDelete(project) },
+                            cornerRadius: TFRadius.xl
                         ) {
                             projectRow(project)
                         }
@@ -87,33 +91,13 @@ struct ProjectsScreen: View {
         .directoryConfirm($deleteRequest)
     }
 
+    /// Строка проекта — карточка (`ProjectCard`), а не однострочный ряд:
+    /// владелец 08.09.2026 попросил видеть в списке жизнь проекта, а не одно
+    /// число. Сам ряд остался кнопкой в тот же маршрут и по-прежнему живёт
+    /// внутри `DirectorySwipeRow` (правка/удаление свайпом).
     private func projectRow(_ project: ApiProject) -> some View {
         NavigationLink(value: AppRoute.projectTasks(projectID: project.id)) {
-            HStack(spacing: TFSpacing.md) {
-                RoundedRectangle(cornerRadius: TFRadius.md)
-                    .fill(Color(hex: project.color ?? TFHexDefault.unassigned).opacity(0.125))
-                    .frame(width: 28, height: 28)
-                    .overlay {
-                        Image(systemName: "number")
-                            .tfText(.input)
-                            .foregroundStyle(Color(hex: project.color ?? TFHexDefault.unassigned))
-                    }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(project.name)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfText)
-                        .lineLimit(1)
-                    let count = project.taskCount ?? 0
-                    Text("\(count) \(DirectoryPluralize.taskWord(count))")
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfSub)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, TFSpacing.md)
-            .padding(.horizontal, TFSpacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tfCard)
+            ProjectCard(project: project)
         }
         .buttonStyle(TFTapRowStyle())
     }

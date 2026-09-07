@@ -14,6 +14,11 @@ import UIKit
 struct DirectorySwipeRow<Content: View>: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
+    /// Скругление строки и панели действий под ней. По умолчанию `lg` — как у
+    /// строки-ряда (метки); «Проекты» с 08.09.2026 показывают карточку
+    /// (`ProjectCard`, радиус `xl`), и клип обязан совпадать с ней, иначе
+    /// углы карточки срезаются меньшим радиусом.
+    var cornerRadius: CGFloat = TFRadius.lg
     @ViewBuilder let content: () -> Content
 
     // Ширина была 88pt против 84pt в списках задач — свайп справочников
@@ -53,7 +58,7 @@ struct DirectorySwipeRow<Content: View>: View {
                 .opacity(offsetX < 0 ? 1 : 0)
             }
             .frame(maxHeight: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
 
             content()
                 .offset(x: offsetX)
@@ -65,7 +70,7 @@ struct DirectorySwipeRow<Content: View>: View {
                     )
                 )
         }
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         // Раскрыта всегда одна строка: как только реестр называет другую
         // (или прокрутка гасит всё), эта закрывается сама.
         .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in

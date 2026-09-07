@@ -19,11 +19,16 @@ private struct QuickAddDraft: Identifiable {
 
 struct RootShellView: View {
     enum Tab: Int, CaseIterable, Hashable {
-        case overview, upcoming, chat
+        /// «Проекты» вынесены отдельной вкладкой 08.09.2026 (владелец: «помимо
+        /// обзора сделать ещё отдельную кнопочку проекты»). Раньше туда вёл
+        /// только ряд внутри «Обзора». Порядок пунктов — 2 слева, 2 справа от
+        /// круглой кнопки создания, `TFTabBar` делит их пополам сам.
+        case overview, projects, upcoming, chat
 
         var route: AppRoute {
             switch self {
             case .overview: .overview
+            case .projects: .projects
             case .upcoming: .upcoming
             case .chat: .chat
             }
@@ -32,17 +37,19 @@ struct RootShellView: View {
         var label: String {
             switch self {
             case .overview: "Обзор"
+            case .projects: "Проекты"
             case .upcoming: "Планирование"
             case .chat: "Чат"
             }
         }
 
-        /// Имена локальных SVG-ассетов. Все четыре нарисованы на одном 24×24
-        /// поле со stroke 1.75, поэтому их видимый размер не пляшет между
-        /// вкладками. У «Сегодня» число накладывает `TFTodayDateIcon`.
+        /// Имена локальных SVG-ассетов. Все нарисованы на одном 24×24 поле со
+        /// stroke 1.75, поэтому их видимый размер не пляшет между вкладками.
+        /// У «Сегодня» число накладывает `TFTodayDateIcon`.
         var icon: String {
             switch self {
             case .overview: "TabIconHome"
+            case .projects: "TabIconProjects"
             case .upcoming: "TabIconPlanning"
             case .chat: "TabIconChat"
             }
@@ -95,6 +102,7 @@ struct RootShellView: View {
             Group {
                 switch selectedTab {
                 case .overview: navigationStack(for: .overview)
+                case .projects: navigationStack(for: .projects)
                 case .upcoming: navigationStack(for: .upcoming)
                 case .chat: navigationStack(for: .chat)
                 }

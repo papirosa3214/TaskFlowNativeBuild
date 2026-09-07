@@ -176,6 +176,7 @@ public struct TFTabBar: View {
         switch icon {
         case "TabIconToday": return "tab.today"
         case "TabIconHome": return "tab.directory"
+        case "TabIconProjects": return "tab.projects"
         case "TabIconPlanning": return "tab.upcoming"
         case "TabIconChat": return "tab.chat"
         default: return "tab.\(icon)"
