@@ -34,6 +34,9 @@ private let hourH: CGFloat = 124.0 / 3.0
 private let gutterW: CGFloat = 161.0 / 3.0
 private let snapMin = 15
 private let minBlockH: CGFloat = 24
+/// Если сервер ещё не прислал длительность, почасовая сетка использует тот
+/// же минимальный слот, что создаётся при переносе задачи: 15 минут.
+private let defaultDurationMin = 15
 private let rightInset: CGFloat = 6
 private let colGap: CGFloat = 3
 
@@ -354,7 +357,7 @@ struct UpcomingHoursView: View {
         let items = tasks.compactMap { t -> Item? in
             guard let start = hoursFromTime(t.startTime) else { return nil }
             let durKnown = t.durationMin != nil
-            let dur = Double(t.durationMin ?? 30)
+            let dur = Double(t.durationMin ?? defaultDurationMin)
             return Item(task: t, start: start, end: start + dur / 60, durKnown: durKnown)
         }.sorted { $0.start != $1.start ? $0.start < $1.start : $0.end < $1.end }
 
