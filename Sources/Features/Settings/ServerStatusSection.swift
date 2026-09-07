@@ -186,26 +186,14 @@ struct ServerStatusSection: View {
                 }),
                 action: { Task { await viewModel.ping() } }
             )
-            if let commit = status.commit {
-                TFDivider(inset: rowDividerInset)
-                TFListRow(
-                    icon: "tag", iconStyle: .plain,
-                    title: "Версия",
-                    trailing: AnyView(valueText(status.commitAt.flatMap(ServerStatusFormat.commitDate).map { "\(commit) · \($0)" } ?? commit))
-                )
-            }
             TFDivider(inset: rowDividerInset)
             TFListRow(
                 icon: "bell.fill", iconStyle: .plain,
-                title: "Будильник (служба)",
-                trailing: AnyView(HStack(spacing: TFSpacing.sm) {
-                    valueText(viewModel.agentService?.active == true ? "Включён" : "Выключен")
-                    TFToggle(isOn: Binding(
+                title: "Система агентов",
+                trailing: AnyView(TFToggle(isOn: Binding(
                         get: { viewModel.agentService?.active ?? false },
                         set: { _ in Task { await viewModel.toggleAgentService() } }
-                    ))
-                    .disabled(viewModel.isTogglingService)
-                })
+                    )).disabled(viewModel.isTogglingService))
             )
             TFDivider(inset: rowDividerInset)
             TFListRow(
