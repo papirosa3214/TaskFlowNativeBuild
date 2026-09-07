@@ -69,15 +69,23 @@ struct AgentRow: View {
     // Замок оси и счёт скорости переехали в HorizontalPanRecognizer —
     // распознаватель отдаёт готовое смещение и скорость в px/с.
 
-    private let actionWidth: CGFloat = 88
+    // Ширина сведена с остальными списками (было 88pt против 84pt).
+    private let actionWidth: CGFloat = TFRowActionWidth
+    /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
+    @State private var rowID = UUID()
 
     var body: some View {
+        // Раскрыта всегда одна строка: как только реестр называет другую
+        // (или прокрутка гасит всё), эта закрывается сама.
         Group {
             if isEditing {
                 editForm
             } else {
                 swipeRow
             }
+        }
+        .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
+            if openID != rowID, offsetX != 0 { close() }
         }
     }
 
@@ -258,6 +266,7 @@ struct AgentRow: View {
     private func close() {
         animateOffset = true
         offsetX = 0
+        TFSwipeRowRegistry.shared.didClose(rowID)
     }
 
     private func drag(_ dx: CGFloat) {
@@ -296,6 +305,11 @@ struct AgentRow: View {
         } else {
             let keep = !(dx < -25 || velocity < -250)
             offsetX = keep ? actionWidth : 0
+        }
+        if offsetX == 0 {
+            TFSwipeRowRegistry.shared.didClose(rowID)
+        } else {
+            TFSwipeRowRegistry.shared.didOpen(rowID)
         }
     }
 

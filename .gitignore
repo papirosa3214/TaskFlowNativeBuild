@@ -10,3 +10,5 @@ TaskFlow.xcodeproj/
 xcuserdata/
 *.xcuserstate
 .DS_Store
+outputs/
+docs/

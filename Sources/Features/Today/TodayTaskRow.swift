@@ -19,12 +19,14 @@ struct TodayTaskRow: View {
     let onReschedule: () -> Void
     let onDelete: () -> Void
 
-    private let actionWidth: CGFloat = 84
-    /// Пороги открытия/закрытия — числа веб-хука `useRowSwipe.ts`.
-    private let openThreshold: CGFloat = 36
-    private let openVelocity: CGFloat = 280
-    private let closeThreshold: CGFloat = 25
-    private let closeVelocity: CGFloat = 250
+    private let actionWidth: CGFloat = TFRowActionWidth
+    /// Пороги открытия/закрытия — общие для всех списков, см. `TFRowSwipe`.
+    private let openThreshold = TFRowSwipe.openThreshold
+    private let openVelocity = TFRowSwipe.openVelocity
+    private let closeThreshold = TFRowSwipe.closeThreshold
+    private let closeVelocity = TFRowSwipe.closeVelocity
+    /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
+    @State private var rowID = UUID()
     /// Точка покоя строки: 0 (закрыта), −actionWidth («Завершить» открыта),
     /// −2×actionWidth («Завершить» + «Перенести»), +actionWidth («Удалить»).
     @State private var settledOffset: CGFloat = 0
@@ -95,6 +97,11 @@ struct TodayTaskRow: View {
                 )
         }
         .clipped()
+        // Раскрыта всегда одна строка: как только реестр называет другую
+        // (или прокрутка гасит всё), эта закрывается сама.
+        .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
+            if openID != rowID, settledOffset != 0 { close() }
+        }
         // Разделитель под строкой — веб `border-b border-stroke/50`.
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -255,6 +262,7 @@ struct TodayTaskRow: View {
             settledOffset = 0
             dragOffset = 0
         }
+        TFSwipeRowRegistry.shared.didClose(rowID)
     }
 
     /// Куда строка встаёт после жеста. Числа — из веба (`useRowSwipe.ts`):
@@ -286,6 +294,11 @@ struct TodayTaskRow: View {
                 settledOffset = (dx < -closeThreshold || velocity < -closeVelocity) ? 0 : actionWidth
             }
             dragOffset = 0
+        }
+        if settledOffset == 0 {
+            TFSwipeRowRegistry.shared.didClose(rowID)
+        } else {
+            TFSwipeRowRegistry.shared.didOpen(rowID)
         }
     }
 

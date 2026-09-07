@@ -27,7 +27,9 @@ struct DirectoryTaskRow: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
 
-    private let actionWidth: CGFloat = 84
+    private let actionWidth: CGFloat = TFRowActionWidth
+    /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
+    @State private var rowID = UUID()
     @State private var settledOffset: CGFloat = 0
     @State private var dragOffset: CGFloat = 0
     @State private var confirmDelete = false
@@ -63,6 +65,11 @@ struct DirectoryTaskRow: View {
                 )
         }
         .clipped()
+        // Раскрыта всегда одна строка: как только реестр называет другую
+        // (или прокрутка гасит всё), эта закрывается сама.
+        .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
+            if openID != rowID, settledOffset != 0 { close() }
+        }
         // Ближайший native-эквивалент своего нижнего экшн-листа из TaskRow.tsx
         // (красная «Удалить» текстом + отдельная карточка «Отмена») — тот же
         // приём, что уже выбрал TodayTaskRow.swift для идентичного узла.
@@ -176,6 +183,7 @@ struct DirectoryTaskRow: View {
             settledOffset = 0
             dragOffset = 0
         }
+        TFSwipeRowRegistry.shared.didClose(rowID)
     }
 
     // Пороги 1:1 с `TaskRow.tsx`: открытие >36px/280px·с⁻¹, закрытие
@@ -197,6 +205,11 @@ struct DirectoryTaskRow: View {
                 settledOffset = (dx < -25 || velocity < -250) ? 0 : actionWidth
             }
             dragOffset = 0
+        }
+        if settledOffset == 0 {
+            TFSwipeRowRegistry.shared.didClose(rowID)
+        } else {
+            TFSwipeRowRegistry.shared.didOpen(rowID)
         }
     }
 

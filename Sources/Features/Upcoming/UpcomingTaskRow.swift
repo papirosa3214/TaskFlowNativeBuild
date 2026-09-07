@@ -15,11 +15,13 @@ struct UpcomingTaskRow: View {
     let onDelete: () -> Void
 
     /// Ширина зоны действия свайпа — `ACTION_W` (spec §3.3).
-    private let actionWidth: CGFloat = 84
-    private let openThreshold: CGFloat = 36
-    private let openVelocity: CGFloat = 280
-    private let closeThreshold: CGFloat = 25
-    private let closeVelocity: CGFloat = 250
+    private let actionWidth: CGFloat = TFRowActionWidth
+    private let openThreshold = TFRowSwipe.openThreshold
+    private let openVelocity = TFRowSwipe.openVelocity
+    private let closeThreshold = TFRowSwipe.closeThreshold
+    private let closeVelocity = TFRowSwipe.closeVelocity
+    /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
+    @State private var rowID = UUID()
     @State private var settledOffset: CGFloat = 0
     @State private var dragOffset: CGFloat = 0
     @State private var confirmDelete = false
@@ -84,6 +86,11 @@ struct UpcomingTaskRow: View {
             )
         }
         .clipped()
+        // Раскрыта всегда одна строка: как только реестр называет другую
+        // (или прокрутка гасит всё), эта закрывается сама.
+        .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
+            if openID != rowID, settledOffset != 0 { close() }
+        }
         .confirmationDialog("Удалить задачу?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Удалить", role: .destructive, action: onDelete)
             Button("Отмена", role: .cancel) {}
@@ -151,6 +158,7 @@ struct UpcomingTaskRow: View {
             settledOffset = 0
             dragOffset = 0
         }
+        TFSwipeRowRegistry.shared.didClose(rowID)
     }
 
     /// Пороги/резина — числа веба (`useRowSwipe.ts`): открытие >36px или
@@ -173,6 +181,11 @@ struct UpcomingTaskRow: View {
                 settledOffset = (dx < -closeThreshold || velocity < -closeVelocity) ? 0 : actionWidth
             }
             dragOffset = 0
+        }
+        if settledOffset == 0 {
+            TFSwipeRowRegistry.shared.didClose(rowID)
+        } else {
+            TFSwipeRowRegistry.shared.didOpen(rowID)
         }
     }
 

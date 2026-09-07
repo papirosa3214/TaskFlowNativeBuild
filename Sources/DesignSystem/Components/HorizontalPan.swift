@@ -37,6 +37,42 @@ import UIKit
 // `UIGestureRecognizerRepresentable` (iOS 18+) — штатный мост: SwiftUI сам
 // ставит распознаватель туда, куда касания доходят.
 
+/// Кто из строк сейчас раскрыт. Нативный список держит открытой ровно одну
+/// строку и закрывает её, едва начинается прокрутка; до этого раскрытых строк
+/// могло накопиться сколько угодно, и список выглядел растрёпанным
+/// (владелец 07.09.2026: «как-то странно»).
+@MainActor
+@Observable
+final class TFSwipeRowRegistry {
+    static let shared = TFSwipeRowRegistry()
+    private(set) var openRowID: UUID?
+
+    private init() {}
+
+    func didOpen(_ id: UUID) { openRowID = id }
+
+    func didClose(_ id: UUID) {
+        if openRowID == id { openRowID = nil }
+    }
+
+    /// Начали листать список — раскрытая строка закрывается.
+    func closeAll() { openRowID = nil }
+}
+
+/// Общие числа свайпа строки — веб-хук `useRowSwipe.ts`. Раньше каждая строка
+/// держала свою копию, и они уже разъехались (88pt вместо 84 в справочниках).
+public enum TFRowSwipe {
+    /// Смещение, после которого строка защёлкивается открытой.
+    public static let openThreshold: CGFloat = 36
+    /// Скорость, при которой открывается и без порога по смещению.
+    public static let openVelocity: CGFloat = 280
+    /// Обратное движение, закрывающее раскрытую строку.
+    public static let closeThreshold: CGFloat = 25
+    public static let closeVelocity: CGFloat = 250
+    /// Кривая и длительность защёлкивания.
+    public static let settleAnimation = Animation.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)
+}
+
 /// Ширина открывающейся панели действия (веб: `ROW_ACTION_W`, `ACTION_W`).
 public let TFRowActionWidth: CGFloat = 84
 /// Порог, после которого решается направление (веб: `DIRECTION_LOCK_PX`).
@@ -54,11 +90,56 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
     /// момента `began`: иначе первые 8 пикселей жеста потерялись бы и строка
     /// прыгала бы под пальцем в начале движения.
     private(set) var startLocation: CGPoint = .zero
-    private var decided = false
+    /// Направление уже выбрано (см. `touchesMoved`). Пока `false`, жест не
+    /// мешает прокрутке; после решения в пользу горизонтали — забирает
+    /// касание себе целиком.
+    private(set) var decided = false
+    /// Прокрутка, приглушённая на время жеста, чтобы вернуть ей `isScrollEnabled`.
+    private weak var lockedScrollView: UIScrollView?
 
     override func reset() {
         super.reset()
         decided = false
+        unlockScroll()
+    }
+
+    /// Владелец 07.09.2026: «свайпаю и влево, и вниз одновременно, как-то
+    /// странно». Причина — прокрутка продолжала работать параллельно уже
+    /// признанному горизонтальному жесту, и палец по диагонали тянул сразу
+    /// строку и список. Нативная строка так себя не ведёт: как только свайп
+    /// перехвачен, список стоит. Глушим прокрутку на время жеста и включаем
+    /// обратно на его конце.
+    ///
+    /// ⚠️ Скролл ищется ВНИЗ по иерархии, а не вверх: у
+    /// `UIGestureRecognizerRepresentable` `recognizer.view` — хостинг-вью
+    /// экрана, а `UIScrollView` от SwiftUI `ScrollView` его ПОТОМОК
+    /// (тот же диагноз, что записан в CLAUDE.md по часовой сетке).
+    private func lockScroll() {
+        guard lockedScrollView == nil, let host = view else { return }
+        let point = location(in: host)
+        guard let scrollView = Self.verticalScrollView(in: host, containing: point) else { return }
+        lockedScrollView = scrollView
+        scrollView.isScrollEnabled = false
+    }
+
+    private func unlockScroll() {
+        lockedScrollView?.isScrollEnabled = true
+        lockedScrollView = nil
+    }
+
+    private static func verticalScrollView(in root: UIView, containing point: CGPoint) -> UIScrollView? {
+        for subview in root.subviews {
+            let local = root.convert(point, to: subview)
+            guard subview.bounds.contains(local) else { continue }
+            if let scrollView = subview as? UIScrollView,
+               scrollView.contentSize.height > scrollView.bounds.height {
+                return scrollView
+            }
+            if let found = verticalScrollView(in: subview, containing: point) {
+                return found
+            }
+        }
+        return nil
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
@@ -81,10 +162,13 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
 
             decided = true
             guard abs(dx) > abs(dy) * directionBias else {
-                // Вертикаль — это прокрутка, не наше дело.
+                // Вертикаль — это прокрутка, не наше дело. Раскрытую строку
+                // при этом закрываем: так ведёт себя нативный список.
                 state = .failed
+                MainActor.assumeIsolated { TFSwipeRowRegistry.shared.closeAll() }
                 return
             }
+            lockScroll()
             super.touchesMoved(touches, with: event)
             // Начинаем сами, не дожидаясь, пока `UIPanGestureRecognizer`
             // дозреет до своего порога: на быстром флике (и на коротких
@@ -94,6 +178,16 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
             return
         }
         super.touchesMoved(touches, with: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesEnded(touches, with: event)
+        unlockScroll()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesCancelled(touches, with: event)
+        unlockScroll()
     }
 
     /// Смещение пальца по X от точки касания (веб: `ev.clientX - d.startX`).
@@ -140,12 +234,14 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        /// Прокрутке не мешаем — пусть распознаватели живут вместе.
-        /// Вертикальный `ScrollView` по горизонтали всё равно не двигается,
-        /// так что одновременная работа безопасна.
+        /// Пока направление не выбрано — не мешаем никому: прокрутка должна
+        /// иметь возможность начаться сама, иначе список не листается пальцем
+        /// по строке. После решения в пользу горизонтали одновременность
+        /// запрещена, иначе диагональный палец тянет строку и список разом.
         func gestureRecognizer(_ g: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            true
+            guard let pan = g as? HorizontalPanRecognizer else { return true }
+            return !pan.decided
         }
     }
 }

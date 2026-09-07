@@ -16,9 +16,13 @@ struct DirectorySwipeRow<Content: View>: View {
     let onDelete: () -> Void
     @ViewBuilder let content: () -> Content
 
-    private let actionWidth: CGFloat = 88
-    private let openPx: CGFloat = 36
-    private let openVelocity: CGFloat = 280
+    // Ширина была 88pt против 84pt в списках задач — свайп справочников
+    // раскрывался чуть шире соседних экранов. Числа сведены в `TFRowSwipe`.
+    private let actionWidth: CGFloat = TFRowActionWidth
+    private let openPx = TFRowSwipe.openThreshold
+    private let openVelocity = TFRowSwipe.openVelocity
+    /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
+    @State private var rowID = UUID()
 
     @State private var settledOffset: CGFloat = 0
     @State private var dragOffset: CGFloat = 0
@@ -62,6 +66,11 @@ struct DirectorySwipeRow<Content: View>: View {
                 )
         }
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        // Раскрыта всегда одна строка: как только реестр называет другую
+        // (или прокрутка гасит всё), эта закрывается сама.
+        .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
+            if openID != rowID, settledOffset != 0 { close() }
+        }
     }
 
     private func close() {
@@ -69,6 +78,7 @@ struct DirectorySwipeRow<Content: View>: View {
             settledOffset = 0
             dragOffset = 0
         }
+        TFSwipeRowRegistry.shared.didClose(rowID)
     }
 
     private func settle(dx: CGFloat, velocity: CGFloat) {
@@ -88,6 +98,11 @@ struct DirectorySwipeRow<Content: View>: View {
                 settledOffset = (dx < -openPx || velocity < -openVelocity) ? 0 : actionWidth
             }
             dragOffset = 0
+        }
+        if settledOffset == 0 {
+            TFSwipeRowRegistry.shared.didClose(rowID)
+        } else {
+            TFSwipeRowRegistry.shared.didOpen(rowID)
         }
     }
 
