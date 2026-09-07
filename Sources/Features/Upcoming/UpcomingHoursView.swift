@@ -30,7 +30,7 @@ import UIKit
 // ошибкой само по себе — расхождение в поведении подряд путало владельца.
 // Сейчас оба источника — один и тот же `dragGesture(for:dayIndex:top:height:)`,
 // `top == nil` у пула (нет исходной позиции — куда палец, туда и время).
-private let hourH: CGFloat = 124.0 / 3.0
+private let baseHourH: CGFloat = 124.0 / 3.0
 private let gutterW: CGFloat = 161.0 / 3.0
 private let snapMin = 15
 private let minBlockH: CGFloat = 24
@@ -57,6 +57,16 @@ struct UpcomingHoursView: View {
     /// В «Сегодня → Часы» верхняя подпись дня не повторяется: контекст уже
     /// задаёт нативная шапка «Планирования». В «Трёх днях» она остаётся.
     let showsDayHeader: Bool
+
+    /// Два масштаба нужны только трёхдневной шкале. Выбор сохраняется между
+    /// открытиями раздела; однодневная шкала всегда вмещает 15 минут целиком.
+    @AppStorage("planner_three_day_expanded_timeline") private var isTimelineExpanded = false
+
+    private var hourHeight: CGFloat {
+        let fullQuarterHourHeight = (minBlockH + 3) * 4
+        if !showsDayHeader { return fullQuarterHourHeight }
+        return isTimelineExpanded ? fullQuarterHourHeight : baseHourH
+    }
 
     init(
         days: [UpcomingHourColumn],
@@ -125,6 +135,18 @@ struct UpcomingHoursView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .coordinateSpace(name: "upcomingHoursGrid")
+        .toolbar {
+            if showsDayHeader {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { isTimelineExpanded.toggle() } label: {
+                        Image(systemName: isTimelineExpanded
+                            ? "arrow.down.right.and.arrow.up.left"
+                            : "arrow.up.left.and.arrow.down.right")
+                    }
+                    .accessibilityLabel(isTimelineExpanded ? "Сжать временную шкалу" : "Расширить временную шкалу")
+                }
+            }
+        }
     }
 
     private var gridBody: some View {
@@ -139,7 +161,7 @@ struct UpcomingHoursView: View {
                 }
                 nowLine
             }
-            .frame(width: geo.size.width, height: hourH * 24, alignment: .topLeading)
+            .frame(width: geo.size.width, height: hourHeight * 24, alignment: .topLeading)
             .onAppear {
                 gridFrame = geo.frame(in: .named("upcomingHoursGrid"))
                 grabHaptic.prepare()
@@ -147,7 +169,7 @@ struct UpcomingHoursView: View {
             }
             .onChange(of: geo.size) { _, _ in gridFrame = geo.frame(in: .named("upcomingHoursGrid")) }
         }
-        .frame(height: hourH * 24)
+        .frame(height: hourHeight * 24)
         .overlay(alignment: .topLeading) {
             if let dragState {
                 let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
@@ -201,7 +223,7 @@ struct UpcomingHoursView: View {
                         .offset(y: -6)
                     Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
                 }
-                .frame(height: h < 24 ? hourH : 0, alignment: .top)
+                .frame(height: h < 24 ? hourHeight : 0, alignment: .top)
                 .id("hour-\(h)")
             }
         }
@@ -210,7 +232,7 @@ struct UpcomingHoursView: View {
     private func dayColumn(_ day: UpcomingHourColumn, index: Int) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                ForEach(Self.layoutDay(day.tasks)) { block in
+                ForEach(Self.layoutDay(day.tasks, hourHeight: hourHeight)) { block in
                     let isDragged = dragState?.taskID == block.task.id
                     UpcomingTimedBlock(
                         task: block.task,
@@ -264,7 +286,7 @@ struct UpcomingHoursView: View {
                     dragState?.topY = fingerY - grabOffsetY
                     dragState?.dayIndex = overDay
                 }
-                let time = Self.timeFromOffset(fingerY - grabOffsetY)
+                let time = Self.timeFromOffset(fingerY - grabOffsetY, hourHeight: hourHeight)
                 previewTime = time
                 if time != lastTickTime {
                     lastTickTime = time
@@ -279,8 +301,8 @@ struct UpcomingHoursView: View {
                 let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
                 dragState = nil
                 previewTime = nil
-                guard topY >= -hourH, days.indices.contains(overDay) else { return }
-                onSchedule(task.id, days[overDay].date, Self.timeFromOffset(topY))
+                guard topY >= -hourHeight, days.indices.contains(overDay) else { return }
+                onSchedule(task.id, days[overDay].date, Self.timeFromOffset(topY, hourHeight: hourHeight))
             }
     }
 
@@ -302,7 +324,7 @@ struct UpcomingHoursView: View {
     private var nowLine: some View {
         let now = Date()
         let comps = Calendar.current.dateComponents([.hour, .minute], from: now)
-        let pos = CGFloat(comps.hour ?? 0) * hourH + CGFloat(comps.minute ?? 0) / 60 * hourH
+        let pos = CGFloat(comps.hour ?? 0) * hourHeight + CGFloat(comps.minute ?? 0) / 60 * hourHeight
         return HStack(spacing: 4) {
             Text(String(format: "%02d:%02d", comps.hour ?? 0, comps.minute ?? 0))
                 .tfText(.micro)
@@ -334,8 +356,8 @@ struct UpcomingHoursView: View {
         return Double(h) + Double(m) / 60
     }
 
-    private static func timeFromOffset(_ px: CGFloat) -> String {
-        let raw = (px / hourH) * 60
+    private static func timeFromOffset(_ px: CGFloat, hourHeight: CGFloat) -> String {
+        let raw = (px / hourHeight) * 60
         let snapped = (raw / CGFloat(snapMin)).rounded() * CGFloat(snapMin)
         let clamped = min(max(snapped, 0), CGFloat(24 * 60 - snapMin))
         let h = Int(clamped) / 60
@@ -352,7 +374,7 @@ struct UpcomingHoursView: View {
         col == 0 ? 0 : blockWidth(colWidth: colWidth, totalCols: totalCols) * CGFloat(col) + CGFloat(col) * colGap
     }
 
-    private static func layoutDay(_ tasks: [ApiTask]) -> [PlacedBlock] {
+    private static func layoutDay(_ tasks: [ApiTask], hourHeight: CGFloat) -> [PlacedBlock] {
         struct Item { let task: ApiTask; let start: Double; let end: Double; let durKnown: Bool }
         let items = tasks.compactMap { t -> Item? in
             guard let start = hoursFromTime(t.startTime) else { return nil }
@@ -382,8 +404,8 @@ struct UpcomingHoursView: View {
             for (i, item) in cluster.enumerated() {
                 placed.append(PlacedBlock(
                     task: item.task,
-                    top: CGFloat(max(0, item.start * Double(hourH) + 1)),
-                    height: max(minBlockH, CGFloat((item.end - item.start) * Double(hourH)) - 3),
+                    top: CGFloat(max(0, item.start * Double(hourHeight) + 1)),
+                    height: max(minBlockH, CGFloat((item.end - item.start) * Double(hourHeight)) - 3),
                     col: colOf[i],
                     totalCols: cols,
                     durKnown: item.durKnown
