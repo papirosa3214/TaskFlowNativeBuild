@@ -34,6 +34,20 @@ private let baseHourH: CGFloat = 124.0 / 3.0
 private let gutterW: CGFloat = 161.0 / 3.0
 private let snapMin = 15
 private let minBlockH: CGFloat = 24
+/// Визуальный пол высоты плашки в состоянии покоя И во время перетаскивания
+/// (не путать с `minBlockH` — та участвует в формуле масштаба развёрнутой
+/// шкалы, `minBlockH + 3) * 4`, трогать её нельзя, поменяется зум). Владелец
+/// 07.09.2026, третий заход подряд: «карточка должна быть такой же плотной,
+/// а не полоска» — короткие задачи (пул без времени, 15-минутные) рисовались
+/// с высотой `minBlockH` (24pt) и в покое, и на драге — визуально читались
+/// как тонкая полоска, а не как карточка с телом.
+private let minCardBodyHeight: CGFloat = 44
+/// Видимый диапазон суток — владелец 07.09.2026: «в 6 утра всё равно никто
+/// не встаёт, в час ночи никто не встаёт», убрать портянку из пустых ночных
+/// часов. Тот же диапазон, что у «Сегодня» (см. `TodayHoursMetrics`), но
+/// этот файл — общий для «Сегодня → Часы» И «Три дня», своих констант нет.
+private let startHour = 6
+private let endHour = 22
 /// Если сервер ещё не прислал длительность, почасовая сетка использует тот
 /// же минимальный слот, что создаётся при переносе задачи: 15 минут.
 private let defaultDurationMin = 15
@@ -93,6 +107,12 @@ struct UpcomingHoursView: View {
         let title: String
         let color: Color
         let height: CGFloat
+        /// Реальная ширина колонки, снятая синхронным `GeometryReader` в
+        /// `dayColumn` в момент захвата — НЕ пересчитывается из `gridFrame`
+        /// (та обновляется асинхронно через `PreferenceKey` и в момент
+        /// самого захвата бывает ещё не готова, отсюда «плавающая
+        /// четвертинка» вместо нормальной ширины, владелец 07.09.2026).
+        let width: CGFloat
         /// Y верхнего края плашки в системе координат сетки (не пальца и не
         /// центра — см. заголовочный комментарий `TodayHoursView.swift`,
         /// та же логика).
@@ -131,17 +151,19 @@ struct UpcomingHoursView: View {
                 }
                 .tfHoursNativeTopScrollEdge()
                 .onAppear {
-                    // Автопрокрутка к текущему часу с запасом 120px сверху (спека §3.5).
+                    // Автопрокрутка к текущему часу с запасом 120px сверху
+                    // (спека §3.5), зажатая видимым диапазоном (владелец
+                    // 07.09.2026: сетка теперь только startHour...endHour).
                     let hour = Calendar.current.component(.hour, from: Date())
+                    let anchor = min(max(hour - 1, startHour), endHour)
                     DispatchQueue.main.async {
-                        withAnimation { proxy.scrollTo("hour-\(max(0, hour - 1))", anchor: .top) }
+                        withAnimation { proxy.scrollTo("hour-\(anchor)", anchor: .top) }
                     }
                 }
                 .frame(maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .coordinateSpace(name: "upcomingHoursGrid")
         .toolbar {
             if showsDayHeader {
                 ToolbarItem(placement: .topBarLeading) {
@@ -178,22 +200,34 @@ struct UpcomingHoursView: View {
                     }
                 }
                 nowLine
+                previewLine
             }
-            .frame(width: geo.size.width, height: hourHeight * 24, alignment: .topLeading)
+            .frame(width: geo.size.width, height: hourHeight * CGFloat(endHour - startHour), alignment: .topLeading)
             .onAppear {
                 grabHaptic.prepare()
                 tickHaptic.prepare()
             }
         }
-        .frame(height: hourHeight * 24)
+        .frame(height: hourHeight * CGFloat(endHour - startHour))
         .background(GeometryReader { proxy in
-            Color.clear.preference(key: UpcomingHoursGridFrameKey.self, value: proxy.frame(in: .named("upcomingHoursGrid")))
+            // `.global` вместо именованного пространства — жест теперь
+            // `UIGestureRecognizerRepresentable` (см. `HoursDragGesture`
+            // ниже), он отдаёт координаты через `converter.localToGlobal`,
+            // именованное SwiftUI-пространство ему не нужно.
+            Color.clear.preference(key: UpcomingHoursGridFrameKey.self, value: proxy.frame(in: .global))
         })
         .onPreferenceChange(UpcomingHoursGridFrameKey.self) { gridFrame = $0 }
         .overlay(alignment: .topLeading) {
             if let dragState {
-                let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
-                ghostView(dragState, width: max(4, columnWidth - rightInset))
+                // Ширина ghost — из `dragState.width` (снята синхронно в
+                // момент захвата, см. `DragState`), НЕ пересчитывается из
+                // `gridFrame` (та обновляется асинхронно и в момент захвата
+                // бывает ещё не готова). X-смещение по колонке дня — по
+                // `gridFrame` по-прежнему, пол 80pt страхует только от
+                // деления на почти-ноль, на позицию это не так критично,
+                // как ширина самой плашки.
+                let columnWidth = max(80, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
+                ghostView(dragState, width: dragState.width)
                     .offset(x: gutterW + CGFloat(dragState.dayIndex) * columnWidth, y: dragState.topY)
                     .allowsHitTesting(false)
             }
@@ -211,13 +245,15 @@ struct UpcomingHoursView: View {
     /// не стоит) — поэтому боковой отступ добавлен ЛОКАЛЬНО, только пулу,
     /// а не всему экрану.
     private var untimedPool: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
-                if index > 0 { TFDivider() }
-                UpcomingUntimedRow(task: task)
-                    .opacity(dragState?.taskID == task.id ? 0.3 : 1)
-                    .gesture(dragGesture(for: task, dayIndex: 0, top: nil, height: minBlockH))
-                    .onTapGesture { if dragState == nil { onTaskTap(task.id) } }
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
+                    if index > 0 { TFDivider() }
+                    UpcomingUntimedRow(task: task)
+                        .opacity(dragState?.taskID == task.id ? 0.3 : 1)
+                        .gesture(dragGesture(for: task, dayIndex: 0, top: nil, height: minBlockH, width: geo.size.width))
+                        .onTapGesture { if dragState == nil { onTaskTap(task.id) } }
+                }
             }
         }
         .background(Color.tfCard)
@@ -232,7 +268,7 @@ struct UpcomingHoursView: View {
 
     private var gridRows: some View {
         VStack(spacing: 0) {
-            ForEach(0..<25, id: \.self) { h in
+            ForEach(startHour...endHour, id: \.self) { h in
                 HStack(alignment: .top, spacing: 0) {
                     Text(String(format: "%02d:00", h))
                         .tfText(.micro)
@@ -243,7 +279,7 @@ struct UpcomingHoursView: View {
                         .offset(y: -6)
                     Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
                 }
-                .frame(height: h < 24 ? hourHeight : 0, alignment: .top)
+                .frame(height: h < endHour ? hourHeight : 0, alignment: .top)
                 .id("hour-\(h)")
             }
         }
@@ -261,15 +297,25 @@ struct UpcomingHoursView: View {
                     )
                         .frame(width: Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols))
                         .frame(height: block.height)
+                        // Владелец 07.09.2026: «вся плашка исчезает, надо
+                        // чтобы тень оставалась на старом месте» — приглушаем
+                        // вместо полного скрытия.
+                        .opacity(isDragged ? 0.35 : 1)
+                        .contentShape(Rectangle())
+                        // `HoursDragGesture` — свой `UIGestureRecognizerRepresentable`,
+                        // см. заголовочный комментарий структуры ниже по файлу.
+                        .gesture(dragGesture(for: block.task, dayIndex: index, top: block.top, height: block.height, width: Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols)))
+                        .onTapGesture { if dragState == nil { onTaskTap(block.task.id) } }
+                        // `.position()` обязан идти ПОСЛЕДНИМ: он отдаёт
+                        // родителю размер всего контейнера вместо размера
+                        // плашки, и любой `.gesture`/`.onTapGesture`,
+                        // навешанный ПОСЛЕ него, ловит касание по всей сетке,
+                        // а не по видимой плашке.
                         .position(
                             x: Self.blockLeft(colWidth: geo.size.width, col: block.col, totalCols: block.totalCols)
                                 + Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols) / 2,
                             y: block.top + block.height / 2
                         )
-                        .opacity(isDragged ? 0 : 1)
-                        .contentShape(Rectangle())
-                        .gesture(dragGesture(for: block.task, dayIndex: index, top: block.top, height: block.height))
-                        .onTapGesture { if dragState == nil { onTaskTap(block.task.id) } }
                 }
             }
         }
@@ -279,33 +325,57 @@ struct UpcomingHoursView: View {
     // MARK: - Перетаскивание — И пул, И уже поставленная плашка (см. заголовочный комментарий файла)
 
     /// `dayIndex` — исходное значение, только для конструктора `DragState`
-    /// (пул им не владеет, передаёт 0 — сразу же на первом `onChanged`
-    /// перевычисляется из X пальца). `top` — верхний край плашки ДО
+    /// (пул им не владеет, передаёт 0 — сразу же на первом обновлении
+    /// пересчитывается из X пальца). `top` — верхний край плашки ДО
     /// перетаскивания (`block.top`), нужен только чтобы вычислить точку
     /// захвата один раз в начале жеста; `nil` у пула (задача ещё без
-    /// времени, точки захвата нет — куда палец, туда и время, как у
-    /// «Сегодня»).
-    private func dragGesture(for task: ApiTask, dayIndex: Int, top: CGFloat?, height: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 12, coordinateSpace: .named("upcomingHoursGrid"))
-            .onChanged { value in
-                let fingerX = value.location.x - gridFrame.minX
-                let fingerY = value.location.y - gridFrame.minY
-                let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
-                let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
-                if dragState?.taskID != task.id {
-                    let startFingerY = value.startLocation.y - gridFrame.minY
-                    grabOffsetY = top.map { startFingerY - $0 } ?? 0
-                    lastTickTime = nil
-                    grabHaptic.impactOccurred()
-                    grabHaptic.prepare()
-                    dragState = DragState(
-                        taskID: task.id, title: task.title, color: projectColor(task),
-                        height: max(minBlockH, height), topY: fingerY - grabOffsetY, dayIndex: overDay
-                    )
-                } else {
-                    dragState?.topY = fingerY - grabOffsetY
-                    dragState?.dayIndex = overDay
-                }
+    /// времени, точки захвата нет — куда палец, туда и время).
+    ///
+    /// Владелец 07.09.2026, живой тест на iPhone Air: SwiftUI-жест
+    /// (`LongPressGesture.sequenced(before: DragGesture)`, что через
+    /// `.gesture`, что через `.simultaneousGesture`) не давал `ScrollView`
+    /// прокручиваться, если палец стартовал прямо на карточке — тот же
+    /// диагноз, что уже задокументирован в `HorizontalPan.swift` для свайпа
+    /// строки. Решение оттуда же: `UIGestureRecognizerRepresentable` поверх
+    /// `UILongPressGestureRecognizer` — он САМ проваливается, если палец
+    /// уходит дальше `allowableMovement` (по умолчанию 10pt) до истечения
+    /// `minimumPressDuration`, отдавая касание `ScrollView`; после успешного
+    /// распознавания `.changed` как обычно несёт текущую позицию пальца без
+    /// ограничения на смещение — то самое «зажал, потом веди».
+    private static let dragHoldSeconds: Double = 0.25
+
+    /// `width` — реальная ширина колонки/пула в точке вызова, снятая
+    /// СИНХРОННЫМ `GeometryReader` (`dayColumn` уже его имеет; пул — своим,
+    /// см. `untimedPool`), а не пересчитанная из асинхронного `gridFrame`.
+    private func dragGesture(for task: ApiTask, dayIndex: Int, top: CGFloat?, height: CGFloat, width: CGFloat) -> some UIGestureRecognizerRepresentable {
+        func columnAndDay(_ point: CGPoint) -> (fingerY: CGFloat, overDay: Int) {
+            let fingerX = point.x - gridFrame.minX
+            let fingerY = point.y - gridFrame.minY
+            let columnWidth = max(80, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
+            let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
+            return (fingerY, overDay)
+        }
+        return HoursDragGesture(
+            minimumPressDuration: Self.dragHoldSeconds,
+            onBegin: { point in
+                let (fingerY, overDay) = columnAndDay(point)
+                grabOffsetY = top.map { fingerY - $0 } ?? 0
+                lastTickTime = nil
+                grabHaptic.impactOccurred()
+                grabHaptic.prepare()
+                dragState = DragState(
+                    taskID: task.id, title: task.title, color: projectColor(task),
+                    height: max(minBlockH, height), width: width, topY: fingerY - grabOffsetY, dayIndex: overDay
+                )
+                let time = Self.timeFromOffset(fingerY - grabOffsetY, hourHeight: hourHeight)
+                previewTime = time
+                lastTickTime = time
+            },
+            onChange: { point in
+                guard dragState?.taskID == task.id else { return }
+                let (fingerY, overDay) = columnAndDay(point)
+                dragState?.topY = fingerY - grabOffsetY
+                dragState?.dayIndex = overDay
                 let time = Self.timeFromOffset(fingerY - grabOffsetY, hourHeight: hourHeight)
                 previewTime = time
                 if time != lastTickTime {
@@ -313,19 +383,27 @@ struct UpcomingHoursView: View {
                     tickHaptic.selectionChanged()
                     tickHaptic.prepare()
                 }
-            }
-            .onEnded { value in
-                let fingerX = value.location.x - gridFrame.minX
-                let topY = value.location.y - gridFrame.minY - grabOffsetY
-                let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
-                let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
+            },
+            onEnd: { point in
+                guard dragState?.taskID == task.id else { return }
+                let (fingerY, overDay) = columnAndDay(point)
+                let topY = fingerY - grabOffsetY
                 dragState = nil
                 previewTime = nil
                 guard topY >= -hourHeight, days.indices.contains(overDay) else { return }
                 onSchedule(task.id, days[overDay].date, Self.timeFromOffset(topY, hourHeight: hourHeight))
+            },
+            onCancel: {
+                guard dragState?.taskID == task.id else { return }
+                dragState = nil
+                previewTime = nil
             }
+        )
     }
 
+    /// Ghost рисуется не тоньше `minCardBodyHeight`, тот же порог, что у
+    /// плашки в покое (`layoutDay`) — реальная (снапнутая) высота на
+    /// итоговое размещение не влияет.
     private func ghostView(_ state: DragState, width: CGFloat) -> some View {
         Text(state.title)
             .tfText(.meta)
@@ -334,29 +412,64 @@ struct UpcomingHoursView: View {
             .multilineTextAlignment(.leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .frame(width: width, height: state.height, alignment: .topLeading)
+            .frame(width: width, height: max(minCardBodyHeight, state.height), alignment: .topLeading)
             .background(state.color)
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
             .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 6)
             .scaleEffect(1.015)
     }
 
+    @ViewBuilder
     private var nowLine: some View {
         let now = Date()
         let comps = Calendar.current.dateComponents([.hour, .minute], from: now)
-        let pos = CGFloat(comps.hour ?? 0) * hourHeight + CGFloat(comps.minute ?? 0) / 60 * hourHeight
-        return HStack(spacing: 4) {
-            Text(String(format: "%02d:%02d", comps.hour ?? 0, comps.minute ?? 0))
-                .tfText(.micro)
-                .monospacedDigit()
-                .foregroundStyle(Color.tfRed)
-                .frame(width: gutterW, alignment: .trailing)
-                .background(Color.tfBackground)
-            Circle().fill(Color.tfRed).frame(width: 7, height: 7)
-            Rectangle().fill(Color.tfRed).frame(height: 1.5)
+        let hour = comps.hour ?? 0
+        // Видимый диапазон теперь startHour...endHour, а не сутки целиком
+        // (владелец 07.09.2026) — вне этого окна линия просто не рисуется.
+        if hour >= startHour, hour < endHour {
+            let pos = CGFloat(hour - startHour) * hourHeight + CGFloat(comps.minute ?? 0) / 60 * hourHeight
+            HStack(spacing: 4) {
+                Text(String(format: "%02d:%02d", hour, comps.minute ?? 0))
+                    .tfText(.micro)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.tfRed)
+                    .frame(width: gutterW, alignment: .trailing)
+                    .background(Color.tfBackground)
+                Circle().fill(Color.tfRed).frame(width: 7, height: 7)
+                Rectangle().fill(Color.tfRed).frame(height: 1.5)
+            }
+            .offset(y: pos - 4)
+            .allowsHitTesting(false)
         }
-        .offset(y: pos - 4)
-        .allowsHitTesting(false)
+    }
+
+    /// Точка + время во время перетаскивания, БЕЗ линии через всю сетку —
+    /// владелец 07.09.2026: «зачем ты мне приебашил этот лазер на весь
+    /// экран, я просил только точечку с цифрами». Раньше `previewTime`
+    /// считался, но нигде не рисовался вообще.
+    @ViewBuilder
+    private var previewLine: some View {
+        if let preview = previewTime, let minutes = Self.minutesFrom(preview) {
+            let pos = CGFloat(minutes - startHour * 60) / 60 * hourHeight
+            HStack(spacing: 4) {
+                Text(preview)
+                    .font(.system(size: 10, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.tfRed)
+                    .frame(width: gutterW, alignment: .trailing)
+                    .background(Color.tfBackground)
+                Circle().fill(Color.tfRed).frame(width: 7, height: 7)
+            }
+            .fixedSize()
+            .offset(y: pos - 4)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private static func minutesFrom(_ hhmm: String) -> Int? {
+        let parts = hhmm.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2 else { return nil }
+        return parts[0] * 60 + parts[1]
     }
 
     // MARK: - Раскладка перекрывающихся задач (`layoutDay`, DayHours.tsx)
@@ -376,10 +489,14 @@ struct UpcomingHoursView: View {
         return Double(h) + Double(m) / 60
     }
 
+    /// Смещение от верха сетки (0 = `startHour`) → «ЧЧ:ММ», зажатое видимым
+    /// диапазоном `startHour...endHour` (владелец 07.09.2026).
     private static func timeFromOffset(_ px: CGFloat, hourHeight: CGFloat) -> String {
         let raw = (px / hourHeight) * 60
         let snapped = (raw / CGFloat(snapMin)).rounded() * CGFloat(snapMin)
-        let clamped = min(max(snapped, 0), CGFloat(24 * 60 - snapMin))
+        let startMin = CGFloat(startHour * 60)
+        let endMin = CGFloat(endHour * 60)
+        let clamped = min(max(snapped + startMin, startMin), endMin - CGFloat(snapMin))
         let h = Int(clamped) / 60
         let m = Int(clamped) % 60
         return String(format: "%02d:%02d", h, m)
@@ -422,10 +539,13 @@ struct UpcomingHoursView: View {
             }
             let cols = colEnds.count
             for (i, item) in cluster.enumerated() {
+                // Задачи ДО `startHour` (глубокая ночь) прижимаются к верху
+                // сетки вместо отрицательных координат (владелец 07.09.2026).
+                let hoursFromTop = item.start - Double(startHour)
                 placed.append(PlacedBlock(
                     task: item.task,
-                    top: CGFloat(max(0, item.start * Double(hourHeight) + 1)),
-                    height: max(minBlockH, CGFloat((item.end - item.start) * Double(hourHeight)) - 3),
+                    top: CGFloat(max(0, hoursFromTop * Double(hourHeight) + 1)),
+                    height: max(minCardBodyHeight, CGFloat((item.end - item.start) * Double(hourHeight)) - 3),
                     col: colOf[i],
                     totalCols: cols,
                     durKnown: item.durKnown
@@ -444,6 +564,93 @@ struct UpcomingHoursView: View {
         }
         flush()
         return placed
+    }
+}
+
+/// Перетаскивание карточки/плашки на почасовой сетке — тот же приём, что
+/// `HorizontalPan` (см. заголовочный комментарий этого файла и
+/// `HorizontalPan.swift`): SwiftUI `DragGesture`/`.simultaneousGesture`
+/// объявляют себя хозяином касания раньше, чем `ScrollView` успевает решить,
+/// прокрутка это или нет, и список не листается пальцем по карточке ни в
+/// одном варианте (владелец 07.09.2026, живой тест на iPhone Air). Здесь
+/// вместо своего распознавателя — штатный `UILongPressGestureRecognizer`:
+/// он сам проваливается на движении больше `allowableMovement` до истечения
+/// `minimumPressDuration`, отдавая касание `ScrollView`, а после успешного
+/// распознавания продолжает нести текущую позицию пальца в `.changed` без
+/// ограничения на смещение.
+private struct HoursDragGesture: UIGestureRecognizerRepresentable {
+    let minimumPressDuration: Double
+    let onBegin: (CGPoint) -> Void
+    let onChange: (CGPoint) -> Void
+    let onEnd: (CGPoint) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let recognizer = UILongPressGestureRecognizer()
+        recognizer.minimumPressDuration = minimumPressDuration
+        recognizer.cancelsTouchesInView = false
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        let point = context.converter.location(in: .global)
+        switch recognizer.state {
+        case .began:
+            // Владелец 07.09.2026: «скролл да, но лозит весь экран, я хочу
+            // двигать карточку, а двигаю весь экран» — до успешного
+            // распознавания прокрутке НЕ мешаем (быстрый свайп должен
+            // скроллить), но как только жест реально начался (палец
+            // удержан, карточка захвачена), прокрутку глушим на время
+            // перетаскивания. `isScrollEnabled = false` — штатный способ
+            // остановить `UIScrollView` целиком (не только его собственный
+            // `panGestureRecognizer`), надёжнее точечного переключения
+            // одного распознавателя.
+            Self.enclosingScrollView(of: recognizer.view)?.isScrollEnabled = false
+            onBegin(point)
+        case .changed:
+            onChange(point)
+        case .ended:
+            Self.enclosingScrollView(of: recognizer.view)?.isScrollEnabled = true
+            onEnd(point)
+        case .cancelled, .failed:
+            Self.enclosingScrollView(of: recognizer.view)?.isScrollEnabled = true
+            onCancel()
+        default:
+            break
+        }
+    }
+
+    /// Владелец 07.09.2026, диагностика через unified log: `recognizer.view`
+    /// у `UIGestureRecognizerRepresentable` — это ХОСТИНГ-VIEW всего экрана
+    /// целиком (`frame = 402x874`, весь экран), а не маленькая вьюха
+    /// карточки. Реальный `UIScrollView` от SwiftUI `ScrollView` — ПОТОМОК
+    /// этого хостинга, а не предок: поиск вверх по `.superview` (как было)
+    /// гарантированно возвращал `nil`, отсюда скролл не глушился ни разу.
+    /// Ищем вниз по `.subviews` (BFS от самого хостинга).
+    private static func enclosingScrollView(of view: UIView?) -> UIScrollView? {
+        guard let root = view else { return nil }
+        var queue: [UIView] = [root]
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            if let scrollView = current as? UIScrollView { return scrollView }
+            queue.append(contentsOf: current.subviews)
+        }
+        return nil
+    }
+
+    /// До момента `.began` прокрутке не мешаем — тот же приём, что у
+    /// `HorizontalPan.Coordinator`; сама блокировка активной прокрутки — в
+    /// `handleUIGestureRecognizerAction` выше, через `isScrollEnabled`.
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            true
+        }
     }
 }
 

@@ -10,15 +10,16 @@ enum TodayHoursMetrics {
     static let minH: CGFloat = 24                // минимальная высота плашки
     static let rightInset: CGFloat = 6
     static let colGap: CGFloat = 3
-    /// Часы 0...23, плюс замыкающая подпись «24:00» — потолок шкалы, задачу
-    /// туда уже не поставить (владелец 19.08.2026, см. живой код).
-    static let hoursCount = 24
-    /// Декоративные строки-подписи ПОСЛЕ полуночи следующих суток — просто
-    /// фон, задачу туда не поставить (web считает точную высоту хвоста
-    /// страницы под кнопку; здесь — то самое «пять секций», которые
-    /// упомянул владелец в комментарии живого кода, фиксированное число
-    /// вместо динамического замера свободного места).
-    static let decorativeHoursBelow = 5
+    /// Видимый диапазон суток — владелец 07.09.2026: «в 6 утра всё равно
+    /// никто не встаёт, в час ночи никто не встаёт», убрать портянку из
+    /// пустых ночных часов. Раньше сетка шла 0...24 плюс 5 декоративных
+    /// строк-хвоста; теперь только реальные рабочие часы 6:00...22:00.
+    static let startHour = 6
+    static let endHour = 22
+    static let hoursCount = endHour - startHour
+    /// Задержка удержания перед стартом перетаскивания — владелец 07.09.2026:
+    /// голое касание не должно сразу утаскивать плашку.
+    static let dragHoldSeconds: Double = 0.25
 }
 
 /// «14:30» → 14.5.
@@ -27,25 +28,21 @@ func hoursFromTime(_ raw: String?) -> Double? {
     return Double(h) + Double(m) / 60
 }
 
-/// Смещение от верха сетки → «ЧЧ:ММ», округлённое до SNAP_MIN, зажатое сутками.
+/// Смещение от верха сетки (0 = `startHour`) → «ЧЧ:ММ», округлённое до
+/// SNAP_MIN, зажатое видимым диапазоном `startHour...endHour`.
 func timeFromOffset(_ y: CGFloat) -> String {
     let raw = (y / TodayHoursMetrics.hourH) * 60
     let snap = CGFloat(TodayHoursMetrics.snapMin)
     let snapped = (raw / snap).rounded() * snap
-    let clamped = min(max(snapped, 0), CGFloat(TodayHoursMetrics.hoursCount * 60) - snap)
+    let startMin = CGFloat(TodayHoursMetrics.startHour * 60)
+    let endMin = CGFloat(TodayHoursMetrics.endHour * 60)
+    let clamped = min(max(snapped + startMin, startMin), endMin - snap)
     let h = Int(clamped) / 60
     let m = Int(clamped) % 60
     return String(format: "%02d:%02d", h, m)
 }
 
 func hourLabel(_ h: Int) -> String { String(format: "%02d:00", h) }
-
-/// Подпись с зацикливанием суток: −1 → «23:00», 25 → «01:00»; ровно 24 остаётся «24:00».
-func cycleLabel(_ h: Int) -> String {
-    if h == 24 { return "24:00" }
-    let m = ((h % 24) + 24) % 24
-    return hourLabel(m)
-}
 
 struct TodayPlacedBlock: Identifiable {
     var id: String { task.id }
@@ -89,11 +86,20 @@ func layoutHoursDay(_ tasks: [ApiTask]) -> [TodayPlacedBlock] {
             }
         }
         let cols = colEnds.count
+        let startHour = Double(TodayHoursMetrics.startHour)
         for (i, item) in cluster.enumerated() {
+            // Задачи ДО `startHour` (глубокая ночь) прижимаются к верху
+            // сетки вместо ухода в отрицательные координаты — сама задача
+            // никуда не девается, просто видимый диапазон начинается не с
+            // полуночи (владелец 07.09.2026).
+            let hoursFromTop: Double = item.start - startHour
+            let top: CGFloat = max(0, CGFloat(hoursFromTop) * TodayHoursMetrics.hourH + 1)
+            let durHours: Double = item.end - item.start
+            let height: CGFloat = max(TodayHoursMetrics.minH, CGFloat(durHours) * TodayHoursMetrics.hourH - 3)
             placed.append(TodayPlacedBlock(
                 task: item.task,
-                top: max(0, CGFloat(item.start) * TodayHoursMetrics.hourH + 1),
-                height: max(TodayHoursMetrics.minH, CGFloat(item.end - item.start) * TodayHoursMetrics.hourH - 3),
+                top: top,
+                height: height,
                 colIndex: colOf[i],
                 columns: cols,
                 durKnown: item.durKnown

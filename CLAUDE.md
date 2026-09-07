@@ -35,3 +35,19 @@ cd "$HOME/Проекты/TaskFlowNativeBuild"
 - **Проверка правок интерфейса — кадром симулятора**, а не на глаз: временный
   XCUITest со `XCTAttachment(screenshot:)`, потом `xcrun xcresulttool export
   attachments` и замер пикселей. Временный тест удалять после сверки.
+- **Жест/UI-баг не поддаётся со второй попытки на глаз — сразу `NSLog` в
+  подозрительное место**, не гонять третью-пятую попытку вслепую по
+  скриншотам/синтетическим свайпам. `print()` не долетает ни до `simctl
+  launch --stdout`, ни до `log show` — только `NSLog`. Читать так:
+  `xcrun simctl spawn <device-udid> log show --last Nm --predicate 'process == "TaskFlow"' --style compact`.
+  Пример 07.09.2026: `UpcomingHoursView.swift` — драг не давал заблокировать
+  скролл; один `NSLog` в `handleUIGestureRecognizerAction` показал, что
+  `recognizer.view` у `UIGestureRecognizerRepresentable` — это хостинг-view
+  ВСЕГО экрана, а не вьюха карточки, и настоящий `UIScrollView` от SwiftUI
+  `ScrollView` — его ПОТОМОК, а не предок, поэтому поиск вверх по
+  `.superview` всегда возвращал `nil`. Без лога это гадание заняло бы ещё
+  десяток кругов.
+- **Несколько booted-симуляторов сразу — указывать `device`/UDID явно.**
+  `launch` без явного устройства молча берёт первый booted, который может
+  быть не тем, за которым наблюдает владелец — путаница «я ничего не менял,
+  а фикс не появился» именно отсюда.

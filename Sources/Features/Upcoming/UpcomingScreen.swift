@@ -63,20 +63,24 @@ public struct UpcomingScreen: View {
         UserDefaults.standard.stringArray(forKey: "plannerVisibleProjects") ?? []
     )
 
-    /// В шапке показывается текущий месяц, а не техническое имя режима.
+    /// В шапке показывается текущий месяц, а не техническое имя режима —
+    /// кроме «Сегодня» (список/почасовой): владелец 07.09.2026 попросил там
+    /// день недели и число вместо голого месяца («Понедельник, 7 сентября»).
+    /// Остальные режимы (три дня/неделя/месяц) не трогать — там месяц и так
+    /// уместен, это диапазон дней, а не один день.
     private var navigationTitle: String {
-        let month: Int
         switch view {
         case .today:
-            month = UpcomingDate.yearMonth(today).month
+            let (_, month) = UpcomingDate.yearMonth(today)
+            let weekdayIndex = (UpcomingDate.jsWeekday(today) + 6) % 7
+            return "\(UpcomingDate.weekdaysFull[weekdayIndex]), \(UpcomingDate.day(today)) \(UpcomingDate.monthsGen[month])"
         case .threeDays:
-            month = UpcomingDate.yearMonth(threeDayStart).month
+            return UpcomingDate.monthsNom[UpcomingDate.yearMonth(threeDayStart).month]
         case .week:
-            month = UpcomingDate.weekMonth(monday: gridMonday).month
+            return UpcomingDate.monthsNom[UpcomingDate.weekMonth(monday: gridMonday).month]
         case .month:
-            month = (gridMonth ?? UpcomingDate.yearMonth(today)).month
+            return UpcomingDate.monthsNom[(gridMonth ?? UpcomingDate.yearMonth(today)).month]
         }
-        return UpcomingDate.monthsNom[month]
     }
 
     public init() {}
