@@ -123,6 +123,7 @@ struct UpcomingHoursView: View {
                 ScrollView {
                     gridBody
                 }
+                .tfHoursNativeTopScrollEdge()
                 .onAppear {
                     // Автопрокрутка к текущему часу с запасом 120px сверху (спека §3.5).
                     let hour = Calendar.current.component(.hour, from: Date())
@@ -424,6 +425,17 @@ struct UpcomingHoursView: View {
         }
         flush()
         return placed
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func tfHoursNativeTopScrollEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            self
+        }
     }
 }
 
