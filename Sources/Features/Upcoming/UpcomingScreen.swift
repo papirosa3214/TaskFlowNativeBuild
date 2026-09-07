@@ -102,8 +102,10 @@ public struct UpcomingScreen: View {
         )) {
             if let id = editingTaskID { routeDestination(.taskForm(taskID: id)) }
         }
-        .navigationDestination(isPresented: $createTaskOpen) {
-            routeDestination(.taskForm(taskID: nil))
+        .sheet(isPresented: $createTaskOpen) {
+            NavigationStack { TaskFormScreen(taskID: nil) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .task { await agentsProvider.load() }
         .onAppear {
