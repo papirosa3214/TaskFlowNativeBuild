@@ -80,7 +80,7 @@ public struct TFTabBar: View {
         onSelect: @escaping (Int) -> Void,
         onCreateTap: @escaping () -> Void
     ) {
-        precondition(items.count == 4, "Спека фиксирует ровно 4 вкладки по бокам центральной кнопки")
+        precondition(items.count >= 2 && items.count <= 4, "Панель вкладок работает с 2–4 пунктами по бокам центральной кнопки")
         self.items = items
         self._selectedIndex = selectedIndex
         self.isCreateMenuOpen = isCreateMenuOpen
@@ -89,12 +89,11 @@ public struct TFTabBar: View {
     }
 
     public var body: some View {
-        HStack(spacing: 0) {
-            tabButton(0)
-            tabButton(1)
+        let leftCount = items.count / 2
+        return HStack(spacing: 0) {
+            ForEach(0..<leftCount, id: \.self) { tabButton($0) }
             createButton
-            tabButton(2)
-            tabButton(3)
+            ForEach(leftCount..<items.count, id: \.self) { tabButton($0) }
         }
         .frame(height: TFTabBarMetrics.heightCompact)
         .frame(maxWidth: .infinity)
