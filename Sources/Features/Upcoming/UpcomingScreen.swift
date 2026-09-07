@@ -75,7 +75,7 @@ public struct UpcomingScreen: View {
     public var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tfNativeHeader(navigationTitle, displayMode: .large)
+        .tfNativeHeader(navigationTitle, displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { subviewPill }
             if view != .today {
