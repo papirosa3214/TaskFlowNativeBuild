@@ -261,7 +261,7 @@ struct TaskJournalView: View {
 
     /// Словарь формулировок §19.2, ДОСЛОВНО. `kind` — открытая строка
     /// (`Core/Models/TaskEvent.swift`), сравниваем как есть.
-    private static func eventText(_ event: ApiTaskEvent) -> String {
+    static func eventText(_ event: ApiTaskEvent) -> String {
         switch event.kind {
         case "claimed": "взял задачу в работу"
         case "resumed_after_blocked": "вернулся к работе после блокировки"

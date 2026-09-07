@@ -105,10 +105,20 @@ public struct UpcomingScreen: View {
             daySheet(date: day.id)
         }
         .sheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
-        .navigationDestination(isPresented: Binding(
+        // Владелец 07.09.2026: «хочу именно системное всплывающее окно» —
+        // просмотр задачи открывается снизу системной шторкой (`.sheet`),
+        // не пушем (тот же приём, что уже был у `TodaySectionView.sheetTaskID`
+        // и у `createTaskOpen` ниже). Правка («Изменить», `editingTaskID`)
+        // не трогаю — она пуш осознанно, владелец 02.09.2026 прямо просил
+        // «выдвигающуюся нативную хрень» для неё отдельно.
+        .sheet(isPresented: Binding(
             get: { pushedTaskID != nil }, set: { if !$0 { pushedTaskID = nil } }
         )) {
-            if let id = pushedTaskID { routeDestination(.taskDetail(taskID: id)) }
+            if let id = pushedTaskID {
+                NavigationStack { routeDestination(.taskDetail(taskID: id)) }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
         }
         .navigationDestination(isPresented: Binding(
             get: { editingTaskID != nil }, set: { if !$0 { editingTaskID = nil } }

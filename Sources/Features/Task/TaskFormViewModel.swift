@@ -31,8 +31,18 @@ final class TaskFormViewModel {
     var saveErrorMessage: String?
     var directoriesErrorMessage: String?
     var agents: [ApiUser] = []
+    /// Владелец 07.09.2026: «не наблюдаю комментариев с активности» — лента
+    /// была только в мёртвом `TaskDetailScreen`/`TaskDetailViewModel` и
+    /// потерялась при переезде на эту форму (LOCK-089). Логика (сортировка,
+    /// склейка комментариев+событий) — оттуда буквально, вёрстка — своя,
+    /// плоская, без аватарок и цветных плашек.
+    var commentText = ""
 
     private var originalTask: ApiTask?
+
+    var journalEntries: [TaskJournalEntry] {
+        TaskJournalEntry.merged(comments: originalTask?.comments ?? [], events: originalTask?.events ?? [])
+    }
 
     var isEditing: Bool { taskID != nil }
     /// Для меню «…» (перенесено из `TaskDetailScreen` — открытие задачи
@@ -98,6 +108,23 @@ final class TaskFormViewModel {
             // (проекты/метки грузит `ProjectStore`/`LabelStore` из окружения,
             // сюда добавляются только агенты, которых стор не хранит).
             directoriesErrorMessage = "Не удалось загрузить проекты, метки или агентов. Проверьте соединение."
+        }
+    }
+
+    // MARK: - Лента: комментарии — перенесено буквально из
+    // `TaskDetailViewModel.sendComment` (файлы к комментарию не переносил —
+    // отдельный кусок с `fileImporter`, не входит в этот проход).
+    func sendComment() async {
+        guard let taskID else { return }
+        let text = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        do {
+            _ = try await apiClient.createComment(taskId: taskID, text: text, attachmentIds: [])
+            commentText = ""
+            await loadIfNeeded()
+        } catch {
+            // Формулировка дословно из спеки §19.2.
+            saveErrorMessage = "Не удалось отправить — попробуйте ещё раз"
         }
     }
 

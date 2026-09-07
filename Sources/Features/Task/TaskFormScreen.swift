@@ -275,7 +275,7 @@ struct TaskFormScreen: View {
     /// `DisclosureGroup`, поэтому iOS сама ведёт цвета, размеры, отступы и
     /// Dynamic Type; собственных карточек, аккордеонов и подложек здесь нет.
     private var nativeTaskDetail: some View {
-        Form {
+        List {
             Section {
                 Text(viewModel.title)
                     .font(.headline)
@@ -311,7 +311,28 @@ struct TaskFormScreen: View {
                     }
                 }
             }
+
+            // Владелец 07.09.2026: «комментарий не в самый низ, а в самый
+            // верх — если это долгая задача, мне что, километр листать» —
+            // поле ввода ПЕРЕД лентой (как было в старой `TaskJournalView`),
+            // новые записи сверху (`TaskJournalEntry.merged` уже сортирует
+            // «новые сверху»), скроллить до низа не нужно.
+            Section("Комментарии") {
+                HStack {
+                    TextField("Комментарий", text: $viewModel.commentText)
+                    Button("Отправить") { Task { await viewModel.sendComment() } }
+                        .disabled(viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                ForEach(viewModel.journalEntries) { entry in
+                    nativeJournalRow(entry)
+                }
+            }
         }
+        // Владелец 07.09.2026: «размести все элементы плоско, без лишних
+        // подложек» — `Form` не всегда честно слушается `.listStyle(.plain)`
+        // (осталась подложка-карточка под секциями даже после смены стиля),
+        // `List` его уважает по-настоящему.
+        .listStyle(.plain)
     }
 
     @ViewBuilder
@@ -335,15 +356,54 @@ struct TaskFormScreen: View {
         }
     }
 
+    /// Владелец 07.09.2026: «переключатели под задачи — что за хуйня» —
+    /// `Toggle` физически рисуется свитчем, а чек-лист подзадач нативно у
+    /// Apple (Напоминания и любой to-do) — галочка-кружок, не свитч.
     private func nativeSubtaskToggle(_ subtask: ApiSubtask) -> some View {
-        Toggle(subtask.title, isOn: Binding(
-            get: { subtask.done },
-            set: { _ in
-                guard subtask.agentState != .review else { return }
-                Task { await viewModel.toggleSubtaskDone(subtask) }
+        Button {
+            guard subtask.agentState != .review else { return }
+            Task { await viewModel.toggleSubtaskDone(subtask) }
+        } label: {
+            Label {
+                Text(subtask.title)
+                    .strikethrough(subtask.done)
+                    .foregroundStyle(subtask.done ? .secondary : .primary)
+            } icon: {
+                Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(subtask.done ? Color.tfTeal : .secondary)
             }
-        ))
+        }
         .disabled(subtask.agentState == .review)
+    }
+
+    /// Плоская строка ленты — без аватарок/цветных плашек `TaskJournalView`
+    /// (та осталась только в мёртвом `TaskDetailScreen`), обычный `Text` в
+    /// `Form`, текст события — тот же словарь §19.2 (`TaskJournalView.eventText`).
+    @ViewBuilder
+    private func nativeJournalRow(_ entry: TaskJournalEntry) -> some View {
+        switch entry {
+        case .comment(let comment):
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
+                        .font(.subheadline).fontWeight(.semibold)
+                    Spacer()
+                    if let date = comment.createdAtDate {
+                        Text(TaskDateText.relativeTime(date)).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text(comment.text)
+            }
+        case .event(let event):
+            HStack {
+                Text(TaskJournalView.eventText(event)).foregroundStyle(.secondary)
+                Spacer()
+                if let date = event.createdAtDate {
+                    Text(TaskDateText.relativeTime(date)).foregroundStyle(.secondary)
+                }
+            }
+            .font(.footnote)
+        }
     }
 
     private var nativeDueText: String {
