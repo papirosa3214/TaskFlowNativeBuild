@@ -147,7 +147,8 @@ struct TodaySectionView: View {
                         if existing?.durationMin == nil { fields["duration_min"] = .number(15) }
                         await taskStore.patch(taskId: id, fields: fields) { _ in }
                     }
-                }
+                },
+                showsDayHeader: false
             )
         }
     }

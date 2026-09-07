@@ -51,6 +51,23 @@ struct UpcomingHoursView: View {
     /// Перенесли задачу из пула ИЛИ передвинули уже поставленную — назначить
     /// дату (колонки) и время.
     let onSchedule: (String, String, String) -> Void
+    /// В «Сегодня → Часы» верхняя подпись дня не повторяется: контекст уже
+    /// задаёт нативная шапка «Планирования». В «Трёх днях» она остаётся.
+    let showsDayHeader: Bool
+
+    init(
+        days: [UpcomingHourColumn],
+        projectColor: @escaping (ApiTask) -> Color,
+        onTaskTap: @escaping (String) -> Void,
+        onSchedule: @escaping (String, String, String) -> Void,
+        showsDayHeader: Bool = true
+    ) {
+        self.days = days
+        self.projectColor = projectColor
+        self.onTaskTap = onTaskTap
+        self.onSchedule = onSchedule
+        self.showsDayHeader = showsDayHeader
+    }
 
     private struct DragState {
         let taskID: String
@@ -83,6 +100,9 @@ struct UpcomingHoursView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if showsDayHeader {
+                UpcomingDayColumnsHeader(days: days)
+            }
             if !untimed.isEmpty {
                 untimedPool
             }
