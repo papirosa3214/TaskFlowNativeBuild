@@ -15,6 +15,10 @@ struct SettingsScreen: View {
     @State private var viewModel = SettingsViewModel()
     @State private var profileOverride: ApiUser?
     @State private var isEditProfilePresented = false
+    @AppStorage("settings.user.expanded") private var userSettingsExpanded = true
+    @AppStorage("settings.ai.expanded") private var aiExpanded = true
+    @AppStorage("settings.general.expanded") private var generalExpanded = true
+    @AppStorage("settings.server.expanded") private var serverExpanded = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -92,7 +96,7 @@ struct SettingsScreen: View {
 
     @ViewBuilder
     private var userSettingsSection: some View {
-        section(title: "Пользовательские настройки") {
+        section(title: "Пользовательские настройки", isExpanded: $userSettingsExpanded) {
             toggleRow(icon: "moon", title: "Тема", valueLabel: viewModel.isDarkTheme ? "Тёмная" : "Светлая", isOn: $viewModel.isDarkTheme)
             if viewModel.isBiometryAvailable {
                 TFDivider(inset: rowDividerInset)
@@ -114,7 +118,7 @@ struct SettingsScreen: View {
 
     @ViewBuilder
     private var aiSection: some View {
-        section(title: "Искусственный интеллект") {
+        section(title: "Искусственный интеллект", isExpanded: $aiExpanded) {
             NavigationLink(value: AppRoute.voiceModels) {
                 TFListRow(icon: "sparkles", iconStyle: .plain, title: "Искусственный интеллект", trailing: AnyView(chevron))
             }
@@ -124,7 +128,7 @@ struct SettingsScreen: View {
 
     @ViewBuilder
     private var generalSection: some View {
-        section(title: "Общие") {
+        section(title: "Общие", isExpanded: $generalExpanded) {
             navRow(icon: "bookmark", title: "Шаблоны задач", route: .templates)
             TFDivider(inset: rowDividerInset)
             navRow(icon: "tag", title: "Метки", route: .labels)
@@ -137,7 +141,7 @@ struct SettingsScreen: View {
 
     @ViewBuilder
     private var serverSection: some View {
-        section(title: "Сервер") {
+        section(title: "Сервер", isExpanded: $serverExpanded) {
             ServerStatusSection()
         }
     }
@@ -165,11 +169,23 @@ struct SettingsScreen: View {
 
     // MARK: - Общие строители строк
 
-    private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<Content: View>(title: String, isExpanded: Binding<Bool>, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFSectionHeader(title)
-            TFCard(padding: 0) { VStack(spacing: 0) { content() } }
-                .padding(.horizontal, TFSpacing.screenHorizontal)
+            Button { isExpanded.wrappedValue.toggle() } label: {
+                HStack(spacing: TFSpacing.xs) {
+                    TFSectionHeader(title)
+                    Spacer(minLength: 0)
+                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.tfDim)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            if isExpanded.wrappedValue {
+                TFCard(padding: 0) { VStack(spacing: 0) { content() } }
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+            }
         }
     }
 
