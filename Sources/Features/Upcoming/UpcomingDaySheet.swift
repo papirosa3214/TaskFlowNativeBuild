@@ -56,10 +56,6 @@ struct UpcomingDaySheetContent: View {
     let date: String
     let tasks: [ApiTask]
     let onTaskTap: (String) -> Void
-    let onPrevDay: () -> Void
-    let onNextDay: () -> Void
-
-    @State private var dragOffset: CGFloat = 0
 
     var body: some View {
         Group {
@@ -80,21 +76,5 @@ struct UpcomingDaySheetContent: View {
                 .padding(.bottom, TFSpacing.lg)
             }
         }
-        .offset(x: dragOffset)
-        // Свайп день назад/вперёд — порог commit 60px (spec: DaySheet.tsx, handlePointerUp).
-        .gesture(
-            DragGesture(minimumDistance: 8)
-                .onChanged { value in
-                    let raw = value.translation.width
-                    dragOffset = abs(raw) > 80 ? (raw > 0 ? 1 : -1) * (80 + (abs(raw) - 80) * 0.35) : raw
-                }
-                .onEnded { value in
-                    let dx = value.translation.width
-                    withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
-                    if abs(dx) >= 60 {
-                        if dx < 0 { onNextDay() } else { onPrevDay() }
-                    }
-                }
-        )
     }
 }

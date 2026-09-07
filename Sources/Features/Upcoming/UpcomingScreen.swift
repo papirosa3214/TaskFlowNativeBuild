@@ -171,9 +171,7 @@ public struct UpcomingScreen: View {
         NavigationStack {
             UpcomingDaySheetContent(
                 date: openDay, tasks: byDate[openDay] ?? [],
-                onTaskTap: { self.openDay = nil; pushedTaskID = $0 },
-                onPrevDay: { self.openDay = UpcomingDate.addDays(openDay, -1) },
-                onNextDay: { self.openDay = UpcomingDate.addDays(openDay, 1) }
+                onTaskTap: { self.openDay = nil; pushedTaskID = $0 }
             )
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .tfNativeHeader(UpcomingDaySheetTitle.text(openDay), displayMode: .inline)
