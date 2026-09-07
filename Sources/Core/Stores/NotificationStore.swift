@@ -29,9 +29,13 @@ public final class NotificationStore {
     }
 
     public func markRead(id: String) async {
-        guard let index = notifications.firstIndex(where: { $0.id == id }) else { return }
+        guard notifications.contains(where: { $0.id == id }) else { return }
         do {
-            notifications[index] = try await apiClient.markNotificationRead(id: id)
+            try await apiClient.markNotificationRead(id: id)
+            // `PATCH .../read` возвращает только `{ ok: true }`, поэтому
+            // перечитываем полный серверный снимок вместо локальной имитации
+            // неизменяемой `ApiNotification`.
+            await load()
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }

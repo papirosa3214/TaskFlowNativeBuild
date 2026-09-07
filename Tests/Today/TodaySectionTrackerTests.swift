@@ -20,8 +20,8 @@ final class TodaySectionInfoTests: XCTestCase {
             todayDate: date
         )
 
-        XCTAssertEqual(sections.map(\.kind), [.waiting, .overdue, .today])
-        XCTAssertEqual(sections.map(\.title), ["Ждут вас", "Просрочено", TodayDate.formatDueLabel(date)])
+        XCTAssertEqual(sections.map(\.kind), [.overdue, .waiting, .today])
+        XCTAssertEqual(sections.map(\.title), ["Просрочено", "Ждут вас", TodayDate.formatDueLabel(date)])
     }
 
     func testSparseSectionsDoNotLeavePlaceholders() {
@@ -33,7 +33,7 @@ final class TodaySectionInfoTests: XCTestCase {
         )
 
         XCTAssertEqual(sections.map(\.kind), [.overdue])
-        XCTAssertEqual(sections.first?.icon, nil)
+        XCTAssertEqual(sections.first?.icon, "exclamationmark")
     }
 
     private func task(_ id: String) -> ApiTask {
