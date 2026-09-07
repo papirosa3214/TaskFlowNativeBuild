@@ -33,6 +33,9 @@ struct ProjectCard: View {
                     progress
                 }
                 metrics
+                if !project.agents.isEmpty {
+                    agentsLine
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -118,6 +121,31 @@ struct ProjectCard: View {
             }
             Spacer(minLength: 0)
         }
+    }
+
+    /// Кто сейчас в проекте работает — просьба владельца 08.09.2026. Строкой,
+    /// а не аватарами: аватары агентов на карточке проекта — это ещё один ряд
+    /// цветных кружков там, где список и так должен читаться спокойно.
+    /// Имя без числа задач, пока агент один; с числом — когда их несколько и
+    /// видно, кто тянет основную часть.
+    private var agentsLine: some View {
+        HStack(spacing: TFSpacing.xs) {
+            Image(systemName: "cpu")
+                .tfText(.caption)
+                .foregroundStyle(Color.tfDim)
+            Text(agentsText)
+                .tfText(.caption)
+                .foregroundStyle(Color.tfDim)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var agentsText: String {
+        let agents = project.agents
+        if agents.count == 1, let only = agents.first { return only.name }
+        return agents.map { "\($0.name) · \($0.tasks)" }.joined(separator: "   ")
     }
 
     /// Не «9 задач», а «осталось 9»: над этой строкой уже стоит «16 из 25

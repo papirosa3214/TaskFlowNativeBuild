@@ -9,6 +9,16 @@ import Foundation
 /// проекта, которой нужен прогресс, а не одно число. Все они
 /// `decodeIfPresent`: сервер может быть старее клиента, и тогда карточка
 /// просто не покажет соответствующую строку.
+/// Агент, занятый в проекте прямо сейчас: есть активная задача на его учётке.
+/// Аренда (`agent_state`) для списка не годится — она живёт пять минут, и
+/// карточка мигала бы; «когда-то делал» ничего не говорит о сегодняшнем дне.
+public struct ApiProjectAgent: Codable, Identifiable, Sendable, Hashable {
+    public let id: String
+    public let name: String
+    /// Сколько активных задач проекта на нём висит.
+    public let tasks: Int
+}
+
 public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
     public let id: String
     public let name: String
@@ -33,6 +43,8 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
     /// Владелец 08.09.2026: специфический проект не должен подмешивать свою
     /// документацию туда, где ищут рабочее.
     public let knowledgeDatasetId: String?
+    /// Кто из агентов сейчас работает в проекте.
+    public let agents: [ApiProjectAgent]
 
     enum CodingKeys: String, CodingKey {
         case id, name, color
@@ -46,6 +58,7 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         case lastActivityAt = "last_activity_at"
         case docsCount = "docs_count"
         case knowledgeDatasetId = "knowledge_dataset_id"
+        case agents
     }
 
     public init(from decoder: Decoder) throws {
@@ -64,6 +77,7 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         lastActivityAt = try c.decodeIfPresent(String.self, forKey: .lastActivityAt)
         docsCount = try c.decodeIfPresent(Int.self, forKey: .docsCount)
         knowledgeDatasetId = try c.decodeIfPresent(String.self, forKey: .knowledgeDatasetId)
+        agents = try c.decodeIfPresent([ApiProjectAgent].self, forKey: .agents) ?? []
     }
 
     public init(
@@ -71,7 +85,8 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         position: Int?, pinned: Bool, notesFolderId: Int?, taskCount: Int?,
         completedCount: Int? = nil, overdueCount: Int? = nil,
         lastActivityAt: String? = nil, docsCount: Int? = nil,
-        knowledgeDatasetId: String? = nil
+        knowledgeDatasetId: String? = nil,
+        agents: [ApiProjectAgent] = []
     ) {
         self.id = id; self.name = name; self.color = color; self.ownerId = ownerId
         self.createdAt = createdAt; self.position = position; self.pinned = pinned
@@ -79,6 +94,7 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         self.completedCount = completedCount; self.overdueCount = overdueCount
         self.lastActivityAt = lastActivityAt; self.docsCount = docsCount
         self.knowledgeDatasetId = knowledgeDatasetId
+        self.agents = agents
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -97,5 +113,6 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(lastActivityAt, forKey: .lastActivityAt)
         try c.encodeIfPresent(docsCount, forKey: .docsCount)
         try c.encodeIfPresent(knowledgeDatasetId, forKey: .knowledgeDatasetId)
+        try c.encode(agents, forKey: .agents)
     }
 }
