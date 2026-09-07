@@ -97,10 +97,10 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var userSettingsSection: some View {
         section(title: "Пользовательские настройки", isExpanded: $userSettingsExpanded) {
-            toggleRow(icon: "moon", title: "Тема", valueLabel: viewModel.isDarkTheme ? "Тёмная" : "Светлая", isOn: $viewModel.isDarkTheme)
+            toggleRow(icon: "moon", title: "Тема", isOn: $viewModel.isDarkTheme)
             if viewModel.isBiometryAvailable {
                 TFDivider(inset: rowDividerInset)
-                toggleRow(icon: viewModel.biometryKind == .faceID ? "faceid" : "touchid", title: viewModel.biometryLabel, valueLabel: viewModel.isBiometryEnabled ? "Включён" : "Выключен", isOn: $viewModel.isBiometryEnabled)
+                toggleRow(icon: viewModel.biometryKind == .faceID ? "faceid" : "touchid", title: viewModel.biometryLabel, isOn: $viewModel.isBiometryEnabled)
             }
             TFDivider(inset: rowDividerInset)
             Button {
@@ -112,7 +112,7 @@ struct SettingsScreen: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.app-icon")
             TFDivider(inset: rowDividerInset)
-            toggleRow(icon: "keyboard", title: "Своя клавиатура", valueLabel: viewModel.isCustomKeyboardEnabled ? "Включена" : "Системная", isOn: $viewModel.isCustomKeyboardEnabled)
+            toggleRow(icon: "keyboard", title: "Своя клавиатура", isOn: $viewModel.isCustomKeyboardEnabled)
         }
     }
 
@@ -206,13 +206,10 @@ struct SettingsScreen: View {
             .foregroundStyle(Color.tfDim)
     }
 
-    private func toggleRow(icon: String, title: String, valueLabel: String, isOn: Binding<Bool>) -> some View {
+    private func toggleRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
         TFListRow(
             icon: icon, iconStyle: .plain, title: title,
-            trailing: AnyView(HStack(spacing: TFSpacing.sm) {
-                infoValue(valueLabel)
-                TFToggle(isOn: isOn)
-            })
+            trailing: AnyView(TFToggle(isOn: isOn))
         )
     }
 
