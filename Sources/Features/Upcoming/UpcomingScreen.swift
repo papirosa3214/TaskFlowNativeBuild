@@ -176,10 +176,16 @@ public struct UpcomingScreen: View {
             .tfNativeHeader(UpcomingDaySheetTitle.text(openDay), displayMode: .inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { self.openDay = nil } label: { Image(systemName: "xmark") }
+                    Button { self.openDay = nil } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Закрыть")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { self.openDay = nil } label: { Image(systemName: "checkmark") }
+                    Button { self.openDay = nil } label: {
+                        Image(systemName: "checkmark")
+                    }
+                    .accessibilityLabel("Готово")
                 }
             }
         }
@@ -470,6 +476,7 @@ public struct UpcomingScreen: View {
 enum UpcomingDaySheetTitle {
     static func text(_ date: String) -> String {
         let (_, month) = UpcomingDate.yearMonth(date)
-        return "\(UpcomingDate.day(date)) \(UpcomingDate.monthsGen[month])"
+        let weekday = UpcomingDate.weekdaysFull[UpcomingDate.monFirst(UpcomingDate.jsWeekday(date))].lowercased()
+        return "\(UpcomingDate.day(date)) \(UpcomingDate.monthsGen[month]), \(weekday)"
     }
 }
