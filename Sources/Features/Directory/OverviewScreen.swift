@@ -32,6 +32,8 @@ struct OverviewScreen: View {
                 weeklySummaryCard
                 navCard(route: .projects, icon: "tray", tint: .tfRed,
                         title: "Проекты", subtitle: "Задачи по проектам и документация")
+                navCard(route: .knowledge, icon: "books.vertical", tint: Color(hex: "#8b5cf6"),
+                        title: "База знаний", subtitle: "Поиск по документации всех проектов")
                 navCard(route: .notifications, icon: "bell", tint: Color(hex: "#f59e0b"),
                         title: "Уведомления", subtitle: "История событий и напоминаний")
                 navCard(route: .activity, icon: "waveform.path.ecg", tint: Color(hex: "#4a9fd8"),

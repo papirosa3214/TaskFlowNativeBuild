@@ -28,6 +28,8 @@ public enum AppRoute: Hashable {
     case noteFolder(folderID: Int)
     case noteEditor(noteID: String)
     case projects
+    /// Смысловой поиск по документации всех проектов (KnowledgeScreen).
+    case knowledge
     case projectTasks(projectID: String)
     case labels
     case labelTasks(labelID: String)

@@ -66,6 +66,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         NoteEditorScreen(noteID: noteID)
     case .projects:
         ProjectsScreen()
+    case .knowledge:
+        KnowledgeScreen()
     case .projectTasks(let projectID):
         ProjectTasksScreen(projectID: projectID)
     case .labels:
