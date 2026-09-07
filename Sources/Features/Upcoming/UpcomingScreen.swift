@@ -40,6 +40,13 @@ public struct UpcomingScreen: View {
     @State private var rescheduleOpen = false
 
     @State private var gridMonday = UpcomingDate.mondayOf(UpcomingDate.todayString())
+    /// Стартовая дата трёхдневного диапазона — меняется горизонтальным
+    /// перелистыванием (по три дня за жест) и задаёт, какой месяц виден в шапке.
+    @State private var threeDayStart = UpcomingDate.todayString()
+    /// Видимая дата почасового режима в разделе «Сегодня» — принадлежит
+    /// родителю, чтобы заголовок месяца менялся при перелистывании через
+    /// границу месяца.
+    @State private var todayHourDate = UpcomingDate.todayString()
     /// Опциональный: до первого появления экрана и до прихода первого
     /// `onVisibleMonthChange` — пусто. Без этого View запоминал бы месяц
     /// на момент своей инициализации (запуск в августе → в сентябре всё
@@ -60,8 +67,10 @@ public struct UpcomingScreen: View {
     private var navigationTitle: String {
         let month: Int
         switch view {
-        case .today, .threeDays:
+        case .today:
             month = UpcomingDate.yearMonth(today).month
+        case .threeDays:
+            month = UpcomingDate.yearMonth(threeDayStart).month
         case .week:
             month = UpcomingDate.weekMonth(monday: gridMonday).month
         case .month:
@@ -127,6 +136,7 @@ public struct UpcomingScreen: View {
             case .today:
                 TodaySectionView(
                     layout: Binding(get: { todayLayout }, set: { todayLayout = $0 }),
+                    activeHourDate: $todayHourDate,
                     onAddTask: { createTaskOpen = true },
                     plannerViewSwitcher: AnyView(viewSwitcherMenu)
                 )
@@ -137,7 +147,10 @@ public struct UpcomingScreen: View {
                         projectStore.projects.first { $0.id == task.projectId }?.color.map(Color.init(hex:)) ?? .tfDim
                     },
                     onTaskTap: { pushedTaskID = $0 },
-                    onSchedule: { id, date, time in schedule(id: id, date: date, time: time) }
+                    onSchedule: { id, date, time in schedule(id: id, date: date, time: time) },
+                    onPage: { direction in
+                        threeDayStart = UpcomingDate.addDays(threeDayStart, direction * 3)
+                    }
                 )
             case .week:
                 UpcomingWeekView(
@@ -392,7 +405,7 @@ public struct UpcomingScreen: View {
 
     private var hourDays: [UpcomingHourColumn] {
         (0..<3).map { i in
-            let date = UpcomingDate.addDays(today, i)
+            let date = UpcomingDate.addDays(threeDayStart, i)
             return UpcomingHourColumn(date: date, tasks: byDate[date] ?? [], isToday: date == today)
         }
     }

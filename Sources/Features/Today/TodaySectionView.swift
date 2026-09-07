@@ -4,6 +4,9 @@ import SwiftUI
 /// `UpcomingScreen`; здесь живут только три подви́да и их фильтры.
 struct TodaySectionView: View {
     @Binding var layout: TodayLayout
+    /// Видимая дата почасового режима принадлежит родителю: так заголовок
+    /// месяца сразу меняется при перелистывании через границу месяца.
+    @Binding var activeHourDate: String
     var onAddTask: () -> Void = {}
     let plannerViewSwitcher: AnyView
 
@@ -17,9 +20,6 @@ struct TodaySectionView: View {
     @State private var rescheduleTask: ApiTask?
 
     private var today: String { TodayDate.todayString() }
-    private var activeHourDate: String {
-        vm.hourDateOffset == 0 ? today : TodayDate.addDays(today, vm.hourDateOffset)
-    }
 
     private var computation: TodayComputation {
         TodayComputation(
@@ -42,7 +42,10 @@ struct TodaySectionView: View {
             if layout == .hours {
                 hoursContent(c: c)
             } else if layout == .board {
+                // Канбан сам владеет вертикальной прокруткой каждой
+                // колонки. Общая ScrollView связывала все три позиции.
                 listOrBoardContent(c: c)
+                    .frame(maxHeight: .infinity, alignment: .top)
             } else {
                 ScrollView {
                     listOrBoardContent(c: c)
@@ -147,6 +150,9 @@ struct TodaySectionView: View {
                         if existing?.durationMin == nil { fields["duration_min"] = .number(15) }
                         await taskStore.patch(taskId: id, fields: fields) { _ in }
                     }
+                },
+                onPage: { direction in
+                    activeHourDate = TodayDate.addDays(activeHourDate, direction)
                 },
                 showsDayHeader: false
             )

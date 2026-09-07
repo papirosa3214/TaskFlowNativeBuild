@@ -54,6 +54,10 @@ struct UpcomingHoursView: View {
     /// Перенесли задачу из пула ИЛИ передвинули уже поставленную — назначить
     /// дату (колонки) и время.
     let onSchedule: (String, String, String) -> Void
+    /// Горизонтальное перелистывание диапазона: `-1` — назад, `1` — вперёд.
+    /// Размер шага определяет владелец данных: один день у «Сегодня», три
+    /// дня у трёхдневного режима.
+    let onPage: ((Int) -> Void)?
     /// В «Сегодня → Часы» верхняя подпись дня не повторяется: контекст уже
     /// задаёт нативная шапка «Планирования». В «Трёх днях» она остаётся.
     let showsDayHeader: Bool
@@ -73,12 +77,14 @@ struct UpcomingHoursView: View {
         projectColor: @escaping (ApiTask) -> Color,
         onTaskTap: @escaping (String) -> Void,
         onSchedule: @escaping (String, String, String) -> Void,
+        onPage: ((Int) -> Void)? = nil,
         showsDayHeader: Bool = true
     ) {
         self.days = days
         self.projectColor = projectColor
         self.onTaskTap = onTaskTap
         self.onSchedule = onSchedule
+        self.onPage = onPage
         self.showsDayHeader = showsDayHeader
     }
 
@@ -148,6 +154,17 @@ struct UpcomingHoursView: View {
                 }
             }
         }
+        .gesture(
+            UpcomingRangePageGesture { translation, velocity in
+                guard let onPage, dragState == nil else { return }
+                // Короткий медленный сдвиг остаётся случайным касанием. Для
+                // флика учитываем скорость, как у системных paging-жестов.
+                let projected = translation + velocity * 0.12
+                guard abs(translation) >= 45 || abs(projected) >= 90 else { return }
+                onPage(projected < 0 ? 1 : -1)
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+        )
     }
 
     private var gridBody: some View {
@@ -425,6 +442,54 @@ struct UpcomingHoursView: View {
         }
         flush()
         return placed
+    }
+}
+
+/// Перелистывание временного диапазона поверх вертикального ScrollView.
+///
+/// Используется тот же направленный UIKit-recognizer, что у свайпов строк:
+/// он проваливается при вертикальном движении и не отбирает прокрутку. Если
+/// касание началось на карточке, paging ждёт исход собственного long-press:
+/// быстрый горизонтальный свайп перелистывает, а удержание с переносом
+/// карточки получает жест целиком и не меняет дату после отпускания.
+private struct UpcomingRangePageGesture: UIGestureRecognizerRepresentable {
+    let onEnded: (CGFloat, CGFloat) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> HorizontalPanRecognizer {
+        let recognizer = HorizontalPanRecognizer()
+        recognizer.cancelsTouchesInView = false
+        recognizer.delaysTouchesBegan = false
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: HorizontalPanRecognizer, context: Context) {
+        switch recognizer.state {
+        case .ended:
+            onEnded(recognizer.horizontalTranslation, recognizer.velocity(in: recognizer.view).x)
+        default:
+            break
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            otherGestureRecognizer is UILongPressGestureRecognizer
+        }
     }
 }
 
