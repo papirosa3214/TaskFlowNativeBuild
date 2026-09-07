@@ -141,11 +141,11 @@ struct ServerStatusSection: View {
             VStack(spacing: 0) {
                 switch viewModel.phase {
                 case .failed:
-                    TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", titleDot: .warn, trailing: AnyView(valueText("не отвечает", color: .tfCoral)))
+                    TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", titleDot: .warn, trailing: AnyView(valueText("не отвечает", color: .tfCoral)), titleStyle: .action, verticalPadding: TFSpacing.xs)
                     TFDivider(inset: rowDividerInset)
-                    TFListRow(icon: "waveform.path.ecg", iconStyle: .plain, title: "Повторить проверку", action: { Task { await viewModel.load() } })
+                    TFListRow(icon: "arrow.clockwise", iconStyle: .plain, title: "Сервер", trailing: AnyView(Image(systemName: "arrow.clockwise")), titleStyle: .action, verticalPadding: TFSpacing.xs, action: { Task { await viewModel.load() } })
                 case .loading:
-                    TFListRow(icon: "server.rack", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("проверяю связь…")))
+                    TFListRow(icon: "server.rack", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("проверяю связь…")), titleStyle: .action, verticalPadding: TFSpacing.xs)
                 case .loaded:
                     loadedRows
                 }
@@ -167,7 +167,9 @@ struct ServerStatusSection: View {
                 // значит «онлайн» — отдельный сигнал был лишним.
                 icon: "server.rack", iconStyle: .plain,
                 title: "Сервер (192.168.1.110)",
-                trailing: AnyView(valueText(ServerStatusFormat.uptime(status.uptimeSec)))
+                trailing: AnyView(valueText(ServerStatusFormat.uptime(status.uptimeSec))),
+                titleStyle: .action,
+                verticalPadding: TFSpacing.xs
             )
             // Строка «Локальная LLM» отсюда убрана — просьба владельца
             // 03.09.2026: «это же про интеллект, закинь её в искусственный
@@ -179,11 +181,10 @@ struct ServerStatusSection: View {
             TFDivider(inset: rowDividerInset)
             TFListRow(
                 icon: "bolt.fill", iconStyle: .plain,
-                title: "Проверить связь (Пинг)",
-                trailing: AnyView(HStack(spacing: TFSpacing.xs) {
-                    valueText(viewModel.pingResult ?? (viewModel.isPinging ? "Замеряю…" : "Проверить"))
-                    Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Color.tfDim)
-                }),
+                title: "Связь с сервером",
+                trailing: AnyView(pingAccessory),
+                titleStyle: .action,
+                verticalPadding: TFSpacing.xs,
                 action: { Task { await viewModel.ping() } }
             )
             TFDivider(inset: rowDividerInset)
@@ -193,24 +194,39 @@ struct ServerStatusSection: View {
                 trailing: AnyView(TFToggle(isOn: Binding(
                         get: { viewModel.agentService?.active ?? false },
                         set: { _ in Task { await viewModel.toggleAgentService() } }
-                    )).disabled(viewModel.isTogglingService))
+                    )).disabled(viewModel.isTogglingService)),
+                titleStyle: .action,
+                verticalPadding: TFSpacing.xs
             )
             TFDivider(inset: rowDividerInset)
             TFListRow(
                 icon: "list.bullet", iconStyle: .plain,
                 title: "Задачи",
                 trailing: AnyView(valueText(status.dbBytes.map { "\(status.tasksActive) из \(status.tasksTotal) · \(ServerStatusFormat.bytes($0))" }
-                    ?? "\(status.tasksActive) из \(status.tasksTotal)"))
+                    ?? "\(status.tasksActive) из \(status.tasksTotal)")),
+                titleStyle: .action,
+                verticalPadding: TFSpacing.xs
             )
         }
     }
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
 
+    @ViewBuilder
+    private var pingAccessory: some View {
+        if let pingResult = viewModel.pingResult {
+            valueText(pingResult)
+        } else if viewModel.isPinging {
+            ProgressView()
+        } else {
+            Image(systemName: "arrow.clockwise")
+        }
+    }
+
     // `.lineLimit(1)` — без него длинные строки («модель · время работы»)
     // рвались посреди слова, когда не хватало горизонтального места рядом с
     // длинным заголовком (жалоба владельца 03.09.2026: «буквы в разнобой»).
     private func valueText(_ text: String, color: Color = .tfSub) -> some View {
-        Text(text).tfText(.body).foregroundStyle(color).lineLimit(1).fixedSize()
+        Text(text).tfText(.action).foregroundStyle(color).lineLimit(1).fixedSize()
     }
 }

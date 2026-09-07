@@ -12,6 +12,7 @@ public struct TFToggle: View {
     public var body: some View {
         Toggle(isOn: $isOn) { EmptyView() }
             .labelsHidden()
+            .scaleEffect(0.82)
             .tint(.tfRed)
     }
 }

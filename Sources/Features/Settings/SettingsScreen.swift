@@ -60,7 +60,7 @@ struct SettingsScreen: View {
 
     @ViewBuilder
     private var accountSection: some View {
-        TFCard(padding: 0) {
+        Group {
             if let user = displayedUser {
                 ProfileAccountRow(
                     user: user,
@@ -107,7 +107,8 @@ struct SettingsScreen: View {
                 appIconSheetOpen = true
             } label: {
                 TFListRow(icon: "photo", iconStyle: .plain, title: "Иконка",
-                          trailing: AnyView(infoValue(appIcon.title)))
+                          trailing: AnyView(editAction), titleStyle: .action,
+                          verticalPadding: TFSpacing.xs)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.app-icon")
@@ -120,7 +121,7 @@ struct SettingsScreen: View {
     private var aiSection: some View {
         section(title: "Искусственный интеллект", isExpanded: $aiExpanded) {
             NavigationLink(value: AppRoute.voiceModels) {
-                TFListRow(icon: "sparkles", iconStyle: .plain, title: "Искусственный интеллект", trailing: AnyView(chevron))
+                TFListRow(icon: "sparkles", iconStyle: .plain, title: "Искусственный интеллект", trailing: AnyView(chevron), titleStyle: .action, verticalPadding: TFSpacing.xs)
             }
             .buttonStyle(.plain)
         }
@@ -148,22 +149,20 @@ struct SettingsScreen: View {
 
     @ViewBuilder
     private var signOutSection: some View {
-        TFCard(padding: 0) {
-            Button(role: .destructive) {
-                session.logout()
-            } label: {
-                HStack {
-                    Text("Выйти")
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfRed)
-                    Spacer()
-                }
-                .padding(.horizontal, TFSpacing.lg)
-                .frame(minHeight: TFField.height)
-                .contentShape(Rectangle())
+        Button(role: .destructive) {
+            session.logout()
+        } label: {
+            HStack {
+                Text("Выйти")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfRed)
+                Spacer()
             }
-            .buttonStyle(TFTapRowStyle())
+            .padding(.horizontal, TFSpacing.lg)
+            .frame(minHeight: TFField.height)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(TFTapRowStyle())
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
@@ -172,16 +171,14 @@ struct SettingsScreen: View {
     private func section<Content: View>(title: String, isExpanded: Binding<Bool>, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             Button { isExpanded.wrappedValue.toggle() } label: {
-                HStack(spacing: TFSpacing.xs) {
-                    TFSectionHeader(title)
-                    Spacer(minLength: 0)
-                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tfDim)
-                }
+                Text(title)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .accessibilityValue(isExpanded.wrappedValue ? "Развернут" : "Свернут")
             if isExpanded.wrappedValue {
                 TFCard(padding: 0) { VStack(spacing: 0) { content() } }
                     .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -191,7 +188,7 @@ struct SettingsScreen: View {
 
     private func navRow(icon: String, title: String, route: AppRoute) -> some View {
         NavigationLink(value: route) {
-            TFListRow(icon: icon, iconStyle: .plain, title: title, trailing: AnyView(chevron))
+            TFListRow(icon: icon, iconStyle: .plain, title: title, trailing: AnyView(chevron), titleStyle: .action, verticalPadding: TFSpacing.xs)
         }
         .buttonStyle(.plain)
     }
@@ -209,16 +206,21 @@ struct SettingsScreen: View {
     private func toggleRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
         TFListRow(
             icon: icon, iconStyle: .plain, title: title,
-            trailing: AnyView(TFToggle(isOn: isOn))
+            trailing: AnyView(TFToggle(isOn: isOn)),
+            titleStyle: .action,
+            verticalPadding: TFSpacing.xs
         )
     }
 
-    private func infoValue(_ text: String) -> some View {
-        Text(text)
-            .tfText(.body)
-            .foregroundStyle(Color.tfSub)
-            .lineLimit(1)
-            .truncationMode(.middle)
+    private var editAction: some View {
+        Text("Изменить")
+            .tfText(.meta)
+            .foregroundStyle(Color.tfText)
+            .padding(.horizontal, TFSpacing.sm)
+            .padding(.vertical, TFSpacing.xs)
+            .background(Color.tfCard2)
+            .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
     }
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }

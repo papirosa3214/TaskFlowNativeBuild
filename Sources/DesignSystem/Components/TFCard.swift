@@ -90,6 +90,8 @@ public struct TFListRow: View {
     let subtitle: String?
     let trailing: AnyView?
     let action: (() -> Void)?
+    let titleStyle: TFTextStyle
+    let verticalPadding: CGFloat
 
     public init(
         icon: String,
@@ -99,6 +101,8 @@ public struct TFListRow: View {
         titleDot: VoiceDotState? = nil,
         subtitle: String? = nil,
         trailing: AnyView? = nil,
+        titleStyle: TFTextStyle = .body,
+        verticalPadding: CGFloat = TFSpacing.md,
         action: (() -> Void)? = nil
     ) {
         self.icon = icon
@@ -108,6 +112,8 @@ public struct TFListRow: View {
         self.titleDot = titleDot
         self.subtitle = subtitle
         self.trailing = trailing
+        self.titleStyle = titleStyle
+        self.verticalPadding = verticalPadding
         self.action = action
     }
 
@@ -118,7 +124,7 @@ public struct TFListRow: View {
                 HStack(spacing: TFSpacing.xs) {
                     if let titleDot { VoiceStatusDot(state: titleDot) }
                     Text(title)
-                        .tfText(.body)
+                        .tfText(titleStyle)
                         .foregroundStyle(Color.tfText)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -140,7 +146,7 @@ public struct TFListRow: View {
             }
         }
         .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.md)
+        .padding(.vertical, verticalPadding)
         .contentShape(Rectangle())
 
         if let action {
