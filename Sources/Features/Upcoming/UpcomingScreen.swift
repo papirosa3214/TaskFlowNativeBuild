@@ -182,13 +182,11 @@ public struct UpcomingScreen: View {
                     Button { self.openDay = nil } label: { Image(systemName: "xmark") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Готово") { self.openDay = nil }
+                    Button { self.openDay = nil } label: { Image(systemName: "checkmark") }
                 }
             }
         }
-        .presentationDragIndicator(.visible) // родной хендл шторки, свой больше не рисуем
-        .presentationCornerRadius(TFRadius.sheet)
-        .presentationBackground(Color.tfCard)
+        .presentationDragIndicator(.visible)
         .presentationDetents([.medium, .large])
     }
 
