@@ -1,71 +1,42 @@
-import SwiftUI
 import XCTest
 @testable import TaskFlow
 
-final class TodaySectionTrackerTests: XCTestCase {
-    private let threshold: CGFloat = TodayHeaderMetrics.barHeight
+/// Проверяет действующий источник истины списка «Сегодня». Старый
+/// `TodaySectionTracker` обслуживал удалённую ручную липкую шапку; теперь
+/// SwiftUI закрепляет системные `Section` сам, поэтому тестируем состав и
+/// порядок этих секций, а не мёртвую геометрию скролла.
+final class TodaySectionInfoTests: XCTestCase {
+    private let date = "2026-09-01"
 
-    func testEmptyVirtualizationPassKeepsCurrentSection() {
-        let overdue = mark("Просрочено")
+    func testEmptyTasksProduceNoSections() {
+        XCTAssertTrue(TodaySectionInfo.list(waiting: [], overdue: [], today: [], todayDate: date).isEmpty)
+    }
 
-        let next = TodaySectionTracker.next(
-            current: overdue,
-            crossing: sections[2],
-            minY: threshold + 20,
-            sections: sections,
-            threshold: threshold
+    func testSectionsStayInProductOrder() {
+        let sections = TodaySectionInfo.list(
+            waiting: [task("waiting")],
+            overdue: [task("overdue")],
+            today: [task("today")],
+            todayDate: date
         )
 
-        XCTAssertEqual(next?.title, "Просрочено")
+        XCTAssertEqual(sections.map(\.kind), [.waiting, .overdue, .today])
+        XCTAssertEqual(sections.map(\.title), ["Ждут вас", "Просрочено", TodayDate.formatDueLabel(date)])
     }
 
-    func testCrossingNextBoundaryAdvancesSection() {
-        let overdue = mark("Просрочено")
-
-        let next = TodaySectionTracker.next(
-            current: overdue,
-            crossing: sections[2],
-            minY: threshold - 1,
-            sections: sections,
-            threshold: threshold
+    func testSparseSectionsDoNotLeavePlaceholders() {
+        let sections = TodaySectionInfo.list(
+            waiting: [],
+            overdue: [task("overdue")],
+            today: [],
+            todayDate: date
         )
 
-        XCTAssertEqual(next?.title, "1 сентября")
+        XCTAssertEqual(sections.map(\.kind), [.overdue])
+        XCTAssertEqual(sections.first?.icon, nil)
     }
 
-    func testScrollingAboveFirstTrackedBoundaryReturnsToInitialSection() {
-        let next = TodaySectionTracker.next(
-            current: mark("Просрочено"),
-            crossing: sections[1],
-            minY: threshold + 1,
-            sections: sections,
-            threshold: threshold
-        )
-
-        XCTAssertNil(next)
-    }
-
-    func testOlderBoundaryCannotOverwriteLaterSection() {
-        let next = TodaySectionTracker.next(
-            current: mark("1 сентября"),
-            crossing: sections[1],
-            minY: threshold - 20,
-            sections: sections,
-            threshold: threshold
-        )
-
-        XCTAssertEqual(next?.title, "1 сентября")
-    }
-
-    private var sections: [TodaySectionInfo] {
-        [
-            .init(kind: .waiting, title: "Ждут вас", icon: nil, color: .white),
-            .init(kind: .overdue, title: "Просрочено", icon: nil, color: .red),
-            .init(kind: .today, title: "1 сентября", icon: nil, color: .gray),
-        ]
-    }
-
-    private func mark(_ title: String) -> TodaySectionMark {
-        TodaySectionMark(title: title, icon: nil, color: .white, minY: 0)
+    private func task(_ id: String) -> ApiTask {
+        TestTaskFactory.makeTask(id: id)
     }
 }

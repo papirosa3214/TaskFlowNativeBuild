@@ -1,261 +1,284 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-// Компактное создание задачи — задача от 31.08.2026 «переделать создание задачи»:
-// владелец прислал два референса (TickTick тёмная тема, Todoist светлая),
-// числа сняты пипеткой/сканированием пикселей из `IMG_8598.PNG`
-// (`~/.claude/skills/pixel-copy-from-screenshot/measure.py` + точечные
-// Python-сканы строки чипов, см. отчёт — числа не подобраны на глаз):
-//
-// - высота ряда одинакова у круглых кнопок И у чипов-капсул: 108px = 36pt
-//   (совпало и для «+», и для микрофона, и для «Входящие» — не отдельные
-//   константы, один токен);
-// - отступ ряда чипов от края экрана: 72px = 24pt (то же число, что дано
-//   в задаче для кнопки «+») — использую `TFSpacing.xl` (=24), готовый токен;
-// - зазор МЕЖДУ элементами ряда: 24px = 8pt на каждом стыке — `TFSpacing.sm`;
-// - внутренний паддинг чипа (край капсулы → иконка, иконка → текст): ~12pt
-//   и ~8pt — `TFSpacing.md`/`TFSpacing.sm`, тоже готовые токены;
-// - высота всей панели TickTick-образца (без поля «Описание», которое есть
-//   у нас) — 384px = 128pt, использована как ориентир для стартовой высоты
-//   детента шторки, а не как жёсткая константа (наш контент выше на высоту
-//   поля описания).
-//
-// Цвета — ТОЛЬКО из `Color+Palette.swift` (правило проекта: hex-литералы
-// заводятся исключительно там, а файл у меня read-only). Ближайшие токены
-// к замеренным hex — дельты явно перечислены в отчёте:
-// - фон панели замерен #202020, беру `Color.tfCard` (#242424 тёмная тема);
-// - обводка кнопки «+»/чипов замерена #3F3F3F, беру `Color.tfStroke`
-//   (белый 9% альфа — визуально тот же subtle-серый контур на тёмном фоне);
-// - красная кнопка голоса замерена #C04D4C (по краю, полупрозрачный сэмпл),
-//   беру `Color.tfRed` — единственный акцент приложения (спека
-//   `Color+Palette.swift`: «как заливку под белый текст НЕ использовать» —
-//   тут кружок с белой иконкой поверх, тот же случай, что и `TFTabBar`
-//   create-button, который уже красится `tfRed`).
+/// Быстрое создание задачи построено только на системных `Form`, `Section`,
+/// `Picker` и `sheet`: без чипов, собственных фонов, обводок и анимаций.
 struct QuickAddTaskView: View {
     @Bindable var viewModel: TaskFormViewModel
-    /// Успешно сохранили — хост (`TaskFormScreen`) закрывает панель и сам экран.
     var onSaved: () -> Void
-    /// «Развернуть» — хост переключается на полную форму С ТОЙ ЖЕ вью-моделью.
     var onExpand: () -> Void
 
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
     @Environment(LabelStore.self) private var labelStore
+    @Environment(\.dismiss) private var dismiss
     @FocusState private var isTitleFocused: Bool
     @State private var activePicker: QuickAddPicker?
-    @State private var toastMessage: TaskToastMessage?
-    /// Диктовка — тот же движок и тот же приём, что у `micKeyboardBar` в
-    /// полной форме (просьба владельца 03.09.2026: «микрофон не работает,
-    /// пишет "пока не подключён", хотя модель скачана» — заглушка убрана,
-    /// теперь настоящая запись/распознавание).
+    @State private var isAttachmentImporterPresented = false
     @State private var dictation = DictationEngine.shared
 
-    /// Имя с префиксом `QuickAdd` — не `Picker`, чтобы не затенять
-    /// одноимённый системный `SwiftUI.Picker` в этом файле.
-    private enum QuickAddPicker: Identifiable { case project, due, priority, labels, attachments
-        var id: Self { self }
+    private enum QuickAddPicker: String, Identifiable {
+        case project, dueDate, priority, labels, attachments
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .project: "Проект"
+            case .dueDate: "Срок"
+            case .priority: "Приоритет"
+            case .labels: "Метки"
+            case .attachments: "Вложения"
+            }
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            titleField
-            descriptionField
-            chipRow
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Название задачи", text: $viewModel.title, axis: .vertical)
+                        .focused($isTitleFocused)
+                        .submitLabel(.done)
+                        .onSubmit { save() }
+                    TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
+                }
+
+                Section("Параметры") {
+                    parameterRow("Проект", value: projectName, icon: "folder") { activePicker = .project }
+                    parameterRow("Срок", value: dueDateText, icon: "calendar") { activePicker = .dueDate }
+                    parameterRow("Приоритет", value: viewModel.priority.label, icon: "flag") { activePicker = .priority }
+                    parameterRow("Метки", value: labelsText, icon: "tag") { activePicker = .labels }
+                    parameterRow("Вложения", value: attachmentsText, icon: "paperclip") { activePicker = .attachments }
+                }
+
+                Section {
+                    Button {
+                        onExpand()
+                    } label: {
+                        Label("Открыть полную форму", systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+                }
+            }
+            .navigationTitle("Новая задача")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { Task { await toggleDictation() } } label: {
+                        Image(systemName: dictation.recordingState == .recording ? "stop.fill" : "mic")
+                    }
+                    .accessibilityLabel(dictation.recordingState == .recording ? "Остановить запись" : "Голосовой ввод")
+                    .disabled(dictation.recordingState == .transcribing)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Добавить") { save() }
+                        .disabled(!viewModel.isSaveEnabled)
+                }
+            }
         }
-        .padding(.top, TFSpacing.md)
-        .padding(.bottom, TFSpacing.lg)
-        .padding(.horizontal, TFSpacing.screenHorizontal)
-        .background(Color.tfCard)
-        .clipShape(.rect(topLeadingRadius: TFRadius.sheet, topTrailingRadius: TFRadius.sheet))
-        // Высота фиксированная, НЕ от содержимого: измерение через
-        // preference замыкало круг «контент → детент → новый размер →
-        // снова контент», и экран вставал пустым (проверено снимком с
-        // симулятора 31.08.2026). Число — 128pt панели с образца TickTick
-        // плюс наша строка описания и поля.
-        .presentationDetents([.height(QuickAddMetrics.sheetHeight)])
-        .presentationDragIndicator(.hidden)
-        .presentationBackground(Color.tfCard)
-        .taskToast($toastMessage)
+        .sheet(item: $activePicker) { picker in pickerScreen(picker) }
+        .alert("Не удалось сохранить задачу", isPresented: Binding(
+            get: { viewModel.saveErrorMessage != nil },
+            set: { if !$0 { viewModel.saveErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.saveErrorMessage = nil }
+        } message: {
+            Text(viewModel.saveErrorMessage ?? "")
+        }
         .task {
-            // Своя вью-модель может прийти уже с id (правка через
-            // «развернуть» и назад технически не бывает — taskID==nil тут
-            // всегда, но `loadIfNeeded`/`loadAgents` дёшевы и идемпотентны,
-            // тот же вызов, что и у полной формы — не дублирую логику).
             await viewModel.loadAgents()
             isTitleFocused = true
         }
-        .sheet(item: $activePicker) { picker in
-            pickerSheet(picker)
-        }
     }
 
-    // MARK: - Поле названия + сохранение
-
-    private var titleField: some View {
-        HStack(spacing: TFSpacing.sm) {
-            TextField("", text: $viewModel.title, prompt: Text("Название задачи").foregroundStyle(Color.tfDim), axis: .vertical)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .lineLimit(1...3)
-                .focused($isTitleFocused)
-                .submitLabel(.done)
-                .onSubmit { save() }
-            expandButton
-        }
-    }
-
-    /// Единственный вход в полную форму при создании: без этой кнопки
-    /// `onExpand` был объявлен, но никем не вызывался, и развёрнутый бланк
-    /// становился недостижим (найдено при сверке 01.09.2026).
-    private var expandButton: some View {
-        Button { onExpand() } label: {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.tfDim)
-                .frame(width: 28, height: 28)
-        }
-        .buttonStyle(TFTapScaleStyle())
-        .accessibilityLabel("Развернуть в полную форму")
-    }
-
-    private var descriptionField: some View {
-        TextField("", text: $viewModel.taskDescription, prompt: Text("Описание").foregroundStyle(Color.tfDim), axis: .vertical)
-            .tfText(.body)
-            .foregroundStyle(Color.tfSub)
-            .lineLimit(1...2)
-    }
-
-    // MARK: - Ряд быстрых кнопок
-
-    private var chipRow: some View {
-        HStack(spacing: TFSpacing.sm) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: TFSpacing.sm) {
-                    projectChip
-                    dueChip
-                    priorityChip
-                    labelsChip
-                    attachmentsChip
-                }
+    private func parameterRow(_ title: String, value: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            LabeledContent {
+                Text(value).foregroundStyle(.secondary)
+            } label: {
+                Label(title, systemImage: icon)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // Приоритет раскладки кнопке: без него горизонтальный ScrollView
-            // забирает всю ширину по своему содержимому и выталкивает круглую
-            // кнопку за правый край (кадр симулятора 31.08.2026 — микрофон
-            // был срезан пополам).
-            trailingActionButton
-                .layoutPriority(1)
         }
-        .frame(height: QuickAddMetrics.rowHeight)
+        .buttonStyle(.plain)
+        .accessibilityHint("Открывает выбор параметра")
     }
 
-    private var projectChip: some View {
-        let name = projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Проект"
-        return QuickAddChip(icon: "number", text: name, isActive: viewModel.projectId != nil) {
-            activePicker = .project
-        }
+    private var projectName: String {
+        projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Не выбран"
     }
 
-    private var dueChip: some View {
-        let text = viewModel.dueDate.map { TaskDateText.dueLabel($0) } ?? "Срок"
-        return QuickAddChip(icon: "calendar", text: text, isActive: viewModel.dueDate != nil) {
-            activePicker = .due
-        }
+    private var dueDateText: String {
+        guard let dueDate = viewModel.dueDate else { return "Не установлен" }
+        let date = TaskDateText.dueLabel(dueDate)
+        guard let minutes = viewModel.startMinutes else { return date }
+        return "\(date), \(String(format: "%02d:%02d", minutes / 60, minutes % 60))"
     }
 
-    private var priorityChip: some View {
-        // P4 «Низкий» — дефолт вью-модели, визуально не отличать от «не задано»
-        // (спека приоритета не знает состояния «пусто», см. `PriorityFieldView`).
-        QuickAddChip(icon: "flag", text: viewModel.priority.label, isActive: viewModel.priority != .low) {
-            activePicker = .priority
+    private var labelsText: String {
+        switch viewModel.selectedLabelIds.count {
+        case 0: "Не выбраны"
+        case 1: labelStore.labels.first { viewModel.selectedLabelIds.contains($0.id) }?.name ?? "1 метка"
+        default: "\(viewModel.selectedLabelIds.count) метки"
         }
     }
 
-    private var labelsChip: some View {
-        let count = viewModel.selectedLabelIds.count
-        let text = count == 0 ? "Метки" : (count == 1
-            ? (labelStore.labels.first { viewModel.selectedLabelIds.contains($0.id) }?.name ?? "Метки")
-            : "Метки: \(count)")
-        return QuickAddChip(icon: "tag", text: text, isActive: count > 0) {
-            activePicker = .labels
-        }
-    }
-
-    private var attachmentsChip: some View {
+    private var attachmentsText: String {
         let count = viewModel.attachments.uploaded.count + viewModel.attachments.pending.count
-        let text = count == 0 ? "Вложение" : "Файлы: \(count)"
-        return QuickAddChip(icon: "paperclip", text: text, isActive: count > 0) {
-            activePicker = .attachments
-        }
-    }
-
-    /// Справа — голос (та же диктовка, что у `micKeyboardBar` полной формы),
-    /// меняется на «Сохранить», как только есть что сохранять — второй
-    /// заявленный в задаче способ сохранения («по кнопке») рядом с Return
-    /// на клавиатуре. Заливка красная в обоих состояниях — владелец
-    /// 03.09.2026: «микрофон-то такой не в цвет», серый кружок с приглушённой
-    /// иконкой терялся рядом с чипами.
-    private var trailingActionButton: some View {
-        Button {
-            if viewModel.isSaveEnabled {
-                save()
-            } else {
-                Task { await toggleDictation() }
-            }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(Color.tfRed)
-                    .frame(width: QuickAddMetrics.rowHeight, height: QuickAddMetrics.rowHeight)
-                trailingActionIcon
-            }
-        }
-        .buttonStyle(TFTapScaleStyle())
-        .disabled(viewModel.isSaving || dictation.recordingState == .transcribing)
-        .accessibilityLabel(trailingActionAccessibilityLabel)
+        return count == 0 ? "Нет" : "\(count)"
     }
 
     @ViewBuilder
-    private var trailingActionIcon: some View {
-        Group {
-            if viewModel.isSaveEnabled {
-                Image(systemName: "arrow.up")
-            } else {
-                switch dictation.recordingState {
-                case .recording:
-                    // Владелец 03.09.2026: «найди иконку не микрофона, а
-                    // звуковой волны, желательно анимированную» — тот же
-                    // символ и `symbolEffect`, что у `micKeyboardBar`.
-                    Image(systemName: "waveform")
-                        .symbolEffect(.variableColor.iterative, isActive: true)
-                case .transcribing:
-                    ProgressView().tint(.white)
-                case .idle, .failed:
-                    Image(systemName: "waveform")
+    private func pickerScreen(_ picker: QuickAddPicker) -> some View {
+        NavigationStack {
+            Form {
+                switch picker {
+                case .project:
+                    Picker("Проект", selection: $viewModel.projectId) {
+                        Text("Не выбран").tag(String?.none)
+                        ForEach(projectStore.projects) { project in
+                            Text(project.name).tag(Optional(project.id))
+                        }
+                    }
+                case .dueDate:
+                    dueDatePicker
+                case .priority:
+                    Picker("Приоритет", selection: $viewModel.priority) {
+                        ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
+                            Text(priority.label).tag(priority)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                case .labels:
+                    labelsPicker
+                case .attachments:
+                    attachmentsPicker
+                }
+            }
+            .navigationTitle(picker.title)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") { activePicker = nil }
                 }
             }
         }
-        .font(.system(size: 16, weight: .semibold))
-        .foregroundStyle(.white)
     }
 
-    private var trailingActionAccessibilityLabel: String {
-        if viewModel.isSaveEnabled { return "Сохранить" }
-        return dictation.recordingState == .recording ? "Остановить запись и распознать" : "Голосовой ввод"
+    private var dueDatePicker: some View {
+        Section {
+            Toggle("Установить срок", isOn: hasDueDate)
+            if viewModel.dueDate != nil {
+                DatePicker("Дата", selection: dueDateSelection, displayedComponents: .date)
+                Toggle("Указать время", isOn: hasStartTime)
+                if viewModel.startMinutes != nil {
+                    DatePicker("Время", selection: startTimeSelection, displayedComponents: .hourAndMinute)
+                    Picker("Продолжительность", selection: $viewModel.durationMin) {
+                        Text("Не указана").tag(Int?.none)
+                        Text("15 минут").tag(Optional(15))
+                        Text("30 минут").tag(Optional(30))
+                        Text("45 минут").tag(Optional(45))
+                        Text("1 час").tag(Optional(60))
+                        Text("2 часа").tag(Optional(120))
+                        Text("3 часа").tag(Optional(180))
+                    }
+                }
+            }
+        }
     }
 
-    /// Тап по названию поля — если запись уже идёт, останавливаем и
-    /// распознаём (тот же приём, что у полной формы: повторный тап — стоп).
+    private var labelsPicker: some View {
+        Section {
+            ForEach(labelStore.labels) { label in
+                Toggle(label.name, isOn: Binding(
+                    get: { viewModel.selectedLabelIds.contains(label.id) },
+                    set: { selected in
+                        if selected { viewModel.selectedLabelIds.insert(label.id) }
+                        else { viewModel.selectedLabelIds.remove(label.id) }
+                    }
+                ))
+            }
+        }
+    }
+
+    private var attachmentsPicker: some View {
+        Section {
+            Button { isAttachmentImporterPresented = true } label: {
+                Label("Выбрать файл", systemImage: "paperclip")
+            }
+            .disabled(viewModel.attachments.isUploading)
+
+            ForEach(viewModel.attachments.pending) { attachment in
+                attachmentRow(attachment.fileName) { viewModel.attachments.removePending(attachment) }
+            }
+            ForEach(viewModel.attachments.uploaded) { attachment in
+                attachmentRow(attachment.fileName) { Task { await viewModel.attachments.removeUploaded(attachment) } }
+            }
+        }
+        .fileImporter(isPresented: $isAttachmentImporterPresented, allowedContentTypes: [.item]) { result in
+            if case .success(let url) = result {
+                Task { await viewModel.attachments.add(url: url) }
+            }
+        }
+    }
+
+    private func attachmentRow(_ name: String, remove: @escaping () -> Void) -> some View {
+        HStack {
+            Text(name).lineLimit(1)
+            Spacer()
+            Button(role: .destructive, action: remove) {
+                Image(systemName: "trash")
+            }
+            .accessibilityLabel("Удалить \(name)")
+        }
+    }
+
+    private var hasDueDate: Binding<Bool> {
+        Binding(
+            get: { viewModel.dueDate != nil },
+            set: { enabled in
+                if enabled { viewModel.dueDate = Calendar.current.startOfDay(for: Date()) }
+                else {
+                    viewModel.dueDate = nil
+                    viewModel.startMinutes = nil
+                    viewModel.durationMin = nil
+                }
+            }
+        )
+    }
+
+    private var dueDateSelection: Binding<Date> {
+        Binding(get: { viewModel.dueDate ?? Date() }, set: { viewModel.dueDate = $0 })
+    }
+
+    private var hasStartTime: Binding<Bool> {
+        Binding(
+            get: { viewModel.startMinutes != nil },
+            set: { enabled in
+                viewModel.startMinutes = enabled ? (viewModel.startMinutes ?? 9 * 60) : nil
+                if !enabled { viewModel.durationMin = nil }
+            }
+        )
+    }
+
+    private var startTimeSelection: Binding<Date> {
+        Binding(
+            get: {
+                let minutes = viewModel.startMinutes ?? 9 * 60
+                return Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+            },
+            set: { date in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                viewModel.startMinutes = (components.hour ?? 9) * 60 + (components.minute ?? 0)
+            }
+        )
+    }
+
     private func toggleDictation() async {
         switch dictation.recordingState {
         case .idle, .failed:
             await dictation.startRecording()
         case .recording:
             guard let text = await dictation.stopRecordingAndTranscribe() else { return }
-            if viewModel.title.isEmpty {
-                viewModel.title = text
-            } else {
-                viewModel.title += (viewModel.title.hasSuffix(" ") ? "" : " ") + text
-            }
+            viewModel.title += viewModel.title.isEmpty ? text : " \(text)"
         case .transcribing:
             break
         }
@@ -266,101 +289,7 @@ struct QuickAddTaskView: View {
         Task {
             if await viewModel.save(taskStore: taskStore) {
                 onSaved()
-            } else {
-                // Раньше при ошибке (сеть/сервер) шторка молча оставалась на
-                // месте — `saveErrorMessage` уходил в баннер полной формы
-                // (`TaskFormScreen`), которого у компактной нет. Владелец
-                // 03.09.2026: «печатаю, нажимаю ОК, но она не появилась» —
-                // без тоста это неотличимо от зависшей кнопки.
-                toastMessage = TaskToastMessage(viewModel.saveErrorMessage ?? "Не удалось сохранить задачу", isError: true)
             }
         }
-    }
-
-    // MARK: - Пикеры чипов — вложенная шторка поверх этой, переиспользует
-    // уже готовые аккордеон-поля формы (не дублирую их логику выбора).
-
-    @ViewBuilder
-    private func pickerSheet(_ picker: QuickAddPicker) -> some View {
-        switch picker {
-        case .project:
-            pickerCard { ProjectFieldView(projects: projectStore.projects, selectedProjectId: $viewModel.projectId) }
-        case .due:
-            pickerCard { DueDateFieldView(dueDate: $viewModel.dueDate, startMinutes: $viewModel.startMinutes, durationMin: $viewModel.durationMin) }
-        case .priority:
-            pickerCard { PriorityFieldView(priority: $viewModel.priority) }
-        case .labels:
-            pickerCard { LabelsFieldView(allLabels: labelStore.labels, selectedIds: $viewModel.selectedLabelIds) }
-        case .attachments:
-            ScrollView {
-                AttachmentsFieldView(controller: viewModel.attachments)
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
-                    .padding(.vertical, TFSpacing.lg)
-            }
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(Color.tfBackground)
-        }
-    }
-
-    /// Поля проекта/срока/приоритета/меток свёрнуты в `TFFieldRow`-аккордеон —
-    /// в мини-шторке открываю их сразу развёрнутыми, чтобы не тапать дважды.
-    private func pickerCard(@ViewBuilder content: () -> some View) -> some View {
-        ScrollView {
-            TFFieldGroup { content() }
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-                .padding(.vertical, TFSpacing.lg)
-        }
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Color.tfBackground)
     }
 }
-
-/// Чип быстрого ряда — своего компонента такого размера в `DesignSystem` нет
-/// (готовые пилюли `TFPill`/`TFLabelPill` мельче, под бейджи строки задачи,
-/// не под тап-цель с иконкой в компактной панели). Локально здесь, с
-/// пометкой на будущее — при появлении второго места использования стоит
-/// перенести в `DesignSystem/Components` (правка вне моей папки, не мой шаг).
-private struct QuickAddChip: View {
-    let icon: String
-    let text: String
-    let isActive: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: TFSpacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: TFIconSize.xs))
-                Text(text)
-                    .tfText(.body)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-            }
-            .foregroundStyle(isActive ? Color.tfRed : Color.tfSub)
-            .padding(.horizontal, TFSpacing.md)
-            .frame(height: QuickAddMetrics.rowHeight)
-            .overlay {
-                Capsule().strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
-            }
-        }
-        .buttonStyle(TFTapScaleStyle())
-    }
-}
-
-/// Числа компактной панели — измерены по `IMG_8598.PNG` (см. header-комментарий
-/// файла), не подобраны на глаз. Локальный enum, не `DesignSystem` (read-only
-/// для этой задачи) — кандидат на перенос туда при следующей правке.
-enum QuickAddMetrics {
-    /// Круглые кнопки («+», микрофон/отправка) И чипы-капсулы — ОДНА высота
-    /// (108px = 36pt по обоим измерено идентично).
-    static let rowHeight: CGFloat = 36
-    /// Высота шторки: 128pt панели образца плюс строка описания, которой у
-    /// образца нет. Фиксированная сознательно — см. комментарий у детента.
-    /// 146 — не на глаз: при 196 кадр симулятора показал 50pt пустоты между
-    /// нижним чипом (низ на 474pt) и низом шторки (540pt) сверх нужных 16pt
-    /// нижнего паддинга; 196 − 50 = 146.
-    static let sheetHeight: CGFloat = 146
-}
-

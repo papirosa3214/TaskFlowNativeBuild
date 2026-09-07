@@ -181,13 +181,15 @@ struct UpcomingHoursView: View {
             }
             .frame(width: geo.size.width, height: hourHeight * 24, alignment: .topLeading)
             .onAppear {
-                gridFrame = geo.frame(in: .named("upcomingHoursGrid"))
                 grabHaptic.prepare()
                 tickHaptic.prepare()
             }
-            .onChange(of: geo.size) { _, _ in gridFrame = geo.frame(in: .named("upcomingHoursGrid")) }
         }
         .frame(height: hourHeight * 24)
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: UpcomingHoursGridFrameKey.self, value: proxy.frame(in: .named("upcomingHoursGrid")))
+        })
+        .onPreferenceChange(UpcomingHoursGridFrameKey.self) { gridFrame = $0 }
         .overlay(alignment: .topLeading) {
             if let dragState {
                 let columnWidth = max(1, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
@@ -591,4 +593,14 @@ private struct UpcomingTimedBlock: View {
                 }
             }
     }
+}
+
+/// Живая рамка трёхдневной сетки в общем именованном пространстве
+/// «upcomingHoursGrid». Перетаскивание из пула «без времени» целится по этой
+/// рамке (в т.ч. колонка дня по X); кэш, снятый в `onAppear`, устаревал после
+/// автопрокрутки сетки к текущему часу. Фоновый `GeometryReader` обновляет
+/// рамку при скролле, а не только при смене размера.
+private struct UpcomingHoursGridFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }

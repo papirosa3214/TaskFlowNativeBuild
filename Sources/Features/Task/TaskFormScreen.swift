@@ -31,6 +31,8 @@ struct TaskFormScreen: View {
     /// Перенесено из `TaskDetailScreen` вместе с меню «…».
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
+    @State private var replyingSubtask: ApiSubtask?
+    @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
     /// 02.09.2026: «Прикрепить файл» — пункт меню «…» при правке (не своя
     /// строка в теле формы, см. `AttachmentsFieldView.showAddButton`).
@@ -139,6 +141,8 @@ struct TaskFormScreen: View {
                 Spacer()
                 TFEmptyState(text: "Задача не найдена")
                 Spacer()
+            } else if isReadOnly {
+                nativeTaskDetail
             } else {
                 ScrollView {
                     content
@@ -159,13 +163,12 @@ struct TaskFormScreen: View {
         // В режиме чтения — пусто, не название задачи: оно уже своей строкой
         // в теле (`titleField`), системная шапка дублировала бы его вторым
         // заголовком сверху (та же причина, что была в `TaskDetailScreen`).
-        .tfNativeHeader(isReadOnly ? "" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
+        .tfNativeHeader(isReadOnly ? "Задача" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .foregroundStyle(Color.tfText)
                 }
             }
             if viewModel.isEditing {
@@ -187,7 +190,6 @@ struct TaskFormScreen: View {
                             }
                         } label: {
                             Image(systemName: "ellipsis")
-                                .foregroundStyle(Color.tfText)
                         }
                     }
                 } else {
@@ -213,21 +215,37 @@ struct TaskFormScreen: View {
                 }
             }
         }
-        .sheet(item: $pendingAction) { action in
-            TFBottomSheetContent(title: "Комментарий", onClose: { pendingAction = nil }) {
-                VStack(alignment: .leading, spacing: TFSpacing.md) {
-                    TFTextField(action.commentRequired ? "Комментарий (обязателен)" : "Комментарий (необязательно)", text: $actionComment)
-                    TFButton("Отправить", variant: .primary, isEnabled: !action.commentRequired || !actionComment.trimmingCharacters(in: .whitespaces).isEmpty) {
-                        Task { await viewModel.performOwnerAction(action, comment: actionComment.isEmpty ? nil : actionComment) }
-                        actionComment = ""
-                        pendingAction = nil
-                    }
-                }
-                .padding(.bottom, TFSpacing.xl)
+        .alert("Комментарий", isPresented: Binding(
+            get: { pendingAction != nil },
+            set: { if !$0 { pendingAction = nil } }
+        ), presenting: pendingAction) { action in
+            TextField(action.commentRequired ? "Комментарий (обязателен)" : "Комментарий (необязательно)", text: $actionComment)
+            Button("Отправить") {
+                Task { await viewModel.performOwnerAction(action, comment: actionComment.isEmpty ? nil : actionComment) }
+                actionComment = ""
+                pendingAction = nil
             }
-            .presentationDetents([.height(220)])
-            .presentationDragIndicator(.hidden)
-            .presentationBackground(Color.tfCard)
+            .disabled(action.commentRequired && actionComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Отмена", role: .cancel) {
+                actionComment = ""
+                pendingAction = nil
+            }
+        }
+        .alert("Ответ агенту", isPresented: Binding(
+            get: { replyingSubtask != nil },
+            set: { if !$0 { replyingSubtask = nil } }
+        ), presenting: replyingSubtask) { subtask in
+            TextField("Комментарий", text: $subtaskReplyText)
+            Button("Отправить") {
+                Task { await viewModel.replyToSubtask(subtask, text: subtaskReplyText) }
+                subtaskReplyText = ""
+                replyingSubtask = nil
+            }
+            .disabled(subtaskReplyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Отмена", role: .cancel) {
+                subtaskReplyText = ""
+                replyingSubtask = nil
+            }
         }
         .taskToast($toast)
         .fileImporter(isPresented: $isAttachmentPickerPresented, allowedContentTypes: [.item]) { result in
@@ -250,6 +268,94 @@ struct TaskFormScreen: View {
             // экран под пушем сам `.task` повторно не запускает.
             if wasPushed, !isPushed { Task { await viewModel.loadIfNeeded() } }
         }
+    }
+
+    /// Карточка уже созданной задачи — системная сгруппированная форма. Все
+    /// строки используют стандартные `Section`, `LabeledContent`, `Toggle` и
+    /// `DisclosureGroup`, поэтому iOS сама ведёт цвета, размеры, отступы и
+    /// Dynamic Type; собственных карточек, аккордеонов и подложек здесь нет.
+    private var nativeTaskDetail: some View {
+        Form {
+            Section {
+                Text(viewModel.title)
+                    .font(.headline)
+                if !viewModel.taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(viewModel.taskDescription)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if !viewModel.subtasks.isEmpty {
+                Section("Подзадачи") {
+                    ForEach(viewModel.subtasks) { subtask in
+                        nativeSubtaskRow(subtask)
+                    }
+                }
+            }
+
+            Section("Сведения") {
+                LabeledContent("Срок", value: nativeDueText)
+                LabeledContent("Проект", value: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Не выбран")
+                LabeledContent("Приоритет", value: viewModel.priority.label)
+                LabeledContent("Метки", value: nativeLabelsText)
+                LabeledContent("Исполнитель", value: viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен")
+            }
+
+            if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
+                Section("Вложения") {
+                    ForEach(viewModel.attachments.uploaded) { attachment in
+                        Label(attachment.fileName, systemImage: "paperclip")
+                    }
+                    ForEach(viewModel.attachments.pending) { attachment in
+                        Label(attachment.fileName, systemImage: "paperclip")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func nativeSubtaskRow(_ subtask: ApiSubtask) -> some View {
+        if subtask.result?.isEmpty == false || subtask.agentState == .blocked || subtask.agentState == .review {
+            DisclosureGroup {
+                if let result = subtask.result, !result.isEmpty {
+                    Text(result).foregroundStyle(.secondary)
+                }
+                if isOwner, subtask.agentState == .review {
+                    Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }
+                    Button("Вернуть на доработку") { replyingSubtask = subtask }
+                } else if isOwner, subtask.agentState == .blocked {
+                    Button("Ответить") { replyingSubtask = subtask }
+                }
+            } label: {
+                nativeSubtaskToggle(subtask)
+            }
+        } else {
+            nativeSubtaskToggle(subtask)
+        }
+    }
+
+    private func nativeSubtaskToggle(_ subtask: ApiSubtask) -> some View {
+        Toggle(subtask.title, isOn: Binding(
+            get: { subtask.done },
+            set: { _ in
+                guard subtask.agentState != .review else { return }
+                Task { await viewModel.toggleSubtaskDone(subtask) }
+            }
+        ))
+        .disabled(subtask.agentState == .review)
+    }
+
+    private var nativeDueText: String {
+        guard let dueDate = viewModel.dueDate else { return "Не установлен" }
+        let date = TaskDateText.dueLabel(dueDate)
+        guard let minutes = viewModel.startMinutes else { return date }
+        return "\(date), \(String(format: "%02d:%02d", minutes / 60, minutes % 60))"
+    }
+
+    private var nativeLabelsText: String {
+        let labels = labelStore.labels.filter { viewModel.selectedLabelIds.contains($0.id) }.map(\.name)
+        return labels.isEmpty ? "Не выбраны" : labels.joined(separator: ", ")
     }
 
     private var isOwner: Bool { session.currentUser?.role == .owner }
