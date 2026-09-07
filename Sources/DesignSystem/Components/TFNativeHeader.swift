@@ -27,4 +27,23 @@ extension View {
             .navigationTitle(title)
             .toolbarTitleDisplayMode(displayMode)
     }
+
+    /// Единый размер tappable-области для управляющих элементов «Планирования».
+    /// Само содержимое остаётся нативными `Menu`/`Picker` в toolbar.
+    func tfPlannerToolbarControl() -> some View {
+        frame(width: 32, height: 32)
+    }
+}
+
+struct TFPlannerToolbarIcon: View {
+    let systemName: String
+    var tint: Color = .tfSub
+    var weight: Font.Weight = .regular
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: weight))
+            .foregroundStyle(tint)
+            .frame(width: 24, height: 24)
+    }
 }

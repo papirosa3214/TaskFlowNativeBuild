@@ -40,7 +40,7 @@ func routeDestination(_ route: AppRoute, reservesTabBarSpace: Bool = false) -> s
 private func routeContent(_ route: AppRoute) -> some View {
     switch route {
     case .today:
-        TodayScreen()
+        UpcomingScreen()
     case .overview:
         OverviewScreen()
     case .upcoming:

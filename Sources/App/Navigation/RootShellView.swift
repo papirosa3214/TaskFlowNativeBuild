@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Корневая оболочка после входа: 4 вкладки (Сегодня/Обзор/Планирование/Чат)
+/// Корневая оболочка после входа: 3 вкладки (Обзор/Планирование/Чат).
 /// + центральная кнопка создания, поверх — свой `NavigationStack` (своя
 /// история) на каждую вкладку — spec/SCREENS-1.md §1.1, §2.1.
 /// `/inbox` не входит в состав — маршрут убран из веба (INTEGRATION.md).
@@ -19,11 +19,10 @@ private struct QuickAddDraft: Identifiable {
 
 struct RootShellView: View {
     enum Tab: Int, CaseIterable, Hashable {
-        case today, overview, upcoming, chat
+        case overview, upcoming, chat
 
         var route: AppRoute {
             switch self {
-            case .today: .today
             case .overview: .overview
             case .upcoming: .upcoming
             case .chat: .chat
@@ -32,7 +31,6 @@ struct RootShellView: View {
 
         var label: String {
             switch self {
-            case .today: "Сегодня"
             case .overview: "Обзор"
             case .upcoming: "Планирование"
             case .chat: "Чат"
@@ -44,7 +42,6 @@ struct RootShellView: View {
         /// вкладками. У «Сегодня» число накладывает `TFTodayDateIcon`.
         var icon: String {
             switch self {
-            case .today: "TabIconToday"
             case .overview: "TabIconHome"
             case .upcoming: "TabIconPlanning"
             case .chat: "TabIconChat"
@@ -97,7 +94,6 @@ struct RootShellView: View {
         ZStack(alignment: .bottom) {
             Group {
                 switch selectedTab {
-                case .today: navigationStack(for: .today)
                 case .overview: navigationStack(for: .overview)
                 case .upcoming: navigationStack(for: .upcoming)
                 case .chat: navigationStack(for: .chat)
@@ -257,23 +253,18 @@ struct RootShellView: View {
             case "notes": paths[selectedTab, default: NavigationPath()].append(AppRoute.notes)
             case "noteeditor" where parts.count == 2:
                 paths[selectedTab, default: NavigationPath()].append(AppRoute.noteEditor(noteID: parts[1]))
-            case "today": selectedTab = .today
+            case "today": selectedTab = .upcoming
             case "upcoming": selectedTab = .upcoming
             case "chat": selectedTab = .chat
             default: break
             }
         }
         #endif
-        .onChange(of: selectedTab, initial: true) { _, newTab in
-            if newTab == .today {
-                todayBadgeSeenDate = DateFormats.todayString()
-            }
-        }
     }
 
     private var tabItems: [TFTabItem] {
         Tab.allCases.map { tab in
-            TFTabItem(icon: tab.icon, accessibilityLabel: tab.label, badgeCount: tab == .today ? todayBadgeCount : nil, showsTodayDate: tab == .today)
+            TFTabItem(icon: tab.icon, accessibilityLabel: tab.label, badgeCount: tab == .upcoming ? todayBadgeCount : nil, showsTodayDate: tab == .upcoming)
         }
     }
 

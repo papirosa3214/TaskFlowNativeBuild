@@ -14,14 +14,20 @@ public struct UpcomingScreen: View {
 
     @State private var agentsProvider = UpcomingAgentsProvider()
 
-    enum ViewMode: String { case list, week, month, hours }
+    /// Четыре раздела единого «Планирования». «Сегодня» больше не отдельная
+    /// вкладка приложения: это первый, сохранённый по умолчанию раздел.
+    enum ViewMode: String, CaseIterable { case today, threeDays, week, month }
 
-    /// `upcomingLayout` (spec §4.4) — persist между запусками, дефолт «месяц»
-    /// (тот же вид, что на эталонном скриншоте `spec/screenshots/upcoming.png`).
-    @AppStorage("upcomingLayout") private var upcomingLayoutRaw = ViewMode.month.rawValue
+    @AppStorage("plannerSection") private var upcomingLayoutRaw = ViewMode.today.rawValue
     private var view: ViewMode {
-        get { ViewMode(rawValue: upcomingLayoutRaw) ?? .month }
+        get { ViewMode(rawValue: upcomingLayoutRaw) ?? .today }
         nonmutating set { upcomingLayoutRaw = newValue.rawValue }
+    }
+
+    @AppStorage("today_layout") private var todayLayoutRaw = TodayLayout.list.rawValue
+    private var todayLayout: TodayLayout {
+        get { TodayLayout(rawValue: todayLayoutRaw) ?? .list }
+        nonmutating set { todayLayoutRaw = newValue.rawValue }
     }
 
     @State private var filters = UpcomingTaskFilters.empty
@@ -29,6 +35,7 @@ public struct UpcomingScreen: View {
     @State private var openDay: String?
     @State private var pushedTaskID: String?
     @State private var editingTaskID: String?
+    @State private var createTaskOpen = false
     @State private var rescheduleTask: ApiTask?
     @State private var rescheduleOpen = false
 
@@ -49,38 +56,35 @@ public struct UpcomingScreen: View {
         UserDefaults.standard.stringArray(forKey: "plannerVisibleProjects") ?? []
     )
 
+    /// В шапке показывается текущий месяц, а не техническое имя режима.
+    private var navigationTitle: String {
+        let month: Int
+        switch view {
+        case .today, .threeDays:
+            month = UpcomingDate.yearMonth(today).month
+        case .week:
+            month = UpcomingDate.weekMonth(monday: gridMonday).month
+        case .month:
+            month = (gridMonth ?? UpcomingDate.yearMonth(today)).month
+        }
+        return UpcomingDate.monthsNom[month]
+    }
+
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            belowContentView
-
-            if let banner = emptyFilterBanner {
-                banner
-            }
-
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .tfNativeHeader("Планирование", displayMode: .inline)
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tfNativeHeader(navigationTitle, displayMode: .large)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                filterMenu
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Picker("Вид", selection: Binding(get: { view }, set: { view = $0 })) {
-                        Label("Список", systemImage: "list.bullet").tag(ViewMode.list)
-                        Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(ViewMode.week)
-                        Label("Месяц", systemImage: "calendar").tag(ViewMode.month)
-                        Label("Три дня", systemImage: "clock").tag(ViewMode.hours)
+            ToolbarItem(placement: .topBarLeading) { subviewPill }
+            if view != .today {
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 0) {
+                        filterMenu.tfPlannerToolbarControl()
+                        viewSwitcherMenu.tfPlannerToolbarControl()
                     }
-                    .pickerStyle(.inline)
-                } label: {
-                    Image(systemName: "ellipsis")
                 }
-                .accessibilityLabel("Выбрать представление")
-                .accessibilityIdentifier("upcoming.view-switcher")
             }
         }
         .background(Color.tfBackground)
@@ -97,6 +101,9 @@ public struct UpcomingScreen: View {
             get: { editingTaskID != nil }, set: { if !$0 { editingTaskID = nil } }
         )) {
             if let id = editingTaskID { routeDestination(.taskForm(taskID: id)) }
+        }
+        .navigationDestination(isPresented: $createTaskOpen) {
+            routeDestination(.taskForm(taskID: nil))
         }
         .task { await agentsProvider.load() }
         .onAppear {
@@ -115,13 +122,20 @@ public struct UpcomingScreen: View {
             TFErrorBanner(error, variant: .block).padding(.horizontal, TFSpacing.screenHorizontal)
         } else {
             switch view {
-            case .list:
-                UpcomingListView(
-                    tasks: tasks, selectedDate: $selectedDate,
+            case .today:
+                TodaySectionView(
+                    layout: Binding(get: { todayLayout }, set: { todayLayout = $0 }),
+                    onAddTask: { createTaskOpen = true },
+                    plannerViewSwitcher: AnyView(viewSwitcherMenu)
+                )
+            case .threeDays:
+                UpcomingHoursView(
+                    days: hourDays,
+                    projectColor: { task in
+                        projectStore.projects.first { $0.id == task.projectId }?.color.map(Color.init(hex:)) ?? .tfDim
+                    },
                     onTaskTap: { pushedTaskID = $0 },
-                    onEditTask: { editingTaskID = $0 },
-                    onDeleteTask: { deleteTask($0) },
-                    onRescheduleTask: { task in rescheduleTask = task; rescheduleOpen = true }
+                    onSchedule: { id, date, time in schedule(id: id, date: date, time: time) }
                 )
             case .week:
                 UpcomingWeekView(
@@ -140,15 +154,6 @@ public struct UpcomingScreen: View {
                     onDayTap: { d in openDay = openDay == d ? nil : d },
                     onTaskTap: { pushedTaskID = $0 },
                     onVisibleMonthChange: { y, m in gridMonth = (y, m) }
-                )
-            case .hours:
-                UpcomingHoursView(
-                    days: hourDays,
-                    projectColor: { task in
-                        Color(hex: projectStore.projects.first { $0.id == task.projectId }?.color ?? "#717171")
-                    },
-                    onTaskTap: { pushedTaskID = $0 },
-                    onSchedule: { id, date, time in schedule(id: id, date: date, time: time) }
                 )
             }
         }
@@ -285,6 +290,63 @@ public struct UpcomingScreen: View {
         .accessibilityIdentifier("upcoming.filters")
     }
 
+    /// Системное меню разделов. Оно используется и самим экраном, и дочерним
+    /// «Сегодня», поэтому переключение не создаёт отдельную, самодельную
+    /// панель под навбаром.
+    private var viewSwitcherMenu: some View {
+        Menu {
+            Picker("Раздел", selection: Binding(get: { view }, set: { view = $0 })) {
+                Label("Сегодня", systemImage: "list.bullet").tag(ViewMode.today)
+                Label("Три дня", systemImage: "clock").tag(ViewMode.threeDays)
+                Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(ViewMode.week)
+                Label("Месяц", systemImage: "calendar").tag(ViewMode.month)
+            }
+            .pickerStyle(.inline)
+        } label: {
+            TFPlannerToolbarIcon(systemName: "calendar")
+        }
+        .accessibilityLabel("Выбрать раздел планирования")
+        .accessibilityIdentifier("planner.view-switcher")
+    }
+
+    @ViewBuilder
+    private var subviewPill: some View {
+        if view == .today {
+            HStack(spacing: 0) {
+                ForEach(TodayLayout.allCases, id: \.self) { layout in
+                    Button { todayLayout = layout } label: {
+                        TFPlannerToolbarIcon(
+                            systemName: todayLayoutIcon(layout),
+                            tint: todayLayout == layout ? .tfText : .tfSub,
+                            weight: todayLayout == layout ? .semibold : .regular
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .tfPlannerToolbarControl()
+                    .accessibilityLabel(todayLayoutLabel(layout))
+                }
+            }
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func todayLayoutIcon(_ layout: TodayLayout) -> String {
+        switch layout {
+        case .list: "list.bullet"
+        case .board: "square.grid.2x2"
+        case .hours: "clock"
+        }
+    }
+
+    private func todayLayoutLabel(_ layout: TodayLayout) -> String {
+        switch layout {
+        case .list: "Список"
+        case .board: "Доска"
+        case .hours: "Часы"
+        }
+    }
+
     private func filterOption(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             if selected {
@@ -338,7 +400,7 @@ public struct UpcomingScreen: View {
     /// пунктом внутри Menu фильтров, и всё. Здесь — случай, что не покрыт
     /// загрузкой/ошибкой: фильтры вычистили список подчистую.
     private var emptyFilterBanner: AnyView? {
-        guard view != .list, selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
+        guard view != .today, selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
               !datedTasks.isEmpty, tasks.isEmpty else { return nil }
         return AnyView(
             HStack(spacing: 6) {
@@ -365,9 +427,9 @@ public struct UpcomingScreen: View {
                 .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.tfText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, TFSpacing.screenHorizontal).padding(.bottom, 6)
-        case .hours:
+        case .threeDays:
             UpcomingDayColumnsHeader(days: hourDays)
-        case .list:
+        case .today:
             EmptyView()
         }
     }

@@ -9,6 +9,8 @@ import Foundation
 /// `/inbox` сознательно отсутствует — маршрут убран из веба 26.08.2026,
 /// нативного аналога нет (см. INTEGRATION.md).
 public enum AppRoute: Hashable {
+    /// Совместимый маршрут: после объединения 06.09 «Сегодня» открывает
+    /// первый раздел единого «Планирования».
     case today
     case overview
     case upcoming
