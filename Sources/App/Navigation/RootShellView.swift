@@ -188,7 +188,13 @@ struct RootShellView: View {
             selectedTab = .overview
         })
         .animation(.easeOut(duration: TFAnimation.createMenu), value: isCreateMenuOpen)
-        .sheet(item: $quickAddDraft, onDismiss: {
+        // Владелец 07.09.2026: панель быстрого создания — надстройка над
+        // клавиатурой с замутнённым фоном, а не выезжающая шторка. Отсюда
+        // прозрачный `fullScreenCover` вместо `.sheet`: `.sheet` с фокусом в
+        // поле резервирует место под клавиатуру и раздувается почти на весь
+        // экран, а свой оверлей (фон + карточка у нижней кромки) живёт внутри
+        // `QuickAddTaskView`.
+        .fullScreenCover(item: $quickAddDraft, onDismiss: {
             if let viewModel = pendingExpand {
                 pendingExpand = nil
                 expandedDraft = QuickAddDraft(viewModel: viewModel)
@@ -205,6 +211,7 @@ struct RootShellView: View {
                     quickAddDraft = nil
                 }
             )
+            .presentationBackground(.clear)
         }
         .fullScreenCover(item: $expandedDraft) { draft in
             NavigationStack {

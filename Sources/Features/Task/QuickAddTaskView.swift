@@ -1,8 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Быстрое создание задачи построено только на системных `Form`, `Section`,
-/// `Picker` и `sheet`: без чипов, собственных фонов, обводок и анимаций.
+/// Быстрое создание задачи — 07.09.2026, владелец: «как в Todoist, никакого
+/// здорового всплывающего окна, просто карточка прямо над клавиатурой, а
+/// инструменты — в одном овальном окошке». Больше не `NavigationStack`+`Form`
+/// (тот вариант выглядел как полноэкранная анкета) — свой оверлей: мутный фон
+/// на весь экран плюс карточка у нижней кромки, которая поднимается вместе с
+/// клавиатурой. Показывается прозрачным `fullScreenCover` (см. `RootShellView`),
+/// а не `.sheet`: детенты с фокусом в поле раздувались почти на весь экран.
 struct QuickAddTaskView: View {
     @Bindable var viewModel: TaskFormViewModel
     var onSaved: () -> Void
@@ -13,70 +18,48 @@ struct QuickAddTaskView: View {
     @Environment(LabelStore.self) private var labelStore
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isTitleFocused: Bool
-    @State private var activePicker: QuickAddPicker?
+    @FocusState private var isDescriptionFocused: Bool
     @State private var isAttachmentImporterPresented = false
     @State private var dictation = DictationEngine.shared
-
-    private enum QuickAddPicker: String, Identifiable {
-        case project, dueDate, priority, labels, attachments
-        var id: String { rawValue }
-        var title: String {
-            switch self {
-            case .project: "Проект"
-            case .dueDate: "Срок"
-            case .priority: "Приоритет"
-            case .labels: "Метки"
-            case .attachments: "Вложения"
-            }
-        }
-    }
+    @State private var isDescriptionExpanded = false
+    @State private var isSubtasksExpanded = false
+    @State private var newSubtaskTitle = ""
+    @FocusState private var isSubtaskFocused: Bool
+    @State private var isDueDatePopoverPresented = false
+    @State private var isAttachmentsPopoverPresented = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Название задачи", text: $viewModel.title, axis: .vertical)
-                        .focused($isTitleFocused)
-                        .submitLabel(.done)
-                        .onSubmit { save() }
-                    TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
+        ZStack(alignment: .bottom) {
+            // Замутнённый фон — владелец 07.09.2026: «остальное чуть-чуть
+            // замутнить, чтобы окошко было более чётким». Тап по фону
+            // закрывает панель, как смахивание у шторки.
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Color.black.opacity(0.1))
+                .ignoresSafeArea()
+                .onTapGesture {
+                    // Пока открыт поповер срока/вложений, тап по фону гасит
+                    // только его: закрывать всю панель из-под открытой
+                    // презентации — верный способ поймать залипшую анимацию.
+                    guard !isDueDatePopoverPresented, !isAttachmentsPopoverPresented else { return }
+                    closePanel()
                 }
 
-                Section("Параметры") {
-                    parameterRow("Проект", value: projectName, icon: "folder") { activePicker = .project }
-                    parameterRow("Срок", value: dueDateText, icon: "calendar") { activePicker = .dueDate }
-                    parameterRow("Приоритет", value: viewModel.priority.label, icon: "flag") { activePicker = .priority }
-                    parameterRow("Метки", value: labelsText, icon: "tag") { activePicker = .labels }
-                    parameterRow("Вложения", value: attachmentsText, icon: "paperclip") { activePicker = .attachments }
+            card
+                // Слои: замутнённый фон → карточка (`tfCard`) → капсула
+                // инструментов, вдавленная в карточку (темнее + внутренняя
+                // тень, см. `toolsCapsule`).
+                .background(Color.tfCard, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                // Тонкая светлая кромка по краю карточки — владелец
+                // 07.09.2026: без неё плашка растворяется в замутнённом фоне.
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
                 }
-
-                Section {
-                    Button {
-                        onExpand()
-                    } label: {
-                        Label("Открыть полную форму", systemImage: "arrow.up.left.and.arrow.down.right")
-                    }
-                }
-            }
-            .navigationTitle("Новая задача")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { Task { await toggleDictation() } } label: {
-                        Image(systemName: dictation.recordingState == .recording ? "stop.fill" : "mic")
-                    }
-                    .accessibilityLabel(dictation.recordingState == .recording ? "Остановить запись" : "Голосовой ввод")
-                    .disabled(dictation.recordingState == .transcribing)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Добавить") { save() }
-                        .disabled(!viewModel.isSaveEnabled)
-                }
-            }
+                .shadow(color: .black.opacity(0.45), radius: 20, y: 8)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.bottom, TFSpacing.sm)
         }
-        .sheet(item: $activePicker) { picker in pickerScreen(picker) }
         .alert("Не удалось сохранить задачу", isPresented: Binding(
             get: { viewModel.saveErrorMessage != nil },
             set: { if !$0 { viewModel.saveErrorMessage = nil } }
@@ -91,20 +74,374 @@ struct QuickAddTaskView: View {
         }
     }
 
-    private func parameterRow(_ title: String, value: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            LabeledContent {
-                Text(value).foregroundStyle(.secondary)
-            } label: {
-                Label(title, systemImage: icon)
+    /// Тёплый белый свет «ленты» в жёлобе инструментов — владелец
+    /// 07.09.2026: «не красный свет, а обычный тёплый». Тем же цветом
+    /// подсвечен низ иконок, чтобы источник читался одним.
+    private static let warmGlow = Color(red: 1.0, green: 0.84, blue: 0.6)
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            TextField("Новая задача", text: $viewModel.title, axis: .vertical)
+                .font(.title3)
+                .foregroundStyle(Color.tfText)
+                .lineLimit(1...4)
+                .focused($isTitleFocused)
+                .submitLabel(.done)
+                .onSubmit { save() }
+
+            if isDescriptionExpanded || !viewModel.taskDescription.isEmpty {
+                TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
+                    .font(.body)
+                    .foregroundStyle(Color.tfSub)
+                    .lineLimit(1...3)
+                    .focused($isDescriptionFocused)
+            }
+
+            if isSubtasksExpanded || !viewModel.subtaskDrafts.isEmpty {
+                subtaskDraftRows
+            }
+
+            HStack(spacing: TFSpacing.sm) {
+                // Иконки листаются внутри жёлоба, но сам жёлоб не шатается:
+                // владелец 07.09.2026 жаловался именно на «резинку» скролла.
+                // `scrollBounceBehavior` тут бессилен — он гасит отскок только
+                // когда содержимое помещается целиком, поэтому bounces
+                // снимается у самого `UIScrollView` (`ScrollBounceDisabler`).
+                ScrollView(.horizontal, showsIndicators: false) {
+                    toolsCapsule(slot: TFHitTarget.min)
+                        .background(ScrollBounceDisabler())
+                }
+                .clipShape(Capsule())
+
+                primaryActionButton
             }
         }
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.vertical, TFSpacing.md)
+    }
+
+    /// Владелец 07.09.2026: «либо микрофон, либо отправить — как в Телеграме».
+    /// Одна красная кнопка: поле пустое — диктовка, есть текст — отправка.
+    /// Второго микрофона рядом с полем больше нет.
+    private var primaryActionButton: some View {
+        Button {
+            if viewModel.isSaveEnabled { save() } else { Task { await toggleDictation() } }
+        } label: {
+            Group {
+                if dictation.recordingState == .transcribing {
+                    ProgressView().tint(.white)
+                } else if viewModel.isSaveEnabled {
+                    Image(systemName: "arrow.up")
+                } else {
+                    Image(systemName: dictation.recordingState == .recording ? "waveform" : "mic.fill")
+                        .symbolEffect(.variableColor.iterative, isActive: dictation.recordingState == .recording)
+                }
+            }
+            .font(.title3)
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            // Кнопка — наоборот выпуклая: блик сверху, затемнение снизу,
+            // светлая кромка по верхней дуге и падающая тень под кругом.
+            .background {
+                Circle()
+                    .fill(Color.tfRed)
+                    .overlay {
+                        // Только блик сверху, без затемнения снизу: чёрный
+                        // градиент уводил низ кнопки в бордовый, и она
+                        // переставала совпадать по цвету с подсветкой жёлоба
+                        // (владелец 07.09.2026: «красный должен соответствовать»).
+                        Circle().fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.22), Color.clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            )
+                        )
+                    }
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.75)
+                            .mask(
+                                Circle().fill(
+                                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .center)
+                                )
+                            )
+                    }
+                    .shadow(color: .black.opacity(0.5), radius: 7, y: 4)
+                    .shadow(color: Color.tfRed.opacity(0.45), radius: 10, y: 2)
+            }
+            .frame(width: 48, height: 48)
+        }
         .buttonStyle(.plain)
-        .accessibilityHint("Открывает выбор параметра")
+        .disabled(dictation.recordingState == .transcribing)
+        .accessibilityLabel(
+            viewModel.isSaveEnabled
+                ? "Добавить задачу"
+                : (dictation.recordingState == .recording ? "Остановить запись" : "Голосовой ввод")
+        )
+    }
+
+    /// Подзадачи прямо в панели — владелец 07.09.2026: «а где я подзадачу тут
+    /// могу шлёпать?». Ради них полную форму открывать больше не нужно.
+    private var subtaskDraftRows: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            ForEach(viewModel.subtaskDrafts) { draft in
+                HStack(spacing: TFSpacing.sm) {
+                    Image(systemName: "circle")
+                        .font(.body)
+                        .foregroundStyle(Color.tfDim)
+                    Text(draft.title)
+                        .font(.body)
+                        .foregroundStyle(Color.tfText)
+                    Spacer(minLength: 0)
+                    Button {
+                        viewModel.subtaskDrafts.removeAll { $0.id == draft.id }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.footnote)
+                            .foregroundStyle(Color.tfDim)
+                            .frame(width: TFHitTarget.min, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Удалить подзадачу \(draft.title)")
+                }
+            }
+
+            HStack(spacing: TFSpacing.sm) {
+                Image(systemName: "plus")
+                    .font(.body)
+                    .foregroundStyle(Color.tfDim)
+                TextField("Подзадача", text: $newSubtaskTitle)
+                    .font(.body)
+                    .foregroundStyle(Color.tfText)
+                    .focused($isSubtaskFocused)
+                    .submitLabel(.next)
+                    .onSubmit(addSubtaskDraft)
+            }
+        }
+    }
+
+    /// Овальная панель инструментов — один ряд, всё, что раньше было
+    /// отдельными строками (срок/проект/приоритет/метки/вложения/исполнитель)
+    /// плюс «развернуть», теперь иконки внутри одной капсулы, как у Todoist.
+    private func toolsCapsule(slot: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            // Владелец 07.09.2026: «было бы логично, что если я ещё раз тапнул
+            // на описание, я бы мог его убрать» — тумблер, а не кнопка в одну
+            // сторону. Заполненное поле тапом не теряется: сворачиваем только
+            // пустое.
+            Button {
+                withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                    if isDescriptionExpanded, viewModel.taskDescription.isEmpty {
+                        isDescriptionExpanded = false
+                        isDescriptionFocused = false
+                    } else {
+                        isDescriptionExpanded = true
+                        isDescriptionFocused = true
+                    }
+                }
+            } label: {
+                quickIcon(slot: slot, "text.alignleft", isSet: isDescriptionExpanded || !viewModel.taskDescription.isEmpty)
+            }
+            .accessibilityLabel("Описание")
+
+            Button {
+                withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                    if isSubtasksExpanded, viewModel.subtaskDrafts.isEmpty, newSubtaskTitle.isEmpty {
+                        isSubtasksExpanded = false
+                        isSubtaskFocused = false
+                    } else {
+                        isSubtasksExpanded = true
+                        isSubtaskFocused = true
+                    }
+                }
+            } label: {
+                quickIcon(slot: slot, "checklist", isSet: isSubtasksExpanded || !viewModel.subtaskDrafts.isEmpty)
+            }
+            .accessibilityLabel("Подзадачи")
+            .accessibilityValue(viewModel.subtaskDrafts.isEmpty ? "Нет" : "\(viewModel.subtaskDrafts.count)")
+
+            Button { isDueDatePopoverPresented = true } label: {
+                quickIcon(slot: slot, "calendar", isSet: viewModel.dueDate != nil)
+            }
+            .accessibilityLabel("Срок")
+            .accessibilityValue(dueDateText)
+            .popover(isPresented: $isDueDatePopoverPresented) {
+                dueDatePicker
+                    .padding(TFSpacing.lg)
+                    .frame(width: 300)
+                    .presentationCompactAdaptation(.popover)
+                    // Прозрачный фон внешней презентации (см. `RootShellView`)
+                    // протекает во вложенные — без явного материала поповер
+                    // открывался пустым стеклом.
+                    .presentationBackground(.regularMaterial)
+            }
+
+            Menu {
+                Button("Не выбран") { viewModel.projectId = nil }
+                ForEach(projectStore.projects) { project in
+                    Button {
+                        viewModel.projectId = project.id
+                    } label: {
+                        if viewModel.projectId == project.id {
+                            Label(project.name, systemImage: "checkmark")
+                        } else {
+                            Text(project.name)
+                        }
+                    }
+                }
+            } label: {
+                quickIcon(slot: slot, "folder", isSet: viewModel.projectId != nil)
+            }
+            .accessibilityLabel("Проект")
+            .accessibilityValue(projectName)
+
+            Menu {
+                ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
+                    Button {
+                        viewModel.priority = priority
+                    } label: {
+                        if viewModel.priority == priority {
+                            Label(priority.label, systemImage: "checkmark")
+                        } else {
+                            Text(priority.label)
+                        }
+                    }
+                }
+            } label: {
+                quickIcon(slot: slot, "flag", isSet: viewModel.priority != .low)
+            }
+            .accessibilityLabel("Приоритет")
+            .accessibilityValue(viewModel.priority.label)
+
+            Menu {
+                ForEach(labelStore.labels) { label in
+                    Toggle(label.name, isOn: Binding(
+                        get: { viewModel.selectedLabelIds.contains(label.id) },
+                        set: { selected in
+                            if selected { viewModel.selectedLabelIds.insert(label.id) }
+                            else { viewModel.selectedLabelIds.remove(label.id) }
+                        }
+                    ))
+                }
+            } label: {
+                quickIcon(slot: slot, "tag", isSet: !viewModel.selectedLabelIds.isEmpty)
+            }
+            .accessibilityLabel("Метки")
+            .accessibilityValue(labelsText)
+
+            Menu {
+                Button("Без исполнителя") { viewModel.assigneeId = nil }
+                ForEach(viewModel.agents.filter { $0.type == .ai }) { agent in
+                    Button {
+                        viewModel.assigneeId = agent.id
+                    } label: {
+                        if viewModel.assigneeId == agent.id {
+                            Label(agent.name, systemImage: "checkmark")
+                        } else {
+                            Text(agent.name)
+                        }
+                    }
+                }
+            } label: {
+                quickIcon(slot: slot, "person", isSet: viewModel.assigneeId != nil)
+            }
+            .accessibilityLabel("Исполнитель")
+            .accessibilityValue(assigneeName)
+
+            Button { isAttachmentsPopoverPresented = true } label: {
+                quickIcon(slot: slot, "paperclip", isSet: !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty)
+            }
+            .accessibilityLabel("Вложения")
+            .accessibilityValue(attachmentsText)
+            .popover(isPresented: $isAttachmentsPopoverPresented) {
+                attachmentsPicker
+                    .padding(TFSpacing.lg)
+                    .frame(width: 300)
+                    .presentationCompactAdaptation(.popover)
+                    // Прозрачный фон внешней презентации (см. `RootShellView`)
+                    // протекает во вложенные — без явного материала поповер
+                    // открывался пустым стеклом.
+                    .presentationBackground(.regularMaterial)
+            }
+
+            Button(action: onExpand) {
+                quickIcon(slot: slot, "arrow.up.left.and.arrow.down.right", isSet: false)
+            }
+            .accessibilityLabel("Открыть полную форму")
+        }
+        .padding(.horizontal, TFSpacing.xs)
+        // Владелец 07.09.2026: «сделай, как будто она впечаталась туда, в
+        // глубину» — капсула темнее карточки плюс внутренняя тень сверху и
+        // светлая кромка снизу, чтобы ряд читался вдавленным, а не выпуклым.
+        .background {
+            Capsule()
+                .fill(Color.tfBackground)
+                .overlay {
+                    Capsule()
+                        .stroke(Color.black.opacity(0.55), lineWidth: 3)
+                        .blur(radius: 2.5)
+                        .offset(y: 1.5)
+                        .mask(Capsule().fill(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)))
+                }
+                // Владелец 07.09.2026: «как будто в жёлобе под потолком
+                // светодиодная лента» — не прямой свет, а отражённый: мягкий
+                // разлив акцентного цвета по дну и подсвеченная нижняя дуга.
+                .overlay {
+                    Capsule().fill(
+                        LinearGradient(
+                            colors: [.clear, Self.warmGlow.opacity(0.14)],
+                            startPoint: .center,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+                .overlay {
+                    Capsule()
+                        .stroke(Self.warmGlow.opacity(0.45), lineWidth: 2.5)
+                        .blur(radius: 3)
+                        .offset(y: -2)
+                        .mask(Capsule().fill(LinearGradient(colors: [.clear, .black], startPoint: .center, endPoint: .bottom)))
+                }
+                .overlay {
+                    Capsule().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                }
+        }
+    }
+
+    /// Иконка инструмента: глиф по шкале Dynamic Type, тап-цель — штатные
+    /// 44pt (HIG), выбранное значение подсвечено акцентом, а не только
+    /// формой — цветом смысл не передаём в одиночку, у кнопок есть
+    /// `accessibilityValue`.
+    private func quickIcon(slot: CGFloat, _ systemImage: String, isSet: Bool) -> some View {
+        Image(systemName: systemImage)
+            // Владелец 07.09.2026: «катастрофически маленькие». 44pt — это
+            // тап-цель, а не глиф: цель осталась 48pt, сам символ вырос с
+            // 17pt (.body) до 22pt (.title2).
+            .font(.title2)
+            // Объём по одному источнику света с жёлобом: лента светит снизу,
+            // поэтому низ глифа теплее и светлее, верх уходит в тень. Тени
+            // направлены туда же — тёплый отсвет вниз, тёмная кромка вверх.
+            .foregroundStyle(
+                LinearGradient(
+                    colors: isSet
+                        ? [Color.tfRed.opacity(0.7), Color.tfRed]
+                        : [Color.tfSub.opacity(0.55), Color.tfText.opacity(0.95)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .shadow(color: .black.opacity(0.9), radius: 1, y: -1)
+            .shadow(color: Self.warmGlow.opacity(0.5), radius: 2, y: 1.5)
+            .frame(width: slot, height: slot)
     }
 
     private var projectName: String {
         projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Не выбран"
+    }
+
+    private var assigneeName: String {
+        viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен"
     }
 
     private var dueDateText: String {
@@ -127,44 +464,8 @@ struct QuickAddTaskView: View {
         return count == 0 ? "Нет" : "\(count)"
     }
 
-    @ViewBuilder
-    private func pickerScreen(_ picker: QuickAddPicker) -> some View {
-        NavigationStack {
-            Form {
-                switch picker {
-                case .project:
-                    Picker("Проект", selection: $viewModel.projectId) {
-                        Text("Не выбран").tag(String?.none)
-                        ForEach(projectStore.projects) { project in
-                            Text(project.name).tag(Optional(project.id))
-                        }
-                    }
-                case .dueDate:
-                    dueDatePicker
-                case .priority:
-                    Picker("Приоритет", selection: $viewModel.priority) {
-                        ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
-                            Text(priority.label).tag(priority)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                case .labels:
-                    labelsPicker
-                case .attachments:
-                    attachmentsPicker
-                }
-            }
-            .navigationTitle(picker.title)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") { activePicker = nil }
-                }
-            }
-        }
-    }
-
     private var dueDatePicker: some View {
-        Section {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
             Toggle("Установить срок", isOn: hasDueDate)
             if viewModel.dueDate != nil {
                 DatePicker("Дата", selection: dueDateSelection, displayedComponents: .date)
@@ -185,22 +486,8 @@ struct QuickAddTaskView: View {
         }
     }
 
-    private var labelsPicker: some View {
-        Section {
-            ForEach(labelStore.labels) { label in
-                Toggle(label.name, isOn: Binding(
-                    get: { viewModel.selectedLabelIds.contains(label.id) },
-                    set: { selected in
-                        if selected { viewModel.selectedLabelIds.insert(label.id) }
-                        else { viewModel.selectedLabelIds.remove(label.id) }
-                    }
-                ))
-            }
-        }
-    }
-
     private var attachmentsPicker: some View {
-        Section {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
             Button { isAttachmentImporterPresented = true } label: {
                 Label("Выбрать файл", systemImage: "paperclip")
             }
@@ -284,11 +571,65 @@ struct QuickAddTaskView: View {
         }
     }
 
+    /// Закрытие панели: сначала снимаем фокус, потом закрываем. Иначе
+    /// клавиатура опускается одновременно с анимацией закрытия — на устройстве
+    /// это давало подвисания (владелец 07.09.2026: «пару раз тыкаю — застряла»).
+    private func closePanel() {
+        isTitleFocused = false
+        isDescriptionFocused = false
+        isSubtaskFocused = false
+        dismiss()
+    }
+
+    /// Добавляет набранный пункт и оставляет фокус в поле — пункты вводятся
+    /// подряд, как в списке напоминаний.
+    private func addSubtaskDraft() {
+        let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        viewModel.subtaskDrafts.append(SubtaskDraft(title: trimmed))
+        newSubtaskTitle = ""
+        isSubtaskFocused = true
+    }
+
     private func save() {
         guard viewModel.isSaveEnabled else { return }
+        // Недописанный пункт при отправке не теряем — он такая же подзадача,
+        // просто владелец не успел нажать Enter.
+        addSubtaskDraft()
+        isTitleFocused = false
+        isDescriptionFocused = false
+        isSubtaskFocused = false
         Task {
             if await viewModel.save(taskStore: taskStore) {
                 onSaved()
+            }
+        }
+    }
+}
+
+/// Снимает «резинку» с горизонтального скролла инструментов. SwiftUI своего
+/// API для этого не даёт: `scrollBounceBehavior(.basedOnSize)` гасит отскок
+/// только когда содержимое помещается целиком, а у нас оно шире экрана —
+/// именно на это качание владелец 07.09.2026 и жаловался («жёлоб шатало»).
+/// Пустая UIKit-вьюха кладётся фоном внутрь скролла и снимает `bounces` у
+/// ближайшего `UIScrollView` вверх по иерархии.
+private struct ScrollBounceDisabler: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            var candidate: UIView? = uiView.superview
+            while let current = candidate {
+                if let scrollView = current as? UIScrollView {
+                    scrollView.bounces = false
+                    scrollView.alwaysBounceHorizontal = false
+                    return
+                }
+                candidate = current.superview
             }
         }
     }

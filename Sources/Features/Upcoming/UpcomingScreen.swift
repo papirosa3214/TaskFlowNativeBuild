@@ -71,9 +71,18 @@ public struct UpcomingScreen: View {
     private var navigationTitle: String {
         switch view {
         case .today:
-            let (_, month) = UpcomingDate.yearMonth(today)
-            let weekdayIndex = (UpcomingDate.jsWeekday(today) + 6) % 7
-            return "\(UpcomingDate.weekdaysFull[weekdayIndex]), \(UpcomingDate.day(today)) \(UpcomingDate.monthsGen[month])"
+            // Владелец 07.09.2026: свайп по дням в почасовой шкале работает, а
+            // число в шапке стояло мёртво — оно бралось из сегодняшней даты,
+            // а не из ВИДИМОЙ (`todayHourDate`, её и двигает жест). Раздел
+            // по-прежнему открывается на сегодня, но, отлистав на завтра или
+            // вчера, видно, какой это день.
+            // Пролистывание есть только у почасовой шкалы: в списке и на доске
+            // день всегда сегодняшний, иначе шапка показывала бы завтрашнее
+            // число над сегодняшним списком.
+            let visible = todayLayout == .hours ? todayHourDate : today
+            let (_, month) = UpcomingDate.yearMonth(visible)
+            let weekdayIndex = (UpcomingDate.jsWeekday(visible) + 6) % 7
+            return "\(UpcomingDate.weekdaysFull[weekdayIndex]), \(UpcomingDate.day(visible)) \(UpcomingDate.monthsGen[month])"
         case .threeDays:
             return UpcomingDate.monthsNom[UpcomingDate.yearMonth(threeDayStart).month]
         case .week:
@@ -136,6 +145,13 @@ public struct UpcomingScreen: View {
             // экрана (а не только при первом создании View — иначе View,
             // созданный в августе, остаётся с августом и в сентябре).
             gridMonth = UpcomingDate.yearMonth(UpcomingDate.todayString())
+            // Отлистанный день живёт, пока не устарел: вернуться со вчера или
+            // из позавчера раздел «Сегодня» должен сам (например, если
+            // приложение провисело в фоне через полночь). Дни вперёд не
+            // трогаем — владелец мог отлистать на завтра осознанно.
+            if todayHourDate < UpcomingDate.todayString() {
+                todayHourDate = UpcomingDate.todayString()
+            }
         }
     }
 

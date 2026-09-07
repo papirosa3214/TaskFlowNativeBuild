@@ -112,7 +112,7 @@ struct TaskFormScreen: View {
             Color.tfBackground
                 .ignoresSafeArea()
                 .toolbar(.hidden, for: .navigationBar)
-                .sheet(isPresented: $showQuickAdd, onDismiss: {
+                .fullScreenCover(isPresented: $showQuickAdd, onDismiss: {
                     // `isExpanded` к этому моменту уже true, если сюда пришли
                     // через «развернуть» (устанавливается синхронно ДО сброса
                     // showQuickAdd в onExpand ниже) — тогда экран не закрываем,
@@ -128,6 +128,15 @@ struct TaskFormScreen: View {
                             showQuickAdd = false
                         }
                     )
+                    // Владелец 07.09.2026: «как в Todoist — не всплывающее
+                    // окно, а надстройка прямо над клавиатурой». `.sheet` с
+                    // детентами тут не годится: с фокусом в поле система
+                    // резервирует место под клавиатуру и перескакивает на
+                    // больший детент — панель раздувалась почти на весь экран.
+                    // Поэтому прозрачный `fullScreenCover`: панель сама сидит
+                    // у нижней кромки и поднимается вместе с клавиатурой
+                    // штатным keyboard avoidance, фон мутит `QuickAddTaskView`.
+                    .presentationBackground(.clear)
                 }
         }
     }

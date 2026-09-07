@@ -206,27 +206,27 @@ struct UpcomingHoursView: View {
             .onAppear {
                 grabHaptic.prepare()
                 tickHaptic.prepare()
+                gridFrame = geo.frame(in: .global)
+            }
+            // Геометрия сетки снимается прямо из `GeometryReader`, а не через
+            // `PreferenceKey`: значение по preference до жеста не доезжало —
+            // в момент захвата `gridFrame` был пустым (0×0), ширина колонки
+            // падала на страховку `max(80, …)` вместо реальных ~116pt, и
+            // ghost с детекцией дня уезжали тем сильнее, чем правее колонка
+            // (владелец 07.09.2026: «на второй ложится 60/40, на третьей
+            // 80/20»). Замерено `NSLog` на симуляторе.
+            .onChange(of: geo.frame(in: .global)) { _, newValue in
+                gridFrame = newValue
             }
         }
         .frame(height: hourHeight * CGFloat(endHour - startHour))
-        .background(GeometryReader { proxy in
-            // `.global` вместо именованного пространства — жест теперь
-            // `UIGestureRecognizerRepresentable` (см. `HoursDragGesture`
-            // ниже), он отдаёт координаты через `converter.localToGlobal`,
-            // именованное SwiftUI-пространство ему не нужно.
-            Color.clear.preference(key: UpcomingHoursGridFrameKey.self, value: proxy.frame(in: .global))
-        })
-        .onPreferenceChange(UpcomingHoursGridFrameKey.self) { gridFrame = $0 }
         .overlay(alignment: .topLeading) {
             if let dragState {
                 // Ширина ghost — из `dragState.width` (снята синхронно в
-                // момент захвата, см. `DragState`), НЕ пересчитывается из
-                // `gridFrame` (та обновляется асинхронно и в момент захвата
-                // бывает ещё не готова). X-смещение по колонке дня — по
-                // `gridFrame` по-прежнему, пол 80pt страхует только от
-                // деления на почти-ноль, на позицию это не так критично,
-                // как ширина самой плашки.
-                let columnWidth = max(80, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
+                // момент захвата, см. `DragState`). X-смещение по колонке —
+                // из измеренной ширины сетки; заглушки «не меньше 80pt» тут
+                // больше нет, именно она давала уезжающий вправо ghost.
+                let columnWidth = Self.columnWidth(gridWidth: gridFrame.width, gutter: gutterW, dayCount: days.count)
                 ghostView(dragState, width: dragState.width)
                     .offset(x: gutterW + CGFloat(dragState.dayIndex) * columnWidth, y: dragState.topY)
                     .allowsHitTesting(false)
@@ -344,6 +344,14 @@ struct UpcomingHoursView: View {
     /// ограничения на смещение — то самое «зажал, потом веди».
     private static let dragHoldSeconds: Double = 0.25
 
+    /// Ширина дневной колонки. 0 означает «сетка ещё не измерена» — раньше
+    /// вместо этого возвращалась заглушка в 80pt, и промах молча уезжал в
+    /// геометрию (см. комментарий у `onChange` в `gridBody`).
+    static func columnWidth(gridWidth: CGFloat, gutter: CGFloat, dayCount: Int) -> CGFloat {
+        guard dayCount > 0, gridWidth > gutter else { return 0 }
+        return (gridWidth - gutter) / CGFloat(dayCount)
+    }
+
     /// `width` — реальная ширина колонки/пула в точке вызова, снятая
     /// СИНХРОННЫМ `GeometryReader` (`dayColumn` уже его имеет; пул — своим,
     /// см. `untimedPool`), а не пересчитанная из асинхронного `gridFrame`.
@@ -351,7 +359,10 @@ struct UpcomingHoursView: View {
         func columnAndDay(_ point: CGPoint) -> (fingerY: CGFloat, overDay: Int) {
             let fingerX = point.x - gridFrame.minX
             let fingerY = point.y - gridFrame.minY
-            let columnWidth = max(80, (gridFrame.width - gutterW) / CGFloat(max(days.count, 1)))
+            let columnWidth = Self.columnWidth(gridWidth: gridFrame.width, gutter: gutterW, dayCount: days.count)
+            // Сетку ещё не измерили — день не пересчитываем, иначе плашка
+            // прыгнет в колонку, посчитанную по выдуманной ширине.
+            guard columnWidth > 0 else { return (fingerY, dragState?.dayIndex ?? dayIndex) }
             let overDay = min(max(Int((fingerX - gutterW) / columnWidth), 0), max(days.count - 1, 0))
             return (fingerY, overDay)
         }
@@ -807,7 +818,3 @@ private struct UpcomingTimedBlock: View {
 /// рамке (в т.ч. колонка дня по X); кэш, снятый в `onAppear`, устаревал после
 /// автопрокрутки сетки к текущему часу. Фоновый `GeometryReader` обновляет
 /// рамку при скролле, а не только при смене размера.
-private struct UpcomingHoursGridFrameKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
-}
