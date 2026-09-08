@@ -7,8 +7,9 @@ import Foundation
 /// на живом сервере перед тем, как полагаться на приём markdown при записи.
 public extension APIClient {
 
-    /// `format: "markdown"` — сервер отдаёт готовую markdown-строку вместо
-    /// сырого TipTap JSON (`note.content.stringValue`).
+    /// `format: "markdown"` — сервер ДОБАВЛЯЕТ поле `note.markdown` с результатом
+    /// конвертации, а `content` оставляет сырым TipTap JSON. Читать надо
+    /// `note.markdown` (проверено живым запросом 08.09.2026).
     func note(id: String, format: String? = nil) async throws -> ApiNote {
         var query: [URLQueryItem] = []
         if let format { query.append(URLQueryItem(name: "format", value: format)) }

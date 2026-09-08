@@ -10,10 +10,13 @@ import Foundation
 public struct ApiNote: Codable, Identifiable, Sendable, Hashable {
     public let id: String
     public let folderId: Int?
-    /// `GET /notes/:id?format=markdown` отдаёт markdown-СТРОКУ вместо TipTap
-    /// JSON — используй `content.stringValue` в этом случае, иначе структура
-    /// узлов лежит в `content` как есть (`.object`/`.array`).
+    /// Структура узлов TipTap как есть (`.object`/`.array`) либо строка с тем же
+    /// JSON внутри. `?format=markdown` это поле НЕ подменяет — markdown приходит
+    /// отдельным `markdown` (проверено живым запросом 08.09.2026).
     public let content: JSONValue?
+    /// Приходит только при `GET /notes/:id?format=markdown`: сервер отдаёт строку
+    /// заметки как есть и ДОБАВЛЯЕТ сюда результат `tiptapToMarkdown(content)`.
+    public let markdown: String?
     public let createdAt: String?
     public let updatedAt: String?
 
@@ -21,6 +24,7 @@ public struct ApiNote: Codable, Identifiable, Sendable, Hashable {
         case id
         case folderId = "folder_id"
         case content
+        case markdown
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
