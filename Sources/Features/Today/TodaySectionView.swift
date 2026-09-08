@@ -202,6 +202,11 @@ struct TodaySectionView: View {
             Menu {
                 if projectStore.projects.isEmpty { Text("Нет проектов") }
                 else {
+                    // «Все проекты» одним тапом — см. TodayViewModel.
+                    filterOption("Все проекты", selected: vm.allProjectsVisible(projectStore.projects.map(\.id))) {
+                        vm.toggleAllVisibleProjects(projectStore.projects.map(\.id))
+                    }
+                    Divider()
                     ForEach(projectStore.projects) { project in
                         filterOption(project.name, selected: vm.visibleProjectIds[project.id] == true) {
                             vm.toggleVisibleProject(project.id)
@@ -209,6 +214,8 @@ struct TodaySectionView: View {
                     }
                 }
             } label: { Label("Показывать в разделе", systemImage: "eye") }
+            // Множественный выбор — меню остаётся открытым (см. UpcomingScreen).
+            .menuActionDismissBehavior(.disabled)
 
             if vm.filters.isActive {
                 Divider()

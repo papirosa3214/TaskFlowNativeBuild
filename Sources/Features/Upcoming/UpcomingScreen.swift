@@ -312,6 +312,14 @@ public struct UpcomingScreen: View {
                 if projectStore.projects.isEmpty {
                     Text("Нет проектов")
                 } else {
+                    // «Все проекты» — одним тапом вместо пятнадцати. Отмечено,
+                    // когда выбраны все; повторный тап снимает выбор целиком,
+                    // чтобы дальше отметить один-два (просьба владельца
+                    // 08.09.2026).
+                    filterOption("Все проекты", selected: allPlannerProjectsVisible) {
+                        togglePlannerAllProjects()
+                    }
+                    Divider()
                     ForEach(projectStore.projects) { project in
                         filterOption(project.name, selected: plannerVisibleProjectIds.contains(project.id)) {
                             togglePlannerVisibleProject(project.id)
@@ -321,6 +329,12 @@ public struct UpcomingScreen: View {
             } label: {
                 Label("Показывать в разделе", systemImage: "eye")
             }
+            // Единственный пункт с МНОЖЕСТВЕННЫМ выбором, поэтому меню здесь
+            // не закрывается после каждой галочки. Владелец 08.09.2026: «по
+            // одному проекту выбирать — он свернул, ты опять открыл, свернул;
+            // а так прощёлкал их и всё». У одиночных фильтров выше поведение
+            // прежнее: выбрал — меню закрылось, это и ожидается.
+            .menuActionDismissBehavior(.disabled)
 
             if filters.isActive {
                 Divider()
@@ -502,6 +516,22 @@ public struct UpcomingScreen: View {
             // истинно оптимистичного отклика), см. отчёт.
             await taskStore.patch(taskId: id, fields: fields) { _ in }
         }
+    }
+
+    /// Все проекты сейчас показываются? Пустой список проектов не считается:
+    /// отмечать «все» там нечего.
+    private var allPlannerProjectsVisible: Bool {
+        !projectStore.projects.isEmpty
+            && projectStore.projects.allSatisfy { plannerVisibleProjectIds.contains($0.id) }
+    }
+
+    private func togglePlannerAllProjects() {
+        if allPlannerProjectsVisible {
+            plannerVisibleProjectIds.removeAll()
+        } else {
+            plannerVisibleProjectIds = Set(projectStore.projects.map(\.id))
+        }
+        UserDefaults.standard.set(Array(plannerVisibleProjectIds), forKey: "plannerVisibleProjects")
     }
 
     private func togglePlannerVisibleProject(_ id: String) {

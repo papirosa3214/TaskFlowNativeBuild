@@ -58,6 +58,22 @@ final class TodayViewModel {
         visibleProjectIds = Self.loadVisibleProjects()
     }
 
+    /// Все ли перечисленные проекты сейчас показываются.
+    func allProjectsVisible(_ ids: [String]) -> Bool {
+        !ids.isEmpty && ids.allSatisfy { visibleProjectIds[$0] == true }
+    }
+
+    /// «Все проекты» одним тапом: не все отмечены — отметить все, все
+    /// отмечены — снять целиком, чтобы дальше выбрать один-два (просьба
+    /// владельца 08.09.2026).
+    func toggleAllVisibleProjects(_ ids: [String]) {
+        if allProjectsVisible(ids) {
+            visibleProjectIds = [:]
+        } else {
+            visibleProjectIds = Dictionary(uniqueKeysWithValues: ids.map { ($0, true) })
+        }
+    }
+
     func toggleVisibleProject(_ id: String) {
         if visibleProjectIds[id] == true {
             visibleProjectIds.removeValue(forKey: id)
