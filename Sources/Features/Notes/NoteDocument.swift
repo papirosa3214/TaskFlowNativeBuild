@@ -73,7 +73,17 @@ struct NoteBlock: Identifiable, Equatable {
         self.runs = runs
     }
 
-    var plainText: String { runs.map(\.text).joined() }
+    /// Текст блока без разметки. У таблицы своих `runs` нет — текст
+    /// собирается из ячеек, иначе заголовок заметки и проверка «пустая ли
+    /// заметка» считали бы таблицу пустотой.
+    var plainText: String {
+        if case .table(let rows) = kind {
+            return rows.flatMap { $0.cells.map(\.plainText) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }
+        return runs.map(\.text).joined()
+    }
 }
 
 enum BlockKind: Equatable {
@@ -85,6 +95,11 @@ enum BlockKind: Equatable {
     case blockquote
     case codeBlock(language: String?)
     case horizontalRule
+    /// Таблица целиком одним блоком: в отличие от списка её нельзя разложить
+    /// на строки-блоки, не потеряв колонки. Текст ячеек здесь только
+    /// отображается — правка ячеек на телефоне не сделана, см. комментарий
+    /// у `NoteTableRow`.
+    case table(rows: [NoteTableRow])
 
     /// «Список» — общий признак трёх кейсов, нужен группировке при кодировании.
     var isListItem: Bool {
@@ -92,6 +107,48 @@ enum BlockKind: Equatable {
         case .bulletItem, .orderedItem, .taskItem: true
         default: false
         }
+    }
+}
+
+/// Строка таблицы. `id` нужен только SwiftUI для `ForEach` — на сервер он не
+/// уезжает и в сравнении документов не участвует.
+///
+/// ⚠️ Правка ячеек в приложении не сделана намеренно (08.09.2026): весь
+/// редактор построен как плоский список строк с одним `UITextView` на блок,
+/// и ячейки в него не ложатся. Таблица показывается и переживает
+/// сохранение байт в байт — этого достаточно, чтобы заметка, написанная в
+/// вебе или агентом, читалась на телефоне и не разваливалась при правке
+/// соседних абзацев. Полноценное редактирование — отдельная задача.
+struct NoteTableRow: Identifiable, Equatable {
+    let id: UUID
+    var cells: [NoteTableCell]
+
+    init(id: UUID = UUID(), cells: [NoteTableCell]) {
+        self.id = id
+        self.cells = cells
+    }
+
+    static func == (lhs: NoteTableRow, rhs: NoteTableRow) -> Bool { lhs.cells == rhs.cells }
+}
+
+/// Ячейка таблицы. `isHeader` различает `tableHeader` и `tableCell` схемы
+/// TipTap — от него зависит и вид (подложка, полужирный), и то, каким узлом
+/// ячейка уедет обратно на сервер.
+struct NoteTableCell: Identifiable, Equatable {
+    let id: UUID
+    var runs: [RichRun]
+    var isHeader: Bool
+
+    init(id: UUID = UUID(), runs: [RichRun], isHeader: Bool) {
+        self.id = id
+        self.runs = runs
+        self.isHeader = isHeader
+    }
+
+    var plainText: String { runs.map(\.text).joined() }
+
+    static func == (lhs: NoteTableCell, rhs: NoteTableCell) -> Bool {
+        lhs.runs == rhs.runs && lhs.isHeader == rhs.isHeader
     }
 }
 
@@ -174,6 +231,10 @@ extension NoteDocument {
             case "bulletList", "orderedList", "taskList":
                 decodeListItems(node["content"] as? [Any] ?? [], listType: type!, level: level, into: &blocks)
 
+            case "table":
+                let rows = decodeTableRows(node["content"] as? [Any] ?? [])
+                if !rows.isEmpty { blocks.append(NoteBlock(kind: .table(rows: rows))) }
+
             default:
                 // Неизвестный узел — не роняем документ, вытаскиваем текст
                 // детей как есть (зеркалит default-ветку `blockToMd`).
@@ -201,6 +262,30 @@ extension NoteDocument {
                 blocks.append(NoteBlock(kind: itemKind(listType, attrs: item["attrs"] as? [String: Any]), level: level, runs: []))
             }
         }
+    }
+
+    /// Строки таблицы. Ячейка в схеме TipTap содержит блоки (обычно один
+    /// параграф, но бывает и несколько) — они склеиваются в один набор
+    /// прогонов с переносом между ними: колонка узкая, отдельными блоками
+    /// её всё равно не показать.
+    private static func decodeTableRows(_ nodes: [Any]) -> [NoteTableRow] {
+        var rows: [NoteTableRow] = []
+        for case let rowNode as [String: Any] in nodes where rowNode["type"] as? String == "tableRow" {
+            var cells: [NoteTableCell] = []
+            for case let cellNode as [String: Any] in rowNode["content"] as? [Any] ?? [] {
+                let cellType = cellNode["type"] as? String
+                guard cellType == "tableHeader" || cellType == "tableCell" else { continue }
+                var runs: [RichRun] = []
+                for case let child as [String: Any] in cellNode["content"] as? [Any] ?? [] {
+                    let inner = decodeInline(child["content"] as? [Any])
+                    if !runs.isEmpty, !inner.isEmpty { runs.append(RichRun(text: "\n")) }
+                    runs.append(contentsOf: inner)
+                }
+                cells.append(NoteTableCell(runs: runs, isHeader: cellType == "tableHeader"))
+            }
+            if !cells.isEmpty { rows.append(NoteTableRow(cells: cells)) }
+        }
+        return rows
     }
 
     private static func itemKind(_ listType: String, attrs: [String: Any]?) -> BlockKind {
@@ -308,6 +393,10 @@ extension NoteDocument {
                 }
                 out.append(["type": "blockquote", "content": paragraphs])
 
+            case .table(let rows):
+                out.append(encodeTable(rows))
+                i += 1
+
             case .bulletItem, .orderedItem, .taskItem:
                 let level = block.level
                 let (node, nextI) = encodeList(blocks, startAt: i, level: level)
@@ -346,6 +435,27 @@ extension NoteDocument {
             items.append(item)
         }
         return (["type": listType, "content": items], i)
+    }
+
+    /// Собирает таблицу обратно в узлы схемы. `attrs` ставятся те же, что
+    /// пишет веб-редактор: документ, сохранённый с телефона, не должен
+    /// отличаться от сохранённого в браузере.
+    private static func encodeTable(_ rows: [NoteTableRow]) -> [String: Any] {
+        var rowNodes: [[String: Any]] = []
+        for row in rows {
+            var cellNodes: [[String: Any]] = []
+            for cell in row.cells {
+                var paragraph: [String: Any] = ["type": "paragraph"]
+                if let inline = encodeInline(cell.runs) { paragraph["content"] = inline }
+                cellNodes.append([
+                    "type": cell.isHeader ? "tableHeader" : "tableCell",
+                    "attrs": ["colspan": 1, "rowspan": 1, "colwidth": NSNull()],
+                    "content": [paragraph],
+                ])
+            }
+            rowNodes.append(["type": "tableRow", "content": cellNodes])
+        }
+        return ["type": "table", "content": rowNodes]
     }
 
     private static func listTypeName(_ kind: BlockKind) -> String {

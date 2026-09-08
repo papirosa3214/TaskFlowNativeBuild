@@ -344,6 +344,9 @@ private struct NoteBlockRow: View {
                 .fill(Color.tfStroke)
                 .frame(height: TFBorder.width)
                 .padding(.vertical, TFSpacing.md)
+        } else if case .table(let rows) = block.kind {
+            NoteTableBlock(rows: rows)
+                .padding(.vertical, TFSpacing.xs)
         } else {
             HStack(alignment: .top, spacing: TFSpacing.sm) {
                 leading
@@ -398,6 +401,56 @@ private struct NoteBlockRow: View {
     private var quoteBarInset: CGFloat {
         if case .blockquote = block.kind { return TFSpacing.sm }
         return 0
+    }
+}
+
+/// Таблица заметки. Показ без правки: ячейки в блочный редактор не ложатся
+/// (см. `NoteTableRow`), но таблица, написанная в вебе или пришедшая от
+/// агента, должна читаться на телефоне, а не пропадать.
+///
+/// Ширина колонки фиксированная: у Grid колонки тянутся по самой длинной
+/// ячейке, и одна колонка с длинным текстом сплющивала бы остальные в
+/// нечитаемые полоски. Поэтому таблица шире экрана прокручивается вбок.
+private struct NoteTableBlock: View {
+    let rows: [NoteTableRow]
+
+    private let columnWidth: CGFloat = 140
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(rows) { row in
+                    HStack(alignment: .top, spacing: 0) {
+                        ForEach(row.cells) { cell in
+                            cellView(cell)
+                        }
+                    }
+                    // Линия между строками; нижняя кромка последней строки
+                    // приходит из рамки всей таблицы.
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+                    }
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: TFRadius.sm)
+                    .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
+            .padding(.horizontal, 1)
+        }
+    }
+
+    private func cellView(_ cell: NoteTableCell) -> some View {
+        Text(AttributedString(NoteRichText.attributedString(runs: cell.runs, blockKind: .paragraph)))
+            .font(cell.isHeader ? .system(size: 14, weight: .semibold) : .system(size: 14))
+            .frame(width: columnWidth, alignment: .leading)
+            .padding(.horizontal, TFSpacing.sm)
+            .padding(.vertical, TFSpacing.xs)
+            .background(cell.isHeader ? Color.tfCard2 : Color.clear)
+            .overlay(alignment: .trailing) {
+                Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width)
+            }
     }
 }
 
