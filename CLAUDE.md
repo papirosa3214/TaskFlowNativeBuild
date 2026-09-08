@@ -27,9 +27,16 @@ cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild
 - **Экран логина в симуляторе — не преграда.** В отладочной сборке есть штатный
   вход по токену: переменная окружения `TASKFLOW_DEBUG_TOKEN` кладётся прямо в
   Keychain при старте (`SessionStore.bootstrap()`, блок `#if DEBUG`). Токен —
-  ключ `TASKFLOW_AGENT_TOKEN` в vault на .110, доставать так:
-  `python3 ~/.claude/vault-run.py --secret TASKFLOW_AGENT_TOKEN` (значение в чат
-  не печатать, передавать каналом в ssh). В UI-тесте:
+  ключ `TASKFLOW_AGENT_TOKEN` в vault, а vault ЖИВЁТ НА .110: на маке
+  `vault-run.py` нет вовсе. Значение в чат не печатать — забирать в
+  переменную и сразу отдавать потребителю:
+  `TOKEN=$(ssh maksim 'python3 ~/.claude/vault-get.py --raw TASKFLOW_AGENT_TOKEN')`,
+  дальше `SIMCTL_CHILD_TASKFLOW_DEBUG_TOKEN="$TOKEN" xcrun simctl launch <udid> com.maksim.taskflow.native`.
+  Работать этим токеном ПРЯМО НА .110 (curl к API и т.п.) — через обёртку,
+  она сама вычищает секрет из вывода:
+  `ssh maksim 'python3 ~/.claude/vault-run.py --secret T=ИМЯ_КЛЮЧА -- команда'`
+  (синтаксис именно `ПЕРЕМЕННАЯ=КЛЮЧ`, дальше `--` и команда). Бандл —
+  `com.maksim.taskflow.native`, не `com.taskflow.native`. В UI-тесте:
   `app.launchEnvironment["TASKFLOW_DEBUG_TOKEN"] = <токен>`.
   Рядом работает `TASKFLOW_DEBUG_ROUTE` — открыть нужный экран сразу при старте
   (`overview`, `settings`, `notes`, `projects`, `notifications`, `chat`, `today`,
