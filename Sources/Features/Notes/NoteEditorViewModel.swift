@@ -82,8 +82,21 @@ final class NoteEditorViewModel {
         do {
             _ = try await apiClient.patchNote(id: noteID, fields: fields)
             saveState = .saved
+            fadeSavedStatus()
         } catch {
             saveState = .error
+        }
+    }
+
+    /// «Сохранено» — уведомление, а не состояние: висеть над текстом ему
+    /// незачем, гаснет через пару секунд. Ошибка остаётся, пока следующее
+    /// сохранение не пройдёт: её человек должен увидеть, даже если отвлёкся.
+    private func fadeSavedStatus() {
+        let generation = saveGeneration
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard let self, self.saveGeneration == generation, self.saveState == .saved else { return }
+            self.saveState = .idle
         }
     }
 
@@ -125,10 +138,116 @@ final class NoteEditorViewModel {
 
     /// Правка текста блока — приходит и от печати (делегат UITextView), и
     /// от тулбар-переключателей марок (после программной мутации textStorage).
+    ///
+    /// Ячейка таблицы — тоже отдельный `UITextView` со своим контроллером,
+    /// но своего блока в документе у неё нет: `blockID` тогда — это id
+    /// ЯЧЕЙКИ. Разбор идёт здесь, а не отдельным методом, потому что зовут
+    /// эту точку не только печать, но и клавиатурная панель, диктовка и
+    /// вставка ответа ИИ — все они знают ровно один идентификатор, тот, что
+    /// лежит в `NoteEditorFocusState.blockID`.
     func updateRuns(blockID: UUID, runs: [RichRun]) {
-        guard let idx = index(of: blockID) else { return }
-        document.blocks[idx].runs = runs
+        if let idx = index(of: blockID) {
+            document.blocks[idx].runs = runs
+            scheduleSave()
+            return
+        }
+        updateTableCell(cellID: blockID, runs: runs)
+    }
+
+    // MARK: - Структура таблицы: строки и столбцы
+
+    /// Адрес ячейки в документе. Ищем перебором, а не держим индекс рядом с
+    /// фокусом: таблиц в заметке единицы, а лишнее состояние рассинхронится
+    /// на первой же правке соседнего блока.
+    private func tableLocation(of cellID: UUID) -> (block: Int, row: Int, column: Int)? {
+        for (blockIdx, block) in document.blocks.enumerated() {
+            guard case .table(let rows) = block.kind else { continue }
+            for (rowIdx, row) in rows.enumerated() {
+                if let columnIdx = row.cells.firstIndex(where: { $0.id == cellID }) {
+                    return (blockIdx, rowIdx, columnIdx)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Новая строка всегда обычная, не шапка: шапка в markdown ровно одна —
+    /// первая, и вторая строка-шапка при выгрузке всё равно стала бы
+    /// обычной, только пользователь бы этого не ожидал.
+    func insertTableRow(below cellID: UUID) {
+        guard let loc = tableLocation(of: cellID),
+              case .table(var rows) = document.blocks[loc.block].kind
+        else { return }
+        let width = max(rows.map(\.cells.count).max() ?? 1, 1)
+        let newRow = NoteTableRow(cells: (0..<width).map { _ in NoteTableCell(runs: [], isHeader: false) })
+        rows.insert(newRow, at: loc.row + 1)
+        document.blocks[loc.block].kind = .table(rows: rows)
+        pendingFocus = PendingFocus(blockID: newRow.cells[min(loc.column, width - 1)].id, position: .start)
         scheduleSave()
+    }
+
+    /// Столбец добавляется во ВСЕ строки сразу, иначе таблица станет рваной:
+    /// сервер при выгрузке добивает короткие строки пустыми ячейками, но в
+    /// приложении такая таблица показалась бы с дырой.
+    func insertTableColumn(after cellID: UUID) {
+        guard let loc = tableLocation(of: cellID),
+              case .table(var rows) = document.blocks[loc.block].kind
+        else { return }
+        for rowIdx in rows.indices {
+            let isHeader = rows[rowIdx].cells.first?.isHeader ?? false
+            let at = min(loc.column + 1, rows[rowIdx].cells.count)
+            rows[rowIdx].cells.insert(NoteTableCell(runs: [], isHeader: isHeader), at: at)
+        }
+        document.blocks[loc.block].kind = .table(rows: rows)
+        let target = rows[loc.row].cells[min(loc.column + 1, rows[loc.row].cells.count - 1)]
+        pendingFocus = PendingFocus(blockID: target.id, position: .start)
+        scheduleSave()
+    }
+
+    func deleteTableRow(containing cellID: UUID) {
+        guard let loc = tableLocation(of: cellID),
+              case .table(var rows) = document.blocks[loc.block].kind
+        else { return }
+        rows.remove(at: loc.row)
+        applyTable(rows, at: loc.block)
+    }
+
+    func deleteTableColumn(containing cellID: UUID) {
+        guard let loc = tableLocation(of: cellID),
+              case .table(var rows) = document.blocks[loc.block].kind
+        else { return }
+        for rowIdx in rows.indices where loc.column < rows[rowIdx].cells.count {
+            rows[rowIdx].cells.remove(at: loc.column)
+        }
+        rows.removeAll { $0.cells.isEmpty }
+        applyTable(rows, at: loc.block)
+    }
+
+    /// Таблица без строк (или из которой вынули последний столбец) — уже не
+    /// таблица: блок уходит целиком, а не остаётся пустой рамкой. Если он
+    /// был в заметке единственным, на его месте остаётся пустой параграф —
+    /// документу без блоков редактору некуда поставить курсор.
+    private func applyTable(_ rows: [NoteTableRow], at blockIdx: Int) {
+        if rows.isEmpty {
+            document.blocks.remove(at: blockIdx)
+            if document.blocks.isEmpty { document.blocks = [NoteBlock(kind: .paragraph)] }
+        } else {
+            document.blocks[blockIdx].kind = .table(rows: rows)
+        }
+        scheduleSave()
+    }
+
+    private func updateTableCell(cellID: UUID, runs: [RichRun]) {
+        for (blockIdx, block) in document.blocks.enumerated() {
+            guard case .table(var rows) = block.kind else { continue }
+            for (rowIdx, row) in rows.enumerated() {
+                guard let cellIdx = row.cells.firstIndex(where: { $0.id == cellID }) else { continue }
+                rows[rowIdx].cells[cellIdx].runs = runs
+                document.blocks[blockIdx].kind = .table(rows: rows)
+                scheduleSave()
+                return
+            }
+        }
     }
 
     func toggleHeading(_ level: Int, blockID: UUID?) {

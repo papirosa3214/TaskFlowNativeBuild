@@ -33,6 +33,9 @@ struct NoteEditorScreen: View {
 
     @State private var showMovePicker = false
     @State private var showDeleteConfirm = false
+    /// Удаление строки или столбца таблицы ждёт подтверждения: отмены в
+    /// редакторе нет вовсе, а вместе со строкой уходит весь её текст.
+    @State private var tableDelete: TableDeleteRequest?
     @State private var shareURL: URL?
     @State private var showShareSheet = false
 
@@ -116,6 +119,24 @@ struct NoteEditorScreen: View {
             Button("Отмена", role: .cancel) {}
             Button("Применить") { applyLinkFromPrompt() }
         }
+        .alert(
+            tableDelete?.target == .column ? "Удалить столбец?" : "Удалить строку?",
+            isPresented: Binding(get: { tableDelete != nil }, set: { if !$0 { tableDelete = nil } }),
+            presenting: tableDelete
+        ) { request in
+            Button("Отмена", role: .cancel) { tableDelete = nil }
+            Button("Удалить", role: .destructive) {
+                switch request.target {
+                case .row: viewModel.deleteTableRow(containing: request.cellID)
+                case .column: viewModel.deleteTableColumn(containing: request.cellID)
+                }
+                tableDelete = nil
+            }
+        } message: { request in
+            Text(request.target == .column
+                 ? "Столбец исчезнет во всех строках вместе с текстом. Действие нельзя отменить."
+                 : "Строка исчезнет вместе с текстом. Действие нельзя отменить.")
+        }
         .alert("Удалить заметку\(deleteTitleSuffix)?", isPresented: $showDeleteConfirm) {
             Button("Отмена", role: .cancel) {}
             Button("Удалить", role: .destructive) { Task { await performDelete() } }
@@ -152,24 +173,42 @@ struct NoteEditorScreen: View {
                 .padding(.top, TFSpacing.xs)
             TFErrorBanner(viewModel.actionErrorMessage)
                 .padding(.horizontal, TFSpacing.screenHorizontal)
+            // Статус сохранения ниже — ОВЕРЛЕЕМ, не строкой стека. Строкой он
+            // сначала резервировал полоску ~20pt всегда, потом (03.09.2026)
+            // появлялся только при непустом тексте — и именно это добивало:
+            // на каждое нажатие клавиши строка влезала в стек и обратно,
+            // раскладка экрана дёргалась, внизу мигала чёрная полоса, а
+            // тулбар «Liquid Glass» на перестройке дублировал свою кнопку
+            // «…» (владелец 08.09.2026: «слева пилюлина с двумя
+            // троеточиями… внизу полоска чёрная появляется» — проверено
+            // кадром: без статуса кнопка одна, с ним две). Оверлей
+            // размеров хоста не меняет, перестраивать нечего.
             editorBody
-            // Была безусловной — идентична по идее прошлой «плашке» под
-            // таббар (RouteDestinationView.swift): резервировала полоску
-            // ~20pt в самом низу, даже когда сохранять нечего (`statusLabel
-            // == ""`), а у «Дневника» (NotesScreen) такого нет вообще —
-            // владелец 03.09.2026 нашёл её тем же приёмом, каким сверял
-            // прошлую: «сравни этот экранчик с экраном заметки». Теперь
-            // строка есть в дереве, только когда действительно есть что
-            // показать.
-            if !viewModel.statusLabel.isEmpty {
-                Text(viewModel.statusLabel)
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 16)
-                    .padding(.horizontal, TFSpacing.screenHorizontal + 4)
-                    .padding(.top, TFSpacing.xs)
-            }
+                .overlay(alignment: .bottom) { saveStatusBadge }
+                .animation(.easeInOut(duration: 0.2), value: viewModel.statusLabel)
+        }
+    }
+
+    /// Подтверждение сохранения. Ошибку не гасим по таймеру — она состояние,
+    /// а не уведомление (гашение делает `NoteEditorViewModel`, здесь только
+    /// вид). Не перехватывает тапы: под ней живой текст.
+    @ViewBuilder
+    private var saveStatusBadge: some View {
+        if !viewModel.statusLabel.isEmpty {
+            Text(viewModel.statusLabel)
+                .tfText(.caption)
+                .foregroundStyle(viewModel.saveState == .error ? Color.tfRed : Color.tfDim)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, TFSpacing.xs)
+                .background(.ultraThinMaterial, in: Capsule())
+                // Лента форматирования — `inputAccessoryView`, слой UIKit
+                // ПОВЕРХ SwiftUI: в safe area он не входит, и плашка без
+                // этой добавки наполовину прячется под ним (проверено
+                // кадром 08.09.2026). Признак «лента на экране» — есть ли
+                // сфокусированное поле, другого у SwiftUI тут нет.
+                .padding(.bottom, (focus.blockID != nil ? NoteKeyboardAccessoryHost.height : 0) + TFSpacing.sm)
+                .allowsHitTesting(false)
+                .transition(.opacity)
         }
     }
 
@@ -177,37 +216,67 @@ struct NoteEditorScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(viewModel.document.blocks) { block in
-                    NoteBlockRow(
-                        block: block,
-                        orderedIndex: orderedIndex(for: block),
-                        showPlaceholder: viewModel.document.isEffectivelyEmpty && block.id == viewModel.document.blocks.first?.id,
-                        controller: controllerStore.controller(for: block.id),
-                        accessoryView: accessoryHost?.view,
-                        onChange: { id, runs in viewModel.updateRuns(blockID: id, runs: runs) },
-                        onFocus: { id, ctrl in
-                            focus.blockID = id
-                            focus.controller = ctrl
-                            focus.activeMarks = ctrl.activeMarks
-                        },
-                        onBlur: { id in
-                            if focus.blockID == id {
-                                focus.blockID = nil
-                                focus.controller = nil
-                                focus.activeMarks = []
-                            }
-                        },
-                        onMarksChange: { id, marks in if focus.blockID == id { focus.activeMarks = marks } },
-                        onSplit: { id, offset in viewModel.handleSplit(blockID: id, atUTF16Offset: offset) },
-                        onBackspaceAtStart: { id in viewModel.handleBackspaceAtStart(blockID: id) },
-                        onToggleChecked: { viewModel.toggleTaskChecked(blockID: block.id) }
-                    )
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    // Таблица — единственный блок, у которого текстовых полей
+                    // много (по одному на ячейку), поэтому она не проходит
+                    // через `NoteBlockRow` с его единственным контроллером, а
+                    // берёт из `controllerStore` по контроллеру на ячейку.
+                    if case .table(let rows) = block.kind {
+                        NoteTableBlock(
+                            rows: rows,
+                            controllerStore: controllerStore,
+                            accessoryView: accessoryHost?.view,
+                            focusedCellID: focus.blockID,
+                            onChange: { id, runs in viewModel.updateRuns(blockID: id, runs: runs) },
+                            onFocus: focusCell,
+                            onBlur: blurCell,
+                            onMarksChange: { id, marks in if focus.blockID == id { focus.activeMarks = marks } },
+                            onInsertRow: { viewModel.insertTableRow(below: $0) },
+                            onInsertColumn: { viewModel.insertTableColumn(after: $0) },
+                            onDeleteRow: { tableDelete = TableDeleteRequest(target: .row, cellID: $0) },
+                            onDeleteColumn: { tableDelete = TableDeleteRequest(target: .column, cellID: $0) }
+                        )
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                        .padding(.vertical, TFSpacing.xs)
+                    } else {
+                        NoteBlockRow(
+                            block: block,
+                            orderedIndex: orderedIndex(for: block),
+                            showPlaceholder: viewModel.document.isEffectivelyEmpty && block.id == viewModel.document.blocks.first?.id,
+                            controller: controllerStore.controller(for: block.id),
+                            accessoryView: accessoryHost?.view,
+                            onChange: { id, runs in viewModel.updateRuns(blockID: id, runs: runs) },
+                            onFocus: focusCell,
+                            onBlur: blurCell,
+                            onMarksChange: { id, marks in if focus.blockID == id { focus.activeMarks = marks } },
+                            onSplit: { id, offset in viewModel.handleSplit(blockID: id, atUTF16Offset: offset) },
+                            onBackspaceAtStart: { id in viewModel.handleBackspaceAtStart(blockID: id) },
+                            onToggleChecked: { viewModel.toggleTaskChecked(blockID: block.id) }
+                        )
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                    }
                 }
             }
             .padding(.vertical, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl * 2)
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// Фокус/расфокус текстового поля — общий обработчик для блоков и для
+    /// ячеек таблицы: клавиатурной панели важен только текущий контроллер,
+    /// а «блок это или ячейка» разбирает `NoteEditorViewModel.updateRuns` по
+    /// самому идентификатору.
+    private func focusCell(_ id: UUID, _ controller: NoteBlockTextController) {
+        focus.blockID = id
+        focus.controller = controller
+        focus.activeMarks = controller.activeMarks
+    }
+
+    private func blurCell(_ id: UUID) {
+        guard focus.blockID == id else { return }
+        focus.blockID = nil
+        focus.controller = nil
+        focus.activeMarks = []
     }
 
     /// Порядковый номер для нумерованного списка — считает соседей того же
@@ -344,9 +413,6 @@ private struct NoteBlockRow: View {
                 .fill(Color.tfStroke)
                 .frame(height: TFBorder.width)
                 .padding(.vertical, TFSpacing.md)
-        } else if case .table(let rows) = block.kind {
-            NoteTableBlock(rows: rows)
-                .padding(.vertical, TFSpacing.xs)
         } else {
             HStack(alignment: .top, spacing: TFSpacing.sm) {
                 leading
@@ -404,27 +470,83 @@ private struct NoteBlockRow: View {
     }
 }
 
-/// Таблица заметки. Показ без правки: ячейки в блочный редактор не ложатся
-/// (см. `NoteTableRow`), но таблица, написанная в вебе или пришедшая от
-/// агента, должна читаться на телефоне, а не пропадать.
+/// Что именно сносим из таблицы и от какой ячейки считаем. Живёт снаружи
+/// экрана, потому что `NoteEditorScreen` — `struct` с приватным телом, а
+/// запрос нужен и alert'у, и панели под таблицей.
+private struct TableDeleteRequest {
+    enum Target { case row, column }
+    let target: Target
+    let cellID: UUID
+}
+
+/// Таблица заметки. Ячейка — такой же `NoteBlockTextView`, как обычный блок
+/// (свой контроллер из общего `controllerStore`, та же клавиатурная панель),
+/// только Enter внутри неё не разбивает блок надвое, а ставит перенос:
+/// «следующей ячейки» в плоской модели документа не существует. Правка
+/// уезжает на сервер через `NoteEditorViewModel.updateRuns` — он сам
+/// разбирает, блок пришёл или ячейка.
 ///
-/// Ширина колонки фиксированная: у Grid колонки тянутся по самой длинной
-/// ячейке, и одна колонка с длинным текстом сплющивала бы остальные в
-/// нечитаемые полоски. Поэтому таблица шире экрана прокручивается вбок.
+/// Ширина колонки считается по её САМОМУ ДЛИННОМУ содержимому и зажимается
+/// в `minColumn…maxColumn`: раньше все колонки были по 140pt, и колонка
+/// порядкового номера с одной цифрой занимала столько же, сколько колонка
+/// с абзацем текста (владелец 08.09.2026: «целая прям ячейка здоровенная
+/// выделяется для одной циферки»). Тянуть колонки по доступной ширине,
+/// как это делает `Grid`, нельзя: одна длинная колонка сплющит остальные в
+/// нечитаемые полоски — поэтому таблица шире экрана прокручивается вбок.
 private struct NoteTableBlock: View {
     let rows: [NoteTableRow]
+    let controllerStore: NoteBlockControllerStore
+    let accessoryView: UIView?
 
-    private let columnWidth: CGFloat = 140
+    /// Ячейка, в которой сейчас курсор. От неё считаются «строка» и
+    /// «столбец» в панели правки структуры и по ней же решается, показывать
+    /// эту панель вообще: пока таблицу не трогают, она не мозолит глаза.
+    let focusedCellID: UUID?
+
+    let onChange: (UUID, [RichRun]) -> Void
+    let onFocus: (UUID, NoteBlockTextController) -> Void
+    let onBlur: (UUID) -> Void
+    let onMarksChange: (UUID, Set<InlineMark>) -> Void
+    let onInsertRow: (UUID) -> Void
+    let onInsertColumn: (UUID) -> Void
+    let onDeleteRow: (UUID) -> Void
+    let onDeleteColumn: (UUID) -> Void
+
+    /// Кегль ячейки — общий с параграфом (`NoteRichText.baseFont`), чтобы
+    /// текст в таблице не выглядел вторым сортом; шапка отличается только
+    /// начертанием и подложкой.
+    private static let cellFontSize: CGFloat = 15
+    private static let paddingH = TFSpacing.sm
+    private static let paddingV = TFSpacing.xs
+    /// Нижняя граница — тап-зона: в колонку уже 44pt пальцем не попасть.
+    private static let minColumn: CGFloat = 44
+    /// Верхняя — чтобы одна многословная колонка не уезжала на три экрана.
+    private static let maxColumn: CGFloat = 220
+    private static let minRowHeight: CGFloat = 32
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        VStack(alignment: .leading, spacing: 0) {
+            grid
+            // Панель структуры живёт ПОД таблицей, а не в клавиатурной ленте:
+            // лента общая на весь экран и уже забита форматированием, а
+            // «удалить столбец» рядом с «жирный» — прямой путь промахнуться.
+            if let focusedCellID, containsCell(focusedCellID) {
+                structureControls(focusedCellID)
+            }
+        }
+    }
+
+    private var grid: some View {
+        let widths = columnWidths
+        return ScrollView(.horizontal, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
                     HStack(alignment: .top, spacing: 0) {
-                        ForEach(row.cells) { cell in
-                            cellView(cell)
+                        ForEach(Array(row.cells.enumerated()), id: \.element.id) { index, cell in
+                            cellView(cell, width: index < widths.count ? widths[index] : Self.minColumn)
                         }
                     }
+                    .background(row.cells.first?.isHeader == true ? Color.tfCard2 : Color.clear)
                     // Линия между строками; нижняя кромка последней строки
                     // приходит из рамки всей таблицы.
                     .overlay(alignment: .bottom) {
@@ -432,6 +554,14 @@ private struct NoteTableBlock: View {
                     }
                 }
             }
+            // Вертикальные линии рисуются поверх ВСЕЙ таблицы, а не рамкой
+            // каждой ячейки. Иначе высота линии = высоте своей ячейки, и
+            // ради ровной сетки ячейки пришлось бы растягивать
+            // `maxHeight: .infinity` — а жадная по высоте строка заставляет
+            // VStack делить высоту между строками поровну, и текст с
+            // переносом обрезается (ровно это и было видно на «Сохранить
+            // результат и историю»).
+            .overlay(alignment: .leading) { columnDividers(widths) }
             .overlay {
                 RoundedRectangle(cornerRadius: TFRadius.sm)
                     .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
@@ -441,16 +571,104 @@ private struct NoteTableBlock: View {
         }
     }
 
-    private func cellView(_ cell: NoteTableCell) -> some View {
-        Text(AttributedString(NoteRichText.attributedString(runs: cell.runs, blockKind: .paragraph)))
-            .font(cell.isHeader ? .system(size: 14, weight: .semibold) : .system(size: 14))
-            .frame(width: columnWidth, alignment: .leading)
-            .padding(.horizontal, TFSpacing.sm)
-            .padding(.vertical, TFSpacing.xs)
-            .background(cell.isHeader ? Color.tfCard2 : Color.clear)
-            .overlay(alignment: .trailing) {
-                Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width)
+    private func containsCell(_ id: UUID) -> Bool {
+        rows.contains { $0.cells.contains { $0.id == id } }
+    }
+
+    /// Добавление и удаление считаются ОТ ячейки с курсором: «строка» — та,
+    /// в которой стоишь, «столбец» — тот же. Отдельных ручек у краёв
+    /// таблицы нет намеренно: таблица прокручивается вбок, и её правый край
+    /// на телефоне обычно за экраном.
+    private func structureControls(_ cellID: UUID) -> some View {
+        HStack(spacing: TFSpacing.xs) {
+            control("Строка", icon: "plus") { onInsertRow(cellID) }
+            control("Столбец", icon: "plus") { onInsertColumn(cellID) }
+            Spacer(minLength: TFSpacing.sm)
+            control("Строка", icon: "minus", destructive: true) { onDeleteRow(cellID) }
+            control("Столбец", icon: "minus", destructive: true) { onDeleteColumn(cellID) }
+        }
+    }
+
+    private func control(_ title: String, icon: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button {
+            // Тот же щелчок, что у кнопок клавиатурной ленты
+            // (`NoteKeyboardAccessoryBar.tapHaptic`) — мелкий частый тап.
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: icon).font(.system(size: 11, weight: .bold))
+                Text(title).font(.system(size: 12))
             }
+            .foregroundStyle(destructive ? Color.tfRed : Color.tfSub)
+            .padding(.horizontal, TFSpacing.sm)
+            .frame(height: 30)
+            .background(Color.tfCard2, in: Capsule())
+            .frame(height: TFHitTarget.min)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(TFTapScaleStyle())
+        .accessibilityLabel("\(destructive ? "Удалить" : "Добавить") \(title.lowercased())")
+    }
+
+    private func columnDividers(_ widths: [CGFloat]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(widths.enumerated()), id: \.offset) { index, width in
+                Color.clear
+                    .frame(width: width)
+                    .overlay(alignment: .trailing) {
+                        if index < widths.count - 1 {
+                            Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width)
+                        }
+                    }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func cellView(_ cell: NoteTableCell, width: CGFloat) -> some View {
+        NoteBlockTextView(
+            blockID: cell.id,
+            runs: cell.runs,
+            blockKind: .paragraph,
+            controller: controllerStore.controller(for: cell.id),
+            accessoryView: accessoryView,
+            baseFontOverride: UIFont.systemFont(ofSize: Self.cellFontSize, weight: cell.isHeader ? .semibold : .regular),
+            literalNewline: true,
+            onChange: onChange,
+            onFocus: onFocus,
+            onBlur: onBlur,
+            onMarksChange: onMarksChange,
+            // Enter до сюда не доходит (`literalNewline`), а Backspace в
+            // начале ячейки не должен сливать её с соседней — у таблицы нет
+            // «предыдущего блока», в который можно втечь.
+            onSplit: { _, _ in },
+            onBackspaceAtStart: { _ in }
+        )
+        .frame(width: width - Self.paddingH * 2, alignment: .topLeading)
+        .padding(.horizontal, Self.paddingH)
+        .padding(.vertical, Self.paddingV)
+        .frame(minHeight: Self.minRowHeight, alignment: .topLeading)
+    }
+
+    /// Ширина каждой колонки = самая длинная строка её ячеек плюс поля.
+    /// Меряем по тексту без марок: жирный шире обычного на доли пункта, а
+    /// заводить ради этого полный `NSAttributedString` на каждый рендер
+    /// таблицы дороже, чем добавить пункт запаса.
+    private var columnWidths: [CGFloat] {
+        let columnCount = rows.map(\.cells.count).max() ?? 0
+        guard columnCount > 0 else { return [] }
+        var widths = [CGFloat](repeating: Self.minColumn, count: columnCount)
+        for row in rows {
+            for (index, cell) in row.cells.enumerated() where index < columnCount {
+                let font = UIFont.systemFont(ofSize: Self.cellFontSize, weight: cell.isHeader ? .semibold : .regular)
+                let longestLine = cell.plainText
+                    .components(separatedBy: "\n")
+                    .reduce(CGFloat.zero) { max($0, ($1 as NSString).size(withAttributes: [.font: font]).width) }
+                widths[index] = max(widths[index], ceil(longestLine) + Self.paddingH * 2 + 2)
+            }
+        }
+        return widths.map { min($0, Self.maxColumn) }
     }
 }
 

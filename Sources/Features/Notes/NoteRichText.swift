@@ -44,8 +44,12 @@ enum NoteRichText {
     }
 
     /// Прогоны блока → NSAttributedString готовый для `UITextView.attributedText`.
-    static func attributedString(runs: [RichRun], blockKind: BlockKind) -> NSAttributedString {
-        let base = baseFont(for: blockKind)
+    /// `base` перебивает кегль, выведенный из типа блока: ячейке таблицы
+    /// нужен тот же `paragraph`, но шапка рисуется полужирной, а марки
+    /// `bold` в её прогонах нет (в markdown-таблице шапка выделяется самой
+    /// позицией, не разметкой — веб делает то же самое стилем `th`).
+    static func attributedString(runs: [RichRun], blockKind: BlockKind, base: UIFont? = nil) -> NSAttributedString {
+        let base = base ?? baseFont(for: blockKind)
         let out = NSMutableAttributedString()
         for run in runs {
             guard !run.text.isEmpty else { continue }

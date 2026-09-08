@@ -30,6 +30,14 @@ enum NoteCursorPosition: Equatable {
 final class NoteBlockTextController {
     fileprivate weak var textView: UITextView?
     var blockKind: BlockKind = .paragraph
+    /// Кегль ячейки таблицы: тип блока у неё `paragraph`, а шапка рисуется
+    /// полужирной — см. `NoteRichText.attributedString(runs:blockKind:base:)`.
+    var baseFontOverride: UIFont?
+
+    /// Шрифт, которым переклеиваются атрибуты при переключении марок. Через
+    /// него же идут `applyLink`/`insertPlainParagraph` — иначе правка марки
+    /// внутри ячейки сбрасывала бы её кегль на общеблочный.
+    var baseFont: UIFont { baseFontOverride ?? NoteRichText.baseFont(for: blockKind) }
 
     /// `false`, если строка блока ещё не успела появиться в дереве SwiftUI
     /// (`textView == nil`) — вызывающий (см. `NoteEditorScreen`) не должен
@@ -144,7 +152,7 @@ final class NoteBlockTextController {
 
     private func toggle(_ mark: InlineMark, apply: @escaping (inout RichRun, Bool) -> Void) {
         guard let tv = textView else { return }
-        let base = NoteRichText.baseFont(for: blockKind)
+        let base = baseFont
         let range = tv.selectedRange
         if range.length == 0 {
             var run = runState(at: tv.typingAttributes)
@@ -193,7 +201,7 @@ final class NoteBlockTextController {
     /// под курсором — «продлить и заменить URL»).
     func applyLink(href: String) {
         guard let tv = textView, let storage = tv.textStorage as NSTextStorage? else { return }
-        let base = NoteRichText.baseFont(for: blockKind)
+        let base = baseFont
         let range = linkExtendedRange().range ?? tv.selectedRange
         guard range.length > 0 else { return }
         storage.beginEditing()
@@ -210,7 +218,7 @@ final class NoteBlockTextController {
         guard let tv = textView, let storage = tv.textStorage as NSTextStorage?,
               let range = linkExtendedRange().range
         else { return }
-        let base = NoteRichText.baseFont(for: blockKind)
+        let base = baseFont
         storage.beginEditing()
         storage.enumerateAttributes(in: range, options: []) { attrs, subrange, _ in
             var run = runState(at: attrs)
@@ -224,7 +232,7 @@ final class NoteBlockTextController {
     /// позицию курсора как обычный текст без марок — используется меню AI.
     func insertPlainParagraph(_ text: String) {
         guard let tv = textView else { return }
-        let base = NoteRichText.baseFont(for: blockKind)
+        let base = baseFont
         let insertion = NSAttributedString(text: text, attributes: NoteRichText.attributes(for: RichRun(text: text), base: base))
         let range = tv.selectedRange
         guard let storage = tv.textStorage as NSTextStorage? else { return }
@@ -573,6 +581,13 @@ struct NoteBlockTextView: UIViewRepresentable {
     /// Один и тот же `NoteKeyboardAccessoryHost.view` на все блоки экрана —
     /// см. заголовочный комментарий над `NoteEditorFocusState`.
     let accessoryView: UIView?
+    /// Кегль в обход типа блока — нужен ячейке таблицы (шапка полужирная).
+    var baseFontOverride: UIFont?
+    /// `true` — Enter вставляет перенос прямо в это поле, а не разбивает
+    /// блок надвое: у ячейки таблицы «следующего блока» не существует, и
+    /// вторая строка внутри неё уедет на сервер как `hardBreak`, ровно как
+    /// это делает Shift+Enter в вебе.
+    var literalNewline = false
 
     var onChange: (UUID, [RichRun]) -> Void
     var onFocus: (UUID, NoteBlockTextController) -> Void
@@ -590,10 +605,10 @@ struct NoteBlockTextView: UIViewRepresentable {
         tv.textContainerInset = .zero
         tv.textContainer.lineFragmentPadding = 0
         tv.delegate = context.coordinator
-        tv.font = NoteRichText.baseFont(for: blockKind)
+        tv.font = baseFontOverride ?? NoteRichText.baseFont(for: blockKind)
         tv.tintColor = UIColor(Color.tfRed)
         tv.dataDetectorTypes = []
-        tv.attributedText = NoteRichText.attributedString(runs: runs, blockKind: blockKind)
+        tv.attributedText = NoteRichText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
         tv.inputAccessoryView = accessoryView
         tv.onBackspaceAtStart = { [weak coordinator = context.coordinator] in
             guard let coordinator else { return }
@@ -601,6 +616,7 @@ struct NoteBlockTextView: UIViewRepresentable {
         }
         controller.textView = tv
         controller.blockKind = blockKind
+        controller.baseFontOverride = baseFontOverride
         context.coordinator.lastBlockKind = blockKind
         return tv
     }
@@ -608,6 +624,7 @@ struct NoteBlockTextView: UIViewRepresentable {
     func updateUIView(_ uiView: NoteUITextView, context: Context) {
         context.coordinator.parent = self
         controller.blockKind = blockKind
+        controller.baseFontOverride = baseFontOverride
         // `accessoryHost` создаётся в `.task` экрана — на самый первый рендер
         // первой строки может ещё не быть готов (`accessoryView == nil`),
         // патчим здесь, как только появится.
@@ -617,7 +634,7 @@ struct NoteBlockTextView: UIViewRepresentable {
         }
         let kindChanged = context.coordinator.lastBlockKind != blockKind
         context.coordinator.lastBlockKind = blockKind
-        let expected = NoteRichText.attributedString(runs: runs, blockKind: blockKind)
+        let expected = NoteRichText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
 
         if kindChanged {
             // Смена типа блока (параграф → заголовок и т.п.) обязана
@@ -627,7 +644,7 @@ struct NoteBlockTextView: UIViewRepresentable {
             uiView.attributedText = expected
             uiView.selectedRange = NSRange(location: min(saved.location, expected.length), length: 0)
             if uiView.isFirstResponder {
-                uiView.typingAttributes = NoteRichText.attributes(for: RichRun(text: ""), base: NoteRichText.baseFont(for: blockKind))
+                uiView.typingAttributes = NoteRichText.attributes(for: RichRun(text: ""), base: controller.baseFont)
             }
         } else if !uiView.isFirstResponder, uiView.attributedText.string != expected.string {
             // Блок сейчас НЕ редактируется — внешняя правка (АИ вставил
@@ -636,6 +653,18 @@ struct NoteBlockTextView: UIViewRepresentable {
             // курсор скачет на каждый ре-рендер SwiftUI.
             uiView.attributedText = expected
         }
+    }
+
+    /// Высота по ПРЕДЛОЖЕННОЙ ширине, а не по `bounds.width` прошлого
+    /// layout-прохода, как считает `intrinsicContentSize`. Обычному блоку
+    /// хватало и его: ширина у всех одна и меняется редко. Ячейке таблицы —
+    /// нет: её колонка узкая и своя, на первом проходе `bounds.width` ещё
+    /// нулевая, и строка с переносом получала высоту в одну строку —
+    /// вторая строка уезжала под нижнюю кромку таблицы.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: NoteUITextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width > 0, width < .greatestFiniteMagnitude else { return nil }
+        let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: max(fitting.height, 22))
     }
 
     @MainActor
@@ -667,6 +696,7 @@ struct NoteBlockTextView: UIViewRepresentable {
         /// Блок кода — исключение: перенос строки литеральный, внутри
         /// одного блока (спека и модель документа соседа это подтверждают).
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            if parent.literalNewline { return true }
             if case .codeBlock = parent.blockKind { return true }
             if text == "\n" {
                 parent.onSplit(parent.blockID, range.location)
