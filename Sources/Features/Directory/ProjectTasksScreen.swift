@@ -21,6 +21,9 @@ struct ProjectTasksScreen: View {
 
     @Environment(ProjectStore.self) private var projectStore
     @Environment(TaskStore.self) private var taskStore
+    @State private var relationshipTasks: [ApiTask] = []
+
+    private let apiClient = APIClient()
 
     private enum PendingNav: Identifiable, Hashable {
         case detail(String)
@@ -43,7 +46,27 @@ struct ProjectTasksScreen: View {
     /// трогаем (два `filter`, НЕ `sorted(by:)` — `Array.sort` в Swift не
     /// гарантированно стабилен, а спека и веб-код требуют стабильность).
     private var tasks: [ApiTask] {
-        let scoped = taskStore.tasks.filter { $0.projectId == projectID && $0.status == .active }
+        let source = relationshipTasks.isEmpty ? taskStore.tasks : relationshipTasks
+        var openTreeIDs = Set(source.lazy.filter { task in
+            task.status == .active || task.subtasks.contains { !$0.done }
+        }.map(\.id))
+
+        // Поднимаем признак открытой работы по всей цепочке родителей. В
+        // проектном списке остаются только корневые задачи, а потомки живут в
+        // разделе «Связанные задачи» — без дублирования на одном уровне.
+        var didAddParent = true
+        while didAddParent {
+            didAddParent = false
+            for task in source where openTreeIDs.contains(task.id) {
+                if let parentID = task.parentId, openTreeIDs.insert(parentID).inserted {
+                    didAddParent = true
+                }
+            }
+        }
+
+        let scoped = source.filter { task in
+            task.projectId == projectID && task.parentId == nil && openTreeIDs.contains(task.id)
+        }
         return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
     }
 
@@ -131,6 +154,7 @@ struct ProjectTasksScreen: View {
         .task {
             if projectStore.projects.isEmpty { await projectStore.load() }
             if taskStore.tasks.isEmpty { await taskStore.load() }
+            await refreshRelationshipTasks()
         }
         .navigationDestination(item: $pending) { target in
             switch target {
@@ -138,7 +162,16 @@ struct ProjectTasksScreen: View {
             case .edit(let id): routeDestination(.taskForm(taskID: id))
             }
         }
+        .onChange(of: pending) { previous, current in
+            if previous != nil, current == nil {
+                Task { await refreshRelationshipTasks() }
+            }
+        }
         .navigationDestination(isPresented: $showNewTask) { routeDestination(.taskForm(taskID: nil)) }
+    }
+
+    private func refreshRelationshipTasks() async {
+        relationshipTasks = (try? await apiClient.tasks(includeChildren: true)) ?? []
     }
 
     private var notFoundView: some View {

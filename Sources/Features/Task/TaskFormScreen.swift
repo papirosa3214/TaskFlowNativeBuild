@@ -19,6 +19,18 @@ import SwiftUI
 struct TaskFormScreen: View {
     let taskID: String?
 
+    private enum LinkedTaskNavigation: Identifiable, Hashable {
+        case detail(String)
+        case create(parentID: String, parentTitle: String, projectID: String?)
+
+        var id: String {
+            switch self {
+            case .detail(let id): "detail-\(id)"
+            case .create(let parentID, _, _): "create-\(parentID)"
+            }
+        }
+    }
+
     @State private var viewModel: TaskFormViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(TaskStore.self) private var taskStore
@@ -37,6 +49,8 @@ struct TaskFormScreen: View {
     /// 02.09.2026: «Прикрепить файл» — пункт меню «…» при правке (не своя
     /// строка в теле формы, см. `AttachmentsFieldView.showAddButton`).
     @State private var isAttachmentPickerPresented = false
+    @State private var linkedTaskNavigation: LinkedTaskNavigation?
+    @State private var isExistingTaskPickerPresented = false
 
     /// Владелец 02.09.2026: открытие СУЩЕСТВУЮЩЕЙ задачи по умолчанию — это
     /// чтение, не правка. Поля неактивны, в шапке только крестик и «…»;
@@ -98,6 +112,22 @@ struct TaskFormScreen: View {
     init(expandingFrom viewModel: TaskFormViewModel) {
         self.taskID = viewModel.taskID
         self._viewModel = State(initialValue: viewModel)
+        self._showQuickAdd = State(initialValue: false)
+        self._isExpanded = State(initialValue: true)
+        self._isReadOnly = State(initialValue: false)
+    }
+
+    /// Создание полноценной дочерней задачи. В отличие от обычного «+»,
+    /// сразу открываем полную форму: контекст родителя должен быть виден до
+    /// сохранения, иначе связь создаётся незаметно для пользователя.
+    init(linkedTo parentID: String, parentTitle: String, projectID: String?) {
+        self.taskID = nil
+        self._viewModel = State(initialValue: TaskFormViewModel(
+            taskID: nil,
+            parentTaskID: parentID,
+            parentTaskTitle: parentTitle,
+            presetProjectID: projectID
+        ))
         self._showQuickAdd = State(initialValue: false)
         self._isExpanded = State(initialValue: true)
         self._isReadOnly = State(initialValue: false)
@@ -265,6 +295,7 @@ struct TaskFormScreen: View {
         .task {
             await viewModel.loadIfNeeded()
             await viewModel.loadAgents()
+            if taskStore.tasks.isEmpty { await taskStore.load() }
             if viewModel.startDictation { isTitleFocused = true }
         }
         // Пуш на редактируемый экран — родной slide-in `NavigationStack`,
@@ -272,10 +303,28 @@ struct TaskFormScreen: View {
         .navigationDestination(isPresented: $pushEditScreen) {
             if let taskID { TaskFormScreen(editingExisting: taskID) }
         }
+        .navigationDestination(item: $linkedTaskNavigation) { destination in
+            switch destination {
+            case .detail(let id):
+                TaskFormScreen(taskID: id)
+            case .create(let parentID, let parentTitle, let projectID):
+                TaskFormScreen(linkedTo: parentID, parentTitle: parentTitle, projectID: projectID)
+            }
+        }
+        .sheet(isPresented: $isExistingTaskPickerPresented) {
+            LinkedTaskPicker(
+                tasks: taskStore.tasks,
+                excludedIDs: linkedTaskExcludedIDs,
+                onSelect: { task in await viewModel.linkExistingTask(task) }
+            )
+        }
         .onChange(of: pushEditScreen) { wasPushed, isPushed in
             // Вернулись с пуша (сохранили или смахнули) — перечитать задачу,
             // экран под пушем сам `.task` повторно не запускает.
             if wasPushed, !isPushed { Task { await viewModel.loadIfNeeded() } }
+        }
+        .onChange(of: linkedTaskNavigation) { previous, current in
+            if previous != nil, current == nil { Task { await viewModel.loadIfNeeded() } }
         }
     }
 
@@ -285,6 +334,13 @@ struct TaskFormScreen: View {
     /// Dynamic Type; собственных карточек, аккордеонов и подложек здесь нет.
     private var nativeTaskDetail: some View {
         List {
+            if let message = viewModel.saveErrorMessage {
+                Section {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
+            }
+
             Section {
                 Text(viewModel.title)
                     .font(.headline)
@@ -301,6 +357,8 @@ struct TaskFormScreen: View {
                     }
                 }
             }
+
+            linkedTasksSection
 
             Section("Сведения") {
                 LabeledContent("Срок", value: nativeDueText)
@@ -342,6 +400,107 @@ struct TaskFormScreen: View {
         // (осталась подложка-карточка под секциями даже после смены стиля),
         // `List` его уважает по-настоящему.
         .listStyle(.plain)
+    }
+
+    private var linkedTasksSection: some View {
+        Section {
+            if let parent = viewModel.parentTask {
+                linkedTaskRow(parent, relation: "Родительская")
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
+                            Task { await viewModel.unlinkFromParent() }
+                        } label: {
+                            Label("Отвязать", systemImage: "link.badge.minus")
+                        }
+                    }
+            }
+
+            ForEach(viewModel.childTasks) { child in
+                linkedTaskRow(child, relation: "Дочерняя")
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
+                            Task { await viewModel.unlinkChildTask(child) }
+                        } label: {
+                            Label("Отвязать", systemImage: "link.badge.minus")
+                        }
+                    }
+            }
+
+            if viewModel.parentTask == nil, viewModel.childTasks.isEmpty {
+                Text("Связанных задач пока нет")
+                    .foregroundStyle(.secondary)
+            }
+
+            if let taskID {
+                Button {
+                    linkedTaskNavigation = .create(
+                        parentID: taskID,
+                        parentTitle: viewModel.title,
+                        projectID: viewModel.projectId
+                    )
+                } label: {
+                    Label("Создать связанную задачу", systemImage: "plus")
+                }
+
+                Button {
+                    isExistingTaskPickerPresented = true
+                } label: {
+                    Label("Связать существующую", systemImage: "link.badge.plus")
+                }
+            }
+        } header: {
+            Text("Связанные задачи")
+        } footer: {
+            Text("Это полноценные дочерние задачи со своими сроками, исполнителями и статусами. Чек-лист «Подзадачи» остаётся отдельным.")
+        }
+    }
+
+    private func linkedTaskRow(_ task: ApiTask, relation: String) -> some View {
+        let status = linkedTaskStatus(task)
+        return Button {
+            linkedTaskNavigation = .detail(task.id)
+        } label: {
+            HStack(spacing: TFSpacing.sm) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.title)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    Label("\(relation) · \(status.text)", systemImage: status.icon)
+                        .font(.caption)
+                        .foregroundStyle(status.color)
+                }
+                Spacer(minLength: TFSpacing.sm)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityHint("Открывает связанную задачу")
+    }
+
+    private func linkedTaskStatus(_ task: ApiTask) -> (icon: String, text: String, color: Color) {
+        if task.status == .completed {
+            return ("checkmark.circle.fill", "Выполнена", .green)
+        }
+        switch task.agentState {
+        case .review:
+            return ("eye.fill", "На ревью", .blue)
+        case .blocked:
+            return ("exclamationmark.triangle.fill", "Заблокирована", .orange)
+        case .inProgress:
+            return ("play.circle.fill", "В работе", .secondary)
+        case nil:
+            return ("circle", "Открыта", .secondary)
+        }
+    }
+
+    private var linkedTaskExcludedIDs: Set<String> {
+        var ids = viewModel.ancestorTaskIDs
+        ids.formUnion(viewModel.childTasks.map(\.id))
+        if let taskID { ids.insert(taskID) }
+        return ids
     }
 
     @ViewBuilder
@@ -582,6 +741,11 @@ struct TaskFormScreen: View {
             // заголовка аккордеона (Заметка/Подзадачи не сворачивались), и
             // кнопки внутри `SubtaskFeedView` (кольца, Принять/Ответить).
             // Теперь точечно — только на реальных полях ввода.
+            if let parentTitle = viewModel.parentTitle {
+                Label("Связанная задача для «\(parentTitle)»", systemImage: "arrow.turn.down.right")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             titleField
             noteSection
             subtasksSection
@@ -702,6 +866,97 @@ struct TaskFormScreen: View {
     private func submit() async {
         if await viewModel.save(taskStore: taskStore) {
             dismiss()
+        }
+    }
+}
+
+/// Системная шторка выбора уже существующей корневой задачи. Показываем
+/// только задачи без `parent_id`: это не даёт случайно выдернуть ребёнка из
+/// другой ветки и отсекает основной источник циклических связей.
+private struct LinkedTaskPicker: View {
+    let tasks: [ApiTask]
+    let excludedIDs: Set<String>
+    let onSelect: (ApiTask) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var linkingID: String?
+    @State private var errorMessage: String?
+
+    private var candidates: [ApiTask] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return tasks
+            .filter { $0.parentId == nil && !excludedIDs.contains($0.id) }
+            .filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
+            .sorted {
+                if $0.status != $1.status { return $0.status == .active }
+                return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+            }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if candidates.isEmpty {
+                    ContentUnavailableView(
+                        "Нет доступных задач",
+                        systemImage: "link",
+                        description: Text("Создайте новую связанную задачу или измените строку поиска.")
+                    )
+                } else {
+                    ForEach(candidates) { task in
+                        Button {
+                            guard linkingID == nil else { return }
+                            linkingID = task.id
+                            Task {
+                                if await onSelect(task) {
+                                    dismiss()
+                                } else {
+                                    linkingID = nil
+                                    errorMessage = "Не удалось связать задачу"
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: TFSpacing.sm) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(task.title)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                    Text(task.status == .completed ? "Выполнена" : "Открыта")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: TFSpacing.sm)
+                                if linkingID == task.id {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "link.badge.plus")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .disabled(linkingID != nil)
+                        .accessibilityHint("Добавляет задачу как дочернюю")
+                    }
+                }
+            }
+            .navigationTitle("Связать задачу")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Поиск задач")
+            .alert("Ошибка", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { dismiss() }
+                }
+            }
         }
     }
 }

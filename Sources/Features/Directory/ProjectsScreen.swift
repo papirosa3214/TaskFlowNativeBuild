@@ -10,20 +10,24 @@ import SwiftUI
 //    конфликтовала с системным scroll edge effect (iOS 26 рисует блюр по
 //    скроллу сама, без единой строчки кода — см. комментарий в
 //    TFNativeHeader.swift) и давала серую плашку при прокрутке вверх.
-// 2. Кнопка создания — «+» в toolbar (`topBarTrailing`), как у «Активности»
-//    (ActivityScreen.swift). Раньше входа не было вообще: единственный путь
-//    в вебе — `?create=1` от долгого нажатия таббара, а этот жест здесь не
-//    реализован (см. ProjectsScreen.tsx/TFTabBar). Осознанное расхождение с
-//    вебом по прямой просьбе владельца, не баг.
+// 2. Управление списком — нативная пара `Menu` в toolbar: фильтр и «…».
+//    Создание, поиск и выбор проекта для изменения не занимают отдельные
+//    кнопки и остаются доступны без скрытых жестов.
 // 3. Пустое состояние — просто строка текста (не `TFEmptyState` с иконкой,
 //    как у Меток) — 1:1 с кодом, текст обновлён под новую кнопку.
 struct ProjectsScreen: View {
     @Environment(ProjectStore.self) private var projectStore
+    @Environment(TaskStore.self) private var taskStore
 
     @State private var editingID: String?
     @State private var showCreate = false
     @State private var deleteRequest: DirectoryConfirmRequest?
     @State private var errorMessage: String?
+    @State private var searchText = ""
+    @State private var searchPresented = false
+    @State private var filter = ProjectFilter.all
+    @State private var isSelecting = false
+    @State private var selectedProjectIDs: Set<String> = []
 
     private let apiClient = APIClient()
 
@@ -37,12 +41,14 @@ struct ProjectsScreen: View {
                     ProjectCreateForm(onCreated: { showCreate = false }, onCancel: { showCreate = false })
                 }
 
-                ForEach(projectStore.projects) { project in
+                ForEach(visibleProjects) { project in
                     if editingID == project.id {
                         ProjectEditForm(project: project, apiClient: apiClient, onSaved: {
                             editingID = nil
                             Task { await projectStore.load() }
                         }, onCancel: { editingID = nil })
+                    } else if isSelecting {
+                        selectionRow(project)
                     } else {
                         DirectorySwipeRow(
                             onEdit: { editingID = project.id },
@@ -55,7 +61,13 @@ struct ProjectsScreen: View {
                 }
 
                 if projectStore.projects.isEmpty && !projectStore.isLoading && !showCreate {
-                    Text("Проектов пока нет — нажмите «+» вверху, чтобы создать")
+                    Text("Проектов пока нет — создайте первый через меню «…»")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, TFSpacing.xs)
+                } else if visibleProjects.isEmpty && !projectStore.isLoading && !showCreate {
+                    Text("Проекты не найдены")
                         .tfText(.action)
                         .foregroundStyle(Color.tfDim)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -75,20 +87,111 @@ struct ProjectsScreen: View {
         .refreshable { await projectStore.load() }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Системная стрелка назад добавляется стеком
-        // навигации; в toolbar остаётся только «+».
+        // навигации; пару кнопок группирует сам toolbar iOS.
         .tfNativeHeader("Проекты")
+        .searchable(
+            text: $searchText,
+            isPresented: $searchPresented,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: "Поиск проектов"
+        )
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showCreate = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Создать проект")
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                projectFilterMenu
+                projectActionsMenu
             }
         }
         .task { if projectStore.projects.isEmpty { await projectStore.load() } }
         .directoryConfirm($deleteRequest)
+    }
+
+    private var projectFilterMenu: some View {
+        Menu {
+            ForEach(ProjectFilter.allCases) { option in
+                Button {
+                    filter = option
+                } label: {
+                    Label(option.title, systemImage: filter == option ? "checkmark.circle.fill" : option.icon)
+                }
+            }
+        } label: {
+            Image(systemName: filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+        }
+        .accessibilityLabel("Фильтр проектов")
+    }
+
+    private var projectActionsMenu: some View {
+        Menu {
+            if isSelecting {
+                Button(role: .destructive) {
+                    requestDeleteSelected()
+                } label: {
+                    Label("Удалить выбранные (\(selectedProjectIDs.count))", systemImage: "trash")
+                }
+                .disabled(selectedProjectIDs.isEmpty)
+
+                Button {
+                    endSelection()
+                } label: {
+                    Label("Завершить выбор", systemImage: "checkmark")
+                }
+            } else {
+                Button {
+                    editingID = nil
+                    showCreate = true
+                } label: {
+                    Label("Добавить проект", systemImage: "plus")
+                }
+
+                Menu {
+                    if projectStore.projects.isEmpty {
+                        Text("Нет проектов")
+                    } else {
+                        ForEach(projectStore.projects) { project in
+                            Button(project.name) {
+                                showCreate = false
+                                editingID = project.id
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Изменить проект", systemImage: "pencil")
+                }
+
+                Button {
+                    searchPresented = true
+                } label: {
+                    Label("Поиск по проектам", systemImage: "magnifyingglass")
+                }
+
+                Button {
+                    beginSelection()
+                } label: {
+                    Label("Выбрать проекты", systemImage: "checkmark.circle")
+                }
+            }
+        } label: {
+            Image(systemName: isSelecting ? "checkmark.circle.fill" : "ellipsis")
+        }
+        .accessibilityLabel("Действия с проектами")
+    }
+
+    private var visibleProjects: [ApiProject] {
+        projectStore.projects.filter { project in
+            let queryMatches = searchText.isEmpty
+                || project.name.localizedCaseInsensitiveContains(searchText)
+            guard queryMatches else { return false }
+
+            let status = ProjectTaskStatusSummary(project: project, tasks: taskStore.tasks)
+            switch filter {
+            case .all: return true
+            case .pinned: return project.pinned
+            case .inWork: return status.inWork > 0
+            case .review: return status.review > 0
+            case .blocked: return status.blocked > 0
+            case .completed: return status.total > 0 && status.completed == status.total
+            }
+        }
     }
 
     /// Строка проекта — карточка (`ProjectCard`), а не однострочный ряд:
@@ -97,9 +200,43 @@ struct ProjectsScreen: View {
     /// внутри `DirectorySwipeRow` (правка/удаление свайпом).
     private func projectRow(_ project: ApiProject) -> some View {
         NavigationLink(value: AppRoute.projectTasks(projectID: project.id)) {
-            ProjectCard(project: project)
+            ProjectCard(project: project, tasks: taskStore.tasks)
         }
         .buttonStyle(TFTapRowStyle())
+    }
+
+    private func selectionRow(_ project: ApiProject) -> some View {
+        let selected = selectedProjectIDs.contains(project.id)
+        return Button {
+            if selected {
+                selectedProjectIDs.remove(project.id)
+            } else {
+                selectedProjectIDs.insert(project.id)
+            }
+        } label: {
+            HStack(spacing: TFSpacing.sm) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .tfText(.input)
+                    .foregroundStyle(selected ? Color.tfRed : Color.tfDim)
+                    .accessibilityHidden(true)
+                ProjectCard(project: project, tasks: taskStore.tasks)
+            }
+        }
+        .buttonStyle(TFTapRowStyle())
+        .accessibilityLabel(selected ? "Отменить выбор проекта \(project.name)" : "Выбрать проект \(project.name)")
+    }
+
+    private func beginSelection() {
+        editingID = nil
+        showCreate = false
+        searchPresented = false
+        selectedProjectIDs.removeAll()
+        isSelecting = true
+    }
+
+    private func endSelection() {
+        selectedProjectIDs.removeAll()
+        isSelecting = false
     }
 
     /// Текст confirm-а зависит от `task_count` — прямая цитата `ProjectsScreen.tsx`.
@@ -117,17 +254,88 @@ struct ProjectsScreen: View {
             }
         )
     }
+
+    private func requestDeleteSelected() {
+        let selected = projectStore.projects.filter { selectedProjectIDs.contains($0.id) }
+        guard !selected.isEmpty else { return }
+        let openProjects = selected.filter { project in
+            let summary = ProjectTaskStatusSummary(project: project, tasks: taskStore.tasks)
+            return summary.inWork > 0 || summary.review > 0 || summary.blocked > 0
+        }
+        guard openProjects.isEmpty else {
+            let names = openProjects.prefix(2).map(\.name).joined(separator: ", ")
+            let suffix = openProjects.count > 2 ? " и ещё \(openProjects.count - 2)" : ""
+            errorMessage = "Пакетное удаление доступно только для проектов без открытых задач. Сначала закройте задачи в: \(names)\(suffix)."
+            return
+        }
+        let count = selected.count
+        let tasksCount = selected.reduce(0) { partial, project in
+            partial + (project.taskCount ?? 0) + (project.completedCount ?? 0)
+        }
+        deleteRequest = DirectoryConfirmRequest(
+            title: "Удалить выбранные проекты (\(count))?",
+            description: "Задачи внутри (\(tasksCount)) не удалятся — они останутся без проекта. Действие нельзя отменить.",
+            confirmLabel: "Удалить \(count)",
+            onConfirm: {
+                Task { await deleteSelectedProjects(selected.map(\.id)) }
+            }
+        )
+    }
+
+    private func deleteSelectedProjects(_ ids: [String]) async {
+        errorMessage = nil
+        for id in ids {
+            do {
+                try await apiClient.deleteProject(id: id)
+            } catch {
+                errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
+                break
+            }
+        }
+        await projectStore.load()
+        let existingIDs = Set(projectStore.projects.map(\.id))
+        selectedProjectIDs.formIntersection(existingIDs)
+        if selectedProjectIDs.isEmpty { isSelecting = false }
+    }
 }
 
-/// Форма создания — над списком (по кнопке «+» в toolbar), симметрично
-/// `ProjectEditForm` ниже: то же поле, те же свотчи, та же пара кнопок.
+private enum ProjectFilter: String, CaseIterable, Identifiable {
+    case all, pinned, inWork, review, blocked, completed
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .all: "Все проекты"
+        case .pinned: "Закреплённые"
+        case .inWork: "В работе"
+        case .review: "На ревью"
+        case .blocked: "Заблокированные"
+        case .completed: "Все задачи выполнены"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .all: "tray.full"
+        case .pinned: "pin.fill"
+        case .inWork: "play.circle.fill"
+        case .review: "eye.fill"
+        case .blocked: "exclamationmark.triangle.fill"
+        case .completed: "checkmark.circle.fill"
+        }
+    }
+}
+
+/// Форма создания — над списком (из меню «…»), симметрично
+/// `ProjectEditForm` ниже: название, системный выбор цвета и база знаний.
 private struct ProjectCreateForm: View {
     @Environment(ProjectStore.self) private var projectStore
     let onCreated: () -> Void
     let onCancel: () -> Void
 
     @State private var name = ""
-    @State private var color = DirectoryColors.project[0]
+    @State private var color = Color.tfBlue
     @State private var isSaving = false
     /// Полка базы знаний. `nil` — общая база TaskFlow.
     @State private var datasetId: String?
@@ -142,7 +350,7 @@ private struct ProjectCreateForm: View {
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
 
-            DirectoryColorSwatches(colors: DirectoryColors.project, selected: $color, size: 24)
+            ColorPicker("Цвет проекта", selection: $color, supportsOpacity: false)
 
             // У нового проекта документов ещё нет, переносить нечего —
             // предупреждение о переиндексации здесь не нужно.
@@ -189,15 +397,15 @@ private struct ProjectCreateForm: View {
         isSaving = true
         defer { isSaving = false }
         if await projectStore.create(
-            name: trimmed, color: color, knowledgeDatasetId: datasetId
+            name: trimmed, color: color.toHex(), knowledgeDatasetId: datasetId
         ) != nil {
             onCreated()
         }
     }
 }
 
-/// Инлайн-форма переименования — разворачивается на месте строки (spec §7),
-/// поле + 7 свотчей `PROJECT_COLORS`, «Отмена»/«Сохранить». Своим `APIClient()`
+/// Инлайн-форма правки — разворачивается на месте строки: название,
+/// системный `ColorPicker`, закрепление, база знаний и сохранение. Своим `APIClient()`
 /// зовёт `patchProject` — `ProjectStore` метода `update` не даёт (Core чужой),
 /// после успеха родитель перезагружает стор, чтобы кэш не разъехался с сервером.
 private struct ProjectEditForm: View {
@@ -207,7 +415,8 @@ private struct ProjectEditForm: View {
     let onCancel: () -> Void
 
     @State private var name: String
-    @State private var color: String
+    @State private var color: Color
+    @State private var pinned: Bool
     @State private var isSaving = false
     @State private var errorMessage: String?
     /// Полка базы знаний. `nil` — общая база TaskFlow.
@@ -223,7 +432,8 @@ private struct ProjectEditForm: View {
         self.onSaved = onSaved
         self.onCancel = onCancel
         _name = State(initialValue: project.name)
-        _color = State(initialValue: project.color ?? DirectoryColors.project[0])
+        _color = State(initialValue: Color(hex: project.color ?? TFHexDefault.unassigned))
+        _pinned = State(initialValue: project.pinned)
         _datasetId = State(initialValue: project.knowledgeDatasetId)
     }
 
@@ -237,7 +447,19 @@ private struct ProjectEditForm: View {
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
 
-            DirectoryColorSwatches(colors: DirectoryColors.project, selected: $color, size: 24)
+            HStack {
+                ColorPicker("Цвет проекта", selection: $color, supportsOpacity: false)
+                Button {
+                    pinned.toggle()
+                } label: {
+                    Label(
+                        pinned ? "Открепить проект" : "Закрепить проект",
+                        systemImage: pinned ? "pin.slash" : "pin"
+                    )
+                    .labelStyle(.iconOnly)
+                }
+                .accessibilityLabel(pinned ? "Открепить проект" : "Закрепить проект")
+            }
 
             KnowledgeDatasetPicker(
                 selection: $datasetId,
@@ -314,7 +536,8 @@ private struct ProjectEditForm: View {
 
         var fields: [String: JSONValue] = [
             "name": .string(trimmed),
-            "color": .string(color),
+            "color": .string(color.toHex()),
+            "pinned": .bool(pinned),
         ]
         // Датасет шлём только когда он реально поменялся: лишнее поле в теле
         // заставило бы сервер считать это сменой и требовать подтверждения.

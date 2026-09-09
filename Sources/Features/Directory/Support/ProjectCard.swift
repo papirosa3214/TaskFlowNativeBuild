@@ -4,10 +4,11 @@ import SwiftUI
 // хочется, чтобы прям карточка была, с адекватной информацией: как давно
 // висит, сколько задач выполнено, сколько вообще было поставлено».
 //
-// Числа приходят готовыми из `GET /api/projects` (`completed_count`,
-// `overdue_count`, `last_activity_at`, `docs_count` — добавлены в тот же день
-// на сервере). Считать их здесь нельзя: пришлось бы тянуть задачи каждого
-// проекта отдельным запросом, а проектов полтора десятка.
+// Общие числа приходят готовыми из `GET /api/projects` (`task_count`,
+// `completed_count`, `overdue_count`, `last_activity_at`, `docs_count`).
+// Разбиение активных задач на review/blocked/остальные берётся из уже
+// загруженного общего `TaskStore`: отдельного запроса на каждый проект нет,
+// а realtime-изменение задачи сразу перерисовывает соответствующую карточку.
 //
 // Оформление — по эталону «Модели и голоса» (владелец 03.09.2026 просил
 // причёсывать экраны под него): без цветных плашек и заливок. Цвет проекта
@@ -17,11 +18,19 @@ import SwiftUI
 // приложение минималистичное, а тут как клоуна нарядил»).
 struct ProjectCard: View {
     let project: ApiProject
+    let tasks: [ApiTask]
+
+    init(project: ApiProject, tasks: [ApiTask] = []) {
+        self.project = project
+        self.tasks = tasks
+    }
 
     private var accent: Color { Color(hex: project.color ?? TFHexDefault.unassigned) }
-    private var active: Int { project.taskCount ?? 0 }
-    private var completed: Int { project.completedCount ?? 0 }
-    private var total: Int { active + completed }
+    private var status: ProjectTaskStatusSummary {
+        ProjectTaskStatusSummary(project: project, tasks: tasks)
+    }
+    private var total: Int { status.total }
+    private var completed: Int { status.completed }
     private var overdue: Int { project.overdueCount ?? 0 }
     private var docs: Int { project.docsCount ?? 0 }
 
@@ -32,7 +41,10 @@ struct ProjectCard: View {
                 if total > 0 {
                     progress
                 }
-                metrics
+                statusLine
+                if hasMetadata {
+                    metrics
+                }
                 if !project.agents.isEmpty {
                     agentsLine
                 }
@@ -78,22 +90,17 @@ struct ProjectCard: View {
     /// минималистичное, а тут как клоуна нарядил». Цвет проекта остаётся
     /// только точкой у названия, как метка, а не как заливка.
     private var progress: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Capsule()
-                .fill(Color.tfStroke)
-                .frame(height: 6)
-                .overlay(alignment: .leading) {
-                    GeometryReader { geo in
-                        Capsule()
-                            .fill(Color.tfSub)
-                            .frame(width: geo.size.width * fraction)
-                    }
+        Capsule()
+            .fill(Color.tfStroke)
+            .frame(height: 6)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(Color.tfSub)
+                        .frame(width: geo.size.width * fraction)
                 }
-                .accessibilityLabel("Выполнено \(completed) из \(total)")
-            Text("\(completed) из \(total) выполнено")
-                .tfText(.caption)
-                .foregroundStyle(Color.tfSub)
-        }
+            }
+            .accessibilityLabel("Выполнено \(completed) из \(total)")
     }
 
     private var fraction: Double {
@@ -101,26 +108,55 @@ struct ProjectCard: View {
         return Double(completed) / Double(total)
     }
 
-    /// Нижняя строка: активные, просрочка, документы, последнее движение.
-    /// Пункты без содержания не печатаются вовсе — пустое «0 просрочено» шумит
-    /// ровно там, где всё в порядке.
+    /// Главная сводка — без фонов и слов: системная иконка и число одним
+    /// цветом. Порядок постоянный, поэтому карточки легко сравнивать глазами;
+    /// полные названия остаются доступны VoiceOver.
+    private var statusLine: some View {
+        HStack(spacing: TFSpacing.lg) {
+            statusMetric("tray.full", value: status.total, color: .tfText, label: "Всего задач")
+            statusMetric("checkmark.circle.fill", value: status.completed, color: .tfGreen, label: "Выполнено")
+            statusMetric("eye.fill", value: status.review, color: .tfBlue, label: "На ревью")
+            statusMetric("exclamationmark.triangle.fill", value: status.blocked, color: .tfOrange, label: "Заблокировано")
+            statusMetric("play.circle.fill", value: status.inWork, color: .tfDim, label: "В работе")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func statusMetric(_ icon: String, value: Int, color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .accessibilityHidden(true)
+            Text("\(value)")
+                .monospacedDigit()
+        }
+        .tfText(.caption)
+        .foregroundStyle(color)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue("\(value)")
+    }
+
+    /// Вторичная строка: просрочка, документы, последнее движение. Пункты
+    /// без содержания не печатаются — нули здесь только создают шум.
     private var metrics: some View {
         HStack(spacing: TFSpacing.xs) {
-            metric(remainderText, color: .tfSub)
             if overdue > 0 {
-                separator
                 metric("\(overdue) просрочено", color: .tfRed)
             }
             if docs > 0 {
-                separator
+                if overdue > 0 { separator }
                 metric("\(docs) \(ProjectCard.docWord(docs))", color: .tfSub)
             }
             if let idle = idleText {
-                separator
+                if overdue > 0 || docs > 0 { separator }
                 metric(idle, color: .tfDim)
             }
             Spacer(minLength: 0)
         }
+    }
+
+    private var hasMetadata: Bool {
+        overdue > 0 || docs > 0 || idleText != nil
     }
 
     /// Кто сейчас в проекте работает — просьба владельца 08.09.2026. Строкой,
@@ -146,14 +182,6 @@ struct ProjectCard: View {
         let agents = project.agents
         if agents.count == 1, let only = agents.first { return only.name }
         return agents.map { "\($0.name) · \($0.tasks)" }.joined(separator: "   ")
-    }
-
-    /// Не «9 задач», а «осталось 9»: над этой строкой уже стоит «16 из 25
-    /// выполнено», и голое число задач рядом с ним читается как «всего их 9».
-    private var remainderText: String {
-        if total == 0 { return "пока нет задач" }
-        if active == 0 { return "все задачи закрыты" }
-        return "осталось \(active)"
     }
 
     private var separator: some View {
@@ -190,6 +218,36 @@ struct ProjectCard: View {
         case 2...4: return "документа"
         default: return "документов"
         }
+    }
+}
+
+/// Статусы в сервере двухуровневые: `status` отвечает только за active /
+/// completed, а `agent_state` уточняет активную задачу. Поэтому «в работе» —
+/// активные задачи за вычетом review и blocked; сюда входят и реально
+/// запущенные (`in_progress`), и ещё не взятые в работу задачи.
+struct ProjectTaskStatusSummary {
+    let total: Int
+    let completed: Int
+    let review: Int
+    let blocked: Int
+    let inWork: Int
+
+    init(project: ApiProject, tasks: [ApiTask]) {
+        let scoped = tasks.filter { $0.projectId == project.id }
+        let activeParentIDs = Set(tasks.lazy.filter { $0.status == .active }.compactMap(\.parentId))
+        let completedWithOpenWork = scoped.count { task in
+            guard task.status == .completed else { return false }
+            return task.subtasks.contains { !$0.done } || activeParentIDs.contains(task.id)
+        }
+        let active = (project.taskCount ?? scoped.count { $0.status == .active }) + completedWithOpenWork
+        completed = max(
+            0,
+            (project.completedCount ?? scoped.count { $0.status == .completed }) - completedWithOpenWork
+        )
+        review = scoped.count { $0.status == .active && $0.agentState == .review }
+        blocked = scoped.count { $0.status == .active && $0.agentState == .blocked }
+        inWork = max(0, active - review - blocked)
+        total = active + completed
     }
 }
 

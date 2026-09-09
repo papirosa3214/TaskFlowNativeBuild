@@ -24,6 +24,15 @@ final class TaskFormViewModel {
     var assigneeId: String?
     var attachments: TaskAttachmentsController
 
+    // Полноценные связанные задачи (`tasks.parent_id`) — отдельная модель от
+    // чек-листа `subtasks`. У дочерней задачи остаются собственные статус,
+    // срок, исполнитель и остальные поля обычной задачи.
+    var parentId: String?
+    var parentTitle: String?
+    var parentTask: ApiTask?
+    var childTasks: [ApiTask] = []
+    var ancestorTaskIDs: Set<String> = []
+
     var isLoadingTask = false
     var isSaving = false
     var notFound = false
@@ -64,9 +73,19 @@ final class TaskFormViewModel {
     /// `presetDueToday`/`startDictation` — контракт `INTEGRATION.md`
     /// (обновлён оркестратором по ходу этой задачи): `/task/new?due=today`
     /// и `/task/new?dictate=1` из CreateMenu веба.
-    init(taskID: String?, presetDueToday: Bool = false, startDictation: Bool = false) {
+    init(
+        taskID: String?,
+        presetDueToday: Bool = false,
+        startDictation: Bool = false,
+        parentTaskID: String? = nil,
+        parentTaskTitle: String? = nil,
+        presetProjectID: String? = nil
+    ) {
         self.taskID = taskID
         self.startDictation = startDictation
+        self.parentId = parentTaskID
+        self.parentTitle = parentTaskTitle
+        self.projectId = presetProjectID
         self.attachments = TaskAttachmentsController(apiClient: APIClient(), taskId: taskID)
         if presetDueToday, taskID == nil {
             var cal = Calendar(identifier: .gregorian)
@@ -85,6 +104,23 @@ final class TaskFormViewModel {
             title = task.title
             taskDescription = task.description ?? ""
             subtasks = task.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
+            parentId = task.parentId
+            childTasks = task.children ?? []
+            ancestorTaskIDs.removeAll()
+            parentTask = nil
+            if let parentId = task.parentId {
+                var nextAncestorID: String? = parentId
+                while let ancestorID = nextAncestorID, !ancestorTaskIDs.contains(ancestorID) {
+                    ancestorTaskIDs.insert(ancestorID)
+                    guard let ancestor = try? await apiClient.task(id: ancestorID) else { break }
+                    if ancestorID == parentId { parentTask = ancestor }
+                    nextAncestorID = ancestor.parentId
+                }
+                parentTitle = parentTask?.title
+            } else {
+                parentTask = nil
+                parentTitle = nil
+            }
             dueDate = task.dueDateAsDate
             startMinutes = task.startTime.flatMap(DateFormats.localTimeComponents).map { $0.hour * 60 + $0.minute }
             durationMin = task.durationMin
@@ -222,6 +258,42 @@ final class TaskFormViewModel {
         }
     }
 
+    // MARK: - Связанные задачи (`tasks.parent_id`)
+
+    func linkExistingTask(_ task: ApiTask) async -> Bool {
+        guard let taskID else { return false }
+        do {
+            _ = try await apiClient.patchTask(
+                id: task.id,
+                fields: ["parent_id": .string(taskID)]
+            )
+            await loadIfNeeded()
+            return true
+        } catch {
+            saveErrorMessage = Self.message(error)
+            return false
+        }
+    }
+
+    func unlinkChildTask(_ task: ApiTask) async {
+        do {
+            _ = try await apiClient.patchTask(id: task.id, fields: ["parent_id": .null])
+            await loadIfNeeded()
+        } catch {
+            saveErrorMessage = Self.message(error)
+        }
+    }
+
+    func unlinkFromParent() async {
+        guard let taskID, parentId != nil else { return }
+        do {
+            _ = try await apiClient.patchTask(id: taskID, fields: ["parent_id": .null])
+            await loadIfNeeded()
+        } catch {
+            saveErrorMessage = Self.message(error)
+        }
+    }
+
     // MARK: - Сохранение
 
     /// `true` — сохранено успешно, экран может закрыться.
@@ -276,6 +348,7 @@ final class TaskFormViewModel {
             projectId: projectId,
             assigneeId: assigneeId,
             priority: priority.rawValue,
+            parentId: parentId,
             labelIds: selectedLabelIds.isEmpty ? nil : Array(selectedLabelIds),
             subtasks: subtaskDrafts.isEmpty ? nil : subtaskDrafts.map(\.title)
         )

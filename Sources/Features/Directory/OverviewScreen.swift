@@ -30,8 +30,6 @@ struct OverviewScreen: View {
             VStack(spacing: TFSpacing.sm) {
                 statusGrid
                 weeklySummaryCard
-                navCard(route: .projects, icon: "tray", tint: .tfRed,
-                        title: "Проекты", subtitle: "Задачи по проектам и документация")
                 navCard(route: .knowledge, icon: "books.vertical", tint: Color(hex: "#8b5cf6"),
                         title: "База знаний", subtitle: "Поиск по документации всех проектов")
                 navCard(route: .notifications, icon: "bell", tint: Color(hex: "#f59e0b"),

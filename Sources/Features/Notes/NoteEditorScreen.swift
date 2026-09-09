@@ -225,7 +225,6 @@ struct NoteEditorScreen: View {
                             rows: rows,
                             controllerStore: controllerStore,
                             accessoryView: accessoryHost?.view,
-                            focusedCellID: focus.blockID,
                             onChange: { id, runs in viewModel.updateRuns(blockID: id, runs: runs) },
                             onFocus: focusCell,
                             onBlur: blurCell,
@@ -498,11 +497,6 @@ private struct NoteTableBlock: View {
     let controllerStore: NoteBlockControllerStore
     let accessoryView: UIView?
 
-    /// Ячейка, в которой сейчас курсор. От неё считаются «строка» и
-    /// «столбец» в панели правки структуры и по ней же решается, показывать
-    /// эту панель вообще: пока таблицу не трогают, она не мозолит глаза.
-    let focusedCellID: UUID?
-
     let onChange: (UUID, [RichRun]) -> Void
     let onFocus: (UUID, NoteBlockTextController) -> Void
     let onBlur: (UUID) -> Void
@@ -522,93 +516,170 @@ private struct NoteTableBlock: View {
     private static let minColumn: CGFloat = 44
     /// Верхняя — чтобы одна многословная колонка не уезжала на три экрана.
     private static let maxColumn: CGFloat = 220
-    private static let minRowHeight: CGFloat = 32
+    private static let minRowHeight: CGFloat = TFHitTarget.min
+    private static let handleRailSize: CGFloat = TFHitTarget.min
+
+    /// Строка может вырасти из-за переноса текста. Левая рейка живёт вне
+    /// горизонтального ScrollView, поэтому ей нужны фактические высоты строк,
+    /// чтобы каждая хваталка оставалась напротив своей строки.
+    @State private var rowHeights: [UUID: CGFloat] = [:]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            grid
-            // Панель структуры живёт ПОД таблицей, а не в клавиатурной ленте:
-            // лента общая на весь экран и уже забита форматированием, а
-            // «удалить столбец» рядом с «жирный» — прямой путь промахнуться.
-            if let focusedCellID, containsCell(focusedCellID) {
-                structureControls(focusedCellID)
-            }
-        }
-    }
-
-    private var grid: some View {
         let widths = columnWidths
-        return ScrollView(.horizontal, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(rows) { row in
-                    HStack(alignment: .top, spacing: 0) {
-                        ForEach(Array(row.cells.enumerated()), id: \.element.id) { index, cell in
-                            cellView(cell, width: index < widths.count ? widths[index] : Self.minColumn)
-                        }
-                    }
-                    .background(row.cells.first?.isHeader == true ? Color.tfCard2 : Color.clear)
-                    // Линия между строками; нижняя кромка последней строки
-                    // приходит из рамки всей таблицы.
-                    .overlay(alignment: .bottom) {
-                        Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
-                    }
+        HStack(alignment: .top, spacing: 0) {
+            rowHandleRail
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    columnHandleRail(widths)
+                    tableGrid(widths)
                 }
             }
-            // Вертикальные линии рисуются поверх ВСЕЙ таблицы, а не рамкой
-            // каждой ячейки. Иначе высота линии = высоте своей ячейки, и
-            // ради ровной сетки ячейки пришлось бы растягивать
-            // `maxHeight: .infinity` — а жадная по высоте строка заставляет
-            // VStack делить высоту между строками поровну, и текст с
-            // переносом обрезается (ровно это и было видно на «Сохранить
-            // результат и историю»).
-            .overlay(alignment: .leading) { columnDividers(widths) }
-            .overlay {
-                RoundedRectangle(cornerRadius: TFRadius.sm)
-                    .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
+        }
+        // Своих DragGesture на рейках нет: тап открывает системный Menu,
+        // а движение пальца остаётся штатному ScrollView. Так хваталка не крадёт скролл.
+        .onPreferenceChange(NoteTableRowHeightPreferenceKey.self) { heights in
+            if rowHeights != heights { rowHeights = heights }
+        }
+    }
+
+    private var rowHandleRail: some View {
+        VStack(spacing: 0) {
+            Image(systemName: "tablecells")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .frame(width: Self.handleRailSize, height: Self.handleRailSize)
+                .accessibilityHidden(true)
+
+            ForEach(rows) { row in
+                if let cellID = row.cells.first?.id {
+                    rowMenu(cellID)
+                        .frame(
+                            width: Self.handleRailSize,
+                            height: max(rowHeights[row.id] ?? Self.minRowHeight, Self.minRowHeight)
+                        )
+                }
             }
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
-            .padding(.horizontal, 1)
         }
     }
 
-    private func containsCell(_ id: UUID) -> Bool {
-        rows.contains { $0.cells.contains { $0.id == id } }
-    }
-
-    /// Добавление и удаление считаются ОТ ячейки с курсором: «строка» — та,
-    /// в которой стоишь, «столбец» — тот же. Отдельных ручек у краёв
-    /// таблицы нет намеренно: таблица прокручивается вбок, и её правый край
-    /// на телефоне обычно за экраном.
-    private func structureControls(_ cellID: UUID) -> some View {
-        HStack(spacing: TFSpacing.xs) {
-            control("Строка", icon: "plus") { onInsertRow(cellID) }
-            control("Столбец", icon: "plus") { onInsertColumn(cellID) }
-            Spacer(minLength: TFSpacing.sm)
-            control("Строка", icon: "minus", destructive: true) { onDeleteRow(cellID) }
-            control("Столбец", icon: "minus", destructive: true) { onDeleteColumn(cellID) }
+    private func columnHandleRail(_ widths: [CGFloat]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(widths.enumerated()), id: \.offset) { index, width in
+                if let cellID = firstCell(inColumn: index) {
+                    columnMenu(cellID)
+                        .frame(width: width, height: Self.handleRailSize)
+                } else {
+                    Color.clear.frame(width: width, height: Self.handleRailSize)
+                }
+            }
         }
     }
 
-    private func control(_ title: String, icon: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
-        Button {
-            // Тот же щелчок, что у кнопок клавиатурной ленты
-            // (`NoteKeyboardAccessoryBar.tapHaptic`) — мелкий частый тап.
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            action()
+    private func tableGrid(_ widths: [CGFloat]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(rows) { row in
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(row.cells.enumerated()), id: \.element.id) { index, cell in
+                        cellView(cell, width: index < widths.count ? widths[index] : Self.minColumn)
+                    }
+                }
+                .frame(minHeight: Self.minRowHeight, alignment: .top)
+                .background(row.cells.first?.isHeader == true ? Color.tfCard2 : Color.clear)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: NoteTableRowHeightPreferenceKey.self,
+                            value: [row.id: proxy.size.height]
+                        )
+                    }
+                }
+                // Линия между строками; нижняя кромка последней строки
+                // приходит из рамки всей таблицы.
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+                }
+            }
+        }
+        // Вертикальные линии рисуются поверх ВСЕЙ таблицы, а не рамкой
+        // каждой ячейки. Иначе высота линии = высоте своей ячейки, и
+        // ради ровной сетки ячейки пришлось бы растягивать
+        // `maxHeight: .infinity` — а жадная по высоте строка заставляет
+        // VStack делить высоту между строками поровну, и текст с
+        // переносом обрезается (ровно это и было видно на «Сохранить
+        // результат и историю»).
+        .overlay(alignment: .leading) { columnDividers(widths) }
+        .overlay {
+            RoundedRectangle(cornerRadius: TFRadius.sm)
+                .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
+        .padding(.horizontal, 1)
+    }
+
+    private func rowMenu(_ cellID: UUID) -> some View {
+        Menu {
+            Button {
+                tapHaptic()
+                onInsertRow(cellID)
+            } label: {
+                Label("Добавить строку ниже", systemImage: "plus")
+            }
+            Divider()
+            Button(role: .destructive) {
+                tapHaptic()
+                onDeleteRow(cellID)
+            } label: {
+                Label("Удалить строку", systemImage: "trash")
+            }
         } label: {
-            HStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: 11, weight: .bold))
-                Text(title).font(.system(size: 12))
-            }
-            .foregroundStyle(destructive ? Color.tfRed : Color.tfSub)
-            .padding(.horizontal, TFSpacing.sm)
-            .frame(height: 30)
-            .background(Color.tfCard2, in: Capsule())
-            .frame(height: TFHitTarget.min)
-            .contentShape(Rectangle())
+            Capsule()
+                .fill(Color.tfDim)
+                .frame(width: 4, height: 22)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(TFTapScaleStyle())
-        .accessibilityLabel("\(destructive ? "Удалить" : "Добавить") \(title.lowercased())")
+        .menuIndicator(.hidden)
+        .accessibilityLabel("Меню строки")
+        .accessibilityHint("Добавить или удалить эту строку")
+    }
+
+    private func columnMenu(_ cellID: UUID) -> some View {
+        Menu {
+            Button {
+                tapHaptic()
+                onInsertColumn(cellID)
+            } label: {
+                Label("Добавить столбец справа", systemImage: "plus")
+            }
+            Divider()
+            Button(role: .destructive) {
+                tapHaptic()
+                onDeleteColumn(cellID)
+            } label: {
+                Label("Удалить столбец", systemImage: "trash")
+            }
+        } label: {
+            Capsule()
+                .fill(Color.tfDim)
+                .frame(width: 22, height: 4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .menuIndicator(.hidden)
+        .accessibilityLabel("Меню столбца")
+        .accessibilityHint("Добавить или удалить этот столбец")
+    }
+
+    private func firstCell(inColumn column: Int) -> UUID? {
+        rows.lazy.compactMap { row in
+            guard column < row.cells.count else { return nil }
+            return row.cells[column].id
+        }.first
+    }
+
+    private func tapHaptic() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private func columnDividers(_ widths: [CGFloat]) -> some View {
@@ -669,6 +740,14 @@ private struct NoteTableBlock: View {
             }
         }
         return widths.map { min($0, Self.maxColumn) }
+    }
+}
+
+private struct NoteTableRowHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: [UUID: CGFloat] = [:]
+
+    static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: max)
     }
 }
 
