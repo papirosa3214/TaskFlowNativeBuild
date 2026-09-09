@@ -307,6 +307,7 @@ struct TaskFormScreen: View {
                     .lineLimit(1...)
                     .foregroundStyle(.secondary)
             }
+            .listRowBackground(Color.tfBackground)
 
             Section("Подзадачи") {
                 ForEach(viewModel.subtasks) { subtask in
@@ -319,6 +320,7 @@ struct TaskFormScreen: View {
                     Label("Добавить подзадачу", systemImage: "plus")
                 }
             }
+            .listRowBackground(Color.tfBackground)
 
             linkedTasksSection
 
@@ -413,6 +415,7 @@ struct TaskFormScreen: View {
                 }
                 .buttonStyle(.plain)
             }
+            .listRowBackground(Color.tfBackground)
 
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
                 Section("Вложения") {
@@ -440,12 +443,21 @@ struct TaskFormScreen: View {
                     nativeJournalRow(entry)
                 }
             }
+            .listRowBackground(Color.tfBackground)
         }
         // Владелец 07.09.2026: «размести все элементы плоско, без лишних
         // подложек» — `Form` не всегда честно слушается `.listStyle(.plain)`
         // (осталась подложка-карточка под секциями даже после смены стиля),
         // `List` его уважает по-настоящему.
         .listStyle(.plain)
+        // Карточка получалась полосатой: промежутки и заголовки секций шли на
+        // нашем фоне, а сами строки — на системном чёрном, и это било в глаза
+        // (владелец 09.09.2026: «текст задачи, текст описания — чёрный, он
+        // должен быть везде одинаковым»). Гасим и подложку списка, и подложку
+        // строк, оставляя один фон на весь экран.
+        .listRowBackground(Color.tfBackground)
+        .scrollContentBackground(.hidden)
+        .background(Color.tfBackground)
         .scrollDismissesKeyboard(.interactively)
         .refreshable { await viewModel.refresh() }
     }
@@ -501,6 +513,7 @@ struct TaskFormScreen: View {
         } footer: {
             Text("Это полноценные дочерние задачи со своими сроками, исполнителями и статусами. Чек-лист «Подзадачи» остаётся отдельным.")
         }
+        .listRowBackground(Color.tfBackground)
     }
 
     private func linkedTaskRow(_ task: ApiTask, relation: String) -> some View {

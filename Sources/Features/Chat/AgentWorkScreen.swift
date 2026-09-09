@@ -94,6 +94,11 @@ struct AgentWorkScreen: View {
         .tfNativeHeader("Работа агентов")
         .sheet(item: $sheetTaskID) { ref in
             NavigationStack { TaskFormScreen(taskID: ref.id) }
+                // Те же детенты, что у карточки из проекта и с «Сегодня»:
+                // без них шторка открывалась сразу на весь экран, и половинного
+                // состояния у неё не было вовсе.
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
