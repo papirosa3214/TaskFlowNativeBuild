@@ -34,6 +34,9 @@ struct TaskFormScreen: View {
     @State private var isAttachmentPickerPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
+    /// Какие шаги раскрыты. Своё состояние вместо `DisclosureGroup` — тот
+    /// тянет за собой шеврон, от которого владелец отказался.
+    @State private var expandedSubtaskIDs: Set<String> = []
     @State private var isAddingSubtask = false
     @State private var newSubtaskTitle = ""
     @State private var isDueEditorExpanded = false
@@ -548,45 +551,106 @@ struct TaskFormScreen: View {
         return ids
     }
 
+    /// Шаг: строка, а под ней — то, что к ней относится.
+    ///
+    /// Владелец 09.09.2026: живая работа агента должна читаться на самом шаге,
+    /// а не отдельной плашкой сверху. «Понаставят агента сразу пять в
+    /// активностях — а так я реально вижу, по какой он работает». Поэтому:
+    /// у идущего шага вместо пустого кружка крутится кольцо, тап по названию
+    /// раскрывает под ним, что агент делает прямо сейчас; шаг закрыт — тот же
+    /// тап показывает оставленный итог. Ничего не меняется в привычке: щёлкнул
+    /// и смотришь, просто содержимое зависит от состояния шага.
+    ///
+    /// `DisclosureGroup` не используем — он рисует шеврон, а владелец их
+    /// не хочет («функционал оставить, эффект тот же»). Раскрытие своё, по
+    /// тапу на название; кружок остаётся отдельной кнопкой «сделано», иначе
+    /// один жест значил бы две разные вещи.
     @ViewBuilder
     private func nativeSubtaskRow(_ subtask: ApiSubtask) -> some View {
-        if subtask.result?.isEmpty == false || subtask.agentState == .blocked || subtask.agentState == .review {
-            DisclosureGroup {
-                if let result = subtask.result, !result.isEmpty {
-                    Text(result).foregroundStyle(.secondary)
-                }
-                if isOwner, subtask.agentState == .review {
-                    Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }
-                    Button("Вернуть на доработку") { replyingSubtask = subtask }
-                } else if isOwner, subtask.agentState == .blocked {
-                    Button("Ответить") { replyingSubtask = subtask }
-                }
-            } label: {
-                nativeSubtaskToggle(subtask)
-            }
-        } else {
-            nativeSubtaskToggle(subtask)
-        }
-    }
+        let isRunning = subtask.state == .running
+        let hasDetails = subtask.result?.isEmpty == false
+            || subtask.agentState == .blocked
+            || subtask.agentState == .review
+            || (isRunning && viewModel.activity.isActive)
+        let isOpen = expandedSubtaskIDs.contains(subtask.id)
 
-    /// Владелец 07.09.2026: «переключатели под задачи — что за хуйня» —
-    /// `Toggle` физически рисуется свитчем, а чек-лист подзадач нативно у
-    /// Apple (Напоминания и любой to-do) — галочка-кружок, не свитч.
-    private func nativeSubtaskToggle(_ subtask: ApiSubtask) -> some View {
-        Button {
-            guard subtask.agentState != .review else { return }
-            Task { await viewModel.toggleSubtaskDone(subtask) }
-        } label: {
-            Label {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            HStack(spacing: TFSpacing.md) {
+                Button {
+                    guard subtask.agentState != .review else { return }
+                    Task { await viewModel.toggleSubtaskDone(subtask) }
+                } label: {
+                    subtaskMark(subtask, isRunning: isRunning)
+                }
+                .buttonStyle(.plain)
+                .disabled(subtask.agentState == .review)
+
                 Text(subtask.title)
                     .strikethrough(subtask.done)
                     .foregroundStyle(subtask.done ? .secondary : .primary)
-            } icon: {
-                Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(subtask.done ? Color.tfTeal : .secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard hasDetails else { return }
+                withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                    if isOpen { expandedSubtaskIDs.remove(subtask.id) }
+                    else { expandedSubtaskIDs.insert(subtask.id) }
+                }
+            }
+
+            if isOpen {
+                subtaskDetails(subtask, isRunning: isRunning)
+                    .padding(.leading, 21 + TFSpacing.md)
             }
         }
-        .disabled(subtask.agentState == .review)
+    }
+
+    /// Отметка слева: крутится, пока шаг идёт.
+    @ViewBuilder
+    private func subtaskMark(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
+        if isRunning {
+            TFSubtaskStatusRing(.running)
+        } else {
+            Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 20))
+                .foregroundStyle(subtask.done ? Color.tfTeal : .secondary)
+                .frame(width: 21, height: 21)
+        }
+    }
+
+    /// Что показываем под раскрытым шагом: у идущего — чем агент занят, у
+    /// закрытого или заблокированного — его итог и кнопки владельца.
+    @ViewBuilder
+    private func subtaskDetails(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            if isRunning, viewModel.activity.isActive {
+                if let text = viewModel.activity.text {
+                    Text(text)
+                        .foregroundStyle(.primary)
+                }
+                ForEach(viewModel.activity.actions.suffix(5).reversed()) { action in
+                    HStack(alignment: .top, spacing: TFSpacing.sm) {
+                        Circle()
+                            .fill(Color.tfDim)
+                            .frame(width: 4, height: 4)
+                            .padding(.top, 7)
+                        Text(action.text ?? action.target)
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+            }
+            if let result = subtask.result, !result.isEmpty {
+                Text(result).foregroundStyle(.secondary)
+            }
+            if isOwner, subtask.agentState == .review {
+                Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }
+                Button("Вернуть на доработку") { replyingSubtask = subtask }
+            } else if isOwner, subtask.agentState == .blocked {
+                Button("Ответить") { replyingSubtask = subtask }
+            }
+        }
     }
 
     /// Плоская строка ленты — без аватарок/цветных плашек `TaskJournalView`
@@ -788,11 +852,6 @@ struct TaskFormScreen: View {
                     .foregroundStyle(.secondary)
             }
             titleField
-            // Чем агент занят прямо сейчас — сразу под названием, до шагов:
-            // это ответ на «что там вообще происходит», а не деталь внизу.
-            if viewModel.activity.isActive {
-                TaskAgentActivityView(activity: viewModel.activity)
-            }
             noteSection
             subtasksSection
             // 02.09.2026, владелец: «зачем эта здоровая хрень, когда файлов
