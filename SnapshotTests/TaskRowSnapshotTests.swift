@@ -55,7 +55,7 @@ final class TaskRowSnapshotTests: XCTestCase {
         )
         let row = TodayTaskRow(
             task: задача, overdue: false,
-            onOpen: {}, onComplete: {}, onReschedule: {}, onDelete: {}
+            onOpen: {}, onComplete: {}, onDelete: {}
         )
         .frame(width: 420)
         .padding()
@@ -70,7 +70,7 @@ final class TaskRowSnapshotTests: XCTestCase {
         )
         let row = TodayTaskRow(
             task: задача, overdue: true,
-            onOpen: {}, onComplete: {}, onReschedule: {}, onDelete: {}
+            onOpen: {}, onComplete: {}, onDelete: {}
         )
         .frame(width: 420)
         .padding()

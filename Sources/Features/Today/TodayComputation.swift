@@ -12,7 +12,7 @@ struct TodayHourDay {
 }
 
 struct TodayBoardColumn: Identifiable {
-    enum Kind { case waiting, overdue, today }
+    enum Kind: Hashable { case waiting, overdue, today, upcoming, pool }
     let id: Kind
     let title: String
     let tasks: [ApiTask]
@@ -27,9 +27,14 @@ struct TodayComputation {
     let currentUser: ApiUser?
     let agents: [ApiUser]
     let filters: TodayTaskFilters
-    let visibleProjectIds: [String: Bool]
-    /// Выбор проектов ежедневника уже настраивали руками? См. `plannerTasks`.
-    let hasConfiguredVisibleProjects: Bool
+    /// Пункт «Агентские задачи» в «Показывать в разделе» — общая настройка со
+    /// всем «Планированием» (ключ `plannerShowAgentTasks`). До 09.09.2026
+    /// агентские вырезались из почасовой сетки жёстко.
+    let showAgentTasks: Bool
+    /// Проекты из того же «Показывать в разделе». Пустой набор означает
+    /// «показывать только беспроектные» — та же семантика, что у диапазонов,
+    /// подменю одно на весь раздел (LOCK-111).
+    let visibleProjectIds: Set<String>
     let today: String
     let activeHourDate: String
     let isLoading: Bool
@@ -44,9 +49,20 @@ struct TodayComputation {
     let waitingTasksAll: [ApiTask]
     let rawOverdueAll: [ApiTask]
     let rawTodayAll: [ApiTask]
+    let rawUpcomingAll: [ApiTask]
     let waitingTasks: [ApiTask]
     let overdueTasks: [ApiTask]
     let todayTasks: [ApiTask]
+    /// Задачи со сроком ПОЗЖЕ сегодняшнего дня. Нужны только «Доске»:
+    /// в «Списке» владелец 09.09.2026 попросил ровно сегодняшний день
+    /// («открыл сегодня и больше ни на что не отвлекался»), а доска — про
+    /// планирование, там колонка «Предстоящие» стоит четвёртой.
+    let upcomingTasks: [ApiTask]
+    /// «Пул» — всё, что не попало ни в одну датированную колонку, то есть
+    /// задачи без `due_date` (владелец 10.09.2026: «бессрочные, беспроектные,
+    /// все оставшиеся, короче»). Состав раздела на них распространяется как на
+    /// всех: скрытый проект, агентские и выполненные сюда не лезут.
+    let poolTasks: [ApiTask]
     let projectOptions: [TodayFilterOption]
     let labelOptions: [TodayFilterOption]
     let assigneeOptions: (list: [TodayAssigneeOption], hasUnassigned: Bool)
@@ -57,60 +73,62 @@ struct TodayComputation {
 
     init(
         allTasks: [ApiTask], currentUser: ApiUser?, agents: [ApiUser],
-        filters: TodayTaskFilters, visibleProjectIds: [String: Bool],
-        hasConfiguredVisibleProjects: Bool, today: String,
+        filters: TodayTaskFilters, showAgentTasks: Bool = false,
+        visibleProjectIds: Set<String> = [], today: String,
         activeHourDate: String, isLoading: Bool, isError: Bool
     ) {
         self.allTasks = allTasks
         self.currentUser = currentUser
         self.agents = agents
         self.filters = filters
+        self.showAgentTasks = showAgentTasks
         self.visibleProjectIds = visibleProjectIds
-        self.hasConfiguredVisibleProjects = hasConfiguredVisibleProjects
         self.today = today
         self.activeHourDate = activeHourDate
         self.isLoading = isLoading
         self.isError = isError
 
-        let planner = hasConfiguredVisibleProjects
-            ? allTasks.filter { task in
-                guard let projectID = task.projectId else { return true }
-                return visibleProjectIds[projectID] == true
-            }
-            : allTasks
+        // Состав раздела — общий с диапазонами (одно подменю на всё
+        // «Планирование», LOCK-111). Беспроектные проходят всегда.
+        let planner = allTasks.filter { task in
+            guard let projectID = task.projectId else { return true }
+            return visibleProjectIds.contains(projectID)
+        }
         plannerTasks = planner
 
         let plannerPartition = Self.partitionOverdueToday(planner, today: today)
         let waitingAll = Self.waitingTasks(from: planner, currentUser: currentUser)
+        let upcomingAll = Self.upcoming(from: planner, today: today)
+        let poolAll = planner.filter { ($0.dueDate ?? "").isEmpty }
         waitingTasksAll = waitingAll
         rawOverdueAll = plannerPartition.overdue
         rawTodayAll = plannerPartition.todayTasks
+        rawUpcomingAll = upcomingAll
 
         let filteredWaiting = TodayFilterEngine.filter(waitingAll, filters)
         let filteredOverdue = TodayFilterEngine.filter(plannerPartition.overdue, filters)
         let filteredToday = TodayFilterEngine.filter(plannerPartition.todayTasks, filters)
+        let filteredUpcoming = TodayFilterEngine.filter(upcomingAll, filters)
+        let filteredPool = TodayFilterEngine.filter(poolAll, filters)
         let waitingIDs = Set(filteredWaiting.map(\.id))
         waitingTasks = filteredWaiting
         overdueTasks = filteredOverdue.filter { !waitingIDs.contains($0.id) }
         todayTasks = filteredToday.filter { !waitingIDs.contains($0.id) }
+        upcomingTasks = filteredUpcoming.filter { !waitingIDs.contains($0.id) }
+        poolTasks = filteredPool.filter { !waitingIDs.contains($0.id) }
 
         projectOptions = TodayFilterEngine.projectOptions(allTasks)
         labelOptions = TodayFilterEngine.labelOptions(allTasks)
         assigneeOptions = TodayFilterEngine.assigneeOptions(allTasks)
 
-        let trueWaiting = hasConfiguredVisibleProjects
-            ? Self.waitingTasks(from: allTasks, currentUser: currentUser)
-            : waitingAll
-        let truePartition = hasConfiguredVisibleProjects
-            ? Self.partitionOverdueToday(allTasks, today: today)
-            : plannerPartition
-        let isTrulyEmpty = !isLoading && !isError
-            && trueWaiting.isEmpty
-            && truePartition.overdue.isEmpty
-            && truePartition.todayTasks.isEmpty
+        let truePartition = plannerPartition
+        // Иллюстрация «пусто» живёт только в «Списке», а он с 09.09.2026
+        // показывает ровно сегодняшний день — поэтому и пустота считается по
+        // сегодняшним задачам, а не по всему разделу (раньше в счёт шли ещё
+        // «Просрочено» и «Ждут вас», но их в списке больше нет).
+        let isTrulyEmpty = !isLoading && !isError && truePartition.todayTasks.isEmpty
         trueEmpty = isTrulyEmpty
-        filteredEmpty = !isTrulyEmpty && !isLoading && !isError
-            && overdueTasks.isEmpty && todayTasks.isEmpty && waitingTasks.isEmpty
+        filteredEmpty = !isTrulyEmpty && !isLoading && !isError && todayTasks.isEmpty
 
         let combined: [ApiTask]
         if activeHourDate == today {
@@ -121,18 +139,27 @@ struct TodayComputation {
         }
         hourDays = [TodayHourDay(
             date: activeHourDate,
-            tasks: combined.filter { !TodayTaskOwner.isAgentAssigned($0, agents) },
+            tasks: combined.filter { showAgentTasks || !TodayTaskOwner.isAgentAssigned($0, agents) },
             isToday: activeHourDate == today
         )]
 
+        // Заголовки колонок — словами и без счётчиков (владелец 09.09.2026:
+        // «числа не надо указывать в названии», а у сегодняшней колонки вместо
+        // даты должно стоять «Сегодня» — дата и так стоит в шапке раздела).
         var columns: [TodayBoardColumn] = []
         if !filteredWaiting.isEmpty {
-            columns.append(.init(id: .waiting, title: "Ждут вас \(filteredWaiting.count)", tasks: filteredWaiting, titleIsRed: false))
+            columns.append(.init(id: .waiting, title: "Ждут вас", tasks: filteredWaiting, titleIsRed: false))
         }
         if !overdueTasks.isEmpty {
-            columns.append(.init(id: .overdue, title: "Просрочено \(overdueTasks.count)", tasks: overdueTasks, titleIsRed: true))
+            columns.append(.init(id: .overdue, title: "Просрочено", tasks: overdueTasks, titleIsRed: true))
         }
-        columns.append(.init(id: .today, title: TodayDate.formatColumnDateLabel(today), tasks: todayTasks, titleIsRed: false))
+        columns.append(.init(id: .today, title: "Сегодня", tasks: todayTasks, titleIsRed: false))
+        // Четвёртой колонкой — «Предстоящие»: всё, что позже сегодняшнего дня,
+        // одной кучей. Владелец 09.09.2026 отдельно отказался дробить её на
+        // «три дня»/«неделю» — для диапазонов есть свои виды раздела.
+        columns.append(.init(id: .upcoming, title: "Предстоящие", tasks: upcomingTasks, titleIsRed: false))
+        // Пятой — «Пул»: то, что не попало ни в одну датированную колонку.
+        columns.append(.init(id: .pool, title: "Пул", tasks: poolTasks, titleIsRed: false))
         boardColumns = columns
     }
 
@@ -146,6 +173,14 @@ struct TodayComputation {
             .sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }
         let todayTasks = tasks.filter { $0.dueDate == today }
         return (overdue, todayTasks)
+    }
+
+    /// Строго позже сегодняшнего дня. Бессрочные сюда не попадают: у них
+    /// `due_date` пуст, а пустая строка меньше любой даты.
+    private static func upcoming(from tasks: [ApiTask], today: String) -> [ApiTask] {
+        tasks
+            .filter { ($0.dueDate ?? "") > today }
+            .sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }
     }
 
     private static func waitingTasks(from tasks: [ApiTask], currentUser: ApiUser?) -> [ApiTask] {

@@ -28,8 +28,6 @@ struct TodayScreen: View {
             currentUser: session.currentUser,
             agents: vm.agents,
             filters: vm.filters,
-            visibleProjectIds: vm.visibleProjectIds,
-            hasConfiguredVisibleProjects: vm.hasConfiguredVisibleProjects,
             today: today,
             activeHourDate: activeHourDate,
             isLoading: taskStore.isLoading,
@@ -62,11 +60,10 @@ struct TodayScreen: View {
                         switch vm.layout {
                         case .list:
                             TodayListView(
-                                waitingTasks: c.waitingTasks, overdueTasks: c.overdueTasks, todayTasks: c.todayTasks,
+                                todayTasks: c.todayTasks,
                                 today: today,
                                 onOpen: { sheetTaskID = TappedTaskID(id: $0.id) },
                                 onComplete: { task in Task { await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in } } },
-                                onRescheduleOverdue: { rescheduleOpen = true },
                                 onDelete: { task in Task { await taskStore.delete(taskId: task.id) } }
                             )
                             // Без горизонтальных полей: строка задачи идёт во
@@ -237,33 +234,7 @@ struct TodayScreen: View {
                 Label("Показывать выполненные", systemImage: "checkmark.circle")
             }
 
-            Menu {
-                if projectStore.projects.isEmpty {
-                    Text("Нет проектов")
-                } else {
-                    // «Все проекты» одним тапом — см. TodayViewModel.
-                    filterOption(
-                        "Все проекты",
-                        selected: vm.allProjectsVisible(projectStore.projects.map(\.id))
-                    ) {
-                        vm.toggleAllVisibleProjects(projectStore.projects.map(\.id))
-                    }
-                    Divider()
-                    ForEach(projectStore.projects) { project in
-                        filterOption(
-                            project.name,
-                            selected: vm.visibleProjectIds[project.id] == true
-                        ) {
-                            vm.toggleVisibleProject(project.id)
-                        }
-                    }
-                }
-            } label: {
-                Label("Показывать в разделе", systemImage: "eye")
-            }
-            // Множественный выбор — меню остаётся открытым (см. UpcomingScreen).
-            .menuActionDismissBehavior(.disabled)
-
+            // «Показывать в разделе» убран 09.09.2026 — см. `TodaySectionView`.
             if vm.filters.isActive {
                 Divider()
                 Button(role: .destructive) { vm.filters = .empty } label: {

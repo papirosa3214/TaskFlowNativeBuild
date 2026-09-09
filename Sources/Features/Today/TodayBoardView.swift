@@ -15,12 +15,12 @@ struct TodayBoardView: View {
     let onOpenTask: (String) -> Void
     let onReschedule: () -> Void
     let onAddTask: () -> Void
-
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: TFSpacing.md) {
                 ForEach(columns) { column in
                     columnView(column)
+                        .id(column.id)
                         .containerRelativeFrame(.horizontal) { availableWidth, _ in
                             max(280, availableWidth - TFSpacing.lg * 2 - boardNextColumnPeek)
                         }
@@ -39,22 +39,22 @@ struct TodayBoardView: View {
     }
 
     private func columnView(_ column: TodayBoardColumn) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            HStack {
-                Text(column.title)
-                    .tfText(.title)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(column.titleIsRed ? Color.tfRed : Color.tfText)
-                Spacer()
-                if column.id == .overdue {
-                    Button("Перенести", action: onReschedule)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tfRed)
-                }
-            }
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: TFSpacing.sm) {
+        // Прокрутка колонки уходит под обе системные кромки: сверху её мягко
+        // размывает шапка раздела, снизу карточки проезжают под панелью
+        // вкладок с её собственным затуханием. Владелец 10.09.2026: «доски
+        // сделать, чтобы системный блюр вверху был и моё затухание внизу, как
+        // на всех экранах».
+        //
+        // Заголовок колонки живёт ВНУТРИ прокрутки — иначе он стоит между
+        // шапкой и лентой, лента до системной панели не достаёт, и размывать
+        // системе нечего: получается жёсткая обрезка под заголовком, ровно то,
+        // на что владелец и указал.
+        ScrollView(.vertical, showsIndicators: false) {
+            // Заголовок закреплён штатным `pinnedViews` — тот же приём, что у
+            // списка «Сегодня» (`TodayListView`): своей подложки и своего
+            // размытия у него нет, лента просто идёт под ним.
+            LazyVStack(spacing: TFSpacing.sm, pinnedViews: [.sectionHeaders]) {
+                Section {
                     if column.tasks.isEmpty {
                         TFEmptyState(
                             icon: nil,
@@ -83,11 +83,30 @@ struct TodayBoardView: View {
                             }
                         }
                     }
+                } header: {
+                    HStack {
+                        Text(column.title)
+                            .tfText(.title)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(column.titleIsRed ? Color.tfRed : Color.tfText)
+                        Spacer()
+                        if column.id == .overdue {
+                            Button("Перенести", action: onReschedule)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.tfRed)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.bottom, TFSpacing.lg)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            // Запас снизу — высота панели вкладок: последняя карточка должна
+            // доезжать выше неё, а не оставаться под затуханием. Отступ висит
+            // на всей ленте: на `Section` он раздувал промежуток под КАЖДОЙ
+            // карточкой (поймано кадром).
+            .padding(.bottom, TFTabBarMetrics.heightCompact + TFSpacing.lg)
         }
+        .tfBoardNativeScrollEdges()
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
@@ -141,5 +160,19 @@ struct TodayBoardView: View {
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         }
         .buttonStyle(TFTapScaleStyle())
+    }
+}
+
+private extension View {
+    /// Системное мягкое размытие у верхней кромки прокрутки — тот же приём,
+    /// что уже стоит у почасовой сетки (`tfHoursNativeTopScrollEdge`).
+    /// Ничего своего не рисуем, на iOS до 26 просто нет эффекта.
+    @ViewBuilder
+    func tfBoardNativeScrollEdges() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            self
+        }
     }
 }

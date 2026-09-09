@@ -209,6 +209,9 @@ struct TaskFormScreen: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
                     Task {
+                        // Отложенное сохранение перебиваем здесь, а не внутри
+                        // `saveExistingEdits` — см. комментарий у метода.
+                        pendingSaveTask?.cancel()
                         if viewModel.isEditing { await saveExistingEdits() }
                         dismiss()
                     }
@@ -954,9 +957,16 @@ struct TaskFormScreen: View {
         }
     }
 
+    /// ⚠️ Здесь НЕЛЬЗЯ трогать `pendingSaveTask`: этот метод вызывается в том
+    /// числе изнутри самой `pendingSaveTask` (см. `scheduleSave`), и отмена
+    /// отменяла задачу, внутри которой выполнялась. `URLSession` дальше
+    /// создавался в уже отменённом контексте и бросал `URLError.cancelled` —
+    /// владелец видел «Сеть недоступна: cancelled» на любой правке карточки
+    /// (09.09.2026, ловилось на «Срок» → «Убрать дату и время»). Отменяет
+    /// отложенное сохранение тот, кто его перебивает: `scheduleSave` и
+    /// `handleDisappear`.
     private func saveExistingEdits() async {
         guard viewModel.isEditing, isEditorReady else { return }
-        pendingSaveTask?.cancel()
         _ = await viewModel.save(taskStore: taskStore)
     }
 

@@ -55,16 +55,26 @@ struct UpcomingMonthView: View {
     }
 
     var body: some View {
+        // Строка «Пн Вт Ср…» вынесена НАД прокруткой, а не приклеена
+        // `pinnedViews: [.sectionHeaders]` внутри неё. Приклеенная шапка
+        // накрывала первую строку ленты, из-за чего прокрутку к текущему
+        // месяцу когда-то просто убрали — и раздел открывался на месяц назад
+        // (владелец 09.09.2026: «почему-то он всё время не центрируется на
+        // том месяце, который сейчас»). Снаружи она ничего не накрывает, и
+        // прокрутку можно вернуть.
+        VStack(spacing: 0) {
+            weekdayHeader
+            monthScroll
+        }
+    }
+
+    private var monthScroll: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    Section {
-                        ForEach(Array(weeks.enumerated()), id: \.element) { index, monday in
-                            weekBlock(monday: monday, index: index)
-                                .id(monday)
-                        }
-                    } header: {
-                        weekdayHeader
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(weeks.enumerated()), id: \.element) { index, monday in
+                        weekBlock(monday: monday, index: index)
+                            .id(monday)
                     }
                 }
             }
@@ -86,13 +96,18 @@ struct UpcomingMonthView: View {
             }
             .onAppear {
                 if weeks.isEmpty { weeks = Self.buildInitialWeeks(around: initialMonday, initialMonth: initialMonth) }
-                // Лента уже начинается с недели 1-го числа `initialMonth`
-                // (см. `buildInitialWeeks`), никакого scrollTo не требуется —
-                // pinned header в SwiftUI + LazyVStack прячет первую строку.
-                // Сразу ставим заголовок на `initialMonth`.
-                guard !didInitialScroll else { return }
+            }
+            // Прокрутка отдельно от построения ленты: строки создаёт
+            // `LazyVStack`, и в том же проходе, где `weeks` только присвоены,
+            // целевой строки ещё нет — `scrollTo` уходит в никуда.
+            .onChange(of: weeks) { _, list in
+                guard !didInitialScroll, !list.isEmpty else { return }
                 didInitialScroll = true
-                onVisibleMonthChange(initialMonth.year, initialMonth.month)
+                let target = Self.firstWeekMondayOfMonth(year: initialMonth.year, month: initialMonth.month)
+                DispatchQueue.main.async {
+                    proxy.scrollTo(target, anchor: .top)
+                    onVisibleMonthChange(initialMonth.year, initialMonth.month)
+                }
             }
         }
     }
@@ -185,11 +200,10 @@ struct UpcomingMonthView: View {
     }
 
     private static func buildInitialWeeks(around initialMonday: String, initialMonth: (year: Int, month: Int)) -> [String] {
-        // Первая неделя ленты — неделя с 1-м числом `initialMonth` (например,
-        // 31 августа для сентября 2026). 4 недели назад и 20 вперёд: пользователь
-        // чаще листает в будущее, чем в прошлое; scrollTo не используется,
-        // потому что с `pinnedViews: [.sectionHeaders]` он кладёт первую строку
-        // под шапку — и 1-е число месяца оказывается скрытым.
+        // Лента шире одного месяца: 4 строки назад и 20 вперёд от строки с
+        // 1-м числом `initialMonth`. Открывается раздел НЕ в начале ленты —
+        // прокрутка ставит на строку текущего месяца (см. `onChange(of:
+        // weeks)`), а четыре строки до неё лежат запасом для листания назад.
         let firstWeekMonday = firstWeekMondayOfMonth(year: initialMonth.year, month: initialMonth.month)
         let weeksBefore = 4
         let weeksAfter = 20

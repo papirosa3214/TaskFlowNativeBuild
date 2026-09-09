@@ -30,7 +30,14 @@ public struct UpcomingScreen: View {
         nonmutating set { todayLayoutRaw = newValue.rawValue }
     }
 
-    @State private var filters = UpcomingTaskFilters.empty
+    /// «Выполненные» переехали в «Показывать в разделе» и вместе с остальным
+    /// составом раздела теперь переживают перезапуск (09.09.2026).
+    @State private var filters = UpcomingTaskFilters(
+        showCompleted: UserDefaults.standard.bool(forKey: "plannerShowCompleted")
+    )
+    /// Показывать задачи, назначенные на ИИ-агента. Раньше они вырезались из
+    /// раздела безусловно — теперь это условие состава, как и проекты.
+    @State private var plannerShowAgentTasks = UserDefaults.standard.bool(forKey: "plannerShowAgentTasks")
     @State private var selectedDate: String?
     @State private var openDay: String?
     @State private var pushedTaskID: String?
@@ -102,8 +109,8 @@ public struct UpcomingScreen: View {
             if view != .today {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 0) {
-                        filterMenu.tfPlannerToolbarControl()
-                        viewSwitcherMenu.tfPlannerToolbarControl()
+                        filterMenu.tfPlannerWideControl()
+                        viewSwitcherMenu.tfPlannerWideControl()
                     }
                 }
             }
@@ -157,7 +164,11 @@ public struct UpcomingScreen: View {
                     layout: Binding(get: { todayLayout }, set: { todayLayout = $0 }),
                     activeHourDate: $todayHourDate,
                     onAddTask: { createTaskOpen = true },
-                    plannerViewSwitcher: AnyView(viewSwitcherMenu)
+                    plannerViewSwitcher: AnyView(viewSwitcherMenu),
+                    sectionCompositionMenu: AnyView(sectionCompositionMenu),
+                    visibleProjectIds: plannerVisibleProjectIds,
+                    showAgentTasks: plannerShowAgentTasks,
+                    showCompleted: filters.showCompleted
                 )
             case .threeDays:
                 UpcomingHoursView(
@@ -303,41 +314,15 @@ public struct UpcomingScreen: View {
 
             Divider()
 
-            Toggle(isOn: Binding(get: { filters.showCompleted }, set: { filters.showCompleted = $0 })) {
-                Label("Показывать выполненные", systemImage: "checkmark.circle")
-            }
-
-            Menu {
-                if projectStore.projects.isEmpty {
-                    Text("Нет проектов")
-                } else {
-                    // «Все проекты» — одним тапом вместо пятнадцати. Отмечено,
-                    // когда выбраны все; повторный тап снимает выбор целиком,
-                    // чтобы дальше отметить один-два (просьба владельца
-                    // 08.09.2026).
-                    filterOption("Все проекты", selected: allPlannerProjectsVisible) {
-                        togglePlannerAllProjects()
-                    }
-                    Divider()
-                    ForEach(projectStore.projects) { project in
-                        filterOption(project.name, selected: plannerVisibleProjectIds.contains(project.id)) {
-                            togglePlannerVisibleProject(project.id)
-                        }
-                    }
-                }
-            } label: {
-                Label("Показывать в разделе", systemImage: "eye")
-            }
-            // Единственный пункт с МНОЖЕСТВЕННЫМ выбором, поэтому меню здесь
-            // не закрывается после каждой галочки. Владелец 08.09.2026: «по
-            // одному проекту выбирать — он свернул, ты опять открыл, свернул;
-            // а так прощёлкал их и всё». У одиночных фильтров выше поведение
-            // прежнее: выбрал — меню закрылось, это и ожидается.
-            .menuActionDismissBehavior(.disabled)
+            sectionCompositionMenu
 
             if filters.isActive {
                 Divider()
-                Button(role: .destructive) { filters = .empty } label: {
+                // Сброс не трогает «Выполненные» — это настройка состава
+                // раздела, а не разовый прицел (см. `isActive`).
+                Button(role: .destructive) {
+                    filters = UpcomingTaskFilters(showCompleted: filters.showCompleted)
+                } label: {
                     Label("Сбросить фильтры", systemImage: "arrow.counterclockwise")
                 }
             }
@@ -370,23 +355,26 @@ public struct UpcomingScreen: View {
         .accessibilityIdentifier("planner.view-switcher")
     }
 
+    /// Три кнопки вида свёрнуты в один кружок с нативным меню (владелец
+    /// 10.09.2026: «спрячем под иконкой, чтобы был один шарик аккуратненький»).
+    /// `Picker` внутри `Menu` сам ставит галочку у текущего вида — тот же
+    /// приём, что у выбора периода ниже.
     @ViewBuilder
     private var subviewPill: some View {
         if view == .today {
-            HStack(spacing: 0) {
-                ForEach(TodayLayout.allCases, id: \.self) { layout in
-                    Button { todayLayout = layout } label: {
-                        TFPlannerToolbarIcon(
-                            systemName: todayLayoutIcon(layout),
-                            tint: todayLayout == layout ? .tfText : .tfSub,
-                            weight: todayLayout == layout ? .semibold : .regular
-                        )
+            Menu {
+                Picker("Вид", selection: Binding(get: { todayLayout }, set: { todayLayout = $0 })) {
+                    ForEach(TodayLayout.allCases, id: \.self) { layout in
+                        Label(todayLayoutLabel(layout), systemImage: todayLayoutIcon(layout))
+                            .tag(layout)
                     }
-                    .buttonStyle(.plain)
-                    .tfPlannerToolbarControl()
-                    .accessibilityLabel(todayLayoutLabel(layout))
                 }
+            } label: {
+                TFPlannerToolbarIcon(systemName: todayLayoutIcon(todayLayout), tint: .tfSub)
             }
+            .tfPlannerWideControl()
+            .accessibilityLabel("Вид: \(todayLayoutLabel(todayLayout))")
+            .accessibilityIdentifier("planner.subview-switcher")
         } else {
             EmptyView()
         }
@@ -426,12 +414,15 @@ public struct UpcomingScreen: View {
 
     private var today: String { UpcomingDate.todayString() }
 
-    /// Агентские задачи сюда не попадают вовсе, и только due_date ≥ сегодня —
-    /// «Планирование» никогда не показывает просроченное (спека §5.2).
+    /// Агентские задачи сюда не попадают вовсе; дата обязана быть, но НЕ
+    /// обязана быть будущей. Отсечка `due_date >= today` (спека §5.2) снята
+    /// 09.09.2026 по прямому слову владельца: «три дня — это три дня, а не
+    /// три дня вперёд». Диапазоны листаются в обе стороны, и до этой правки
+    /// все дни левее сегодняшнего стояли пустыми, хотя задачи на них есть.
     private var datedTasks: [ApiTask] {
         taskStore.tasks.filter { t in
-            !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents)
-                && t.dueDate != nil && t.dueDate! >= today
+            (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents))
+                && t.dueDate != nil
                 && (t.projectId == nil || plannerVisibleProjectIds.contains(t.projectId!))
         }
     }
@@ -441,7 +432,7 @@ public struct UpcomingScreen: View {
     /// добавить, а не что уже добавлено).
     private var optionDatedTasks: [ApiTask] {
         taskStore.tasks.filter { t in
-            !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents) && t.dueDate != nil && t.dueDate! >= today
+            (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents)) && t.dueDate != nil
         }
     }
 
@@ -535,6 +526,63 @@ public struct UpcomingScreen: View {
         UserDefaults.standard.set(Array(plannerVisibleProjectIds), forKey: "plannerVisibleProjects")
     }
 
+    /// Состав раздела — ОДНО подменю на всё «Планирование». Тот же самый
+    /// `Menu` уезжает внутрь «Сегодня» (`TodaySectionView`), а не копируется:
+    /// состояние живёт здесь, расходиться нечему. Раньше копий было две, с
+    /// разными ключами в `UserDefaults`, и настройка в одном месте не влияла
+    /// на другое (владелец 10.09.2026 — вернуть пункт в «Сегодня», но общий).
+    @ViewBuilder
+    var sectionCompositionMenu: some View {
+        Menu {
+            if projectStore.projects.isEmpty {
+                Text("Нет проектов")
+            } else {
+                // «Все проекты» — одним тапом вместо пятнадцати. Отмечено,
+                // когда выбраны все; повторный тап снимает выбор целиком,
+                // чтобы дальше отметить один-два (просьба владельца
+                // 08.09.2026).
+                filterOption("Все проекты", selected: allPlannerProjectsVisible) {
+                    togglePlannerAllProjects()
+                }
+                Divider()
+                ForEach(projectStore.projects) { project in
+                    filterOption(project.name, selected: plannerVisibleProjectIds.contains(project.id)) {
+                        togglePlannerVisibleProject(project.id)
+                    }
+                }
+            }
+            // Владелец 09.09.2026: агентские задачи и выполненные — такие же
+            // условия состава раздела, как проекты, и жить им здесь же, а не
+            // отдельными переключателями в корне меню. Агентские до этого
+            // вырезались из «Планирования» жёстко, без возможности показать.
+            Divider()
+            filterOption("Агентские задачи", selected: plannerShowAgentTasks) {
+                togglePlannerAgentTasks()
+            }
+            filterOption("Выполненные", selected: filters.showCompleted) {
+                setPlannerShowCompleted(!filters.showCompleted)
+            }
+        } label: {
+            Label("Показывать в разделе", systemImage: "eye")
+        }
+        // Единственный пункт с МНОЖЕСТВЕННЫМ выбором, поэтому меню здесь не
+        // закрывается после каждой галочки. Владелец 08.09.2026: «по одному
+        // проекту выбирать — он свернул, ты опять открыл, свернул; а так
+        // прощёлкал их и всё». У одиночных фильтров поведение прежнее:
+        // выбрал — меню закрылось, это и ожидается.
+        .menuActionDismissBehavior(.disabled)
+    }
+
+    private func togglePlannerAgentTasks() {
+        plannerShowAgentTasks.toggle()
+        UserDefaults.standard.set(plannerShowAgentTasks, forKey: "plannerShowAgentTasks")
+    }
+
+    private func setPlannerShowCompleted(_ value: Bool) {
+        filters.showCompleted = value
+        UserDefaults.standard.set(value, forKey: "plannerShowCompleted")
+    }
+
     private func togglePlannerVisibleProject(_ id: String) {
         if plannerVisibleProjectIds.contains(id) {
             plannerVisibleProjectIds.remove(id)
@@ -542,6 +590,16 @@ public struct UpcomingScreen: View {
             plannerVisibleProjectIds.insert(id)
         }
         UserDefaults.standard.set(Array(plannerVisibleProjectIds), forKey: "plannerVisibleProjects")
+    }
+}
+
+extension View {
+    /// Кнопка в шапке «Планирования» — шире общей `tfPlannerToolbarControl`
+    /// (32×32): владелец 10.09.2026 просил «пилюлю чуть пошире, чтобы удобно
+    /// было пальцем нажимать». Общий размер из `TFNativeHeader.swift` не
+    /// трогаем — он одинаковый на всех остальных экранах.
+    func tfPlannerWideControl() -> some View {
+        frame(width: 44, height: 34)
     }
 }
 

@@ -9,31 +9,18 @@ final class TodaySectionInfoTests: XCTestCase {
     private let date = "2026-09-01"
 
     func testEmptyTasksProduceNoSections() {
-        XCTAssertTrue(TodaySectionInfo.list(waiting: [], overdue: [], today: [], todayDate: date).isEmpty)
+        XCTAssertTrue(TodaySectionInfo.list(today: [], todayDate: date).isEmpty)
     }
 
-    func testSectionsStayInProductOrder() {
-        let sections = TodaySectionInfo.list(
-            waiting: [task("waiting")],
-            overdue: [task("overdue")],
-            today: [task("today")],
-            todayDate: date
-        )
+    /// С 09.09.2026 в списке ровно одна секция — сегодняшний день. «Просрочено»
+    /// и «Ждут вас» переехали колонками на доску, поэтому проверяем, что
+    /// список их больше не заводит ни при каких данных.
+    func testOnlyTodaySectionRemains() {
+        let sections = TodaySectionInfo.list(today: [task("today")], todayDate: date)
 
-        XCTAssertEqual(sections.map(\.kind), [.overdue, .waiting, .today])
-        XCTAssertEqual(sections.map(\.title), ["Просрочено", "Ждут вас", TodayDate.formatDueLabel(date)])
-    }
-
-    func testSparseSectionsDoNotLeavePlaceholders() {
-        let sections = TodaySectionInfo.list(
-            waiting: [],
-            overdue: [task("overdue")],
-            today: [],
-            todayDate: date
-        )
-
-        XCTAssertEqual(sections.map(\.kind), [.overdue])
-        XCTAssertEqual(sections.first?.icon, "exclamationmark")
+        XCTAssertEqual(sections.map(\.kind), [.today])
+        XCTAssertEqual(sections.map(\.title), [TodayDate.formatDueLabel(date)])
+        XCTAssertNil(sections.first?.icon)
     }
 
     private func task(_ id: String) -> ApiTask {

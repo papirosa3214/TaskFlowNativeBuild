@@ -13,8 +13,12 @@ struct UpcomingTaskFilters: Equatable {
 
     static let empty = UpcomingTaskFilters()
 
+    /// `showCompleted` сюда НЕ входит: с 09.09.2026 это не разовый прицел, а
+    /// постоянная настройка состава раздела (живёт в «Показывать в разделе» и
+    /// переживает перезапуск) — иначе иконка фильтра горела бы красным всегда,
+    /// а «Сбросить фильтры» молча выключало бы показ выполненных.
     var isActive: Bool {
-        projectId != nil || labelId != nil || assigneeKey != nil || showCompleted
+        projectId != nil || labelId != nil || assigneeKey != nil
     }
 }
 
@@ -95,8 +99,10 @@ enum UpcomingFilterEngine {
         return (result.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }, hasUnassigned)
     }
 
-    /// Задача назначена ИИ-агенту, а не человеку — `isAgentAssignedTask` (spec §5.2):
-    /// такие задачи на «Планировании» не показываются вовсе.
+    /// Задача назначена ИИ-агенту, а не человеку — `isAgentAssignedTask`
+    /// (spec §5.2). С 09.09.2026 это не приговор, а условие переключателя
+    /// «Показывать агентские» (`UpcomingTaskFilters.showAgentTasks`): проверка
+    /// живёт на месте вызова, потому что список агентов есть только там.
     static func isAgentAssigned(_ task: ApiTask, _ agents: [ApiUser]) -> Bool {
         guard let assigneeId = task.assigneeId else { return false }
         return agents.contains { $0.id == assigneeId && $0.type == .ai }

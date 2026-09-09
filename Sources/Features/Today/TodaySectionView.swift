@@ -9,6 +9,12 @@ struct TodaySectionView: View {
     @Binding var activeHourDate: String
     var onAddTask: () -> Void = {}
     let plannerViewSwitcher: AnyView
+    /// Тот же самый `Menu` «Показывать в разделе», что и у диапазонов —
+    /// приходит из `UpcomingScreen`, где живёт его состояние (LOCK-111).
+    var sectionCompositionMenu: AnyView = AnyView(EmptyView())
+    var visibleProjectIds: Set<String> = []
+    var showAgentTasks = false
+    var showCompleted = false
 
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
@@ -22,13 +28,17 @@ struct TodaySectionView: View {
     private var today: String { TodayDate.todayString() }
 
     private var computation: TodayComputation {
-        TodayComputation(
+        // Разовые фильтры — свои у экрана, состав раздела — общий с
+        // диапазонами и приходит параметрами (LOCK-111).
+        var effectiveFilters = vm.filters
+        effectiveFilters.showCompleted = showCompleted
+        return TodayComputation(
             allTasks: taskStore.tasks,
             currentUser: session.currentUser,
             agents: vm.agents,
-            filters: vm.filters,
-            visibleProjectIds: vm.visibleProjectIds,
-            hasConfiguredVisibleProjects: vm.hasConfiguredVisibleProjects,
+            filters: effectiveFilters,
+            showAgentTasks: showAgentTasks,
+            visibleProjectIds: visibleProjectIds,
             today: today,
             activeHourDate: activeHourDate,
             isLoading: taskStore.isLoading,
@@ -46,6 +56,12 @@ struct TodaySectionView: View {
                 // колонки. Общая ScrollView связывала все три позиции.
                 listOrBoardContent(c: c)
                     .frame(maxHeight: .infinity, alignment: .top)
+                    // Общий отступ под панель вкладок (`routeDestination`)
+                    // держит доску НАД панелью, а карточки должны уезжать
+                    // под неё — как на остальных экранах. Гасим его только
+                    // здесь; сам общий механизм не трогаем, запас под
+                    // последнюю карточку добавлен внутри колонок.
+                    .ignoresSafeArea(.container, edges: .bottom)
             } else {
                 ScrollView {
                     listOrBoardContent(c: c)
@@ -56,8 +72,8 @@ struct TodaySectionView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 0) {
-                    filterMenu(c: c).tfPlannerToolbarControl()
-                    plannerViewSwitcher.tfPlannerToolbarControl()
+                    filterMenu(c: c).tfPlannerWideControl()
+                    plannerViewSwitcher.tfPlannerWideControl()
                 }
             }
         }
@@ -97,8 +113,6 @@ struct TodaySectionView: View {
                 switch layout {
                 case .list:
                     TodayListView(
-                        waitingTasks: c.waitingTasks,
-                        overdueTasks: c.overdueTasks,
                         todayTasks: c.todayTasks,
                         today: today,
                         onOpen: { sheetTaskID = TodaySectionTaskID(id: $0.id) },
@@ -107,7 +121,6 @@ struct TodaySectionView: View {
                                 await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in }
                             }
                         },
-                        onRescheduleOverdue: { rescheduleOpen = true },
                         onDelete: { task in Task { await taskStore.delete(taskId: task.id) } }
                     )
                 case .board:
@@ -117,13 +130,14 @@ struct TodaySectionView: View {
                         onReschedule: { rescheduleOpen = true },
                         onAddTask: onAddTask
                     )
-                    .padding(.top, TFSpacing.sm)
                 case .hours:
                     EmptyView()
                 }
             }
         }
-        .padding(.bottom, TFSpacing.lg)
+        // Доске нижний отступ не нужен: её колонки прокручиваются под панель
+        // вкладок и держат свой запас внутри (см. `TodayBoardView`).
+        .padding(.bottom, layout == .board ? 0 : TFSpacing.lg)
     }
 
     @ViewBuilder
@@ -192,27 +206,11 @@ struct TodaySectionView: View {
             } label: { Label("Исполнитель", systemImage: "person") }
 
             Divider()
-            Toggle(isOn: Binding(get: { vm.filters.showCompleted }, set: { vm.filters.showCompleted = $0 })) {
-                Label("Показывать выполненные", systemImage: "checkmark.circle")
-            }
 
-            Menu {
-                if projectStore.projects.isEmpty { Text("Нет проектов") }
-                else {
-                    // «Все проекты» одним тапом — см. TodayViewModel.
-                    filterOption("Все проекты", selected: vm.allProjectsVisible(projectStore.projects.map(\.id))) {
-                        vm.toggleAllVisibleProjects(projectStore.projects.map(\.id))
-                    }
-                    Divider()
-                    ForEach(projectStore.projects) { project in
-                        filterOption(project.name, selected: vm.visibleProjectIds[project.id] == true) {
-                            vm.toggleVisibleProject(project.id)
-                        }
-                    }
-                }
-            } label: { Label("Показывать в разделе", systemImage: "eye") }
-            // Множественный выбор — меню остаётся открытым (см. UpcomingScreen).
-            .menuActionDismissBehavior(.disabled)
+            // «Выполненные» живут внутри этого подменю вместе с проектами и
+            // агентскими — состав раздела общий с диапазонами, отдельного
+            // переключателя здесь больше нет.
+            sectionCompositionMenu
 
             if vm.filters.isActive {
                 Divider()

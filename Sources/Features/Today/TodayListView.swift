@@ -1,49 +1,25 @@
 import SwiftUI
 
-// Вид «Список» — spec §5.1. Секции сверху вниз: «Просрочено» → «Ждут вас» →
-// дата-заголовок (только если выше уже была секция) → задачи на сегодня.
+// Вид «Список» — ровно сегодняшний день, одна секция с дата-заголовком.
+// Владелец 09.09.2026: «в списке сегодня я вижу только сегодня… открыл и
+// больше ни на что не отвлекался». «Просрочено» и «Ждут вас» переехали
+// целиком в «Доску» — там же к ним добавились «Предстоящие».
 // `AppleCalendarEvents` (события календаря устройства) — вне спеки Волны 1
 // (`spec/NATIVE-PARTS.md` относит интеграцию с системным календарём к
 // более поздней волне), здесь не рисуется.
 struct TodayListView: View {
-    let waitingTasks: [ApiTask]
-    let overdueTasks: [ApiTask]
     let todayTasks: [ApiTask]
     let today: String
     let onOpen: (ApiTask) -> Void
     let onComplete: (ApiTask) -> Void
-    /// Перенести ВСЕ просроченные — кнопка в шапке секции «Просрочено».
-    let onRescheduleOverdue: () -> Void
     let onDelete: (ApiTask) -> Void
 
     private var sections: [TodaySectionInfo] {
-        TodaySectionInfo.list(waiting: waitingTasks, overdue: overdueTasks, today: todayTasks, todayDate: today)
+        TodaySectionInfo.list(today: todayTasks, todayDate: today)
     }
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-            if !overdueTasks.isEmpty {
-                Section {
-                    ForEach(overdueTasks) { task in
-                        TodayTaskRow(task: task, overdue: true,
-                                     onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
-                                     onDelete: { onDelete(task) })
-                    }
-                } header: {
-                    header(.overdue)
-                }
-            }
-            if !waitingTasks.isEmpty {
-                Section {
-                    ForEach(waitingTasks) { task in
-                        TodayTaskRow(task: task, overdue: task.dueDate != nil && task.dueDate! < today,
-                                     onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
-                                     onDelete: { onDelete(task) })
-                    }
-                } header: {
-                    header(.waiting)
-                }
-            }
             Section {
                 ForEach(todayTasks) { task in
                     TodayTaskRow(task: task, overdue: false,
@@ -64,23 +40,12 @@ struct TodayListView: View {
             HStack(spacing: 6) {
                 if let icon = info.icon {
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: kind == .overdue ? .bold : .regular))
+                        .font(.system(size: 16))
                         .foregroundStyle(info.color)
                 }
                 Text(info.title)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(info.color)
-
-                // Массовый перенос просроченных был только в виде «Доска», и
-                // владелец 09.09.2026 его там ни разу не встретил. Тот же
-                // приём, что в шапке колонки на доске: кнопка рядом с
-                // заголовком, только когда просроченные есть.
-                if kind == .overdue {
-                    Spacer()
-                    Button("Перенести", action: onRescheduleOverdue)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tfRed)
-                }
             }
             .padding(.horizontal, TFSpacing.lg)
             .padding(.top, 8)
@@ -92,7 +57,7 @@ struct TodayListView: View {
 
 // MARK: - Состав секций
 
-enum TodaySectionKind: Equatable { case waiting, overdue, today }
+enum TodaySectionKind: Equatable { case today }
 
 struct TodaySectionInfo: Equatable {
     let kind: TodaySectionKind
@@ -100,20 +65,12 @@ struct TodaySectionInfo: Equatable {
     let icon: String?
     let color: Color
 
-    /// Единственное место, где решается состав и порядок секций.
-    static func list(waiting: [ApiTask], overdue: [ApiTask], today: [ApiTask], todayDate: String) -> [TodaySectionInfo] {
-        var result: [TodaySectionInfo] = []
-        if !overdue.isEmpty {
-            result.append(.init(kind: .overdue, title: "Просрочено", icon: "exclamationmark", color: .tfRed))
-        }
-        if !waiting.isEmpty {
-            result.append(.init(kind: .waiting, title: "Ждут вас",
-                                icon: "person.crop.circle.badge.clock", color: .tfText))
-        }
-        if !today.isEmpty {
-            result.append(.init(kind: .today, title: TodayDate.formatDueLabel(todayDate),
-                                icon: nil, color: .tfSub))
-        }
-        return result
+    /// Единственное место, где решается состав секций. С 09.09.2026 в списке
+    /// она ровно одна — сегодняшний день; «Просрочено» и «Ждут вас» живут
+    /// колонками на доске.
+    static func list(today: [ApiTask], todayDate: String) -> [TodaySectionInfo] {
+        guard !today.isEmpty else { return [] }
+        return [.init(kind: .today, title: TodayDate.formatDueLabel(todayDate),
+                      icon: nil, color: .tfSub)]
     }
 }
