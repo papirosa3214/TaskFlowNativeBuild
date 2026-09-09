@@ -30,12 +30,11 @@ public struct TFBottomSheetContent<Content: View>: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Хендл — и визуальная подсказка, и точка захвата для смахивания вниз.
-            Capsule()
-                .fill(Color.tfStroke)
-                .frame(width: TFSheet.handleWidth, height: TFSheet.handleHeight)
-                .padding(.top, TFSpacing.sm)
-                .padding(.bottom, TFSpacing.xs)
+            // Свой хендл убран 09.09.2026 — рисовался поверх спрятанного
+            // системного и был просто картинкой: тянуть шторку между
+            // половинным и полным состоянием он не умел. Теперь родной,
+            // включается в модификаторе ниже.
+            Color.clear.frame(height: TFSpacing.sm)
 
             if title != nil || actionTitle != nil {
                 HStack {
@@ -85,7 +84,17 @@ public extension View {
             TFBottomSheetContent(title: title, actionTitle: actionTitle, action: action, onClose: {
                 isPresented.wrappedValue = false
             }, content: content)
-            .presentationDragIndicator(.hidden) // свой хендл вместо системного
+            // Детентов не было вовсе — шторка распахивалась сразу на весь
+            // экран, тогда как карточка задачи и остальные открываются
+            // наполовину. Владелец 09.09.2026 про перенос по свайпу: «ведёт
+            // себя не совсем так, как системные окна, сделай как обычное».
+            // Правка общая: её видят все семь шторок, подключённых этим
+            // модификатором (настройки, иконка приложения, статистика чата,
+            // фильтры активности, задачи из текста заметки, перенос).
+            .presentationDetents([.medium, .large])
+            // И хендл теперь родной, а не нарисованный поверх спрятанного:
+            // системный умеет то, чего свой не умеет — тянет между детентами.
+            .presentationDragIndicator(.visible)
             .presentationCornerRadius(TFRadius.sheet)
             .presentationBackground(Color.tfSheetBackground)
         }
