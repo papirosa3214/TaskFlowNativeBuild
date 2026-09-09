@@ -3,6 +3,7 @@ build_sim/
 build_dev_signed/
 build_device/
 DerivedData/
+.build/
 
 # Генерируется xcodegen из project.yml (см. ARCHITECTURE.md — общий
 # .pbxproj был источником конфликтов, поэтому в репозитории только .yml)
