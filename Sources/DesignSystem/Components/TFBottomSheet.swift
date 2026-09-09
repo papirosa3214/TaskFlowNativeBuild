@@ -42,10 +42,11 @@ public struct TFBottomSheetContent<Content: View>: View {
                 .frame(maxWidth: .infinity)
                 .navigationTitle(title ?? "")
                 .navigationBarTitleDisplayMode(.inline)
+                // Кнопки закрытия нет намеренно: шторка закрывается
+                // смахиванием вниз и тапом мимо неё, как везде в приложении.
+                // Слова «Закрыть» в интерфейсе не было нигде — оно появилось
+                // только здесь и сразу резануло глаз владельцу (09.09.2026).
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Закрыть", action: onClose)
-                    }
                     if let actionTitle, let action {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button(actionTitle, action: action)

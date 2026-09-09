@@ -8,15 +8,19 @@ struct RescheduleSheetContent: View {
     let onClose: () -> Void
 
     @State private var displayedMonth = Date()
+    /// 9:00 по умолчанию — как в редакторе срока внутри карточки.
+    @State private var pickedTime = Calendar.current.date(
+        bySettingHour: 9, minute: 0, second: 0, of: Date()
+    ) ?? Date()
     @State private var isRescheduling = false
     @State private var done = 0
     @State private var errorMessage: String?
 
     var body: some View {
-        // Своей шапки здесь больше нет: заголовок «Срок» и кнопка закрытия
-        // рисует системный навбар шторки (`tfBottomSheet`, 09.09.2026).
-        // Кнопка подтверждения не нужна — и быстрые кнопки, и выбор даты
-        // применяются сразу, подтверждать было нечего.
+        // Своей шапки здесь нет: заголовок «Срок» рисует системный навбар
+        // шторки (`tfBottomSheet`, 09.09.2026). Кнопок подтверждения и
+        // закрытия тоже нет — выбор применяется сразу, а закрывается шторка
+        // смахиванием, как везде в приложении.
         VStack(spacing: TFSpacing.lg) {
             if isRescheduling {
                 Text("Переносим \(done) из \(taskIds.count)…")
@@ -25,27 +29,31 @@ struct RescheduleSheetContent: View {
             }
             TFErrorBanner(errorMessage, variant: .block)
 
-            VStack(spacing: TFSpacing.xs) {
-                quickButton("Сегодня", subtitle: TodayDate.weekdaysFull[weekday(TodayDate.todayString())]) {
-                    apply(date: TodayDate.todayString())
-                }
+            // Тот же набор и тот же порядок, что в редакторе срока внутри
+            // карточки: «Сегодня»/«Завтра» в ряд, ниже дата и время
+            // (09.09.2026 — «эти вещи должны быть одинаковыми, согласованными
+            // со всем приложением»). «На выходных» и «Следующая неделя»
+            // убраны: в карточке их нет, а два набора быстрых дат в одном
+            // приложении расходились бы.
+            HStack(spacing: TFSpacing.sm) {
+                quickButton("Сегодня") { apply(date: TodayDate.todayString()) }
                 quickButton("Завтра") { apply(date: TodayDate.addDays(TodayDate.todayString(), 1)) }
-                quickButton("На выходных") { apply(date: nearestSaturday()) }
-                quickButton("Следующая неделя") { apply(date: nearestMonday()) }
-                quickButton("Без срока") { apply(date: nil) }
             }
 
-            // Быстрые кнопки закрывают почти все переносы; конкретное число
-            // нужно редко, поэтому вместо самописной сетки месяца на
-            // пол-экрана — компактный системный пикер одной строкой
-            // (09.09.2026, тот же разбор, что у карточки задачи).
-            DatePicker(
-                "Другая дата",
-                selection: customDateBinding,
-                displayedComponents: .date
-            )
-            .padding(.horizontal, TFSpacing.lg)
+            DatePicker("Дата", selection: customDateBinding, displayedComponents: .date)
+            DatePicker("Время", selection: customTimeBinding, displayedComponents: .hourAndMinute)
+
+            Button {
+                apply(date: nil)
+            } label: {
+                Text("Убрать срок")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfCoral)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(TFTapFadeStyle())
         }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
         .padding(.bottom, TFSpacing.xl)
         .disabled(isRescheduling)
     }
@@ -67,46 +75,32 @@ struct RescheduleSheetContent: View {
         )
     }
 
-    private func quickButton(_ title: String, subtitle: String? = nil, action: @escaping () -> Void) -> some View {
+    /// Время переноса. Задача может быть без времени — тогда 9:00, как в
+    /// редакторе срока внутри карточки.
+    private var customTimeBinding: Binding<Date> {
+        Binding(
+            get: { pickedTime },
+            set: { pickedTime = $0 }
+        )
+    }
+
+    /// Один в один кнопка из редактора срока в карточке задачи.
+    private func quickButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack {
-                Text(title).tfText(.body).foregroundStyle(Color.tfText)
-                Spacer()
-                if let subtitle {
-                    Text(subtitle).tfText(.action).foregroundStyle(Color.tfSub)
-                }
-            }
-            .padding(TFSpacing.lg)
-            .background(Color.tfCard)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+            Text(title)
+                .tfText(.body)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.tfText)
+                .frame(maxWidth: .infinity)
+                .frame(height: TFHitTarget.min)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         }
-        .buttonStyle(TFTapRowStyle())
+        .buttonStyle(TFTapScaleStyle())
     }
 
-    private func weekday(_ dateStr: String) -> Int {
-        guard let d = TodayDate.calendarDate(dateStr) else { return 0 }
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
-        return cal.component(.weekday, from: d) - 1
-    }
 
-    private func nearestSaturday() -> String {
-        var date = TodayDate.todayString()
-        for _ in 0..<7 {
-            if weekday(date) == 6 { return date } // суббота
-            date = TodayDate.addDays(date, 1)
-        }
-        return date
-    }
 
-    private func nearestMonday() -> String {
-        var date = TodayDate.addDays(TodayDate.todayString(), 1)
-        for _ in 0..<7 {
-            if weekday(date) == 1 { return date } // понедельник
-            date = TodayDate.addDays(date, 1)
-        }
-        return date
-    }
 
     private func apply(date: String?) {
         Task { await runReschedule(date: date) }
@@ -118,6 +112,8 @@ struct RescheduleSheetContent: View {
         done = 0
         errorMessage = nil
         var failed = 0
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: pickedTime)
+        let timeString = String(format: "%02d:%02d", comps.hour ?? 9, comps.minute ?? 0)
         await withTaskGroup(of: Bool.self) { group in
             for id in taskIds {
                 group.addTask {
@@ -125,7 +121,15 @@ struct RescheduleSheetContent: View {
                     // мутировать `inout` нечем; полагаемся на ответ сервера, который
                     // `patch()` сам подставит в стор после await — без мгновенного
                     // оптимистичного обновления строки, но корректно.
-                    await taskStore.patch(taskId: id, fields: ["due_date": date.map { JSONValue.string($0) } ?? .null]) { _ in }
+                    // Вместе с датой переносим и время: пикер времени иначе
+                    // был бы декоративным — покрутил, а на сервер ушла одна
+                    // дата. Сняли срок — время тоже снимаем, сервер не
+                    // принимает время без даты.
+                    var fields: [String: JSONValue] = [
+                        "due_date": date.map { JSONValue.string($0) } ?? .null
+                    ]
+                    fields["start_time"] = date == nil ? .null : .string(timeString)
+                    return await taskStore.patch(taskId: id, fields: fields) { _ in }
                 }
             }
             for await ok in group {

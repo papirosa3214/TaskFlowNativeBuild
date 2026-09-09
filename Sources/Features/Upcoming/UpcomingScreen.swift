@@ -242,14 +242,6 @@ public struct UpcomingScreen: View {
             )
             .navigationTitle("Срок")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Закрыть") {
-                        rescheduleTask = nil
-                        rescheduleOpen = false
-                    }
-                }
-            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

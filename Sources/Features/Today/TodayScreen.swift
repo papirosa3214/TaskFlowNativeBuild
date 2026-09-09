@@ -66,7 +66,7 @@ struct TodayScreen: View {
                                 today: today,
                                 onOpen: { sheetTaskID = TappedTaskID(id: $0.id) },
                                 onComplete: { task in Task { await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in } } },
-                                onReschedule: { task in rescheduleTask = task; rescheduleOpen = true },
+                                onRescheduleOverdue: { rescheduleOpen = true },
                                 onDelete: { task in Task { await taskStore.delete(taskId: task.id) } }
                             )
                             // Без горизонтальных полей: строка задачи идёт во

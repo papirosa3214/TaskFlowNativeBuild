@@ -12,7 +12,8 @@ struct TodayListView: View {
     let today: String
     let onOpen: (ApiTask) -> Void
     let onComplete: (ApiTask) -> Void
-    let onReschedule: (ApiTask) -> Void
+    /// Перенести ВСЕ просроченные — кнопка в шапке секции «Просрочено».
+    let onRescheduleOverdue: () -> Void
     let onDelete: (ApiTask) -> Void
 
     private var sections: [TodaySectionInfo] {
@@ -26,7 +27,7 @@ struct TodayListView: View {
                     ForEach(overdueTasks) { task in
                         TodayTaskRow(task: task, overdue: true,
                                      onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
-                                     onReschedule: { onReschedule(task) }, onDelete: { onDelete(task) })
+                                     onDelete: { onDelete(task) })
                     }
                 } header: {
                     header(.overdue)
@@ -37,7 +38,7 @@ struct TodayListView: View {
                     ForEach(waitingTasks) { task in
                         TodayTaskRow(task: task, overdue: task.dueDate != nil && task.dueDate! < today,
                                      onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
-                                     onReschedule: { onReschedule(task) }, onDelete: { onDelete(task) })
+                                     onDelete: { onDelete(task) })
                     }
                 } header: {
                     header(.waiting)
@@ -47,7 +48,7 @@ struct TodayListView: View {
                 ForEach(todayTasks) { task in
                     TodayTaskRow(task: task, overdue: false,
                                  onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
-                                 onReschedule: { onReschedule(task) }, onDelete: { onDelete(task) })
+                                 onDelete: { onDelete(task) })
                 }
             } header: {
                 header(.today)
@@ -69,6 +70,17 @@ struct TodayListView: View {
                 Text(info.title)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(info.color)
+
+                // Массовый перенос просроченных был только в виде «Доска», и
+                // владелец 09.09.2026 его там ни разу не встретил. Тот же
+                // приём, что в шапке колонки на доске: кнопка рядом с
+                // заголовком, только когда просроченные есть.
+                if kind == .overdue {
+                    Spacer()
+                    Button("Перенести", action: onRescheduleOverdue)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.tfRed)
+                }
             }
             .padding(.horizontal, TFSpacing.lg)
             .padding(.top, 8)

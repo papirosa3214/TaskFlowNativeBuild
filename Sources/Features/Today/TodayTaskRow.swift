@@ -16,7 +16,6 @@ struct TodayTaskRow: View {
     let overdue: Bool
     let onOpen: () -> Void
     let onComplete: () -> Void
-    let onReschedule: () -> Void
     let onDelete: () -> Void
 
     private let actionWidth: CGFloat = TFRowActionWidth
@@ -27,8 +26,9 @@ struct TodayTaskRow: View {
     private let closeVelocity = TFRowSwipe.closeVelocity
     /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
     @State private var rowID = UUID()
-    /// Точка покоя строки: 0 (закрыта), −actionWidth («Завершить» открыта),
-    /// −2×actionWidth («Завершить» + «Перенести»), +actionWidth («Удалить»).
+    /// Точка покоя строки: 0 (закрыта), −actionWidth («Завершить»),
+    /// +actionWidth («Удалить»). Двух правых кнопок больше нет — «Перенести»
+    /// убрана 09.09.2026.
     @State private var settledOffset: CGFloat = 0
     @State private var dragOffset: CGFloat = 0
     @State private var confirmDelete = false
@@ -60,18 +60,16 @@ struct TodayTaskRow: View {
 
                 Spacer(minLength: 0)
 
-                actionButton(
-                    icon: "calendar", label: "Перенести",
-                    identifier: "row.swipe.reschedule", color: .tfOrange
-                ) { close(); onReschedule() }
-                .frame(width: rightRevealWidth / 2)
-                .opacity(revealOpacity(rightRevealWidth))
-
+                // «Перенести» из свайпа убрана 09.09.2026: срок ставится в
+                // карточке, и отдельная шторка ради того же самого была
+                // лишним шагом («это глупости какие-то, оно мне не надо»).
+                // Массовый перенос просроченных остался — он в шапке колонки
+                // «Просрочено» на доске и карточкой не заменяется.
                 actionButton(
                     icon: "checkmark", label: "Завершить",
                     identifier: "row.swipe.complete", color: .tfGreen
                 ) { close(); onComplete() }
-                .frame(width: rightRevealWidth / 2)
+                .frame(width: rightRevealWidth)
                 .opacity(revealOpacity(rightRevealWidth))
             }
             .frame(maxHeight: .infinity)
@@ -277,11 +275,10 @@ struct TodayTaskRow: View {
         let finalOffset = clamp(settledOffset + dx)
         withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
             if settledOffset == 0 {
-                // Влево открываются ОБЕ правые кнопки сразу — так ведёт себя
-                // родная «Почта» и так честнее: раньше лёгкий свайп давал одну
-                // кнопку, сильный вторую, и переход между ступенями дёргался.
+                // Влево — одна кнопка «Завершить» (вторая, «Перенести»,
+                // убрана 09.09.2026).
                 if finalOffset < -openThreshold || velocity < -openVelocity {
-                    settledOffset = -2 * actionWidth
+                    settledOffset = -actionWidth
                 } else if finalOffset > openThreshold || velocity > openVelocity {
                     settledOffset = actionWidth
                 } else {

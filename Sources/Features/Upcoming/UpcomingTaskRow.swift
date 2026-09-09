@@ -11,7 +11,6 @@ struct UpcomingTaskRow: View {
     let task: ApiTask
     let onOpen: () -> Void
     let onComplete: () -> Void
-    let onReschedule: () -> Void
     let onDelete: () -> Void
 
     /// Ширина зоны действия свайпа — `ACTION_W` (spec §3.3).
@@ -42,18 +41,13 @@ struct UpcomingTaskRow: View {
 
                 Spacer(minLength: 0)
 
-                actionButton(
-                    icon: "calendar", label: "Перенести",
-                    identifier: "row.swipe.reschedule", color: .tfOrange
-                ) { close(); onReschedule() }
-                .frame(width: rightRevealWidth / 2)
-                .opacity(revealOpacity(rightRevealWidth))
-
+                // «Перенести» из свайпа убрана 09.09.2026 — срок ставится
+                // в карточке (см. TodayTaskRow, та же правка).
                 actionButton(
                     icon: "checkmark", label: "Завершить",
                     identifier: "row.swipe.complete", color: .tfGreen
                 ) { close(); onComplete() }
-                .frame(width: rightRevealWidth / 2)
+                .frame(width: rightRevealWidth)
                 .opacity(revealOpacity(rightRevealWidth))
             }
             .frame(maxHeight: .infinity)
@@ -169,7 +163,7 @@ struct UpcomingTaskRow: View {
         withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
             if settledOffset == 0 {
                 if finalOffset < -openThreshold || velocity < -openVelocity {
-                    settledOffset = -2 * actionWidth
+                    settledOffset = -actionWidth
                 } else if finalOffset > openThreshold || velocity > openVelocity {
                     settledOffset = actionWidth
                 } else {

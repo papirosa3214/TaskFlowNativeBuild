@@ -107,10 +107,7 @@ struct TodaySectionView: View {
                                 await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in }
                             }
                         },
-                        onReschedule: { task in
-                            rescheduleTask = task
-                            rescheduleOpen = true
-                        },
+                        onRescheduleOverdue: { rescheduleOpen = true },
                         onDelete: { task in Task { await taskStore.delete(taskId: task.id) } }
                     )
                 case .board:
