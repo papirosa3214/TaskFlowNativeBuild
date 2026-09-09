@@ -9,6 +9,17 @@ struct UpcomingDaySheetContent: View {
     let onTaskTap: (String) -> Void
 
     var body: some View {
+        // Своя прокрутка обязательна: без неё жест целиком доставался шторке,
+        // и вместо листания она просто ехала наверх (владелец 10.09.2026).
+        // Половинное состояние отдаёт жест этому `ScrollView`
+        // (`presentationContentInteraction(.scrolls)` в `UpcomingScreen`).
+        ScrollView {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Group {
             if tasks.isEmpty {
                 Text("На этот день ничего не запланировано")

@@ -216,6 +216,13 @@ public struct UpcomingScreen: View {
                 onTaskTap: { self.openDay = nil; pushedTaskID = $0 }
             )
             .padding(.horizontal, TFSpacing.screenHorizontal)
+            // Тот же фон, что заливает себе карточка задачи
+            // (`TaskFormScreen`): без него шторка дня оставалась прозрачной и
+            // выглядела светлее соседней (владелец 10.09.2026). Это не свой
+            // `presentationBackground` поверх системного — просто заливка
+            // содержимого, системный хром шторки не трогаем.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.tfBackground)
             .tfNativeHeader(UpcomingDaySheetTitle.text(openDay), displayMode: .inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -234,6 +241,10 @@ public struct UpcomingScreen: View {
         }
         .presentationDragIndicator(.visible)
         .presentationDetents([.medium, .large])
+        // В половинном состоянии жест уходит списку, а не шторке: тянешь —
+        // листается, а поднять на весь экран можно за хендл (владелец
+        // 10.09.2026: «как в других местах»).
+        .presentationContentInteraction(.scrolls)
     }
 
     /// Тот же системный вид, что у переноса с «Сегодня»: заголовок и кнопка
