@@ -265,7 +265,9 @@ final class NotesViewModel {
     func exportNoteToMarkdownFile(noteID: String, title: String) async -> URL? {
         do {
             let full = try await apiClient.note(id: noteID, format: "markdown")
-            let markdown = full.content?.stringValue ?? ""
+            // Markdown лежит в отдельном поле, `content` при `?format=markdown`
+            // остаётся TipTap JSON — см. `NoteEditorViewModel.exportToMarkdownFile()`.
+            let markdown = full.markdown ?? full.content?.stringValue ?? ""
             let name = safeFileName(title)
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
             try markdown.write(to: url, atomically: true, encoding: .utf8)
