@@ -28,51 +28,36 @@ public struct TFBottomSheetContent<Content: View>: View {
         self.content = content()
     }
 
+    /// Своего здесь больше нет ничего, кроме содержимого (09.09.2026,
+    /// владелец: «просил сделать окно именно системным, чтобы мы ничего
+    /// своего не рисовали, кроме содержимого»).
+    ///
+    /// Было: нарисованный хендл поверх спрятанного системного, своя шапка
+    /// с крестиком и заголовком, своя подложка со скруглением верхних углов.
+    /// Стало: системный навигационный бар — заголовок, «Закрыть» слева и
+    /// кнопка действия справа рисует iOS, фон и углы шторки тоже её.
     public var body: some View {
-        VStack(spacing: 0) {
-            // Свой хендл убран 09.09.2026 — рисовался поверх спрятанного
-            // системного и был просто картинкой: тянуть шторку между
-            // половинным и полным состоянием он не умел. Теперь родной,
-            // включается в модификаторе ниже.
-            Color.clear.frame(height: TFSpacing.sm)
-
-            if title != nil || actionTitle != nil {
-                HStack {
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: TFIconSize.sm))
-                            .foregroundStyle(Color.tfText)
-                            .frame(width: TFSheet.headerCloseSize, height: TFSheet.headerCloseSize)
+        NavigationStack {
+            content
+                .frame(maxWidth: .infinity)
+                .navigationTitle(title ?? "")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Закрыть", action: onClose)
                     }
-                    Spacer()
-                    if let title {
-                        Text(title).tfText(.title).foregroundStyle(Color.tfText)
-                    }
-                    Spacer()
                     if let actionTitle, let action {
-                        Button(action: action) {
-                            Text(actionTitle).tfText(.action).foregroundStyle(Color.tfSub)
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(actionTitle, action: action)
                         }
-                    } else {
-                        Color.clear.frame(width: TFSheet.headerCloseSize)
                     }
                 }
-                .padding(.horizontal, TFSpacing.sm)
-            }
-
-            content
-                .padding(.horizontal, TFSpacing.screenHorizontal)
         }
-        .frame(maxWidth: .infinity)
-        .background(Color.tfCard)
-        .clipShape(.rect(topLeadingRadius: TFRadius.sheet, topTrailingRadius: TFRadius.sheet))
-        .frame(maxWidth: TFSheet.maxWidthWide) // ≥1024px десктоп — не растягивается на всё окно; на телефоне уже уже экрана, эффекта нет
     }
 }
 
 public extension View {
-    /// Подключает нижнюю шторку. Скрим — сплошной чёрный без блюра (спека), поэтому
-    /// `.presentationBackground` на самой карточке, а не системный материал.
+    /// Подключает нижнюю шторку — системную, без своей обвязки.
     func tfBottomSheet<SheetContent: View>(
         isPresented: Binding<Bool>,
         title: String? = nil,
@@ -84,19 +69,15 @@ public extension View {
             TFBottomSheetContent(title: title, actionTitle: actionTitle, action: action, onClose: {
                 isPresented.wrappedValue = false
             }, content: content)
-            // Детентов не было вовсе — шторка распахивалась сразу на весь
-            // экран, тогда как карточка задачи и остальные открываются
-            // наполовину. Владелец 09.09.2026 про перенос по свайпу: «ведёт
-            // себя не совсем так, как системные окна, сделай как обычное».
-            // Правка общая: её видят все семь шторок, подключённых этим
-            // модификатором (настройки, иконка приложения, статистика чата,
-            // фильтры активности, задачи из текста заметки, перенос).
+            // Половинное и полное состояние, родной хендл. Фон, скругление
+            // углов и скрим — системные: свои `presentationBackground` и
+            // `presentationCornerRadius` убраны вместе с остальной обвязкой.
+            // Правка общая — её видят все семь шторок на этом модификаторе
+            // (настройки профиля, иконка приложения, статистика чата, фильтры
+            // активности, задачи из текста заметки, перенос с «Сегодня» и из
+            // разделов).
             .presentationDetents([.medium, .large])
-            // И хендл теперь родной, а не нарисованный поверх спрятанного:
-            // системный умеет то, чего свой не умеет — тянет между детентами.
             .presentationDragIndicator(.visible)
-            .presentationCornerRadius(TFRadius.sheet)
-            .presentationBackground(Color.tfSheetBackground)
         }
     }
 }

@@ -225,16 +225,34 @@ public struct UpcomingScreen: View {
         .presentationDetents([.medium, .large])
     }
 
+    /// Тот же системный вид, что у переноса с «Сегодня»: заголовок и кнопка
+    /// закрытия — в навбаре шторки, половинное и полное состояние, родной
+    /// хендл. Здесь шторка открывается своим `.sheet(item:)`, мимо общего
+    /// `tfBottomSheet`, поэтому обвязку задаём тут же (09.09.2026).
     @ViewBuilder
     private func rescheduleSheet(task: ApiTask) -> some View {
-        RescheduleSheetContent(
-            taskIds: [task.id],
-            taskStore: taskStore,
-            onClose: {
-                rescheduleTask = nil
-                rescheduleOpen = false
+        NavigationStack {
+            RescheduleSheetContent(
+                taskIds: [task.id],
+                taskStore: taskStore,
+                onClose: {
+                    rescheduleTask = nil
+                    rescheduleOpen = false
+                }
+            )
+            .navigationTitle("Срок")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Закрыть") {
+                        rescheduleTask = nil
+                        rescheduleOpen = false
+                    }
+                }
             }
-        )
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     /// Нативное системное меню — тот же приём, что `TodayScreen.filterMenu`:

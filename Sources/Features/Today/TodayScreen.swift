@@ -149,7 +149,7 @@ struct TodayScreen: View {
             .presentationBackground(Color.tfSheetBackground)
         }
         .task { await vm.loadAgentsIfNeeded() }
-        .tfBottomSheet(isPresented: $rescheduleOpen) {
+        .tfBottomSheet(isPresented: $rescheduleOpen, title: "Срок") {
             RescheduleSheetContent(
                 taskIds: rescheduleTask.map { [$0.id] } ?? c.overdueTasks.map(\.id),
                 taskStore: taskStore,

@@ -7,31 +7,17 @@ struct RescheduleSheetContent: View {
     let taskStore: TaskStore
     let onClose: () -> Void
 
-    @State private var pendingDate: String?
     @State private var displayedMonth = Date()
     @State private var isRescheduling = false
     @State private var done = 0
     @State private var errorMessage: String?
 
     var body: some View {
+        // Своей шапки здесь больше нет: заголовок «Срок» и кнопка закрытия
+        // рисует системный навбар шторки (`tfBottomSheet`, 09.09.2026).
+        // Кнопка подтверждения не нужна — и быстрые кнопки, и выбор даты
+        // применяются сразу, подтверждать было нечего.
         VStack(spacing: TFSpacing.lg) {
-            HStack {
-                Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 18)).foregroundStyle(Color.tfText)
-                }
-                .frame(width: 44, height: 44)
-                Spacer()
-                Text("Срок").tfText(.title).foregroundStyle(Color.tfText)
-                Spacer()
-                Button(action: confirm) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: TFIconSize.md))
-                        .foregroundStyle(pendingDate != nil && !isRescheduling ? Color.tfRed : Color.tfDim)
-                }
-                .disabled(pendingDate == nil || isRescheduling)
-                .frame(width: 44, height: 44)
-            }
-
             if isRescheduling {
                 Text("Переносим \(done) из \(taskIds.count)…")
                     .tfText(.action)
@@ -123,14 +109,9 @@ struct RescheduleSheetContent: View {
     }
 
     private func apply(date: String?) {
-        pendingDate = date ?? ""
         Task { await runReschedule(date: date) }
     }
 
-    private func confirm() {
-        guard let pendingDate, !pendingDate.isEmpty else { return }
-        Task { await runReschedule(date: pendingDate) }
-    }
 
     private func runReschedule(date: String?) async {
         isRescheduling = true
