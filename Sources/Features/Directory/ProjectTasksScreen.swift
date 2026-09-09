@@ -5,7 +5,7 @@ import SwiftUI
 //
 // ⚠️ КОНТРАКТНАЯ ДЫРА (не мой файл чинить, в отчёте оркестратору): «+» в
 // шапке в вебе ведёт на `/task/new?project=id` — с предзаполненным проектом.
-// `AppRoute.taskForm(taskID:)` по INTEGRATION.md несёт только `taskID`, поля
+// `AppRoute.taskCreate` пока не несёт `projectID`, поля
 // «проект» там нет — веду на пустую форму без предзаполнения, пользователь
 // выберет проект вручную.
 //
@@ -30,7 +30,6 @@ struct ProjectTasksScreen: View {
     private struct TaskRef: Identifiable {
         let id: String
     }
-    @State private var pendingEdit: String?
     @State private var showNewTask = false
 
     private var project: ApiProject? {
@@ -102,7 +101,7 @@ struct ProjectTasksScreen: View {
                                             await taskStore.patch(taskId: task.id, fields: ["pinned": .bool(!task.pinned)]) { _ in }
                                         }
                                     },
-                                    onEdit: { pendingEdit = task.id },
+                                    onEdit: { pendingDetail = task.id },
                                     onDelete: { Task { await taskStore.delete(taskId: task.id) } }
                                 )
                             }
@@ -156,19 +155,16 @@ struct ProjectTasksScreen: View {
             get: { pendingDetail.map(TaskRef.init) },
             set: { pendingDetail = $0?.id }
         )) { ref in
-            NavigationStack { TaskDetailScreen(taskID: ref.id) }
+            NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-        }
-        .navigationDestination(item: $pendingEdit) { id in
-            routeDestination(.taskForm(taskID: id))
         }
         .onChange(of: pendingDetail) { previous, current in
             if previous != nil, current == nil {
                 Task { await refreshRelationshipTasks() }
             }
         }
-        .navigationDestination(isPresented: $showNewTask) { routeDestination(.taskForm(taskID: nil)) }
+        .navigationDestination(isPresented: $showNewTask) { routeDestination(.taskCreate) }
     }
 
     private func refreshRelationshipTasks() async {

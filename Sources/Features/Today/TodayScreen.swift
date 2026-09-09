@@ -79,7 +79,7 @@ struct TodayScreen: View {
                                 columns: c.boardColumns,
                                 onOpenTask: { sheetTaskID = TappedTaskID(id: $0) },
                                 onReschedule: { rescheduleOpen = true },
-                                onAddTask: { route = .taskForm(taskID: nil) }
+                                onAddTask: { route = .taskCreate }
                             )
                             .padding(.top, TFSpacing.sm)
                         case .hours:
@@ -137,8 +137,6 @@ struct TodayScreen: View {
         }
         .navigationDestination(item: $route) { routeDestination($0) }
         .sheet(item: $sheetTaskID) { wrapped in
-            // Свой NavigationStack — нужен для toolbar (крестик/«Готово»)
-            // формы, шторка вне родительского стека.
             NavigationStack {
                 TaskFormScreen(taskID: wrapped.id)
             }

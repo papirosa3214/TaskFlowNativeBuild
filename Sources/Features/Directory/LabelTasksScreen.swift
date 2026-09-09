@@ -93,7 +93,7 @@ struct LabelTasksScreen: View {
             get: { pendingTaskID.map(TaskRef.init) },
             set: { pendingTaskID = $0?.id }
         )) { ref in
-            NavigationStack { TaskDetailScreen(taskID: ref.id) }
+            NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }

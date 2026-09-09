@@ -91,10 +91,8 @@ struct RootShellView: View {
     /// появляется заново до полуночи, даже если список задач изменился.
     @AppStorage("taskflow_today_badge_seen_date") private var todayBadgeSeenDate: String = ""
     #if DEBUG
-    /// Debug-роуты `tasksheet:<id>` (чтение) / `tasksheetedit:<id>` (сразу
-    /// правка, минуя тап «Изменить») — см. `.sheet` ниже в `body`.
+    /// Debug-роут `tasksheet:<id>` открывает ту же единую карточку, что и приложение.
     @State private var debugTaskSheetID: String?
-    @State private var debugTaskSheetEditing = false
     #endif
 
     var body: some View {
@@ -119,11 +117,7 @@ struct RootShellView: View {
             )) {
                 if let id = debugTaskSheetID {
                     NavigationStack {
-                        if debugTaskSheetEditing {
-                            TaskFormScreen(editingExisting: id)
-                        } else {
-                            TaskFormScreen(taskID: id)
-                        }
+                        TaskFormScreen(taskID: id)
                     }
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
@@ -247,20 +241,7 @@ struct RootShellView: View {
                 expandedDraft = QuickAddDraft(viewModel: TaskFormViewModel(taskID: nil))
             case "task" where parts.count == 2:
                 paths[selectedTab, default: NavigationPath()].append(AppRoute.taskDetail(taskID: parts[1]))
-            case "taskform" where parts.count == 2:
-                // Временный debug-маршрут для проверки — открывает форму
-                // редактирования (та же ветка, что и «…» → «Изменить»
-                // в TaskDetailScreen), минуя тап по существующей задаче.
-                paths[selectedTab, default: NavigationPath()].append(AppRoute.taskForm(taskID: parts[1]))
             case "tasksheet" where parts.count == 2:
-                // Родная шторка (detents medium/large), не пуш — см. `.sheet`
-                // выше в `body`. Единственный debug-роут, который её показывает.
-                debugTaskSheetEditing = false
-                debugTaskSheetID = parts[1]
-            case "tasksheetedit" where parts.count == 2:
-                // Та же шторка, сразу в режиме правки (минуя тап «Изменить») —
-                // для проверки кадром пилюли «…»+галочка в шапке.
-                debugTaskSheetEditing = true
                 debugTaskSheetID = parts[1]
             case "notifications": paths[selectedTab, default: NavigationPath()].append(AppRoute.notifications)
             case "projects": paths[selectedTab, default: NavigationPath()].append(AppRoute.projects)

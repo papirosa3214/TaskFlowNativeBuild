@@ -34,7 +34,6 @@ public struct UpcomingScreen: View {
     @State private var selectedDate: String?
     @State private var openDay: String?
     @State private var pushedTaskID: String?
-    @State private var editingTaskID: String?
     @State private var createTaskOpen = false
     @State private var rescheduleTask: ApiTask?
     @State private var rescheduleOpen = false
@@ -114,12 +113,7 @@ public struct UpcomingScreen: View {
             daySheet(date: day.id)
         }
         .sheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
-        // Владелец 07.09.2026: «хочу именно системное всплывающее окно» —
-        // просмотр задачи открывается снизу системной шторкой (`.sheet`),
-        // не пушем (тот же приём, что уже был у `TodaySectionView.sheetTaskID`
-        // и у `createTaskOpen` ниже). Правка («Изменить», `editingTaskID`)
-        // не трогаю — она пуш осознанно, владелец 02.09.2026 прямо просил
-        // «выдвигающуюся нативную хрень» для неё отдельно.
+        // Любая существующая задача открывает одну и ту же интерактивную карточку.
         .sheet(isPresented: Binding(
             get: { pushedTaskID != nil }, set: { if !$0 { pushedTaskID = nil } }
         )) {
@@ -129,13 +123,8 @@ public struct UpcomingScreen: View {
                     .presentationDragIndicator(.visible)
             }
         }
-        .navigationDestination(isPresented: Binding(
-            get: { editingTaskID != nil }, set: { if !$0 { editingTaskID = nil } }
-        )) {
-            if let id = editingTaskID { routeDestination(.taskForm(taskID: id)) }
-        }
         .sheet(isPresented: $createTaskOpen) {
-            NavigationStack { TaskFormScreen(taskID: nil) }
+            NavigationStack { TaskFormScreen() }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }

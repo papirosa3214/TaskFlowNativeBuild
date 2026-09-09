@@ -50,14 +50,9 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .chat:
         ChatScreen()
     case .taskDetail(let taskID):
-        // Владелец 02.09.2026: открытие любой задачи ведёт сразу в форму
-        // редактирования (тот же вид, что раньше был за «…» → «Изменить»),
-        // без промежуточного экрана-просмотра — TaskDetailScreen из этого
-        // пути убран, её меню «…» (принять/отклонить, Dynamic Island,
-        // шаблон) перенесено в TaskFormScreen.
         TaskFormScreen(taskID: taskID)
-    case .taskForm(let taskID):
-        TaskFormScreen(taskID: taskID)
+    case .taskCreate:
+        TaskFormScreen()
     case .notes:
         NotesScreen()
     case .noteFolder(let folderID):

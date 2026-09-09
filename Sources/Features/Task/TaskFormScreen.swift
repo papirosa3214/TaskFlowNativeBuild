@@ -1,21 +1,8 @@
 import SwiftUI
 
-/// Форма задачи — spec/SCREENS-1.md §5.5, обслуживает `/task/new` и
-/// `/task/:id/edit` ОДНОЙ структурой (различие — заголовок секции и способ
-/// отправки патча). Имя и параметр — контракт `INTEGRATION.md`, буквально.
-///
-/// ⚠️ 31.08.2026, задача «компактное создание»: полноэкранный бланк при
-/// СОЗДАНИИ (`taskID == nil`) владелец назвал «формой заявки на анкету» —
-/// заменён компактной панелью `QuickAddTaskView` (см. файл рядом), эта
-/// структура при создании теперь ТОЛЬКО хост для неё и площадка для
-/// «развернуть». Редактирование (`taskID != nil`) — без изменений, старое
-/// полноэкранное тело (`fullFormBody`) как было.
-///
-/// ⚠️ 02.09.2026, владелец: открытие ЛЮБОЙ существующей задачи (из списков,
-/// досок, чата и т.п.) ведёт СРАЗУ сюда — отдельный экран-просмотр
-/// `TaskDetailScreen` из этого пути убран (`routeDestination(.taskDetail)`,
-/// `TodayScreen` шторка). Меню «…» с действиями владельца (принять/вернуть,
-/// Dynamic Island, шаблон) перенесено сюда же — см. `ownerActionMenuItems`.
+/// Два режима задачи во всём приложении: компактная панель
+/// `QuickAddTaskView` для создания и одна плоская системная шторка для
+/// существующей задачи. Все поля в готовой задаче активны сразу.
 struct TaskFormScreen: View {
     let taskID: String?
 
@@ -39,31 +26,19 @@ struct TaskFormScreen: View {
     @Environment(SessionStore.self) private var session
     @FocusState private var isTitleFocused: Bool
     @State private var dictation = DictationEngine.shared
-
-    /// Перенесено из `TaskDetailScreen` вместе с меню «…».
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
     @State private var replyingSubtask: ApiSubtask?
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
-    /// 02.09.2026: «Прикрепить файл» — пункт меню «…» при правке (не своя
-    /// строка в теле формы, см. `AttachmentsFieldView.showAddButton`).
     @State private var isAttachmentPickerPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
-
-    /// Владелец 02.09.2026: открытие СУЩЕСТВУЮЩЕЙ задачи по умолчанию — это
-    /// чтение, не правка. Поля неактивны, в шапке только крестик и «…»;
-    /// «Изменить» в этом меню — НЕ переключатель на месте, а НАСТОЯЩИЙ пуш
-    /// (владелец прямо указал: «была именно эта выдвигающаяся нативная
-    /// хрень» — родной slide-in `NavigationStack`, как раньше был переход
-    /// TaskDetailScreen → TaskFormScreen). Пушим тот же экран второй раз,
-    /// сразу в редактируемом виде — см. `pushEditScreen` и `editingExisting`.
-    /// При создании (оба init'а — прямой и `expandingFrom`) правка нужна
-    /// сразу, поэтому `false`.
-    @State private var isReadOnly: Bool
-    /// Триггер пуша экрана правки (см. комментарий у `isReadOnly`).
-    @State private var pushEditScreen = false
+    @State private var isAddingSubtask = false
+    @State private var newSubtaskTitle = ""
+    @State private var isDueEditorExpanded = false
+    @State private var isEditorReady = false
+    @State private var pendingSaveTask: Task<Void, Never>?
 
     /// Владелец 02.09.2026: длинные секции — под аккордеон, чтобы карточку
     /// можно было визуально сжать. По умолчанию развёрнуты.
@@ -86,35 +61,22 @@ struct TaskFormScreen: View {
     /// `/task/new?dictate=1` из `CreateMenu` веба): поле названия
     /// сфокусировано, кнопка микрофона показана. Само распознавание при
     /// тапе — `DictationEngine.shared` (просьба владельца 03.09.2026).
-    init(taskID: String?, presetDueToday: Bool = false, startDictation: Bool = false) {
+    init(taskID: String? = nil, presetDueToday: Bool = false, startDictation: Bool = false) {
         self.taskID = taskID
         self._viewModel = State(initialValue: TaskFormViewModel(taskID: taskID, presetDueToday: presetDueToday, startDictation: startDictation))
         self._showQuickAdd = State(initialValue: taskID == nil)
         self._isExpanded = State(initialValue: false)
-        self._isReadOnly = State(initialValue: taskID != nil)
-    }
-
-    /// Пуш-назначение из «…» → «Изменить» (см. `isReadOnly`) — тот же экран,
-    /// но сразу в правке, своя вью-модель (перечитывает задачу заново, тем
-    /// самым подхватывая правки владельца, если они уже были).
-    init(editingExisting taskID: String) {
-        self.taskID = taskID
-        self._viewModel = State(initialValue: TaskFormViewModel(taskID: taskID))
-        self._showQuickAdd = State(initialValue: false)
-        self._isExpanded = State(initialValue: false)
-        self._isReadOnly = State(initialValue: false)
     }
 
     /// «Развернуть» из `QuickAddTaskView` — тот же экран, СРАЗУ с готовой
     /// вью-моделью и в режиме полной формы (сохранение всё ещё «создание»:
-    /// `viewModel.taskID == nil`, поэтому различаем через `isExpanded`, не
-    /// через `isEditing`).
+    /// Вью-модель остаётся той же, поэтому введённые в панели данные
+    /// не теряются.
     init(expandingFrom viewModel: TaskFormViewModel) {
-        self.taskID = viewModel.taskID
+        self.taskID = nil
         self._viewModel = State(initialValue: viewModel)
         self._showQuickAdd = State(initialValue: false)
         self._isExpanded = State(initialValue: true)
-        self._isReadOnly = State(initialValue: false)
     }
 
     /// Создание полноценной дочерней задачи. В отличие от обычного «+»,
@@ -130,7 +92,6 @@ struct TaskFormScreen: View {
         ))
         self._showQuickAdd = State(initialValue: false)
         self._isExpanded = State(initialValue: true)
-        self._isReadOnly = State(initialValue: false)
     }
 
     var body: some View {
@@ -172,6 +133,46 @@ struct TaskFormScreen: View {
     }
 
     private var fullFormBody: some View {
+        formNavigationBody
+            .task { await loadScreen() }
+            .onChange(of: isTitleFocused) { wasFocused, isFocused in
+                if wasFocused, !isFocused { scheduleSave() }
+            }
+            .onChange(of: viewModel.title) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.taskDescription) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.dueDate) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.startMinutes) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.durationMin) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.projectId) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.assigneeId) { _, _ in scheduleSave() }
+            .onDisappear(perform: handleDisappear)
+    }
+
+    private var formNavigationBody: some View {
+        formPresentationBody
+            .navigationDestination(item: $linkedTaskNavigation) { destination in
+                switch destination {
+                case .detail(let id):
+                    TaskFormScreen(taskID: id)
+                case .create(let parentID, let parentTitle, let projectID):
+                    TaskFormScreen(linkedTo: parentID, parentTitle: parentTitle, projectID: projectID)
+                }
+            }
+            .sheet(isPresented: $isExistingTaskPickerPresented) {
+                LinkedTaskPicker(
+                    tasks: taskStore.tasks,
+                    excludedIDs: linkedTaskExcludedIDs,
+                    onSelect: { task in await viewModel.linkExistingTask(task) }
+                )
+            }
+            .onChange(of: linkedTaskNavigation) { previous, current in
+                if previous != nil, current == nil { Task { await viewModel.loadIfNeeded() } }
+            }
+    }
+
+    private var formPresentationBody: some View {
         VStack(spacing: 0) {
             if viewModel.isLoadingTask {
                 TFLoading(.block)
@@ -180,7 +181,7 @@ struct TaskFormScreen: View {
                 Spacer()
                 TFEmptyState(text: "Задача не найдена")
                 Spacer()
-            } else if isReadOnly {
+            } else if viewModel.isEditing {
                 nativeTaskDetail
             } else {
                 ScrollView {
@@ -190,9 +191,6 @@ struct TaskFormScreen: View {
                         .padding(.bottom, TFSpacing.xl * 2)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                // Только у существующей задачи: у новой обновлять нечего, а
-                // жест мешал бы прокрутке формы.
-                .refreshable { if viewModel.isEditing { await viewModel.refresh() } }
             }
         }
         .background(Color.tfBackground)
@@ -202,44 +200,22 @@ struct TaskFormScreen: View {
         // а форма с семантикой отмены/сохранения, обычный «‹ Назад» её не
         // заменяет. Штатный путь — `navigationBarBackButtonHidden` + свой
         // toolbar вместо самодельной шапки.
-        // В режиме чтения — пусто, не название задачи: оно уже своей строкой
-        // в теле (`titleField`), системная шапка дублировала бы его вторым
-        // заголовком сверху (та же причина, что была в `TaskDetailScreen`).
-        .tfNativeHeader(isReadOnly ? "Задача" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
+        .tfNativeHeader(viewModel.isEditing ? "Задача" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: {
+                Button {
+                    Task {
+                        if viewModel.isEditing { await saveExistingEdits() }
+                        dismiss()
+                    }
+                } label: {
                     Image(systemName: "xmark")
                 }
             }
             if viewModel.isEditing {
-                if isReadOnly {
-                    // Чтение — просто «…», как и было.
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Button { pushEditScreen = true } label: {
-                                Label("Изменить", systemImage: "pencil")
-                            }
-                            if isOwner, let state = viewModel.agentState {
-                                ownerActionMenuItems(state)
-                            }
-                            Button { outputDynamicIsland() } label: {
-                                Label("Вывести в Dynamic Island", systemImage: "bolt.badge.a")
-                            }
-                            Button { saveAsTemplate() } label: {
-                                Label("Сохранить как шаблон", systemImage: "doc.on.doc")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                        }
-                    }
-                } else {
-                    // Правка — см. `editingToolbarItems`.
-                    editingToolbarItems
-                }
+                editingToolbarItems
             } else {
-                // Создание — без «…», без пилюли, как было.
                 if viewModel.showAiButton {
                     ToolbarItem(placement: .topBarTrailing) {
                         aiStructureButton
@@ -289,57 +265,27 @@ struct TaskFormScreen: View {
                 replyingSubtask = nil
             }
         }
+        .alert("Новая подзадача", isPresented: $isAddingSubtask) {
+            TextField("Название", text: $newSubtaskTitle)
+            Button("Добавить") {
+                let title = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                Task { await viewModel.addSubtask(title) }
+                newSubtaskTitle = ""
+            }
+            .disabled(newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Отмена", role: .cancel) { newSubtaskTitle = "" }
+        }
         .taskToast($toast)
-        .fileImporter(isPresented: $isAttachmentPickerPresented, allowedContentTypes: [.item]) { result in
-            if case .success(let url) = result {
-                Task { await viewModel.attachments.add(url: url) }
-            }
-        }
-        .task {
-            await viewModel.loadIfNeeded()
-            await viewModel.loadAgents()
-            if taskStore.tasks.isEmpty { await taskStore.load() }
-            if viewModel.startDictation { isTitleFocused = true }
-            // Пока карточка открыта — сама себя обновляет, иначе состояние
-            // шага и строка активности замирают на момент открытия.
-            await viewModel.loadActivity()
-            viewModel.startPolling()
-        }
-        .onDisappear { viewModel.stopPolling() }
-        // Пуш на редактируемый экран — родной slide-in `NavigationStack`,
-        // см. комментарий у `isReadOnly`.
-        .navigationDestination(isPresented: $pushEditScreen) {
-            if let taskID { TaskFormScreen(editingExisting: taskID) }
-        }
-        .navigationDestination(item: $linkedTaskNavigation) { destination in
-            switch destination {
-            case .detail(let id):
-                TaskFormScreen(taskID: id)
-            case .create(let parentID, let parentTitle, let projectID):
-                TaskFormScreen(linkedTo: parentID, parentTitle: parentTitle, projectID: projectID)
-            }
-        }
-        .sheet(isPresented: $isExistingTaskPickerPresented) {
-            LinkedTaskPicker(
-                tasks: taskStore.tasks,
-                excludedIDs: linkedTaskExcludedIDs,
-                onSelect: { task in await viewModel.linkExistingTask(task) }
-            )
-        }
-        .onChange(of: pushEditScreen) { wasPushed, isPushed in
-            // Вернулись с пуша (сохранили или смахнули) — перечитать задачу,
-            // экран под пушем сам `.task` повторно не запускает.
-            if wasPushed, !isPushed { Task { await viewModel.loadIfNeeded() } }
-        }
-        .onChange(of: linkedTaskNavigation) { previous, current in
-            if previous != nil, current == nil { Task { await viewModel.loadIfNeeded() } }
-        }
+        .fileImporter(
+            isPresented: $isAttachmentPickerPresented,
+            allowedContentTypes: [.item],
+            onCompletion: handleAttachmentImport
+        )
     }
 
-    /// Карточка уже созданной задачи — системная сгруппированная форма. Все
-    /// строки используют стандартные `Section`, `LabeledContent`, `Toggle` и
-    /// `DisclosureGroup`, поэтому iOS сама ведёт цвета, размеры, отступы и
-    /// Dynamic Type; собственных карточек, аккордеонов и подложек здесь нет.
+    /// Единая карточка существующей задачи: это одновременно и просмотр,
+    /// и форма. Никакого второго экрана за «Изменить» больше нет: название,
+    /// описание и все свойства задачи активны прямо здесь.
     private var nativeTaskDetail: some View {
         List {
             if let message = viewModel.saveErrorMessage {
@@ -350,30 +296,119 @@ struct TaskFormScreen: View {
             }
 
             Section {
-                Text(viewModel.title)
+                TextField("Название задачи", text: $viewModel.title, axis: .vertical)
                     .font(.headline)
-                if !viewModel.taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(viewModel.taskDescription)
-                        .foregroundStyle(.secondary)
-                }
+                    .lineLimit(1...6)
+                    .focused($isTitleFocused)
+                TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
+                    .lineLimit(1...)
+                    .foregroundStyle(.secondary)
             }
 
-            if !viewModel.subtasks.isEmpty {
-                Section("Подзадачи") {
-                    ForEach(viewModel.subtasks) { subtask in
-                        nativeSubtaskRow(subtask)
-                    }
+            Section("Подзадачи") {
+                ForEach(viewModel.subtasks) { subtask in
+                    nativeSubtaskRow(subtask)
+                }
+                Button {
+                    newSubtaskTitle = ""
+                    isAddingSubtask = true
+                } label: {
+                    Label("Добавить подзадачу", systemImage: "plus")
                 }
             }
 
             linkedTasksSection
 
             Section("Сведения") {
-                LabeledContent("Срок", value: nativeDueText)
-                LabeledContent("Проект", value: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Не выбран")
-                LabeledContent("Приоритет", value: viewModel.priority.label)
-                LabeledContent("Метки", value: nativeLabelsText)
-                LabeledContent("Исполнитель", value: viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен")
+                Button {
+                    isDueEditorExpanded.toggle()
+                } label: {
+                    LabeledContent("Срок", value: nativeDueText)
+                }
+                .buttonStyle(.plain)
+
+                if isDueEditorExpanded {
+                    ExistingTaskDueEditor(
+                        dueDate: $viewModel.dueDate,
+                        startMinutes: $viewModel.startMinutes,
+                        durationMin: $viewModel.durationMin
+                    )
+                }
+
+                Menu {
+                    Button("Без проекта") { viewModel.projectId = nil }
+                    ForEach(projectStore.projects) { project in
+                        Button {
+                            viewModel.projectId = project.id
+                        } label: {
+                            if viewModel.projectId == project.id {
+                                Label(project.name, systemImage: "checkmark")
+                            } else {
+                                Text(project.name)
+                            }
+                        }
+                    }
+                } label: {
+                    LabeledContent("Проект", value: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Не выбран")
+                }
+                .buttonStyle(.plain)
+
+                Menu {
+                    ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
+                        Button {
+                            viewModel.priority = priority
+                        } label: {
+                            if viewModel.priority == priority {
+                                Label(priority.label, systemImage: "checkmark")
+                            } else {
+                                Text(priority.label)
+                            }
+                        }
+                    }
+                } label: {
+                    LabeledContent("Приоритет", value: viewModel.priority.label)
+                }
+                .buttonStyle(.plain)
+
+                Menu {
+                    if labelStore.labels.isEmpty {
+                        Text("Нет доступных меток")
+                    } else {
+                        ForEach(labelStore.labels) { label in
+                            Button {
+                                let binding = labelBinding(label.id)
+                                binding.wrappedValue.toggle()
+                            } label: {
+                                if viewModel.selectedLabelIds.contains(label.id) {
+                                    Label(label.name, systemImage: "checkmark")
+                                } else {
+                                    Text(label.name)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    LabeledContent("Метки", value: nativeLabelsText)
+                }
+                .buttonStyle(.plain)
+
+                Menu {
+                    Button("Не назначен") { viewModel.assigneeId = nil }
+                    ForEach(viewModel.agents.filter { $0.type == .ai }) { agent in
+                        Button {
+                            viewModel.assigneeId = agent.id
+                        } label: {
+                            if viewModel.assigneeId == agent.id {
+                                Label(agent.name, systemImage: "checkmark")
+                            } else {
+                                Text(agent.name)
+                            }
+                        }
+                    }
+                } label: {
+                    LabeledContent("Исполнитель", value: viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен")
+                }
+                .buttonStyle(.plain)
             }
 
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
@@ -408,6 +443,8 @@ struct TaskFormScreen: View {
         // (осталась подложка-карточка под секциями даже после смены стиля),
         // `List` его уважает по-настоящему.
         .listStyle(.plain)
+        .scrollDismissesKeyboard(.interactively)
+        .refreshable { await viewModel.refresh() }
     }
 
     private var linkedTasksSection: some View {
@@ -589,6 +626,19 @@ struct TaskFormScreen: View {
         return "\(date), \(String(format: "%02d:%02d", minutes / 60, minutes % 60))"
     }
 
+    private func labelBinding(_ labelID: String) -> Binding<Bool> {
+        Binding(
+            get: { viewModel.selectedLabelIds.contains(labelID) },
+            set: { selected in
+                if selected {
+                    viewModel.selectedLabelIds.insert(labelID)
+                } else {
+                    viewModel.selectedLabelIds.remove(labelID)
+                }
+            }
+        )
+    }
+
     private var nativeLabelsText: String {
         let labels = labelStore.labels.filter { viewModel.selectedLabelIds.contains($0.id) }.map(\.name)
         return labels.isEmpty ? "Не выбраны" : labels.joined(separator: ", ")
@@ -596,13 +646,9 @@ struct TaskFormScreen: View {
 
     private var isOwner: Bool { session.currentUser?.role == .owner }
 
-    /// «…» + галочка для режима правки — 02.09.2026, владелец: «уберите
-    /// кашу из трёх кнопок» (было: AI-кнопка + «…» + «Готово» текстом).
-    /// Без самодельного фона/капсулы/разделителя — два обычных
-    /// `ToolbarItem` рядом, iOS 26 сама рисует их одной стеклянной
-    /// пилюлей (Liquid Glass), не нужно имитировать вручную.
-    /// «Структурировать с AI» — пункт этого же меню (владелец сначала убрал
-    /// её из правки, затем вернул обратно сюда же, пунктом, не кнопкой).
+    /// Единственная кнопка справа — системное меню, как в эталонной
+    /// карточке. Отдельной кнопки «Изменить» и галочки сохранения нет:
+    /// поля активны сразу и сохраняются автоматически.
     @ToolbarContentBuilder
     private var editingToolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
@@ -630,19 +676,6 @@ struct TaskFormScreen: View {
                 Image(systemName: "ellipsis")
                     .foregroundStyle(Color.tfText)
             }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                Task { await submit() }
-            } label: {
-                if viewModel.isSaving {
-                    TFLoading(.inline)
-                } else {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(Color.tfText)
-                }
-            }
-            .disabled(!viewModel.isSaveEnabled)
         }
     }
 
@@ -767,7 +800,6 @@ struct TaskFormScreen: View {
             // добавление файла теперь пункт «…» (`isAttachmentPickerPresented`).
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
                 AttachmentsFieldView(controller: viewModel.attachments, showAddButton: false)
-                    .disabled(isReadOnly)
             }
 
             TFFieldGroup {
@@ -779,10 +811,8 @@ struct TaskFormScreen: View {
                 TFFieldDivider()
                 LabelsFieldView(allLabels: labelStore.labels, selectedIds: $viewModel.selectedLabelIds)
             }
-            .disabled(isReadOnly)
 
             AssigneeFieldView(agents: viewModel.agents, selectedAgentId: $viewModel.assigneeId)
-                .disabled(isReadOnly)
 
             TFErrorBanner(viewModel.directoriesErrorMessage, variant: .block)
             TFErrorBanner(viewModel.saveErrorMessage, variant: .block)
@@ -818,7 +848,6 @@ struct TaskFormScreen: View {
             .foregroundStyle(Color.tfText)
             .lineLimit(1...6)
             .focused($isTitleFocused)
-            .disabled(isReadOnly)
     }
 
     /// 02.09.2026, уточнение владельца: шеврон (аккордеон) — вернуть,
@@ -831,55 +860,182 @@ struct TaskFormScreen: View {
             TextField("", text: $viewModel.taskDescription, prompt: Text("Описание").foregroundStyle(Color.tfDim), axis: .vertical)
                 .tfText(.input)
                 .foregroundStyle(Color.tfText)
-                .disabled(isReadOnly)
                 .lineLimit(1...)
         }
     }
 
-    /// Чтение (по умолчанию, существующая задача) — статус-карточки агентов
-    /// с разворотом по тапу (`SubtaskFeedView`, как в старом TaskDetailScreen:
-    /// владелец 02.09.2026 прямо указал, что эта «выдвигающаяся» деталь была
-    /// потеряна при переезде на форму, — вернул её сюда). Правка (после
-    /// «Изменить», или создание) — список для переименования/удаления/добавления.
-    @ViewBuilder
+    /// Чек-лист для развёрнутой формы создания. Существующая задача использует
+    /// плоскую секцию `nativeTaskDetail` с отдельной кнопкой добавления.
     private var subtasksSection: some View {
-        if isReadOnly {
-            if !viewModel.subtasks.isEmpty {
-                TFCollapsibleSection(
-                    title: "Подзадачи",
-                    trailingBadge: "\(viewModel.subtasks.count { $0.done }) из \(viewModel.subtasks.count)",
-                    isExpanded: $isSubtasksExpanded
-                ) {
-                    SubtaskFeedView(
-                        subtasks: viewModel.subtasks,
-                        isOwner: isOwner,
-                        onToggleDone: { subtask in Task { await viewModel.toggleSubtaskDone(subtask) } },
-                        onSubmitReply: { subtask, text in Task { await viewModel.replyToSubtask(subtask, text: text) } },
-                        onAccept: { subtask in Task { await viewModel.acceptSubtask(subtask) } }
-                    )
-                }
-            }
-        } else {
-            TFCollapsibleSection(title: "Подзадачи", isExpanded: $isSubtasksExpanded) {
-                if viewModel.isEditing {
-                    SubtaskEditListView(
-                        subtasks: viewModel.subtasks,
-                        onReorder: { newOrder in Task { await viewModel.reorderSubtasks(newOrder) } },
-                        onRename: { subtask, newTitle in Task { await viewModel.renameSubtask(subtask, to: newTitle) } },
-                        onDelete: { subtask in Task { await viewModel.deleteSubtask(subtask) } },
-                        onAdd: { title in Task { await viewModel.addSubtask(title) } }
-                    )
-                } else {
-                    SubtaskDraftListView(drafts: $viewModel.subtaskDrafts)
-                }
-            }
+        TFCollapsibleSection(title: "Подзадачи", isExpanded: $isSubtasksExpanded) {
+            SubtaskDraftListView(drafts: $viewModel.subtaskDrafts)
         }
+    }
+
+    private func scheduleSave() {
+        guard viewModel.isEditing, isEditorReady else { return }
+        pendingSaveTask?.cancel()
+        pendingSaveTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await saveExistingEdits()
+        }
+    }
+
+    private func saveExistingEdits() async {
+        guard viewModel.isEditing, isEditorReady else { return }
+        pendingSaveTask?.cancel()
+        _ = await viewModel.save(taskStore: taskStore)
+    }
+
+    private func handleDisappear() {
+        viewModel.stopPolling()
+        pendingSaveTask?.cancel()
+        guard viewModel.isEditing, isEditorReady else { return }
+        Task { await saveExistingEdits() }
+    }
+
+    private func handleAttachmentImport(_ result: Result<URL, Error>) {
+        guard case .success(let url) = result else { return }
+        Task { await viewModel.attachments.add(url: url) }
+    }
+
+    private func loadScreen() async {
+        await viewModel.loadIfNeeded()
+        await viewModel.loadAgents()
+        if taskStore.tasks.isEmpty { await taskStore.load() }
+        if projectStore.projects.isEmpty { await projectStore.load() }
+        if labelStore.labels.isEmpty { await labelStore.load() }
+        if viewModel.startDictation { isTitleFocused = true }
+        await viewModel.loadActivity()
+        viewModel.startPolling()
+        isEditorReady = true
     }
 
     private func submit() async {
         if await viewModel.save(taskStore: taskStore) {
             dismiss()
         }
+    }
+}
+
+/// Тот же редактор срока, что в форме создания: быстрые даты,
+/// календарь, системный барабан времени и длительность.
+private struct ExistingTaskDueEditor: View {
+    @Binding var dueDate: Date?
+    @Binding var startMinutes: Int?
+    @Binding var durationMin: Int?
+
+    private static let durationOptions: [(minutes: Int, label: String)] = [
+        (15, "15м"), (30, "30м"), (45, "45м"), (60, "1ч"), (120, "2ч"), (180, "3ч"),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.lg) {
+            HStack(spacing: TFSpacing.sm) {
+                quickButton("Сегодня") { dueDate = moscowStartOfDay(offsetDays: 0) }
+                quickButton("Завтра") { dueDate = moscowStartOfDay(offsetDays: 1) }
+            }
+
+            MiniCalendarView(selectedDate: $dueDate)
+
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                Text("Во сколько").tfText(.action).foregroundStyle(Color.tfSub)
+                if dueDate == nil {
+                    Text("сначала выберите день").tfText(.action).foregroundStyle(Color.tfDim)
+                } else {
+                    DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                        .labelsHidden()
+                }
+            }
+
+            if dueDate != nil {
+                VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                    Text("Продолжительность").tfText(.action).foregroundStyle(Color.tfSub)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TFSpacing.sm) {
+                            ForEach(Self.durationOptions, id: \.minutes) { option in
+                                durationButton(option)
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    dueDate = nil
+                } label: {
+                    Text(startMinutes != nil ? "Убрать дату и время" : "Убрать дату")
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfCoral)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(TFTapFadeStyle())
+            }
+        }
+        .padding(.vertical, TFSpacing.sm)
+        .onChange(of: dueDate == nil) { _, isNil in
+            if isNil {
+                startMinutes = nil
+                durationMin = nil
+            }
+        }
+    }
+
+    private func quickButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .tfText(.body)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.tfText)
+                .frame(maxWidth: .infinity)
+                .frame(height: TFHitTarget.min)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        }
+        .buttonStyle(TFTapScaleStyle())
+    }
+
+    private var startTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                let minutes = startMinutes ?? 9 * 60
+                return Calendar.current.date(
+                    bySettingHour: minutes / 60,
+                    minute: minutes % 60,
+                    second: 0,
+                    of: Date()
+                ) ?? Date()
+            },
+            set: { date in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                startMinutes = (components.hour ?? 9) * 60 + (components.minute ?? 0)
+            }
+        )
+    }
+
+    private func durationButton(_ option: (minutes: Int, label: String)) -> some View {
+        let isSelected = durationMin == option.minutes
+        return Button {
+            durationMin = isSelected ? nil : option.minutes
+        } label: {
+            Text(option.label)
+                .tfText(.action)
+                .fontWeight(.medium)
+                .foregroundStyle(isSelected ? .white : Color.tfText)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, TFSpacing.sm)
+                .background(isSelected ? Color.tfRed : Color.tfCard2)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(TFTapScaleStyle())
+    }
+
+    private func moscowStartOfDay(offsetDays: Int) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TaskDateText.moscow
+        let today = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .day, value: offsetDays, to: today) ?? today
     }
 }
 

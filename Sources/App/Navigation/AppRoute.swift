@@ -17,8 +17,9 @@ public enum AppRoute: Hashable {
     case timeline
     case chat
     case taskDetail(taskID: String)
-    /// `nil` — создание новой задачи, иначе правка существующей.
-    case taskForm(taskID: String?)
+    /// Единственный отдельный сценарий формы — создание новой задачи.
+    /// Существующие задачи всегда открываются через `taskDetail`.
+    case taskCreate
     case notes
     /// Дневник, сразу открытый на конкретной папке (просьба владельца
     /// 03.09.2026: шеврон «Документация» у проекта вёл на общий несвязанный
