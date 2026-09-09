@@ -2,11 +2,10 @@ import SwiftUI
 
 /// Какой из четырёх разделов поднять первым — веб-параметр URL `?focus=`
 /// (`AgentWorkScreen.tsx`), значения дословно совпадают с ключами секций
-/// там же. У `AppRoute.agentWork` (контракт, `spec/INTEGRATION.md`) СЕЙЧАС
-/// нет параметров вообще — см. развёрнутый комментарий у `init` ниже и
-/// отчёт по задаче: это не самодеятельность, а подготовленное место под
-/// правку контракта каркасным исполнителем.
-enum AgentWorkFocus: String {
+/// там же. С 09.09.2026 маршрут `AppRoute.agentWork(focus:)` этот выбор
+/// доносит: до того у него не было параметров, и все четыре плитки «Обзора»
+/// открывали один и тот же полный список.
+public enum AgentWorkFocus: String, Hashable {
     case inProgress = "in_progress"
     case review
     case blocked
@@ -39,10 +38,16 @@ struct AgentWorkScreen: View {
         self.focus = focus
     }
 
-    /// Тот же приём, что `TodayScreen`/`TimelineScreen` — не `ApiTask?`,
-    /// а сразу маршрут: `.navigationDestination(item:)` по `AppRoute` не
-    /// плодит второй канал навигации рядом с общей фабрикой.
-    @State private var route: AppRoute?
+    /// Задача открывается ШТОРКОЙ, как везде: с «Сегодня», из проекта и из
+    /// меток она выезжает снизу, а отсюда уходила пушем вбок — владелец
+    /// 09.09.2026 заметил разнобой. Своё состояние, а не общий `AppRoute`:
+    /// маршрут — это про экраны в стеке, а карточка задачи теперь не экран.
+    @State private var sheetTaskID: AgentWorkTaskRef?
+
+    /// `.sheet(item:)` требует `Identifiable`, голая строка им не является.
+    private struct AgentWorkTaskRef: Identifiable {
+        let id: String
+    }
 
     private struct Section: Identifiable {
         let key: AgentWorkFocus
@@ -87,7 +92,9 @@ struct AgentWorkScreen: View {
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Работа агентов")
-        .navigationDestination(item: $route) { routeDestination($0) }
+        .sheet(item: $sheetTaskID) { ref in
+            NavigationStack { TaskFormScreen(taskID: ref.id) }
+        }
     }
 
     private func sectionView(_ section: Section) -> some View {
@@ -105,7 +112,7 @@ struct AgentWorkScreen: View {
             .padding(.bottom, TFSpacing.xs)
 
             ForEach(section.tasks) { task in
-                AgentWorkTaskRow(task: task) { route = .taskDetail(taskID: task.id) }
+                AgentWorkTaskRow(task: task) { sheetTaskID = AgentWorkTaskRef(id: task.id) }
             }
         }
         .padding(.bottom, TFSpacing.sm)

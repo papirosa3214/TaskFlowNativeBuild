@@ -90,13 +90,16 @@ struct OverviewScreen: View {
     // цифра остаётся нейтральной, красится только иконка.
     private var statusGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: TFSpacing.sm), GridItem(.flexible())], spacing: TFSpacing.sm) {
-            statusTile(route: .agentWork, title: "В работе", count: workingCount,
+            // Каждая плитка открывает сводку СРАЗУ на своём состоянии
+            // (09.09.2026): до этого все четыре вели в один и тот же полный
+            // список, и выбор ничего не значил.
+            statusTile(route: .agentWork(focus: .inProgress), title: "В работе", count: workingCount,
                        icon: "waveform.path.ecg", tint: .tfGreen)
-            statusTile(route: .agentWork, title: "На проверке", count: reviewCount,
+            statusTile(route: .agentWork(focus: .review), title: "На проверке", count: reviewCount,
                        icon: "checkmark", tint: .tfBlue)
-            statusTile(route: .agentWork, title: "Заблокированы", count: blockedCount,
+            statusTile(route: .agentWork(focus: .blocked), title: "Заблокированы", count: blockedCount,
                        icon: "flag", tint: .tfOrange)
-            statusTile(route: .agentWork, title: "Пропали", count: staleCount,
+            statusTile(route: .agentWork(focus: .stale), title: "Пропали", count: staleCount,
                        icon: "cpu", tint: .tfRed)
         }
     }
