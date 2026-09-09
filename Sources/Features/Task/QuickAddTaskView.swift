@@ -464,25 +464,45 @@ struct QuickAddTaskView: View {
         return count == 0 ? "Нет" : "\(count)"
     }
 
+    /// Владелец 09.09.2026: «если я сюда залез, значит я хочу устанавливать —
+    /// зачем эти переключатели». Переключатели «Установить срок» и «Указать
+    /// время» убраны: открыл выбор срока — сразу выбираешь. Дата
+    /// проставляется на сегодня при открытии, время — на 9:00, и то и другое
+    /// сразу правится. Отказаться от срока по-прежнему можно, но явной
+    /// кнопкой внизу, а не тумблером сверху.
     private var dueDatePicker: some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
-            Toggle("Установить срок", isOn: hasDueDate)
+            DatePicker("Дата", selection: dueDateSelection, displayedComponents: .date)
+            DatePicker("Время", selection: startTimeSelection, displayedComponents: .hourAndMinute)
+            Picker("Продолжительность", selection: $viewModel.durationMin) {
+                Text("Не указана").tag(Int?.none)
+                Text("15 минут").tag(Optional(15))
+                Text("30 минут").tag(Optional(30))
+                Text("45 минут").tag(Optional(45))
+                Text("1 час").tag(Optional(60))
+                Text("2 часа").tag(Optional(120))
+                Text("3 часа").tag(Optional(180))
+            }
+
             if viewModel.dueDate != nil {
-                DatePicker("Дата", selection: dueDateSelection, displayedComponents: .date)
-                Toggle("Указать время", isOn: hasStartTime)
-                if viewModel.startMinutes != nil {
-                    DatePicker("Время", selection: startTimeSelection, displayedComponents: .hourAndMinute)
-                    Picker("Продолжительность", selection: $viewModel.durationMin) {
-                        Text("Не указана").tag(Int?.none)
-                        Text("15 минут").tag(Optional(15))
-                        Text("30 минут").tag(Optional(30))
-                        Text("45 минут").tag(Optional(45))
-                        Text("1 час").tag(Optional(60))
-                        Text("2 часа").tag(Optional(120))
-                        Text("3 часа").tag(Optional(180))
-                    }
+                Divider()
+                Button(role: .destructive) {
+                    viewModel.dueDate = nil
+                    viewModel.startMinutes = nil
+                    viewModel.durationMin = nil
+                    isDueDatePopoverPresented = false
+                } label: {
+                    Text("Убрать срок").frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+        }
+        // Открыли — значит выбираем: проставляем сегодня и 9:00, чтобы
+        // пикеры были живыми, а не пустыми.
+        .onAppear {
+            if viewModel.dueDate == nil {
+                viewModel.dueDate = Calendar.current.startOfDay(for: Date())
+            }
+            if viewModel.startMinutes == nil { viewModel.startMinutes = 9 * 60 }
         }
     }
 

@@ -1009,28 +1009,20 @@ private struct ExistingTaskDueEditor: View {
                 quickButton("Завтра") { dueDate = moscowStartOfDay(offsetDays: 1) }
             }
 
-            MiniCalendarView(selectedDate: $dueDate)
-
-            VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                Text("Во сколько").tfText(.action).foregroundStyle(Color.tfSub)
-                if dueDate == nil {
-                    Text("сначала выберите день").tfText(.action).foregroundStyle(Color.tfDim)
-                } else {
-                    DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.wheel)
-                        .labelsHidden()
-                }
-            }
+            // Владелец 09.09.2026: «барабан на полстраницы, как календарь».
+            // Был самописный календарь-сетка плюс `.wheel` во всю высоту —
+            // теперь системные компактные пикеры: в строке видно значение,
+            // по тапу всплывает маленькая панелька, как в Напоминаниях.
+            // Заодно ушёл перекос барабана влево — он брался от `.wheel`
+            // с `labelsHidden` в колонке с выравниванием по левому краю.
+            DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
+            DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
 
             if dueDate != nil {
-                VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                    Text("Продолжительность").tfText(.action).foregroundStyle(Color.tfSub)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TFSpacing.sm) {
-                            ForEach(Self.durationOptions, id: \.minutes) { option in
-                                durationButton(option)
-                            }
-                        }
+                Picker("Продолжительность", selection: $durationMin) {
+                    Text("Не указана").tag(Int?.none)
+                    ForEach(Self.durationOptions, id: \.minutes) { option in
+                        Text(option.label).tag(Optional(option.minutes))
                     }
                 }
 
@@ -1066,6 +1058,15 @@ private struct ExistingTaskDueEditor: View {
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         }
         .buttonStyle(TFTapScaleStyle())
+    }
+
+    /// Компактному `DatePicker` нужна непустая дата: пока срока нет,
+    /// показываем сегодня, а записываем только когда пользователь выбрал.
+    private var dueDateBinding: Binding<Date> {
+        Binding(
+            get: { dueDate ?? moscowStartOfDay(offsetDays: 0) ?? Date() },
+            set: { dueDate = $0 }
+        )
     }
 
     private var startTimeBinding: Binding<Date> {

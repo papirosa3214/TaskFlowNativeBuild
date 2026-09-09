@@ -25,8 +25,11 @@ struct DueDateFieldView: View {
                 TFFieldDivider()
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     quickButtons
-                    MiniCalendarView(selectedDate: $dueDate)
-                    timeSection
+                    // Системные компактные пикеры вместо самописного
+                    // календаря-сетки и барабана во всю высоту (09.09.2026,
+                    // тот же разбор, что у карточки существующей задачи).
+                    DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
+                    DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
                     if dueDate != nil { durationSection }
                     if dueDate != nil { removeButton }
                 }
@@ -69,25 +72,13 @@ struct DueDateFieldView: View {
         .buttonStyle(TFTapScaleStyle())
     }
 
-    @ViewBuilder
-    private var timeSection: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Во сколько").tfText(.action).foregroundStyle(Color.tfSub)
-            if dueDate == nil {
-                Text("сначала выберите день").tfText(.action).foregroundStyle(Color.tfDim)
-            } else {
-                // Штатный DatePicker (iOS 14+ .wheel) вместо самодельного
-                // TimeWheelView с цилиндром и scrollTransition. Конверт
-                // Int (минуты от полуночи) ↔ Date.
-                DatePicker(
-                    "Время",
-                    selection: startTimeBinding,
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-            }
-        }
+    /// Компактному пикеру нужна непустая дата: пока срока нет, показываем
+    /// сегодня, а записываем только когда пользователь выбрал.
+    private var dueDateBinding: Binding<Date> {
+        Binding(
+            get: { dueDate ?? moscowStartOfDay(offsetDays: 0) ?? Date() },
+            set: { dueDate = $0 }
+        )
     }
 
     /// DatePicker работает с `Date` — конверт в `Int` минуты от полуночи.

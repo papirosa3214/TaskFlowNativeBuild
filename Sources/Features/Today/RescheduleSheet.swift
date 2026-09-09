@@ -49,10 +49,36 @@ struct RescheduleSheetContent: View {
                 quickButton("Без срока") { apply(date: nil) }
             }
 
-            monthCalendar
+            // Быстрые кнопки закрывают почти все переносы; конкретное число
+            // нужно редко, поэтому вместо самописной сетки месяца на
+            // пол-экрана — компактный системный пикер одной строкой
+            // (09.09.2026, тот же разбор, что у карточки задачи).
+            DatePicker(
+                "Другая дата",
+                selection: customDateBinding,
+                displayedComponents: .date
+            )
+            .padding(.horizontal, TFSpacing.lg)
         }
         .padding(.bottom, TFSpacing.xl)
         .disabled(isRescheduling)
+    }
+
+    /// Выбор в пикере сразу переносит задачу — отдельной кнопки
+    /// «применить» здесь нет и у быстрых кнопок тоже.
+    private var customDateBinding: Binding<Date> {
+        Binding(
+            get: { displayedMonth },
+            set: { picked in
+                displayedMonth = picked
+                let f = DateFormatter()
+                f.calendar = Calendar(identifier: .gregorian)
+                f.locale = Locale(identifier: "en_US_POSIX")
+                f.timeZone = TimeZone(identifier: "Europe/Moscow")
+                f.dateFormat = "yyyy-MM-dd"
+                apply(date: f.string(from: picked))
+            }
+        )
     }
 
     private func quickButton(_ title: String, subtitle: String? = nil, action: @escaping () -> Void) -> some View {
@@ -69,74 +95,6 @@ struct RescheduleSheetContent: View {
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         }
         .buttonStyle(TFTapRowStyle())
-    }
-
-    // MARK: - Календарь месяца (упрощённый: сетка 6×7 без свайпа между месяцами жестом — только стрелки).
-
-    private var monthCalendar: some View {
-        let calendar = Calendar(identifier: .gregorian)
-        let comps = calendar.dateComponents([.year, .month], from: displayedMonth)
-        let firstOfMonth = calendar.date(from: comps) ?? displayedMonth
-        let firstWeekday = (calendar.component(.weekday, from: firstOfMonth) + 5) % 7 // Пн=0
-        let daysInMonth = calendar.range(of: .day, in: .month, for: firstOfMonth)?.count ?? 30
-        let monthFormatter: DateFormatter = {
-            let f = DateFormatter()
-            f.locale = Locale(identifier: "ru_RU")
-            f.dateFormat = "LLLL yyyy"
-            return f
-        }()
-
-        return VStack(spacing: TFSpacing.sm) {
-            HStack {
-                Button { shiftMonth(-1) } label: { Image(systemName: "chevron.left") }
-                Spacer()
-                Text(monthFormatter.string(from: firstOfMonth).capitalized).tfText(.body).foregroundStyle(Color.tfText)
-                Spacer()
-                Button { shiftMonth(1) } label: { Image(systemName: "chevron.right") }
-            }
-            .foregroundStyle(Color.tfText)
-
-            HStack {
-                ForEach(TodayDate.weekdaysShort.indices.filter { $0 != 0 } + [0], id: \.self) { idx in
-                    Text(TodayDate.weekdaysShort[idx]).tfText(.micro).foregroundStyle(Color.tfDim).frame(maxWidth: .infinity)
-                }
-            }
-
-            let columns = Array(repeating: GridItem(.flexible()), count: 7)
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(0..<firstWeekday, id: \.self) { _ in Color.clear.frame(height: 32) }
-                ForEach(1...daysInMonth, id: \.self) { day in
-                    dayCell(day: day, comps: comps, calendar: calendar, fallback: firstOfMonth)
-                }
-            }
-        }
-        .padding(TFSpacing.lg)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
-    }
-
-    /// Ячейка дня вынесена из `ForEach` отдельной функцией: внутри блока,
-    /// который строит вью, объявлять переменные нельзя — а дату дня иначе
-    /// не собрать (нужно подменить день в компонентах месяца).
-    @ViewBuilder
-    private func dayCell(day: Int, comps: DateComponents, calendar: Calendar, fallback: Date) -> some View {
-        let dateStr: String = {
-            var dc = comps
-            dc.day = day
-            return TodayDate.calendarDateString(calendar.date(from: dc) ?? fallback)
-        }()
-        Button { pendingDate = dateStr } label: {
-            Text("\(day)")
-                .tfText(.row)
-                .foregroundStyle(pendingDate == dateStr ? .white : Color.tfText)
-                .frame(width: 32, height: 32)
-                .background(pendingDate == dateStr ? Color.tfRed : .clear)
-                .clipShape(Circle())
-        }
-    }
-
-    private func shiftMonth(_ delta: Int) {
-        displayedMonth = Calendar.current.date(byAdding: .month, value: delta, to: displayedMonth) ?? displayedMonth
     }
 
     private func weekday(_ dateStr: String) -> Int {
