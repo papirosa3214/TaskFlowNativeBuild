@@ -105,7 +105,7 @@ private struct ChatFileChip: View {
                 .truncationMode(.middle)
         }
         .padding(.horizontal, TFSpacing.md)
-        .frame(height: 36)
+        .frame(height: TFHitTarget.min)
         .frame(maxWidth: 220, alignment: .leading)
         .background(Color.tfCard2)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
@@ -116,6 +116,12 @@ struct ChatBubble: View {
     let message: ApiChatMessage
     let mine: Bool
     let toMe: Bool
+
+    @State private var pendingTaskID: String?
+
+    private struct TaskRef: Identifiable {
+        let id: String
+    }
 
     // Аватар раньше показывался только у чужих сообщений (веб 1:1) — просьба
     // владельца 03.09.2026: «надо, чтобы она была тоже с его стороны, моя —
@@ -163,17 +169,14 @@ struct ChatBubble: View {
                 }
 
                 if let taskId = message.taskId, let taskTitle = message.taskTitle {
-                    // Прямой переход по маршруту из контракта (INTEGRATION.md:
-                    // «переход на другой экран — через маршрут из таблицы»),
-                    // а не колбэк наружу — `AppRoute` публичный, стек навигации
-                    // уже объявлен в RootShellView и примет push отсюда.
-                    NavigationLink(value: AppRoute.taskDetail(taskID: taskId)) {
+                    Button { pendingTaskID = taskId } label: {
                         Text(taskTitle)
                             .tfText(.meta)
                             .foregroundStyle(Color.tfSub)
                             .underline()
                             .padding(.horizontal, 4)
                     }
+                    .buttonStyle(.plain)
                 }
 
                 Text(timestampText)
@@ -195,6 +198,14 @@ struct ChatBubble: View {
             }
         }
         .padding(.horizontal, TFSpacing.lg)
+        .sheet(item: Binding(
+            get: { pendingTaskID.map(TaskRef.init) },
+            set: { pendingTaskID = $0?.id }
+        )) { ref in
+            NavigationStack { TaskDetailScreen(taskID: ref.id) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private var timestampText: String {

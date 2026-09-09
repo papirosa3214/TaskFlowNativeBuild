@@ -139,8 +139,8 @@ struct TodaySectionView: View {
                 days: [UpcomingHourColumn(date: hourDay.date, tasks: hourDay.tasks, isToday: hourDay.isToday)],
                 projectColor: { task in
                     guard let id = task.projectId,
-                          let project = projectStore.projects.first(where: { $0.id == id }) else { return .tfDim }
-                    return project.color.map { Color(hex: $0) } ?? .tfDim
+                          let project = projectStore.projects.first(where: { $0.id == id }) else { return Color(hex: TFHexDefault.unassigned) }
+                    return project.color.map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned)
                 },
                 onTaskTap: { sheetTaskID = TodaySectionTaskID(id: $0) },
                 onSchedule: { id, date, time in
@@ -224,7 +224,7 @@ struct TodaySectionView: View {
                 }
             }
         } label: {
-            TFPlannerToolbarIcon(systemName: "slider.horizontal.3", tint: vm.filters.isActive ? .tfRed : .tfSub)
+            TFPlannerToolbarIcon(systemName: "line.3.horizontal.decrease", tint: vm.filters.isActive ? .tfRed : .tfSub)
         }
         .accessibilityLabel("Фильтры")
         .accessibilityIdentifier("today.filters")

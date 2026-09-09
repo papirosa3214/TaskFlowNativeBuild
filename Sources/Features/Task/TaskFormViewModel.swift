@@ -49,6 +49,11 @@ final class TaskFormViewModel {
 
     private var originalTask: ApiTask?
 
+    /// Чем агент занят прямо сейчас — пусто, когда задачу никто не держит.
+    var activity: ApiTaskActivity = .idle
+
+    private var pollTask: Task<Void, Never>?
+
     var journalEntries: [TaskJournalEntry] {
         TaskJournalEntry.merged(comments: originalTask?.comments ?? [], events: originalTask?.events ?? [])
     }
@@ -133,6 +138,78 @@ final class TaskFormViewModel {
             if case .notFound = error { notFound = true } else { loadErrorMessage = Self.message(error) }
         } catch {
             loadErrorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Живое обновление, пока карточка открыта
+
+    /// Открытая карточка сама себя обновляет — на сокет этот экран не
+    /// подписан, а `TaskStore` держит только список задач, без шагов и ленты.
+    /// Без опроса состояние шага замирало бы в том виде, в каком было при
+    /// открытии: агент работает, а крутилка у шага не появляется вовсе.
+    /// Владелец 09.09.2026: «в вебе крутилка есть, в приложении нет». В вебе
+    /// ровно тот же приём — `src/screens/TaskDetailScreen.tsx` опрашивает
+    /// задачу, пока агент её держит.
+    ///
+    /// Каденс: активность — 15 с (этим же запросом сервер узнаёт, что на
+    /// карточку смотрят, и только тогда зовёт локальную модель за пересказом),
+    /// задача — 30 с, как в вебе.
+    func startPolling() {
+        guard taskID != nil, pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            var tick = 0
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.loadActivity()
+                tick += 1
+                if tick % 2 == 0 { await self.reloadTaskQuietly() }
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
+    }
+
+    func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    /// Тянут вниз — обновляем и задачу, и строку активности.
+    func refresh() async {
+        await reloadTaskQuietly()
+        await loadActivity()
+    }
+
+    /// Перезапрос задачи без спиннера и без перетирания того, что владелец
+    /// прямо сейчас правит в полях: обновляем только шаги и служебное
+    /// состояние, ради которых опрос и заведён.
+    private func reloadTaskQuietly() async {
+        guard let taskID else { return }
+        guard let fresh = try? await apiClient.task(id: taskID) else { return }
+        originalTask = fresh
+        subtasks = fresh.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
+        childTasks = fresh.children ?? []
+    }
+
+    /// Строка активности. Ошибку глотаем: это надстройка над карточкой,
+    /// ронять из-за неё экран нельзя.
+    func loadActivity() async {
+        guard let taskID else {
+            NSLog("[TFACT] taskID пуст")
+            return
+        }
+        guard originalTask?.agentState == .inProgress,
+              originalTask?.agentStale != true else {
+            activity = .idle
+            NSLog("[TFACT] пропуск: state=\(String(describing: originalTask?.agentState)) stale=\(String(describing: originalTask?.agentStale)) original=\(originalTask == nil ? "nil" : "есть")")
+            return
+        }
+        do {
+            let fresh = try await apiClient.taskActivity(taskId: taskID)
+            activity = fresh
+            NSLog("[TFACT] ok text=\(fresh.text ?? "nil") actions=\(fresh.actions.count) active=\(fresh.isActive)")
+        } catch {
+            activity = .idle
+            NSLog("[TFACT] ошибка: \(error)")
         }
     }
 

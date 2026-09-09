@@ -56,15 +56,11 @@ struct TodayBoardView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TFSpacing.sm) {
                     if column.tasks.isEmpty {
-                        Text("Нет задач")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                            .frame(maxWidth: .infinity, minHeight: 60)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: TFRadius.lg)
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                                    .foregroundStyle(Color.tfStroke)
-                            }
+                        TFEmptyState(
+                            icon: nil,
+                            text: "Нет задач"
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 60)
                     } else {
                         ForEach(column.tasks) { task in
                             boardCard(task)

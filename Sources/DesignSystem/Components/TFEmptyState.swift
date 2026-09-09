@@ -9,12 +9,20 @@ import SwiftUI
 public struct TFEmptyState: View {
     let icon: String?
     let text: String
+    let description: String?
     let actionTitle: String?
     let action: (() -> Void)?
 
-    public init(icon: String? = nil, text: String, actionTitle: String? = nil, action: (() -> Void)? = nil) {
+    public init(
+        icon: String? = nil,
+        text: String,
+        description: String? = nil,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) {
         self.icon = icon
         self.text = text
+        self.description = description
         self.actionTitle = actionTitle
         self.action = action
     }
@@ -25,11 +33,21 @@ public struct TFEmptyState: View {
             ContentUnavailableView {
                 Label(text, systemImage: img)
             } description: {
-                EmptyView()
+                if let description {
+                    Text(description)
+                }
             } actions: {
                 Button(actionTitle, action: action)
                     .buttonStyle(.borderedProminent)
                     .tint(.tfRed)
+            }
+        } else if description != nil {
+            ContentUnavailableView {
+                Label(text, systemImage: img)
+            } description: {
+                if let description {
+                    Text(description)
+                }
             }
         } else if icon != nil {
             ContentUnavailableView(text, systemImage: img)

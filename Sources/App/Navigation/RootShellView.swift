@@ -128,7 +128,7 @@ struct RootShellView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                     .presentationCornerRadius(TFRadius.sheet)
-                    .presentationBackground(Color(hex: "#1D1D1D"))
+                    .presentationBackground(Color.tfSheetBackground)
                 }
             }
             #endif

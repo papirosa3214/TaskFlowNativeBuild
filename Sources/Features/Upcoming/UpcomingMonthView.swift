@@ -162,7 +162,7 @@ struct UpcomingMonthView: View {
 
         return VStack(spacing: 2) {
             Text("\(UpcomingDate.day(ds))")
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .monospacedDigit()
                 .fontWeight(isToday ? .semibold : .regular)
                 .foregroundStyle(isToday ? .white : (startsMonth ? Color.tfRed : Color.tfText))

@@ -61,11 +61,11 @@ struct ProjectsScreen: View {
                 }
 
                 if projectStore.projects.isEmpty && !projectStore.isLoading && !showCreate {
-                    Text("Проектов пока нет — создайте первый через меню «…»")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfDim)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, TFSpacing.xs)
+                    TFEmptyState(
+                        icon: "folder",
+                        text: "Проектов пока нет — создайте первый через меню «…»"
+                    )
+                    .padding(.horizontal, TFSpacing.xs)
                 } else if visibleProjects.isEmpty && !projectStore.isLoading && !showCreate {
                     Text("Проекты не найдены")
                         .tfText(.action)
@@ -115,7 +115,10 @@ struct ProjectsScreen: View {
                 }
             }
         } label: {
-            Image(systemName: filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+            TFPlannerToolbarIcon(
+                systemName: filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
+                tint: filter == .all ? .tfSub : .tfRed
+            )
         }
         .accessibilityLabel("Фильтр проектов")
     }

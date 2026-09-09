@@ -174,7 +174,7 @@ public struct UpcomingScreen: View {
                 UpcomingHoursView(
                     days: hourDays,
                     projectColor: { task in
-                        projectStore.projects.first { $0.id == task.projectId }?.color.map(Color.init(hex:)) ?? .tfDim
+                        projectStore.projects.first { $0.id == task.projectId }?.color.map(Color.init(hex:)) ?? Color(hex: TFHexDefault.unassigned)
                     },
                     onTaskTap: { pushedTaskID = $0 },
                     onSchedule: { id, date, time in schedule(id: id, date: date, time: time) },
@@ -343,8 +343,10 @@ public struct UpcomingScreen: View {
                 }
             }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease")
-                .foregroundStyle(filters.isActive ? Color.tfRed : Color.tfText)
+            TFPlannerToolbarIcon(
+                systemName: "line.3.horizontal.decrease",
+                tint: filters.isActive ? .tfRed : .tfSub
+            )
         }
         .accessibilityLabel("Фильтры")
         .accessibilityIdentifier("upcoming.filters")

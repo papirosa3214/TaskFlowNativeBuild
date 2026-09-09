@@ -190,6 +190,9 @@ struct TaskFormScreen: View {
                         .padding(.bottom, TFSpacing.xl * 2)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                // Только у существующей задачи: у новой обновлять нечего, а
+                // жест мешал бы прокрутке формы.
+                .refreshable { if viewModel.isEditing { await viewModel.refresh() } }
             }
         }
         .background(Color.tfBackground)
@@ -297,7 +300,12 @@ struct TaskFormScreen: View {
             await viewModel.loadAgents()
             if taskStore.tasks.isEmpty { await taskStore.load() }
             if viewModel.startDictation { isTitleFocused = true }
+            // Пока карточка открыта — сама себя обновляет, иначе состояние
+            // шага и строка активности замирают на момент открытия.
+            await viewModel.loadActivity()
+            viewModel.startPolling()
         }
+        .onDisappear { viewModel.stopPolling() }
         // Пуш на редактируемый экран — родной slide-in `NavigationStack`,
         // см. комментарий у `isReadOnly`.
         .navigationDestination(isPresented: $pushEditScreen) {
@@ -747,6 +755,11 @@ struct TaskFormScreen: View {
                     .foregroundStyle(.secondary)
             }
             titleField
+            // Чем агент занят прямо сейчас — сразу под названием, до шагов:
+            // это ответ на «что там вообще происходит», а не деталь внизу.
+            if viewModel.activity.isActive {
+                TaskAgentActivityView(activity: viewModel.activity)
+            }
             noteSection
             subtasksSection
             // 02.09.2026, владелец: «зачем эта здоровая хрень, когда файлов

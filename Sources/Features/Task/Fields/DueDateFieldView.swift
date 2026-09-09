@@ -62,7 +62,7 @@ struct DueDateFieldView: View {
                 .fontWeight(.medium)
                 .foregroundStyle(Color.tfText)
                 .frame(maxWidth: .infinity)
-                .frame(height: 40)
+                .frame(height: TFHitTarget.min)
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         }

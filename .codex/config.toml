@@ -1,0 +1,12 @@
+[mcp_servers.kb]
+url = "http://192.168.1.110:8801/mcp"
+
+[mcp_servers.kb.http_headers]
+Authorization = "Bearer b6d272d771a7d14791c3e07aa66c9ff5e4932c080a5ddfe422127ec435f2f92a"
+Host = "127.0.0.1:8801"
+
+[mcp_servers.taskflow]
+url = "http://192.168.1.110:8802/mcp"
+
+[mcp_servers.taskflow.http_headers]
+Authorization = "Bearer 50a2fac613567e73c52e2bbb5ce445524812d6bab87fede1e397875224e4415a"

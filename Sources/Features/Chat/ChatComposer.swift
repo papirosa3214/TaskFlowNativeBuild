@@ -258,7 +258,7 @@ struct ChatComposer: View {
             .buttonStyle(TFTapScaleStyle())
         }
         .padding(.horizontal, TFSpacing.md)
-        .frame(height: 36)
+        .frame(height: TFHitTarget.min)
         .background(Color.tfCard2)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
     }

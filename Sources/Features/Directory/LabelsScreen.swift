@@ -139,27 +139,13 @@ struct LabelsScreen: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: TFSpacing.md) {
-            Circle()
-                .fill(Color.tfCard)
-                .frame(width: 64, height: 64)
-                .overlay {
-                    Image(systemName: "tag")
-                        .font(.system(size: 28))
-                        .foregroundStyle(Color.tfDim)
-                }
-            Text("Меток пока нет")
-                .tfText(.title)
-                .foregroundStyle(Color.tfText)
-            Text("Метки помогают группировать задачи по-своему — независимо от проектов и сроков. Создайте первую, а состав всегда можно поменять позже.")
-                .tfText(.row)
-                .foregroundStyle(Color.tfSub)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-            TFButton("Создать метку", icon: "plus", variant: .primary) { showCreate = true }
-                .frame(width: 200)
-        }
-        .frame(maxWidth: .infinity)
+        TFEmptyState(
+            icon: "tag",
+            text: "Меток пока нет",
+            description: "Метки помогают группировать задачи по-своему — независимо от проектов и сроков. Создайте первую, а состав всегда можно поменять позже.",
+            actionTitle: "Создать метку",
+            action: { showCreate = true }
+        )
         .padding(.top, 64)
         .padding(.horizontal, TFSpacing.lg)
     }

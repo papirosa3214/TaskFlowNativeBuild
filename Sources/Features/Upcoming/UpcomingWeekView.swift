@@ -68,10 +68,9 @@ struct UpcomingWeekView: View {
                     .foregroundStyle(isToday ? Color.tfRed : Color.tfSub)
                 Text("\(UpcomingDate.day(ds))")
                     .font(.system(size: 12))
+                    .fontWeight(isToday ? .semibold : .regular)
                     .monospacedDigit()
-                    .foregroundStyle(isToday ? .white : Color.tfText)
-                    .frame(minWidth: isToday ? 18 : nil, minHeight: isToday ? 18 : nil)
-                    .background(isToday ? Circle().fill(Color.tfRed) : nil)
+                    .foregroundStyle(isToday ? Color.tfRed : Color.tfText)
             }
             .padding(.horizontal, 2)
             .padding(.bottom, 2)

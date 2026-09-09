@@ -15,6 +15,10 @@ struct LabelTasksScreen: View {
 
     @State private var pendingTaskID: String?
 
+    private struct TaskRef: Identifiable {
+        let id: String
+    }
+
     private var label: ApiLabel? {
         labelStore.labels.first { $0.id == labelID }
     }
@@ -38,11 +42,12 @@ struct LabelTasksScreen: View {
                     notFoundView
                 } else if label != nil {
                     if tasks.isEmpty {
-                        Text("Этой меткой пока не помечена ни одна задача")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .padding(.top, TFSpacing.sm)
+                        TFEmptyState(
+                            icon: "tag",
+                            text: "Этой меткой пока не помечена ни одна задача"
+                        )
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.top, TFSpacing.sm)
                     } else {
                         ForEach(tasks) { task in
                             taskRow(task)
@@ -84,7 +89,14 @@ struct LabelTasksScreen: View {
             if labelStore.labels.isEmpty { await labelStore.load() }
             if taskStore.tasks.isEmpty { await taskStore.load() }
         }
-        .navigationDestination(item: $pendingTaskID) { id in routeDestination(.taskDetail(taskID: id)) }
+        .sheet(item: Binding(
+            get: { pendingTaskID.map(TaskRef.init) },
+            set: { pendingTaskID = $0?.id }
+        )) { ref in
+            NavigationStack { TaskDetailScreen(taskID: ref.id) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Строка задачи: точка-переключатель + контент, БЕЗ свайпа (spec §10)

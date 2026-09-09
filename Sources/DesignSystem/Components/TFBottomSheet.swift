@@ -87,7 +87,7 @@ public extension View {
             }, content: content)
             .presentationDragIndicator(.hidden) // свой хендл вместо системного
             .presentationCornerRadius(TFRadius.sheet)
-            .presentationBackground(Color.tfCard)
+            .presentationBackground(Color.tfSheetBackground)
         }
     }
 }

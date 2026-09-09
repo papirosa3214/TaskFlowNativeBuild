@@ -18,6 +18,11 @@ final class TaskDetailViewModel {
     var notFound = false
     var loadErrorMessage: String?
     var actionErrorMessage: String?
+
+    /// Чем агент занят прямо сейчас — пусто, когда задачу никто не держит.
+    var activity: ApiTaskActivity = .idle
+
+    private var pollTask: Task<Void, Never>?
     var commentText = ""
     var pendingCommentAttachments: [(id: String, name: String)] = []
 
@@ -44,6 +49,73 @@ final class TaskDetailViewModel {
         } catch {
             loadErrorMessage = error.localizedDescription
         }
+    }
+
+    /// Тихий перезапрос — для опроса и для «потянуть вниз»: без спиннера на
+    /// весь экран и без сброса уже показанной задачи, иначе карточка мигала бы
+    /// каждые полминуты.
+    func reload() async {
+        do {
+            task = try await apiClient.task(id: taskID)
+            loadErrorMessage = nil
+        } catch let error as APIError {
+            if case .notFound = error { notFound = true }
+        } catch {}
+    }
+
+    /// Тянут вниз — обновляем и задачу, и строку активности разом.
+    func refresh() async {
+        await reload()
+        await loadActivity()
+    }
+
+    // MARK: - Живое обновление, пока карточка открыта
+
+    /// Открытая карточка сама себя обновляет: экран задачи не подписан на
+    /// сокет (`TaskStore` держит список, но не карточку целиком с шагами,
+    /// комментариями и лентой), поэтому иначе состояние шага замирало бы в том
+    /// виде, в каком было при открытии. Ровно так же сделано в вебе
+    /// (`src/screens/TaskDetailScreen.tsx`), и владелец 09.09.2026 заметил
+    /// расхождение: «в вебе крутилка есть, в приложении нет».
+    ///
+    /// Каденс: активность — 15 с (сервер этим же запросом узнаёт, что на
+    /// карточку смотрят, и только тогда зовёт локальную модель за пересказом),
+    /// задача — 30 с, как в вебе, чтобы поймать смену состояния шага и
+    /// переход «работает → пропал».
+    func startPolling() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            var tick = 0
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.loadActivity()
+                tick += 1
+                // Задачу — каждый второй проход, то есть раз в 30 секунд.
+                if tick % 2 == 0 { await self.reload() }
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
+    }
+
+    func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    /// Строка активности. Молча гасим при любой ошибке: это украшение поверх
+    /// карточки, ронять из-за него экран нельзя.
+    func loadActivity() async {
+        guard let state = task?.agentState else {
+            activity = .idle
+            return
+        }
+        // Агент не держит задачу или пропал — сервер всё равно ответит
+        // пустым, но лишний запрос каждые 15 секунд не нужен.
+        guard state == .inProgress, task?.agentStale != true else {
+            activity = .idle
+            return
+        }
+        activity = (try? await apiClient.taskActivity(taskId: taskID)) ?? .idle
     }
 
     // MARK: - Задача целиком

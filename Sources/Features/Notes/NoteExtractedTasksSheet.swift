@@ -90,7 +90,7 @@ struct NoteExtractedTasksSheetContent: View {
                 .disabled(!row.wrappedValue.include)
                 .opacity(row.wrappedValue.include ? 1 : 0.4)
                 .padding(.horizontal, TFSpacing.sm)
-                .frame(height: 36)
+                .frame(height: TFHitTarget.min)
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
         }

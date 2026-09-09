@@ -130,13 +130,10 @@ struct SearchScreen: View {
     }
 
     private var emptyResultsState: some View {
-        VStack(spacing: TFSpacing.md) {
-            Image(systemName: "magnifyingglass").font(.system(size: 36)).foregroundStyle(Color.tfSub)
-            Text("Ничего не найдено").tfText(.body).foregroundStyle(Color.tfText)
-            Text("По запросу «\(trimmedQuery)» нет ни задач, ни проектов, ни меток")
-                .tfText(.caption).foregroundStyle(Color.tfDim).multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
+        TFEmptyState(
+            icon: "magnifyingglass",
+            text: "По запросу «\(trimmedQuery)» нет ни задач, ни проектов, ни меток"
+        )
         .padding(.top, 60)
         .padding(.horizontal, TFSpacing.xl)
     }

@@ -25,17 +25,12 @@ struct ProjectTasksScreen: View {
 
     private let apiClient = APIClient()
 
-    private enum PendingNav: Identifiable, Hashable {
-        case detail(String)
-        case edit(String)
-        var id: String {
-            switch self {
-            case .detail(let id): "d-\(id)"
-            case .edit(let id): "e-\(id)"
-            }
-        }
+    @State private var pendingDetail: String?
+
+    private struct TaskRef: Identifiable {
+        let id: String
     }
-    @State private var pending: PendingNav?
+    @State private var pendingEdit: String?
     @State private var showNewTask = false
 
     private var project: ApiProject? {
@@ -86,17 +81,18 @@ struct ProjectTasksScreen: View {
                     notFoundView
                 } else if let project {
                     if tasks.isEmpty {
-                        Text("В проекте пока нет задач")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                            .padding(.horizontal, TFSpacing.xs)
+                        TFEmptyState(
+                            icon: "tray",
+                            text: "В проекте пока нет задач"
+                        )
+                        .padding(.horizontal, TFSpacing.xs)
                     } else {
                         VStack(spacing: 2) {
                             ForEach(tasks) { task in
                                 DirectoryTaskRow(
                                     task: task,
                                     pinned: task.pinned,
-                                    onOpen: { pending = .detail(task.id) },
+                                    onOpen: { pendingDetail = task.id },
                                     onTogglePin: {
                                         Task {
                                             // `apply` — пустышка, как у ВСЕХ остальных вызовов `taskStore.patch`
@@ -106,7 +102,7 @@ struct ProjectTasksScreen: View {
                                             await taskStore.patch(taskId: task.id, fields: ["pinned": .bool(!task.pinned)]) { _ in }
                                         }
                                     },
-                                    onEdit: { pending = .edit(task.id) },
+                                    onEdit: { pendingEdit = task.id },
                                     onDelete: { Task { await taskStore.delete(taskId: task.id) } }
                                 )
                             }
@@ -156,13 +152,18 @@ struct ProjectTasksScreen: View {
             if taskStore.tasks.isEmpty { await taskStore.load() }
             await refreshRelationshipTasks()
         }
-        .navigationDestination(item: $pending) { target in
-            switch target {
-            case .detail(let id): routeDestination(.taskDetail(taskID: id))
-            case .edit(let id): routeDestination(.taskForm(taskID: id))
-            }
+        .sheet(item: Binding(
+            get: { pendingDetail.map(TaskRef.init) },
+            set: { pendingDetail = $0?.id }
+        )) { ref in
+            NavigationStack { TaskDetailScreen(taskID: ref.id) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
-        .onChange(of: pending) { previous, current in
+        .navigationDestination(item: $pendingEdit) { id in
+            routeDestination(.taskForm(taskID: id))
+        }
+        .onChange(of: pendingDetail) { previous, current in
             if previous != nil, current == nil {
                 Task { await refreshRelationshipTasks() }
             }

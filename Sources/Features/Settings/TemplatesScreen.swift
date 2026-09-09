@@ -379,7 +379,7 @@ private struct TemplateCardView: View {
                     Text("Создать задачу по шаблону").tfText(.caption).fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 36)
+                .frame(height: TFHitTarget.min)
                 .foregroundStyle(Color.tfRed)
                 .background(Color.tfRed.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))

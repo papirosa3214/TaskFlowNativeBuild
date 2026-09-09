@@ -20,7 +20,10 @@ struct TimelineDayLayer: View {
                     if isLoading {
                         Text("Загрузка…").tfText(.action).foregroundStyle(Color.tfSub)
                     } else if tasks.isEmpty {
-                        Text("На сегодня задач нет.").tfText(.action).foregroundStyle(Color.tfSub)
+                        TFEmptyState(
+                            icon: nil,
+                            text: "На сегодня задач нет."
+                        )
                     } else {
                         ForEach(tasks) { task in
                             timelineTaskRow(task)

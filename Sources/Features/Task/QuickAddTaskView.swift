@@ -82,7 +82,7 @@ struct QuickAddTaskView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             TextField("Новая задача", text: $viewModel.title, axis: .vertical)
-                .font(.title3)
+                .tfText(.taskTitle)
                 .foregroundStyle(Color.tfText)
                 .lineLimit(1...4)
                 .focused($isTitleFocused)
@@ -200,7 +200,7 @@ struct QuickAddTaskView: View {
                         Image(systemName: "xmark")
                             .font(.footnote)
                             .foregroundStyle(Color.tfDim)
-                            .frame(width: TFHitTarget.min, height: 28)
+                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Удалить подзадачу \(draft.title)")

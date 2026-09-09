@@ -194,11 +194,11 @@ struct UpcomingListView: View {
                     // не такой же круг, а мягкий бейдж: просьба владельца
                     // 03.09.2026, два разных состояния не должны выглядеть
                     // одинаково.
-                    .foregroundStyle(isToday ? .white : (isSelected ? Color.tfRed : (dim ? Color.tfDim.opacity(0.5) : Color.tfText)))
+                    .foregroundStyle(isToday ? Color.tfRed : (isSelected ? Color.tfRed : (dim ? Color.tfDim.opacity(0.5) : Color.tfText)))
                     .frame(width: 30, height: 30)
                     .background {
                         if isToday {
-                            Circle().fill(Color.tfRed)
+                            EmptyView()
                         } else if isSelected {
                             RoundedRectangle(cornerRadius: TFRadius.md).fill(Color.tfRed.opacity(0.15))
                         }
@@ -233,11 +233,10 @@ struct UpcomingListView: View {
                                 .textCase(.uppercase)
                                 .foregroundStyle(isToday || isSelected ? Color.tfRed : Color.tfSub)
                             Text("\(UpcomingDate.day(ds))")
-                                .font(.system(size: 15, weight: .medium))
+                                .font(.system(size: 15, weight: .semibold))
                                 .monospacedDigit()
-                                .foregroundStyle(isToday ? .white : (isSelected ? Color.tfRed : Color.tfText))
+                                .foregroundStyle(isToday ? Color.tfRed : (isSelected ? Color.tfRed : Color.tfText))
                                 .frame(width: 28, height: 28)
-                                .background(isToday ? Circle().fill(Color.tfRed) : nil)
                             if hasTasks && !isToday {
                                 Circle().fill(Color.tfRed).frame(width: 4, height: 4)
                             } else {

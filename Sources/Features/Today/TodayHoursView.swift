@@ -102,11 +102,11 @@ struct TodayHoursView: View {
             }
 
             if placedBlocks.isEmpty {
-                Text("На время пока ничего не назначено")
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
+                TFEmptyState(
+                    icon: nil,
+                    text: "На время пока ничего не назначено"
+                )
+                .frame(maxWidth: .infinity)
             }
         }
         .coordinateSpace(name: "hoursGrid")

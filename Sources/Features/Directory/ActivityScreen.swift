@@ -78,7 +78,7 @@ struct ActivityScreen: View {
                 Button {
                     sheetOpen = true
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
+                    TFPlannerToolbarIcon(systemName: "line.3.horizontal.decrease")
                 }
                 .accessibilityLabel("Фильтры")
             }
@@ -147,18 +147,12 @@ struct ActivityScreen: View {
     // MARK: - Пустое состояние «под фильтры ничего не подошло»
 
     private var filteredEmptyState: some View {
-        VStack(spacing: TFSpacing.md) {
-            Image(systemName: "list.bullet").font(.system(size: 36)).foregroundStyle(Color.tfSub)
-            Text("Под выбранные фильтры ничего не подошло").tfText(.body).foregroundStyle(Color.tfText)
-            Text("Попробуйте изменить период или сбросить фильтры").tfText(.caption).foregroundStyle(Color.tfDim)
-            Button("Сбросить фильтры") { resetFilters() }
-                .tfText(.body).foregroundStyle(Color.tfText)
-                .padding(.horizontal, TFSpacing.lg).frame(height: 44)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-                .buttonStyle(TFTapFadeStyle())
-        }
-        .multilineTextAlignment(.center)
+        TFEmptyState(
+            icon: "list.bullet",
+            text: "Под выбранные фильтры ничего не подошло. Попробуйте изменить период или сбросить фильтры.",
+            actionTitle: "Сбросить фильтры",
+            action: { resetFilters() }
+        )
         .padding(.top, TFSpacing.xl)
         .padding(.horizontal, TFSpacing.xl)
         .frame(maxWidth: .infinity)

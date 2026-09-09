@@ -87,9 +87,9 @@ struct TodayScreen: View {
                                 day: c.hourDays[0],
                                 projectColor: { task in
                                     guard let id = task.projectId, let project = projectStore.projects.first(where: { $0.id == id }) else {
-                                        return Color(hex: "#717171")
+                                        return Color(hex: TFHexDefault.unassigned)
                                     }
-                                    return Color(hex: project.color ?? "#717171")
+                                    return Color(hex: project.color ?? TFHexDefault.unassigned)
                                 },
                                 onOpenTask: { sheetTaskID = TappedTaskID(id: $0) },
                                 onSchedule: { id, date, time in
@@ -273,10 +273,11 @@ struct TodayScreen: View {
                 }
             }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: TFIconSize.sm))
-                .foregroundStyle(vm.filters.isActive ? Color.tfRed : Color.tfText)
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+            TFPlannerToolbarIcon(
+                systemName: "line.3.horizontal.decrease",
+                tint: vm.filters.isActive ? .tfRed : .tfSub
+            )
+            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
         }
         .accessibilityLabel("Фильтры")
         .accessibilityIdentifier("today.filters")

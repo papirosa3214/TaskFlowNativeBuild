@@ -1,6 +1,7 @@
 # Сборочные артефакты Xcode — тяжёлые (500+ МБ), пересобираются с нуля
 build_sim/
 build_dev_signed/
+build_device/
 DerivedData/
 
 # Генерируется xcodegen из project.yml (см. ARCHITECTURE.md — общий

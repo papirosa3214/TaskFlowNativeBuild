@@ -50,7 +50,7 @@ private struct DirectoryConfirmModifier: ViewModifier {
             }
             .presentationDetents([.height(240)])
             .presentationDragIndicator(.hidden)
-            .presentationBackground(Color.tfCard)
+            .presentationBackground(Color.tfSheetBackground)
             .interactiveDismissDisabled() // spec §0.5 — без drag-to-dismiss
         }
     }

@@ -144,7 +144,7 @@ struct ProjectNotesSection: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.tfText)
                         .padding(.horizontal, TFSpacing.lg)
-                        .frame(height: 40)
+                        .frame(height: TFHitTarget.min)
                         .background(Color.tfCard2)
                         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                     }
@@ -163,7 +163,7 @@ struct ProjectNotesSection: View {
                             .fontWeight(.semibold)
                             .foregroundStyle(Color.tfText)
                             .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: 40)
+                            .frame(height: TFHitTarget.min)
                             .background(Color.tfCard2)
                             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                         }

@@ -479,7 +479,7 @@ struct IntegrationsScreen: View {
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 11)).foregroundStyle(Color.tfDim)
                 }
                 .padding(.horizontal, TFSpacing.md)
-                .frame(height: 40)
+                .frame(height: TFHitTarget.min)
                 .background(Color.tfCard2)
                 .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))

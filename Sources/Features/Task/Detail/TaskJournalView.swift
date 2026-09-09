@@ -100,7 +100,7 @@ struct TaskJournalView: View {
             }
             .presentationDetents([.height(220)])
             .presentationDragIndicator(.hidden)
-            .presentationBackground(Color.tfCard)
+            .presentationBackground(Color.tfSheetBackground)
         }
     }
 

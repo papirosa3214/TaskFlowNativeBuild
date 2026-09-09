@@ -231,8 +231,7 @@ struct TaskDetailScreen: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(task.title)
-                        .tfText(.body)
-                        .fontWeight(.semibold)
+                        .tfText(.taskTitle)
                         .foregroundStyle(Color.tfText)
                         .strikethrough(task.status == .completed)
                         .lineLimit(2)
@@ -379,7 +378,7 @@ struct TaskDetailScreen: View {
                     Spacer()
                 }
                 .padding(.horizontal, TFField.cardInsetH)
-                .frame(height: 40)
+                .frame(height: TFHitTarget.min)
             }
             .buttonStyle(TFTapRowStyle())
         }
