@@ -72,6 +72,13 @@ enum LiveActivityService {
             NSLog("[LiveActivity] запущена без токена, id=%@", activity.id)
         }
 
+        // Пока карточка висит — держим приложение живым и сами тянем
+        // задачу с сервера. Иначе островок замрёт на цифрах того момента,
+        // когда приложение свернули: пуши недоступны на бесплатном
+        // аккаунте, а спящее приложение ничего не обновляет.
+        BackgroundKeepAlive.shared.start()
+        startRefreshLoop(taskID: task.id, api: api)
+
         // Токен приходит не сразу и меняется со временем — поэтому слушаем
         // поток, а не берём одно значение. Сервер перезаписывает его по
         // task_id, точка отсчёта таймера при этом не сдвигается.
@@ -96,8 +103,41 @@ enum LiveActivityService {
 
     static func end(taskID: String, api: APIClient? = nil) async {
         guard let activity = activity(for: taskID) else { return }
+        refreshTasks[taskID]?.cancel()
+        refreshTasks[taskID] = nil
         await activity.end(nil, dismissalPolicy: .immediate)
         try? await api?.dropLiveActivityToken(taskId: taskID)
+        // Живых карточек не осталось — отпускаем фон, чтобы не жечь батарею
+        // просто так.
+        if Activity<TaskActivityAttributes>.activities.isEmpty {
+            BackgroundKeepAlive.shared.stop()
+        }
+    }
+
+    /// Пока приложение живо (а живо оно ровно пока висит островок), раз в
+    /// пятнадцать секунд перечитываем задачу и двигаем карточку. Тот же
+    /// интервал, что у опроса на экране задачи — отдельного темпа заводить
+    /// незачем.
+    ///
+    /// Задача закрыта или снята с агента — гасим карточку и выходим из
+    /// цикла: висящий на экране блокировки островок по законченной работе
+    /// только мешает.
+    private static var refreshTasks: [String: Task<Void, Never>] = [:]
+
+    private static func startRefreshLoop(taskID: String, api: APIClient) {
+        refreshTasks[taskID]?.cancel()
+        refreshTasks[taskID] = Task.detached {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { return }
+                guard let fresh = try? await api.task(id: taskID) else { continue }
+                if fresh.status == .completed || fresh.agentState == nil {
+                    await end(taskID: taskID, api: api)
+                    return
+                }
+                await update(task: fresh)
+            }
+        }
     }
 
     private static func activity(for taskID: String) -> Activity<TaskActivityAttributes>? {

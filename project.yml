@@ -63,6 +63,13 @@ targets:
         # вовсе: areActivitiesEnabled возвращает false, и кнопка «Вывести в
         # Dynamic Island» молча ничего не делает.
         NSSupportsLiveActivities: true
+        # Фон нужен не ради геопозиции, а ради островка: пока карточка
+        # висит, приложение должно оставаться живым и двигать её само.
+        # Обновлять островок из спящего приложения нельзя вовсе, а путь
+        # через пуши закрыт бесплатным аккаунтом (10.09.2026).
+        UIBackgroundModes:
+          - location
+        NSLocationWhenInUseUsageDescription: Пока задача показана в Dynamic Island, приложение остаётся на связи с сервером и обновляет её прогресс. Сама геопозиция никуда не отправляется и нигде не сохраняется.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.native
