@@ -755,7 +755,7 @@ private struct UpcomingUntimedRow: View {
     var body: some View {
         HStack(spacing: 8) {
             if task.priority <= 3, let p = TaskPriority(rawValue: task.priority) {
-                TFPriorityFlag(p)
+                TFPriorityArrows(p)
             }
             if !task.subtasks.isEmpty {
                 Text("\(task.subtasks.count { $0.done })/\(task.subtasks.count)")

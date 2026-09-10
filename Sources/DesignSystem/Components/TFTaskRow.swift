@@ -25,6 +25,8 @@ public struct TFTaskRowModel {
     public var subtasksDone: Int?
     public var subtasksTotal: Int?
     public var priority: TaskPriority?
+    /// Владелец подтвердил карточку — исполнитель вправе её взять.
+    public var isReadyForPickup: Bool
     public var isOverdue: Bool
     public var dueText: String?
     public var labels: [(title: String, color: Color)]
@@ -42,6 +44,7 @@ public struct TFTaskRowModel {
         subtasksDone: Int? = nil,
         subtasksTotal: Int? = nil,
         priority: TaskPriority? = nil,
+        isReadyForPickup: Bool = false,
         isOverdue: Bool = false,
         dueText: String? = nil,
         labels: [(title: String, color: Color)] = []
@@ -58,6 +61,7 @@ public struct TFTaskRowModel {
         self.subtasksDone = subtasksDone
         self.subtasksTotal = subtasksTotal
         self.priority = priority
+        self.isReadyForPickup = isReadyForPickup
         self.isOverdue = isOverdue
         self.dueText = dueText
         self.labels = labels
@@ -77,6 +81,7 @@ public struct TFTaskRow: View {
         Button(action: action) {
             // Асимметричный паддинг 9 сверху / 12 снизу (не 16/16) — намеренно
             // (спека): визуальный воздух над/под текстом иначе не совпадает.
+            HStack(alignment: .center, spacing: TFSpacing.sm) {
             VStack(alignment: .leading, spacing: 4) {
                 if let projectName = model.projectName {
                     Text("#\(projectName)")
@@ -113,9 +118,10 @@ public struct TFTaskRow: View {
                         if let done = model.subtasksDone, let total = model.subtasksTotal {
                             TFPill("\(done)/\(total)", color: .tfSub, solidBackground: .tfCard)
                         }
-                        // P4 намеренно не рисуется — спека прямо это оговаривает.
-                        if let priority = model.priority, priority != .low {
-                            TFPriorityFlag(priority)
+                        // Поднятый флаг готовности — отдельный значок; нет
+                        // значка значит «владелец ещё не подтвердил».
+                        if model.isReadyForPickup {
+                            TFReadyFlag()
                         }
                         if model.isOverdue {
                             TFOverduePill()
@@ -128,6 +134,15 @@ public struct TFTaskRow: View {
                     }
                 }
             }
+                Spacer(minLength: 0)
+                // Приоритет — стопкой шевронов у правого края (владелец
+                // 11.09.2026): сбоку он не толкает бейджи и целиком
+                // помещается по высоте строки. Рисуются все четыре уровня,
+                // прежнее «P4 не показываем» отменено.
+                if let priority = model.priority {
+                    TFPriorityArrows(priority)
+                }
+            }
             .padding(.top, 9)
             .padding(.bottom, 12)
             .padding(.horizontal, TFSpacing.lg)
@@ -138,7 +153,7 @@ public struct TFTaskRow: View {
     }
 
     private var hasBadges: Bool {
-        model.subtasksTotal != nil || (model.priority != nil && model.priority != .low)
+        model.subtasksTotal != nil || model.priority != nil || model.isReadyForPickup
             || model.isOverdue || model.dueText != nil || !model.labels.isEmpty
     }
 }

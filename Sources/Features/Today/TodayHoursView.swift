@@ -132,7 +132,7 @@ struct TodayHoursView: View {
     private func untimedRow(_ task: ApiTask) -> some View {
         HStack(spacing: TFSpacing.sm) {
             if task.priority <= 3, let priority = TaskPriority(rawValue: task.priority) {
-                TFPriorityFlag(priority)
+                TFPriorityArrows(priority)
             }
             if !task.subtasks.isEmpty {
                 let done = task.subtasks.count { $0.done }

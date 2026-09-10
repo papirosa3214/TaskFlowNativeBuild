@@ -130,9 +130,6 @@ struct DirectoryTaskRow: View {
                                 let done = task.subtasks.count { $0.done }
                                 TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
                             }
-                            if task.priority <= 3, let priority = TaskPriority(rawValue: task.priority) {
-                                TFPriorityFlag(priority)
-                            }
                             if let due = task.dueDate {
                                 HStack(spacing: 3) {
                                     Text(DirectoryDate.formatDuePlain(due))
@@ -153,6 +150,11 @@ struct DirectoryTaskRow: View {
                     }
                 }
                 Spacer(minLength: TFSpacing.sm)
+                // Приоритет — стопкой шевронов справа, как в остальных строках
+                // (владелец 11.09.2026). Рисуются все четыре уровня.
+                if let priority = TaskPriority(rawValue: task.priority) {
+                    TFPriorityArrows(priority)
+                }
                 // Закрепление — третий интерактивный узел строки (`onTogglePin`,
                 // ProjectTasksScreen.tsx), не вложенная кнопка внутри кнопки:
                 // тап по пину не должен открывать задачу.
@@ -175,7 +177,7 @@ struct DirectoryTaskRow: View {
     }
 
     private var hasBadges: Bool {
-        !task.subtasks.isEmpty || task.priority <= 3 || task.dueDate != nil || !task.labels.isEmpty
+        !task.subtasks.isEmpty || task.dueDate != nil || !task.labels.isEmpty
     }
 
     private func close() {

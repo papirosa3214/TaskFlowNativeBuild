@@ -177,6 +177,7 @@ struct AgentWorkTaskRow: View {
 
     var body: some View {
         Button(action: action) {
+            HStack(alignment: .center, spacing: TFSpacing.sm) {
             VStack(alignment: .leading, spacing: 4) {
                 if let projectName = task.projectName {
                     Text("#\(projectName)")
@@ -226,8 +227,8 @@ struct AgentWorkTaskRow: View {
                             let done = task.subtasks.count { $0.done }
                             TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
                         }
-                        if task.priority <= 3, let priority = TaskPriority(rawValue: task.priority) {
-                            TFPriorityFlag(priority)
+                        if task.readyForPickup {
+                            TFReadyFlag()
                         }
                         if isOverdue, let due = task.dueDate {
                             TFPill("Просрочено, \(AgentWorkDate.formatDueLabel(due))", color: .tfRed, backgroundOpacity: 0.15)
@@ -248,6 +249,12 @@ struct AgentWorkTaskRow: View {
                             TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned))
                         }
                     }
+                }
+            }
+                Spacer(minLength: 0)
+                // Приоритет — стопкой шевронов справа, как в остальных строках.
+                if let priority = TaskPriority(rawValue: task.priority) {
+                    TFPriorityArrows(priority)
                 }
             }
             .padding(.top, 9)

@@ -29,19 +29,58 @@ public struct TFPill: View {
     }
 }
 
-/// Флаг приоритета (12px иконка, цвет из таблицы `TaskPriority`) — используется
-/// без подложки, просто цветной значок в ряду бейджей строки.
-public struct TFPriorityFlag: View {
+/// Приоритет — шевроны по возрастанию, цвет из таблицы `TaskPriority`.
+/// Решение владельца 11.09.2026: флажок перестал обозначать приоритет и
+/// переехал на флаг готовности (`TFReadyFlag`), а уровень теперь читается
+/// количеством стрелок: срочный — четыре, высокий — три, средний — два,
+/// низкий — одна. Низкий тоже рисуется: раньше P4 намеренно скрывали, но со
+/// стрелками одна палочка уже несёт смысл и не шумит.
+/// Стопкой по вертикали и сбоку от строки — слово владельца 11.09.2026: «раз
+/// он высокий, чтобы всё вылазило». В ряд по горизонтали четыре шеврона
+/// слипались в красный зигзаг и читались как волна, а не как уровень; стопка
+/// же использует высоту строки, которой и так хватает.
+public struct TFPriorityArrows: View {
     let priority: TaskPriority
 
     public init(_ priority: TaskPriority) {
         self.priority = priority
     }
 
+    /// Срочный — самый заметный знак, дальше по убыванию.
+    private var count: Int {
+        switch priority {
+        case .urgent: 4
+        case .high: 3
+        case .medium: 2
+        case .low: 1
+        }
+    }
+
+    public var body: some View {
+        VStack(spacing: -3) {
+            ForEach(0..<count, id: \.self) { _ in
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 10, weight: .bold))
+            }
+        }
+        .foregroundStyle(priority.color)
+        .accessibilityLabel("Приоритет: \(priority.label)")
+    }
+}
+
+/// Поднятый флаг готовности — владелец подтвердил карточку, и исполнитель
+/// вправе её взять. Освободившийся флажок (до 11.09.2026 он обозначал
+/// приоритет) достался именно этому: владелец просил видеть, «по каким
+/// карточкам уже поднят флаг, по каким нет». Рисуется только когда флаг
+/// поднят — отсутствие значка и есть «не подтверждена».
+public struct TFReadyFlag: View {
+    public init() {}
+
     public var body: some View {
         Image(systemName: "flag.fill")
-            .font(.system(size: 12))
-            .foregroundStyle(priority.color)
+            .font(.system(size: 11))
+            .foregroundStyle(Color.tfGreen)
+            .accessibilityLabel("Готова к работе: флаг поднят")
     }
 }
 
@@ -110,10 +149,11 @@ public struct TFAccentTag: View {
 #Preview("Бейджи") {
     VStack(alignment: .leading, spacing: TFSpacing.md) {
         HStack(spacing: TFSpacing.sm) {
-            TFPriorityFlag(.urgent)
-            TFPriorityFlag(.high)
-            TFPriorityFlag(.medium)
-            TFPriorityFlag(.low)
+            TFPriorityArrows(.urgent)
+            TFPriorityArrows(.high)
+            TFPriorityArrows(.medium)
+            TFPriorityArrows(.low)
+            TFReadyFlag()
         }
         HStack(spacing: TFSpacing.sm) {
             TFOverduePill()
