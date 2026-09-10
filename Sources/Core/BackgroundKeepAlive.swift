@@ -18,9 +18,19 @@
 // 10.09.2026: «я же всё равно сам нажимаю, какую задачу показать; она
 // прошла, я выключил. Одну задачу раз в сто лет».
 //
-// Точность выкручена в самую грубую, а порог смещения — в километры: сама
-// геопозиция нам не нужна ни на что, нужен только сам факт работающего
-// фона.
+// ⚠️ ТОЧНОСТЬ НЕЛЬЗЯ ВЫКРУЧИВАТЬ В САМУЮ ГРУБУЮ, хотя соблазн есть.
+//
+// Первая версия (10.09.2026) ставила `kCLLocationAccuracyThreeKilometers`
+// и порог смещения 3 км — «геопозиция нам не нужна, лишь бы фон жил».
+// На живом телефоне индикатор горел пару минут и гас: телефон лежит на
+// столе, смещения нет, событий нет — системе нечего доставлять, и она
+// усыпляет приложение. Островок замирал ровно так же, как до всей затеи.
+//
+// Живым фон держат ПОСТУПАЮЩИЕ события, а не сам факт включённого
+// менеджера. Поэтому порог убран совсем, а точность — «ближайшие сто
+// метров»: события идут регулярно даже от лежащего телефона, при этом это
+// не самый жадный режим (`Best` гоняет GPS постоянно и греет заметно
+// сильнее).
 
 import CoreLocation
 import Foundation
@@ -34,8 +44,10 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
     private override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
-        manager.distanceFilter = 3000
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        // kCLDistanceFilterNone — события приходят независимо от того,
+        // двигался телефон или лежал: именно они и держат фон живым.
+        manager.distanceFilter = kCLDistanceFilterNone
         manager.pausesLocationUpdatesAutomatically = false
     }
 
@@ -62,8 +74,17 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
         NSLog("[KeepAlive] фон выключен")
     }
 
-    /// Координаты нам не нужны — метод обязателен, но делать в нём нечего.
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {}
+    /// Координаты нам не нужны — важен сам факт события: пока они идут,
+    /// приложение не спит. Считаем их, чтобы в логе было видно, живёт фон
+    /// или система нас усыпила.
+    private var tick = 0
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        tick += 1
+        if tick % 10 == 0 {
+            NSLog("[KeepAlive] фон жив, событий: %d", tick)
+        }
+    }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         NSLog("[KeepAlive] геопозиция отказала: %@", error.localizedDescription)
