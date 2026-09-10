@@ -789,9 +789,16 @@ struct TaskFormScreen: View {
     }
 
     private func outputDynamicIsland() {
-        // Перенесено из `TaskDetailScreen` буквально — тост по спеке, без
-        // реального ActivityKit (Live Activity живёт в отдельном таргете).
-        toast = TaskToastMessage("Задача выведена в Dynamic Island")
+        // Тост здесь больше не «по спеке»: он сообщает то, что реально
+        // произошло. Саму активность поднимает вьюмодель — у неё и задача,
+        // и клиент API (10.09.2026, карточка cd831b02).
+        guard #available(iOS 16.2, *) else {
+            toast = TaskToastMessage("Островок доступен с iOS 16.2")
+            return
+        }
+        Task {
+            toast = TaskToastMessage(await viewModel.outputToDynamicIsland())
+        }
     }
 
     private func saveAsTemplate() {

@@ -188,6 +188,25 @@ final class TaskFormViewModel {
         originalTask = fresh
         subtasks = fresh.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
         childTasks = fresh.children ?? []
+        await syncLiveActivity(with: fresh)
+    }
+
+    /// Островок идёт за карточкой, пока приложение открыто: перезапрос задачи
+    /// уже случается по опросу, так что отдельного цикла заводить не нужно.
+    ///
+    /// Свёрнутое приложение карточку не двигает — фонового выполнения у него
+    /// нет. Этим занимается сервер через APNs по токену, который мы отдали
+    /// при запуске (`server/src/apns.ts`, ждёт ключей — карточка 75448a64).
+    ///
+    /// Работа закончилась — островок гасим сами: задача принята или закрыта,
+    /// висящая карточка на экране блокировки только мешает.
+    private func syncLiveActivity(with task: ApiTask) async {
+        guard #available(iOS 16.2, *) else { return }
+        if task.status == .completed || task.agentState == nil {
+            await LiveActivityService.end(taskID: task.id, api: apiClient)
+        } else {
+            await LiveActivityService.update(task: task)
+        }
     }
 
     /// Строка активности. Ошибку глотаем: это надстройка над карточкой,
@@ -336,6 +355,31 @@ final class TaskFormViewModel {
     }
 
     // MARK: - Связанные задачи (`tasks.parent_id`)
+
+    /// Вывести задачу в островок (Dynamic Island).
+    ///
+    /// До 10.09.2026 кнопка показывала только тост: виджет жил в Capacitor-
+    /// обёртке, а в нативном клиенте таргета расширения не было вовсе.
+    /// Владелец нажал, свернул приложение и увидел пустоту.
+    ///
+    /// Возвращает текст для тоста — чтобы экран не решал, что случилось.
+    @available(iOS 16.2, *)
+    func outputToDynamicIsland() async -> String {
+        guard let task = originalTask else {
+            return "Сначала сохраните задачу"
+        }
+        guard LiveActivityService.isAvailable else {
+            // Живые активности выключены в настройках телефона — честно
+            // говорим об этом, а не рапортуем об успехе.
+            return "Включите «Live Activities» в настройках телефона"
+        }
+        do {
+            try await LiveActivityService.start(for: task, api: apiClient)
+            return "Задача выведена в Dynamic Island"
+        } catch {
+            return "Не удалось вывести в Dynamic Island"
+        }
+    }
 
     func linkExistingTask(_ task: ApiTask) async -> Bool {
         guard let taskID else { return false }

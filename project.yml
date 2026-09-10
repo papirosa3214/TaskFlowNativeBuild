@@ -27,6 +27,10 @@ targets:
       # ни иконка приложения, ни альтернативные значки, и
       # `supportsAlternateIcons` возвращал false.
       - path: Resources/Assets.xcassets
+      # Модель состояния островка общая с расширением: оно её рисует,
+      # приложение заполняет. Один файл на два таргета — чтобы поля не
+      # разъехались молча.
+      - path: Widgets/TaskActivityAttributes.swift
     dependencies:
       # Распознавание речи на устройстве (просьба владельца 03.09.2026 —
       # «подключи уже искусственный интеллект»): NVIDIA Parakeet TDT v3,
@@ -38,6 +42,9 @@ targets:
       # `AgentAvatarView` в `Sources/Features/Chat/AgentRow.swift`.
       - package: SDWebImageSwiftUI
       - package: SDWebImageWebPCoder
+      # Расширение с виджетом: без явной зависимости xcodegen не вложит его
+      # в бандл приложения, и Live Activity не за что будет зацепиться.
+      - target: TaskFlowWidgets
     info:
       path: Resources/Info.plist
       properties:
@@ -52,6 +59,10 @@ targets:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: Приложение обращается к серверу задач в домашней сети.
         NSMicrophoneUsageDescription: Нужен для голосового ввода задач и заметок.
+        # Без этого ключа ActivityKit не разрешает запускать Live Activity
+        # вовсе: areActivitiesEnabled возвращает false, и кнопка «Вывести в
+        # Dynamic Island» молча ничего не делает.
+        NSSupportsLiveActivities: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.native
@@ -66,6 +77,37 @@ targets:
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: true
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         TARGETED_DEVICE_FAMILY: "1"
+
+  # Расширение с Live Activity (Dynamic Island). Код восстановлен из
+  # Capacitor-обёртки, снесённой 09.09.2026 — там он работал; в нативном
+  # клиенте кнопка «Вывести в Dynamic Island» до 10.09.2026 показывала
+  # только тост, потому что этого таргета не существовало.
+  TaskFlowWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      # Ассеты — тем же путём, что и у приложения: ключа resources у
+      # xcodegen нет, каталог кладётся в sources, иначе аватарки агентов
+      # молча не попадут в расширение и в островке будут одни буквы.
+      - path: Widgets
+    info:
+      path: Widgets/Info.plist
+      # ⚠️ xcodegen ГЕНЕРИРУЕТ файл по этому пути из properties, а не берёт
+      # существующий: положенный рядом Info.plist он молча перезаписывает.
+      # Без NSExtension симулятор отказывается ставить приложение —
+      # «extensionDictionary must be set in placeholder attributes».
+      properties:
+        CFBundleDisplayName: TaskFlow Widgets
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        NSSupportsLiveActivities: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.native.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: true
 
   # UI-тесты: гоняют приложение целиком в симуляторе — открывают экраны,
   # нажимают, проверяют, что пришли живые данные сервера. Снимок показывает
