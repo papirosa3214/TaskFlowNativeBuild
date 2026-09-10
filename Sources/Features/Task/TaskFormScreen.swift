@@ -245,7 +245,7 @@ struct TaskFormScreen: View {
         ), presenting: pendingAction) { action in
             TextField(action.commentRequired ? "Комментарий (обязателен)" : "Комментарий (необязательно)", text: $actionComment)
             Button("Отправить") {
-                Task { await viewModel.performOwnerAction(action, comment: actionComment.isEmpty ? nil : actionComment) }
+                Task { await viewModel.performOwnerAction(action, comment: actionComment.isEmpty ? nil : actionComment, taskStore: taskStore) }
                 actionComment = ""
                 pendingAction = nil
             }
@@ -743,6 +743,26 @@ struct TaskFormScreen: View {
                 if isOwner, let state = viewModel.agentState {
                     ownerActionMenuItems(state)
                 }
+                if isOwner {
+                    // Готовность к самозахвату (миграция 026, карточка
+                    // 04426aeb). Кнопка одна и в том же меню «…», где уже
+                    // живут действия владельца — отдельной иконкой в
+                    // topBarTrailing конкурировать за место не даём. Сервер
+                    // примет PATCH только от владельца; кнопка скрыта от
+                    // остальных условием `isOwner` сверху.
+                    Button {
+                        Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
+                    } label: {
+                        Label(
+                            viewModel.readyForPickup
+                                ? "Снять флаг готовности"
+                                : "Готово к работе",
+                            systemImage: viewModel.readyForPickup
+                                ? "flag.slash"
+                                : "flag.fill"
+                        )
+                    }
+                }
                 Button { isAttachmentPickerPresented = true } label: {
                     Label("Прикрепить файл", systemImage: "paperclip")
                 }
@@ -765,7 +785,7 @@ struct TaskFormScreen: View {
     private func ownerActionMenuItems(_ state: AgentState) -> some View {
         switch state {
         case .review:
-            Button { Task { await viewModel.performOwnerAction(.acceptReview, comment: nil) } } label: {
+            Button { Task { await viewModel.performOwnerAction(.acceptReview, comment: nil, taskStore: taskStore) } } label: {
                 Label("Принять", systemImage: "checkmark")
             }
             Button { pendingAction = .returnToWorkFromReview } label: {
@@ -775,14 +795,14 @@ struct TaskFormScreen: View {
             Button { pendingAction = .replyAndReturnFromBlocked } label: {
                 Label("Ответить и вернуть в работу", systemImage: "arrowshape.turn.up.left")
             }
-            Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil) } } label: {
+            Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
                 Label("Принять и закрыть задачу", systemImage: "checkmark.circle")
             }
         case .inProgress:
-            Button { Task { await viewModel.performOwnerAction(.returnToWorkFromInProgress, comment: nil) } } label: {
+            Button { Task { await viewModel.performOwnerAction(.returnToWorkFromInProgress, comment: nil, taskStore: taskStore) } } label: {
                 Label("Вернуть на доработку", systemImage: "arrow.uturn.backward")
             }
-            Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil) } } label: {
+            Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
                 Label("Принять и закрыть задачу", systemImage: "checkmark.circle")
             }
         }

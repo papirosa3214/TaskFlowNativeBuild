@@ -294,7 +294,13 @@ final class TaskFormViewModel {
     // TaskDetailViewModel.performOwnerAction — §19.2 AgentOwnerActions,
     // логика не менялась, только источник taskID/reload).
 
-    func performOwnerAction(_ kind: AgentOwnerActionKind, comment: String?) async {
+    /// `taskStore` — тот же общий кэш списков, что и у `save(taskStore:)`.
+    /// Своей карточки мало: «Работа агентов» и плитки «Обзора» рисуют секции
+    /// из стора, а он о владельческом действии не знает. Владелец 10.09.2026
+    /// открыл задачу из «Обзора» → «В работе», принял её — «что-то моргнуло
+    /// и на этом всё»: на сервере задача закрылась (проверено по логу — 200
+    /// на обоих запросах), а строка осталась висеть в списке до перезахода.
+    func performOwnerAction(_ kind: AgentOwnerActionKind, comment: String?, taskStore: TaskStore) async {
         guard let taskID else { return }
         do {
             switch kind {
@@ -307,6 +313,11 @@ final class TaskFormViewModel {
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: nil, comment: comment)
             }
             await loadIfNeeded()
+            // Полный рефетч, а не точечная замена: приёмка меняет у задачи и
+            // `status`, и `agent_state`, а «Принять и закрыть» на родителе
+            // задевает ещё и дочерние — что именно пересчитал сервер, знает
+            // только он. Тихо, без спиннера: список уже на экране.
+            await taskStore.load(silent: true)
         } catch {
             // Формулировка дословно из спеки §19.2 (как было в TaskDetailViewModel).
             saveErrorMessage = "Не удалось изменить состояние задачи"
@@ -314,6 +325,34 @@ final class TaskFormViewModel {
     }
 
     // MARK: - Подзадачи (edit) — точечные вызовы, отдельные от общего PATCH задачи.
+
+    /// Поднять/снять флаг готовности задачи к самозахвату (миграция 026,
+    /// карточка 04426aeb). Сервер примет PATCH только от владельца
+    /// (`isOwner` на клиенте гейт уже отрезал), иначе 403. Здесь мы
+    /// просто шлём — повторный заход не нужен, потому что условие
+    /// проверяется до показа кнопки.
+    func toggleReadyFlag(taskStore: TaskStore) async {
+        guard let task = originalTask else { return }
+        let next = !task.readyForPickup
+        do {
+            _ = try await apiClient.patchTask(id: task.id, fields: [
+                "ready_for_pickup": .bool(next),
+            ])
+            await loadIfNeeded()
+            // Тихо обновить список, чтобы плашка на доске тоже переключилась.
+            await taskStore.load(silent: true)
+        } catch {
+            saveErrorMessage = "Не удалось изменить готовность задачи"
+        }
+    }
+
+    /// Удобное отражение `originalTask.readyForPickup` для UI (кнопка
+    /// в `editingToolbarItems`). Дефолт `false`: пока задача не
+    /// загружена, кнопка показывает «Готово к работе» — достоверно
+    /// неверно, но и экран ещё нельзя трогать.
+    var readyForPickup: Bool {
+        originalTask?.readyForPickup ?? false
+    }
 
     func addSubtask(_ title: String) async {
         guard let taskID else { return }

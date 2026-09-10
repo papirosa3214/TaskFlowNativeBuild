@@ -63,13 +63,13 @@ enum LiveActivityService {
             activity = try Activity.request(
                 attributes: attributes, content: content, pushType: .token
             )
-            NSLog("[LiveActivity] запущена с пуш-токеном, id=%@", activity.id)
+            Diag.log("[LiveActivity] запущена с пуш-токеном, id=%@")
         } catch {
-            NSLog("[LiveActivity] токен не выдан (%@), поднимаю без него", error.localizedDescription)
+            Diag.log("[LiveActivity] токен не выдан (%@), поднимаю без него")
             activity = try Activity.request(
                 attributes: attributes, content: content, pushType: nil
             )
-            NSLog("[LiveActivity] запущена без токена, id=%@", activity.id)
+            Diag.log("[LiveActivity] запущена без токена, id=%@")
         }
 
         // Пока карточка висит — держим приложение живым и сами тянем
@@ -130,7 +130,11 @@ enum LiveActivityService {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(15))
                 guard !Task.isCancelled else { return }
-                guard let fresh = try? await api.task(id: taskID) else { continue }
+                Diag.log("[Цикл] круг обновления, задача \(taskID)")
+                guard let fresh = try? await api.task(id: taskID) else {
+                    Diag.log("[Цикл] сервер не ответил")
+                    continue
+                }
                 if fresh.status == .completed || fresh.agentState == nil {
                     await end(taskID: taskID, api: api)
                     return

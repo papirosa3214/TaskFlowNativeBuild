@@ -42,6 +42,13 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// Есть только в живой БД, НЕ создаётся системой миграций (spec §12 п.6) —
     /// на свежесозданной с нуля базе может отсутствовать вовсе.
     public let parentId: String?
+    /// Готовность к самозахвату (миграция 026, карточки d598de9f/dc669154/04426aeb).
+    /// Поднимает только владелец трекера; пока false — claim отклоняется.
+    public let readyForPickup: Bool
+    /// Когда подняли (`SQLite UTC`).
+    public let readySetAt: String?
+    /// id учётки, кто поднял.
+    public let readySetBy: String?
 
     // MARK: Derived (hydrateTask()/withAgentStale())
 
@@ -87,6 +94,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case durationMin = "duration_min"
         case pinned
         case parentId = "parent_id"
+        case readyForPickup = "ready_for_pickup"
+        case readySetAt = "ready_set_at"
+        case readySetBy = "ready_set_by"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -121,6 +131,12 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         durationMin = try c.decodeIfPresent(Int.self, forKey: .durationMin)
         pinned = try c.decodeIntBool(forKey: .pinned)
         parentId = try c.decodeIfPresent(String.self, forKey: .parentId)
+        // Сервер отдаёт `ready_for_pickup` как INTEGER (0/1) — не Boolean,
+        // чтобы поле дефолтом было 0 в существующих строках после миграции.
+        // Используем тот же приём `decodeIntBool`, что и `pinned` выше.
+        readyForPickup = try c.decodeIntBool(forKey: .readyForPickup)
+        readySetAt = try c.decodeIfPresent(String.self, forKey: .readySetAt)
+        readySetBy = try c.decodeIfPresent(String.self, forKey: .readySetBy)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -160,6 +176,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(durationMin, forKey: .durationMin)
         try c.encode(pinned ? 1 : 0, forKey: .pinned)
         try c.encodeIfPresent(parentId, forKey: .parentId)
+        try c.encode(readyForPickup ? 1 : 0, forKey: .readyForPickup)
+        try c.encodeIfPresent(readySetAt, forKey: .readySetAt)
+        try c.encodeIfPresent(readySetBy, forKey: .readySetBy)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)

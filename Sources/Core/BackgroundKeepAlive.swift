@@ -63,7 +63,7 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
         manager.allowsBackgroundLocationUpdates = true
         manager.showsBackgroundLocationIndicator = true
         manager.startUpdatingLocation()
-        NSLog("[KeepAlive] фон включён — островок будет живым")
+        Diag.log("[KeepAlive] фон включён — островок будет живым")
     }
 
     func stop() {
@@ -71,7 +71,7 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
         isRunning = false
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
-        NSLog("[KeepAlive] фон выключен")
+        Diag.log("[KeepAlive] фон выключен")
     }
 
     /// Координаты нам не нужны — важен сам факт события: пока они идут,
@@ -82,11 +82,11 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         tick += 1
         if tick % 10 == 0 {
-            NSLog("[KeepAlive] фон жив, событий: %d", tick)
+            Diag.log("[KeepAlive] фон жив, событий: %d")
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        NSLog("[KeepAlive] геопозиция отказала: %@", error.localizedDescription)
+        Diag.log("[KeepAlive] геопозиция отказала: %@")
     }
 }
