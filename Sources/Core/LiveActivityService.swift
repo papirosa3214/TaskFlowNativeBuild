@@ -42,11 +42,35 @@ enum LiveActivityService {
         }
 
         let state = contentState(for: task)
-        let activity = try Activity.request(
-            attributes: TaskActivityAttributes(taskId: task.id),
-            content: ActivityContent(state: state, staleDate: staleDate),
-            pushType: .token
-        )
+        let attributes = TaskActivityAttributes(taskId: task.id)
+        let content = ActivityContent(state: state, staleDate: staleDate)
+
+        // ДВА ЗАХОДА, И ЭТО НЕ ПЕРЕСТРАХОВКА — так показал лог 10.09.2026.
+        //
+        // `pushType: .token` просит токен для обновлений с сервера, а это
+        // право на пуши (`aps-environment`). Права нет — запрос падает
+        // ЦЕЛИКОМ, островок не появляется вовсе. В логе это выглядит так:
+        //   с токеном: ОТКАЗ — SessionCore.PermissionsError Code=3
+        //   без токена: ЗАПУСТИЛАСЬ
+        // Именно на этом владелец увидел «пишет, не удалось вывести».
+        //
+        // Пока ключей APNs нет (карточка 75448a64), двигать карточку с
+        // сервера всё равно нечем — отсутствие токена ничего не отнимает.
+        // Появятся права и ключи — первый заход начнёт срабатывать сам,
+        // править здесь ничего не придётся.
+        let activity: Activity<TaskActivityAttributes>
+        do {
+            activity = try Activity.request(
+                attributes: attributes, content: content, pushType: .token
+            )
+            NSLog("[LiveActivity] запущена с пуш-токеном, id=%@", activity.id)
+        } catch {
+            NSLog("[LiveActivity] токен не выдан (%@), поднимаю без него", error.localizedDescription)
+            activity = try Activity.request(
+                attributes: attributes, content: content, pushType: nil
+            )
+            NSLog("[LiveActivity] запущена без токена, id=%@", activity.id)
+        }
 
         // Токен приходит не сразу и меняется со временем — поэтому слушаем
         // поток, а не берём одно значение. Сервер перезаписывает его по
