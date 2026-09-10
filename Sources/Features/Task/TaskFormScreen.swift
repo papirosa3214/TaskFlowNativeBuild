@@ -302,6 +302,16 @@ struct TaskFormScreen: View {
             }
 
             Section {
+                // LOCK-117. Короткий номер карточки — тот самый, которым агенты
+                // ссылаются на задачи в чате («карточка bb728617»). Владелец
+                // 11.09.2026: «я-то их не вижу, поэтому понятия не имею, о какой
+                // карточке ты говоришь». Намеренно неброско — .caption2 +
+                // .tertiary, сноска, которую можно не читать.
+                if let taskID = viewModel.taskID {
+                    Text(taskID.prefix(8))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
                 TextField("Название задачи", text: $viewModel.title, axis: .vertical)
                     .font(.headline)
                     .lineLimit(1...6)
