@@ -386,7 +386,18 @@ final class TaskFormViewModel {
         guard let taskID else { return }
         do {
             switch kind {
-            case .acceptReview, .acceptAndClose:
+            case .acceptReview:
+                try await apiClient.approveCurrentTaskVersion(taskID: taskID)
+                _ = try await apiClient.setTaskAgentState(id: taskID, state: nil, comment: comment)
+                _ = try await apiClient.patchTask(id: taskID, fields: ["status": .string("completed")])
+            case .acceptAndClose:
+                // Сервер принимает `completed` только после одобрения
+                // актуальной версии результата. Для обычной активной или
+                // blocked-задачи отдельного review нет; в состоянии review
+                // сначала фиксируем verdict по текущей версии.
+                if agentState == .review {
+                    try await apiClient.approveCurrentTaskVersion(taskID: taskID)
+                }
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: nil, comment: comment)
                 _ = try await apiClient.patchTask(id: taskID, fields: ["status": .string("completed")])
             case .returnToWorkFromReview, .replyAndReturnFromBlocked:

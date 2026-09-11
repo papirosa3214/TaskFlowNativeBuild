@@ -56,6 +56,7 @@ struct TodayListView: View {
             case .complete:
                 onComplete(task)
             case .acceptReview:
+                try await apiClient.approveCurrentTaskVersion(taskID: task.id)
                 _ = try await apiClient.setTaskAgentState(id: task.id, state: nil)
                 _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
                 await taskStore.load(silent: true)

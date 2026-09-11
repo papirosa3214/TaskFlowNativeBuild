@@ -185,6 +185,7 @@ struct ProjectTasksScreen: View {
                 // complete покрывает «принять задачу» — и ревью, и просто
                 // завершить. Если был ревью — сначала снимаем блокировку.
                 if task.agentState == .review {
+                    try await apiClient.approveCurrentTaskVersion(taskID: task.id)
                     _ = try await apiClient.setTaskAgentState(id: task.id, state: nil, comment: nil)
                 }
                 _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
