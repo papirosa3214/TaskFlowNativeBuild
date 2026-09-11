@@ -65,13 +65,19 @@ struct RootView: View {
     @Environment(RealtimeClient.self) private var realtimeClient
 
     var body: some View {
-        Group {
-            if session.isBootstrapping {
-                launchScreen
-            } else if session.isAuthenticated {
-                RootShellView()
-            } else {
-                LoginView()
+        ZStack {
+            // Фон заходит под системную клавиатуру; содержимое сохраняет
+            // штатное изменение safe area и не перекрывается клавиатурой.
+            Color.tfBackground.ignoresSafeArea()
+
+            Group {
+                if session.isBootstrapping {
+                    launchScreen
+                } else if session.isAuthenticated {
+                    RootShellView()
+                } else {
+                    LoginView()
+                }
             }
         }
         .task {

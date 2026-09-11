@@ -1,6 +1,7 @@
+import Foundation
 import SwiftUI
 
-// ═══════════ NotesScreen — «Дневник» (spec/SCREENS-2.md §1) ═══════════
+// ═══════════ NotesScreen — единая «База знаний» ═══════════
 //
 // Была своя рисованная шапка (обходила то, что у `TFScreenHeader.large`
 // нет leading-слота под стрелку «Назад») — просьба владельца 03.09.2026
@@ -10,6 +11,10 @@ import SwiftUI
 // подставляется стеком навигации сама — свою больше не рисуем.
 public struct NotesScreen: View {
     @State private var viewModel = NotesViewModel()
+    @State private var knowledgeQuery = ""
+    @State private var knowledgeChunks: [ApiKnowledgeChunk] = []
+    @State private var isSearchingKnowledge = false
+    @State private var knowledgeSearchError: String?
 
     /// Открыть сразу на этой папке (её и предков разворачиваем, к ней же
     /// скроллим) — просьба владельца 03.09.2026: шеврон «Документация» у
@@ -24,6 +29,14 @@ public struct NotesScreen: View {
     @State private var pendingNoteID: String?
     @State private var shareURLs: [URL] = []
     @State private var showShareSheet = false
+
+    private let apiClient = APIClient()
+
+    private var trimmedKnowledgeQuery: String {
+        knowledgeQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isKnowledgeSearchActive: Bool { !trimmedKnowledgeQuery.isEmpty }
 
     public init(focusFolderID: Int? = nil) {
         self.focusFolderID = focusFolderID
@@ -40,23 +53,27 @@ public struct NotesScreen: View {
                     TFErrorBanner(viewModel.actionErrorMessage)
                         .padding(.horizontal, TFSpacing.screenHorizontal)
 
-                    if viewModel.isCreatingFolder {
-                        createFolderRow
-                    }
-
-                    if viewModel.isLoading && !viewModel.hasAnyContent {
-                        TFLoading(.block)
-                            .frame(maxWidth: .infinity)
-                    } else if !viewModel.hasAnyContent && !viewModel.isCreatingFolder {
-                        TFEmptyState(
-                            icon: "book",
-                            text: "Записей пока нет\nЗаметки складываются в папки — перетаскиванием или сразу при создании.",
-                            actionTitle: "Создать заметку"
-                        ) { Task { await createNoteAndNavigate() } }
-                        .padding(.top, TFSpacing.xl)
+                    if isKnowledgeSearchActive {
+                        knowledgeSearchContent
                     } else {
-                        ForEach(viewModel.rows) { row in
-                            rowView(row)
+                        if viewModel.isCreatingFolder {
+                            createFolderRow
+                        }
+
+                        if viewModel.isLoading && !viewModel.hasAnyContent {
+                            TFLoading(.block)
+                                .frame(maxWidth: .infinity)
+                        } else if !viewModel.hasAnyContent && !viewModel.isCreatingFolder {
+                            TFEmptyState(
+                                icon: "book",
+                                text: "Документов пока нет\nДокументы складываются в папки — перетаскиванием или сразу при создании.",
+                                actionTitle: "Создать документ"
+                            ) { Task { await createNoteAndNavigate() } }
+                            .padding(.top, TFSpacing.xl)
+                        } else {
+                            ForEach(viewModel.rows) { row in
+                                rowView(row)
+                            }
                         }
                     }
                 }
@@ -74,7 +91,12 @@ public struct NotesScreen: View {
             }
         }
         .background(Color.tfBackground)
-        .tfNativeHeader("Дневник", displayMode: .inline)
+        .tfNativeHeader("База знаний", displayMode: .inline)
+        .searchable(
+            text: $knowledgeQuery,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Поиск по базе знаний"
+        )
         .toolbar {
             if viewModel.isSelecting {
                 ToolbarItem(placement: .topBarLeading) {
@@ -93,6 +115,29 @@ public struct NotesScreen: View {
         // она отдаёт заглушку, и список заметок от этого не ломается.
         .navigationDestination(item: $pendingNoteID) { id in
             routeDestination(.noteEditor(noteID: id))
+        }
+        // Поиск использует тот же индекс документов, но результат всегда
+        // открывает исходную заметку. Дебаунс бережёт серверный retrieval.
+        .task(id: trimmedKnowledgeQuery) {
+            guard trimmedKnowledgeQuery.count >= 2 else {
+                knowledgeChunks = []
+                isSearchingKnowledge = false
+                knowledgeSearchError = nil
+                return
+            }
+            isSearchingKnowledge = true
+            knowledgeSearchError = nil
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            do {
+                knowledgeChunks = try await apiClient.knowledgeSearch(query: trimmedKnowledgeQuery)
+            } catch is CancellationError {
+                return
+            } catch {
+                knowledgeSearchError = (error as? APIError)?.errorDescription ?? "Не удалось выполнить поиск"
+                knowledgeChunks = []
+            }
+            isSearchingKnowledge = false
         }
         .sheet(isPresented: $showMovePicker) {
             FolderPickerSheet(folders: viewModel.folders, title: "Переместить в папку") { folderID in
@@ -120,7 +165,7 @@ public struct NotesScreen: View {
     private var kebabMenu: some View {
         Menu {
             Button { Task { await createNoteAndNavigate() } } label: {
-                Label("Создать заметку", systemImage: "doc.text")
+                Label("Создать документ", systemImage: "doc.text")
             }
             Button { viewModel.isCreatingFolder = true } label: {
                 Label("Создать папку", systemImage: "folder")
@@ -136,10 +181,23 @@ public struct NotesScreen: View {
             } label: {
                 Label("Выгрузить всё в Markdown", systemImage: "square.and.arrow.up")
             }
+
+            Divider()
+
+            Button { viewModel.noteDateOrder = alternateDateOrder } label: {
+                Label(alternateDateOrder.title, systemImage: alternateDateOrder.systemImage)
+            }
         } label: {
             Image(systemName: "ellipsis")
         }
         .accessibilityLabel("Действия")
+    }
+
+    private var alternateDateOrder: NotesDateOrder {
+        switch viewModel.noteDateOrder {
+        case .newestFirst: .oldestFirst
+        case .oldestFirst: .newestFirst
+        }
     }
 
     private var selectionMenu: some View {
@@ -209,14 +267,19 @@ public struct NotesScreen: View {
     @ViewBuilder
     private func rowView(_ row: NotesTreeRow) -> some View {
         switch row.kind {
-        case .folder(let folder, let noteCount):
-            folderRow(row, folder: folder, noteCount: noteCount)
+        case .folder(let folder, let noteCount, let latestNote):
+            folderRow(row, folder: folder, noteCount: noteCount, latestNote: latestNote)
         case .note(let note):
             noteRow(row, note: note)
         }
     }
 
-    private func folderRow(_ row: NotesTreeRow, folder: ApiJournalFolder, noteCount: Int) -> some View {
+    private func folderRow(
+        _ row: NotesTreeRow,
+        folder: ApiJournalFolder,
+        noteCount: Int,
+        latestNote: NoteListItem?
+    ) -> some View {
         Button {
             if viewModel.isSelecting { viewModel.toggleSelected(row) }
             else { viewModel.toggleExpanded(folder.id) }
@@ -232,17 +295,32 @@ public struct NotesScreen: View {
                     .frame(width: 16)
                 Image(systemName: "folder")
                     .foregroundStyle(Color.tfSub)
-                Text(folder.name)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(folder.name)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(1)
+                    if let latestNote {
+                        Text(latestNote.title.isEmpty ? "Документ без названия" : latestNote.title)
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                        Text("Обновлено \(updatedDateText(for: latestNote))")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfDim)
+                    } else {
+                        Text("Документов пока нет")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfDim)
+                    }
+                }
                 Spacer()
                 Text("\(noteCount)")
                     .tfText(.action)
                     .foregroundStyle(Color.tfDim)
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
-            .frame(minHeight: 44)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .buttonStyle(TFTapRowStyle())
@@ -282,11 +360,15 @@ public struct NotesScreen: View {
                         .foregroundStyle(Color.tfSub)
                         .lineLimit(1)
                 }
+                Text("Обновлено \(updatedDateText(for: note))")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .lineLimit(1)
             }
             Spacer()
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
-        .frame(minHeight: 44)
+        .frame(minHeight: 56)
         .contentShape(Rectangle())
     }
 
@@ -310,6 +392,99 @@ public struct NotesScreen: View {
         if let id = await viewModel.createNote() {
             pendingNoteID = id
         }
+    }
+
+    private func updatedDateText(for note: NoteListItem) -> String {
+        let date = NotesDateOrder.date(of: note)
+        guard date != .distantPast else { return "дата неизвестна" }
+        return Self.updatedDateFormatter.string(from: date)
+    }
+
+    private static let updatedDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "d MMM yyyy, HH:mm"
+        return formatter
+    }()
+
+    // MARK: - Смысловой поиск в той же базе
+
+    @ViewBuilder
+    private var knowledgeSearchContent: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            if trimmedKnowledgeQuery.count < 2 {
+                TFEmptyState(
+                    icon: "magnifyingglass",
+                    text: "Введите минимум два символа для поиска по содержимому документов"
+                )
+            } else if isSearchingKnowledge && knowledgeChunks.isEmpty {
+                TFLoading(.block)
+            } else if knowledgeChunks.isEmpty && knowledgeSearchError == nil {
+                TFEmptyState(
+                    icon: "magnifyingglass",
+                    text: "Ничего похожего — в базе знаний про это пока не писали"
+                )
+            } else {
+                ForEach(knowledgeChunks) { chunk in
+                    knowledgeChunkCard(chunk)
+                }
+            }
+
+            TFErrorBanner(knowledgeSearchError, variant: .block)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+        .padding(.top, TFSpacing.sm)
+    }
+
+    private func knowledgeChunkCard(_ chunk: ApiKnowledgeChunk) -> some View {
+        Button {
+            if let id = chunk.docId { pendingNoteID = id }
+        } label: {
+            TFCard {
+                VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                    HStack(spacing: TFSpacing.sm) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(chunk.title?.isEmpty == false ? chunk.title! : "Документ")
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfText)
+                                .lineLimit(1)
+                            if let project = chunk.project, !project.isEmpty {
+                                Text(project)
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfSub)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        if let score = chunk.score {
+                            Text(String(format: "%.0f%%", score * 100))
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfDim)
+                                .monospacedDigit()
+                        }
+                    }
+                    Text(Self.cleanedKnowledgeSnippet(chunk.text))
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(6)
+                        .multilineTextAlignment(.leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .buttonStyle(TFTapRowStyle())
+        .disabled(chunk.docId == nil)
+    }
+
+    private static func cleanedKnowledgeSnippet(_ text: String) -> String {
+        var body = text
+        if body.hasPrefix("---") {
+            let parts = body.components(separatedBy: "\n---")
+            if parts.count > 1 {
+                body = parts.dropFirst().joined(separator: "\n---")
+            }
+        }
+        return body.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Разворачивает саму папку и всех её предков по цепочке `parentId` —

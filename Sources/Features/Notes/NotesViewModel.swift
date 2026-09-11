@@ -12,6 +12,7 @@ final class NotesViewModel {
     var folders: [ApiJournalFolder] = []
     var notes: [NoteListItem] = []
     var expandedFolderIDs: Set<Int> = []
+    var noteDateOrder: NotesDateOrder = .newestFirst
 
     var isLoading = false
     var foldersErrorMessage: String?
@@ -79,14 +80,21 @@ final class NotesViewModel {
 
     private func buildRows(parentID: Int?, depth: Int, ancestorContinues: [Bool]) -> [NotesTreeRow] {
         var out: [NotesTreeRow] = []
+        let dateOrder = noteDateOrder
         let childFolders = folders.filter { $0.parentId == parentID }
-        let childNotes = notes.filter { $0.folderId == parentID }
+        let childNotes = notes
+            .filter { $0.folderId == parentID }
+            .sorted { dateOrder.comparator($0, $1) }
 
         for (index, folder) in childFolders.enumerated() {
             let isLast = index == childFolders.count - 1 && childNotes.isEmpty
             out.append(NotesTreeRow(
                 rowID: "f:\(folder.id)",
-                kind: .folder(folder, noteCount: notesCount(inFolderTree: folder.id)),
+                kind: .folder(
+                    folder,
+                    noteCount: notesCount(inFolderTree: folder.id),
+                    latestNote: latestNote(inFolderTree: folder.id)
+                ),
                 depth: depth,
                 ancestorContinues: ancestorContinues,
                 isLastChild: isLast
@@ -111,6 +119,20 @@ final class NotesViewModel {
     /// Счётчик у папки (число справа на скриншоте `notes.png`) — заметки
     /// этой папки и всех вложенных подпапок, рекурсивно.
     private func notesCount(inFolderTree folderID: Int) -> Int {
+        let ids = folderTreeIDs(startingAt: folderID)
+        return notes.count { $0.folderId != nil && ids.contains($0.folderId!) }
+    }
+
+    /// Последний документ папки учитывает и вложенные папки: именно он лучше
+    /// всего отвечает на вопрос «когда тут в последний раз что-то меняли».
+    func latestNote(inFolderTree folderID: Int) -> NoteListItem? {
+        let ids = folderTreeIDs(startingAt: folderID)
+        return notes
+            .filter { $0.folderId != nil && ids.contains($0.folderId!) }
+            .max(by: { NotesDateOrder.date(of: $0) < NotesDateOrder.date(of: $1) })
+    }
+
+    private func folderTreeIDs(startingAt folderID: Int) -> Set<Int> {
         var ids: Set<Int> = [folderID]
         var grew = true
         while grew {
@@ -120,7 +142,7 @@ final class NotesViewModel {
                 grew = true
             }
         }
-        return notes.count { $0.folderId != nil && ids.contains($0.folderId!) }
+        return ids
     }
 
     // MARK: - Создание
@@ -173,7 +195,7 @@ final class NotesViewModel {
 
     func toggleSelected(_ row: NotesTreeRow) {
         switch row.kind {
-        case .folder(let folder, _):
+        case .folder(let folder, _, _):
             if selectedFolderIDs.contains(folder.id) { selectedFolderIDs.remove(folder.id) }
             else { selectedFolderIDs.insert(folder.id) }
         case .note(let note):
@@ -184,7 +206,7 @@ final class NotesViewModel {
 
     func isSelected(_ row: NotesTreeRow) -> Bool {
         switch row.kind {
-        case .folder(let folder, _): selectedFolderIDs.contains(folder.id)
+        case .folder(let folder, _, _): selectedFolderIDs.contains(folder.id)
         case .note(let note): selectedNoteIDs.contains(note.id)
         }
     }
@@ -284,12 +306,51 @@ final class NotesViewModel {
     }
 }
 
+enum NotesDateOrder: CaseIterable, Identifiable {
+    case newestFirst
+    case oldestFirst
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .newestFirst: "Сначала новые"
+        case .oldestFirst: "Сначала старые"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .newestFirst: "arrow.down"
+        case .oldestFirst: "arrow.up"
+        }
+    }
+
+    func comparator(_ lhs: NoteListItem, _ rhs: NoteListItem) -> Bool {
+        let left = Self.date(of: lhs)
+        let right = Self.date(of: rhs)
+        if left == right {
+            return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+        }
+        switch self {
+        case .newestFirst: return left > right
+        case .oldestFirst: return left < right
+        }
+    }
+
+    static func date(of note: NoteListItem) -> Date {
+        note.updatedAt.flatMap(DateFormats.sqliteUTC)
+            ?? note.createdAt.flatMap(DateFormats.sqliteUTC)
+            ?? .distantPast
+    }
+}
+
 /// Строка плоского списка — папка или заметка на своей глубине, с
 /// разметкой направляющих линий (spec: «вертикальные линии с уголками на
 /// месте последнего элемента ветки»).
 struct NotesTreeRow: Identifiable, Equatable {
     enum Kind: Equatable {
-        case folder(ApiJournalFolder, noteCount: Int)
+        case folder(ApiJournalFolder, noteCount: Int, latestNote: NoteListItem?)
         case note(NoteListItem)
     }
 

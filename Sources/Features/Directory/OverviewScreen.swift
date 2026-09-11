@@ -31,7 +31,7 @@ struct OverviewScreen: View {
                 statusGrid
                 weeklySummaryCard
                 navCard(route: .knowledge, icon: "books.vertical", tint: Color(hex: "#8b5cf6"),
-                        title: "База знаний", subtitle: "Поиск по документации всех проектов")
+                        title: "База знаний", subtitle: "Документы, папки и поиск по всем проектам")
                 navCard(route: .notifications, icon: "bell", tint: Color(hex: "#f59e0b"),
                         title: "Уведомления", subtitle: "История событий и напоминаний")
                 navCard(route: .activity, icon: "waveform.path.ecg", tint: Color(hex: "#4a9fd8"),
