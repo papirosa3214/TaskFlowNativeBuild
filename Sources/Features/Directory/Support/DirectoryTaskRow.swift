@@ -28,11 +28,13 @@ struct DirectoryTaskRow: View {
     /// практически невозможна при текущем количестве задач).
     let index: String?
     let task: ApiTask
+    let isOwner: Bool
     let onOpen: () -> Void
-    let onEdit: () -> Void
     let onDelete: () -> Void
+    /// Контекстное действие на правом свайпе: поднять флаг / принять ревью.
+    let swipeAction: ProjectTaskSwipeAction?
+    let onSwipeAction: () -> Void
 
-    private let actionWidth: CGFloat = TFRowActionWidth
     /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
     @State private var rowID = UUID()
     @State private var settledOffset: CGFloat = 0
@@ -44,15 +46,22 @@ struct DirectoryTaskRow: View {
     var body: some View {
         ZStack {
             HStack(spacing: 0) {
-                swipeActionButton(icon: "trash", label: "Удалить", width: max(offsetX, 0), visible: offsetX > 0) {
+                swipeIconButton(icon: "trash", color: .tfSwipeDelete) {
                     close(); confirmDelete = true
                 }
-                .background(Color.tfSwipeDelete)
+                .frame(width: leftRevealWidth)
+                .opacity(revealOpacity(leftRevealWidth))
+
                 Spacer(minLength: 0)
-                swipeActionButton(icon: "pencil", label: "Изменить", width: max(-offsetX, 0), visible: offsetX < 0) {
-                    close(); onEdit()
+
+                if let swipeAction {
+                    swipeIconButton(
+                        icon: swipeAction.icon,
+                        color: .tfGreen
+                    ) { close(); onSwipeAction() }
+                    .frame(width: rightRevealWidth)
+                    .opacity(revealOpacity(rightRevealWidth))
                 }
-                .background(Color.tfSwipeEdit)
             }
 
             row
@@ -86,17 +95,26 @@ struct DirectoryTaskRow: View {
         }
     }
 
-    private func swipeActionButton(icon: String, label: String, width: CGFloat, visible: Bool, action: @escaping () -> Void) -> some View {
+    private var leftRevealWidth: CGFloat { max(offsetX, 0) }
+    private var rightRevealWidth: CGFloat { max(-offsetX, 0) }
+
+    private func revealOpacity(_ width: CGFloat) -> Double {
+        min(1, Double(width / TFRowActionWidth) * 1.3)
+    }
+
+    /// Кнопка свайпа — только иконка, без надписи (владелец 11.09.2026).
+    private func swipeIconButton(icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: icon).font(.system(size: TFIconSize.md))
-                Text(label).tfText(.caption)
-            }
-            .foregroundStyle(.white)
+            Image(systemName: icon)
+                .font(.system(size: TFIconSize.md))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(color)
         }
-        .frame(width: width)
-        .frame(maxHeight: .infinity)
-        .opacity(visible ? 1 : 0)
+        .buttonStyle(.plain)
+        .clipped()
+        .allowsHitTesting(abs(offsetX) >= TFRowActionWidth * 0.7)
+        .accessibilityHidden(abs(offsetX) < TFRowActionWidth * 0.7)
     }
 
     private var row: some View {
@@ -204,17 +222,19 @@ struct DirectoryTaskRow: View {
         let finalOffset = clamp(settledOffset + dx)
         withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
             if settledOffset == 0 {
-                if finalOffset < -36 || velocity < -280 {
-                    settledOffset = -actionWidth
-                } else if finalOffset > 36 || velocity > 280 {
-                    settledOffset = actionWidth
+                if swipeAction != nil, (finalOffset < -TFRowSwipe.openThreshold || velocity < -TFRowSwipe.openVelocity) {
+                    settledOffset = -TFRowActionWidth
+                } else if finalOffset > TFRowSwipe.openThreshold || velocity > TFRowSwipe.openVelocity {
+                    // Открыть «Удалить» слева — те же пороги, что и для
+                    // действия справа. confirmDelete срабатывает по тапу.
+                    settledOffset = TFRowActionWidth
                 } else {
                     settledOffset = 0
                 }
             } else if settledOffset < 0 {
-                settledOffset = (dx > 25 || velocity > 250) ? 0 : -actionWidth
+                settledOffset = (dx > TFRowSwipe.closeThreshold || velocity > TFRowSwipe.closeVelocity) ? 0 : -2 * TFRowActionWidth
             } else {
-                settledOffset = (dx < -25 || velocity < -250) ? 0 : actionWidth
+                settledOffset = (dx < -TFRowSwipe.closeThreshold || velocity < -TFRowSwipe.closeVelocity) ? 0 : TFRowActionWidth
             }
             dragOffset = 0
         }
@@ -225,13 +245,17 @@ struct DirectoryTaskRow: View {
         }
     }
 
+    /// «Резина» за пределом раскрытия — веб: `W + over × 30 / (30 + over)`.
+    /// По одной кнопке с каждой стороны.
     private func clamp(_ raw: CGFloat) -> CGFloat {
-        if raw > actionWidth {
-            let over = raw - actionWidth
-            return actionWidth + (over * 30) / (30 + over)
-        } else if raw < -actionWidth {
-            let over = -raw - actionWidth
-            return -actionWidth - (over * 30) / (30 + over)
+        if raw < 0, swipeAction == nil { return 0 }
+        let limit = TFRowActionWidth
+        if raw > limit {
+            let over = raw - limit
+            return limit + (over * 30) / (30 + over)
+        } else if raw < -limit {
+            let over = -raw - limit
+            return -limit - (over * 30) / (30 + over)
         }
         return raw
     }
@@ -257,6 +281,49 @@ enum DirectoryAgentStateTag {
         case .inProgress: return .tfTeal
         case .blocked: return .tfOrange
         case .review: return .tfBlue
+        }
+    }
+}
+
+
+/// Контекстное действие на свайпе влево (открывается кнопка справа).
+/// Решение: владелец видит разное действие в зависимости от того, готов
+/// ли он отдать задачу (флаг) или уже отдал (тогда можно сразу принять).
+enum ProjectTaskSwipeAction: Equatable {
+    /// Поднять флаг готовности (`ready_for_pickup=1`), чтобы агент мог взять.
+    case markReadyForPickup
+    /// Завершить задачу (зелёная галочка). Показывается для ВСЕХ
+    /// не-завершённых задач с поднятым флагом готовности — владелец 11.09.2026
+    /// попросил «если флаг поднят и задача не выполнена, всё равно чтобы
+    /// галочка была зелёная принять». Покрывает и ревью (снимает блокировку),
+    /// и просто активную задачу в пуле.
+    case complete
+
+    static func action(for task: ApiTask, isOwner: Bool) -> Self? {
+        guard isOwner else { return nil }
+        guard task.status == .active else { return nil }
+        if !task.readyForPickup { return .markReadyForPickup }
+        return .complete
+    }
+
+    var icon: String {
+        switch self {
+        case .complete: "checkmark"
+        case .markReadyForPickup: "flag.fill"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .complete: "Принять"
+        case .markReadyForPickup: "Готово к работе"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .complete: "project.row.swipe.complete"
+        case .markReadyForPickup: "project.row.swipe.ready"
         }
     }
 }

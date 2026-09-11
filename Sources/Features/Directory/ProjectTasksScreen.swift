@@ -32,6 +32,11 @@ struct ProjectTasksScreen: View {
     }
     @State private var showNewTask = false
 
+    /// На проектах владелец — создатель проекта (он же владелец трекера).
+    /// В этой роли доступны контекстные свайпы. Постоянное true, пока
+    /// авторизация владельца не появится отдельным состоянием.
+    private var isTaskOwner: Bool { true }
+
     private var project: ApiProject? {
         projectStore.projects.first { $0.id == projectID }
     }
@@ -155,16 +160,41 @@ struct ProjectTasksScreen: View {
     @ViewBuilder
     private func rowWithIndex(_ rowIndex: Int) -> some View {
         let task = tasks[rowIndex]
-        // Первые 8 hex-символов UUID — визуально компактный, но при этом
-        // уникальный идентификатор, на который исполнитель ссылается в чате.
         let shortId = String(task.id.prefix(8))
+        let swipeAction = ProjectTaskSwipeAction.action(for: task, isOwner: isTaskOwner)
         DirectoryTaskRow(
             index: shortId,
             task: task,
+            isOwner: isTaskOwner,
             onOpen: { pendingDetail = task.id },
-            onEdit: { pendingDetail = task.id },
-            onDelete: { Task { await taskStore.delete(taskId: task.id) } }
+            onDelete: { Task { await taskStore.delete(taskId: task.id) } },
+            swipeAction: swipeAction,
+            onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
         )
+    }
+
+    /// Свайп-действие по строке проекта. Поднять флаг — PATCH ready_for_pickup.
+    /// Принять ревью — снять блокировку и закрыть задачу (как в TaskDetailViewModel).
+    private func performSwipe(task: ApiTask, action: ProjectTaskSwipeAction?) async {
+        guard let action else { return }
+        do {
+            switch action {
+            case .markReadyForPickup:
+                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+            case .complete:
+                // complete покрывает «принять задачу» — и ревью, и просто
+                // завершить. Если был ревью — сначала снимаем блокировку.
+                if task.agentState == .review {
+                    _ = try await apiClient.setTaskAgentState(id: task.id, state: nil, comment: nil)
+                }
+                _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
+            }
+            await taskStore.load(silent: true)
+        } catch {
+            // Тихая ошибка: визуально строка просто не изменится. Подробный
+            // тост для свайпа не показывается — это быстрый жест, и отдельная
+            // обработка ошибок выглядит лишней (как в существующих свайпах).
+        }
     }
 
     private func refreshRelationshipTasks() async {
