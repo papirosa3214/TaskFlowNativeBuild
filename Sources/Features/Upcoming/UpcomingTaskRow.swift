@@ -115,6 +115,9 @@ struct UpcomingTaskRow: View {
             subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done },
             subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count,
             priority: TaskPriority(rawValue: task.priority),
+            // Поднятый флаг готовности — виден и здесь: иначе его пришлось бы
+            // искать, проваливаясь в каждую задачу (владелец 11.09.2026).
+            isReadyForPickup: task.readyForPickup,
             isOverdue: false, // «Планирование» никогда не показывает просроченное (спека §5.2)
             dueText: nil,     // showDueBadge=false (спека §5.2)
             labels: task.labels.prefix(1).map { ($0.name, Color(hex: $0.color ?? TFHexDefault.unassigned)) } // maxLabels=1
