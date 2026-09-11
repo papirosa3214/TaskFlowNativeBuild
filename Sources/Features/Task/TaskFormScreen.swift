@@ -460,6 +460,14 @@ struct TaskFormScreen: View {
         .scrollContentBackground(.hidden)
         .background(Color.tfBackground)
         .scrollDismissesKeyboard(.interactively)
+        // Ушли из строки шага — сохранили её название. Тот же принцип, что
+        // у названия задачи выше: отдельной кнопки «сохранить» нет.
+        .onChange(of: focusedSubtaskID) { previous, _ in
+            guard let previous,
+                  let subtask = viewModel.subtasks.first(where: { $0.id == previous })
+            else { return }
+            commitSubtaskTitle(subtask)
+        }
         .refreshable { await viewModel.refresh() }
     }
 
@@ -606,12 +614,14 @@ struct TaskFormScreen: View {
                 // Зачёркивания у сделанного шага нет: владелец 11.09.2026 —
                 // «мне ж надо смотреть, как они называются». Что шаг закрыт,
                 // видно по галочке слева.
+                // Многострочное поле (длинные названия шагов видны целиком),
+                // поэтому Return здесь переносит строку, а не сохраняет —
+                // правка уходит на сервер, когда фокус покидает строку
+                // (см. `.onChange(of: focusedSubtaskID)` у списка).
                 TextField("Шаг", text: subtaskTitleBinding(subtask), axis: .vertical)
                     .lineLimit(1...)
                     .foregroundStyle(subtask.done ? .secondary : .primary)
                     .focused($focusedSubtaskID, equals: subtask.id)
-                    .submitLabel(.done)
-                    .onSubmit { commitSubtaskTitle(subtask) }
             }
 
             if hasDetails {
@@ -973,8 +983,9 @@ struct TaskFormScreen: View {
     /// строке, нажал ввод — шаг добавлен, поле осталось пустым и в фокусе,
     /// так что следующий пишется сразу (как в «Напоминаниях»).
     private var newSubtaskRow: some View {
-        TextField("Добавить подзадачу", text: $newSubtaskTitle, axis: .vertical)
-            .lineLimit(1...)
+        // Однострочное намеренно: здесь Return должен ДОБАВЛЯТЬ шаг, а в
+        // многострочном поле он вставлял бы перенос в название.
+        TextField("Добавить подзадачу", text: $newSubtaskTitle)
             .focused($isNewSubtaskFocused)
             .submitLabel(.return)
             .onSubmit(addSubtaskInline)
@@ -1021,6 +1032,11 @@ struct TaskFormScreen: View {
         viewModel.stopPolling()
         pendingSaveTask?.cancel()
         guard viewModel.isEditing, isEditorReady else { return }
+        // Карточку закрыли, не выходя из строки шага — правка не должна
+        // пропасть вместе с экраном.
+        for subtask in viewModel.subtasks where subtaskTitleDrafts[subtask.id] != nil {
+            commitSubtaskTitle(subtask)
+        }
         Task { await saveExistingEdits() }
     }
 
