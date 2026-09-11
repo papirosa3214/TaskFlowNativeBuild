@@ -354,10 +354,17 @@ final class TaskFormViewModel {
         originalTask?.readyForPickup ?? false
     }
 
+    /// ⚠️ Отказ сервера здесь ОБЯЗАН быть виден. Раньше стоял `try?`, и
+    /// отклонённое добавление выглядело как «нажал — ничего не произошло»:
+    /// 11.09.2026 сервер отвечал на этот вызов 404 (чужая карточка), а
+    /// экран молчал, и владелец решил, что кнопка не реализована.
     func addSubtask(_ title: String) async {
         guard let taskID else { return }
-        if let created = try? await apiClient.createSubtask(taskId: taskID, title: title) {
+        do {
+            let created = try await apiClient.createSubtask(taskId: taskID, title: title)
             subtasks.append(created)
+        } catch {
+            saveErrorMessage = Self.message(error)
         }
     }
 
@@ -372,7 +379,9 @@ final class TaskFormViewModel {
         do {
             _ = try await apiClient.patchSubtask(id: subtask.id, fields: ["title": .string(newTitle)])
         } catch {
+            // Откат молча — это «текст сам вернулся к старому», без объяснений.
             subtasks[index] = snapshot
+            saveErrorMessage = Self.message(error)
         }
     }
 
@@ -383,6 +392,7 @@ final class TaskFormViewModel {
             try await apiClient.deleteSubtask(id: subtask.id)
         } catch {
             subtasks = snapshot
+            saveErrorMessage = Self.message(error)
         }
     }
 

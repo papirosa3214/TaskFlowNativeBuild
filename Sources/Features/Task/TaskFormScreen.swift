@@ -34,19 +34,14 @@ struct TaskFormScreen: View {
     @State private var isAttachmentPickerPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
-    /// Какие шаги раскрыты. Своё состояние вместо `DisclosureGroup` — тот
-    /// тянет за собой шеврон, от которого владелец отказался.
-    @State private var expandedSubtaskIDs: Set<String> = []
-    @State private var isAddingSubtask = false
+    /// Тексты шагов, которые правят прямо сейчас (id шага → набранное).
+    @State private var subtaskTitleDrafts: [String: String] = [:]
+    @FocusState private var focusedSubtaskID: String?
     @State private var newSubtaskTitle = ""
+    @FocusState private var isNewSubtaskFocused: Bool
     @State private var isDueEditorExpanded = false
     @State private var isEditorReady = false
     @State private var pendingSaveTask: Task<Void, Never>?
-
-    /// Владелец 02.09.2026: длинные секции — под аккордеон, чтобы карточку
-    /// можно было визуально сжать. По умолчанию развёрнуты.
-    @State private var isNoteExpanded = true
-    @State private var isSubtasksExpanded = true
 
     /// Показывает `QuickAddTaskView` как `.sheet` НАД этим экраном — временный
     /// мост, пока точка входа («+» → «Задача» в `RootShellView.swift`, App/,
@@ -184,16 +179,13 @@ struct TaskFormScreen: View {
                 Spacer()
                 TFEmptyState(text: "Задача не найдена")
                 Spacer()
-            } else if viewModel.isEditing {
-                nativeTaskDetail
             } else {
-                ScrollView {
-                    content
-                        .padding(.horizontal, TFSpacing.screenHorizontal)
-                        .padding(.top, TFSpacing.lg)
-                        .padding(.bottom, TFSpacing.xl * 2)
-                }
-                .scrollDismissesKeyboard(.interactively)
+                // Одна форма на всё: развёрнутое создание выглядит и ведёт
+                // себя ровно как открытая задача. Владелец 11.09.2026 —
+                // «расширенную форму заменить на нашу стандартную обычную».
+                // Отдельной анкеты (`TFCollapsibleSection` + `TFFieldGroup`)
+                // больше нет.
+                nativeTaskDetail
             }
         }
         .background(Color.tfBackground)
@@ -271,16 +263,6 @@ struct TaskFormScreen: View {
                 replyingSubtask = nil
             }
         }
-        .alert("Новая подзадача", isPresented: $isAddingSubtask) {
-            TextField("Название", text: $newSubtaskTitle)
-            Button("Добавить") {
-                let title = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                Task { await viewModel.addSubtask(title) }
-                newSubtaskTitle = ""
-            }
-            .disabled(newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            Button("Отмена", role: .cancel) { newSubtaskTitle = "" }
-        }
         .taskToast($toast)
         .fileImporter(
             isPresented: $isAttachmentPickerPresented,
@@ -322,20 +304,14 @@ struct TaskFormScreen: View {
             }
             .listRowBackground(Color.tfBackground)
 
-            Section("Подзадачи") {
-                ForEach(viewModel.subtasks) { subtask in
-                    nativeSubtaskRow(subtask)
-                }
-                Button {
-                    newSubtaskTitle = ""
-                    isAddingSubtask = true
-                } label: {
-                    Label("Добавить подзадачу", systemImage: "plus")
-                }
-            }
-            .listRowBackground(Color.tfBackground)
+            subtasksSection
 
-            linkedTasksSection
+            // У несохранённой задачи связывать нечего — секция появляется
+            // вместе с самой задачей. Исключение — создание дочерней:
+            // родитель уже известен и должен быть виден до сохранения.
+            if viewModel.isEditing || viewModel.parentTitle != nil {
+                linkedTasksSection
+            }
 
             Section("Сведения") {
                 Button {
@@ -446,17 +422,29 @@ struct TaskFormScreen: View {
             // поле ввода ПЕРЕД лентой (как было в старой `TaskJournalView`),
             // новые записи сверху (`TaskJournalEntry.merged` уже сортирует
             // «новые сверху»), скроллить до низа не нужно.
-            Section("Комментарии") {
-                HStack {
-                    TextField("Комментарий", text: $viewModel.commentText)
-                    Button("Отправить") { Task { await viewModel.sendComment() } }
-                        .disabled(viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            // Ленты у несохранённой задачи нет: комментировать нечего.
+            if viewModel.isEditing {
+                Section("Комментарии") {
+                    HStack {
+                        // Отправить можно и с клавиатуры, не целясь в
+                        // «Отправить»: у поля в строке списка это главный
+                        // способ (11.09.2026 — «хочу написать комментарий,
+                        // не работает»). Кнопке нужен `.borderless`, иначе
+                        // `List` отдаёт ей тап по всей строке, включая поле.
+                        TextField("Комментарий", text: $viewModel.commentText, axis: .vertical)
+                            .lineLimit(1...4)
+                            .submitLabel(.send)
+                            .onSubmit { Task { await viewModel.sendComment() } }
+                        Button("Отправить") { Task { await viewModel.sendComment() } }
+                            .buttonStyle(.borderless)
+                            .disabled(viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    ForEach(viewModel.journalEntries) { entry in
+                        nativeJournalRow(entry)
+                    }
                 }
-                ForEach(viewModel.journalEntries) { entry in
-                    nativeJournalRow(entry)
-                }
+                .listRowBackground(Color.tfBackground)
             }
-            .listRowBackground(Color.tfBackground)
         }
         // Владелец 07.09.2026: «размести все элементы плоско, без лишних
         // подложек» — `Form` не всегда честно слушается `.listStyle(.plain)`
@@ -598,9 +586,8 @@ struct TaskFormScreen: View {
             || subtask.agentState == .blocked
             || subtask.agentState == .review
             || (isRunning && viewModel.activity.isActive)
-        let isOpen = expandedSubtaskIDs.contains(subtask.id)
 
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
             HStack(spacing: TFSpacing.md) {
                 Button {
                     guard subtask.agentState != .review else { return }
@@ -611,25 +598,46 @@ struct TaskFormScreen: View {
                 .buttonStyle(.plain)
                 .disabled(subtask.agentState == .review)
 
-                Text(subtask.title)
-                    .strikethrough(subtask.done)
+                // Текст шага — обычное поле, как название и описание выше:
+                // тап ставит курсор, правка уходит на сервер по вводу или
+                // по уходу фокуса. Аккордеон с шевроном (раскрыть/свернуть
+                // подробности) здесь больше не нужен — тап теперь означает
+                // «правлю», а подробности показываются сами, когда есть.
+                // Зачёркивания у сделанного шага нет: владелец 11.09.2026 —
+                // «мне ж надо смотреть, как они называются». Что шаг закрыт,
+                // видно по галочке слева.
+                TextField("Шаг", text: subtaskTitleBinding(subtask), axis: .vertical)
+                    .lineLimit(1...)
                     .foregroundStyle(subtask.done ? .secondary : .primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                guard hasDetails else { return }
-                withAnimation(.easeInOut(duration: TFDuration.fast)) {
-                    if isOpen { expandedSubtaskIDs.remove(subtask.id) }
-                    else { expandedSubtaskIDs.insert(subtask.id) }
-                }
+                    .focused($focusedSubtaskID, equals: subtask.id)
+                    .submitLabel(.done)
+                    .onSubmit { commitSubtaskTitle(subtask) }
             }
 
-            if isOpen {
+            if hasDetails {
                 subtaskDetails(subtask, isRunning: isRunning)
                     .padding(.leading, 21 + TFSpacing.md)
             }
         }
+    }
+
+    /// Пока строку правят, текст живёт здесь, а не в модели: поллинг задачи
+    /// (раз в 30 с) перезаписывает `viewModel.subtasks` целиком и стёр бы
+    /// набранное на полуслове.
+    private func subtaskTitleBinding(_ subtask: ApiSubtask) -> Binding<String> {
+        Binding(
+            get: { subtaskTitleDrafts[subtask.id] ?? subtask.title },
+            set: { subtaskTitleDrafts[subtask.id] = $0 }
+        )
+    }
+
+    private func commitSubtaskTitle(_ subtask: ApiSubtask) {
+        guard let draft = subtaskTitleDrafts.removeValue(forKey: subtask.id) else { return }
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Пустым названием шаг не затираем — это почти всегда промах, а не
+        // намерение; строка возвращается к прежнему тексту.
+        guard !trimmed.isEmpty, trimmed != subtask.title else { return }
+        Task { await viewModel.renameSubtask(subtask, to: trimmed) }
     }
 
     /// Отметка слева: крутится, пока шаг идёт.
@@ -668,6 +676,9 @@ struct TaskFormScreen: View {
                 }
             }
             if let result = subtask.result, !result.isEmpty {
+                // Итог шага — главное, ради чего эту карточку открывают:
+                // виден целиком и всегда, без сворачивания и усечения
+                // (владелец 11.09.2026).
                 Text(result).foregroundStyle(.secondary)
             }
             if isOwner, subtask.agentState == .review {
@@ -696,6 +707,30 @@ struct TaskFormScreen: View {
                     }
                 }
                 Text(comment.text)
+                // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
+                // текст, и приложенные кадры в приложении не показывались
+                // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
+                // — а он живёт в мёртвом `TaskDetailScreen` и не исполняется;
+                // рабочая лента здесь. Картинки грузит `ChatAttachmentImage`
+                // (умеет ходить с авторизацией, обычный AsyncImage к этому
+                // эндпоинту не годится), прочие файлы — строкой с именем.
+                if let attachments = comment.attachments, !attachments.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(attachments) { attachment in
+                            if attachment.mime?.hasPrefix("image/") == true {
+                                ChatAttachmentImage(
+                                    attachmentId: attachment.id,
+                                    fileName: attachment.fileName
+                                )
+                            } else {
+                                Label(attachment.fileName, systemImage: "paperclip")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                }
             }
         case .event(let event):
             HStack {
@@ -886,51 +921,6 @@ struct TaskFormScreen: View {
 
     // MARK: - Тело
 
-    @ViewBuilder
-    private var content: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.xl) {
-            // 02.09.2026: статичная подпись «Изменить задачу»/«Новая задача»
-            // убрана — дублировала то, что уже видно в шапке (см.
-            // `tfNativeHeader`); жирным вместо неё теперь само название,
-            // см. `titleField`. Кнопка «Структурировать с AI» переехала в
-            // шапку (toolbar), здесь больше не рисуется.
-            // 02.09.2026, фикс после совета: `.disabled(isReadOnly)` раньше
-            // висел на ВСЁМ `content` — вместе с полями он глушил и кнопку
-            // заголовка аккордеона (Заметка/Подзадачи не сворачивались), и
-            // кнопки внутри `SubtaskFeedView` (кольца, Принять/Ответить).
-            // Теперь точечно — только на реальных полях ввода.
-            if let parentTitle = viewModel.parentTitle {
-                Label("Связанная задача для «\(parentTitle)»", systemImage: "arrow.turn.down.right")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            titleField
-            noteSection
-            subtasksSection
-            // 02.09.2026, владелец: «зачем эта здоровая хрень, когда файлов
-            // нет» — строка показывается только если есть что показать;
-            // добавление файла теперь пункт «…» (`isAttachmentPickerPresented`).
-            if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
-                AttachmentsFieldView(controller: viewModel.attachments, showAddButton: false)
-            }
-
-            TFFieldGroup {
-                DueDateFieldView(dueDate: $viewModel.dueDate, startMinutes: $viewModel.startMinutes, durationMin: $viewModel.durationMin)
-                TFFieldDivider()
-                ProjectFieldView(projects: projectStore.projects, selectedProjectId: $viewModel.projectId)
-                TFFieldDivider()
-                PriorityFieldView(priority: $viewModel.priority)
-                TFFieldDivider()
-                LabelsFieldView(allLabels: labelStore.labels, selectedIds: $viewModel.selectedLabelIds)
-            }
-
-            AssigneeFieldView(agents: viewModel.agents, selectedAgentId: $viewModel.assigneeId)
-
-            TFErrorBanner(viewModel.directoriesErrorMessage, variant: .block)
-            TFErrorBanner(viewModel.saveErrorMessage, variant: .block)
-        }
-    }
-
     private var aiStructureButton: some View {
         Button {
             // Стаб: `/ai/structure-task` есть на сервере (spec/API.md §5.11),
@@ -954,34 +944,54 @@ struct TaskFormScreen: View {
         .buttonStyle(TFTapScaleStyle())
     }
 
-    private var titleField: some View {
-        TextField("", text: $viewModel.title, prompt: Text("Название задачи").foregroundStyle(Color.tfDim), axis: .vertical)
-            .tfText(.taskTitle)
-            .foregroundStyle(Color.tfText)
-            .lineLimit(1...6)
-            .focused($isTitleFocused)
-    }
-
-    /// 02.09.2026, уточнение владельца: шеврон (аккордеон) — вернуть,
-    /// убирать его не просили. Жаловался на другое — поле с `lineLimit`
-    /// заводило СВОЙ внутренний скролл («отдельное окошко, которое
-    /// листается») при длинном тексте в правке. Верхнюю границу убрал —
-    /// поле растёт вместе со страницей, второго скролла внутри нет.
-    private var noteSection: some View {
-        TFCollapsibleSection(title: "Заметка", isExpanded: $isNoteExpanded) {
-            TextField("", text: $viewModel.taskDescription, prompt: Text("Описание").foregroundStyle(Color.tfDim), axis: .vertical)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .lineLimit(1...)
-        }
-    }
-
-    /// Чек-лист для развёрнутой формы создания. Существующая задача использует
-    /// плоскую секцию `nativeTaskDetail` с отдельной кнопкой добавления.
+    /// Шаги — одинаково в создании и в готовой задаче. Владелец 11.09.2026:
+    /// «просто тапаю и редактирую, как саму задачу, как описание» — никаких
+    /// кнопок «изменить», плюсов, галочек и крестиков. Разница только в
+    /// источнике: у новой задачи это черновики в памяти, у существующей —
+    /// шаги с сервера.
     private var subtasksSection: some View {
-        TFCollapsibleSection(title: "Подзадачи", isExpanded: $isSubtasksExpanded) {
-            SubtaskDraftListView(drafts: $viewModel.subtaskDrafts)
+        Section("Подзадачи") {
+            if viewModel.isEditing {
+                ForEach(viewModel.subtasks) { subtask in
+                    nativeSubtaskRow(subtask)
+                }
+            } else {
+                ForEach($viewModel.subtaskDrafts) { $draft in
+                    TextField("Шаг", text: $draft.title, axis: .vertical)
+                        .lineLimit(1...)
+                }
+                .onDelete { viewModel.subtaskDrafts.remove(atOffsets: $0) }
+            }
+            newSubtaskRow
         }
+        .listRowBackground(Color.tfBackground)
+    }
+
+    /// Последняя строка списка шагов — пустое поле вместо кнопки с диалогом.
+    /// Владелец 11.09.2026: «нажимаю „Добавить подзадачу“ — какая-то форма
+    /// пытается открыться и сразу умирает». Диалога больше нет: написал в
+    /// строке, нажал ввод — шаг добавлен, поле осталось пустым и в фокусе,
+    /// так что следующий пишется сразу (как в «Напоминаниях»).
+    private var newSubtaskRow: some View {
+        TextField("Добавить подзадачу", text: $newSubtaskTitle, axis: .vertical)
+            .lineLimit(1...)
+            .focused($isNewSubtaskFocused)
+            .submitLabel(.return)
+            .onSubmit(addSubtaskInline)
+    }
+
+    private func addSubtaskInline() {
+        let title = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        newSubtaskTitle = ""
+        guard !title.isEmpty else { return }
+        if viewModel.isEditing {
+            Task { await viewModel.addSubtask(title) }
+        } else {
+            viewModel.subtaskDrafts.append(SubtaskDraft(title: title))
+        }
+        // Фокус после добавления возвращаем в ту же строку: список шагов
+        // обычно пишут подряд, а не по одному с перезаходом.
+        isNewSubtaskFocused = true
     }
 
     private func scheduleSave() {
@@ -1245,45 +1255,6 @@ private struct LinkedTaskPicker: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }
                 }
-            }
-        }
-    }
-}
-
-/// Сворачиваемая секция формы («Заметка», «Подзадачи» — 02.09.2026, владелец:
-/// «всё, что длиннючее, — под аккордеон, чтобы карточку можно было сжать»).
-/// Тот же принцип, что у `IntegrationAccordionCard` в Settings (заголовок +
-/// шеврон, тап сворачивает), но без иконки/бейджа — здесь не нужны, а своя,
-/// более простая структура ближе к остальным секциям формы (без обводки-карточки).
-private struct TFCollapsibleSection<Content: View>: View {
-    let title: String
-    /// Счётчик вроде «5 из 11» — то, что раньше показывал `SubtaskFeedView`
-    /// сам, отдельной строкой рядом с заголовком.
-    var trailingBadge: String? = nil
-    @Binding var isExpanded: Bool
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Button {
-                withAnimation(.easeInOut(duration: TFDuration.fast)) { isExpanded.toggle() }
-            } label: {
-                HStack {
-                    Text(title).tfText(.title).foregroundStyle(Color.tfText)
-                    if let trailingBadge {
-                        Text(trailingBadge).tfText(.action).foregroundStyle(Color.tfSub)
-                    }
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.tfSub)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(TFTapRowStyle())
-
-            if isExpanded {
-                content()
             }
         }
     }
