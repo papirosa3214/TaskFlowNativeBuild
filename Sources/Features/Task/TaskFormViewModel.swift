@@ -356,9 +356,16 @@ final class TaskFormViewModel {
         }
     }
 
+    /// Ответ на заблокированный шаг: снимает блокировку + пишет комментарий
+    /// к задаче. Аналог SubtaskFeed.tsx onComment. Раньше тут был
+    /// patchSubtask({result: text}) — запись попадала только в result шага,
+    /// блокировка оставалась, в ленте задачи ничего не появлялось.
     func replyToSubtask(_ subtask: ApiSubtask, text: String) async {
+        guard let taskId = subtask.taskId else { return }
         do {
-            _ = try await apiClient.patchSubtask(id: subtask.id, fields: ["result": .string(text)])
+            _ = try await apiClient.setSubtaskWork(id: subtask.id, fields: ["state": .null])
+            let commentText = "По шагу «\(subtask.title)»: \(text)"
+            _ = try await apiClient.createComment(taskId: taskId, text: commentText)
             await loadIfNeeded()
         } catch {
             saveErrorMessage = Self.message(error)
