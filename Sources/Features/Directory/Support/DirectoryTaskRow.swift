@@ -20,6 +20,13 @@ import UIKit
 // JSX такой кнопки уже нет (проверено построчно), дот-toggle реально
 // существует только в LabelTasksScreen (см. её отдельную реализацию).
 struct DirectoryTaskRow: View {
+    /// Уникальный id задачи (короткий префикс UUID), чтобы владелец мог
+    /// ссылаться на конкретную карточку в чате с исполнителем («посмотри
+    /// #b6b57092»). Полный UUID слишком длинный, а в мобильном интерфейсе
+    /// скопировать строку нельзя — префикс из 8 hex-символов достаточно
+    /// уникален в пределах проекта (коллизия по первым 8 символам UUID
+    /// практически невозможна при текущем количестве задач).
+    let index: String?
     let task: ApiTask
     let onOpen: () -> Void
     let onEdit: () -> Void
@@ -98,6 +105,11 @@ struct DirectoryTaskRow: View {
         } label: {
             HStack(alignment: .top, spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
+                    if let index {
+                        Text("#" + index)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(Color.tfSub)
+                    }
                     HStack(spacing: TFSpacing.sm) {
                         if let initials = task.assigneeInitials, task.assigneeId != nil {
                             TFAvatar(size: .sm, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned))

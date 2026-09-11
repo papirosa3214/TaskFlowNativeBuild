@@ -87,13 +87,8 @@ struct ProjectTasksScreen: View {
                         .padding(.horizontal, TFSpacing.xs)
                     } else {
                         VStack(spacing: 2) {
-                            ForEach(tasks) { task in
-                                DirectoryTaskRow(
-                                    task: task,
-                                    onOpen: { pendingDetail = task.id },
-                                    onEdit: { pendingDetail = task.id },
-                                    onDelete: { Task { await taskStore.delete(taskId: task.id) } }
-                                )
+                            ForEach(tasks.indices, id: \.self) { rowIndex in
+                                rowWithIndex(rowIndex)
                             }
                         }
                     }
@@ -155,6 +150,21 @@ struct ProjectTasksScreen: View {
             }
         }
         .navigationDestination(isPresented: $showNewTask) { routeDestination(.taskCreate) }
+    }
+
+    @ViewBuilder
+    private func rowWithIndex(_ rowIndex: Int) -> some View {
+        let task = tasks[rowIndex]
+        // Первые 8 hex-символов UUID — визуально компактный, но при этом
+        // уникальный идентификатор, на который исполнитель ссылается в чате.
+        let shortId = String(task.id.prefix(8))
+        DirectoryTaskRow(
+            index: shortId,
+            task: task,
+            onOpen: { pendingDetail = task.id },
+            onEdit: { pendingDetail = task.id },
+            onDelete: { Task { await taskStore.delete(taskId: task.id) } }
+        )
     }
 
     private func refreshRelationshipTasks() async {
