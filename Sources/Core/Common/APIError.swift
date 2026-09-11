@@ -23,12 +23,27 @@ public enum APIError: Error, LocalizedError, Sendable {
         case .transport(let error): "Сеть недоступна: \(error.localizedDescription)"
         case .invalidResponse: "Сервер вернул неожиданный ответ"
         case .decoding(let error): "Не удалось разобрать ответ сервера: \(error.localizedDescription)"
-        case .unauthorized(let message): message
-        case .forbidden(let message): message
-        case .notFound(let message): message
+        // Сервер на этих трёх отвечает служебной англоязычной заглушкой
+        // («Not found», «Forbidden»), и она долетала прямо в баннер поверх
+        // карточки — владелец 11.09.2026 увидел на экране «Not found».
+        // Свой текст подставляем только вместо заглушки: осмысленное
+        // сообщение сервера («нужен комментарий: что сделано» и прочие)
+        // куда информативнее нашего и остаётся как есть.
+        case .unauthorized(let message): Self.humanized(message, fallback: "Нужно войти заново")
+        case .forbidden(let message): Self.humanized(message, fallback: "Недостаточно прав для этого действия")
+        case .notFound(let message): Self.humanized(message, fallback: "Не найдено или нет доступа к этой записи")
         case .conflict(let message): message
         case .server(_, let message): message
         }
+    }
+
+    /// Заглушки сервера — короткие английские строки без кириллицы. Всё
+    /// остальное он пишет по-русски и по делу.
+    private static func humanized(_ message: String, fallback: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return fallback }
+        let hasCyrillic = trimmed.range(of: "[а-яА-ЯёЁ]", options: .regularExpression) != nil
+        return hasCyrillic ? trimmed : fallback
     }
 }
 

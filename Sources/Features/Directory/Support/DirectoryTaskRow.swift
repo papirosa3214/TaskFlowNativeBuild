@@ -5,10 +5,10 @@ import UIKit
 // (общий компонент, которым пользуется чужой набор экранов), тем же приёмом
 // дублирования, что `Features/Today/TodayTaskRow.swift` уже применил для
 // «Сегодня» («точность спеки важнее переиспользования» — комментарий того
-// файла). Не беру TodayTaskRow как есть: этому экрану нужно закрепление
-// (`pinned`/`onTogglePin`, третий интерактивный элемент строки, которого у
-// Today нет) и подавленный бейдж проекта (`showProjectBadge=false` — сам
-// экран уже внутри одного проекта).
+// файла). Не беру TodayTaskRow как есть: этому экрану нужен подавленный
+// бейдж проекта (`showProjectBadge=false` — сам экран уже внутри одного
+// проекта). Кнопка закрепления в строке жила здесь до 11.09.2026, когда
+// владелец её убрал: закрепление переехало в меню «…» карточки задачи.
 //
 // ⚠️ Сверено с живым `TaskRow.tsx` 31.08.2026: `ProjectTasksScreen.tsx`
 // вызывает `<TaskRow .../>` БЕЗ пропа `overdue` — он там всегда `false` по
@@ -21,9 +21,7 @@ import UIKit
 // существует только в LabelTasksScreen (см. её отдельную реализацию).
 struct DirectoryTaskRow: View {
     let task: ApiTask
-    let pinned: Bool
     let onOpen: () -> Void
-    let onTogglePin: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -126,6 +124,13 @@ struct DirectoryTaskRow: View {
 
                     if hasBadges {
                         HStack(spacing: TFSpacing.xs) {
+                            // Флаг готовности — там же, где во всех остальных
+                            // списках: первым в нижнем ряду, перед счётчиком
+                            // шагов (владелец 11.09.2026). Раньше он стоял
+                            // справа, в одной куче с шевронами приоритета.
+                            if task.readyForPickup {
+                                TFReadyFlag()
+                            }
                             if !task.subtasks.isEmpty {
                                 let done = task.subtasks.count { $0.done }
                                 TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
@@ -150,28 +155,15 @@ struct DirectoryTaskRow: View {
                     }
                 }
                 Spacer(minLength: TFSpacing.sm)
-                // Поднятый флаг готовности — виден прямо в списке проекта:
-                // владелец 11.09.2026 «мне нужно в каждую проваливаться, чтобы
-                // понять, подключён ли там флаг». Нет значка — не подтверждена.
-                if task.readyForPickup {
-                    TFReadyFlag()
-                }
                 // Приоритет — стопкой шевронов справа, как в остальных строках
                 // (владелец 11.09.2026). Рисуются все четыре уровня.
                 if let priority = TaskPriority(rawValue: task.priority) {
                     TFPriorityArrows(priority)
                 }
-                // Закрепление — третий интерактивный узел строки (`onTogglePin`,
-                // ProjectTasksScreen.tsx), не вложенная кнопка внутри кнопки:
-                // тап по пину не должен открывать задачу.
-                Button(action: onTogglePin) {
-                    Image(systemName: "pin.fill")
-                        .tfText(.input)
-                        .foregroundStyle(pinned ? Color.tfOrange : Color.tfDim)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(TFTapScaleStyle())
+                // Кнопки-скрепки здесь больше нет: владелец 11.09.2026 —
+                // «закреплять я буду в самой карточке, через три точки, а не
+                // рисовать эти скрепки в каждой строке». Закрепление живёт в
+                // меню «…» карточки задачи (`TaskFormScreen`).
             }
             .padding(.top, 9)
             .padding(.bottom, 12)

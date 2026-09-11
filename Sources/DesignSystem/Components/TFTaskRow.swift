@@ -115,13 +115,14 @@ public struct TFTaskRow: View {
 
                 if hasBadges {
                     HStack(spacing: TFSpacing.xs) {
-                        if let done = model.subtasksDone, let total = model.subtasksTotal {
-                            TFPill("\(done)/\(total)", color: .tfSub, solidBackground: .tfCard)
-                        }
-                        // Поднятый флаг готовности — отдельный значок; нет
-                        // значка значит «владелец ещё не подтвердил».
+                        // Флаг готовности — первым в нижнем ряду, перед
+                        // счётчиком шагов (владелец 11.09.2026). Нет значка
+                        // значит «владелец ещё не подтвердил».
                         if model.isReadyForPickup {
                             TFReadyFlag()
+                        }
+                        if let done = model.subtasksDone, let total = model.subtasksTotal {
+                            TFPill("\(done)/\(total)", color: .tfSub, solidBackground: .tfCard)
                         }
                         if model.isOverdue {
                             TFOverduePill()

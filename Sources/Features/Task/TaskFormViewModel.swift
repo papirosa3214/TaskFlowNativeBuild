@@ -354,6 +354,23 @@ final class TaskFormViewModel {
         originalTask?.readyForPickup ?? false
     }
 
+    var pinned: Bool { originalTask?.pinned ?? false }
+
+    /// Закрепить/открепить задачу. Раньше это делала скрепка в каждой строке
+    /// списка проекта; владелец 11.09.2026 убрал её из строк и оставил
+    /// действие здесь, в меню «…».
+    func togglePinned(taskStore: TaskStore) async {
+        guard let task = originalTask else { return }
+        do {
+            _ = try await apiClient.patchTask(id: task.id, fields: ["pinned": .bool(!task.pinned)])
+            await loadIfNeeded()
+            // Порядок в списках зависит от закрепления — обновляем и их.
+            await taskStore.load(silent: true)
+        } catch {
+            saveErrorMessage = Self.message(error)
+        }
+    }
+
     /// ⚠️ Отказ сервера здесь ОБЯЗАН быть виден. Раньше стоял `try?`, и
     /// отклонённое добавление выглядело как «нажал — ничего не произошло»:
     /// 11.09.2026 сервер отвечал на этот вызов 404 (чужая карточка), а

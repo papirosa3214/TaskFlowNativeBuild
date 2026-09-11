@@ -818,6 +818,17 @@ struct TaskFormScreen: View {
                         )
                     }
                 }
+                // Закрепление переехало сюда из строки списка проекта
+                // (владелец 11.09.2026): «закреплять я буду в самой карточке,
+                // через три точки, а не рисовать скрепки в каждой строке».
+                Button {
+                    Task { await viewModel.togglePinned(taskStore: taskStore) }
+                } label: {
+                    Label(
+                        viewModel.pinned ? "Открепить задачу" : "Закрепить задачу",
+                        systemImage: viewModel.pinned ? "pin.slash" : "pin"
+                    )
+                }
                 Button { isAttachmentPickerPresented = true } label: {
                     Label("Прикрепить файл", systemImage: "paperclip")
                 }

@@ -90,17 +90,7 @@ struct ProjectTasksScreen: View {
                             ForEach(tasks) { task in
                                 DirectoryTaskRow(
                                     task: task,
-                                    pinned: task.pinned,
                                     onOpen: { pendingDetail = task.id },
-                                    onTogglePin: {
-                                        Task {
-                                            // `apply` — пустышка, как у ВСЕХ остальных вызовов `taskStore.patch`
-                                            // в проекте (проверено грепом): поля `ApiTask` — `let`, замыкание не
-                                            // может их точечно мутировать, а обновление и так придёт из ответа
-                                            // сервера (`patch()` сам подставляет `updated` при успехе).
-                                            await taskStore.patch(taskId: task.id, fields: ["pinned": .bool(!task.pinned)]) { _ in }
-                                        }
-                                    },
                                     onEdit: { pendingDetail = task.id },
                                     onDelete: { Task { await taskStore.delete(taskId: task.id) } }
                                 )
