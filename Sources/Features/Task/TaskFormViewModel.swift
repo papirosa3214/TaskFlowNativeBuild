@@ -1,6 +1,18 @@
 import Foundation
 import Observation
 
+enum TaskAIStructureStatus: Equatable {
+    case idle
+    case processing
+    case completed
+    case failed(String)
+
+    var isProcessing: Bool {
+        if case .processing = self { return true }
+        return false
+    }
+}
+
 // Вью-модель формы задачи — spec/SCREENS-1.md §5.5. Своя `APIClient()`, а не
 // из окружения: `TaskFlowApp` кладёт в `.environment` только сторы, сам
 // клиент нигде не раздаётся (см. отчёт — предложение добавить его в
@@ -9,7 +21,7 @@ import Observation
 @Observable
 final class TaskFormViewModel {
     let taskID: String?
-    private let apiClient = APIClient()
+    private let apiClient: APIClient
 
     var title = ""
     var taskDescription = ""
@@ -38,6 +50,7 @@ final class TaskFormViewModel {
     var notFound = false
     var loadErrorMessage: String?
     var saveErrorMessage: String?
+    var aiStructureStatus: TaskAIStructureStatus = .idle
     var directoriesErrorMessage: String?
     var agents: [ApiUser] = []
     /// Владелец 07.09.2026: «не наблюдаю комментариев с активности» — лента
@@ -62,7 +75,11 @@ final class TaskFormViewModel {
     /// Для меню «…» (перенесено из `TaskDetailScreen` — открытие задачи
     /// больше не ведёт на отдельный экран-просмотр, она сама и есть форма).
     var agentState: AgentState? { originalTask?.agentState }
-    var isSaveEnabled: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSaving }
+    var isSaveEnabled: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !isSaving
+            && !aiStructureStatus.isProcessing
+    }
     /// «Структурировать с AI» — пункт 2 §5.5: показывается, если в названии/описании уже есть текст.
     var showAiButton: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty || !taskDescription.trimmingCharacters(in: .whitespaces).isEmpty
@@ -84,14 +101,16 @@ final class TaskFormViewModel {
         startDictation: Bool = false,
         parentTaskID: String? = nil,
         parentTaskTitle: String? = nil,
-        presetProjectID: String? = nil
+        presetProjectID: String? = nil,
+        apiClient: APIClient = APIClient()
     ) {
         self.taskID = taskID
+        self.apiClient = apiClient
         self.startDictation = startDictation
         self.parentId = parentTaskID
         self.parentTitle = parentTaskTitle
         self.projectId = presetProjectID
-        self.attachments = TaskAttachmentsController(apiClient: APIClient(), taskId: taskID)
+        self.attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID)
         if presetDueToday, taskID == nil {
             var cal = Calendar(identifier: .gregorian)
             cal.timeZone = TaskDateText.moscow
@@ -139,6 +158,62 @@ final class TaskFormViewModel {
         } catch {
             loadErrorMessage = error.localizedDescription
         }
+    }
+
+    // MARK: - AI-структурирование
+
+    /// Пока локальная модель размышляет, форма не сохраняется: иначе владелец
+    /// мог бы закрыть карточку до того, как ответ успел примениться к полям.
+    /// Ошибка хранится отдельно от ошибок обычного сохранения, чтобы в карточке
+    /// было ясно, какой именно процесс не завершился.
+    func structureWithAI() async {
+        let source = [title, taskDescription]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+        guard !source.isEmpty, !aiStructureStatus.isProcessing else { return }
+
+        aiStructureStatus = .processing
+        do {
+            let structured = try await apiClient.structureTask(text: source)
+            try await apply(structured)
+            aiStructureStatus = .completed
+        } catch {
+            aiStructureStatus = .failed(Self.message(error))
+        }
+    }
+
+    private func apply(_ structured: APIClient.StructuredTask) async throws {
+        let structuredTitle = structured.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !structuredTitle.isEmpty { title = structuredTitle }
+        if let description = structured.description { taskDescription = description }
+        if let dueDate = DateFormats.calendarDate(structured.dueDate) { self.dueDate = dueDate }
+        if let priority = structured.priority, let value = TaskPriority(rawValue: priority) {
+            self.priority = value
+        }
+
+        let suggestedSubtasks = structured.subtasks
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if taskID == nil {
+            subtaskDrafts = suggestedSubtasks.map(SubtaskDraft.init(title:))
+        } else if let taskID {
+            // У существующей карточки уже могут быть выполненные шаги — AI не
+            // имеет права их стирать. Добавляем только новые, не дублируя
+            // совпадающие по названию.
+            var existing = Set(subtasks.map { normalizedSubtaskTitle($0.title) })
+            for title in suggestedSubtasks {
+                let normalized = normalizedSubtaskTitle(title)
+                guard existing.insert(normalized).inserted else { continue }
+                let created = try await apiClient.createSubtask(taskId: taskID, title: title)
+                subtasks.append(created)
+            }
+        }
+    }
+
+    private func normalizedSubtaskTitle(_ title: String) -> String {
+        title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
     // MARK: - Живое обновление, пока карточка открыта

@@ -14,8 +14,27 @@ private struct TaskHeartbeatResponse: Decodable {
     }
 }
 
+private struct StructureTaskRequest: Encodable {
+    let text: String
+}
+
 /// Задачи — spec/API.md §5.1, и агентский протокол работы над задачей — §5.2/§7.
 public extension APIClient {
+
+    /// Результат `POST /ai/structure-task`: локальная модель превращает
+    /// свободный текст в поля формы задачи (spec/API.md §5.11).
+    struct StructuredTask: Decodable, Sendable, Equatable {
+        public let title: String
+        public let description: String?
+        public let subtasks: [String]
+        public let dueDate: String?
+        public let priority: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case title, description, subtasks, priority
+            case dueDate
+        }
+    }
 
     /// `includeChildren` — query `include_children` (spec §5.1).
     func tasks(includeChildren: Bool = false) async throws -> [ApiTask] {
@@ -27,6 +46,10 @@ public extension APIClient {
     /// 404, если задача не видна по роли вызывающего (spec §2.3).
     func task(id: String) async throws -> ApiTask {
         try await request(.get, "/tasks/\(id)")
+    }
+
+    func structureTask(text: String) async throws -> StructuredTask {
+        try await request(.post, "/ai/structure-task", body: StructureTaskRequest(text: text))
     }
 
     /// Тело создания — строго типизированная структура (в отличие от PATCH,

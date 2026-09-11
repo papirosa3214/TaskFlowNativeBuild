@@ -14,21 +14,57 @@ struct TodayListView: View {
     let onComplete: (ApiTask) -> Void
     let onDelete: (ApiTask) -> Void
 
+    @Environment(SessionStore.self) private var session
+    @Environment(TaskStore.self) private var taskStore
+    @State private var swipeActionError: String?
+
+    private let apiClient = APIClient()
+
     private var sections: [TodaySectionInfo] {
         TodaySectionInfo.list(today: todayTasks, todayDate: today)
     }
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+            TFErrorBanner(swipeActionError, variant: .inline)
+                .padding(.horizontal, TFSpacing.lg)
             Section {
                 ForEach(todayTasks) { task in
+                    let swipeAction = TodayTaskSwipeAction.action(
+                        for: task,
+                        isOwner: session.currentUser?.role == .owner
+                    )
                     TodayTaskRow(task: task, overdue: false,
-                                 onOpen: { onOpen(task) }, onComplete: { onComplete(task) },
-                                 onDelete: { onDelete(task) })
+                                 onOpen: { onOpen(task) },
+                                 onDelete: { onDelete(task) },
+                                 swipeAction: swipeAction,
+                                 onSwipeAction: {
+                                    guard let swipeAction else { return }
+                                    Task { await perform(swipeAction, for: task) }
+                                 })
                 }
             } header: {
                 header(.today)
             }
+        }
+    }
+
+    private func perform(_ action: TodayTaskSwipeAction, for task: ApiTask) async {
+        swipeActionError = nil
+        do {
+            switch action {
+            case .complete:
+                onComplete(task)
+            case .acceptReview:
+                _ = try await apiClient.setTaskAgentState(id: task.id, state: nil)
+                _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
+                await taskStore.load(silent: true)
+            case .markReadyForPickup:
+                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                await taskStore.load(silent: true)
+            }
+        } catch {
+            swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
     }
 

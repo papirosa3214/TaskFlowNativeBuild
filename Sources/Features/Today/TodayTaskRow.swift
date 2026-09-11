@@ -15,8 +15,9 @@ struct TodayTaskRow: View {
     /// вместо обычного бейджа срока (spec: `overdue` проп TaskRow.tsx).
     let overdue: Bool
     let onOpen: () -> Void
-    let onComplete: () -> Void
     let onDelete: () -> Void
+    let swipeAction: TodayTaskSwipeAction?
+    let onSwipeAction: () -> Void
 
     private let actionWidth: CGFloat = TFRowActionWidth
     /// Пороги открытия/закрытия — общие для всех списков, см. `TFRowSwipe`.
@@ -65,12 +66,16 @@ struct TodayTaskRow: View {
                 // лишним шагом («это глупости какие-то, оно мне не надо»).
                 // Массовый перенос просроченных остался — он в шапке колонки
                 // «Просрочено» на доске и карточкой не заменяется.
-                actionButton(
-                    icon: "checkmark", label: "Завершить",
-                    identifier: "row.swipe.complete", color: .tfGreen
-                ) { close(); onComplete() }
-                .frame(width: rightRevealWidth)
-                .opacity(revealOpacity(rightRevealWidth))
+                if let swipeAction {
+                    actionButton(
+                        icon: swipeAction.icon,
+                        label: swipeAction.accessibilityLabel,
+                        identifier: swipeAction.accessibilityIdentifier,
+                        color: .tfGreen
+                    ) { close(); onSwipeAction() }
+                    .frame(width: rightRevealWidth)
+                    .opacity(revealOpacity(rightRevealWidth))
+                }
             }
             .frame(maxHeight: .infinity)
 
@@ -116,7 +121,7 @@ struct TodayTaskRow: View {
 
     /// Насколько раскрыт левый край (кнопка «Удалить») — прямо за пальцем.
     private var leftRevealWidth: CGFloat { max(offsetX, 0) }
-    /// То же для правого края: там две кнопки, делят раскрытие пополам.
+    /// То же для правого края: там одно контекстное действие.
     private var rightRevealWidth: CGFloat { max(-offsetX, 0) }
 
     /// Проявление кнопки по ходу жеста. Веб: `min(1, (absX / ACTION_W) × 1.3)`
@@ -286,9 +291,8 @@ struct TodayTaskRow: View {
         let finalOffset = clamp(settledOffset + dx)
         withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
             if settledOffset == 0 {
-                // Влево — одна кнопка «Завершить» (вторая, «Перенести»,
-                // убрана 09.09.2026).
-                if finalOffset < -openThreshold || velocity < -openVelocity {
+                // Влево — одно действие, зависящее от состояния задачи.
+                if swipeAction != nil && (finalOffset < -openThreshold || velocity < -openVelocity) {
                     settledOffset = -actionWidth
                 } else if finalOffset > openThreshold || velocity > openVelocity {
                     settledOffset = actionWidth
@@ -311,9 +315,10 @@ struct TodayTaskRow: View {
     }
 
     /// «Резина» за пределом раскрытия — веб: `W + over × 30 / (30 + over)`.
-    /// Предел разный по сторонам: слева одна кнопка, справа две.
+    /// По одной кнопке с каждой стороны.
     private func clamp(_ raw: CGFloat) -> CGFloat {
-        let limit = raw > 0 ? actionWidth : 2 * actionWidth
+        if raw < 0, swipeAction == nil { return 0 }
+        let limit = actionWidth
         if raw > limit {
             let over = raw - limit
             return limit + (over * 30) / (30 + over)
@@ -322,6 +327,44 @@ struct TodayTaskRow: View {
             return -limit - (over * 30) / (30 + over)
         }
         return raw
+    }
+}
+
+/// Смысл левого свайпа в общем списке задач. В подложке только иконка;
+/// полное имя остаётся VoiceOver через `accessibilityLabel`.
+enum TodayTaskSwipeAction: Equatable {
+    case complete
+    case acceptReview
+    case markReadyForPickup
+
+    static func action(for task: ApiTask, isOwner: Bool) -> Self? {
+        guard task.status == .active else { return nil }
+        if isOwner, task.agentState == .review { return .acceptReview }
+        if isOwner, task.agentState == nil, !task.readyForPickup { return .markReadyForPickup }
+        return .complete
+    }
+
+    var icon: String {
+        switch self {
+        case .complete, .acceptReview: "checkmark"
+        case .markReadyForPickup: "flag.fill"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .complete: "Завершить"
+        case .acceptReview: "Принять"
+        case .markReadyForPickup: "Готово к работе"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .complete: "row.swipe.complete"
+        case .acceptReview: "row.swipe.accept"
+        case .markReadyForPickup: "row.swipe.ready"
+        }
     }
 }
 

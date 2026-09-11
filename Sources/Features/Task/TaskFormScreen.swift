@@ -276,6 +276,8 @@ struct TaskFormScreen: View {
     /// описание и все свойства задачи активны прямо здесь.
     private var nativeTaskDetail: some View {
         List {
+            aiStructureStatusSection
+
             if let message = viewModel.saveErrorMessage {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle")
@@ -566,6 +568,35 @@ struct TaskFormScreen: View {
         }
     }
 
+    @ViewBuilder
+    private var aiStructureStatusSection: some View {
+        switch viewModel.aiStructureStatus {
+        case .idle:
+            EmptyView()
+        case .processing:
+            Section {
+                HStack(spacing: TFSpacing.sm) {
+                    ProgressView()
+                    Text("AI структурирует задачу…")
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("AI структурирует задачу")
+            }
+            .listRowBackground(Color.tfBackground)
+        case .completed:
+            Section {
+                Label("Структура готова", systemImage: "checkmark.circle")
+            }
+            .listRowBackground(Color.tfBackground)
+        case .failed(let message):
+            Section {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+            }
+            .listRowBackground(Color.tfBackground)
+        }
+    }
+
     private var linkedTaskExcludedIDs: Set<String> {
         var ids = viewModel.ancestorTaskIDs
         ids.formUnion(viewModel.childTasks.map(\.id))
@@ -790,10 +821,11 @@ struct TaskFormScreen: View {
             Menu {
                 if viewModel.showAiButton {
                     Button {
-                        // Стаб — см. `aiStructureButton`.
+                        Task { await viewModel.structureWithAI() }
                     } label: {
                         Label("Структурировать с AI", systemImage: "sparkles")
                     }
+                    .disabled(viewModel.aiStructureStatus.isProcessing)
                 }
                 if isOwner, let state = viewModel.agentState {
                     ownerActionMenuItems(state)
@@ -944,13 +976,16 @@ struct TaskFormScreen: View {
 
     private var aiStructureButton: some View {
         Button {
-            // Стаб: `/ai/structure-task` есть на сервере (spec/API.md §5.11),
-            // но точная форма ответа не проверена живым запросом в этой
-            // задаче — рисковать угадыванием decode-схемы не стал (см. отчёт).
+            Task { await viewModel.structureWithAI() }
         } label: {
             HStack(spacing: TFSpacing.sm) {
-                Image(systemName: "sparkles").font(.system(size: 14, weight: .semibold))
-                Text("Структурировать с AI").tfText(.body).fontWeight(.semibold)
+                if viewModel.aiStructureStatus.isProcessing {
+                    ProgressView()
+                    Text("Структурирую…").tfText(.body).fontWeight(.semibold)
+                } else {
+                    Image(systemName: "sparkles").font(.system(size: 14, weight: .semibold))
+                    Text("Структурировать с AI").tfText(.body).fontWeight(.semibold)
+                }
             }
             // Была фиолетово-розовая заливка градиентом — просьба владельца
             // 03.09.2026: причесать под лаконичный стиль «Моделей и голосов»
@@ -963,6 +998,8 @@ struct TaskFormScreen: View {
             .clipShape(Capsule())
         }
         .buttonStyle(TFTapScaleStyle())
+        .disabled(viewModel.aiStructureStatus.isProcessing)
+        .accessibilityLabel(viewModel.aiStructureStatus.isProcessing ? "AI структурирует задачу" : "Структурировать задачу с AI")
     }
 
     /// Шаги — одинаково в создании и в готовой задаче. Владелец 11.09.2026:
