@@ -242,6 +242,31 @@ struct TaskJournalView: View {
                     }
                 }
                 Text(comment.text).tfText(.body).foregroundStyle(Color.tfText)
+                // ВЛОЖЕНИЯ КОММЕНТАРИЯ. До 11.09.2026 лента рисовала только
+                // текст, хотя `comment.attachments` в модели был — приложенные
+                // к комментарию кадры в приложении не показывались вообще.
+                // Владелец: «смотрю в iOS приложение и абсолютно не вижу
+                // никакого скриншота… я работаю через приложение».
+                // Картинки — превью тем же загрузчиком, что в чате (он умеет
+                // ходить с авторизацией, обычный AsyncImage тут не годится);
+                // остальные файлы — строкой с именем.
+                if let attachments = comment.attachments, !attachments.isEmpty {
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        ForEach(attachments) { attachment in
+                            if attachment.mime?.hasPrefix("image/") == true {
+                                ChatAttachmentImage(
+                                    attachmentId: attachment.id,
+                                    fileName: attachment.fileName
+                                )
+                            } else {
+                                Label(attachment.fileName, systemImage: "paperclip")
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfSub)
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
+                }
             }
         }
         .padding(.vertical, TFSpacing.xs)

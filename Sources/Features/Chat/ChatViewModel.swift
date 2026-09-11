@@ -90,21 +90,40 @@ final class ChatViewModel {
     var activeChannel: ChatChannel { bothChannelsVisible ? channel : .agents }
     var headerTitle: String { bothChannelsVisible ? "Чат" : "Чат агентов" }
 
-    /// Собеседник в личном канале: у владельца — оркестратор, у оркестратора — владелец.
+    /// Собеседник в личном канале: у владельца — «Секретарь», у оркестратора — владелец.
+    ///
+    /// 10.09.2026, карточка 4396f8c9: у владельца здесь БЫЛ оркестратор, и канал
+    /// читался как разговор с ним. Автономного оркестратора решением 08.09.2026
+    /// нет, а канал стал ОКНОМ ПОСТАНОВКИ ЗАДАЧ: владелец наговаривает сюда
+    /// работу, её разбирает локальная модель, и ответ про собранную карточку
+    /// пишет «Секретарь» — учётка скрипта, не исполнитель (миграция 028).
+    /// Ищем его по признакам, а не по зашитому идентификатору: единственный
+    /// участник, который машина (`type == .ai`) и при этом не исполнитель
+    /// (`role == .viewer`).
     var counterpart: ApiChatParticipant? {
         guard bothChannelsVisible else { return nil }
-        let wanted: UserRole = isOwner ? .orchestrator : .owner
-        return participants.first { $0.role == wanted }
+        guard isOwner else { return participants.first { $0.role == .owner } }
+        return participants.first { $0.role == .viewer && $0.type == .ai }
     }
 
     /// Первое слово имени — «Оркестратор Claude» → «Оркестратор» (вкладка переключателя).
+    /// Запасное имя разное по сторонам канала, как в `ChatScreen.tsx`: владелец
+    /// разговаривает с «Секретарём», оркестратор — с «Максимом».
     var counterpartFirstName: String {
-        (counterpart?.name ?? "Оркестратор").split(separator: " ").first.map(String.init) ?? "Оркестратор"
+        let fallback = isOwner ? "Секретарь" : "Максим"
+        return (counterpart?.name ?? fallback).split(separator: " ").first.map(String.init) ?? fallback
     }
 
+    /// У владельца первая вкладка — окно постановки задач, и пустой экран это
+    /// единственное место, где можно сказать, что оно делает: дальше он сам
+    /// увидит по ответам (карточка 4396f8c9). Тексты дословно как в
+    /// `ChatScreen.tsx`.
     var emptyStateText: String {
         if activeChannel == .agents && isOwner {
             return "Пока пусто — исполнители ещё не переписывались."
+        }
+        if activeChannel == .owner && isOwner {
+            return "Пока пусто. Наговорите сюда задачу — разберу и соберу карточку-черновик, останется поставить флаг готовности."
         }
         return "Пока пусто — первое сообщение здесь твоё."
     }
@@ -118,8 +137,14 @@ final class ChatViewModel {
             .filter { activeChannel != .owner || $0.userId == counterpart?.id }
     }
 
+    /// «Секретарь» (`role == .viewer`, `type == .ai`) в выбор адресата не
+    /// попадает: это учётка скрипта окна постановки, а не исполнитель — писать
+    /// ему адресно некому и незачем, отвечает он только на надиктовку в своём
+    /// канале (миграция 028, карточка 4396f8c9). Мёртвых пунктов в списке быть
+    /// не должно по той же причине, по какой в интерфейсе нет мёртвых кнопок.
+    /// 1:1 с `ChatComposer.tsx`.
     var others: [ApiChatParticipant] {
-        participants.filter { $0.id != currentUserId }
+        participants.filter { $0.id != currentUserId && !($0.role == .viewer && $0.type == .ai) }
     }
 
     var canSend: Bool {

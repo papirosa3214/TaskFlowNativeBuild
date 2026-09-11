@@ -30,7 +30,10 @@ private struct AddressLine: View {
 /// Картинка-вложение — требует `Authorization` (`APIClient.downloadAttachment`,
 /// см. комментарий в Core), поэтому `AsyncImage(url:)` сюда не годится:
 /// грузим байты сами и держим готовый `UIImage`.
-private struct ChatAttachmentImage: View {
+// Не private: ту же картинку показывает лента задачи (LOCK-119) — вложения
+// комментария там не рисовались вовсе, а второй такой же загрузчик заводить
+// незачем.
+struct ChatAttachmentImage: View {
     let attachmentId: String
     let fileName: String
     @State private var uiImage: UIImage?
