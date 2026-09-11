@@ -62,14 +62,15 @@ final class ChatViewModel {
     private var isOwner = false
     private var isOrchestrator = false
 
-    private let api = APIClient()
+    private let api: APIClient
     private let realtime = RealtimeClient()
     private var typingSweepTask: Task<Void, Never>?
     private var typingDeadlines: [String: (name: String, until: Date)] = [:]
     private var lastTypingSignalSentAt: Date?
     private var historyCursor: String?
 
-    init() {
+    init(api: APIClient = APIClient()) {
+        self.api = api
         realtime.onEvent = { [weak self] event in self?.handle(event) }
         realtime.onReconnected = { [weak self] in
             Task { await self?.reloadAll() }
@@ -225,6 +226,24 @@ final class ChatViewModel {
         }
     }
 
+    /// После отправки нужна свежая страница без `before`: `loadHistory()`
+    /// намеренно использует курсор старой истории. Курсор здесь не меняем,
+    /// чтобы последующая пагинация продолжилась с прежнего места.
+    private func refreshLatestMessages() async {
+        do {
+            let page = try await api.fetchChatHistory(
+                channel: activeChannel,
+                before: nil,
+                limit: 50
+            )
+            var knownIDs = Set(messages.map(\.id))
+            messages.append(contentsOf: page.messages.filter { knownIDs.insert($0.id).inserted })
+            historyErrorMessage = nil
+        } catch {
+            historyErrorMessage = Self.message(for: error)
+        }
+    }
+
     // MARK: - Отправка
 
     func send() async {
@@ -258,7 +277,7 @@ final class ChatViewModel {
             draftText = ""
             pendingAttachments = []
             await signalTyping(typing: false)
-            await loadHistory() // сразу видим своё сообщение, не дожидаясь WS
+            await refreshLatestMessages() // сразу видим своё сообщение, не дожидаясь WS
         } catch {
             sendErrorMessage = Self.message(for: error)
         }
