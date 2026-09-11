@@ -70,40 +70,6 @@ struct SearchScreen: View {
         }
     }
 
-    // MARK: - Липкая строка поиска (НЕ ScreenHeader — своя, спека §11)
-
-    private var searchBar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: TFSpacing.sm) {
-                HStack(spacing: TFSpacing.sm) {
-                    Image(systemName: "magnifyingglass").font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim)
-                    TextField("", text: $query, prompt: Text("Задачи, проекты, метки").foregroundStyle(Color.tfDim))
-                        .tfText(.input)
-                        .foregroundStyle(Color.tfText)
-                        .focused($fieldFocused)
-                        .submitLabel(.search)
-                    if hasQuery {
-                        Button { query = "" } label: {
-                            Image(systemName: "xmark.circle.fill").font(.system(size: 16)).foregroundStyle(Color.tfDim)
-                        }
-                        .buttonStyle(TFTapScaleStyle())
-                    }
-                }
-                .padding(.horizontal, TFSpacing.md)
-                .frame(height: 44)
-                .background(Color.tfCard)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-
-                Button("Отмена") { dismiss() }
-                    .tfText(.body).foregroundStyle(Color.tfSub)
-                    .buttonStyle(TFTapFadeStyle())
-            }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .frame(height: 48)
-            TFDivider()
-        }
-        .background(.ultraThinMaterial)
-    }
 
     // MARK: - Тело
 
