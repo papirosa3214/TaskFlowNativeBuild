@@ -71,14 +71,17 @@ public final class TaskStore {
         }
     }
 
-    public func delete(taskId: String) async {
+    @discardableResult
+    public func delete(taskId: String) async -> Bool {
         let snapshot = tasks
         tasks.removeAll { $0.id == taskId }
         do {
             try await apiClient.deleteTask(id: taskId)
+            return true
         } catch {
             tasks = snapshot
             errorMessage = Self.message(for: error)
+            return false
         }
     }
 

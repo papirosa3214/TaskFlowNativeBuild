@@ -8,14 +8,16 @@ struct TaskFormScreen: View {
 
     private enum LinkedTaskNavigation: Identifiable, Hashable {
         case detail(String)
-        case create(parentID: String, parentTitle: String, projectID: String?)
 
         var id: String {
             switch self {
             case .detail(let id): "detail-\(id)"
-            case .create(let parentID, _, _): "create-\(parentID)"
             }
         }
+    }
+
+    private enum DictationTarget: Equatable {
+        case title, description, comment, subtask(String), newSubtask
     }
 
     @State private var viewModel: TaskFormViewModel
@@ -25,15 +27,21 @@ struct TaskFormScreen: View {
     @Environment(LabelStore.self) private var labelStore
     @Environment(SessionStore.self) private var session
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isDescriptionFocused: Bool
+    @FocusState private var isCommentFocused: Bool
     @State private var dictation = DictationEngine.shared
+    @State private var dictationTarget: DictationTarget = .title
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
     @State private var replyingSubtask: ApiSubtask?
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
     @State private var isAttachmentPickerPresented = false
+    @State private var isDeleteConfirmationPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
+    @State private var linkedTaskQuickAddViewModel: TaskFormViewModel?
+    @State private var expandedLinkedTaskViewModel: TaskFormViewModel?
     /// Тексты шагов, которые правят прямо сейчас (id шага → набранное).
     @State private var subtaskTitleDrafts: [String: String] = [:]
     @FocusState private var focusedSubtaskID: String?
@@ -73,21 +81,6 @@ struct TaskFormScreen: View {
     init(expandingFrom viewModel: TaskFormViewModel) {
         self.taskID = nil
         self._viewModel = State(initialValue: viewModel)
-        self._showQuickAdd = State(initialValue: false)
-        self._isExpanded = State(initialValue: true)
-    }
-
-    /// Создание полноценной дочерней задачи. В отличие от обычного «+»,
-    /// сразу открываем полную форму: контекст родителя должен быть виден до
-    /// сохранения, иначе связь создаётся незаметно для пользователя.
-    init(linkedTo parentID: String, parentTitle: String, projectID: String?) {
-        self.taskID = nil
-        self._viewModel = State(initialValue: TaskFormViewModel(
-            taskID: nil,
-            parentTaskID: parentID,
-            parentTaskTitle: parentTitle,
-            presetProjectID: projectID
-        ))
         self._showQuickAdd = State(initialValue: false)
         self._isExpanded = State(initialValue: true)
     }
@@ -134,7 +127,17 @@ struct TaskFormScreen: View {
         formNavigationBody
             .task { await loadScreen() }
             .onChange(of: isTitleFocused) { wasFocused, isFocused in
+                if isFocused { dictationTarget = .title }
                 if wasFocused, !isFocused { scheduleSave() }
+            }
+            .onChange(of: isDescriptionFocused) { _, isFocused in
+                if isFocused { dictationTarget = .description }
+            }
+            .onChange(of: isCommentFocused) { _, isFocused in
+                if isFocused { dictationTarget = .comment }
+            }
+            .onChange(of: isNewSubtaskFocused) { _, isFocused in
+                if isFocused { dictationTarget = .newSubtask }
             }
             .onChange(of: viewModel.title) { _, _ in scheduleSave() }
             .onChange(of: viewModel.taskDescription) { _, _ in scheduleSave() }
@@ -154,8 +157,6 @@ struct TaskFormScreen: View {
                 switch destination {
                 case .detail(let id):
                     TaskFormScreen(taskID: id)
-                case .create(let parentID, let parentTitle, let projectID):
-                    TaskFormScreen(linkedTo: parentID, parentTitle: parentTitle, projectID: projectID)
                 }
             }
             .sheet(isPresented: $isExistingTaskPickerPresented) {
@@ -164,6 +165,24 @@ struct TaskFormScreen: View {
                     excludedIDs: linkedTaskExcludedIDs,
                     onSelect: { task in await viewModel.linkExistingTask(task) }
                 )
+            }
+            .fullScreenCover(isPresented: linkedTaskQuickAddPresented, onDismiss: {
+                Task { await viewModel.loadIfNeeded() }
+            }) {
+                if let linkedTaskQuickAddViewModel {
+                    QuickAddTaskView(
+                        viewModel: linkedTaskQuickAddViewModel,
+                        onSaved: { self.linkedTaskQuickAddViewModel = nil },
+                        onExpand: { expandLinkedTaskQuickAdd(linkedTaskQuickAddViewModel) }
+                    )
+                }
+            }
+            .fullScreenCover(isPresented: expandedLinkedTaskPresented, onDismiss: {
+                Task { await viewModel.loadIfNeeded() }
+            }) {
+                if let expandedLinkedTaskViewModel {
+                    TaskFormScreen(expandingFrom: expandedLinkedTaskViewModel)
+                }
             }
             .onChange(of: linkedTaskNavigation) { previous, current in
                 if previous != nil, current == nil { Task { await viewModel.loadIfNeeded() } }
@@ -189,7 +208,6 @@ struct TaskFormScreen: View {
             }
         }
         .background(Color.tfBackground)
-        .overlay(alignment: .bottomTrailing) { if isTitleFocused { micKeyboardBar } }
         // AUD-001: свой header (× слева, «Готово»/«Сохранение…» справа) был
         // ВТОРЫМ рядом с системным навбаром — тут не просто дубль текста,
         // а форма с семантикой отмены/сохранения, обычный «‹ Назад» её не
@@ -198,6 +216,20 @@ struct TaskFormScreen: View {
         .tfNativeHeader(viewModel.isEditing ? "Задача" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                taskKeyboardDismissButton
+                Spacer()
+                taskKeyboardDictationButton
+            }
+            if viewModel.isEditing, let taskID = viewModel.taskID {
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 0) {
+                        Text("Задача").font(.headline)
+                        Text(taskID.prefix(8)).font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
             ToolbarItem(placement: .topBarLeading) {
                 Button {
                     Task {
@@ -230,6 +262,12 @@ struct TaskFormScreen: View {
                     .disabled(!viewModel.isSaveEnabled)
                 }
             }
+        }
+        .confirmationDialog("Удалить задачу?", isPresented: $isDeleteConfirmationPresented, titleVisibility: .visible) {
+            Button("Удалить", role: .destructive) { Task { await deleteCurrentTask() } }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Задача будет удалена без возможности восстановления.")
         }
         .alert("Комментарий", isPresented: Binding(
             get: { pendingAction != nil },
@@ -282,29 +320,28 @@ struct TaskFormScreen: View {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
+                        .listRowSeparator(.hidden)
                 }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
             }
 
             Section {
-                // LOCK-117. Короткий номер карточки — тот самый, которым агенты
-                // ссылаются на задачи в чате («карточка bb728617»). Владелец
-                // 11.09.2026: «я-то их не вижу, поэтому понятия не имею, о какой
-                // карточке ты говоришь». Намеренно неброско — .caption2 +
-                // .tertiary, сноска, которую можно не читать.
-                if let taskID = viewModel.taskID {
-                    Text(taskID.prefix(8))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
                 TextField("Название задачи", text: $viewModel.title, axis: .vertical)
                     .font(.headline)
                     .lineLimit(1...6)
                     .focused($isTitleFocused)
+                    .listRowSeparator(.hidden)
                 TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
                     .lineLimit(1...)
-                    .foregroundStyle(.secondary)
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                    .focused($isDescriptionFocused)
+                    .listRowSeparator(.hidden)
             }
             .listRowBackground(Color.tfBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
 
             subtasksSection
 
@@ -315,11 +352,13 @@ struct TaskFormScreen: View {
                 linkedTasksSection
             }
 
-            Section("Сведения") {
+            Section {
                 Button {
                     isDueEditorExpanded.toggle()
                 } label: {
                     LabeledContent("Срок", value: nativeDueText)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 .buttonStyle(.plain)
 
@@ -346,6 +385,8 @@ struct TaskFormScreen: View {
                     }
                 } label: {
                     LabeledContent("Проект", value: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Не выбран")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 .buttonStyle(.plain)
 
@@ -363,6 +404,8 @@ struct TaskFormScreen: View {
                     }
                 } label: {
                     LabeledContent("Приоритет", value: viewModel.priority.label)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 .buttonStyle(.plain)
 
@@ -385,6 +428,8 @@ struct TaskFormScreen: View {
                     }
                 } label: {
                     LabeledContent("Метки", value: nativeLabelsText)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 .buttonStyle(.plain)
 
@@ -403,20 +448,34 @@ struct TaskFormScreen: View {
                     }
                 } label: {
                     LabeledContent("Исполнитель", value: viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 .buttonStyle(.plain)
+            } header: {
+                taskSectionHeader("Сведения")
             }
             .listRowBackground(Color.tfBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
 
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
-                Section("Вложения") {
+                Section {
                     ForEach(viewModel.attachments.uploaded) { attachment in
                         Label(attachment.fileName, systemImage: "paperclip")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
                     }
                     ForEach(viewModel.attachments.pending) { attachment in
                         Label(attachment.fileName, systemImage: "paperclip")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
                     }
+                } header: {
+                    taskSectionHeader("Вложения")
                 }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
             }
 
             // Владелец 07.09.2026: «комментарий не в самый низ, а в самый
@@ -426,7 +485,7 @@ struct TaskFormScreen: View {
             // «новые сверху»), скроллить до низа не нужно.
             // Ленты у несохранённой задачи нет: комментировать нечего.
             if viewModel.isEditing {
-                Section("Комментарии") {
+                Section {
                     HStack {
                         // Отправить можно и с клавиатуры, не целясь в
                         // «Отправить»: у поля в строке списка это главный
@@ -435,6 +494,9 @@ struct TaskFormScreen: View {
                         // `List` отдаёт ей тап по всей строке, включая поле.
                         TextField("Комментарий", text: $viewModel.commentText, axis: .vertical)
                             .lineLimit(1...4)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .focused($isCommentFocused)
                             .submitLabel(.send)
                             .onSubmit { Task { await viewModel.sendComment() } }
                         Button("Отправить") { Task { await viewModel.sendComment() } }
@@ -443,9 +505,14 @@ struct TaskFormScreen: View {
                     }
                     ForEach(viewModel.journalEntries) { entry in
                         nativeJournalRow(entry)
+                            .listRowSeparator(.hidden)
                     }
+                } header: {
+                    taskSectionHeader("Лента активности")
                 }
                 .listRowBackground(Color.tfBackground)
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
             }
         }
         // Владелец 07.09.2026: «размести все элементы плоско, без лишних
@@ -453,6 +520,8 @@ struct TaskFormScreen: View {
         // (осталась подложка-карточка под секциями даже после смены стиля),
         // `List` его уважает по-настоящему.
         .listStyle(.plain)
+        .listRowSeparator(.hidden)
+        .listSectionSeparator(.hidden)
         // Карточка получалась полосатой: промежутки и заголовки секций шли на
         // нашем фоне, а сами строки — на системном чёрном, и это било в глаза
         // (владелец 09.09.2026: «текст задачи, текст описания — чёрный, он
@@ -464,7 +533,8 @@ struct TaskFormScreen: View {
         .scrollDismissesKeyboard(.interactively)
         // Ушли из строки шага — сохранили её название. Тот же принцип, что
         // у названия задачи выше: отдельной кнопки «сохранить» нет.
-        .onChange(of: focusedSubtaskID) { previous, _ in
+        .onChange(of: focusedSubtaskID) { previous, current in
+            if let current { dictationTarget = .subtask(current) }
             guard let previous,
                   let subtask = viewModel.subtasks.first(where: { $0.id == previous })
             else { return }
@@ -498,33 +568,22 @@ struct TaskFormScreen: View {
             }
 
             if viewModel.parentTask == nil, viewModel.childTasks.isEmpty {
-                Text("Связанных задач пока нет")
-                    .foregroundStyle(.secondary)
+                Button {
+                    startLinkedTaskQuickAdd()
+                } label: {
+                    Text("Добавить связанную задачу")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                }
+                .listRowSeparator(.hidden)
             }
 
-            if let taskID {
-                Button {
-                    linkedTaskNavigation = .create(
-                        parentID: taskID,
-                        parentTitle: viewModel.title,
-                        projectID: viewModel.projectId
-                    )
-                } label: {
-                    Label("Создать связанную задачу", systemImage: "plus")
-                }
-
-                Button {
-                    isExistingTaskPickerPresented = true
-                } label: {
-                    Label("Связать существующую", systemImage: "link.badge.plus")
-                }
-            }
         } header: {
-            Text("Связанные задачи")
-        } footer: {
-            Text("Это полноценные дочерние задачи со своими сроками, исполнителями и статусами. Чек-лист «Подзадачи» остаётся отдельным.")
+            taskSectionHeader("Связанные задачи")
         }
         .listRowBackground(Color.tfBackground)
+        .listRowSeparator(.hidden)
+        .listSectionSeparator(.hidden)
     }
 
     private func linkedTaskRow(_ task: ApiTask, relation: String) -> some View {
@@ -535,10 +594,11 @@ struct TaskFormScreen: View {
             HStack(spacing: TFSpacing.sm) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(task.title)
-                        .foregroundStyle(.primary)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                         .lineLimit(2)
                     Label("\(relation) · \(status.text)", systemImage: status.icon)
-                        .font(.caption)
+                        .tfText(.meta)
                         .foregroundStyle(status.color)
                 }
                 Spacer(minLength: TFSpacing.sm)
@@ -550,6 +610,7 @@ struct TaskFormScreen: View {
             .contentShape(Rectangle())
         }
         .accessibilityHint("Открывает связанную задачу")
+        .listRowSeparator(.hidden)
     }
 
     private func linkedTaskStatus(_ task: ApiTask) -> (icon: String, text: String, color: Color) {
@@ -583,18 +644,51 @@ struct TaskFormScreen: View {
                 .accessibilityLabel("AI структурирует задачу")
             }
             .listRowBackground(Color.tfBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
         case .completed:
             Section {
                 Label("Структура готова", systemImage: "checkmark.circle")
             }
             .listRowBackground(Color.tfBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
         case .failed(let message):
             Section {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
             }
             .listRowBackground(Color.tfBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
         }
+    }
+
+    private var linkedTaskQuickAddPresented: Binding<Bool> {
+        Binding(get: { linkedTaskQuickAddViewModel != nil }, set: { if !$0 { linkedTaskQuickAddViewModel = nil } })
+    }
+
+    private var expandedLinkedTaskPresented: Binding<Bool> {
+        Binding(get: { expandedLinkedTaskViewModel != nil }, set: { if !$0 { expandedLinkedTaskViewModel = nil } })
+    }
+
+    private func startLinkedTaskQuickAdd() {
+        guard let taskID else { return }
+        linkedTaskQuickAddViewModel = TaskFormViewModel(taskID: nil, parentTaskID: taskID, parentTaskTitle: viewModel.title, presetProjectID: viewModel.projectId)
+    }
+
+    private func expandLinkedTaskQuickAdd(_ linkedViewModel: TaskFormViewModel) {
+        linkedTaskQuickAddViewModel = nil
+        DispatchQueue.main.async { expandedLinkedTaskViewModel = linkedViewModel }
+    }
+
+    private func taskSectionHeader(_ title: String) -> some View {
+        Text(title)
+            .tfText(.title)
+            .fontWeight(.semibold)
+            .foregroundStyle(Color.tfText)
+            .textCase(nil)
+            .underline()
     }
 
     private var linkedTaskExcludedIDs: Set<String> {
@@ -651,7 +745,8 @@ struct TaskFormScreen: View {
                 // (см. `.onChange(of: focusedSubtaskID)` у списка).
                 TextField("Шаг", text: subtaskTitleBinding(subtask), axis: .vertical)
                     .lineLimit(1...)
-                    .foregroundStyle(subtask.done ? .secondary : .primary)
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
                     .focused($focusedSubtaskID, equals: subtask.id)
             }
 
@@ -660,6 +755,7 @@ struct TaskFormScreen: View {
                     .padding(.leading, 21 + TFSpacing.md)
             }
         }
+        .listRowSeparator(.hidden)
     }
 
     /// Пока строку правят, текст живёт здесь, а не в модели: поллинг задачи
@@ -702,7 +798,8 @@ struct TaskFormScreen: View {
             if isRunning, viewModel.activity.isActive {
                 if let text = viewModel.activity.text {
                     Text(text)
-                        .foregroundStyle(.primary)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 ForEach(viewModel.activity.actions.suffix(5).reversed()) { action in
                     HStack(alignment: .top, spacing: TFSpacing.sm) {
@@ -720,7 +817,7 @@ struct TaskFormScreen: View {
                 // Итог шага — главное, ради чего эту карточку открывают:
                 // виден целиком и всегда, без сворачивания и усечения
                 // (владелец 11.09.2026).
-                Text(result).foregroundStyle(.secondary)
+                Text(result).tfText(.action).foregroundStyle(Color.tfSub)
             }
             if isOwner, subtask.agentState == .review {
                 Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }
@@ -741,13 +838,13 @@ struct TaskFormScreen: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
-                        .font(.subheadline).fontWeight(.semibold)
+                        .tfText(.body).fontWeight(.medium)
                     Spacer()
                     if let date = comment.createdAtDate {
-                        Text(TaskDateText.relativeTime(date)).font(.caption).foregroundStyle(.secondary)
+                        Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
                     }
                 }
-                Text(comment.text)
+                Text(comment.text).tfText(.action).foregroundStyle(Color.tfSub)
                 // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
                 // текст, и приложенные кадры в приложении не показывались
                 // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
@@ -765,8 +862,8 @@ struct TaskFormScreen: View {
                                 )
                             } else {
                                 Label(attachment.fileName, systemImage: "paperclip")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .tfText(.meta)
+                                    .foregroundStyle(Color.tfSub)
                             }
                         }
                     }
@@ -775,13 +872,12 @@ struct TaskFormScreen: View {
             }
         case .event(let event):
             HStack {
-                Text(TaskJournalView.eventText(event)).foregroundStyle(.secondary)
+                Text(TaskJournalView.eventText(event)).tfText(.action).foregroundStyle(Color.tfSub)
                 Spacer()
                 if let date = event.createdAtDate {
-                    Text(TaskDateText.relativeTime(date)).foregroundStyle(.secondary)
+                    Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
             }
-            .font(.footnote)
         }
     }
 
@@ -870,6 +966,15 @@ struct TaskFormScreen: View {
                 Button { saveAsTemplate() } label: {
                     Label("Сохранить как шаблон", systemImage: "doc.on.doc")
                 }
+                if taskID != nil {
+                    Button { isExistingTaskPickerPresented = true } label: {
+                        Label("Связать существующую задачу", systemImage: "link.badge.plus")
+                    }
+                }
+                Divider()
+                Button("Удалить задачу", systemImage: "trash", role: .destructive) {
+                    isDeleteConfirmationPresented = true
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .foregroundStyle(Color.tfText)
@@ -925,12 +1030,21 @@ struct TaskFormScreen: View {
         toast = TaskToastMessage("Задача сохранена в шаблоны")
     }
 
-    /// `MicKeyboardBar` — spec/SCREENS-2.md §0.7: плавающая круглая кнопка
-    /// 44×44 над клавиатурой, полупрозрачное стекло. Тап — старт записи,
-    /// повторный тап — стоп + распознавание (`DictationEngine`, просьба
-    /// владельца 03.09.2026 «подключи распознавание речи»). Текст дописывается
-    /// в название через пробел, а не заменяет — так же, как обычная печать.
-    private var micKeyboardBar: some View {
+    private func deleteCurrentTask() async {
+        guard let taskID, await taskStore.delete(taskId: taskID) else { return }
+        dismiss()
+    }
+
+    private var taskKeyboardDismissButton: some View {
+        Button {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        } label: {
+            Image(systemName: "keyboard.chevron.compact.down")
+        }
+        .accessibilityLabel("Скрыть клавиатуру")
+    }
+
+    private var taskKeyboardDictationButton: some View {
         Button {
             Task { await toggleDictation() }
         } label: {
@@ -940,20 +1054,14 @@ struct TaskFormScreen: View {
                     Image(systemName: "waveform")
                         .symbolEffect(.variableColor.iterative, isActive: true)
                 case .transcribing:
-                    ProgressView().tint(Color.tfText)
+                    ProgressView()
                 default:
                     Image(systemName: "mic.fill")
                 }
             }
-            .font(.system(size: 18))
-            .foregroundStyle(dictation.recordingState == .recording ? Color.tfRed : Color.tfText)
-            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            .background(.ultraThinMaterial, in: Circle())
         }
-        .buttonStyle(TFTapScaleStyle())
         .disabled(dictation.recordingState == .transcribing)
-        .padding(.trailing, TFSpacing.lg)
-        .padding(.bottom, TFSpacing.lg)
+        .accessibilityLabel("Голосовой ввод")
     }
 
     private func toggleDictation() async {
@@ -962,14 +1070,27 @@ struct TaskFormScreen: View {
             await dictation.startRecording()
         case .recording:
             guard let text = await dictation.stopRecordingAndTranscribe() else { return }
-            if viewModel.title.isEmpty {
-                viewModel.title = text
-            } else {
-                viewModel.title += (viewModel.title.hasSuffix(" ") ? "" : " ") + text
+            switch dictationTarget {
+            case .title:
+                viewModel.title = appendedDictation(text, to: viewModel.title)
+            case .description:
+                viewModel.taskDescription = appendedDictation(text, to: viewModel.taskDescription)
+            case .comment:
+                viewModel.commentText = appendedDictation(text, to: viewModel.commentText)
+            case .newSubtask:
+                newSubtaskTitle = appendedDictation(text, to: newSubtaskTitle)
+            case .subtask(let id):
+                guard let subtask = viewModel.subtasks.first(where: { $0.id == id }) else { return }
+                subtaskTitleDrafts[id] = appendedDictation(text, to: subtaskTitleDrafts[id] ?? subtask.title)
             }
         case .transcribing:
             break
         }
+    }
+
+    private func appendedDictation(_ text: String, to existing: String) -> String {
+        guard !existing.isEmpty else { return text }
+        return existing + (existing.hasSuffix(" ") ? "" : " ") + text
     }
 
     // MARK: - Тело
@@ -1008,21 +1129,29 @@ struct TaskFormScreen: View {
     /// источнике: у новой задачи это черновики в памяти, у существующей —
     /// шаги с сервера.
     private var subtasksSection: some View {
-        Section("Подзадачи") {
+        Section {
             if viewModel.isEditing {
                 ForEach(viewModel.subtasks) { subtask in
                     nativeSubtaskRow(subtask)
+                        .listRowSeparator(.hidden)
                 }
             } else {
                 ForEach($viewModel.subtaskDrafts) { $draft in
                     TextField("Шаг", text: $draft.title, axis: .vertical)
                         .lineLimit(1...)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .listRowSeparator(.hidden)
                 }
                 .onDelete { viewModel.subtaskDrafts.remove(atOffsets: $0) }
             }
             newSubtaskRow
+        } header: {
+            taskSectionHeader("Подзадачи")
         }
         .listRowBackground(Color.tfBackground)
+        .listRowSeparator(.hidden)
+        .listSectionSeparator(.hidden)
     }
 
     /// Последняя строка списка шагов — пустое поле вместо кнопки с диалогом.
@@ -1035,8 +1164,11 @@ struct TaskFormScreen: View {
         // многострочном поле он вставлял бы перенос в название.
         TextField("Добавить подзадачу", text: $newSubtaskTitle)
             .focused($isNewSubtaskFocused)
+            .tfText(.action)
+            .foregroundStyle(Color.tfDim)
             .submitLabel(.return)
             .onSubmit(addSubtaskInline)
+            .listRowSeparator(.hidden)
     }
 
     private func addSubtaskInline() {
