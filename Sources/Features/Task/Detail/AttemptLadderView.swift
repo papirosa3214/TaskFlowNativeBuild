@@ -1,33 +1,43 @@
 import SwiftUI
 
-struct AttemptLadderView: View {
-    let ladder: AttemptLadder
+/// Индикатор текущей ступени модели из `attempt_ladder` серверного ответа.
+/// Чистый SwiftUI без рамок, фонов и материалов: состояние передаётся цветом.
+public struct AttemptLadderView: View {
+    let ladder: ApiAttemptLadder
     let agentState: AgentState?
 
-    private var isEscalated: Bool {
+    public init(ladder: ApiAttemptLadder, agentState: AgentState? = nil) {
+        self.ladder = ladder
+        self.agentState = agentState
+    }
+
+    private var escalated: Bool {
         ladder.currentStep > 1 || agentState == .blocked
     }
 
-    var body: some View {
-        HStack(spacing: 6) {
-            Text("\(ladder.currentStep)/\(ladder.totalSteps)")
-                .monospacedDigit()
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(tint.opacity(0.14), in: Capsule())
-            Image(systemName: "arrow.right")
-                .imageScale(.small)
-            Text(ladder.currentModel ?? "Модель не указана")
-                .lineLimit(1)
+    private var modelLabel: String {
+        guard let model = ladder.currentModel, !model.isEmpty else {
+            return "модель не указана"
         }
-        .tfText(.caption)
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(.secondarySystemBackground), in: Capsule())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Попытка \(ladder.currentStep) из \(ladder.totalSteps), \(ladder.currentModel ?? "модель не указана")")
+        return model.prefix(1).uppercased() + model.dropFirst()
     }
 
-    private var tint: Color { isEscalated ? .orange : .secondary }
+    public var body: some View {
+        HStack(spacing: 4) {
+            Text("\(ladder.currentStep)/\(ladder.totalSteps)")
+            Image(systemName: "arrow.right")
+                .accessibilityHidden(true)
+            Text(modelLabel)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(escalated ? Color.tfOrange : Color.tfSub)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        var parts = ["Попытка \(ladder.currentStep) из \(ladder.totalSteps)", modelLabel]
+        if escalated { parts.append("эскалация") }
+        return parts.joined(separator: ", ")
+    }
 }

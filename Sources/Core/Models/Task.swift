@@ -14,36 +14,6 @@ public enum AgentState: String, Codable, Sendable, Hashable {
     case review
 }
 
-public struct AttemptLadderHistoryItem: Codable, Identifiable, Sendable, Hashable {
-    public let id: String
-    public let model: String?
-    public let outcome: String?
-    public let reasonCode: String?
-    public let startedAt: String
-    public let endedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, model, outcome
-        case reasonCode = "reason_code"
-        case startedAt = "started_at"
-        case endedAt = "ended_at"
-    }
-}
-
-public struct AttemptLadder: Codable, Sendable, Hashable {
-    public let currentStep: Int
-    public let totalSteps: Int
-    public let currentModel: String?
-    public let history: [AttemptLadderHistoryItem]
-
-    enum CodingKeys: String, CodingKey {
-        case currentStep = "current_step"
-        case totalSteps = "total_steps"
-        case currentModel = "current_model"
-        case history
-    }
-}
-
 /// `ApiTask` — spec/API.md §3.4. Приоритет — обычный `Int` 1...4 (сервер не
 /// именует уровни текстом, меньше = важнее); сопоставление в цвет/подпись —
 /// дело UI-слоя (`TaskPriority` в `DesignSystem`), Core от него не зависит.
@@ -104,8 +74,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let events: [ApiTaskEvent]?
     /// Только `GET /api/tasks/:id` — файлы самой задачи (`kind='task'`).
     public let attachments: [ApiAttachment]?
-    /// Только `GET /api/tasks/:id` — прогресс лесенки модели (спек 1.2).
-    public let attemptLadder: AttemptLadder?
+    /// Спек 1.2, 1.2.10 — лесенка модели. Только `GET /api/tasks/:id`. На
+    /// старых задачах (созданных до спек 1.2) поле отсутствует в ответе —
+    /// UI просто не рисует индикатор. Тип и история в `AttemptLadder.swift`.
+    public let attemptLadder: ApiAttemptLadder?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -185,7 +157,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         comments = try c.decodeIfPresent([ApiComment].self, forKey: .comments)
         events = try c.decodeIfPresent([ApiTaskEvent].self, forKey: .events)
         attachments = try c.decodeIfPresent([ApiAttachment].self, forKey: .attachments)
-        attemptLadder = try c.decodeIfPresent(AttemptLadder.self, forKey: .attemptLadder)
+        attemptLadder = try c.decodeIfPresent(ApiAttemptLadder.self, forKey: .attemptLadder)
     }
 
     public func encode(to encoder: Encoder) throws {

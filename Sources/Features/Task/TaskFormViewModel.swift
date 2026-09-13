@@ -88,7 +88,9 @@ final class TaskFormViewModel {
     /// Для меню «…» (перенесено из `TaskDetailScreen` — открытие задачи
     /// больше не ведёт на отдельный экран-просмотр, она сама и есть форма).
     var agentState: AgentState? { originalTask?.agentState }
-    var attemptLadder: AttemptLadder? { originalTask?.attemptLadder }
+    /// Спек 1.2, 1.2.10 — лесенка модели. На старых задачах (созданных до
+    /// спек 1.2) поле отсутствует в ответе — `nil`, UI не рисует индикатор.
+    var attemptLadder: ApiAttemptLadder? { originalTask?.attemptLadder }
     var isSaveEnabled: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isSaving
