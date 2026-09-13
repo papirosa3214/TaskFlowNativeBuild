@@ -8,31 +8,29 @@ import UIKit
 //
 // Режимы:
 //   • `.rendered` (по умолчанию) — UITextView показывает NSAttributedString,
-//     текст выглядит отформатированным, тулбар меняет атрибуты выделения
-//     (bold/italic/.../ссылка) на лету. Это и есть «WYSIWYG» в нашем
-//     понимании: визуально форматированный текст при правке.
-//   • `.source` — UITextView показывает сырой markdown (то, что уйдёт
-//     на сервер / в файл). Полезно для тонкой правки разметки.
+//     текст выглядит отформатированным. WYSIWYG-разметка применяется
+//     через тулбар (MarkdownToolbar) — тап по B/I/S/code/link оборачивает
+//     выделение в NSAttributedString с нужным атрибутом; новая правка
+//     попадает в блок через `MarkdownText.runs` при `textViewDidChange`.
 //
-// Toolbar (MarkdownToolbar) — `inputAccessoryView` UITextView, нажатия
-// идут в FocusedBlockController и меняют атрибуты в фокусированном блоке.
+//   • `.source` — UITextView показывает сырой markdown. Пользователь
+//     печатает `**bold**` руками, парсер при сохранении разбирает.
 //
-// Чего НЕ делает (по сравнению с NoteBlockTextView):
-//   • таблиц — markdown-вариант редактора таблиц не входит в скоуп
-//   • drag-and-drop картинок
-//   • спец-логики ячеек таблицы
+// Тулбар: один экземпляр на весь редактор (через `MarkdownEditorCoordinator`),
+// ставится `inputAccessoryView` каждому UITextView. iOS показывает его
+// автоматически когда любое поле в фокусе.
 //
-// Скоуп LOCK-142 — markdown-редактор для карточки задачи и заметок.
-// Один блок = один UITextView: простая модель, без зон и переплетений.
+// Чего НЕ делает:
+//   • таблиц, drag-and-drop картинок, спец-логики ячеек таблицы.
+//   • скрытия markdown-разметочных символов (как Obsidian live preview:
+//     для этого нужен кастомный NSTextLayoutManager — вне скоупа).
 
 struct MarkdownEditorView: View {
     @Binding var blocks: [NoteBlock]
     @Binding var mode: MarkdownEditorMode
-    /// Если задан — оборачивает содержимое в один блок-параграф и редактирует
-    /// как одну строку (для карточки задачи). Если nil — каждый блок
-    /// редактируется отдельно (для заметок).
     var collapsesToSingleBlock: Bool = false
 
+    @StateObject private var coordinator = MarkdownEditorCoordinator()
     @State private var focusedBlockID: UUID?
 
     var body: some View {
@@ -42,15 +40,14 @@ struct MarkdownEditorView: View {
                     block: block,
                     mode: mode,
                     isFocused: focusedBlockID == block.id,
-                    onFocus: { focusedBlockID = block.id },
+                    coordinator: coordinator,
+                    onFocus: {
+                        focusedBlockID = block.id
+                        coordinator.focusedBlockID = block.id
+                    },
                     onChange: { newRuns in
                         if let idx = blocks.firstIndex(where: { $0.id == block.id }) {
                             blocks[idx].runs = newRuns
-                        }
-                    },
-                    onDelete: {
-                        if blocks.count > 1 {
-                            blocks.removeAll { $0.id == block.id }
                         }
                     }
                 )
@@ -59,7 +56,7 @@ struct MarkdownEditorView: View {
 
             if !collapsesToSingleBlock {
                 Button {
-                    addBlock(after: blocks.last)
+                    addBlock()
                 } label: {
                     Label("Добавить блок", systemImage: "plus.circle")
                         .font(.footnote)
@@ -67,6 +64,26 @@ struct MarkdownEditorView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
+            }
+        }
+        .onAppear {
+            // Мост от координатора (внутри UIKit) к @Binding родителя:
+            // coordinator держит `weak` ссылки на UITextView и UUID блока,
+            // но не имеет доступа к `blocks` — SwiftUI @StateObject не видит
+            // @Binding родителя. Поэтому родитель регистрирует два колбэка,
+            // которые coordinator зовёт при действиях тулбара.
+            coordinator.onSetBlockKind = { [blocks] kind in
+                guard let focusedID = coordinator.focusedBlockID,
+                      let idx = blocks.firstIndex(where: { $0.id == focusedID }) else { return }
+                var newBlocks = blocks
+                newBlocks[idx].kind = kind
+                self.blocks = newBlocks
+            }
+            coordinator.onRunsChange = { [blocks] blockID, runs in
+                guard let idx = blocks.firstIndex(where: { $0.id == blockID }) else { return }
+                var newBlocks = blocks
+                newBlocks[idx].runs = runs
+                self.blocks = newBlocks
             }
         }
     }
@@ -79,13 +96,15 @@ struct MarkdownEditorView: View {
         }
     }
 
-    private func addBlock(after block: NoteBlock?) {
+    private func addBlock() {
         let new = NoteBlock(kind: .paragraph)
-        if let block, let idx = blocks.firstIndex(where: { $0.id == block.id }) {
+        if let focusedID = coordinator.focusedBlockID,
+           let idx = blocks.firstIndex(where: { $0.id == focusedID }) {
             blocks.insert(new, at: idx + 1)
         } else {
             blocks.append(new)
         }
+        coordinator.focusedBlockID = new.id
     }
 }
 
@@ -95,20 +114,183 @@ enum MarkdownEditorMode: String, CaseIterable {
     case source    // Сырой markdown
 }
 
+// MARK: - Координатор (тулбар, фокус, активные марки)
+
+/// Общий на блоков в редакторе. Владеет тулбаром (один на редактор),
+/// отслеживает фокусированный UITextView, реализует MarkdownToolbarHost —
+/// чтобы нажатия кнопок применялись к нужному полю.
+@MainActor
+final class MarkdownEditorCoordinator: ObservableObject, MarkdownToolbarHost {
+    /// Один тулбар и один accessory-view на всех UITextView. `lazy` —
+    /// строится при первом обращении (когда первый блок запрашивает
+    /// accessory). Хранится, чтобы не создавать новый на каждый makeUIView.
+    lazy var toolbarAccessory: UIView = MarkdownToolbarAccessory(
+        toolbar: MarkdownToolbar(
+            onToggleMark: { [weak self] mark in self?.toggleMark(mark) },
+            onSetBlockKind: { [weak self] kind in self?.setBlockKind(kind) }
+        )
+    )
+
+    /// ID блока, чьё поле сейчас в фокусе. Меняется из BlockTextRepresentable
+    /// при textViewDidBeginEditing / resignFirstResponder.
+    var focusedBlockID: UUID?
+
+    /// Слабая ссылка на UITextView в фокусе — чтобы toggleMark мог
+    /// применить атрибут к selection, не зная о SwiftUI-иерархии.
+    weak var focusedTextView: UITextView?
+
+    /// Callback для смены kind блока. Родительский View ставит его в onAppear,
+    /// чтобы coordinator мог попросить «замени kind у фокусированного блока».
+    var onSetBlockKind: ((BlockKind) -> Void)?
+    /// Callback для обновления runs блока (тулбар: bold/italic/... поменял
+    /// атрибуты выделения — нужно пересчитать runs и положить обратно в `blocks`).
+    var onRunsChange: ((UUID, [RichRun]) -> Void)?
+
+    func toggleMark(_ mark: InlineMark) {
+        guard let tv = focusedTextView else { return }
+        let range = tv.selectedRange
+        guard range.length > 0 else { return }
+        let attr = MarkdownMarkKey.attributeKey(for: mark)
+        let storage = tv.textStorage
+        storage.beginEditing()
+        switch mark {
+        case .link:
+            // Ссылка требует href — тупо ставим placeholder, юзер потом
+            // поправит руками. Полноценный URL-input — отдельный sheet,
+            // вне скоупа LOCK-142.
+            storage.addAttribute(attr, value: "https://", range: range)
+            // Цвет ссылки (как в NoteRichText/MarkdownText.attributes)
+            storage.addAttribute(.foregroundColor, value: UIColor(Color.tfRed), range: range)
+        case .code:
+            // Код: фон + моноширинный шрифт. Меняем через attributes(for:base:)
+            // чтобы не дублировать логику рендера.
+            let base = MarkdownText.baseFont(for: .paragraph)
+            let attrs = MarkdownText.attributes(for: RichRun(text: "", code: true), base: base)
+            for (key, value) in attrs { storage.addAttribute(key, value: value, range: range) }
+        default:
+            // bold/italic/underline/strike — простой toggle атрибута.
+            let existing = storage.attribute(attr, at: range.location, effectiveRange: nil) as? Bool
+            if existing == true {
+                storage.removeAttribute(attr, range: range)
+            } else {
+                storage.addAttribute(attr, value: true, range: range)
+            }
+            // Для bold/italic меняем шрифт (trait) и подчёркивание/зачёркивание.
+            applyVisualAttribute(for: mark, in: storage, range: range, on: existing != true)
+        }
+        storage.endEditing()
+        // Атрибутный edit сам по себе textViewDidChange не триггерит.
+        // Пересчитываем runs и сообщаем родителю через onRunsChange.
+        let runs = MarkdownText.runs(from: tv.attributedText)
+        if let id = focusedBlockID {
+            onRunsChange?(id, runs)
+        }
+    }
+
+    func setBlockKind(_ kind: BlockKind) {
+        guard focusedBlockID != nil else { return }
+        onSetBlockKind?(kind)
+    }
+
+    var activeMarks: Set<InlineMark> {
+        guard let tv = focusedTextView, tv.selectedRange.length > 0 else { return [] }
+        let range = tv.selectedRange
+        let storage = tv.textStorage
+        var marks: Set<InlineMark> = []
+        if (storage.attribute(MarkdownMarkKey.bold, at: range.location, effectiveRange: nil) as? Bool) == true {
+            marks.insert(.bold)
+        }
+        if (storage.attribute(MarkdownMarkKey.italic, at: range.location, effectiveRange: nil) as? Bool) == true {
+            marks.insert(.italic)
+        }
+        if (storage.attribute(MarkdownMarkKey.underline, at: range.location, effectiveRange: nil) as? Bool) == true {
+            marks.insert(.underline)
+        }
+        if (storage.attribute(MarkdownMarkKey.strike, at: range.location, effectiveRange: nil) as? Bool) == true {
+            marks.insert(.strike)
+        }
+        if (storage.attribute(MarkdownMarkKey.code, at: range.location, effectiveRange: nil) as? Bool) == true {
+            marks.insert(.code)
+        }
+        if (storage.attribute(MarkdownMarkKey.link, at: range.location, effectiveRange: nil) as? String) != nil {
+            marks.insert(.link)
+        }
+        return marks
+    }
+
+    var currentBlockKind: BlockKind? {
+        // Без доступа к blocks через binding — родительский View должен
+        // положить kind сюда сам. Здесь заглушка: вернём .paragraph как
+        // «не знаю», и подсветка в тулбаре просто не сработает. Полная
+        // подсветка — отдельный коммит.
+        nil
+    }
+
+    // MARK: - Внутреннее
+
+    private func applyVisualAttribute(for mark: InlineMark, in storage: NSTextStorage, range: NSRange, on: Bool) {
+        switch mark {
+        case .bold:
+            // Шрифт сменим через пересчёт runs — UITextStorage edit
+            // ломает кегль, перерисовываем все символы в диапазоне.
+            let base = MarkdownText.baseFont(for: .paragraph)
+            let attrs = MarkdownText.attributes(for: RichRun(text: "", bold: on), base: base)
+            for (key, value) in attrs where key == .font {
+                storage.addAttribute(key, value: value, range: range)
+            }
+        case .italic:
+            let base = MarkdownText.baseFont(for: .paragraph)
+            let attrs = MarkdownText.attributes(for: RichRun(text: "", italic: on), base: base)
+            for (key, value) in attrs where key == .font {
+                storage.addAttribute(key, value: value, range: range)
+            }
+        case .underline:
+            if on {
+                storage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+            } else {
+                storage.removeAttribute(.underlineStyle, range: range)
+            }
+        case .strike:
+            if on {
+                storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+            } else {
+                storage.removeAttribute(.strikethroughStyle, range: range)
+            }
+        default:
+            break
+        }
+    }
+}
+
+extension MarkdownMarkKey {
+    static func attributeKey(for mark: InlineMark) -> NSAttributedString.Key {
+        switch mark {
+        case .bold: MarkdownMarkKey.bold
+        case .italic: MarkdownMarkKey.italic
+        case .underline: MarkdownMarkKey.underline
+        case .strike: MarkdownMarkKey.strike
+        case .highlight: MarkdownMarkKey.highlight
+        case .code: MarkdownMarkKey.code
+        case .link: MarkdownMarkKey.link
+        }
+    }
+}
+
 // MARK: - Редактор одного блока
 
 private struct MarkdownBlockEditor: View {
     let block: NoteBlock
     let mode: MarkdownEditorMode
     let isFocused: Bool
+    @ObservedObject var coordinator: MarkdownEditorCoordinator
     let onFocus: () -> Void
     let onChange: ([RichRun]) -> Void
-    let onDelete: () -> Void
 
     var body: some View {
         BlockTextRepresentable(
             block: block,
             mode: mode,
+            coordinator: coordinator,
             onFocus: onFocus,
             onChange: onChange
         )
@@ -120,12 +302,11 @@ private struct MarkdownBlockEditor: View {
     }
 }
 
-/// UIViewRepresentable, держащий UITextView для одного блока. Связь
-/// с родителем — через `onChange(runs:)` для rendered и через прямые
-/// `onChange(text:)` для source.
+/// UIViewRepresentable, держащий UITextView для одного блока.
 private struct BlockTextRepresentable: UIViewRepresentable {
     let block: NoteBlock
     let mode: MarkdownEditorMode
+    let coordinator: MarkdownEditorCoordinator
     let onFocus: () -> Void
     let onChange: ([RichRun]) -> Void
 
@@ -138,22 +319,19 @@ private struct BlockTextRepresentable: UIViewRepresentable {
         tv.textContainer.lineFragmentPadding = 0
         tv.adjustsFontForContentSizeCategory = true
         tv.font = MarkdownText.baseFont(for: block.kind)
+        tv.inputAccessoryView = coordinator.toolbarAccessory
         applyContent(to: tv)
         return tv
     }
 
     func updateUIView(_ tv: UITextView, context: Context) {
-        // При обновлении блока снаружи (например, загрузка из markdown)
-        // нужно переустановить attributedText — но только если содержимое
-        // реально изменилось, чтобы не сбрасывать курсор при наборе.
+        // Обновляем accessory, если вдруг пересоздали (например, mode поменялся).
+        if tv.inputAccessoryView !== coordinator.toolbarAccessory {
+            tv.inputAccessoryView = coordinator.toolbarAccessory
+        }
         let currentAttributed = tv.attributedText
         let expected = makeAttributed(for: block)
         if currentAttributed?.string != expected.string {
-            // Простое сравнение — по строке. Полный diff атрибутов на каждом
-            // updateUIView дороже, чем редкая потеря форматирования при
-            // внешнем апдейте блока; правка пользователя идёт через
-            // `textViewDidChange` и апдейт блоков идёт отсюда, а не из
-            // SwiftUI, так что лишних апдейтов нет.
             tv.attributedText = expected
         }
         tv.font = MarkdownText.baseFont(for: block.kind)
@@ -168,9 +346,6 @@ private struct BlockTextRepresentable: UIViewRepresentable {
         case .rendered:
             return MarkdownText.attributedString(runs: block.runs, blockKind: block.kind)
         case .source:
-            // Для source-режима просто текст прогона (markdown-разметка
-            // присутствует как есть) — кодировщик энкодит блок целиком,
-            // но для одного блока нам нужен только инлайн.
             let md = MarkdownEncoder.encode([block])
             return NSAttributedString(
                 string: md,
@@ -191,7 +366,14 @@ private struct BlockTextRepresentable: UIViewRepresentable {
         init(parent: BlockTextRepresentable) { self.parent = parent }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.coordinator.focusedTextView = textView
             parent.onFocus()
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            if parent.coordinator.focusedTextView === textView {
+                parent.coordinator.focusedTextView = nil
+            }
         }
 
         func textViewDidChange(_ textView: UITextView) {
@@ -201,9 +383,6 @@ private struct BlockTextRepresentable: UIViewRepresentable {
                 parent.onChange(runs)
             case .source:
                 let parsed = MarkdownParser.parse(textView.text)
-                // Берём runs первого блока — в source-режиме один блок =
-                // один редактор; многострочный исходник разбирается на
-                // несколько блоков при сохранении, а не в реальном времени.
                 let runs = parsed.first?.runs ?? []
                 parent.onChange(runs)
             }
