@@ -344,6 +344,7 @@ struct TaskFormScreen: View {
                     mode: .constant(.rendered),
                     collapsesToSingleBlock: true
                 )
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .listRowSeparator(.hidden)
             }
             .listRowBackground(Color.tfBackground)
