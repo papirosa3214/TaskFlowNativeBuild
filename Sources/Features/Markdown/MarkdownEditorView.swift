@@ -148,12 +148,12 @@ private struct BlockTextRepresentable: UIViewRepresentable {
         // реально изменилось, чтобы не сбрасывать курсор при наборе.
         let currentAttributed = tv.attributedText
         let expected = makeAttributed(for: block)
-        if currentAttributed?.string != expected.string
-            || currentAttributed?.attributes(at: 0, effectiveRange: nil) != expected.attributes(at: 0, effectiveRange: nil) {
-            // Простое сравнение — по строке. Для полноценного diff'а
-            // атрибутов нужна отдельная логика; пока достаточно того, что
-            // пользователь печатает в source-режиме и его правки не
-            // затираются (нет внешнего апдейта, пока он печатает).
+        if currentAttributed?.string != expected.string {
+            // Простое сравнение — по строке. Полный diff атрибутов на каждом
+            // updateUIView дороже, чем редкая потеря форматирования при
+            // внешнем апдейте блока; правка пользователя идёт через
+            // `textViewDidChange` и апдейт блоков идёт отсюда, а не из
+            // SwiftUI, так что лишних апдейтов нет.
             tv.attributedText = expected
         }
         tv.font = MarkdownText.baseFont(for: block.kind)

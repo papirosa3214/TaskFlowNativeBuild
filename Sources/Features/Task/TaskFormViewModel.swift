@@ -24,7 +24,19 @@ final class TaskFormViewModel {
     private let apiClient: APIClient
 
     var title = ""
-    var taskDescription = ""
+    /// AST-форма описания для `MarkdownEditorView` (LOCK-142). Строка
+    /// `taskDescription` ниже — проекция: get кодирует блоки в markdown,
+    /// set парсит входящий markdown (от сервера, от AI-структуризатора)
+    /// в блоки. Старый код, читающий `taskDescription` как String,
+    /// продолжает работать без правок.
+    var taskDescriptionBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)]
+    var taskDescription: String {
+        get { MarkdownEncoder.encode(taskDescriptionBlocks) }
+        set {
+            let parsed = MarkdownParser.parse(newValue)
+            taskDescriptionBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+        }
+    }
     var subtaskDrafts: [SubtaskDraft] = [] // режим create
     var subtasks: [ApiSubtask] = []        // режим edit — с сервера
     var dueDate: Date?
@@ -431,8 +443,21 @@ final class TaskFormViewModel {
             _ = try await apiClient.patchTask(id: task.id, fields: [
                 "ready_for_pickup": .bool(next),
             ])
+
+            // Родительская карточка — это единая постановка работы. Если
+            // владелец открыл её для самозахвата, ни одна дочерняя карточка
+            // не должна остаться закрытой для исполнителя (и наоборот при
+            // снятии флага). Серверного каскада у PATCH задачи нет, поэтому
+            // синхронизируем все дочерние задачи явно.
+            for child in childTasks where child.readyForPickup != next {
+                _ = try await apiClient.patchTask(id: child.id, fields: [
+                    "ready_for_pickup": .bool(next),
+                ])
+            }
+
             await loadIfNeeded()
-            // Тихо обновить список, чтобы плашка на доске тоже переключилась.
+            // Тихо обновить список, чтобы плашки родителя и детей на доске
+            // тоже переключились.
             await taskStore.load(silent: true)
         } catch {
             saveErrorMessage = "Не удалось изменить готовность задачи"

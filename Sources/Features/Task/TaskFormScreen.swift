@@ -327,17 +327,24 @@ struct TaskFormScreen: View {
             }
 
             Section {
-                TextField("Название задачи", text: $viewModel.title, axis: .vertical)
-                    .font(.headline)
-                    .lineLimit(1...6)
-                    .focused($isTitleFocused)
-                    .listRowSeparator(.hidden)
-                TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
-                    .lineLimit(1...)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
-                    .focused($isDescriptionFocused)
-                    .listRowSeparator(.hidden)
+                HStack(alignment: .center, spacing: TFSpacing.sm) {
+                    TextField("Название задачи", text: $viewModel.title, axis: .vertical)
+                        .font(.headline)
+                        .lineLimit(1...6)
+                        .focused($isTitleFocused)
+
+                    if viewModel.readyForPickup {
+                        TFReadyFlag()
+                    }
+                }
+                .listRowSeparator(.hidden)
+
+                MarkdownEditorView(
+                    blocks: $viewModel.taskDescriptionBlocks,
+                    mode: .constant(.rendered),
+                    collapsesToSingleBlock: true
+                )
+                .listRowSeparator(.hidden)
             }
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
