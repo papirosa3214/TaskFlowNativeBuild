@@ -1,16 +1,24 @@
 import UIKit
 import SwiftUI
 
-// ═══════════ RichRun ⇄ NSAttributedString ═══════════
+// ═══════════ NoteBlock ⇄ NSAttributedString ═══════════
 //
-// `NoteDocument`/`RichRun` (сосед, `NoteDocument.swift`) хранят СЕМАНТИКУ
-// прогона (bold/italic/…/linkHref) — ровно то, что уходит в TipTap JSON.
-// UITextView работает с NSAttributedString, у которого форматирование —
-// это ВИЗУАЛЬНЫЕ атрибуты (шрифт, цвет, подчёркивание). Здесь — мост между
-// двумя мирами: свои ключи `NoteMarkKey.*` хранят семантику НЕЗАВИСИМО от
-// того, как она нарисована, чтобы обратное чтение (attributedText → runs)
-// не пыталось «угадывать» bold по начертанию шрифта (жирный код и жирный
-// текст выглядят по-разному, но семантика читается по ключу, не по виду).
+// Общий рендер для всего, что работает с markdown-редактором: заметки,
+// описание задачи. Не зависит от `Notes/` — модуль `Markdown/` может быть
+// использован из любой фичи.
+//
+// `NoteBlock`/`RichRun` (в `NoteDocument.swift`) хранят СЕМАНТИКУ прогона
+// (bold/italic/…/linkHref) — ровно то, что уходит в markdown. UITextView
+// работает с NSAttributedString, у которого форматирование — это ВИЗУАЛЬНЫЕ
+// атрибуты (шрифт, цвет, подчёркивание). Здесь — мост между двумя мирами:
+// свои ключи `MarkdownMarkKey.*` хранят семантику НЕЗАВИСИМО от того, как
+// она нарисована, чтобы обратное чтение (attributedText → runs) не пыталось
+// «угадывать» bold по начертанию шрифта (жирный код и жирный текст
+// выглядят по-разному, но семантика читается по ключу, не по виду).
+
+/// Ключи семантических меток в `NSAttributedString`. Нужны для round-trip
+/// (UITextView.attributedText → RichRun), чтобы различать «жирный текст»
+/// и «жирный код» по семантике, а не по визуальному начертанию.
 
 /// Инлайн-марка — Swift-эквивалент отдельного мультипликатора состояния
 /// панели инструментов (какие кнопки подсвечены при текущем выделении).
@@ -18,17 +26,17 @@ enum InlineMark: Hashable {
     case bold, italic, underline, strike, highlight, code, link
 }
 
-enum NoteMarkKey {
-    static let bold = NSAttributedString.Key("tf.bold")
-    static let italic = NSAttributedString.Key("tf.italic")
-    static let underline = NSAttributedString.Key("tf.underline")
-    static let strike = NSAttributedString.Key("tf.strike")
-    static let highlight = NSAttributedString.Key("tf.highlight")
-    static let code = NSAttributedString.Key("tf.code")
-    static let link = NSAttributedString.Key("tf.link") // значение — String (href)
+enum MarkdownMarkKey {
+    static let bold = NSAttributedString.Key("md.bold")
+    static let italic = NSAttributedString.Key("md.italic")
+    static let underline = NSAttributedString.Key("md.underline")
+    static let strike = NSAttributedString.Key("md.strike")
+    static let highlight = NSAttributedString.Key("md.highlight")
+    static let code = NSAttributedString.Key("md.code")
+    static let link = NSAttributedString.Key("md.link")
 }
 
-enum NoteRichText {
+enum MarkdownText {
     /// Кегль тела блока — берётся из `TFFont.body` (15px), заголовки крупнее
     /// (числа спекой для блочного редактора не даны — используем шкалу
     /// `TFTextStyle`: H1=titleLarge 28px, H2=taskTitle 20px, H3=title 17px,
@@ -75,13 +83,13 @@ enum NoteRichText {
         } else if run.highlight {
             attrs[.backgroundColor] = UIColor(Color.tfYellow).withAlphaComponent(0.35)
         }
-        if run.bold { attrs[NoteMarkKey.bold] = true }
-        if run.italic { attrs[NoteMarkKey.italic] = true }
-        if run.underline { attrs[NoteMarkKey.underline] = true }
-        if run.strike { attrs[NoteMarkKey.strike] = true }
-        if run.highlight { attrs[NoteMarkKey.highlight] = true }
-        if run.code { attrs[NoteMarkKey.code] = true }
-        if let href = run.linkHref, !href.isEmpty { attrs[NoteMarkKey.link] = href }
+        if run.bold { attrs[MarkdownMarkKey.bold] = true }
+        if run.italic { attrs[MarkdownMarkKey.italic] = true }
+        if run.underline { attrs[MarkdownMarkKey.underline] = true }
+        if run.strike { attrs[MarkdownMarkKey.strike] = true }
+        if run.highlight { attrs[MarkdownMarkKey.highlight] = true }
+        if run.code { attrs[MarkdownMarkKey.code] = true }
+        if let href = run.linkHref, !href.isEmpty { attrs[MarkdownMarkKey.link] = href }
         return attrs
     }
 
@@ -101,7 +109,7 @@ enum NoteRichText {
     }
 
     /// NSAttributedString (из `UITextView.attributedText`) → `[RichRun]`.
-    /// Читает СЕМАНТИЧЕСКИЕ ключи (`NoteMarkKey.*`), не визуальные — так
+    /// Читает СЕМАНТИЧЕСКИЕ ключи (`MarkdownMarkKey.*`), не визуальные — так
     /// «жирный код» и «жирный текст» декодируются в одинаково `bold: true`
     /// независимо от того, что зрительно выглядят по-разному.
     static func runs(from attributed: NSAttributedString) -> [RichRun] {
@@ -112,13 +120,13 @@ enum NoteRichText {
             guard !text.isEmpty else { return }
             runs.append(RichRun(
                 text: text,
-                bold: (attrs[NoteMarkKey.bold] as? Bool) ?? false,
-                italic: (attrs[NoteMarkKey.italic] as? Bool) ?? false,
-                underline: (attrs[NoteMarkKey.underline] as? Bool) ?? false,
-                strike: (attrs[NoteMarkKey.strike] as? Bool) ?? false,
-                highlight: (attrs[NoteMarkKey.highlight] as? Bool) ?? false,
-                code: (attrs[NoteMarkKey.code] as? Bool) ?? false,
-                linkHref: attrs[NoteMarkKey.link] as? String
+                bold: (attrs[MarkdownMarkKey.bold] as? Bool) ?? false,
+                italic: (attrs[MarkdownMarkKey.italic] as? Bool) ?? false,
+                underline: (attrs[MarkdownMarkKey.underline] as? Bool) ?? false,
+                strike: (attrs[MarkdownMarkKey.strike] as? Bool) ?? false,
+                highlight: (attrs[MarkdownMarkKey.highlight] as? Bool) ?? false,
+                code: (attrs[MarkdownMarkKey.code] as? Bool) ?? false,
+                linkHref: attrs[MarkdownMarkKey.link] as? String
             ))
         }
         return runs

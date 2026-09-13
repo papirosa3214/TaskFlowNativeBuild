@@ -506,7 +506,7 @@ private struct NoteTableBlock: View {
     let onDeleteRow: (UUID) -> Void
     let onDeleteColumn: (UUID) -> Void
 
-    /// Кегль ячейки — общий с параграфом (`NoteRichText.baseFont`), чтобы
+    /// Кегль ячейки — общий с параграфом (`MarkdownText.baseFont`), чтобы
     /// текст в таблице не выглядел вторым сортом; шапка отличается только
     /// начертанием и подложкой.
     private static let cellFontSize: CGFloat = 15

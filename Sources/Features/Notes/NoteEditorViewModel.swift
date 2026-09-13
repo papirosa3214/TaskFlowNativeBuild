@@ -327,7 +327,7 @@ final class NoteEditorViewModel {
     func handleSplit(blockID: UUID, atUTF16Offset offset: Int) {
         guard let idx = index(of: blockID) else { return }
         let block = document.blocks[idx]
-        let (before, after) = NoteRichText.splitRuns(block.runs, atUTF16Offset: offset)
+        let (before, after) = MarkdownText.splitRuns(block.runs, atUTF16Offset: offset)
 
         switch block.kind {
         case .bulletItem, .orderedItem, .taskItem:

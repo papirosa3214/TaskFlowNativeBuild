@@ -31,13 +31,13 @@ final class NoteBlockTextController {
     fileprivate weak var textView: UITextView?
     var blockKind: BlockKind = .paragraph
     /// Кегль ячейки таблицы: тип блока у неё `paragraph`, а шапка рисуется
-    /// полужирной — см. `NoteRichText.attributedString(runs:blockKind:base:)`.
+    /// полужирной — см. `MarkdownText.attributedString(runs:blockKind:base:)`.
     var baseFontOverride: UIFont?
 
     /// Шрифт, которым переклеиваются атрибуты при переключении марок. Через
     /// него же идут `applyLink`/`insertPlainParagraph` — иначе правка марки
     /// внутри ячейки сбрасывала бы её кегль на общеблочный.
-    var baseFont: UIFont { baseFontOverride ?? NoteRichText.baseFont(for: blockKind) }
+    var baseFont: UIFont { baseFontOverride ?? MarkdownText.baseFont(for: blockKind) }
 
     /// `false`, если строка блока ещё не успела появиться в дереве SwiftUI
     /// (`textView == nil`) — вызывающий (см. `NoteEditorScreen`) не должен
@@ -62,7 +62,7 @@ final class NoteBlockTextController {
 
     func currentRuns() -> [RichRun] {
         guard let tv = textView else { return [] }
-        return NoteRichText.runs(from: tv.attributedText)
+        return MarkdownText.runs(from: tv.attributedText)
     }
 
     /// Текст текущего выделения — читает меню AI («применяется к выделенному
@@ -76,13 +76,13 @@ final class NoteBlockTextController {
     private func runState(at attrs: [NSAttributedString.Key: Any]) -> RichRun {
         RichRun(
             text: "",
-            bold: (attrs[NoteMarkKey.bold] as? Bool) ?? false,
-            italic: (attrs[NoteMarkKey.italic] as? Bool) ?? false,
-            underline: (attrs[NoteMarkKey.underline] as? Bool) ?? false,
-            strike: (attrs[NoteMarkKey.strike] as? Bool) ?? false,
-            highlight: (attrs[NoteMarkKey.highlight] as? Bool) ?? false,
-            code: (attrs[NoteMarkKey.code] as? Bool) ?? false,
-            linkHref: attrs[NoteMarkKey.link] as? String
+            bold: (attrs[MarkdownMarkKey.bold] as? Bool) ?? false,
+            italic: (attrs[MarkdownMarkKey.italic] as? Bool) ?? false,
+            underline: (attrs[MarkdownMarkKey.underline] as? Bool) ?? false,
+            strike: (attrs[MarkdownMarkKey.strike] as? Bool) ?? false,
+            highlight: (attrs[MarkdownMarkKey.highlight] as? Bool) ?? false,
+            code: (attrs[MarkdownMarkKey.code] as? Bool) ?? false,
+            linkHref: attrs[MarkdownMarkKey.link] as? String
         )
     }
 
@@ -122,7 +122,7 @@ final class NoteBlockTextController {
         guard let tv = textView else { return nil }
         let range = tv.selectedRange
         if range.length == 0 {
-            return tv.typingAttributes[NoteMarkKey.link] as? String
+            return tv.typingAttributes[MarkdownMarkKey.link] as? String
         }
         return linkExtendedRange().href
     }
@@ -136,7 +136,7 @@ final class NoteBlockTextController {
         if range.length > 0 {
             var allSame = true
             var href: String?
-            storage.enumerateAttribute(NoteMarkKey.link, in: range, options: []) { value, _, stop in
+            storage.enumerateAttribute(MarkdownMarkKey.link, in: range, options: []) { value, _, stop in
                 let v = value as? String
                 if href == nil && v != nil { href = v }
                 if v != href { allSame = false; stop.pointee = true }
@@ -144,7 +144,7 @@ final class NoteBlockTextController {
             return allSame ? (range, href) : (nil, nil)
         }
         let probe = max(0, min(range.location, storage.length - 1))
-        guard probe < storage.length, let href = storage.attribute(NoteMarkKey.link, at: probe, effectiveRange: &range) as? String else {
+        guard probe < storage.length, let href = storage.attribute(MarkdownMarkKey.link, at: probe, effectiveRange: &range) as? String else {
             return (nil, nil)
         }
         return (range, href)
@@ -158,7 +158,7 @@ final class NoteBlockTextController {
             var run = runState(at: tv.typingAttributes)
             let turnOn = !marks(of: run).contains(mark)
             apply(&run, turnOn)
-            tv.typingAttributes = NoteRichText.attributes(for: run, base: base)
+            tv.typingAttributes = MarkdownText.attributes(for: run, base: base)
             return
         }
         guard let storage = tv.textStorage as NSTextStorage? else { return }
@@ -172,7 +172,7 @@ final class NoteBlockTextController {
         storage.enumerateAttributes(in: range, options: []) { attrs, subrange, _ in
             var run = runState(at: attrs)
             apply(&run, turnOn)
-            storage.setAttributes(NoteRichText.attributes(for: run, base: base), range: subrange)
+            storage.setAttributes(MarkdownText.attributes(for: run, base: base), range: subrange)
         }
         storage.endEditing()
         tv.selectedRange = range
@@ -187,13 +187,13 @@ final class NoteBlockTextController {
 
     static func semanticKey(for mark: InlineMark) -> NSAttributedString.Key {
         switch mark {
-        case .bold: NoteMarkKey.bold
-        case .italic: NoteMarkKey.italic
-        case .underline: NoteMarkKey.underline
-        case .strike: NoteMarkKey.strike
-        case .highlight: NoteMarkKey.highlight
-        case .code: NoteMarkKey.code
-        case .link: NoteMarkKey.link
+        case .bold: MarkdownMarkKey.bold
+        case .italic: MarkdownMarkKey.italic
+        case .underline: MarkdownMarkKey.underline
+        case .strike: MarkdownMarkKey.strike
+        case .highlight: MarkdownMarkKey.highlight
+        case .code: MarkdownMarkKey.code
+        case .link: MarkdownMarkKey.link
         }
     }
 
@@ -208,7 +208,7 @@ final class NoteBlockTextController {
         storage.enumerateAttributes(in: range, options: []) { attrs, subrange, _ in
             var run = runState(at: attrs)
             run.linkHref = href
-            storage.setAttributes(NoteRichText.attributes(for: run, base: base), range: subrange)
+            storage.setAttributes(MarkdownText.attributes(for: run, base: base), range: subrange)
         }
         storage.endEditing()
         tv.selectedRange = NSRange(location: range.location + range.length, length: 0)
@@ -223,7 +223,7 @@ final class NoteBlockTextController {
         storage.enumerateAttributes(in: range, options: []) { attrs, subrange, _ in
             var run = runState(at: attrs)
             run.linkHref = nil
-            storage.setAttributes(NoteRichText.attributes(for: run, base: base), range: subrange)
+            storage.setAttributes(MarkdownText.attributes(for: run, base: base), range: subrange)
         }
         storage.endEditing()
     }
@@ -233,7 +233,7 @@ final class NoteBlockTextController {
     func insertPlainParagraph(_ text: String) {
         guard let tv = textView else { return }
         let base = baseFont
-        let insertion = NSAttributedString(text: text, attributes: NoteRichText.attributes(for: RichRun(text: text), base: base))
+        let insertion = NSAttributedString(text: text, attributes: MarkdownText.attributes(for: RichRun(text: text), base: base))
         let range = tv.selectedRange
         guard let storage = tv.textStorage as NSTextStorage? else { return }
         storage.replaceCharacters(in: range, with: insertion)
@@ -605,10 +605,10 @@ struct NoteBlockTextView: UIViewRepresentable {
         tv.textContainerInset = .zero
         tv.textContainer.lineFragmentPadding = 0
         tv.delegate = context.coordinator
-        tv.font = baseFontOverride ?? NoteRichText.baseFont(for: blockKind)
+        tv.font = baseFontOverride ?? MarkdownText.baseFont(for: blockKind)
         tv.tintColor = UIColor(Color.tfRed)
         tv.dataDetectorTypes = []
-        tv.attributedText = NoteRichText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
+        tv.attributedText = MarkdownText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
         tv.inputAccessoryView = accessoryView
         tv.onBackspaceAtStart = { [weak coordinator = context.coordinator] in
             guard let coordinator else { return }
@@ -634,7 +634,7 @@ struct NoteBlockTextView: UIViewRepresentable {
         }
         let kindChanged = context.coordinator.lastBlockKind != blockKind
         context.coordinator.lastBlockKind = blockKind
-        let expected = NoteRichText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
+        let expected = MarkdownText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
 
         if kindChanged {
             // Смена типа блока (параграф → заголовок и т.п.) обязана
@@ -644,7 +644,7 @@ struct NoteBlockTextView: UIViewRepresentable {
             uiView.attributedText = expected
             uiView.selectedRange = NSRange(location: min(saved.location, expected.length), length: 0)
             if uiView.isFirstResponder {
-                uiView.typingAttributes = NoteRichText.attributes(for: RichRun(text: ""), base: controller.baseFont)
+                uiView.typingAttributes = MarkdownText.attributes(for: RichRun(text: ""), base: controller.baseFont)
             }
         } else if !uiView.isFirstResponder, uiView.attributedText.string != expected.string {
             // Блок сейчас НЕ редактируется — внешняя правка (АИ вставил
@@ -684,7 +684,7 @@ struct NoteBlockTextView: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             textView.invalidateIntrinsicContentSize()
-            parent.onChange(parent.blockID, NoteRichText.runs(from: textView.attributedText))
+            parent.onChange(parent.blockID, MarkdownText.runs(from: textView.attributedText))
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {

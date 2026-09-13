@@ -3,7 +3,7 @@ import Foundation
 // ═══════════ Markdown → [NoteBlock] ═══════════
 //
 // Сфокусированный парсер для TaskFlow: тот же `NoteBlock`/`RichRun` AST,
-// что и в `NoteDocument.swift` (заметки), чтобы рендер из `NoteRichText`
+// что и в `NoteDocument.swift` (заметки), чтобы рендер из `MarkdownText`
 // работал без изменений. Поддерживает ровно то, что обещает тулбар
 // карточки задачи и редактора заметки — никаких Obsidian-расширений.
 //
