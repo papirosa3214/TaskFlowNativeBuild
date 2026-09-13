@@ -21,6 +21,9 @@ public enum AppRoute: Hashable {
     /// Существующие задачи всегда открываются через `taskDetail`.
     case taskCreate
     case notes
+    /// Прямое создание из центрального «+»: сначала открывается база, затем
+    /// создаётся документ и сразу показывается его редактор.
+    case noteCreate
     /// Дневник, сразу открытый на конкретной папке (просьба владельца
     /// 03.09.2026: шеврон «Документация» у проекта вёл на общий несвязанный
     /// корень Заметок — не та папка, что показана в превью карточки проекта).
@@ -29,6 +32,9 @@ public enum AppRoute: Hashable {
     case noteFolder(folderID: Int)
     case noteEditor(noteID: String)
     case projects
+    /// Прямое создание из центрального «+»: открывает «Проекты» сразу с
+    /// существующей формой создания, а не просто список проектов.
+    case projectCreate
     /// Смысловой поиск по документации всех проектов (KnowledgeScreen).
     case knowledge
     case projectTasks(projectID: String)

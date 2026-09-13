@@ -15,27 +15,57 @@ struct TodayBoardView: View {
     let onOpenTask: (String) -> Void
     let onReschedule: () -> Void
     let onAddTask: () -> Void
+    var isSelectingTasks = false
+    var selectedTaskIDs: Set<String> = []
+    var onToggleTaskSelection: (String) -> Void = { _ in }
+    var onToggleColumnSelection: (TodayBoardColumn) -> Void = { _ in }
+    @State private var visibleColumnID: TodayBoardColumn.Kind?
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: TFSpacing.md) {
-                ForEach(columns) { column in
-                    columnView(column)
-                        .id(column.id)
-                        .containerRelativeFrame(.horizontal) { availableWidth, _ in
-                            max(280, availableWidth - TFSpacing.lg * 2 - boardNextColumnPeek)
-                        }
-                        .frame(maxHeight: .infinity, alignment: .top)
+        GeometryReader { proxy in
+            let columnWidth = max(280, proxy.size.width - TFSpacing.lg * 2 - boardNextColumnPeek)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: TFSpacing.md) {
+                    ForEach(columns) { column in
+                        columnView(column)
+                            .id(column.id)
+                            // Явные границы дают горизонтальному скроллу
+                            // стабильные цели. Раньше ширина вычислялась через
+                            // containerRelativeFrame внутри вложенных скроллов;
+                            // при изменении состава колонок геометрия уезжала.
+                            .frame(width: columnWidth, height: proxy.size.height, alignment: .top)
+                    }
                 }
+                .padding(.horizontal, TFSpacing.lg)
+                .scrollTargetLayout()
             }
-            .frame(maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal, TFSpacing.lg)
-            .scrollTargetLayout()
+            .scrollPosition(id: $visibleColumnID, anchor: .leading)
+            .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+            // 13.09.2026, LOCK-140: `.frame(maxWidth:height:)` — нет такой
+            // перегрузки (`extra argument 'height' in call`); семантика —
+            // «во всю ширину и ровно proxy.size.height в высоту», поэтому
+            // оба параметра должны быть из одной группы (конкретные либо
+            // максимумы). Берём максимумы: `GeometryReader` отдаёт точный
+            // размер и не сжимает вложенный view, так что `maxHeight` тут
+            // эквивалентен `height`.
+            .frame(maxWidth: .infinity, maxHeight: proxy.size.height, alignment: .top)
+            .onAppear { keepVisibleColumnValid() }
+            .onChange(of: columns.map(\.id)) { _, _ in keepVisibleColumnValid() }
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-        // После отпускания всегда защёлкиваемся на одной ближайшей колонке.
-        // `automatic` позволял инерции пролетать несколько широких досок и
-        // создавал ощущение ленты без собственных границ.
-        .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func keepVisibleColumnValid() {
+        guard let first = columns.first?.id else {
+            visibleColumnID = nil
+            return
+        }
+        if let visibleColumnID,
+           columns.contains(where: { $0.id == visibleColumnID }) {
+            return
+        }
+        visibleColumnID = first
     }
 
     private func columnView(_ column: TodayBoardColumn) -> some View {
@@ -55,7 +85,7 @@ struct TodayBoardView: View {
             // размытия у него нет, лента просто идёт под ним.
             LazyVStack(spacing: TFSpacing.sm, pinnedViews: [.sectionHeaders]) {
                 Section {
-                    if column.tasks.isEmpty {
+                    if column.tasks.isEmpty && column.id != .today {
                         TFEmptyState(
                             icon: nil,
                             text: "Нет задач"
@@ -90,7 +120,14 @@ struct TodayBoardView: View {
                             .fontWeight(.semibold)
                             .foregroundStyle(column.titleIsRed ? Color.tfRed : Color.tfText)
                         Spacer()
-                        if column.id == .overdue {
+                        if isSelectingTasks, !column.tasks.isEmpty {
+                            let allSelected = column.tasks.allSatisfy { selectedTaskIDs.contains($0.id) }
+                            Button(allSelected ? "Снять выбор" : "Выбрать все") {
+                                onToggleColumnSelection(column)
+                            }
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.tfRed)
+                        } else if column.id == .overdue {
                             Button("Перенести", action: onReschedule)
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Color.tfRed)
@@ -98,6 +135,11 @@ struct TodayBoardView: View {
                     }
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    // Закреплённый заголовок должен закрывать карточки под
+                    // собой. Прозрачный header давал наложение текста при
+                    // вертикальной прокрутке колонки.
+                    .background(Color.tfBackground)
+                    .zIndex(1)
                 }
             }
             // Запас снизу — высота панели вкладок: последняя карточка должна
@@ -111,8 +153,15 @@ struct TodayBoardView: View {
     }
 
     private func boardCard(_ task: ApiTask) -> some View {
-        Button(action: { onOpenTask(task.id) }) {
-            VStack(alignment: .leading, spacing: 4) {
+        Button(action: {
+            if isSelectingTasks {
+                onToggleTaskSelection(task.id)
+            } else {
+                onOpenTask(task.id)
+            }
+        }) {
+            ZStack(alignment: .topTrailing) {
+                VStack(alignment: .leading, spacing: 4) {
                 if let projectName = task.projectName {
                     Text("#\(projectName)")
                         .tfText(.caption)
@@ -139,17 +188,24 @@ struct TodayBoardView: View {
                         .tfText(.caption)
                         .foregroundStyle(TodayAgentStateTag.color(task))
                 }
-                HStack(spacing: TFSpacing.xs) {
-                    if !task.subtasks.isEmpty {
-                        let done = task.subtasks.count { $0.done }
-                        TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard2)
+                    HStack(spacing: TFSpacing.xs) {
+                        if !task.subtasks.isEmpty {
+                            let done = task.subtasks.count { $0.done }
+                            TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard2)
+                        }
+                        if let due = task.dueDate {
+                            TFPill(TodayDate.formatDuePlain(due), color: .tfSub, solidBackground: .tfCard2)
+                        }
+                        if let label = task.labels.first {
+                            TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned))
+                        }
                     }
-                    if let due = task.dueDate {
-                        TFPill(TodayDate.formatDuePlain(due), color: .tfSub, solidBackground: .tfCard2)
-                    }
-                    if let label = task.labels.first {
-                        TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned))
-                    }
+                }
+                if isSelectingTasks {
+                    Image(systemName: selectedTaskIDs.contains(task.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(selectedTaskIDs.contains(task.id) ? Color.tfRed : Color.tfSub)
+                        .padding(8)
                 }
             }
             .padding(.top, 8)
@@ -160,6 +216,11 @@ struct TodayBoardView: View {
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         }
         .buttonStyle(TFTapScaleStyle())
+        .accessibilityLabel(
+            isSelectingTasks
+                ? (selectedTaskIDs.contains(task.id) ? "Снять выбор: \(task.title)" : "Выбрать: \(task.title)")
+                : task.title
+        )
     }
 }
 

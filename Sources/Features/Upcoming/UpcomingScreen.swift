@@ -68,6 +68,12 @@ public struct UpcomingScreen: View {
     @State private var plannerVisibleProjectIds: Set<String> = Set(
         UserDefaults.standard.stringArray(forKey: "plannerVisibleProjects") ?? []
     )
+    /// Пустое хранилище имеет два разных смысла: на новой установке проекты
+    /// ещё не выбирались и надо показать всё; после явного снятия всех галочек
+    /// пустой список означает «только беспроектные». Различаем эти состояния,
+    /// иначе доска на свежем запуске выглядит пустой.
+    @State private var plannerProjectsConfigured =
+        UserDefaults.standard.object(forKey: "plannerVisibleProjects") != nil
 
     /// В шапке показывается текущий месяц, а не техническое имя режима —
     /// кроме «Сегодня» (список/почасовой): владелец 07.09.2026 попросил там
@@ -103,6 +109,10 @@ public struct UpcomingScreen: View {
     public var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .refreshable {
+            await taskStore.load(silent: true)
+            await projectStore.load()
+        }
         .tfNativeHeader(navigationTitle, displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { subviewPill }
@@ -166,7 +176,7 @@ public struct UpcomingScreen: View {
                     onAddTask: { createTaskOpen = true },
                     plannerViewSwitcher: AnyView(viewSwitcherMenu),
                     sectionCompositionMenu: AnyView(sectionCompositionMenu),
-                    visibleProjectIds: plannerVisibleProjectIds,
+                    visibleProjectIds: effectivePlannerVisibleProjectIds,
                     showAgentTasks: plannerShowAgentTasks,
                     showCompleted: filters.showCompleted
                 )
@@ -434,8 +444,18 @@ public struct UpcomingScreen: View {
         taskStore.tasks.filter { t in
             (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents))
                 && t.dueDate != nil
-                && (t.projectId == nil || plannerVisibleProjectIds.contains(t.projectId!))
+                && (t.projectId == nil || effectivePlannerVisibleProjectIds.contains(t.projectId!))
         }
+    }
+
+    private var effectivePlannerVisibleProjectIds: Set<String> {
+        guard plannerProjectsConfigured else {
+            // Сторы могут прийти не одновременно: не скрываем задачи, пока
+            // список проектов ещё не успел загрузиться.
+            return Set(projectStore.projects.map(\.id))
+                .union(taskStore.tasks.compactMap(\.projectId))
+        }
+        return plannerVisibleProjectIds
     }
 
     /// Тот же «раздел», но БЕЗ сужения по видимым проектам — источник опций
@@ -525,7 +545,7 @@ public struct UpcomingScreen: View {
     /// отмечать «все» там нечего.
     private var allPlannerProjectsVisible: Bool {
         !projectStore.projects.isEmpty
-            && projectStore.projects.allSatisfy { plannerVisibleProjectIds.contains($0.id) }
+            && projectStore.projects.allSatisfy { effectivePlannerVisibleProjectIds.contains($0.id) }
     }
 
     private func togglePlannerAllProjects() {
@@ -534,6 +554,7 @@ public struct UpcomingScreen: View {
         } else {
             plannerVisibleProjectIds = Set(projectStore.projects.map(\.id))
         }
+        plannerProjectsConfigured = true
         UserDefaults.standard.set(Array(plannerVisibleProjectIds), forKey: "plannerVisibleProjects")
     }
 
@@ -557,7 +578,7 @@ public struct UpcomingScreen: View {
                 }
                 Divider()
                 ForEach(projectStore.projects) { project in
-                    filterOption(project.name, selected: plannerVisibleProjectIds.contains(project.id)) {
+                    filterOption(project.name, selected: effectivePlannerVisibleProjectIds.contains(project.id)) {
                         togglePlannerVisibleProject(project.id)
                     }
                 }
@@ -600,6 +621,7 @@ public struct UpcomingScreen: View {
         } else {
             plannerVisibleProjectIds.insert(id)
         }
+        plannerProjectsConfigured = true
         UserDefaults.standard.set(Array(plannerVisibleProjectIds), forKey: "plannerVisibleProjects")
     }
 }

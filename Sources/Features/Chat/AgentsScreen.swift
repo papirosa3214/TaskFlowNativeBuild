@@ -49,11 +49,17 @@ struct AgentsScreen: View {
 
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
-                    ForEach(viewModel.agents) { agent in
+                    ForEach(Array(viewModel.agents.enumerated()), id: \.element.id) { index, agent in
+                        if index > 0 {
+                            TFDivider()
+                                .padding(.leading, TFSpacing.lg + 40 + TFSpacing.md)
+                        }
                         AgentRow(
                             agent: agent,
                             editable: viewModel.isOwner && agent.type == .ai,
+                            isExpanded: viewModel.isExpanded(agent.id),
                             viewModel: viewModel,
+                            onTapRow: { viewModel.toggleExpand(agent.id) },
                             onRequestDelete: { agentPendingDelete = $0 }
                         )
                     }
@@ -107,7 +113,7 @@ struct AgentsScreen: View {
         }
     }
 
-    private func issuedTokenCard(_ issued: (name: String, token: String)) -> some View {
+    private func issuedTokenCard(_ issued: (agentID: String, name: String, token: String)) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             Text("Агент «\(issued.name)» заведён")
                 .tfText(.body)

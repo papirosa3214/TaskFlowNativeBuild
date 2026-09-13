@@ -123,6 +123,10 @@ struct UpcomingHoursView: View {
     @State private var dragState: DragState?
     @State private var previewTime: String?
     @State private var gridFrame: CGRect = .zero
+    /// Реальная ширина висящего пула. Нужна только ghost-плашке при
+    /// перетаскивании из пула: после отказа от растягивающего
+    /// `GeometryReader` она больше не равна ширине всего экрана.
+    @State private var untimedPoolWidth: CGFloat = 0
     /// Смещение «где на плашке схватили» относительно её верхнего края —
     /// фиксируется один раз при старте жеста, 0 для пула (там перетаскивание
     /// системное, не через эту переменную).
@@ -142,25 +146,32 @@ struct UpcomingHoursView: View {
             if showsDayHeader {
                 UpcomingDayColumnsHeader(days: days)
             }
-            if !untimed.isEmpty {
-                untimedPool
-            }
             ScrollViewReader { proxy in
-                ScrollView {
-                    gridBody
-                }
-                .tfHoursNativeTopScrollEdge()
-                .onAppear {
-                    // Автопрокрутка к текущему часу с запасом 120px сверху
-                    // (спека §3.5), зажатая видимым диапазоном (владелец
-                    // 07.09.2026: сетка теперь только startHour...endHour).
-                    let hour = Calendar.current.component(.hour, from: Date())
-                    let anchor = min(max(hour - 1, startHour), endHour)
-                    DispatchQueue.main.async {
-                        withAnimation { proxy.scrollTo("hour-\(anchor)", anchor: .top) }
+                ZStack(alignment: .topLeading) {
+                    ScrollView {
+                        gridBody
+                    }
+                    .tfHoursNativeTopScrollEdge()
+                    .onAppear {
+                        // Автопрокрутка к текущему часу с запасом 120px сверху
+                        // (спека §3.5), зажатая видимым диапазоном (владелец
+                        // 07.09.2026: сетка теперь только startHour...endHour).
+                        let hour = Calendar.current.component(.hour, from: Date())
+                        let anchor = min(max(hour - 1, startHour), endHour)
+                        DispatchQueue.main.async {
+                            withAnimation { proxy.scrollTo("hour-\(anchor)", anchor: .top) }
+                        }
+                    }
+
+                    if !untimed.isEmpty {
+                        // Пул лежит над прокруткой, а не отдельной строкой
+                        // `VStack`: часы проходят под карточкой, поэтому
+                        // системное scroll-edge затухание остаётся видно.
+                        untimedPool
+                            .zIndex(1)
                     }
                 }
-                .frame(maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -236,32 +247,46 @@ struct UpcomingHoursView: View {
 
     // MARK: - Пул задач без времени
 
-    /// Оформление 1-в-1 с пулом «Сегодня» (`TodayHoursView.untimedPool`) —
-    /// владелец 03.09.2026: «в трёх днях прицепил к краям, а в Сегодня
-    /// аккуратненько висит». Там разница шла ещё и с внешней стороны —
-    /// `TodayScreen` даёт всему `TodayHoursView` `.padding(.horizontal:)`
-    /// снаружи, здесь `UpcomingHoursView` идёт от края до края (у сетки
-    /// часов с тремя колонками свободного места и так впритык, ужимать
-    /// не стоит) — поэтому боковой отступ добавлен ЛОКАЛЬНО, только пулу,
-    /// а не всему экрану.
+    /// Пул расположен в overlay над сеткой, а не в потоке `VStack`: свободные
+    /// части вокруг карточки прозрачны, и сетка прокручивается под ней.
+    /// Боковой отступ локален пулу — сетку с тремя колонками не ужимаем.
     private var untimedPool: some View {
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
-                    if index > 0 { TFDivider() }
-                    UpcomingUntimedRow(task: task)
-                        .opacity(dragState?.taskID == task.id ? 0.3 : 1)
-                        .gesture(dragGesture(for: task, dayIndex: 0, top: nil, height: minBlockH, width: geo.size.width))
-                        .onTapGesture { if dragState == nil { onTaskTap(task.id) } }
-                }
+        // Первый вариант берёт естественную ширину текста: одна короткая
+        // задача не превращается в полосу на весь экран. Для длинной записи
+        // `ViewThatFits` выбирает второй, ограниченный шириной контейнера.
+        // Фон рисуется до внешнего выравнивания, поэтому нет растянутой
+        // подложки за карточкой.
+        ViewThatFits(in: .horizontal) {
+            untimedPoolCard
+                .fixedSize(horizontal: true, vertical: false)
+            untimedPoolCard
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: UpcomingUntimedPoolWidthKey.self, value: proxy.size.width)
+            }
+        }
+        .onPreferenceChange(UpcomingUntimedPoolWidthKey.self) { untimedPoolWidth = $0 }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.bottom, TFSpacing.md)
+    }
+
+    private var untimedPoolCard: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
+                if index > 0 { TFDivider() }
+                UpcomingUntimedRow(task: task)
+                    .opacity(dragState?.taskID == task.id ? 0.3 : 1)
+                    .gesture(dragGesture(for: task, dayIndex: 0, top: nil, height: minBlockH, width: max(untimedPoolWidth, 1)))
+                    .onTapGesture { if dragState == nil { onTaskTap(task.id) } }
             }
         }
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .tfShadow(TFShadow.dropdown)
-        .frame(maxHeight: 132)
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.bottom, TFSpacing.md)
+        .frame(maxHeight: 132, alignment: .top)
     }
 
     // MARK: - Сетка часов
@@ -772,6 +797,17 @@ private struct UpcomingUntimedRow: View {
         .padding(.trailing, 12)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
+    }
+}
+
+/// Замер фона выбранного `ViewThatFits`-варианта. `GeometryReader` живёт
+/// только фоном и поэтому не резервирует для пула высоту, как это делал
+/// прежний корневой `GeometryReader`.
+private struct UpcomingUntimedPoolWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

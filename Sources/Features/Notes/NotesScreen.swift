@@ -21,6 +21,10 @@ public struct NotesScreen: View {
     /// проекта вёл на общий несвязанный корень Дневника, не на папку,
     /// показанную в превью карточки проекта. `nil` — обычный корень, как раньше.
     private let focusFolderID: Int?
+    /// Сценарий центрального «+»: не просто открыть базу, а сразу завести
+    /// документ и перейти в его редактор.
+    private let startsNewNote: Bool
+    @State private var hasStartedNewNote = false
 
     @State private var showRenameSheet = false
     @State private var renameText = ""
@@ -38,8 +42,9 @@ public struct NotesScreen: View {
 
     private var isKnowledgeSearchActive: Bool { !trimmedKnowledgeQuery.isEmpty }
 
-    public init(focusFolderID: Int? = nil) {
+    public init(focusFolderID: Int? = nil, startsNewNote: Bool = false) {
         self.focusFolderID = focusFolderID
+        self.startsNewNote = startsNewNote
     }
 
     public var body: some View {
@@ -81,6 +86,10 @@ public struct NotesScreen: View {
             }
             .task {
                 await viewModel.load()
+                if startsNewNote && !hasStartedNewNote {
+                    hasStartedNewNote = true
+                    await createNoteAndNavigate()
+                }
                 guard let focusFolderID else { return }
                 expandAncestors(of: focusFolderID)
                 // Короткая пауза — дать LazyVStack отрисовать развёрнутые
@@ -115,6 +124,10 @@ public struct NotesScreen: View {
         // она отдаёт заглушку, и список заметок от этого не ломается.
         .navigationDestination(item: $pendingNoteID) { id in
             routeDestination(.noteEditor(noteID: id))
+        }
+        .refreshable {
+            await viewModel.loadFolders()
+            await viewModel.loadNotes()
         }
         // Поиск использует тот же индекс документов, но результат всегда
         // открывает исходную заметку. Дебаунс бережёт серверный retrieval.

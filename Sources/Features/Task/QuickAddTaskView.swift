@@ -1,13 +1,11 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Быстрое создание задачи — 07.09.2026, владелец: «как в Todoist, никакого
-/// здорового всплывающего окна, просто карточка прямо над клавиатурой, а
-/// инструменты — в одном овальном окошке». Больше не `NavigationStack`+`Form`
-/// (тот вариант выглядел как полноэкранная анкета) — свой оверлей: мутный фон
-/// на весь экран плюс карточка у нижней кромки, которая поднимается вместе с
-/// клавиатурой. Показывается прозрачным `fullScreenCover` (см. `RootShellView`),
-/// а не `.sheet`: детенты с фокусом в поле раздувались почти на весь экран.
+/// Быстрое создание задачи. На iOS 26 вся компактная форма находится в
+/// штатном `safeAreaBar(edge: .bottom)`: система сама размещает её над
+/// клавиатурой. Поверхность — системный `glassEffect`, а кнопка основного
+/// действия — `glassProminent`; ручных материалов, рамок и теней нет.
+/// На iOS 18–25 сохранён прежний оверлей как совместимый fallback.
 struct QuickAddTaskView: View {
     @Bindable var viewModel: TaskFormViewModel
     var onSaved: () -> Void
@@ -20,7 +18,6 @@ struct QuickAddTaskView: View {
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isDescriptionFocused: Bool
     @State private var isAttachmentImporterPresented = false
-    @State private var dictation = DictationEngine.shared
     @State private var isDescriptionExpanded = false
     @State private var isSubtasksExpanded = false
     @State private var newSubtaskTitle = ""
@@ -29,6 +26,51 @@ struct QuickAddTaskView: View {
     @State private var isAttachmentsPopoverPresented = false
 
     var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                systemQuickAdd
+            } else {
+                legacyQuickAdd
+            }
+        }
+        .alert("Не удалось сохранить задачу", isPresented: Binding(
+            get: { viewModel.saveErrorMessage != nil },
+            set: { if !$0 { viewModel.saveErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.saveErrorMessage = nil }
+        } message: {
+            Text(viewModel.saveErrorMessage ?? "")
+        }
+        .task {
+            await viewModel.loadAgents()
+            isTitleFocused = true
+        }
+    }
+
+    /// iOS 26: `safeAreaBar` — системный контейнер для произвольной панели у
+    /// края safe area. Когда появляется клавиатура, её верхняя граница
+    /// становится нижней safe area, поэтому вся форма движется вместе с ней.
+    /// В отличие от `.toolbar(placement: .keyboard)`, здесь помещается не
+    /// только ряд команд, а целая форма переменной высоты.
+    @available(iOS 26.0, *)
+    private var systemQuickAdd: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !isDueDatePopoverPresented, !isAttachmentsPopoverPresented else { return }
+                closePanel()
+            }
+            .safeAreaBar(edge: .bottom) {
+                card(systemAppearance: true)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 26))
+                    .tint(Color.primary)
+                    .padding(.horizontal, TFSpacing.md)
+                    .padding(.bottom, TFSpacing.sm)
+            }
+    }
+
+    /// Совместимость для минимальной версии приложения (iOS 18).
+    private var legacyQuickAdd: some View {
         ZStack(alignment: .bottom) {
             // Замутнённый фон — владелец 07.09.2026: «остальное чуть-чуть
             // замутнить, чтобы окошко было более чётким». Тап по фону
@@ -45,7 +87,7 @@ struct QuickAddTaskView: View {
                     closePanel()
                 }
 
-            card
+            card(systemAppearance: false)
                 // Слои: замутнённый фон → карточка (`tfCard`) → капсула
                 // инструментов, вдавленная в карточку (темнее + внутренняя
                 // тень, см. `toolsCapsule`).
@@ -60,18 +102,6 @@ struct QuickAddTaskView: View {
                 .padding(.horizontal, TFSpacing.md)
                 .padding(.bottom, TFSpacing.sm)
         }
-        .alert("Не удалось сохранить задачу", isPresented: Binding(
-            get: { viewModel.saveErrorMessage != nil },
-            set: { if !$0 { viewModel.saveErrorMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) { viewModel.saveErrorMessage = nil }
-        } message: {
-            Text(viewModel.saveErrorMessage ?? "")
-        }
-        .task {
-            await viewModel.loadAgents()
-            isTitleFocused = true
-        }
     }
 
     /// Тёплый белый свет «ленты» в жёлобе инструментов — владелец
@@ -79,10 +109,10 @@ struct QuickAddTaskView: View {
     /// подсвечен низ иконок, чтобы источник читался одним.
     private static let warmGlow = Color(red: 1.0, green: 0.84, blue: 0.6)
 
-    private var card: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
+    private func card(systemAppearance: Bool) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TextField("Новая задача", text: $viewModel.title, axis: .vertical)
-                .tfText(.taskTitle)
+                .tfText(.input)
                 .foregroundStyle(Color.tfText)
                 .lineLimit(1...4)
                 .focused($isTitleFocused)
@@ -91,7 +121,7 @@ struct QuickAddTaskView: View {
 
             if isDescriptionExpanded || !viewModel.taskDescription.isEmpty {
                 TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
-                    .font(.body)
+                    .tfText(.input)
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(1...3)
                     .focused($isDescriptionFocused)
@@ -101,84 +131,92 @@ struct QuickAddTaskView: View {
                 subtaskDraftRows
             }
 
-            HStack(spacing: TFSpacing.sm) {
-                // Иконки листаются внутри жёлоба, но сам жёлоб не шатается:
-                // владелец 07.09.2026 жаловался именно на «резинку» скролла.
-                // `scrollBounceBehavior` тут бессилен — он гасит отскок только
-                // когда содержимое помещается целиком, поэтому bounces
-                // снимается у самого `UIScrollView` (`ScrollBounceDisabler`).
-                ScrollView(.horizontal, showsIndicators: false) {
-                    toolsCapsule(slot: TFHitTarget.min)
-                        .background(ScrollBounceDisabler())
-                }
-                .clipShape(Capsule())
+            HStack(spacing: TFSpacing.xs) {
+                toolsScroll(systemAppearance: systemAppearance)
 
-                primaryActionButton
+                if viewModel.isSaveEnabled {
+                    primaryActionButton(systemAppearance: systemAppearance)
+                }
             }
         }
         .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.md)
+        .padding(.vertical, TFSpacing.sm)
     }
 
-    /// Владелец 07.09.2026: «либо микрофон, либо отправить — как в Телеграме».
-    /// Одна красная кнопка: поле пустое — диктовка, есть текст — отправка.
-    /// Второго микрофона рядом с полем больше нет.
-    private var primaryActionButton: some View {
-        Button {
-            if viewModel.isSaveEnabled { save() } else { Task { await toggleDictation() } }
-        } label: {
-            Group {
-                if dictation.recordingState == .transcribing {
-                    ProgressView().tint(.white)
-                } else if viewModel.isSaveEnabled {
-                    Image(systemName: "arrow.up")
-                } else {
-                    Image(systemName: dictation.recordingState == .recording ? "waveform" : "mic.fill")
-                        .symbolEffect(.variableColor.iterative, isActive: dictation.recordingState == .recording)
-                }
+    /// Иконки листаются в пределах панели, но UIKit-подложка снимает
+    /// горизонтальную «резинку». В legacy-виде сохраняем старое капсульное
+    /// отсечение; системному iOS 26 бару форму задаёт сама стеклянная панель.
+    @ViewBuilder
+    private func toolsScroll(systemAppearance: Bool) -> some View {
+        if systemAppearance {
+            ScrollView(.horizontal, showsIndicators: false) {
+                toolsCapsule(slot: TFHitTarget.min, systemAppearance: true)
+                    .background(ScrollBounceDisabler())
             }
-            .font(.title3)
-            .foregroundStyle(.white)
-            .frame(width: 44, height: 44)
-            // Кнопка — наоборот выпуклая: блик сверху, затемнение снизу,
-            // светлая кромка по верхней дуге и падающая тень под кругом.
-            .background {
-                Circle()
-                    .fill(Color.tfRed)
-                    .overlay {
-                        // Только блик сверху, без затемнения снизу: чёрный
-                        // градиент уводил низ кнопки в бордовый, и она
-                        // переставала совпадать по цвету с подсветкой жёлоба
-                        // (владелец 07.09.2026: «красный должен соответствовать»).
-                        Circle().fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.22), Color.clear],
-                                startPoint: .top,
-                                endPoint: .center
-                            )
-                        )
-                    }
-                    .overlay {
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.75)
-                            .mask(
-                                Circle().fill(
-                                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .center)
-                                )
-                            )
-                    }
-                    .shadow(color: .black.opacity(0.5), radius: 7, y: 4)
-                    .shadow(color: Color.tfRed.opacity(0.45), radius: 10, y: 2)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                toolsCapsule(slot: TFHitTarget.min, systemAppearance: false)
+                    .background(ScrollBounceDisabler())
             }
-            .frame(width: 48, height: 48)
+            .clipShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .disabled(dictation.recordingState == .transcribing)
-        .accessibilityLabel(
-            viewModel.isSaveEnabled
-                ? "Добавить задачу"
-                : (dictation.recordingState == .recording ? "Остановить запись" : "Голосовой ввод")
-        )
+    }
+
+    /// Собственной диктовки здесь нет: владелец использует системный микрофон
+    /// клавиатуры, а дальнейшая обработка полученного текста одинакова. Кнопка
+    /// отправки появляется только для непустого названия; её вид полностью
+    /// системный и компактный на iOS 26.
+    @ViewBuilder
+    private func primaryActionButton(systemAppearance: Bool) -> some View {
+        if #available(iOS 26.0, *), systemAppearance {
+            Button(action: save) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.glass)
+            .accessibilityLabel("Добавить задачу")
+        } else {
+            Button(action: save) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    // Кнопка — наоборот выпуклая: блик сверху, затемнение снизу,
+                    // светлая кромка по верхней дуге и падающая тень под кругом.
+                    .background {
+                        Circle()
+                            .fill(Color.tfRed)
+                            .overlay {
+                                // Только блик сверху, без затемнения снизу: чёрный
+                                // градиент уводил низ кнопки в бордовый, и она
+                                // переставала совпадать по цвету с подсветкой жёлоба
+                                // (владелец 07.09.2026: «красный должен соответствовать»).
+                                Circle().fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.22), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .center
+                                    )
+                                )
+                            }
+                            .overlay {
+                                Circle()
+                                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.75)
+                                    .mask(
+                                        Circle().fill(
+                                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .center)
+                                        )
+                                    )
+                            }
+                            .shadow(color: .black.opacity(0.5), radius: 7, y: 4)
+                            .shadow(color: Color.tfRed.opacity(0.45), radius: 10, y: 2)
+                    }
+                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Добавить задачу")
+        }
     }
 
     /// Подзадачи прямо в панели — владелец 07.09.2026: «а где я подзадачу тут
@@ -188,17 +226,17 @@ struct QuickAddTaskView: View {
             ForEach(viewModel.subtaskDrafts) { draft in
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: "circle")
-                        .font(.body)
+                        .font(.system(size: TFIconSize.xs))
                         .foregroundStyle(Color.tfDim)
                     Text(draft.title)
-                        .font(.body)
+                        .tfText(.body)
                         .foregroundStyle(Color.tfText)
                     Spacer(minLength: 0)
                     Button {
                         viewModel.subtaskDrafts.removeAll { $0.id == draft.id }
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.footnote)
+                            .font(.system(size: TFIconSize.xs))
                             .foregroundStyle(Color.tfDim)
                             .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                     }
@@ -209,10 +247,10 @@ struct QuickAddTaskView: View {
 
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "plus")
-                    .font(.body)
+                    .font(.system(size: TFIconSize.xs))
                     .foregroundStyle(Color.tfDim)
                 TextField("Подзадача", text: $newSubtaskTitle)
-                    .font(.body)
+                    .tfText(.input)
                     .foregroundStyle(Color.tfText)
                     .focused($isSubtaskFocused)
                     .submitLabel(.next)
@@ -224,7 +262,7 @@ struct QuickAddTaskView: View {
     /// Овальная панель инструментов — один ряд, всё, что раньше было
     /// отдельными строками (срок/проект/приоритет/метки/вложения/исполнитель)
     /// плюс «развернуть», теперь иконки внутри одной капсулы, как у Todoist.
-    private func toolsCapsule(slot: CGFloat) -> some View {
+    private func toolsCapsule(slot: CGFloat, systemAppearance: Bool) -> some View {
         HStack(spacing: 0) {
             // Владелец 07.09.2026: «было бы логично, что если я ещё раз тапнул
             // на описание, я бы мог его убрать» — тумблер, а не кнопка в одну
@@ -241,7 +279,7 @@ struct QuickAddTaskView: View {
                     }
                 }
             } label: {
-                quickIcon(slot: slot, "text.alignleft", isSet: isDescriptionExpanded || !viewModel.taskDescription.isEmpty)
+                quickIcon(slot: slot, "text.alignleft", isSet: isDescriptionExpanded || !viewModel.taskDescription.isEmpty, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Описание")
 
@@ -256,13 +294,13 @@ struct QuickAddTaskView: View {
                     }
                 }
             } label: {
-                quickIcon(slot: slot, "checklist", isSet: isSubtasksExpanded || !viewModel.subtaskDrafts.isEmpty)
+                quickIcon(slot: slot, "checklist", isSet: isSubtasksExpanded || !viewModel.subtaskDrafts.isEmpty, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Подзадачи")
             .accessibilityValue(viewModel.subtaskDrafts.isEmpty ? "Нет" : "\(viewModel.subtaskDrafts.count)")
 
             Button { isDueDatePopoverPresented = true } label: {
-                quickIcon(slot: slot, "calendar", isSet: viewModel.dueDate != nil)
+                quickIcon(slot: slot, "calendar", isSet: viewModel.dueDate != nil, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Срок")
             .accessibilityValue(dueDateText)
@@ -291,7 +329,7 @@ struct QuickAddTaskView: View {
                     }
                 }
             } label: {
-                quickIcon(slot: slot, "folder", isSet: viewModel.projectId != nil)
+                quickIcon(slot: slot, "folder", isSet: viewModel.projectId != nil, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Проект")
             .accessibilityValue(projectName)
@@ -309,7 +347,7 @@ struct QuickAddTaskView: View {
                     }
                 }
             } label: {
-                quickIcon(slot: slot, "flag", isSet: viewModel.priority != .low)
+                quickIcon(slot: slot, "flag", isSet: viewModel.priority != .low, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Приоритет")
             .accessibilityValue(viewModel.priority.label)
@@ -325,7 +363,7 @@ struct QuickAddTaskView: View {
                     ))
                 }
             } label: {
-                quickIcon(slot: slot, "tag", isSet: !viewModel.selectedLabelIds.isEmpty)
+                quickIcon(slot: slot, "tag", isSet: !viewModel.selectedLabelIds.isEmpty, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Метки")
             .accessibilityValue(labelsText)
@@ -344,13 +382,13 @@ struct QuickAddTaskView: View {
                     }
                 }
             } label: {
-                quickIcon(slot: slot, "person", isSet: viewModel.assigneeId != nil)
+                quickIcon(slot: slot, "person", isSet: viewModel.assigneeId != nil, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Исполнитель")
             .accessibilityValue(assigneeName)
 
             Button { isAttachmentsPopoverPresented = true } label: {
-                quickIcon(slot: slot, "paperclip", isSet: !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty)
+                quickIcon(slot: slot, "paperclip", isSet: !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Вложения")
             .accessibilityValue(attachmentsText)
@@ -366,46 +404,48 @@ struct QuickAddTaskView: View {
             }
 
             Button(action: onExpand) {
-                quickIcon(slot: slot, "arrow.up.left.and.arrow.down.right", isSet: false)
+                quickIcon(slot: slot, "arrow.up.left.and.arrow.down.right", isSet: false, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Открыть полную форму")
         }
-        .padding(.horizontal, TFSpacing.xs)
+        .padding(.horizontal, systemAppearance ? 0 : TFSpacing.xs)
         // Владелец 07.09.2026: «сделай, как будто она впечаталась туда, в
         // глубину» — капсула темнее карточки плюс внутренняя тень сверху и
         // светлая кромка снизу, чтобы ряд читался вдавленным, а не выпуклым.
         .background {
-            Capsule()
-                .fill(Color.tfBackground)
-                .overlay {
-                    Capsule()
-                        .stroke(Color.black.opacity(0.55), lineWidth: 3)
-                        .blur(radius: 2.5)
-                        .offset(y: 1.5)
-                        .mask(Capsule().fill(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)))
-                }
-                // Владелец 07.09.2026: «как будто в жёлобе под потолком
-                // светодиодная лента» — не прямой свет, а отражённый: мягкий
-                // разлив акцентного цвета по дну и подсвеченная нижняя дуга.
-                .overlay {
-                    Capsule().fill(
-                        LinearGradient(
-                            colors: [.clear, Self.warmGlow.opacity(0.14)],
-                            startPoint: .center,
-                            endPoint: .bottom
+            if !systemAppearance {
+                Capsule()
+                    .fill(Color.tfBackground)
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.black.opacity(0.55), lineWidth: 3)
+                            .blur(radius: 2.5)
+                            .offset(y: 1.5)
+                            .mask(Capsule().fill(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)))
+                    }
+                    // Владелец 07.09.2026: «как будто в жёлобе под потолком
+                    // светодиодная лента» — не прямой свет, а отражённый: мягкий
+                    // разлив акцентного цвета по дну и подсвеченная нижняя дуга.
+                    .overlay {
+                        Capsule().fill(
+                            LinearGradient(
+                                colors: [.clear, Self.warmGlow.opacity(0.14)],
+                                startPoint: .center,
+                                endPoint: .bottom
+                            )
                         )
-                    )
-                }
-                .overlay {
-                    Capsule()
-                        .stroke(Self.warmGlow.opacity(0.45), lineWidth: 2.5)
-                        .blur(radius: 3)
-                        .offset(y: -2)
-                        .mask(Capsule().fill(LinearGradient(colors: [.clear, .black], startPoint: .center, endPoint: .bottom)))
-                }
-                .overlay {
-                    Capsule().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
-                }
+                    }
+                    .overlay {
+                        Capsule()
+                            .stroke(Self.warmGlow.opacity(0.45), lineWidth: 2.5)
+                            .blur(radius: 3)
+                            .offset(y: -2)
+                            .mask(Capsule().fill(LinearGradient(colors: [.clear, .black], startPoint: .center, endPoint: .bottom)))
+                    }
+                    .overlay {
+                        Capsule().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                    }
+            }
         }
     }
 
@@ -413,27 +453,35 @@ struct QuickAddTaskView: View {
     /// 44pt (HIG), выбранное значение подсвечено акцентом, а не только
     /// формой — цветом смысл не передаём в одиночку, у кнопок есть
     /// `accessibilityValue`.
-    private func quickIcon(slot: CGFloat, _ systemImage: String, isSet: Bool) -> some View {
-        Image(systemName: systemImage)
-            // Владелец 07.09.2026: «катастрофически маленькие». 44pt — это
-            // тап-цель, а не глиф: цель осталась 48pt, сам символ вырос с
-            // 17pt (.body) до 22pt (.title2).
-            .font(.title2)
-            // Объём по одному источнику света с жёлобом: лента светит снизу,
-            // поэтому низ глифа теплее и светлее, верх уходит в тень. Тени
-            // направлены туда же — тёплый отсвет вниз, тёмная кромка вверх.
-            .foregroundStyle(
-                LinearGradient(
-                    colors: isSet
-                        ? [Color.tfRed.opacity(0.7), Color.tfRed]
-                        : [Color.tfSub.opacity(0.55), Color.tfText.opacity(0.95)],
-                    startPoint: .top,
-                    endPoint: .bottom
+    @ViewBuilder
+    private func quickIcon(slot: CGFloat, _ systemImage: String, isSet: Bool, systemAppearance: Bool) -> some View {
+        if systemAppearance {
+            Image(systemName: systemImage)
+                .symbolVariant(isSet ? .fill : .none)
+                .font(.system(size: TFIconSize.sm))
+                .frame(width: slot, height: slot)
+        } else {
+            Image(systemName: systemImage)
+                // Владелец 07.09.2026: «катастрофически маленькие». 44pt — это
+                // тап-цель, а не глиф: цель осталась 48pt, сам символ вырос с
+                // 17pt (.body) до 22pt (.title2).
+                .font(.title2)
+                // Объём по одному источнику света с жёлобом: лента светит снизу,
+                // поэтому низ глифа теплее и светлее, верх уходит в тень. Тени
+                // направлены туда же — тёплый отсвет вниз, тёмная кромка вверх.
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: isSet
+                            ? [Color.tfRed.opacity(0.7), Color.tfRed]
+                            : [Color.tfSub.opacity(0.55), Color.tfText.opacity(0.95)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
-            )
-            .shadow(color: .black.opacity(0.9), radius: 1, y: -1)
-            .shadow(color: Self.warmGlow.opacity(0.5), radius: 2, y: 1.5)
-            .frame(width: slot, height: slot)
+                .shadow(color: .black.opacity(0.9), radius: 1, y: -1)
+                .shadow(color: Self.warmGlow.opacity(0.5), radius: 2, y: 1.5)
+                .frame(width: slot, height: slot)
+        }
     }
 
     private var projectName: String {
@@ -577,18 +625,6 @@ struct QuickAddTaskView: View {
                 viewModel.startMinutes = (components.hour ?? 9) * 60 + (components.minute ?? 0)
             }
         )
-    }
-
-    private func toggleDictation() async {
-        switch dictation.recordingState {
-        case .idle, .failed:
-            await dictation.startRecording()
-        case .recording:
-            guard let text = await dictation.stopRecordingAndTranscribe() else { return }
-            viewModel.title += viewModel.title.isEmpty ? text : " \(text)"
-        case .transcribing:
-            break
-        }
     }
 
     /// Закрытие панели: сначала снимаем фокус, потом закрываем. Иначе

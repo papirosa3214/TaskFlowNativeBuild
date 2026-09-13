@@ -43,7 +43,7 @@ final class NotesViewModel {
         _ = await (foldersTask, notesTask)
     }
 
-    private func loadFolders() async {
+    func loadFolders() async {
         do {
             folders = try await apiClient.journalFolders()
             foldersErrorMessage = nil
@@ -52,7 +52,7 @@ final class NotesViewModel {
         }
     }
 
-    private func loadNotes() async {
+func loadNotes() async {
         do {
             notes = try await apiClient.notesList()
             notesErrorMessage = nil

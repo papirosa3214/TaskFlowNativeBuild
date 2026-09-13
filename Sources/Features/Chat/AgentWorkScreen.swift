@@ -23,6 +23,7 @@ public enum AgentWorkFocus: String, Hashable {
 /// список один раз при входе и держит живым реалтаймом (spec §4.2).
 struct AgentWorkScreen: View {
     @Environment(TaskStore.self) private var taskStore
+    private let apiClient = APIClient()
 
     /// `nil` — обычный порядок разделов. Задан контрактом строго без
     /// параметров (`AgentWorkScreen` в таблице INTEGRATION.md — «—»), но
@@ -43,6 +44,7 @@ struct AgentWorkScreen: View {
     /// 09.09.2026 заметил разнобой. Своё состояние, а не общий `AppRoute`:
     /// маршрут — это про экраны в стеке, а карточка задачи теперь не экран.
     @State private var sheetTaskID: AgentWorkTaskRef?
+    @State private var swipeActionError: String?
 
     /// `.sheet(item:)` требует `Identifiable`, голая строка им не является.
     private struct AgentWorkTaskRef: Identifiable {
@@ -90,6 +92,9 @@ struct AgentWorkScreen: View {
             }
             .padding(.bottom, TFSpacing.xl)
         }
+        .refreshable {
+            await taskStore.load(silent: true)
+        }
         .background(Color.tfBackground)
         .tfNativeHeader("Работа агентов")
         .sheet(item: $sheetTaskID) { ref in
@@ -117,10 +122,59 @@ struct AgentWorkScreen: View {
             .padding(.bottom, TFSpacing.xs)
 
             ForEach(section.tasks) { task in
-                AgentWorkTaskRow(task: task) { sheetTaskID = AgentWorkTaskRef(id: task.id) }
+                DirectoryTaskRow(
+                    index: nil,
+                    task: task,
+                    isOwner: true,
+                    onOpen: { sheetTaskID = AgentWorkTaskRef(id: task.id) },
+                    onDelete: { Task { await deleteTask(task) } },
+                    swipeAction: ProjectTaskSwipeAction.action(for: task, isOwner: true),
+                    onSwipeAction: { Task { await performSwipe(task: task) } }
+                )
             }
         }
         .padding(.bottom, TFSpacing.sm)
+    }
+
+    // MARK: - Свайпы и удаление (логика 1:1 с ProjectTasksScreen.performSwipe
+    // и .deleteTask — обзор показывает те же задачи, что и проекты/сегодня,
+    // и те же действия должны работать).
+
+    private func performSwipe(task: ApiTask) async {
+        // Логика approve+close из ProjectTaskSwipeAction.complete: для review —
+        // сначала approve, потом закрыть; для остальных состояний — просто закрыть.
+        do {
+            if task.agentState == .review {
+                try await apiClient.approveCurrentTaskVersion(taskID: task.id)
+                _ = try await apiClient.setTaskAgentState(id: task.id, state: nil, comment: nil)
+            }
+            _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
+            await taskStore.load(silent: true)
+        } catch {
+            swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Поднять флаг готовности через отдельный action — для задач в работе/пропавших,
+    /// которые ещё не на ревью (ProjectTaskSwipeAction.markReadyForPickup).
+    /// Не вызывается из текущей разметки (там только .complete), оставлен на
+    /// будущее, когда добавим второй свайп.
+    private func markReady(_ task: ApiTask) async {
+        do {
+            _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+            await taskStore.load(silent: true)
+        } catch {
+            swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func deleteTask(_ task: ApiTask) async {
+        do {
+            _ = try await apiClient.deleteTask(id: task.id)
+            await taskStore.load(silent: true)
+        } catch {
+            swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     // MARK: - Группировка (буквально `AgentWorkScreen.tsx`, useMemo groups)
@@ -154,16 +208,13 @@ struct AgentWorkScreen: View {
         ]
     }
 
-    /// `?focus=` в вебе двигает совпавший раздел на первое место, остальные
-    /// остаются в исходном порядке (стабильная сортировка JS) — Swift
-    /// `sorted` стабильность не гарантирует, поэтому явный remove+insert,
-    /// а не компаратор.
+    /// `?focus=` из плитки «Обзора» или из URL: показываем ТОЛЬКО эту секцию,
+    /// без остальных трёх (раньше focus двигал секцию наверх, остальные
+    /// оставались — на iOS это выглядело как «нажал в работе, а внизу ещё
+    /// на проверке 12», владелец 14.09.2026). Без focus — все четыре как раньше.
     private var orderedSections: [Section] {
-        guard let focus, let index = sections.firstIndex(where: { $0.key == focus }) else { return sections }
-        var result = sections
-        let matched = result.remove(at: index)
-        result.insert(matched, at: 0)
-        return result
+        guard let focus else { return sections }
+        return sections.filter { $0.key == focus }
     }
 
     private var isNothing: Bool {

@@ -67,6 +67,9 @@ struct LabelsScreen: View {
             .padding(.top, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl)
         }
+        .refreshable {
+            await taskStore.load(silent: true)
+        }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
         // 03.09.2026 — «нативные кнопки везде одним элементом»). Была ручная

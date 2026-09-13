@@ -28,8 +28,17 @@ struct ProjectsScreen: View {
     @State private var filter = ProjectFilter.all
     @State private var isSelecting = false
     @State private var selectedProjectIDs: Set<String> = []
+    @State private var hasOpenedCreateForm = false
+
+    /// Сценарий центрального «+»: список остаётся контекстом формы, но сама
+    /// форма открывается сразу, без промежуточного ручного тапа по «…».
+    private let opensCreateForm: Bool
 
     private let apiClient = APIClient()
+
+    init(opensCreateForm: Bool = false) {
+        self.opensCreateForm = opensCreateForm
+    }
 
     var body: some View {
         ScrollView {
@@ -101,7 +110,13 @@ struct ProjectsScreen: View {
                 projectActionsMenu
             }
         }
-        .task { if projectStore.projects.isEmpty { await projectStore.load() } }
+        .task {
+            if opensCreateForm && !hasOpenedCreateForm {
+                hasOpenedCreateForm = true
+                showCreate = true
+            }
+            if projectStore.projects.isEmpty { await projectStore.load() }
+        }
         .directoryConfirm($deleteRequest)
     }
 

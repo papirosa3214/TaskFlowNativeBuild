@@ -32,12 +32,21 @@ struct VoiceModelsScreen: View {
     @State private var pendingArchiveCount = DictationArchiveQueue.pendingCount()
     @State private var dictation = DictationEngine.shared
 
+    @State private var promptsStore = AIPromptsStore.shared
+    /// Дебаунс-отправка промптов на сервер: при каждом нажатии клавиши
+    /// отменяем предыдущую задачу и через 0.6с шлём актуальное значение.
+    @State private var extractSaveTask: Task<Void, Never>?
+    @State private var journalSaveTask: Task<Void, Never>?
+    @State private var extractSaveState: PromptSaveState = .saved
+    @State private var journalSaveState: PromptSaveState = .saved
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     onDeviceSection
                     onServerSection
+                    userPromptsSection
                     dictationLogSection
                 }
                 .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -50,6 +59,16 @@ struct VoiceModelsScreen: View {
         .task {
             dictation.refreshModelState()
             await loadServerStatus()
+            await promptsStore.refresh()
+        }
+        .onDisappear {
+            extractSaveTask?.cancel()
+            journalSaveTask?.cancel()
+            // Последний flush, если пользователь ушёл со страницы на полуслове.
+            // @MainActor — `save*` помечены, иначе Swift 6 ругается на
+            // пересечение акторов.
+            Task { @MainActor in await promptsStore.saveExtractTasksPrompt() }
+            Task { @MainActor in await promptsStore.saveJournalAssistPrompt() }
         }
     }
 
@@ -124,6 +143,175 @@ struct VoiceModelsScreen: View {
         case .notDownloaded, .failed: true
         case .unknown, .downloading, .ready: false
         }
+    }
+
+    // MARK: - Свои промпты
+
+    private var userPromptsSection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            SettingsCapsLabel("Свои промпты")
+            @Bindable var store = promptsStore
+            TFCard(padding: 0) {
+                VStack(spacing: 0) {
+                    promptEditor(
+                        title: "Системный промпт для задач",
+                        subtitle: "Что серверная модель учитывает при разборе диктовки в задачи",
+                        placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
+                        text: $store.extractTasksPrompt,
+                        saveState: extractSaveState,
+                        onCommit: { scheduleSave(scope: .extractTasks) },
+                        onReset: { resetPrompt(scope: .extractTasks) }
+                    )
+                    TFDivider()
+                    promptEditor(
+                        title: "Системный промпт для журнала",
+                        subtitle: "Что серверная модель учитывает при «продолжить / сократить / развить» в Дневнике",
+                        placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
+                        text: $store.journalAssistPrompt,
+                        saveState: journalSaveState,
+                        onCommit: { scheduleSave(scope: .journalAssist) },
+                        onReset: { resetPrompt(scope: .journalAssist) }
+                    )
+                }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            Text("Сервер сам подмешивает ваш промпт при вызове модели. Меняется только для вашего аккаунта, на других устройствах и в вебе появится автоматически.")
+                .tfText(.caption)
+                .foregroundStyle(Color.tfDim)
+                .padding(.horizontal, TFSpacing.screenHorizontal + TFSpacing.xs)
+        }
+    }
+
+    @ViewBuilder
+    private func promptEditor(
+        title: String,
+        subtitle: String,
+        placeholder: String,
+        text: Binding<String>,
+        saveState: PromptSaveState,
+        onCommit: @escaping () -> Void,
+        onReset: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).tfText(.body).foregroundStyle(Color.tfText)
+                Text(subtitle).tfText(.action).foregroundStyle(Color.tfSub)
+            }
+            // `TextEditor` с моноширинным шрифтом: промпт — код, а не
+            // художественный текст, и моноширинный лучше читается при
+            // редактировании многострочных инструкций.
+            ZStack(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text(placeholder)
+                        .tfText(.input)
+                        .foregroundStyle(Color.tfDim)
+                        .padding(.horizontal, TFSpacing.sm)
+                        .padding(.vertical, TFSpacing.sm)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: text)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .font(.system(size: 16, weight: .regular, design: .monospaced))
+                    .foregroundStyle(Color.tfText)
+                    .frame(minHeight: 96, maxHeight: 160)
+                    .padding(.horizontal, TFSpacing.xs)
+                    .padding(.vertical, TFSpacing.xs)
+                    .onChange(of: text.wrappedValue) { _, _ in onCommit() }
+            }
+            .background(Color.tfCard2)
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: TFRadius.md)
+                    .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
+            )
+            HStack(spacing: TFSpacing.sm) {
+                saveStatusLabel(saveState)
+                Spacer()
+                if !text.wrappedValue.isEmpty {
+                    Button("Сбросить", action: onReset)
+                        .buttonStyle(TFTapFadeStyle())
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.tfCoral)
+                }
+            }
+        }
+        .padding(TFSpacing.md)
+    }
+
+    @ViewBuilder
+    private func saveStatusLabel(_ state: PromptSaveState) -> some View {
+        switch state {
+        case .saved:
+            Label("Сохранено", systemImage: "checkmark.circle.fill")
+                .labelStyle(.titleAndIcon)
+                .tfText(.caption)
+                .foregroundStyle(Color.tfGreen)
+        case .saving:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("Сохраняю…").tfText(.caption).foregroundStyle(Color.tfDim)
+            }
+        case .error(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .labelStyle(.titleAndIcon)
+                .tfText(.caption)
+                .foregroundStyle(Color.tfRed)
+                .lineLimit(2)
+        }
+    }
+
+    private enum PromptScope { case extractTasks, journalAssist }
+
+    private enum PromptSaveState: Equatable {
+        case saved
+        case saving
+        case error(String)
+    }
+
+    /// Дебаунс 0.6с — последняя правка выигрывает; на каждом нажатии клавиши
+    /// предыдущая отправка отменяется. На onDisappear делается явный flush
+    /// без дебаунса, чтобы уход со страницы не терял правку.
+    private func scheduleSave(scope: PromptScope) {
+        switch scope {
+        case .extractTasks:
+            extractSaveTask?.cancel()
+            extractSaveState = .saving
+            extractSaveTask = Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                if Task.isCancelled { return }
+                await promptsStore.saveExtractTasksPrompt()
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    extractSaveState = saveStateFromStore(scope: .extractTasks)
+                }
+            }
+        case .journalAssist:
+            journalSaveTask?.cancel()
+            journalSaveState = .saving
+            journalSaveTask = Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                if Task.isCancelled { return }
+                await promptsStore.saveJournalAssistPrompt()
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    journalSaveState = saveStateFromStore(scope: .journalAssist)
+                }
+            }
+        }
+    }
+
+    private func resetPrompt(scope: PromptScope) {
+        switch scope {
+        case .extractTasks: promptsStore.extractTasksPrompt = ""
+        case .journalAssist: promptsStore.journalAssistPrompt = ""
+        }
+        scheduleSave(scope: scope)
+    }
+
+    private func saveStateFromStore(scope: PromptScope) -> PromptSaveState {
+        if let err = promptsStore.lastSaveError { return .error(err) }
+        return .saved
     }
 
     // MARK: - На сервере

@@ -31,6 +31,11 @@ struct TaskFormScreen: View {
     @FocusState private var isCommentFocused: Bool
     @State private var dictation = DictationEngine.shared
     @State private var dictationTarget: DictationTarget = .title
+    /// Фокус блока описания, живые метки форматирования и запрос ссылки —
+    /// общее состояние блочного редактора (`BlockDocumentEditor`), такое же,
+    /// как у заметки: лента над клавиатурой живёт вне дерева SwiftUI и
+    /// обычный `@State` ей не виден.
+    @State private var descriptionFocus = NoteEditorFocusState()
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
     @State private var replyingSubtask: ApiSubtask?
@@ -339,10 +344,27 @@ struct TaskFormScreen: View {
                 }
                 .listRowSeparator(.hidden)
 
-                MarkdownEditorView(
+                if let ladder = viewModel.attemptLadder, ladder.currentStep > 0 {
+                    HStack(spacing: TFSpacing.sm) {
+                        if let state = viewModel.agentState {
+                            Label(agentStateText(state), systemImage: agentStateIcon(state))
+                                .tfText(.caption)
+                                .foregroundStyle(state == .blocked ? Color.orange : Color.tfSub)
+                        }
+                        AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .listRowSeparator(.hidden)
+                }
+
+                // Тот же редактор, что в заметке: те же строки блоков, та же
+                // лента над клавиатурой, тот же Enter/Backspace. Владелец
+                // 13.09.2026 — «один единый формат с заметками».
+                BlockDocumentEditor(
                     blocks: $viewModel.taskDescriptionBlocks,
-                    mode: .constant(.rendered),
-                    collapsesToSingleBlock: true
+                    focus: descriptionFocus,
+                    placeholder: "Описание",
+                    onEdit: { scheduleSave() }
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .listRowSeparator(.hidden)
@@ -912,6 +934,22 @@ struct TaskFormScreen: View {
     private var nativeLabelsText: String {
         let labels = labelStore.labels.filter { viewModel.selectedLabelIds.contains($0.id) }.map(\.name)
         return labels.isEmpty ? "Не выбраны" : labels.joined(separator: ", ")
+    }
+
+    private func agentStateText(_ state: AgentState) -> String {
+        switch state {
+        case .inProgress: "В работе"
+        case .blocked: "Заблокирована"
+        case .review: "На проверке"
+        }
+    }
+
+    private func agentStateIcon(_ state: AgentState) -> String {
+        switch state {
+        case .inProgress: "play.circle.fill"
+        case .blocked: "exclamationmark.triangle.fill"
+        case .review: "eye.fill"
+        }
     }
 
     private var isOwner: Bool { session.currentUser?.role == .owner }

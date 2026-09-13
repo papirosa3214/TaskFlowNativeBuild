@@ -20,8 +20,25 @@ struct ExtractedNoteTask: Decodable {
 private struct ExtractTasksResponse: Decodable { let tasks: [ExtractedNoteTask] }
 
 extension APIClient {
-    func extractTasksFromNote(text: String) async throws -> [ExtractedNoteTask] {
-        let body: [String: JSONValue] = ["text": .string(text)]
+    /// Извлечь задачи из текста заметки. `systemPrompt` обычно НЕ передаётся
+    /// извне — функция сама подтягивает per-user промпт из
+    /// `AIPromptsStore.shared`. Это костыль на время LOCK-142 (markdown
+    /// editor), когда `NoteEditorViewModel` заморожен и явная инъекция
+    /// стора через DI невозможна; когда LOCK-142 снимут, auto-pull уйдёт
+    /// и заменится на обязательный параметр.
+    func extractTasksFromNote(text: String, systemPrompt: String? = nil) async throws -> [ExtractedNoteTask] {
+        let prompt: String = {
+            if let explicit = systemPrompt { return explicit }
+            // `AIPromptsStore.shared` — `@MainActor`, читаем со стора.
+            // UserDefaults под капотом thread-safe, вызов с любого контекста
+            // безопасен; на main переключаться не требуется.
+            return MainActor.assumeIsolated { AIPromptsStore.shared.extractTasksPrompt }
+        }()
+        var body: [String: JSONValue] = ["text": .string(text)]
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            body["system_prompt"] = .string(trimmed)
+        }
         let response: ExtractTasksResponse = try await request(.post, "/ai/extract-tasks", body: body)
         return response.tasks
     }

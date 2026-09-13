@@ -24,7 +24,8 @@ final class TaskFormViewModel {
     private let apiClient: APIClient
 
     var title = ""
-    /// AST-форма описания для `MarkdownEditorView` (LOCK-142). Строка
+    /// AST-форма описания для `BlockDocumentEditor` — того же редактора, что
+    /// в заметке (LOCK-142). Строка
     /// `taskDescription` ниже — проекция: get кодирует блоки в markdown,
     /// set парсит входящий markdown (от сервера, от AI-структуризатора)
     /// в блоки. Старый код, читающий `taskDescription` как String,
@@ -87,6 +88,7 @@ final class TaskFormViewModel {
     /// Для меню «…» (перенесено из `TaskDetailScreen` — открытие задачи
     /// больше не ведёт на отдельный экран-просмотр, она сама и есть форма).
     var agentState: AgentState? { originalTask?.agentState }
+    var attemptLadder: AttemptLadder? { originalTask?.attemptLadder }
     var isSaveEnabled: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isSaving

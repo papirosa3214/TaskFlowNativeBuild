@@ -5,8 +5,42 @@ import Foundation
 /// агент (`type=ai`) / самозарегистрированный человек (тоже `role=agent`,
 /// отличие только в `type=human`). `viewer` в CHECK-constraint есть, но по
 /// факту нигде не используется — считать зарезервированным.
-public enum UserRole: String, Codable, Sendable, Hashable {
+public enum UserRole: Codable, Sendable, Hashable {
     case owner, agent, viewer, orchestrator
+    /// Роли рабочих профилей приходят с сервера как произвольные строки
+    /// (`builder`, `qa`, `analyst` и т. п.). Они не меняют права клиента,
+    /// но не должны ломать декодирование всего списка исполнителей.
+    case custom(String)
+
+    public init(rawValue: String) {
+        switch rawValue {
+        case "owner": self = .owner
+        case "agent": self = .agent
+        case "viewer": self = .viewer
+        case "orchestrator": self = .orchestrator
+        default: self = .custom(rawValue)
+        }
+    }
+
+    public var rawValue: String {
+        switch self {
+        case .owner: "owner"
+        case .agent: "agent"
+        case .viewer: "viewer"
+        case .orchestrator: "orchestrator"
+        case .custom(let value): value
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self.init(rawValue: value)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 public enum UserType: String, Codable, Sendable, Hashable {

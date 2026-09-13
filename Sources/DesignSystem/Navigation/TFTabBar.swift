@@ -202,7 +202,7 @@ public struct TFTabBar: View {
         }
         .buttonStyle(TFTapScaleStyle())
         .animation(.easeOut(duration: TFAnimation.createMenu), value: isCreateMenuOpen)
-        .accessibilityLabel("Новая задача")
+        .accessibilityLabel(isCreateMenuOpen ? "Закрыть меню создания" : "Создать")
         .accessibilityIdentifier("tab.add")
     }
 }
@@ -214,10 +214,10 @@ public struct TFCreateMenuItem: Identifiable {
     public let id = UUID()
     let icon: String
     let title: String
-    let subtitle: String
+    let subtitle: String?
     let action: () -> Void
 
-    public init(icon: String, title: String, subtitle: String, action: @escaping () -> Void) {
+    public init(icon: String, title: String, subtitle: String? = nil, action: @escaping () -> Void) {
         self.icon = icon
         self.title = title
         self.subtitle = subtitle
@@ -262,7 +262,9 @@ public struct TFCreateMenu: View {
                             }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.title).tfText(.body).fontWeight(.medium).foregroundStyle(Color.tfText)
-                            Text(item.subtitle).tfText(.meta).foregroundStyle(Color.tfSub)
+                            if let subtitle = item.subtitle, !subtitle.isEmpty {
+                                Text(subtitle).tfText(.meta).foregroundStyle(Color.tfSub)
+                            }
                         }
                         Spacer()
                     }
@@ -316,9 +318,9 @@ public struct TFTapMenuStyle: ButtonStyle {
         Color.tfBackground.ignoresSafeArea()
         VStack {
             TFCreateMenu(items: [
-                TFCreateMenuItem(icon: "checkmark", title: "Задача", subtitle: "Со сроком и шагами") {},
-                TFCreateMenuItem(icon: "book", title: "Заметка", subtitle: "Запись в дневнике") {},
-                TFCreateMenuItem(icon: "tray", title: "Проект", subtitle: "Задачи и документация") {},
+                TFCreateMenuItem(icon: "checkmark", title: "Задача") {},
+                TFCreateMenuItem(icon: "book", title: "Заметка") {},
+                TFCreateMenuItem(icon: "tray", title: "Проект") {},
             ])
             .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar + TFTabBarMetrics.heightCompact)
         }

@@ -54,6 +54,9 @@ struct NotificationsScreen: View {
             .padding(.top, TFSpacing.md)
             .padding(.bottom, TFSpacing.xl)
         }
+        .refreshable {
+            await notificationStore.load()
+        }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
         // 03.09.2026 — «нативные кнопки везде одним элементом»). Была своя

@@ -17,25 +17,18 @@ struct NoteEditorScreen: View {
     let noteID: String
 
     @State private var viewModel: NoteEditorViewModel
-    @State private var controllerStore = NoteBlockControllerStore()
     @Environment(\.dismiss) private var dismiss
 
     /// Фокус блока, живые метки форматирования и запрос ссылки — теперь на
-    /// отдельном `@Observable`, не здесь: `NoteKeyboardAccessoryBar` (лента
+    /// отдельном `@Observable`, не здесь: `MarkdownKeyboardAccessoryBar` (лента
     /// форматирования + микрофон) с 03.09.2026 живёт ВНЕ дерева этого экрана,
     /// как `inputAccessoryView` каждого блочного `UITextView` (см.
     /// `NoteBlockTextView.swift`) — обычный `@State` этого View ей не виден,
     /// нужен общий объект-ссылка. Подробности — `NoteEditorFocusState`.
     @State private var focus = NoteEditorFocusState()
-    /// Тот самый `inputAccessoryView` — один на экран, назначается каждому
-    /// блоку одним и тем же экземпляром (см. `editorBody`).
-    @State private var accessoryHost: NoteKeyboardAccessoryHost?
 
     @State private var showMovePicker = false
     @State private var showDeleteConfirm = false
-    /// Удаление строки или столбца таблицы ждёт подтверждения: отмены в
-    /// редакторе нет вовсе, а вместе со строкой уходит весь её текст.
-    @State private var tableDelete: TableDeleteRequest?
     @State private var shareURL: URL?
     @State private var showShareSheet = false
 
@@ -91,52 +84,8 @@ struct NoteEditorScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { combinedMenu }
         }
-        .task {
-            // Создаётся один раз на весь экран (тот же `NoteKeyboardAccessoryHost`
-            // ставится каждому блоку — см. `editorBody`), не зависит от
-            // загрузки документа, поэтому до `viewModel.load()`.
-            if accessoryHost == nil {
-                accessoryHost = NoteKeyboardAccessoryHost(viewModel: viewModel, focus: focus)
-            }
-            await viewModel.load()
-        }
+        .task { await viewModel.load() }
         .onDisappear { viewModel.flushOnExit() }
-        .onChange(of: viewModel.pendingFocus) { _, pending in
-            guard let pending else { return }
-            // Строка ещё не успела появиться в SwiftUI-дереве на этот же
-            // тик (вставка/удаление блока только что попала в `document`) —
-            // небольшая отсрочка вместо гонки с `onAppear` новой строки.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                controllerStore.controller(for: pending.blockID).focus(cursorAt: pending.position)
-                viewModel.pendingFocus = nil
-            }
-        }
-        .alert("Адрес ссылки", isPresented: $focus.showLinkPrompt) {
-            TextField("https://", text: $focus.linkPromptText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-            Button("Отмена", role: .cancel) {}
-            Button("Применить") { applyLinkFromPrompt() }
-        }
-        .alert(
-            tableDelete?.target == .column ? "Удалить столбец?" : "Удалить строку?",
-            isPresented: Binding(get: { tableDelete != nil }, set: { if !$0 { tableDelete = nil } }),
-            presenting: tableDelete
-        ) { request in
-            Button("Отмена", role: .cancel) { tableDelete = nil }
-            Button("Удалить", role: .destructive) {
-                switch request.target {
-                case .row: viewModel.deleteTableRow(containing: request.cellID)
-                case .column: viewModel.deleteTableColumn(containing: request.cellID)
-                }
-                tableDelete = nil
-            }
-        } message: { request in
-            Text(request.target == .column
-                 ? "Столбец исчезнет во всех строках вместе с текстом. Действие нельзя отменить."
-                 : "Строка исчезнет вместе с текстом. Действие нельзя отменить.")
-        }
         .alert("Удалить заметку\(deleteTitleSuffix)?", isPresented: $showDeleteConfirm) {
             Button("Отмена", role: .cancel) {}
             Button("Удалить", role: .destructive) { Task { await performDelete() } }
@@ -206,93 +155,29 @@ struct NoteEditorScreen: View {
                 // этой добавки наполовину прячется под ним (проверено
                 // кадром 08.09.2026). Признак «лента на экране» — есть ли
                 // сфокусированное поле, другого у SwiftUI тут нет.
-                .padding(.bottom, (focus.blockID != nil ? NoteKeyboardAccessoryHost.height : 0) + TFSpacing.sm)
+                .padding(.bottom, (focus.blockID != nil ? MarkdownKeyboardAccessoryHost.height : 0) + TFSpacing.sm)
                 .allowsHitTesting(false)
                 .transition(.opacity)
         }
     }
 
+    /// Тело редактора — общий `BlockDocumentEditor` (тот же компонент стоит в
+    /// описании задачи, см. `TaskFormScreen`): строки блоков, лента над
+    /// клавиатурой, разбивка по Enter и слияние по Backspace живут там.
+    /// Экрану заметки остаются скролл, отступы и сохранение.
     private var editorBody: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(viewModel.document.blocks) { block in
-                    // Таблица — единственный блок, у которого текстовых полей
-                    // много (по одному на ячейку), поэтому она не проходит
-                    // через `NoteBlockRow` с его единственным контроллером, а
-                    // берёт из `controllerStore` по контроллеру на ячейку.
-                    if case .table(let rows) = block.kind {
-                        NoteTableBlock(
-                            rows: rows,
-                            controllerStore: controllerStore,
-                            accessoryView: accessoryHost?.view,
-                            onChange: { id, runs in viewModel.updateRuns(blockID: id, runs: runs) },
-                            onFocus: focusCell,
-                            onBlur: blurCell,
-                            onMarksChange: { id, marks in if focus.blockID == id { focus.activeMarks = marks } },
-                            onInsertRow: { viewModel.insertTableRow(below: $0) },
-                            onInsertColumn: { viewModel.insertTableColumn(after: $0) },
-                            onDeleteRow: { tableDelete = TableDeleteRequest(target: .row, cellID: $0) },
-                            onDeleteColumn: { tableDelete = TableDeleteRequest(target: .column, cellID: $0) }
-                        )
-                        .padding(.horizontal, TFSpacing.screenHorizontal)
-                        .padding(.vertical, TFSpacing.xs)
-                    } else {
-                        NoteBlockRow(
-                            block: block,
-                            orderedIndex: orderedIndex(for: block),
-                            showPlaceholder: viewModel.document.isEffectivelyEmpty && block.id == viewModel.document.blocks.first?.id,
-                            controller: controllerStore.controller(for: block.id),
-                            accessoryView: accessoryHost?.view,
-                            onChange: { id, runs in viewModel.updateRuns(blockID: id, runs: runs) },
-                            onFocus: focusCell,
-                            onBlur: blurCell,
-                            onMarksChange: { id, marks in if focus.blockID == id { focus.activeMarks = marks } },
-                            onSplit: { id, offset in viewModel.handleSplit(blockID: id, atUTF16Offset: offset) },
-                            onBackspaceAtStart: { id in viewModel.handleBackspaceAtStart(blockID: id) },
-                            onToggleChecked: { viewModel.toggleTaskChecked(blockID: block.id) }
-                        )
-                        .padding(.horizontal, TFSpacing.screenHorizontal)
-                    }
-                }
-            }
+            BlockDocumentEditor(
+                blocks: $viewModel.document.blocks,
+                focus: focus,
+                placeholder: "Пишите здесь что угодно…",
+                onEdit: { viewModel.documentDidChange() }
+            )
+            .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl * 2)
         }
         .scrollDismissesKeyboard(.interactively)
-    }
-
-    /// Фокус/расфокус текстового поля — общий обработчик для блоков и для
-    /// ячеек таблицы: клавиатурной панели важен только текущий контроллер,
-    /// а «блок это или ячейка» разбирает `NoteEditorViewModel.updateRuns` по
-    /// самому идентификатору.
-    private func focusCell(_ id: UUID, _ controller: NoteBlockTextController) {
-        focus.blockID = id
-        focus.controller = controller
-        focus.activeMarks = controller.activeMarks
-    }
-
-    private func blurCell(_ id: UUID) {
-        guard focus.blockID == id else { return }
-        focus.blockID = nil
-        focus.controller = nil
-        focus.activeMarks = []
-    }
-
-    /// Порядковый номер для нумерованного списка — считает соседей того же
-    /// уровня НАЗАД от текущего блока до первого «не такого же» соседа.
-    private func orderedIndex(for block: NoteBlock) -> Int? {
-        guard case .orderedItem = block.kind,
-              let idx = viewModel.document.blocks.firstIndex(where: { $0.id == block.id })
-        else { return nil }
-        var count = 1
-        var i = idx - 1
-        while i >= 0 {
-            let b = viewModel.document.blocks[i]
-            guard case .orderedItem = b.kind, b.level == block.level else { break }
-            count += 1
-            i -= 1
-        }
-        return count
     }
 
     private var deleteTitleSuffix: String {
@@ -365,125 +250,17 @@ struct NoteEditorScreen: View {
     private func performDelete() async {
         if await viewModel.deleteNote() { dismiss() }
     }
-
-    // MARK: - Панель над клавиатурой: форматирование (spec §2.1) + голос
-
-    /// Панель форматирования + микрофон переехали в `NoteKeyboardAccessoryBar`
-    /// (`NoteBlockTextView.swift`) — она больше не часть дерева этого экрана,
-    /// а `inputAccessoryView` блочных `UITextView` (см. `body`, `editorBody`).
-    /// Здесь остаётся только реакция на диалог «Адрес ссылки»: сам alert
-    /// живёт на экране (спрашивать URL — не дело клавиатурной панели), а
-    /// `focus.showLinkPrompt`/`linkPromptText` панель выставляет напрямую.
-    private func applyLinkFromPrompt() {
-        guard let id = focus.blockID, let ctrl = focus.controller else { return }
-        let trimmed = focus.linkPromptText.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, trimmed != "https://" else { return }
-        ctrl.applyLink(href: trimmed)
-        focus.activeMarks = ctrl.activeMarks
-        viewModel.updateRuns(blockID: id, runs: ctrl.currentRuns())
-    }
 }
 
-// MARK: - Строка блока
-
-/// Один блок документа — декорация слева (маркер/номер/чекбокс/полоса
-/// цитаты) + сам текстовый движок (`NoteBlockTextView`). Разделитель
-/// (`horizontalRule`) — не текстовый блок вовсе, просто линия.
-private struct NoteBlockRow: View {
-    let block: NoteBlock
-    let orderedIndex: Int?
-    let showPlaceholder: Bool
-    let controller: NoteBlockTextController
-    /// `inputAccessoryView` (лента форматирования + микрофон), один и тот
-    /// же объект на все блоки экрана — см. `NoteEditorScreen.accessoryHost`.
-    let accessoryView: UIView?
-
-    let onChange: (UUID, [RichRun]) -> Void
-    let onFocus: (UUID, NoteBlockTextController) -> Void
-    let onBlur: (UUID) -> Void
-    let onMarksChange: (UUID, Set<InlineMark>) -> Void
-    let onSplit: (UUID, Int) -> Void
-    let onBackspaceAtStart: (UUID) -> Void
-    let onToggleChecked: () -> Void
-
-    var body: some View {
-        if case .horizontalRule = block.kind {
-            Rectangle()
-                .fill(Color.tfStroke)
-                .frame(height: TFBorder.width)
-                .padding(.vertical, TFSpacing.md)
-        } else {
-            HStack(alignment: .top, spacing: TFSpacing.sm) {
-                leading
-                ZStack(alignment: .topLeading) {
-                    if showPlaceholder {
-                        Text("Пишите здесь что угодно…")
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfDim)
-                            .allowsHitTesting(false)
-                    }
-                    NoteBlockTextView(
-                        blockID: block.id, runs: block.runs, blockKind: block.kind, controller: controller,
-                        accessoryView: accessoryView,
-                        onChange: onChange, onFocus: onFocus, onBlur: onBlur, onMarksChange: onMarksChange,
-                        onSplit: onSplit, onBackspaceAtStart: onBackspaceAtStart
-                    )
-                }
-            }
-            .padding(.leading, CGFloat(block.level) * 18 + quoteBarInset)
-            .overlay(alignment: .leading) {
-                if case .blockquote = block.kind {
-                    Rectangle().fill(Color.tfStroke).frame(width: 3)
-                }
-            }
-            .padding(.vertical, block.kind.isListItem ? 2 : 4)
-            .background {
-                if case .codeBlock = block.kind {
-                    RoundedRectangle(cornerRadius: TFRadius.md).fill(Color.tfCard2)
-                        .padding(.vertical, 1)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var leading: some View {
-        switch block.kind {
-        case .bulletItem:
-            Circle().fill(Color.tfSub).frame(width: 5, height: 5).padding(.top, 9)
-        case .orderedItem:
-            Text("\(orderedIndex ?? 1).")
-                .tfText(.body)
-                .foregroundStyle(Color.tfSub)
-                .frame(minWidth: 20, alignment: .trailing)
-        case .taskItem(let checked):
-            TFCheckbox(isChecked: checked, action: onToggleChecked)
-        default:
-            EmptyView()
-        }
-    }
-
-    private var quoteBarInset: CGFloat {
-        if case .blockquote = block.kind { return TFSpacing.sm }
-        return 0
-    }
-}
-
-/// Что именно сносим из таблицы и от какой ячейки считаем. Живёт снаружи
-/// экрана, потому что `NoteEditorScreen` — `struct` с приватным телом, а
-/// запрос нужен и alert'у, и панели под таблицей.
-private struct TableDeleteRequest {
-    enum Target { case row, column }
-    let target: Target
-    let cellID: UUID
-}
+// MARK: - Таблица
 
 /// Таблица заметки. Ячейка — такой же `NoteBlockTextView`, как обычный блок
 /// (свой контроллер из общего `controllerStore`, та же клавиатурная панель),
 /// только Enter внутри неё не разбивает блок надвое, а ставит перенос:
 /// «следующей ячейки» в плоской модели документа не существует. Правка
-/// уезжает на сервер через `NoteEditorViewModel.updateRuns` — он сам
-/// разбирает, блок пришёл или ячейка.
+/// уезжает в документ через `BlockDocumentOps.updateRuns` — он сам
+/// разбирает, блок пришёл или ячейка. Живёт здесь, а не в общем
+/// `BlockDocumentEditor`: таблицы есть только в заметках.
 ///
 /// Ширина колонки считается по её САМОМУ ДЛИННОМУ содержимому и зажимается
 /// в `minColumn…maxColumn`: раньше все колонки были по 140pt, и колонка
@@ -492,7 +269,7 @@ private struct TableDeleteRequest {
 /// выделяется для одной циферки»). Тянуть колонки по доступной ширине,
 /// как это делает `Grid`, нельзя: одна длинная колонка сплющит остальные в
 /// нечитаемые полоски — поэтому таблица шире экрана прокручивается вбок.
-private struct NoteTableBlock: View {
+struct NoteTableBlock: View {
     let rows: [NoteTableRow]
     let controllerStore: NoteBlockControllerStore
     let accessoryView: UIView?

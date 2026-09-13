@@ -55,12 +55,16 @@ private func routeContent(_ route: AppRoute) -> some View {
         TaskFormScreen()
     case .notes:
         NotesScreen()
+    case .noteCreate:
+        NotesScreen(startsNewNote: true)
     case .noteFolder(let folderID):
         NotesScreen(focusFolderID: folderID)
     case .noteEditor(let noteID):
         NoteEditorScreen(noteID: noteID)
     case .projects:
         ProjectsScreen()
+    case .projectCreate:
+        ProjectsScreen(opensCreateForm: true)
     case .knowledge:
         KnowledgeScreen()
     case .projectTasks(let projectID):

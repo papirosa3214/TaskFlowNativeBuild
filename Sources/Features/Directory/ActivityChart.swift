@@ -588,7 +588,10 @@ struct ActivityChart: View {
                 }
             }
             VStack(spacing: 2) {
-                Text("\(donutData.total)").font(.system(size: 20, weight: .bold)).foregroundStyle(Color.tfText)
+                Text("\(donutData.total)")
+                    .tfStyle(TFFont.taskTitle, tracking: TFFont.taskTitleTracking)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.tfText)
                 Text("всего задач").tfText(.micro).foregroundStyle(Color.tfDim)
             }
         }
@@ -611,7 +614,7 @@ struct ActivityChart: View {
                 Circle().fill(color).frame(width: 8, height: 8)
                 Text(title).tfText(.caption).foregroundStyle(color)
             }
-            (Text("\(value) ").font(.system(size: 16, weight: .bold)).foregroundColor(Color.tfText)
+            (Text("\(value) ").tfStyle(TFFont.input, tracking: TFFont.inputTracking).fontWeight(.bold).foregroundColor(Color.tfText)
                 + Text("(\(pct)%)").tfStyle(TFFont.caption, tracking: TFFont.captionTracking).foregroundColor(Color.tfDim))
         }
         .padding(TFSpacing.sm)
@@ -627,7 +630,7 @@ struct ActivityChart: View {
                 Text(title).tfText(.caption).foregroundStyle(color)
             }
             Spacer()
-            (Text("\(value) ").font(.system(size: 14, weight: .bold)).foregroundColor(color)
+            (Text("\(value) ").tfStyle(TFFont.row).fontWeight(.bold).foregroundColor(color)
                 + Text("(\(pct)%)").tfStyle(TFFont.caption, tracking: TFFont.captionTracking).foregroundColor(color.opacity(0.8)))
         }
         .padding(TFSpacing.sm)

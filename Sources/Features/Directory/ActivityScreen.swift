@@ -67,6 +67,9 @@ struct ActivityScreen: View {
             .padding(.top, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl)
         }
+        .refreshable {
+            await taskStore.load(silent: true)
+        }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Назад рисует сам NavigationStack; в toolbar
         // остаётся только фильтр. Было ручное `.toolbarBackground` — просьба

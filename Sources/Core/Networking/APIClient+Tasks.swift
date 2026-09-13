@@ -54,6 +54,16 @@ public extension APIClient {
 
     /// Тело создания — строго типизированная структура (в отличие от PATCH,
     /// здесь все поля известны заранее, партиальность не нужна).
+    ///
+    /// 13.09.2026, владелец: «нажимаю готово, а задача не сохраняется». Причина
+    /// — дефолтный авто-сгенерированный `Encodable` пишет ВСЕ опциональные
+    /// поля как `null`, а сервер (`server/src/routes/tasks.ts`) для `subtasks`
+    /// и `label_ids` требует именно массив (или отсутствие ключа), а не
+    /// `null`. Сервер отвечал 400 `{"error":"subtasks должен быть массивом"}`,
+    /// клиент ловил ошибку в `TaskStore.create`, возвращал `nil`, шторка
+    /// оставалась открытой — выглядело как «не сохраняется». Ручной
+    /// `encode(to:)` ниже ОПУСКАЕТ `nil`-значения вместо записи `null`,
+    /// чтобы тело в JSON совпадало с тем, что подразумевает сервер.
     struct NewTaskRequest: Encodable, Sendable {
         public var title: String
         public var description: String?
@@ -90,6 +100,21 @@ public extension APIClient {
             self.startTime = startTime; self.durationMin = durationMin; self.projectId = projectId
             self.assigneeId = assigneeId; self.priority = priority; self.parentId = parentId
             self.labelIds = labelIds; self.subtasks = subtasks
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(title, forKey: .title)
+            if let v = description { try c.encode(v, forKey: .description) }
+            if let v = dueDate { try c.encode(v, forKey: .dueDate) }
+            if let v = startTime { try c.encode(v, forKey: .startTime) }
+            if let v = durationMin { try c.encode(v, forKey: .durationMin) }
+            if let v = projectId { try c.encode(v, forKey: .projectId) }
+            if let v = assigneeId { try c.encode(v, forKey: .assigneeId) }
+            if let v = priority { try c.encode(v, forKey: .priority) }
+            if let v = parentId { try c.encode(v, forKey: .parentId) }
+            if let v = labelIds { try c.encode(v, forKey: .labelIds) }
+            if let v = subtasks { try c.encode(v, forKey: .subtasks) }
         }
     }
 

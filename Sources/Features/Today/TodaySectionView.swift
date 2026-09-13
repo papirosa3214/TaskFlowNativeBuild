@@ -24,6 +24,10 @@ struct TodaySectionView: View {
     @State private var sheetTaskID: TodaySectionTaskID?
     @State private var rescheduleOpen = false
     @State private var rescheduleTask: ApiTask?
+    @State private var rescheduleTaskIDs: [String]?
+    @State private var isBoardSelectionMode = false
+    @State private var selectedBoardTaskIDs: Set<String> = []
+    @State private var isBulkDeleteConfirmationPresented = false
 
     private var today: String { TodayDate.todayString() }
 
@@ -55,7 +59,7 @@ struct TodaySectionView: View {
                 // Канбан сам владеет вертикальной прокруткой каждой
                 // колонки. Общая ScrollView связывала все три позиции.
                 listOrBoardContent(c: c)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     // Общий отступ под панель вкладок (`routeDestination`)
                     // держит доску НАД панелью, а карточки должны уезжать
                     // под неё — как на остальных экранах. Гасим его только
@@ -70,10 +74,38 @@ struct TodaySectionView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 0) {
-                    filterMenu(c: c).tfPlannerWideControl()
-                    plannerViewSwitcher.tfPlannerWideControl()
+            if layout == .board && isBoardSelectionMode {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        rescheduleTaskIDs = Array(selectedBoardTaskIDs)
+                        rescheduleOpen = true
+                    } label: {
+                        Image(systemName: "calendar.badge.plus")
+                    }
+                    .disabled(selectedBoardTaskIDs.isEmpty)
+                    .accessibilityLabel("Назначить срок выбранным задачам")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) {
+                        isBulkDeleteConfirmationPresented = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .disabled(selectedBoardTaskIDs.isEmpty)
+                    .accessibilityLabel("Удалить выбранные задачи")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Готово") {
+                        isBoardSelectionMode = false
+                        selectedBoardTaskIDs.removeAll()
+                    }
+                }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 0) {
+                        filterMenu(c: c).tfPlannerWideControl()
+                        plannerViewSwitcher.tfPlannerWideControl()
+                    }
                 }
             }
         }
@@ -85,16 +117,38 @@ struct TodaySectionView: View {
         }
         .tfBottomSheet(isPresented: $rescheduleOpen, title: "Срок") {
             RescheduleSheetContent(
-                taskIds: rescheduleTask.map { [$0.id] } ?? c.overdueTasks.map(\.id),
+                taskIds: rescheduleTaskIDs ?? rescheduleTask.map { [$0.id] } ?? c.overdueTasks.map(\.id),
                 taskStore: taskStore,
                 onClose: {
                     rescheduleTask = nil
+                    rescheduleTaskIDs = nil
                     rescheduleOpen = false
                 }
             )
         }
         .onChange(of: rescheduleOpen) { _, open in
-            if !open { rescheduleTask = nil }
+            if !open {
+                rescheduleTask = nil
+                rescheduleTaskIDs = nil
+            }
+        }
+        .onChange(of: layout) { _, newLayout in
+            if newLayout != .board {
+                isBoardSelectionMode = false
+                selectedBoardTaskIDs.removeAll()
+            }
+        }
+        .confirmationDialog(
+            "Удалить выбранные задачи?",
+            isPresented: $isBulkDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                Task { await deleteSelectedBoardTasks() }
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Будет удалено задач: \(selectedBoardTaskIDs.count). Восстановить их нельзя.")
         }
     }
 
@@ -128,7 +182,11 @@ struct TodaySectionView: View {
                         columns: c.boardColumns,
                         onOpenTask: { sheetTaskID = TodaySectionTaskID(id: $0) },
                         onReschedule: { rescheduleOpen = true },
-                        onAddTask: onAddTask
+                        onAddTask: onAddTask,
+                        isSelectingTasks: isBoardSelectionMode,
+                        selectedTaskIDs: selectedBoardTaskIDs,
+                        onToggleTaskSelection: toggleBoardTaskSelection,
+                        onToggleColumnSelection: toggleBoardColumnSelection
                     )
                 case .hours:
                     EmptyView()
@@ -207,6 +265,16 @@ struct TodaySectionView: View {
 
             Divider()
 
+            if layout == .board {
+                Button {
+                    isBoardSelectionMode = true
+                    selectedBoardTaskIDs.removeAll()
+                } label: {
+                    Label("Выбрать задачи", systemImage: "checkmark.circle")
+                }
+                Divider()
+            }
+
             // «Выполненные» живут внутри этого подменю вместе с проектами и
             // агентскими — состав раздела общий с диапазонами, отдельного
             // переключателя здесь больше нет.
@@ -229,6 +297,36 @@ struct TodaySectionView: View {
         Button(action: action) {
             if selected { Label(title, systemImage: "checkmark") }
             else { Text(title) }
+        }
+    }
+
+    private func toggleBoardTaskSelection(_ taskID: String) {
+        if selectedBoardTaskIDs.contains(taskID) {
+            selectedBoardTaskIDs.remove(taskID)
+        } else {
+            selectedBoardTaskIDs.insert(taskID)
+        }
+    }
+
+    private func toggleBoardColumnSelection(_ column: TodayBoardColumn) {
+        let ids = Set(column.tasks.map(\.id))
+        guard !ids.isEmpty else { return }
+        if ids.isSubset(of: selectedBoardTaskIDs) {
+            selectedBoardTaskIDs.subtract(ids)
+        } else {
+            selectedBoardTaskIDs.formUnion(ids)
+        }
+    }
+
+    private func deleteSelectedBoardTasks() async {
+        let selectedIDs = selectedBoardTaskIDs
+        for taskID in selectedIDs {
+            if await taskStore.delete(taskId: taskID) {
+                selectedBoardTaskIDs.remove(taskID)
+            }
+        }
+        if selectedBoardTaskIDs.isEmpty {
+            isBoardSelectionMode = false
         }
     }
 }

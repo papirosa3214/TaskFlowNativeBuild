@@ -110,6 +110,9 @@ struct TodayScreen: View {
                 // (safeAreaInset) — свой убран, было бы задвоение.
                 .padding(.bottom, TFSpacing.lg)
         }
+        .refreshable {
+            await taskStore.load(silent: true)
+        }
         .background(Color.tfBackground.ignoresSafeArea())
         .tfNativeHeader(TodayDate.formatWeekdayLabel(headerDate))
         .toolbar {

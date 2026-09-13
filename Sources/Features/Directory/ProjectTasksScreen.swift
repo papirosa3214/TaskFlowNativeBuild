@@ -106,6 +106,10 @@ struct ProjectTasksScreen: View {
             .padding(.top, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl)
         }
+        .refreshable {
+            await taskStore.load(silent: true)
+            await refreshRelationshipTasks()
+        }
         .background(Color.tfBackground)
         // Штатная шапка (просьба владельца 03.09.2026 — «нативные кнопки
         // везде одним элементом»). Была `DirectoryCompactHeader` (свой

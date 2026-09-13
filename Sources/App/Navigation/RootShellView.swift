@@ -275,12 +275,11 @@ struct RootShellView: View {
         )
     }
 
-    /// Пункты и переходы — spec/SCREENS-1.md §2.1 (CreateMenu, 3 пункта,
-    /// иконки/подписи как в превью `TFCreateMenu` — те же, что выбрал автор
-    /// компонента).
+    /// Центральный «+» — один вход в создание трёх сущностей. Каждый пункт
+    /// открывает форму сразу, а не соответствующий раздел приложения.
     private var createMenuItems: [TFCreateMenuItem] {
         [
-            TFCreateMenuItem(icon: "checkmark", title: "Задача", subtitle: "Со сроком и шагами") {
+            TFCreateMenuItem(icon: "checkmark", title: "Задача") {
                 // Задача заводится компактной панелью над клавиатурой, а не
                 // полноэкранным бланком: владелец так и просил — нажал «плюс»,
                 // написал название, сохранил. Полная форма остаётся за кнопкой
@@ -288,11 +287,11 @@ struct RootShellView: View {
                 isCreateMenuOpen = false
                 quickAddDraft = QuickAddDraft(viewModel: TaskFormViewModel(taskID: nil))
             },
-            TFCreateMenuItem(icon: "book", title: "Заметка", subtitle: "Запись в дневнике") {
-                openCreateMenuTarget(.notes)
+            TFCreateMenuItem(icon: "book", title: "Заметка") {
+                openCreateMenuTarget(.noteCreate)
             },
-            TFCreateMenuItem(icon: "tray", title: "Проект", subtitle: "Задачи и документация") {
-                openCreateMenuTarget(.projects)
+            TFCreateMenuItem(icon: "tray", title: "Проект") {
+                openCreateMenuTarget(.projectCreate)
             },
         ]
     }
