@@ -291,10 +291,20 @@ struct TaskFormScreen: View {
                 // 11.09.2026: «я-то их не вижу, поэтому понятия не имею, о какой
                 // карточке ты говоришь». Намеренно неброско — .caption2 +
                 // .tertiary, сноска, которую можно не читать.
-                if let taskID = viewModel.taskID {
-                    Text(taskID.prefix(8))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                HStack(alignment: .firstTextBaseline) {
+                    if let taskID = viewModel.taskID {
+                        Text(taskID.prefix(8))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    // LOCK-123. Лесенка модели (спек 1.2, 1.2.10). У старых
+                    // задач поля `attempt_ladder` в ответе нет — компонент
+                    // молча не рисуется. У новых — «1/3 → Sonnet», при
+                    // эскалации/блокировке цвет переключается на `tfOrange`.
+                    if let ladder = viewModel.attemptLadder {
+                        AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
+                    }
                 }
                 TextField("Название задачи", text: $viewModel.title, axis: .vertical)
                     .font(.headline)

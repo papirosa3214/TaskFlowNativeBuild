@@ -74,6 +74,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let events: [ApiTaskEvent]?
     /// Только `GET /api/tasks/:id` — файлы самой задачи (`kind='task'`).
     public let attachments: [ApiAttachment]?
+    /// Спек 1.2, 1.2.10 — лесенка модели. Только `GET /api/tasks/:id`. На
+    /// старых задачах (созданных до спек 1.2) поле отсутствует в ответе —
+    /// UI просто не рисует индикатор. Тип и история в `AttemptLadder.swift`.
+    public let attemptLadder: ApiAttemptLadder?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -107,6 +111,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case projectName = "project_name"
         case projectColor = "project_color"
         case labels, subtasks, children, comments, events, attachments
+        case attemptLadder = "attempt_ladder"
     }
 
     public init(from decoder: Decoder) throws {
@@ -152,6 +157,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         comments = try c.decodeIfPresent([ApiComment].self, forKey: .comments)
         events = try c.decodeIfPresent([ApiTaskEvent].self, forKey: .events)
         attachments = try c.decodeIfPresent([ApiAttachment].self, forKey: .attachments)
+        attemptLadder = try c.decodeIfPresent(ApiAttemptLadder.self, forKey: .attemptLadder)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -194,6 +200,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(comments, forKey: .comments)
         try c.encodeIfPresent(events, forKey: .events)
         try c.encodeIfPresent(attachments, forKey: .attachments)
+        try c.encodeIfPresent(attemptLadder, forKey: .attemptLadder)
     }
 
     // MARK: Удобные вычисляемые даты (raw-строки остаются полями — см. DateFormats)
