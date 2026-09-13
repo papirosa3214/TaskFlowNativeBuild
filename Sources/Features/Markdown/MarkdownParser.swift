@@ -406,3 +406,130 @@ enum MarkdownParser {
         var link: String? = nil
     }
 }
+
+// ═══════════ [NoteBlock] → Markdown ═══════════
+//
+// Зеркало парсера: тот же набор блоков и марок, обратное направление.
+// Используется и при сохранении документа, и при миграции TipTap-JSON
+// (TipTapToMarkdown переводит AST в markdown, а не сохраняет напрямую —
+// чтобы можно было положиться на единый кодер для всего).
+//
+// Чего осознанно НЕ делает:
+//   • underline / highlight → НЕ кодируются (Obsidian-специфика, см.
+//     комментарий у `MarkdownParser.parse`). Если в AST они остались после
+//     миграции старых TipTap-заметок, текст просто выйдет без марки — потери
+//     отмечены в карточке LOCK-142.
+//   • tables → кодируются как обычный текст по ячейкам (TipTapToMarkdown
+//     сам решает, как именно раскладывать; см. там).
+//   • nested blockquote не поддерживается — TipTap у нас их не создаёт.
+
+enum MarkdownEncoder {
+
+    static func encode(_ blocks: [NoteBlock]) -> String {
+        var out: [String] = []
+        for block in blocks {
+            switch block.kind {
+            case .paragraph:
+                out.append(encodeInline(block.runs))
+
+            case .heading(let level):
+                let hashes = String(repeating: "#", count: max(1, min(level, 3)))
+                out.append("\(hashes) \(encodeInline(block.runs))")
+
+            case .bulletItem:
+                let indent = String(repeating: "  ", count: block.level)
+                out.append("\(indent)- \(encodeInline(block.runs))")
+
+            case .orderedItem:
+                let indent = String(repeating: "  ", count: block.level)
+                out.append("\(indent)1. \(encodeInline(block.runs))")
+
+            case .taskItem(let checked):
+                let indent = String(repeating: "  ", count: block.level)
+                let mark = checked ? "[x]" : "[ ]"
+                out.append("\(indent)- \(mark) \(encodeInline(block.runs))")
+
+            case .blockquote:
+                // Каждая строка текста получает свой `>` — чтобы переносы внутри
+                // цитаты не терялись при повторном парсинге.
+                let body = encodeInline(block.runs)
+                let quoted = body.split(separator: "\n", omittingEmptySubsequences: false)
+                    .map { "> \($0)" }
+                    .joined(separator: "\n")
+                out.append(quoted)
+
+            case .horizontalRule:
+                out.append("---")
+
+            case .codeBlock(let language):
+                let lang = language ?? ""
+                let body = block.runs.first?.text ?? ""
+                out.append("```\(lang)\n\(body)\n```")
+
+            case .table:
+                // Таблица сериализуется плоско: каждая ячейка = параграф
+                // с пометкой (TipTapToMarkdown делает свой формат, тут мы
+                // оставляем заглушку чтобы не потерять текст совсем).
+                for row in tableRows(block) {
+                    for cell in row.cells {
+                        out.append(encodeInline(cell.runs))
+                    }
+                }
+            }
+        }
+        // Блоки разделяются пустой строкой — CommonMark.
+        return out.joined(separator: "\n\n")
+    }
+
+    /// Прогон → строка с экранированием спецсимволов маркдауна в обычном
+    /// тексте (но НЕ внутри `code`/url — там содержимое литерально).
+    static func encodeInline(_ runs: [RichRun]) -> String {
+        var out = ""
+        for run in runs {
+            if run.code {
+                out.append("`\(run.text)`")
+                continue
+            }
+            if let href = run.linkHref, !href.isEmpty {
+                let label = applyMarks(run, escaping: true)
+                out.append("[\(label)](\(href))")
+                continue
+            }
+            out.append(applyMarks(run, escaping: true))
+        }
+        return out
+    }
+
+    private static func applyMarks(_ run: RichRun, escaping: Bool) -> String {
+        let raw = escaping ? escape(run.text) : run.text
+        var s = raw
+        if run.italic { s = "*\(s)*" }
+        if run.bold { s = "**\(s)**" }
+        if run.strike { s = "~~\(s)~~" }
+        return s
+    }
+
+    /// Экранируем символы, которые в «обычном» инлайне могут начать разметку.
+    /// Делается ДО applyMarks — чтобы `*` внутри `**bold**` не экранировался
+    /// (это уже разделитель). Внутри `code` и url экранирование не идёт
+    /// (см. encodeInline).
+    private static func escape(_ s: String) -> String {
+        var out = ""
+        for ch in s {
+            switch ch {
+            case "\\", "`", "*", "_", "{", "}", "[", "]", "(", ")",
+                 "#", "+", "-", ".", "!", "|", "<", ">", "~":
+                out.append("\\")
+                out.append(ch)
+            default:
+                out.append(ch)
+            }
+        }
+        return out
+    }
+
+    private static func tableRows(_ block: NoteBlock) -> [NoteTableRow] {
+        if case .table(let rows) = block.kind { return rows }
+        return []
+    }
+}
