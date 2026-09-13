@@ -54,8 +54,17 @@ final class NoteEditorViewModel {
         defer { isLoading = false }
         async let foldersTask = apiClient.journalFolders()
         do {
-            let note = try await apiClient.note(id: noteID)
-            document = NoteDocument.decode(fromJSONString: note.content?.stringValue)
+            // Тянем с ?format=markdown: сервер ДОБАВЛЯЕТ поле `note.markdown`
+            // (см. APIClient+Notes.swift) — результат `tiptapToMarkdown.ts`.
+            // Если сервер его не вернул (старый билд / битый ответ), фолбэк
+            // на парсинг TipTap JSON из `content` — пусть старые заметки
+            // хотя бы откроются, а не упадут.
+            let note = try await apiClient.note(id: noteID, format: "markdown")
+            if let md = note.markdown, !md.isEmpty {
+                document = NoteDocument(blocks: MarkdownParser.parse(md))
+            } else {
+                document = NoteDocument.decode(fromJSONString: note.content?.stringValue)
+            }
             loadErrorMessage = nil
         } catch {
             loadErrorMessage = "Не удалось загрузить заметку"
