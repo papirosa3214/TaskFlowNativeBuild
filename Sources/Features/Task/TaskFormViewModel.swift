@@ -47,6 +47,8 @@ final class TaskFormViewModel {
     var priority: TaskPriority = .low
     var selectedLabelIds: Set<String> = []
     var assigneeId: String?
+    /// Имя того, кто завёл карточку — только для показа, менять его нельзя.
+    var creatorName: String?
     var attachments: TaskAttachmentsController
 
     // Полноценные связанные задачи (`tasks.parent_id`) — отдельная модель от
@@ -168,6 +170,7 @@ final class TaskFormViewModel {
             priority = TaskPriority(rawValue: task.priority) ?? .low
             selectedLabelIds = Set(task.labels.map(\.id))
             assigneeId = task.assigneeId
+            creatorName = task.creatorName
             attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID, existing: task.attachments ?? [])
         } catch let error as APIError {
             if case .notFound = error { notFound = true } else { loadErrorMessage = Self.message(error) }

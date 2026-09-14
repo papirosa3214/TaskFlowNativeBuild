@@ -63,38 +63,86 @@ enum AgentOwnerActionKind {
 // (`TaskJournalEntry`), виды владельческих действий и словарь формулировок
 // событий.
 enum TaskJournalView {
-    /// Словарь формулировок §19.2, ДОСЛОВНО. `kind` — открытая строка
-    /// (`Core/Models/TaskEvent.swift`), сравниваем как есть.
+    /// Человеческие подписи событий ленты.
+    ///
+    /// 14.09.2026: словарь был составлен под названия событий из
+    /// спецификации, а сервер шлёт другие — «created» против «task_created»,
+    /// «subtask_completed» против «subtask_done» и так далее. Совпадала
+    /// горстка, всё остальное падало в запасной вариант и выводилось
+    /// сырьём: владелец видел в ленте «subtask_done», «task_created»,
+    /// «state_changed» — технические строки в русскоязычном приложении.
+    ///
+    /// Названия ниже сверены с тем, что реально лежит в базе событий, а
+    /// формулировки — с лентой в вебе, чтобы одно действие называлось
+    /// одинаково в обоих местах. Запасной вариант больше не показывает
+    /// `kind`: неизвестное событие подписывается по-русски.
     static func eventText(_ event: ApiTaskEvent) -> String {
+        let value = event.toValue ?? ""
+        let previous = event.fromValue ?? ""
+
         switch event.kind {
-        case "claimed": "взял задачу в работу"
-        case "resumed_after_blocked": "вернулся к работе после блокировки"
-        case "returned_to_work": "вернул задачу на доработку"
-        case "submitted_review": "сдал задачу на проверку"
-        case "blocked": "заблокировал задачу — нужны действия владельца"
-        case "unclaimed": "снял задачу с агента"
-        case "accepted": "принял задачу"
-        case "reopened": "вернул задачу в работу"
-        case "renamed": "переименовал задачу"
-        case "priority_changed": "сменил приоритет"
-        case "due_date_set": "поставил срок"
-        case "due_date_cleared": "убрал срок"
-        case "assigned": "назначил исполнителем"
-        case "unassigned": "снял исполнителя"
-        case "moved_to_project": "перенёс задачу в проект"
-        case "removed_from_project": "убрал задачу из проекта"
-        case "subtask_added": "добавил шаг"
-        case "subtask_completed": "выполнил шаг"
-        case "subtask_uncompleted": "снял отметку с шага"
-        case "subtask_renamed": "переименовал шаг"
-        case "subtask_deleted": "удалил шаг"
-        case "subtask_submitted_review": "сдал шаг на проверку"
-        case "subtask_returned": "вернул шаг на доработку"
-        case "description_changed": "изменил описание"
-        case "labels_changed": "изменил метки"
-        case "created": "создал задачу"
-        case "subtasks_added": "добавил шаги"
-        default: event.kind
+        // Жизненный цикл задачи
+        case "task_created": return "создал задачу"
+        case "claimed": return "взял задачу в работу"
+        case "unclaimed": return "снял задачу с исполнителя"
+        case "lease_expired": return "задача снята: исполнитель замолчал"
+        case "task_dispatched":
+            return value.isEmpty ? "отдал задачу в работу" : "отдал задачу в работу: \(value)"
+        case "role_choice":
+            return value.isEmpty ? "выбрал исполнителя" : value
+        case "ready_flag_changed":
+            return value == "1" ? "отметил задачу готовой к работе" : "снял отметку готовности"
+        case "state_changed":
+            switch value {
+            case "in_progress": return "взялся за задачу"
+            case "review": return "сдал задачу на проверку"
+            case "blocked": return "заблокировал задачу — нужно ваше решение"
+            case "completed": return "принял задачу"
+            case "active": return "вернул задачу в работу"
+            default: return "изменил состояние задачи"
+            }
+        case "review_recorded": return "записал итог проверки"
+        case "result_version_created": return "приложил результат на проверку"
+
+        // Поля карточки
+        case "field_changed":
+            return fieldChangeText(field: event.field, previous: previous, value: value)
+        case "description_changed": return "изменил описание"
+        case "labels_changed": return "изменил метки"
+
+        // Шаги
+        case "subtasks_seeded":
+            return value.isEmpty ? "добавил шаги" : "добавил шаги: \(value)"
+        case "subtask_added": return "добавил шаг: \(value)"
+        case "subtask_started": return "взялся за шаг: \(value)"
+        case "subtask_done": return "выполнил шаг: \(value)"
+        case "subtask_undone": return "снял отметку с шага: \(value)"
+        case "subtask_renamed": return "переименовал шаг: \(previous) → \(value)"
+        case "subtask_removed": return "удалил шаг: \(previous)"
+        case "subtask_review": return "сдал шаг на проверку: \(value)"
+        case "subtask_returned": return "вернул шаг на доработку: \(value)"
+        case "subtask_blocked": return "застрял на шаге: \(value)"
+        case "subtask_released": return "отпустил шаг: \(value)"
+
+        default: return "обновил задачу"
+        }
+    }
+
+    /// Правка одного поля карточки. Имена полей технические и на экран
+    /// попадать не должны — каждому нужна своя человеческая формулировка.
+    private static func fieldChangeText(field: String?, previous: String, value: String) -> String {
+        switch field {
+        case "assignee_id": return value.isEmpty ? "снял исполнителя" : "сменил исполнителя"
+        case "owner_selected_role": return value.isEmpty ? "убрал выбор исполнителя" : value
+        case "priority": return "сменил приоритет"
+        case "due_date": return value.isEmpty ? "убрал срок" : "поставил срок: \(value)"
+        case "start_time": return value.isEmpty ? "убрал время начала" : "поставил время: \(value)"
+        case "duration_min": return "изменил длительность"
+        case "project_id": return value.isEmpty ? "убрал задачу из проекта" : "перенёс задачу в другой проект"
+        case "title": return "переименовал задачу"
+        case "status": return value == "completed" ? "закрыл задачу" : "вернул задачу в работу"
+        case "parent_id": return value.isEmpty ? "открепил задачу от родителя" : "прикрепил задачу к родителю"
+        default: return "изменил карточку"
         }
     }
 }

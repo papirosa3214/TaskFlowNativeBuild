@@ -62,6 +62,15 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let assigneeColor: String?
     public let assigneeAvatarUrl: String?
     public let assigneeInitials: String?
+    /// Кто завёл карточку. Владелец 14.09.2026: «почему я не вижу в
+    /// карточке, кто создаёт карточки». Раньше приходил только
+    /// `creator_id`, по которому на экране ничего не покажешь. Нужно это с
+    /// тех пор, как карточки заводит не только владелец: их создают роли и
+    /// разбор надиктовки.
+    public let creatorName: String?
+    public let creatorColor: String?
+    public let creatorAvatarUrl: String?
+    public let creatorInitials: String?
     public let projectName: String?
     public let projectColor: String?
     public let labels: [ApiLabel]
@@ -108,6 +117,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case assigneeColor = "assignee_color"
         case assigneeAvatarUrl = "assignee_avatar_url"
         case assigneeInitials = "assignee_initials"
+        case creatorName = "creator_name"
+        case creatorColor = "creator_color"
+        case creatorAvatarUrl = "creator_avatar_url"
+        case creatorInitials = "creator_initials"
         case projectName = "project_name"
         case projectColor = "project_color"
         case labels, subtasks, children, comments, events, attachments
@@ -149,6 +162,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         assigneeColor = try c.decodeIfPresent(String.self, forKey: .assigneeColor)
         assigneeAvatarUrl = try c.decodeIfPresent(String.self, forKey: .assigneeAvatarUrl)
         assigneeInitials = try c.decodeIfPresent(String.self, forKey: .assigneeInitials)
+        creatorName = try c.decodeIfPresent(String.self, forKey: .creatorName)
+        creatorColor = try c.decodeIfPresent(String.self, forKey: .creatorColor)
+        creatorAvatarUrl = try c.decodeIfPresent(String.self, forKey: .creatorAvatarUrl)
+        creatorInitials = try c.decodeIfPresent(String.self, forKey: .creatorInitials)
         projectName = try c.decodeIfPresent(String.self, forKey: .projectName)
         projectColor = try c.decodeIfPresent(String.self, forKey: .projectColor)
         labels = try c.decodeIfPresent([ApiLabel].self, forKey: .labels) ?? []
@@ -192,6 +209,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(assigneeColor, forKey: .assigneeColor)
         try c.encodeIfPresent(assigneeAvatarUrl, forKey: .assigneeAvatarUrl)
         try c.encodeIfPresent(assigneeInitials, forKey: .assigneeInitials)
+        try c.encodeIfPresent(creatorName, forKey: .creatorName)
+        try c.encodeIfPresent(creatorColor, forKey: .creatorColor)
+        try c.encodeIfPresent(creatorAvatarUrl, forKey: .creatorAvatarUrl)
+        try c.encodeIfPresent(creatorInitials, forKey: .creatorInitials)
         try c.encodeIfPresent(projectName, forKey: .projectName)
         try c.encodeIfPresent(projectColor, forKey: .projectColor)
         try c.encode(labels, forKey: .labels)

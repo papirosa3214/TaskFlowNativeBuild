@@ -482,6 +482,17 @@ struct TaskFormScreen: View {
                         .foregroundStyle(Color.tfSub)
                 }
                 .buttonStyle(.plain)
+
+                // Кто завёл карточку. Владелец 14.09.2026: «почему я не вижу
+                // в карточке, кто создаёт карточки». Раньше это знал только
+                // сервер. Строка не редактируется — создателя не меняют, и
+                // она показывается лишь у сохранённых задач: у новой
+                // создатель ещё не записан.
+                if let creator = viewModel.creatorName, !creator.isEmpty {
+                    LabeledContent("Создал", value: creator)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                }
             } header: {
                 taskSectionHeader("Сведения")
             }
