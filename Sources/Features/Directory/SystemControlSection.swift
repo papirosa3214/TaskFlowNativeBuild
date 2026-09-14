@@ -104,21 +104,34 @@ final class SystemControlViewModel {
 struct SystemControlSection: View {
     @State private var viewModel = SystemControlViewModel()
 
+    // Строки собраны ровно теми же кирпичами, что и «Пользовательские
+    // настройки» (`SettingsScreen.toggleRow`): `TFListRow` с plain-иконкой
+    // 40×40, `titleStyle: .action`, `verticalPadding: TFSpacing.xs` и
+    // `TFToggle` в `trailing`. Голый системный `Toggle` с меткой, который
+    // стоял здесь сначала, был полноразмерным и синим — в приложении
+    // тумблеры уменьшены до 0.82 и красные (`TFToggle`), поэтому строка
+    // выбивалась и высотой, и цветом из всех соседних.
     var body: some View {
         TFCard(padding: 0) {
             VStack(spacing: 0) {
-                row(
+                TFListRow(
+                    icon: "power", iconStyle: .plain,
                     title: "Система",
                     subtitle: systemSubtitle,
-                    isOn: systemBinding,
-                    isEnabled: viewModel.isSystemStateKnown && !viewModel.isTogglingSystem
+                    trailing: AnyView(TFToggle(isOn: systemBinding)
+                        .disabled(!viewModel.isSystemStateKnown || viewModel.isTogglingSystem)),
+                    titleStyle: .action,
+                    verticalPadding: TFSpacing.xs
                 )
-                TFDivider(inset: TFSpacing.lg)
-                row(
+                TFDivider(inset: rowDividerInset)
+                TFListRow(
+                    icon: "slider.horizontal.3", iconStyle: .plain,
                     title: "Режим",
                     subtitle: modeSubtitle,
-                    isOn: automaticBinding,
-                    isEnabled: viewModel.isModeKnown && !viewModel.isSavingMode
+                    trailing: AnyView(TFToggle(isOn: automaticBinding)
+                        .disabled(!viewModel.isModeKnown || viewModel.isSavingMode)),
+                    titleStyle: .action,
+                    verticalPadding: TFSpacing.xs
                 )
                 if viewModel.errorMessage != nil {
                     TFErrorBanner(viewModel.errorMessage)
@@ -130,42 +143,28 @@ struct SystemControlSection: View {
         .task { await viewModel.load() }
     }
 
-    // Заголовок строки ПОСТОЯННЫЙ, состояние живёт в подписи и в самом
-    // тумблере. Меняющийся заголовок («Система включена» ↔ «Система
-    // выключена») читается двояко: это текущее состояние или то, что
-    // случится по нажатию? Apple HIG (принцип grouping & mapping): контрол
-    // называется тем, ЧЕМ он управляет, а не тем, в каком он положении.
-    private func row(title: String, subtitle: String, isOn: Binding<Bool>, isEnabled: Bool) -> some View {
-        Toggle(isOn: isOn) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
-                Text(subtitle)
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
-            }
-        }
-        .disabled(!isEnabled)
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.md)
-    }
+    private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
+
+    // Заголовок строки ПОСТОЯННЫЙ («Система», «Режим»), состояние живёт в
+    // подписи и в самом тумблере: меняющийся заголовок читался бы двояко —
+    // это текущее положение или то, что случится по нажатию.
+    //
+    // Подписи короткие намеренно: `TFListRow` режет subtitle в одну строку
+    // (`lineLimit(1)`), длинная фраза оборвалась бы многоточием.
 
     /// Пока состояние не прочитано — говорим об этом прямо. Показать
-    /// «Выключена» там, где мы просто не дозвонились до сервера, — соврать
+    /// «Остановлена» там, где мы просто не дозвонились до сервера, — соврать
     /// владельцу: он решит, что систему кто-то выключил, и полезет включать.
     private var systemSubtitle: String {
         guard viewModel.isSystemStateKnown else { return "Нет связи с сервером" }
-        return viewModel.isSystemOn ? "Работает, берёт задачи в работу" : "Остановлена, задачи никто не возьмёт"
+        return viewModel.isSystemOn ? "Работает" : "Остановлена"
     }
 
-    /// Подпись говорит, что именно случится с надиктовкой: «Ручной» и
-    /// «Автомат» сами по себе о последствии не сообщают.
+    /// Подпись говорит, что случится с надиктовкой: «Ручной» и «Автомат»
+    /// сами по себе о последствии не сообщают.
     private var modeSubtitle: String {
         guard viewModel.isModeKnown else { return "Нет связи с сервером" }
-        return viewModel.mode == .automatic
-            ? "Автомат: задача уходит в работу без подтверждения"
-            : "Ручной: задача ждёт вашей проверки и флага"
+        return viewModel.mode == .automatic ? "Автомат, без подтверждения" : "Ручной, ждёт вашего флага"
     }
 
     private var systemBinding: Binding<Bool> {
