@@ -203,7 +203,7 @@ struct ServerStatusSection: View {
             // убираю настоящий): `VoiceModelsScreen.onServerSection`,
             // строка `serverModelTitle`/`serverModelValue`, тот же Ollama-
             // статус с того же /server-status. Здесь остаётся только то, что
-            // именно про инфраструктуру сервера (аптайм/пинг/версия/будильник).
+            // именно про инфраструктуру сервера (аптайм/пинг/версия/задачи).
             TFDivider(inset: rowDividerInset)
             TFListRow(
                 icon: "bolt.fill", iconStyle: .plain,
@@ -213,17 +213,12 @@ struct ServerStatusSection: View {
                 verticalPadding: TFSpacing.xs,
                 action: { Task { await viewModel.ping() } }
             )
-            TFDivider(inset: rowDividerInset)
-            TFListRow(
-                icon: "bell.fill", iconStyle: .plain,
-                title: "Будильник (служба)",
-                trailing: AnyView(TFToggle(isOn: Binding(
-                        get: { viewModel.agentService?.enabled ?? false },
-                        set: { enabled in Task { await viewModel.toggleAgentService(to: enabled) } }
-                    )).disabled(viewModel.isTogglingService)),
-                titleStyle: .action,
-                verticalPadding: TFSpacing.xs
-            )
+            // Строка «Будильник (служба)» переехала на «Обзор» рядом с
+            // режимом постановки (14.09.2026, просьба владельца: «перенеси
+            // туда, чтобы они рядышком были»). Здесь её больше нет — два
+            // входа к одному переключателю расходятся в показаниях, а
+            // спрятанный в настройках рубильник всей системы владелец
+            // и так не находил.
             TFDivider(inset: rowDividerInset)
             TFListRow(
                 icon: "list.bullet", iconStyle: .plain,

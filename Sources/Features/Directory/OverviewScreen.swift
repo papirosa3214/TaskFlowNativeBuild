@@ -9,6 +9,10 @@ import SwiftUI
 // молча показывают 0.
 struct OverviewScreen: View {
     @Environment(TaskStore.self) private var taskStore
+    /// Управление системой owner-only: обе серверные ручки отвечают 403
+    /// остальным, и показывать чужой учётке переключатели, которые ей
+    /// откажут, незачем.
+    @Environment(SessionStore.self) private var session
 
     /// Поиск открывается кнопкой в шапке, а не пунктом навигации, поэтому
     /// ему нужен свой флаг: `NavigationLink(value:)` требует собственный
@@ -24,6 +28,14 @@ struct OverviewScreen: View {
             // отделены друг от друга, а связанные переходы собраны в одну
             // карточку-список.
             VStack(spacing: TFSpacing.xl) {
+                // Выше сводок: владелец 14.09.2026 просил обе ручки
+                // («включена/выключена» и «ручной/автомат») рядом и
+                // на «Обзоре», а не в чате и не в глубине настроек.
+                // Счётчики ниже описывают, что СЕЙЧАС происходит; эта
+                // карточка отвечает, будет ли происходить вообще.
+                if session.currentUser?.role == .owner {
+                    SystemControlSection()
+                }
                 statusGrid
                 weeklySummaryCard
                 navigationSection
