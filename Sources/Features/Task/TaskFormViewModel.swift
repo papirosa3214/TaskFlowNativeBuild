@@ -392,6 +392,14 @@ final class TaskFormViewModel {
     // TaskDetailViewModel.performOwnerAction — §19.2 AgentOwnerActions,
     // логика не менялась, только источник taskID/reload).
 
+    /// Сервер возвращает точную причину отказа (`{error: ...}`). Не прячем её
+    /// за общей фразой: при возврате из review владелец должен понимать,
+    /// что именно нужно исправить — например, добавить обязательный
+    /// комментарий.
+    nonisolated static func ownerActionErrorMessage(_ error: Error) -> String {
+        (error as? APIError)?.errorDescription ?? "Не удалось изменить состояние задачи"
+    }
+
     /// `taskStore` — тот же общий кэш списков, что и у `save(taskStore:)`.
     /// Своей карточки мало: «Работа агентов» и плитки «Обзора» рисуют секции
     /// из стора, а он о владельческом действии не знает. Владелец 10.09.2026
@@ -428,8 +436,7 @@ final class TaskFormViewModel {
             // только он. Тихо, без спиннера: список уже на экране.
             await taskStore.load(silent: true)
         } catch {
-            // Формулировка дословно из спеки §19.2 (как было в TaskDetailViewModel).
-            saveErrorMessage = "Не удалось изменить состояние задачи"
+            saveErrorMessage = Self.ownerActionErrorMessage(error)
         }
     }
 

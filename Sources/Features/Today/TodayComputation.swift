@@ -19,6 +19,17 @@ struct TodayBoardColumn: Identifiable {
     let titleIsRed: Bool
 }
 
+/// Пустой снимок для первого рендера `TodayScreen` (до того как `.task(id:)`
+/// пересчитает реальный). Без него `computation` нельзя объявить `@State`
+/// с non-optional типом, а optional тащит `??` по всему body.
+extension TodayComputation {
+    static let placeholder: TodayComputation = TodayComputation(
+        allTasks: [], currentUser: nil, agents: [],
+        filters: .empty, today: "", activeHourDate: "",
+        isLoading: false, isError: false
+    )
+}
+
 /// Портирует useMemo-цепочку `TodayScreen.tsx` 1:1 (дедуп «Ждут вас» →
 /// «Просрочено» → «Сегодня», разделение «искренних»/«отфильтрованных»
 /// пустых множеств) — см. комментарии там же для обоснования порядка.

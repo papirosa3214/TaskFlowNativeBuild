@@ -22,38 +22,45 @@ struct TodayBoardView: View {
     @State private var visibleColumnID: TodayBoardColumn.Kind?
 
     var body: some View {
-        GeometryReader { proxy in
-            let columnWidth = max(280, proxy.size.width - TFSpacing.lg * 2 - boardNextColumnPeek)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: TFSpacing.md) {
-                    ForEach(columns) { column in
-                        columnView(column)
-                            .id(column.id)
-                            // Явные границы дают горизонтальному скроллу
-                            // стабильные цели. Раньше ширина вычислялась через
-                            // containerRelativeFrame внутри вложенных скроллов;
-                            // при изменении состава колонок геометрия уезжала.
-                            .frame(width: columnWidth, height: proxy.size.height, alignment: .top)
-                    }
+        // Геометрия колонок теперь берётся у SwiftUI напрямую через
+        // `containerRelativeFrame` (iOS 17+). `GeometryReader` убран: он всегда
+        // жадно занимал всё доступное пространство, из-за чего на первой
+        // загрузке и при rotation SwiftUI переоценивал всю иерархию и доска
+        // «прыгала». Каждая колонка теперь занимает ровно ширину контейнера
+        // (без peek — `boardNextColumnPeek` ниже, как sentinel).
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: TFSpacing.md) {
+                ForEach(columns) { column in
+                    columnView(column)
+                        // `.id(column.id)` раньше стоял здесь явно — когда
+                        // `boardColumns` пересобирался на каждый body re-render,
+                        // SwiftUI терял identity и `.scrollTargetBehavior` прыгал.
+                        // После шага 1 (мемоизация `TodayComputation` через
+                        // `.task(id:)` в `TodayScreen`) `column.id` стабилен,
+                        // а `TodayBoardColumn: Identifiable` сам даёт нужный
+                        // identity для diffing — дополнительный `.id` лишний и
+                        // только мешал SwiftUI повторно использовать view-инстанс
+                        // при изменении `column.tasks`.
+                        .containerRelativeFrame(.horizontal, count: 1, span: 1, spacing: 0, alignment: .leading)
+                        .containerRelativeFrame(.vertical, alignment: .top)
                 }
-                .padding(.horizontal, TFSpacing.lg)
-                .scrollTargetLayout()
+                // Sentinel для peek: после последней видимой колонки остаётся
+                // полоска `boardNextColumnPeek`, по которой `.viewAligned` snap'ит
+                // как на «начало следующей колонки». Без sentinel свайп бы
+                // останавливался ровно на границе колонки без подсказки «есть
+                // ещё», и анимация snap'а выглядела бы рывком.
+                Color.clear.frame(width: boardNextColumnPeek)
             }
-            .scrollPosition(id: $visibleColumnID, anchor: .leading)
-            .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-            // 13.09.2026, LOCK-140: `.frame(maxWidth:height:)` — нет такой
-            // перегрузки (`extra argument 'height' in call`); семантика —
-            // «во всю ширину и ровно proxy.size.height в высоту», поэтому
-            // оба параметра должны быть из одной группы (конкретные либо
-            // максимумы). Берём максимумы: `GeometryReader` отдаёт точный
-            // размер и не сжимает вложенный view, так что `maxHeight` тут
-            // эквивалентен `height`.
-            .frame(maxWidth: .infinity, maxHeight: proxy.size.height, alignment: .top)
-            .onAppear { keepVisibleColumnValid() }
-            .onChange(of: columns.map(\.id)) { _, _ in keepVisibleColumnValid() }
+            .padding(.horizontal, TFSpacing.lg)
+            .scrollTargetLayout()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .scrollPosition(id: $visibleColumnID, anchor: .leading)
+        .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+        .onAppear { keepVisibleColumnValid() }
+        .onChange(of: columns.map(\.id)) { _, _ in keepVisibleColumnValid() }
+        // Вход/выход из режима мультивыбора: появление/исчезновение галочек и
+        // кнопок «Выбрать все»/«Снять выбор» в шапках колонок плавное.
+        .animation(.easeInOut(duration: 0.2), value: isSelectingTasks)
     }
 
     private func keepVisibleColumnValid() {
@@ -150,6 +157,11 @@ struct TodayBoardView: View {
         }
         .tfBoardNativeScrollEdges()
         .frame(maxHeight: .infinity, alignment: .top)
+        // Появление/исчезновение карточек в колонке пружинит — раньше
+        // добавление задачи через Realtime или удаление свайпом «схлопывали»
+        // колонку мгновенно и доска дёргалась. `column.tasks.map(\.id)`
+        // сравнивается по содержимому — перестановка тоже анимируется.
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: column.tasks.map(\.id))
     }
 
     private func boardCard(_ task: ApiTask) -> some View {
@@ -206,6 +218,8 @@ struct TodayBoardView: View {
                         .font(.title3)
                         .foregroundStyle(selectedTaskIDs.contains(task.id) ? Color.tfRed : Color.tfSub)
                         .padding(8)
+                        // Переключение галочки плавное, не мигает.
+                        .animation(.easeOut(duration: 0.18), value: selectedTaskIDs.contains(task.id))
                 }
             }
             .padding(.top, 8)

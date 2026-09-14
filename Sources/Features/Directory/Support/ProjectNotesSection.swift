@@ -59,7 +59,7 @@ struct ProjectNotesSection: View {
                     .foregroundStyle(Color.tfSub)
                 Spacer()
                 if docs?.folder != nil {
-                    TFIconButton("plus") { Task { await addNote() } }
+                    TFIconButton("plus", label: "Добавить документ") { Task { await addNote() } }
                 }
             }
 
@@ -151,7 +151,7 @@ struct ProjectNotesSection: View {
                                 .foregroundStyle(Color.tfText)
                                 .lineLimit(1)
                             Text(updatedLabel(for: note))
-                                .font(.system(size: 12))
+                                .tfText(.meta)
                                 .foregroundStyle(Color.tfSub)
                                 .lineLimit(1)
                         }

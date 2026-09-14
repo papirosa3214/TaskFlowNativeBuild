@@ -337,6 +337,10 @@ public struct NotesScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TFTapRowStyle())
+        // Чекбокс внутри строки — индикатор (создаётся без `action` и сам
+        // скрыт от VoiceOver), поэтому состояние отметки объявляет кнопка
+        // строки: без этого пользователь не слышит, выбрана папка или нет.
+        .accessibilityAddTraits(viewModel.isSelecting && viewModel.isSelected(row) ? .isSelected : [])
     }
 
     private func noteRow(_ row: NotesTreeRow, note: NoteListItem) -> some View {
@@ -344,6 +348,9 @@ public struct NotesScreen: View {
             if viewModel.isSelecting {
                 Button { viewModel.toggleSelected(row) } label: { noteRowContent(row, note: note) }
                     .buttonStyle(TFTapRowStyle())
+                    // См. комментарий в `folderRow`: состояние отметки несёт
+                    // кнопка строки, а не скрытый от VoiceOver чекбокс.
+                    .accessibilityAddTraits(viewModel.isSelected(row) ? .isSelected : [])
             } else {
                 NavigationLink(value: AppRoute.noteEditor(noteID: note.id)) {
                     noteRowContent(row, note: note)

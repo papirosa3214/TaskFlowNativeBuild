@@ -501,13 +501,13 @@ public struct UpcomingScreen: View {
         case .week:
             let (year, month) = UpcomingDate.weekMonth(monday: gridMonday)
             Text("\(UpcomingDate.monthsNom[month]) \(year)")
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.tfText)
+                .tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, TFSpacing.screenHorizontal).padding(.bottom, 6)
         case .month:
             let m = gridMonth ?? UpcomingDate.yearMonth(UpcomingDate.todayString())
             Text(UpcomingDate.monthsNom[m.month])
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.tfText)
+                .tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, TFSpacing.screenHorizontal).padding(.bottom, 6)
         case .threeDays:

@@ -48,11 +48,12 @@ struct TimelineDayLayer: View {
         return Button(action: { onOpen(task.id) }) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(time)
-                    .font(.system(size: 12, design: .monospaced))
+                    .tfMonospaced(12)
                     .tracking(1.5)
                     .foregroundStyle(Color.tfDim)
                 Text(task.title)
-                    .font(.system(size: 18, weight: .light))
+                    .tfText(.title)
+                    .fontWeight(.light)
                     .foregroundStyle(Color.tfText)
             }
             .overlay(alignment: .topLeading) {
@@ -93,21 +94,22 @@ struct TimelineWeekLayer: View {
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(day.label.uppercased())
-                    .font(.system(size: 12, weight: isCurrent ? .medium : .regular))
+                    .tfText(.meta)
+                    .fontWeight(isCurrent ? .medium : .regular)
                     .tracking(1.5)
                     .foregroundStyle(isCurrent ? Color.tfText : Color.tfDim)
                 if isCurrent {
                     Text("· \(TodayDate.weekdaysFull[weekdayIndex(day.date)])")
-                        .font(.system(size: 12))
+                        .tfText(.meta)
                         .tracking(1.5)
                         .foregroundStyle(Color.tfText)
                 }
             }
             if day.tasks.isEmpty {
-                Text("Отдых").font(.system(size: 18)).foregroundStyle(Color.tfSub)
+                Text("Отдых").tfText(.title).foregroundStyle(Color.tfSub)
             } else {
                 HStack(spacing: TFSpacing.sm) {
-                    Text(taskCountLabel(day.tasks.count)).font(.system(size: 18)).foregroundStyle(Color.tfText)
+                    Text(taskCountLabel(day.tasks.count)).tfText(.title).foregroundStyle(Color.tfText)
                     HStack(spacing: 5) {
                         ForEach(Array(day.tasks.prefix(6)), id: \.id) { task in
                             Circle().fill(timelinePriorityColor(task.priority)).frame(width: 6, height: 6)
@@ -163,7 +165,7 @@ struct TimelineMonthLayer: View {
         return ScrollView {
             VStack(spacing: TFSpacing.lg) {
                 Text("ПН · ВТ · СР · ЧТ · ПТ · СБ · ВС")
-                    .font(.system(size: 11))
+                    .tfText(.caption)
                     .foregroundStyle(Color.tfDim)
 
                 LazyVGrid(columns: columns, spacing: TFSpacing.xl) {
@@ -181,7 +183,8 @@ struct TimelineMonthLayer: View {
         Button(action: { if tasks.count == 1 { onOpen(tasks[0].id) } }) {
             VStack(spacing: 4) {
                 Text("\(day)")
-                    .font(.system(size: 20, weight: isToday ? .medium : .light))
+                    .tfText(.taskTitle)
+                    .fontWeight(isToday ? .medium : .light)
                     .foregroundStyle(isToday ? Color.tfText : Color.tfSub)
                 if isToday && !tasks.isEmpty {
                     Circle().fill(Color.tfOrange).frame(width: 4, height: 4)

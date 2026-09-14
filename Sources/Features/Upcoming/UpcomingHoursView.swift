@@ -489,7 +489,8 @@ struct UpcomingHoursView: View {
             let pos = CGFloat(minutes - startHour * 60) / 60 * hourHeight
             HStack(spacing: 4) {
                 Text(preview)
-                    .font(.system(size: 10, weight: .semibold))
+                    .tfText(.micro)
+                    .fontWeight(.semibold)
                     .monospacedDigit()
                     .foregroundStyle(Color.tfRed)
                     .frame(width: gutterW, alignment: .trailing)
@@ -759,7 +760,8 @@ struct UpcomingDayColumnsHeader: View {
             Color.clear.frame(width: gutterW, height: 1)
             ForEach(days) { day in
                 Text(UpcomingDate.formatDayColumnLabel(day.date))
-                    .font(.system(size: 12, weight: .semibold))
+                    .tfText(.meta)
+                    .fontWeight(.semibold)
                     .foregroundStyle(day.isToday ? Color.tfRed : Color.tfSub)
                     .frame(maxWidth: .infinity)
             }
@@ -784,7 +786,7 @@ private struct UpcomingUntimedRow: View {
             }
             if !task.subtasks.isEmpty {
                 Text("\(task.subtasks.count { $0.done })/\(task.subtasks.count)")
-                    .font(.system(size: 11)).monospacedDigit().foregroundStyle(Color.tfDim)
+                    .tfText(.caption).monospacedDigit().foregroundStyle(Color.tfDim)
             }
             Text(task.title)
                 .tfText(.action)

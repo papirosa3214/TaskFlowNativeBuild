@@ -30,14 +30,14 @@ struct UpcomingTaskChip: View {
                     .frame(width: 10, height: 10)
                 }
                 Text(task.title)
-                    .font(.system(size: compact ? 9 : 11))
+                    .tfText(compact ? .micro : .caption)
                     .foregroundStyle(isDone ? Color.tfSub : Color.tfText)
                     .strikethrough(isDone)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if !compact, let time = task.startTime {
                     Text(time)
-                        .font(.system(size: 10))
+                        .tfText(.micro)
                         .monospacedDigit()
                         .foregroundStyle(Color.tfDim)
                 }

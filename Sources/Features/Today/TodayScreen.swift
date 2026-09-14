@@ -17,22 +17,39 @@ struct TodayScreen: View {
     /// именно для неё. Приоритет над `rescheduleOpen` (тот для группы
     /// просроченных с доски).
     @State private var rescheduleTask: ApiTask?
+    /// Кеш снимка экрана. Раньше был computed property — на каждый re-render
+    /// `body` пересобирал его с нуля (5 фильтраций + 4 сортировки на main
+    /// thread), и это пересоздавало `boardColumns` с новыми `[ApiTask]` даже
+    /// когда входы не менялись. Результат — гонка между `.id(column.id)` и
+    /// `scrollPosition`, доска «дёргалась» при refresh, фильтр-смене и т.п.
+    /// `.task(id:)` гарантирует пересчёт ТОЛЬКО при изменении хеша входов;
+    /// пока они стабильны, `boardColumns` остаётся теми же экземплярами и
+    /// `scrollTargetBehavior` держит позицию.
+    @State private var computation: TodayComputation = .placeholder
     private var today: String { TodayDate.todayString() }
     private var activeHourDate: String {
         vm.hourDateOffset == 0 ? today : TodayDate.addDays(today, vm.hourDateOffset)
     }
 
-    private var computation: TodayComputation {
-        TodayComputation(
-            allTasks: taskStore.tasks,
-            currentUser: session.currentUser,
-            agents: vm.agents,
-            filters: vm.filters,
-            today: today,
-            activeHourDate: activeHourDate,
-            isLoading: taskStore.isLoading,
-            isError: taskStore.errorMessage != nil
-        )
+    /// Хеш всех входов `TodayComputation`. Меняется → `.task(id:)` перезапускается
+    /// и пересчитывает снимок. Поля `tasks` хешируются по `id` + статусу (а не
+    /// по всему телу), чтобы реальные изменения (realtime-апдейт, фильтр) давали
+    /// новый хеш, а косметические (avatar url, description edit) — нет.
+    private var computationInputsHash: Int {
+        var h = Hasher()
+        h.combine(taskStore.isLoading)
+        h.combine(taskStore.errorMessage)
+        h.combine(session.currentUser?.id)
+        h.combine(vm.agents.count)
+        for a in vm.agents { h.combine(a.id) }
+        h.combine(vm.filters)
+        h.combine(today)
+        h.combine(activeHourDate)
+        for t in taskStore.tasks {
+            h.combine(t.id)
+            h.combine(t.status)
+        }
+        return h.finalize()
     }
 
     var body: some View {
@@ -112,6 +129,21 @@ struct TodayScreen: View {
         }
         .refreshable {
             await taskStore.load(silent: true)
+        }
+        // Пересчёт снимка ТОЛЬКО при изменении хеша входов. До этого
+        // `computation` был computed property и пересобирался на каждый body
+        // re-render (см. длинный комментарий у `@State computation`).
+        .task(id: computationInputsHash) {
+            computation = TodayComputation(
+                allTasks: taskStore.tasks,
+                currentUser: session.currentUser,
+                agents: vm.agents,
+                filters: vm.filters,
+                today: today,
+                activeHourDate: activeHourDate,
+                isLoading: taskStore.isLoading,
+                isError: taskStore.errorMessage != nil
+            )
         }
         .background(Color.tfBackground.ignoresSafeArea())
         .tfNativeHeader(TodayDate.formatWeekdayLabel(headerDate))

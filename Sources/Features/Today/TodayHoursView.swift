@@ -297,7 +297,8 @@ struct TodayHoursView: View {
         }
         .overlay(alignment: .leading) {
             Text(text)
-                .font(.system(size: 10, weight: .semibold))
+                .tfText(.micro)
+                .fontWeight(.semibold)
                 .foregroundStyle(Color.tfRed)
                 .padding(.horizontal, 2)
                 .background(Color.tfBackground)

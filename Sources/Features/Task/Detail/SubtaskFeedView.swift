@@ -57,6 +57,10 @@ struct SubtaskFeedView: View {
                     TFSubtaskStatusRing(ringState(subtask))
                 }
                 .buttonStyle(TFTapScaleStyle())
+                // Подпись («Готово»/«Выполняется»/…) приходит от самого кольца,
+                // здесь — только описание ДЕЙСТВИЯ, иначе VoiceOver читает
+                // «Готово, кнопка» без понимания, что произойдёт по тапу.
+                .accessibilityHint(subtask.agentState == .review ? "" : "Отмечает шаг выполненным")
 
                 // Было `.strikethrough(subtask.done)` — просьба владельца
                 // 03.09.2026: «не надо зачёркивать, я не вижу, как называется

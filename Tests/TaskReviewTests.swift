@@ -3,6 +3,18 @@ import XCTest
 @testable import TaskFlow
 
 final class TaskReviewTests: XCTestCase {
+    func testOwnerActionPreservesServerReason() {
+        let error = APIError.server(
+            status: 400,
+            message: "нужен комментарий: что не так и что нужно доработать"
+        )
+
+        XCTAssertEqual(
+            TaskFormViewModel.ownerActionErrorMessage(error),
+            "нужен комментарий: что не так и что нужно доработать"
+        )
+    }
+
     func testApproveCurrentTaskVersionReadsCurrentVersionAndRecordsApproval() async throws {
         var requests: [URLRequest] = []
         TaskReviewURLProtocol.handler = { request in

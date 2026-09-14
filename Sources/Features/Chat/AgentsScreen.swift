@@ -123,7 +123,7 @@ struct AgentsScreen: View {
                 .foregroundStyle(Color.tfSub)
 
             Text(issued.token)
-                .font(.system(size: 12, design: .monospaced))
+                .tfMonospaced(12, relativeTo: .caption)
                 .foregroundStyle(Color.tfText)
                 .padding(TFSpacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)

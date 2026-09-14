@@ -103,7 +103,8 @@ struct UpcomingListView: View {
                         // баг «два месяца наверху». Теперь одна строка следит
                         // за активным режимом сама.
                         Text(headerMonthLabel)
-                            .font(.system(size: 14, weight: .semibold))
+                            .tfText(.row)
+                            .fontWeight(.semibold)
                             .foregroundStyle(Color.tfText)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 11, weight: .semibold))
@@ -151,7 +152,7 @@ struct UpcomingListView: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(UpcomingDate.weekdaysUpper, id: \.self) { w in
-                    Text(w).font(.system(size: 11)).foregroundStyle(Color.tfSub).frame(maxWidth: .infinity)
+                    Text(w).tfText(.caption).foregroundStyle(Color.tfSub).frame(maxWidth: .infinity)
                 }
             }
             let days = UpcomingDate.monthGridDates(year: pickerYear, month: pickerMonth)
@@ -183,7 +184,7 @@ struct UpcomingListView: View {
             VStack(spacing: 2) {
                 if firstOfMonth {
                     Text(UpcomingDate.monthsAbbrDot[month])
-                        .font(.system(size: 10))
+                        .tfText(.micro)
                         .foregroundStyle(filled ? Color.tfRed : Color.tfSub)
                 }
                 Text("\(UpcomingDate.day(ds))")
@@ -233,7 +234,8 @@ struct UpcomingListView: View {
                                 .textCase(.uppercase)
                                 .foregroundStyle(isToday || isSelected ? Color.tfRed : Color.tfSub)
                             Text("\(UpcomingDate.day(ds))")
-                                .font(.system(size: 15, weight: .semibold))
+                                .tfText(.body)
+                                .fontWeight(.semibold)
                                 .monospacedDigit()
                                 .foregroundStyle(isToday ? Color.tfRed : (isSelected ? Color.tfRed : Color.tfText))
                                 .frame(width: 28, height: 28)

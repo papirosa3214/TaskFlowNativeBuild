@@ -7,6 +7,14 @@ public struct TFTextField: View {
     @Binding var text: String
     let icon: String?
 
+    /// 14.09.2026, Dynamic Type: высота поля растёт с текстом (было жёсткое
+    /// `.frame(height: 52)` — крупный ввод обрезался). `minHeight` сохраняет
+    /// базовый ритм 52 и даёт полю вырасти при необходимости.
+    @ScaledMetric(relativeTo: .callout) private var minHeight: CGFloat = TFField.height
+    /// Иконка слева — вместе с текстом, иначе на крупном кегле она теряется
+    /// на фоне выросшей строки.
+    @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = TFIconSize.sm
+
     public init(_ placeholder: String, text: Binding<String>, icon: String? = nil) {
         self.placeholder = placeholder
         self._text = text
@@ -17,7 +25,7 @@ public struct TFTextField: View {
         HStack(spacing: TFField.iconTextGap) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: TFIconSize.sm))
+                    .font(.system(size: iconSize))
                     .foregroundStyle(Color.tfDim)
             }
             TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
@@ -25,7 +33,7 @@ public struct TFTextField: View {
                 .foregroundStyle(Color.tfText)
         }
         .padding(.horizontal, TFSpacing.lg)
-        .frame(height: TFField.height)
+        .frame(minHeight: minHeight)
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
     }
@@ -42,6 +50,12 @@ public struct TFFieldRow: View {
     let valueColor: Color
     let action: () -> Void
 
+    /// 14.09.2026, Dynamic Type: базовый ритм строки и иконка растут вместе
+    /// с текстом. `minHeight` (а не `height`) здесь стоял и раньше — обрезки
+    /// не было, добавлено ради сохранения пропорции строки на крупном кегле.
+    @ScaledMetric(relativeTo: .subheadline) private var minHeight: CGFloat = TFField.height
+    @ScaledMetric(relativeTo: .subheadline) private var iconSize: CGFloat = TFIconSize.sm
+
     public init(icon: String, title: String, value: String, valueColor: Color = .tfSub, action: @escaping () -> Void) {
         self.icon = icon
         self.title = title
@@ -54,9 +68,9 @@ public struct TFFieldRow: View {
         Button(action: action) {
             HStack(spacing: TFField.iconTextGap) {
                 Image(systemName: icon)
-                    .font(.system(size: TFIconSize.sm))
+                    .font(.system(size: iconSize))
                     .foregroundStyle(Color.tfDim)
-                    .frame(width: TFIconSize.sm)
+                    .frame(width: iconSize)
                 Text(title)
                     .tfText(.body)
                     .fontWeight(.medium)
@@ -70,7 +84,7 @@ public struct TFFieldRow: View {
                     .foregroundStyle(Color.tfDim)
             }
             .padding(.horizontal, TFField.cardInsetH)
-            .frame(minHeight: TFField.height)
+            .frame(minHeight: minHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(TFTapRowStyle())

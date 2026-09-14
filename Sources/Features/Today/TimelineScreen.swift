@@ -71,7 +71,8 @@ struct TimelineScreen: View {
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.2), value: zoom)
             Text(TodayDate.formatDueLabel(today))
-                .font(.system(size: 30, weight: .medium))
+                .tfText(.titleLarge)
+                .fontWeight(.medium)
                 .foregroundStyle(Color.tfText)
             Button(action: { dismiss() }) {
                 HStack(spacing: 4) {

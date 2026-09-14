@@ -73,17 +73,21 @@ private struct SecurePasswordField: View {
     let placeholder: String
     @Binding var text: String
 
+    /// 14.09.2026, Dynamic Type: как и в `TFTextField` — рост вместо обрезки.
+    @ScaledMetric(relativeTo: .callout) private var minHeight: CGFloat = TFField.height
+    @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = TFIconSize.sm
+
     var body: some View {
         HStack(spacing: TFField.iconTextGap) {
             Image(systemName: "lock")
-                .font(.system(size: TFIconSize.sm))
+                .font(.system(size: iconSize))
                 .foregroundStyle(Color.tfDim)
             SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
                 .tfText(.input)
                 .foregroundStyle(Color.tfText)
         }
         .padding(.horizontal, TFSpacing.lg)
-        .frame(height: TFField.height)
+        .frame(minHeight: minHeight)
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
     }

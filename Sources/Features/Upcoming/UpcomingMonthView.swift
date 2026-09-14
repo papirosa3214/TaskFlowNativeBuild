@@ -115,7 +115,7 @@ struct UpcomingMonthView: View {
     private var weekdayHeader: some View {
         HStack(spacing: 0) {
             ForEach(UpcomingDate.weekdaysShort, id: \.self) { w in
-                Text(w).font(.system(size: 10)).foregroundStyle(Color.tfDim).frame(maxWidth: .infinity)
+                Text(w).tfText(.micro).foregroundStyle(Color.tfDim).frame(maxWidth: .infinity)
             }
         }
         .padding(.vertical, TFSpacing.xs)
@@ -177,7 +177,7 @@ struct UpcomingMonthView: View {
 
         return VStack(spacing: 2) {
             Text("\(UpcomingDate.day(ds))")
-                .font(.system(size: 12))
+                .tfText(.meta)
                 .monospacedDigit()
                 .fontWeight(isToday ? .semibold : .regular)
                 .foregroundStyle(isToday ? .white : (startsMonth ? Color.tfRed : Color.tfText))
@@ -188,7 +188,7 @@ struct UpcomingMonthView: View {
                 UpcomingTaskChip(task: task, compact: true) { onDayTap(ds) }
             }
             if rest > 0 {
-                Text("+\(rest)").font(.system(size: 9)).foregroundStyle(Color.tfDim)
+                Text("+\(rest)").tfText(.micro).foregroundStyle(Color.tfDim)
             }
         }
         .padding(.horizontal, 2)

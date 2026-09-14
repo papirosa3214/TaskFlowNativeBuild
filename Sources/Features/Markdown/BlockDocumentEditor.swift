@@ -708,7 +708,11 @@ struct NoteBlockRow: View {
                 .foregroundStyle(Color.tfSub)
                 .frame(minWidth: 20, alignment: .trailing)
         case .taskItem(let checked):
-            TFCheckbox(isChecked: checked, action: onToggleChecked)
+            TFCheckbox(
+                isChecked: checked,
+                label: checked ? "Снять отметку с пункта" : "Отметить пункт выполненным",
+                action: onToggleChecked
+            )
         default:
             EmptyView()
         }

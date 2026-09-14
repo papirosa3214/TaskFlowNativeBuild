@@ -760,6 +760,15 @@ struct TaskFormScreen: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(subtask.agentState == .review)
+                // Отметка слева — иконка без текста, поэтому подпись задаём
+                // явно и покрываем ОБЕ ветки `subtaskMark`: кольцо при running
+                // и системную иконку во всех остальных состояниях.
+                .accessibilityLabel(
+                    isRunning
+                        ? TFSubtaskState.running.label
+                        : (subtask.done ? "Шаг выполнен" : "Отметить шаг выполненным")
+                )
+                .accessibilityHint(subtask.agentState == .review ? "" : "Переключает отметку шага")
 
                 // Текст шага — обычное поле, как название и описание выше:
                 // тап ставит курсор, правка уходит на сервер по вводу или

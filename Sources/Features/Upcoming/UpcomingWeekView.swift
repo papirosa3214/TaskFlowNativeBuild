@@ -64,10 +64,11 @@ struct UpcomingWeekView: View {
         return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(UpcomingDate.weekdaysShort[i])
-                    .font(.system(size: 11, weight: .semibold))
+                    .tfText(.caption)
+                    .fontWeight(.semibold)
                     .foregroundStyle(isToday ? Color.tfRed : Color.tfSub)
                 Text("\(UpcomingDate.day(ds))")
-                    .font(.system(size: 12))
+                    .tfText(.meta)
                     .fontWeight(isToday ? .semibold : .regular)
                     .monospacedDigit()
                     .foregroundStyle(isToday ? Color.tfRed : Color.tfText)
@@ -122,7 +123,7 @@ struct UpcomingMiniMonth: View {
             HStack(spacing: 0) {
                 ForEach(0..<7, id: \.self) { i in
                     Text(UpcomingDate.weekdayLetters[i])
-                        .font(.system(size: 9))
+                        .tfText(.micro)
                         .foregroundStyle(Color.tfDim)
                         .frame(maxWidth: .infinity)
                 }
@@ -138,7 +139,7 @@ struct UpcomingMiniMonth: View {
                         let dim = cellMonth != month
                         Button { onPickDate(ds) } label: {
                             Text("\(UpcomingDate.day(ds))")
-                                .font(.system(size: 10))
+                                .tfText(.micro)
                                 .monospacedDigit()
                                 .foregroundStyle(
                                     ds == today ? Color.tfRed

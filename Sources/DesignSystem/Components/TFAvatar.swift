@@ -20,12 +20,56 @@ public struct TFAvatar: View {
     let image: Image?
     let initials: String
     let tint: Color
+    /// Подпись для VoiceOver. `nil` — собирается из инициалов.
+    ///
+    /// 14.09.2026, a11y-аудит: раньше метки не было ВООБЩЕ, и VoiceOver читал
+    /// инициалы как россыпь отдельных букв («М», «К») без указания, что это
+    /// исполнитель. В строках задач имя больше нигде не выводится — аватар
+    /// единственный носитель этой информации, поэтому молчать он не имеет права.
+    /// Вызывающий может передать своё (например, настоящее имя, если оно есть).
+    let accessibilityLabel: String?
 
-    public init(size: Size = .lg, image: Image? = nil, initials: String, tint: Color = Color(hex: TFHexDefault.unassigned)) {
+    /// 14.09.2026, Dynamic Type: кружок растёт вместе с текстом строки.
+    ///
+    /// HIG прямо просит этого — «Increase the size of meaningful interface
+    /// icons as font size increases»: аватар здесь не украшение, он несёт
+    /// информацию об исполнителе (имя в строке задачи больше нигде не выведено).
+    /// Кривая взята от `subheadline` — той же ступени, что у основного текста
+    /// строки, поэтому аватар и подпись растут синхронно.
+    ///
+    /// На дефолтном размере коэффициент равен 1.0, то есть круг остаётся ровно
+    /// 18/20/30/32 — визуально не меняется НИЧЕГО. Дальше растёт по системной
+    /// кривой и упирается в общий потолок приложения (`xxxLarge` в
+    /// `TaskFlowApp`), где даёт 1.40×.
+    ///
+    /// База именно 100, а не 1: `UIFontMetrics.scaledValue(for:)` округляет
+    /// результат, и на базе «1» рост схлопнулся бы обратно в 1.0. Проценты
+    /// от округления не страдают.
+    @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
+
+    private var growth: CGFloat { scalePercent / 100 }
+    /// Сторона квадрата/диаметр круга — база ступени, умноженная на рост.
+    private var side: CGFloat { (size.rawValue * growth).rounded() }
+    /// Радиус фото-варианта держим пропорцией к стороне (в спеке 8pt на 32pt),
+    /// иначе на выросшем аватаре скругление выглядит слишком мелким.
+    private var cornerRadius: CGFloat { (TFRadius.md * growth).rounded() }
+    private var resolvedAccessibilityLabel: String {
+        if let accessibilityLabel { return accessibilityLabel }
+        return initials.isEmpty ? "Аватар" : "Аватар: \(initials)"
+    }
+
+    public init(
+        size: Size = .lg,
+        image: Image? = nil,
+        initials: String,
+        tint: Color = Color(hex: TFHexDefault.unassigned),
+        accessibilityLabel: String? = nil
+    ) {
         self.size = size
         self.image = image
         self.initials = initials
         self.tint = tint
+        self.accessibilityLabel = accessibilityLabel
     }
 
     public var body: some View {
@@ -34,20 +78,26 @@ public struct TFAvatar: View {
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fit) // object-fit: contain
-                    .frame(width: size.rawValue, height: size.rawValue)
+                    .frame(width: side, height: side)
                     .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             } else {
                 Circle()
                     .fill(tint)
-                    .frame(width: size.rawValue, height: size.rawValue)
+                    .frame(width: side, height: side)
                     .overlay {
+                        // Пропорция 0.43 от спек — считается от РАСТУЩЕЙ стороны,
+                        // поэтому инициалы увеличиваются вместе с кружком.
                         Text(initials)
-                            .font(.system(size: size.rawValue * 0.43, weight: .semibold))
+                            .font(.system(size: side * 0.43, weight: .semibold))
                             .foregroundStyle(.white)
                     }
             }
         }
+        // Один элемент, а не круг + буквы по отдельности: `children: .ignore`
+        // глушит внутренние тексты, дальше читается только наша метка.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(resolvedAccessibilityLabel)
     }
 }
 

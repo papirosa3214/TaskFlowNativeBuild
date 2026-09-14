@@ -2,7 +2,7 @@ import SwiftUI
 
 // Форма фильтров экрана — spec/SCREENS-1.md §4.3 (`lib/taskFilters.ts`).
 // Не персистится (сбрасывается при уходе с экрана) — см. §4.4.
-struct TodayTaskFilters: Equatable {
+struct TodayTaskFilters: Hashable {
     var projectId: String?
     var labelId: String?
     /// nil — все, "__none" — без исполнителя, иначе id.

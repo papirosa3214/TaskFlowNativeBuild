@@ -168,7 +168,8 @@ struct MarkdownKeyboardAccessoryBar: View {
             host.setBlockKind(.heading(level: level))
         } label: {
             Text("H\(level)")
-                .font(.system(size: 13, weight: .bold))
+                .tfText(.action)
+                .fontWeight(.bold)
                 .foregroundStyle(active ? Color.tfRed : Color.tfSub)
                 .frame(width: 36, height: 36)
                 .background(active ? Color.tfRed.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: TFRadius.md))

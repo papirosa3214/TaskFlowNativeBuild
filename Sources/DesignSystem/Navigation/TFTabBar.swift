@@ -156,7 +156,8 @@ public struct TFTabBar: View {
                 .foregroundStyle(isActive ? Color.tfText : Color.tfDim)
                 if let count = item.badgeCount, count > 0 {
                     Text("\(count)")
-                        .font(.system(size: 12, weight: .bold))
+                        .tfText(.meta)
+                        .fontWeight(.bold)
                         .foregroundStyle(Color.tfRed)
                         .offset(x: 14, y: -12) // top:-1em left:3.3em от угла иконки, спека §4
                 }

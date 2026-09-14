@@ -43,6 +43,13 @@ public struct TFButton: View {
 
     @State private var isPressed = false
 
+    /// 14.09.2026, Dynamic Type: высота растёт вместе с текстом.
+    /// Было жёсткое `.frame(height: 48)` — при увеличенном системном размере
+    /// подпись кнопки обрезалась. Берём `minHeight`, а не `height`: базовый
+    /// ритм 48 сохраняется на дефолтном размере, но при крупном тексте
+    /// кнопка вырастает, а не режет содержимое.
+    @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = TFButtonMetrics.height
+
     public init(
         _ title: String,
         icon: String? = nil,
@@ -67,9 +74,10 @@ public struct TFButton: View {
                 Text(title)
                     .tfText(.body)
                     .fontWeight(.semibold)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: TFButtonMetrics.height)
+            .frame(minHeight: minHeight)
             .foregroundStyle(variant.foreground)
             .background(variant.background)
             .overlay {
@@ -88,13 +96,21 @@ public struct TFButton: View {
 
 /// Кнопка-иконка (`background: transparent`, зона 44×44, иконка 18px) — шапка экрана,
 /// действия в бейджах/строках. Отклик `tap-scale`.
+///
+/// 14.09.2026, a11y-аудит: `label` — ОБЯЗАТЕЛЬНЫЙ параметр, а не опция.
+/// Кнопка без текста внутри нечего читать VoiceOver'у и нечем озвучить
+/// Voice Control'у; раньше подпись нужно было вешать снаружи через
+/// `.accessibilityLabel(...)`, и все три места вызова её просто забыли.
+/// Теперь компилятор не даст создать безымянную иконочную кнопку.
 public struct TFIconButton: View {
     let icon: String
+    let label: String
     let size: CGFloat
     let action: () -> Void
 
-    public init(_ icon: String, size: CGFloat = TFIconSize.sm, action: @escaping () -> Void) {
+    public init(_ icon: String, label: String, size: CGFloat = TFIconSize.sm, action: @escaping () -> Void) {
         self.icon = icon
+        self.label = label
         self.size = size
         self.action = action
     }
@@ -108,6 +124,7 @@ public struct TFIconButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(TFTapScaleStyle())
+        .accessibilityLabel(label)
     }
 }
 
@@ -146,8 +163,8 @@ public struct TFTapFadeStyle: ButtonStyle {
         TFButton("Отмена", variant: .outline) {}
         TFButton("Недоступно", variant: .primary, isEnabled: false) {}
         HStack {
-            TFIconButton("line.3.horizontal.decrease") {}
-            TFIconButton("ellipsis") {}
+            TFIconButton("line.3.horizontal.decrease", label: "Фильтры") {}
+            TFIconButton("ellipsis", label: "Ещё") {}
         }
     }
     .padding()

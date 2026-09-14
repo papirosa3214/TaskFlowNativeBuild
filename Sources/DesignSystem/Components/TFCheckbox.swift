@@ -14,12 +14,23 @@ import SwiftUI
 /// Простой булев чекбокс — заполненный зелёный круг с галочкой (состояние
 /// «готово»), не заполненный — контурное кольцо `dim`. Годится для мест, где
 /// нужно именно да/нет, а не полный набор статусов подзадачи.
+///
+/// Два режима, и семантика у них разная:
+/// - `action != nil` — интерактивный контрол, `label` обязателен по смыслу
+///   (VoiceOver читает именно его);
+/// - `action == nil` — чистый ИНДИКАТОР внутри строки/абзаца: смысл несёт
+///   контейнер, поэтому от VoiceOver он скрыт, чтобы не плодить лишние
+///   остановки чтения.
 public struct TFCheckbox: View {
     let isChecked: Bool
+    /// Подпись для VoiceOver. Для интерактивного режима — что именно
+    /// переключает этот чекбокс.
+    let label: String?
     let action: (() -> Void)?
 
-    public init(isChecked: Bool, action: (() -> Void)? = nil) {
+    public init(isChecked: Bool, label: String? = nil, action: (() -> Void)? = nil) {
         self.isChecked = isChecked
+        self.label = label
         self.action = action
     }
 
@@ -46,8 +57,12 @@ public struct TFCheckbox: View {
                 .buttonStyle(TFTapScaleStyle())
                 .frame(minWidth: TFHitTarget.min, minHeight: TFHitTarget.min)
                 .contentShape(Rectangle())
+                .accessibilityLabel(label ?? "Отметить")
+                // `isSelected` — чтобы VoiceOver читал не только «кнопка», но и
+                // текущее состояние отметки.
+                .accessibilityAddTraits(isChecked ? .isSelected : [])
         } else {
-            mark
+            mark.accessibilityHidden(true)
         }
     }
 }
@@ -59,7 +74,24 @@ public struct TFCheckbox: View {
 /// вращение обёртки 1.6s **linear** против часовой — три независимых слоя,
 /// не рассинхрон. Сегменты неподвижны сами по себе, «дорисовывается» именно
 /// цвет по кругу — вращается только обёртка целиком.
-public enum TFSubtaskState { case done, running, pending, blocked, review }
+public enum TFSubtaskState {
+    case done, running, pending, blocked, review
+
+    /// Человекочитаемое имя состояния — подпись для VoiceOver.
+    ///
+    /// Пять состояний различаются ТОЛЬКО формой и цветом (кольцо/точки/
+    /// треугольник/глаз + teal/orange/blue). Без этой подписи кольцо для
+    /// VoiceOver немо, а «смысл только цветом» — прямое нарушение HIG.
+    public var label: String {
+        switch self {
+        case .done: "Готово"
+        case .running: "Выполняется"
+        case .pending: "Ожидает"
+        case .blocked: "Заблокировано"
+        case .review: "На проверке"
+        }
+    }
+}
 
 public struct TFSubtaskStatusRing: View {
     let state: TFSubtaskState
@@ -104,6 +136,9 @@ public struct TFSubtaskStatusRing: View {
             }
         }
         .frame(width: 21, height: 21)
+        // Кольцо передаёт состояние формой и цветом — единственный способ
+        // сделать это доступным для VoiceOver.
+        .accessibilityLabel(state.label)
     }
 }
 

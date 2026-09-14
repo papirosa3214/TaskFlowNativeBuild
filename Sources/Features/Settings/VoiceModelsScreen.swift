@@ -212,7 +212,7 @@ struct VoiceModelsScreen: View {
                 TextEditor(text: text)
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
-                    .font(.system(size: 16, weight: .regular, design: .monospaced))
+                    .tfMonospaced(16, relativeTo: .callout)
                     .foregroundStyle(Color.tfText)
                     .frame(minHeight: 96, maxHeight: 160)
                     .padding(.horizontal, TFSpacing.xs)

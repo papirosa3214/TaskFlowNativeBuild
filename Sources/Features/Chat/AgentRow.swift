@@ -749,8 +749,11 @@ struct AgentRow: View {
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 110, alignment: .leading)
             Text(value)
-                .font(monospaced ? .system(size: 13, design: .monospaced) : nil)
                 .tfText(.body)
+                // `active:` поверх `.tfText` — при `false` шрифт не навязывается,
+                // и остаётся ступень `.body`. Порядок важен: `.font` в конце
+                // цепочки перекрывает ранее заданный.
+                .tfMonospaced(13, relativeTo: .footnote, active: monospaced)
                 .foregroundStyle(Color.tfText)
                 .lineLimit(2)
                 .truncationMode(.tail)
@@ -853,7 +856,7 @@ struct AgentRow: View {
             if let realToken = viewModel.realToken(for: agent.id) {
                 HStack(spacing: TFSpacing.sm) {
                     Text(viewModel.isTokenRevealed(agent.id) ? realToken : "•••• •••• ••••")
-                        .font(.system(size: 13, design: .monospaced))
+                        .tfMonospaced(13, relativeTo: .footnote)
                         .foregroundStyle(Color.tfText)
                         .lineLimit(1)
                         .truncationMode(.middle)
