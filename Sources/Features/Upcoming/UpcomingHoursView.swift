@@ -388,6 +388,12 @@ struct UpcomingHoursView: View {
                     )
                         .frame(width: Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols))
                         .frame(height: blockHeight)
+                        // Обрезаем по заданной высоте: заголовок с отступами
+                        // не даёт карточке стать ниже своей строки, и короткие
+                        // задачи в уменьшенном масштабе всё равно выглядели
+                        // крупнее, чем длятся. Теперь высота плашки — это
+                        // ровно её время, а текст просто не помещается.
+                        .clipped()
                         // Владелец 07.09.2026: «вся плашка исчезает, надо
                         // чтобы тень оставалась на старом месте» — приглушаем
                         // вместо полного скрытия.
@@ -840,7 +846,16 @@ struct UpcomingHoursView: View {
                 let hoursFromTop = item.start - Double(startHour)
                 placed.append(PlacedBlock(
                     task: item.task,
-                    top: CGFloat(max(0, hoursFromTop * Double(hourHeight) + 1)),
+                    // Ни смещения сверху, ни вычета снизу: координаты плашки
+                    // — это ровно её время. Прежние «+1 сверху, −3 снизу»
+                    // задумывались как зазор между соседними карточками, но
+                    // это фиксированные точки, а не минуты: в уменьшенном
+                    // трёхдневном масштабе (час = 41pt) они съедали у
+                    // 15-минутной задачи треть высоты, и сетка продолжала
+                    // врать даже после снятия минимальной высоты — владелец
+                    // 15.09.2026: «ну а в уменьшенном масштабе врёт… на трёх
+                    // днях». Зазор теперь даёт скругление углов карточки.
+                    top: CGFloat(max(0, hoursFromTop * Double(hourHeight))),
                     // Высота = РЕАЛЬНАЯ длительность, без подтягивания коротких
                     // задач до читаемого размера. Владелец 15.09.2026: «в каком
                     // это плане читаемая карточка? на то у меня и суточный вид,
@@ -850,7 +865,7 @@ struct UpcomingHoursView: View {
                     // масштабе 15-минутная задача занимала 44pt, то есть
                     // выглядела ЧАСОМ — при часе в 41pt. Отсюда и было
                     // расхождение между двумя видами.
-                    height: max(minVisibleBlockHeight, CGFloat((item.end - item.start) * Double(hourHeight)) - 3),
+                    height: max(minVisibleBlockHeight, CGFloat((item.end - item.start) * Double(hourHeight))),
                     col: colOf[i],
                     totalCols: cols,
                     durKnown: item.durKnown
