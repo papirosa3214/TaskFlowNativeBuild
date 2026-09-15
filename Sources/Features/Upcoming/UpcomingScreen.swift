@@ -207,6 +207,7 @@ public struct UpcomingScreen: View {
                     },
                     onTaskTap: { pushedTaskID = $0 },
                     onSchedule: { id, date, time in schedule(id: id, date: date, time: time) },
+                    onResize: { id, startTime, minutes in resize(id: id, startTime: startTime, minutes: minutes) },
                     onPage: { direction in
                         threeDayStart = UpcomingDate.addDays(threeDayStart, direction * 3)
                     }
@@ -569,6 +570,15 @@ public struct UpcomingScreen: View {
 
     private func deleteTask(_ id: String) {
         Task { await taskStore.delete(taskId: id) }
+    }
+
+    /// Плашку растянули за край прямо на сетке — сохраняем длительность и,
+    /// если тянули за верх, новое начало. Владелец 15.09.2026 просил задавать
+    /// продолжительность здесь, «а не проваливаться в карточку».
+    private func resize(id: String, startTime: String?, minutes: Int) {
+        var fields: [String: JSONValue] = ["duration_min": .number(Double(minutes))]
+        if let startTime { fields["start_time"] = .string(startTime) }
+        Task { await taskStore.patch(taskId: id, fields: fields) { _ in } }
     }
 
     private func schedule(id: String, date: String, time: String) {

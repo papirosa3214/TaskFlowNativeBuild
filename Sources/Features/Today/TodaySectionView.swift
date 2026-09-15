@@ -202,6 +202,15 @@ struct TodaySectionView: View {
                         await taskStore.patch(taskId: id, fields: fields) { _ in }
                     }
                 },
+                // Растянули плашку за край — длительность (и начало, если
+                // тянули за верх) уходят на сервер сразу, без карточки.
+                onResize: { id, startTime, minutes in
+                    Task {
+                        var fields: [String: JSONValue] = ["duration_min": .number(Double(minutes))]
+                        if let startTime { fields["start_time"] = .string(startTime) }
+                        await taskStore.patch(taskId: id, fields: fields) { _ in }
+                    }
+                },
                 onPage: { direction in
                     activeHourDate = TodayDate.addDays(activeHourDate, direction)
                 },

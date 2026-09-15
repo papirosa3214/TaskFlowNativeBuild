@@ -68,6 +68,10 @@ struct UpcomingHoursView: View {
     /// Перенесли задачу из пула ИЛИ передвинули уже поставленную — назначить
     /// дату (колонки) и время.
     let onSchedule: (String, String, String) -> Void
+    /// Растянули плашку за край: новая длительность в минутах и — только для
+    /// верхней ручки — новое время начала. Владелец 15.09.2026 просил задавать
+    /// продолжительность прямо на сетке, «а не проваливаться в карточку».
+    let onResize: ((String, String?, Int) -> Void)?
     /// Горизонтальное перелистывание диапазона: `-1` — назад, `1` — вперёд.
     /// Размер шага определяет владелец данных: один день у «Сегодня», три
     /// дня у трёхдневного режима.
@@ -91,6 +95,7 @@ struct UpcomingHoursView: View {
         projectColor: @escaping (ApiTask) -> Color,
         onTaskTap: @escaping (String) -> Void,
         onSchedule: @escaping (String, String, String) -> Void,
+        onResize: ((String, String?, Int) -> Void)? = nil,
         onPage: ((Int) -> Void)? = nil,
         showsDayHeader: Bool = true
     ) {
@@ -98,8 +103,23 @@ struct UpcomingHoursView: View {
         self.projectColor = projectColor
         self.onTaskTap = onTaskTap
         self.onSchedule = onSchedule
+        self.onResize = onResize
         self.onPage = onPage
         self.showsDayHeader = showsDayHeader
+    }
+
+    /// Растягивание плашки за край. Живёт отдельно от `DragState`: там
+    /// плашка целиком едет за пальцем, здесь — стоит на месте, а двигается
+    /// одна её граница.
+    private struct ResizeState {
+        enum Edge { case top, bottom }
+        let taskID: String
+        let edge: Edge
+        /// Неподвижная граница: у нижней ручки это верх плашки, у верхней —
+        /// её низ. От неё и считается новая длительность.
+        let anchorY: CGFloat
+        var top: CGFloat
+        var height: CGFloat
     }
 
     private struct DragState {
@@ -121,6 +141,13 @@ struct UpcomingHoursView: View {
     }
 
     @State private var dragState: DragState?
+    @State private var resizeState: ResizeState?
+    /// Плашка, которую сейчас «взяли»: зажали пальцем, она поднялась и готова
+    /// двигаться. Только у неё показываются ручки длительности — владелец
+    /// 15.09.2026: «эти точки не должны находиться на постоянке, они
+    /// появляются, когда я зажал её, когда она стала активной». Гаснут, как
+    /// только берут другую плашку или тапают по пустому месту сетки.
+    @State private var activeTaskID: String?
     @State private var previewTime: String?
     @State private var gridFrame: CGRect = .zero
     /// Реальная ширина висящего пула. Нужна только ghost-плашке при
@@ -315,13 +342,18 @@ struct UpcomingHoursView: View {
             ZStack(alignment: .topLeading) {
                 ForEach(Self.layoutDay(day.tasks, hourHeight: hourHeight)) { block in
                     let isDragged = dragState?.taskID == block.task.id
+                    // Пока тянут край — плашка живёт по размеру из жеста, а не
+                    // по раскладке: та пересчитается только после сохранения.
+                    let resize = resizeState?.taskID == block.task.id ? resizeState : nil
+                    let blockTop = resize?.top ?? block.top
+                    let blockHeight = resize?.height ?? block.height
                     UpcomingTimedBlock(
                         task: block.task,
                         color: projectColor(block.task),
                         durKnown: block.durKnown
                     )
                         .frame(width: Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols))
-                        .frame(height: block.height)
+                        .frame(height: blockHeight)
                         // Владелец 07.09.2026: «вся плашка исчезает, надо
                         // чтобы тень оставалась на старом месте» — приглушаем
                         // вместо полного скрытия.
@@ -330,7 +362,12 @@ struct UpcomingHoursView: View {
                         // `HoursDragGesture` — свой `UIGestureRecognizerRepresentable`,
                         // см. заголовочный комментарий структуры ниже по файлу.
                         .gesture(dragGesture(for: block.task, dayIndex: index, top: block.top, height: block.height, width: Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols)))
-                        .onTapGesture { if dragState == nil { onTaskTap(block.task.id) } }
+                        .onTapGesture {
+                            if dragState == nil {
+                                activeTaskID = nil
+                                onTaskTap(block.task.id)
+                            }
+                        }
                         // `.position()` обязан идти ПОСЛЕДНИМ: он отдаёт
                         // родителю размер всего контейнера вместо размера
                         // плашки, и любой `.gesture`/`.onTapGesture`,
@@ -339,12 +376,144 @@ struct UpcomingHoursView: View {
                         .position(
                             x: Self.blockLeft(colWidth: geo.size.width, col: block.col, totalCols: block.totalCols)
                                 + Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols) / 2,
-                            y: block.top + block.height / 2
+                            y: blockTop + blockHeight / 2
                         )
+                }
+
+                // Ручки ставятся по КООРДИНАТЕ ВРЕМЕНИ, а не привязкой к углам
+                // плашки (владелец 15.09.2026: «соотнеси эти точки
+                // исключительно к графику времени — у тебя же в карточке
+                // чёткое время»). `block.top` и `block.top + height` — это и
+                // есть начало и конец задачи на шкале, поэтому кружки садятся
+                // ровно на них и ни на какой текст не наползают.
+                // Отдельным проходом поверх всех плашек: иначе соседний блок
+                // перекрывал бы ручку нижележащего.
+                ForEach(Self.layoutDay(day.tasks, hourHeight: hourHeight)) { block in
+                    let resize = resizeState?.taskID == block.task.id ? resizeState : nil
+                    let blockTop = resize?.top ?? block.top
+                    let blockHeight = resize?.height ?? block.height
+                    let left = Self.blockLeft(colWidth: geo.size.width, col: block.col, totalCols: block.totalCols)
+                    let width = Self.blockWidth(colWidth: geo.size.width, totalCols: block.totalCols)
+                    // Верхняя — справа, нижняя — слева, по диагонали, как в
+                    // системном Календаре. По горизонтали чуть внутрь от
+                    // самого угла: так аккуратнее и метка не висит на отбивке
+                    // между колонками (владелец 15.09.2026).
+                    resizeHandle(for: block.task, edge: .top, top: blockTop, height: blockHeight)
+                        .position(x: left + width - Self.handleInset, y: blockTop)
+                    resizeHandle(for: block.task, edge: .bottom, top: blockTop, height: blockHeight)
+                        .position(x: left + Self.handleInset, y: blockTop + blockHeight)
                 }
             }
         }
         .overlay(alignment: .trailing) { Rectangle().fill(Color.tfStroke).frame(width: TFBorder.width) }
+    }
+
+    // MARK: - Растягивание плашки за край
+
+    /// Ручка длительности: сверху и снизу плашки, как в календарях
+    /// (владелец 15.09.2026: «точечка снизу, точечка сверху, беру и
+    /// растягиваю»). Рисуется только у задач со временем — у пула тянуть
+    /// нечего, там ещё нет ни начала, ни конца.
+    @ViewBuilder
+    private func resizeHandle(for task: ApiTask, edge: ResizeState.Edge, top: CGFloat, height: CGFloat) -> some View {
+        // Ручки видны только у взятой плашки — и у той, чей край прямо сейчас
+        // тянут (иначе метка мигала бы посреди собственного жеста).
+        let isActive = activeTaskID == task.id || resizeState?.taskID == task.id
+        if onResize != nil, task.startTime != nil, isActive {
+            let dragging = resizeState?.taskID == task.id && resizeState?.edge == edge
+            Circle()
+                .fill(Color.white)
+                .overlay(Circle().strokeBorder(Color.black.opacity(0.3), lineWidth: 0.5))
+                .frame(width: dragging ? 12 : 9, height: dragging ? 12 : 9)
+                // Кружок маленький, а палец толстый: зона захвата заметно
+                // шире самой метки, иначе в ручку не попасть.
+                .padding(12)
+                .contentShape(Rectangle())
+                .gesture(resizeGesture(for: task, edge: edge, top: top, height: height))
+                .accessibilityLabel(edge == .top ? "Изменить начало: \(task.title)" : "Изменить длительность: \(task.title)")
+                .transition(.opacity)
+        }
+    }
+
+    /// Тот же распознаватель, что и у переноса: SwiftUI-жесты в этой сетке
+    /// дерутся со скроллом (прецедент 07.09.2026). Удержание короче, чем у
+    /// переноса, — ручка маленькая и специально нащупывается пальцем, ждать
+    /// от неё полной задержки утомительно.
+    private func resizeGesture(for task: ApiTask, edge: ResizeState.Edge, top: CGFloat, height: CGFloat) -> some UIGestureRecognizerRepresentable {
+        HoursDragGesture(
+            minimumPressDuration: Self.resizeHoldSeconds,
+            onBegin: { _ in
+                grabHaptic.impactOccurred()
+                grabHaptic.prepare()
+                lastTickTime = nil
+                resizeState = ResizeState(
+                    taskID: task.id,
+                    edge: edge,
+                    anchorY: edge == .bottom ? top : top + height,
+                    top: top,
+                    height: height
+                )
+            },
+            onChange: { point in
+                guard var state = resizeState, state.taskID == task.id else { return }
+                apply(&state, fingerY: point.y - gridFrame.minY)
+                resizeState = state
+                let time = Self.timeFromOffset(state.top, hourHeight: hourHeight)
+                if time != lastTickTime {
+                    lastTickTime = time
+                    tickHaptic.selectionChanged()
+                    tickHaptic.prepare()
+                }
+            },
+            onEnd: { point in
+                guard var state = resizeState, state.taskID == task.id else { return }
+                apply(&state, fingerY: point.y - gridFrame.minY)
+                resizeState = nil
+                lastTickTime = nil
+                let minutes = Self.minutes(fromHeight: state.height, hourHeight: hourHeight)
+                // Начало сдвигает только верхняя ручка: у нижней конец едет,
+                // а старт остаётся там же, где и был.
+                let newStart = edge == .top ? Self.timeFromOffset(state.top, hourHeight: hourHeight) : nil
+                onResize?(task.id, newStart, minutes)
+            },
+            onCancel: {
+                guard resizeState?.taskID == task.id else { return }
+                resizeState = nil
+                lastTickTime = nil
+            }
+        )
+    }
+
+    /// Двигает одну границу вслед за пальцем, вторую держит на месте и не даёт
+    /// плашке стать короче минимального слота.
+    private func apply(_ state: inout ResizeState, fingerY: CGFloat) {
+        let minH = CGFloat(snapMin) / 60 * hourHeight
+        switch state.edge {
+        case .bottom:
+            let bottom = max(fingerY, state.anchorY + minH)
+            state.top = state.anchorY
+            state.height = Self.snapped(bottom - state.anchorY, hourHeight: hourHeight, minimum: minH)
+        case .top:
+            let newTop = min(fingerY, state.anchorY - minH)
+            let snappedHeight = Self.snapped(state.anchorY - newTop, hourHeight: hourHeight, minimum: minH)
+            state.height = snappedHeight
+            state.top = state.anchorY - snappedHeight
+        }
+    }
+
+    /// Высота, округлённая до шага сетки (те же 15 минут, что у переноса).
+    private static func snapped(_ height: CGFloat, hourHeight: CGFloat, minimum: CGFloat) -> CGFloat {
+        let step = CGFloat(snapMin) / 60 * hourHeight
+        guard step > 0 else { return max(height, minimum) }
+        return max((height / step).rounded() * step, minimum)
+    }
+
+    /// Высота плашки в минутах — то, что уходит на сервер как длительность.
+    private static func minutes(fromHeight height: CGFloat, hourHeight: CGFloat) -> Int {
+        guard hourHeight > 0 else { return snapMin }
+        let raw = Double(height / hourHeight) * 60
+        let snappedValue = (raw / Double(snapMin)).rounded() * Double(snapMin)
+        return max(Int(snappedValue), snapMin)
     }
 
     // MARK: - Перетаскивание — И пул, И уже поставленная плашка (см. заголовочный комментарий файла)
@@ -368,6 +537,13 @@ struct UpcomingHoursView: View {
     /// распознавания `.changed` как обычно несёт текущую позицию пальца без
     /// ограничения на смещение — то самое «зажал, потом веди».
     private static let dragHoldSeconds: Double = 0.25
+    /// Ручка длительности хватается быстрее, чем плашка целиком: по ней
+    /// специально целятся пальцем, и полная задержка переноса ощущается как
+    /// «не реагирует». Меньше делать нельзя — жест начнёт перехватывать
+    /// вертикальную прокрутку сетки.
+    private static let resizeHoldSeconds: Double = 0.12
+    /// Насколько ручка отступает от бокового края плашки внутрь.
+    private static let handleInset: CGFloat = 10
 
     /// Ширина дневной колонки. 0 означает «сетка ещё не измерена» — раньше
     /// вместо этого возвращалась заглушка в 80pt, и промах молча уезжал в
@@ -397,6 +573,9 @@ struct UpcomingHoursView: View {
                 let (fingerY, overDay) = columnAndDay(point)
                 grabOffsetY = top.map { fingerY - $0 } ?? 0
                 lastTickTime = nil
+                // Зажали плашку — она «взята»: у неё показываются ручки
+                // длительности, у остальных гаснут.
+                activeTaskID = task.id
                 grabHaptic.impactOccurred()
                 grabHaptic.prepare()
                 dragState = DragState(
