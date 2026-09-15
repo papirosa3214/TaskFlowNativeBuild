@@ -16,7 +16,7 @@ struct ThingsBridgeSyncResult: Decodable, Sendable {
 
 struct ThingsBridgeAPI: Sendable {
     static let shared = ThingsBridgeAPI()
-    private let baseURL = URL(string: "http://192.168.1.128:8765")!
+    private let baseURL = URL(string: "http://192.168.1.102:8765")!
 
     func health() async throws -> Bool {
         var request = URLRequest(url: baseURL.appendingPathComponent("health"))
