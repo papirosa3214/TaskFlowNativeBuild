@@ -260,6 +260,8 @@ struct IntegrationsScreen: View {
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
+    /// Адрес моста Things — тот же ключ читает `ThingsBridgeAPI`.
+    @AppStorage(ThingsBridgeAPI.addressKey) private var thingsBridgeAddress = ""
     @State private var isGoogleTasksOpen = true // веб-дефолт: этот аккордеон открыт сразу
     @State private var isGoogleCalOpen = false
 
@@ -393,6 +395,20 @@ struct IntegrationsScreen: View {
             ) {
                 Text("Синхронизируются только проекты в области TaskFlow. Удаление не зеркалится.")
                     .tfText(.caption).foregroundStyle(Color.tfSub)
+
+                // Адрес MacBook приезжает по DHCP и время от времени
+                // меняется. Раньше он был вшит в код, и каждая смена стоила
+                // правки исходника; теперь его вбивает владелец.
+                TFTextField("Адрес MacBook", text: $thingsBridgeAddress, icon: "network")
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .onSubmit { Task { await viewModel.loadThingsBridge() } }
+                // Порт печатается строкой: подстановка `Int` в `Text` уходит
+                // в локализованный формат и превращает 8765 в «8 765».
+                Text("Можно просто адрес — порт \(String(ThingsBridgeAPI.defaultPort)) подставится сам. Пусто — \(ThingsBridgeAPI.defaultAddress).")
+                    .tfText(.caption).foregroundStyle(Color.tfDim)
+
                 TFButton(
                     viewModel.isThingsSyncing ? "Синхронизация..." : "Синхронизировать сейчас",
                     icon: "arrow.triangle.2.circlepath", variant: .secondary, isEnabled: !viewModel.isThingsSyncing
