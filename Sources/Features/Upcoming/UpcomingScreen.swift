@@ -38,8 +38,8 @@ public struct UpcomingScreen: View {
     /// Показывать задачи, назначенные на ИИ-агента. Раньше они вырезались из
     /// раздела безусловно — теперь это условие состава, как и проекты.
     @State private var plannerShowAgentTasks = UserDefaults.standard.bool(forKey: "plannerShowAgentTasks")
-    /// Название видимой колонки доски — показывается в системной шапке.
-    @State private var boardColumnTitle = ""
+    /// Название текущей вкладки списка «Сегодня» — показывается в шапке.
+    @State private var listTabTitle = ""
     @State private var selectedDate: String?
     @State private var openDay: String?
     @State private var pushedTaskID: String?
@@ -90,13 +90,14 @@ public struct UpcomingScreen: View {
             // а не из ВИДИМОЙ (`todayHourDate`, её и двигает жест). Раздел
             // по-прежнему открывается на сегодня, но, отлистав на завтра или
             // вчера, видно, какой это день.
-            // Пролистывание есть только у почасовой шкалы: в списке и на доске
-            // день всегда сегодняшний, иначе шапка показывала бы завтрашнее
+            // Пролистывание есть только у почасовой шкалы: в списке день
+            // всегда сегодняшний, иначе шапка показывала бы завтрашнее
             // число над сегодняшним списком.
-            // На доске в шапке стоит название видимой колонки, а не дата:
-            // оно по центру под островом и меняется при листании столбиков
-            // (владелец 15.09.2026). Сами колонки текста заголовка не рисуют.
-            if todayLayout == .board { return boardColumnTitle }
+            // В списке в шапке стоит название текущей вкладки, а не дата:
+            // оно по центру под островом и меняется при выборе вкладки
+            // (владелец 15.09.2026). Раньше так же показывалось название
+            // видимой колонки доски, которой больше нет.
+            if todayLayout == .list, !listTabTitle.isEmpty { return listTabTitle }
             let visible = todayLayout == .hours ? todayHourDate : today
             let (_, month) = UpcomingDate.yearMonth(visible)
             let weekdayIndex = (UpcomingDate.jsWeekday(visible) + 6) % 7
@@ -123,14 +124,12 @@ public struct UpcomingScreen: View {
             await taskStore.load(silent: true)
             await projectStore.load()
         }
-        // На доске заголовок крупный: стоит слева, при прокрутке колонки
-        // сжимается и уезжает в центр шапки — штатное поведение системы
-        // (владелец 15.09.2026: «как у всех это делается»). У остальных
-        // разделов «Планирования» в шапке дата/месяц, там `.inline`.
-        .tfNativeHeader(
-            navigationTitle,
-            displayMode: (view == .today && todayLayout == .board) ? .large : .inline
-        )
+        // Заголовок всегда `.inline` (мелкий по центру); в списке «Сегодня»
+        // это название текущей вкладки. Крупный `.large` тянулся из времён
+        // доски, где сжатие при скролле нативно не получалось (LOCK-153/154);
+        // после отказа от доски список снова живёт под одной прокруткой, но
+        // выбранный владельцем мелкий заголовок оставлен как есть.
+        .tfNativeHeader(navigationTitle, displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { subviewPill }
             if view != .today {
@@ -196,7 +195,7 @@ public struct UpcomingScreen: View {
                     visibleProjectIds: effectivePlannerVisibleProjectIds,
                     showAgentTasks: plannerShowAgentTasks,
                     showCompleted: filters.showCompleted,
-                    onBoardColumnChange: { boardColumnTitle = $0 }
+                    onTitleChange: { listTabTitle = $0 }
                 )
             case .threeDays:
                 UpcomingHoursView(
@@ -422,7 +421,6 @@ public struct UpcomingScreen: View {
     private func todayLayoutIcon(_ layout: TodayLayout) -> String {
         switch layout {
         case .list: "list.bullet"
-        case .board: "square.grid.2x2"
         case .hours: "clock"
         }
     }
@@ -430,7 +428,6 @@ public struct UpcomingScreen: View {
     private func todayLayoutLabel(_ layout: TodayLayout) -> String {
         switch layout {
         case .list: "Список"
-        case .board: "Доска"
         case .hours: "Часы"
         }
     }

@@ -15,23 +15,31 @@ struct TodaySectionView: View {
     var visibleProjectIds: Set<String> = []
     var showAgentTasks = false
     var showCompleted = false
-    /// Название видимой колонки доски — уезжает в системную шапку экрана.
-    var onBoardColumnChange: (String) -> Void = { _ in }
+    /// Название текущей вкладки списка — уезжает в системную шапку экрана.
+    /// Раньше сюда же уходило название видимой колонки доски.
+    var onTitleChange: (String) -> Void = { _ in }
 
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
     @Environment(SessionStore.self) private var session
+
+    /// Выбранная вкладка живёт между запусками — как и выбранный вид.
+    @AppStorage("today_list_tab") private var listTabRaw = TodayListTab.today.rawValue
+    private var listTab: TodayListTab { TodayListTab(rawValue: listTabRaw) ?? .today }
 
     @State private var vm = TodayViewModel()
     @State private var sheetTaskID: TodaySectionTaskID?
     @State private var rescheduleOpen = false
     @State private var rescheduleTask: ApiTask?
     @State private var rescheduleTaskIDs: [String]?
-    @State private var isBoardSelectionMode = false
-    @State private var selectedBoardTaskIDs: Set<String> = []
-    @State private var isBulkDeleteConfirmationPresented = false
 
     private var today: String { TodayDate.todayString() }
+
+    /// Что показать в шапке: у списка — название вкладки, у почасовой сетки
+    /// шапку рисует родитель по дате.
+    private var titleForHeader: String {
+        layout == .list ? listTab.title : ""
+    }
 
     private var computation: TodayComputation {
         // Разовые фильтры — свои у экрана, состав раздела — общий с
@@ -57,57 +65,28 @@ struct TodaySectionView: View {
         Group {
             if layout == .hours {
                 hoursContent(c: c)
-            } else if layout == .board {
-                // Канбан сам владеет вертикальной прокруткой каждой
-                // колонки. Общая ScrollView связывала все три позиции.
-                listOrBoardContent(c: c)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    // Общий отступ под панель вкладок (`routeDestination`)
-                    // держит доску НАД панелью, а карточки должны уезжать
-                    // под неё — как на остальных экранах. Гасим его только
-                    // здесь; сам общий механизм не трогаем, запас под
-                    // последнюю карточку добавлен внутри колонок.
-                    .ignoresSafeArea(.container, edges: .bottom)
             } else {
+                // Одна вертикальная прокрутка на весь список — вкладка лишь
+                // меняет её содержимое. Второго уровня прокрутки здесь нет
+                // намеренно: именно вложенные прокрутки доски ломали
+                // системное затухание у шапки.
                 ScrollView {
-                    listOrBoardContent(c: c)
+                    listContent(c: c)
                 }
                 .refreshable { await taskStore.load(silent: true) }
             }
         }
+        .onAppear { onTitleChange(titleForHeader) }
+        .onChange(of: listTab) { _, _ in onTitleChange(titleForHeader) }
+        .onChange(of: layout) { _, _ in onTitleChange(titleForHeader) }
         .toolbar {
-            if layout == .board && isBoardSelectionMode {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        rescheduleTaskIDs = Array(selectedBoardTaskIDs)
-                        rescheduleOpen = true
-                    } label: {
-                        Image(systemName: "calendar.badge.plus")
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 0) {
+                    if layout == .list {
+                        listTabMenu.tfPlannerWideControl()
                     }
-                    .disabled(selectedBoardTaskIDs.isEmpty)
-                    .accessibilityLabel("Назначить срок выбранным задачам")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .destructive) {
-                        isBulkDeleteConfirmationPresented = true
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .disabled(selectedBoardTaskIDs.isEmpty)
-                    .accessibilityLabel("Удалить выбранные задачи")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Готово") {
-                        isBoardSelectionMode = false
-                        selectedBoardTaskIDs.removeAll()
-                    }
-                }
-            } else {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 0) {
-                        filterMenu(c: c).tfPlannerWideControl()
-                        plannerViewSwitcher.tfPlannerWideControl()
-                    }
+                    filterMenu(c: c).tfPlannerWideControl()
+                    plannerViewSwitcher.tfPlannerWideControl()
                 }
             }
         }
@@ -134,30 +113,31 @@ struct TodaySectionView: View {
                 rescheduleTaskIDs = nil
             }
         }
-        .onChange(of: layout) { _, newLayout in
-            if newLayout != .board {
-                isBoardSelectionMode = false
-                selectedBoardTaskIDs.removeAll()
+    }
+
+    /// Выбор вкладки — один «шарик» с всплывающим списком, тем же приёмом,
+    /// что и выбор вида рядом (владелец 15.09.2026: «можешь просто в кнопку
+    /// их зарядить — в одну кнопку всплывающий список, и всё»).
+    private var listTabMenu: some View {
+        Menu {
+            Picker("Вкладка", selection: $listTabRaw) {
+                ForEach(TodayListTab.allCases) { tab in
+                    Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
+                }
             }
+        } label: {
+            TFPlannerToolbarIcon(systemName: listTab.icon, tint: .tfSub)
         }
-        .confirmationDialog(
-            "Удалить выбранные задачи?",
-            isPresented: $isBulkDeleteConfirmationPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Удалить", role: .destructive) {
-                Task { await deleteSelectedBoardTasks() }
-            }
-            Button("Отмена", role: .cancel) {}
-        } message: {
-            Text("Будет удалено задач: \(selectedBoardTaskIDs.count). Восстановить их нельзя.")
-        }
+        .accessibilityLabel("Вкладка: \(listTab.title)")
+        .accessibilityIdentifier("today.list-tab-switcher")
     }
 
     @ViewBuilder
-    private func listOrBoardContent(c: TodayComputation) -> some View {
+    private func listContent(c: TodayComputation) -> some View {
         VStack(spacing: 0) {
-            if c.trueEmpty && layout == .list {
+            // Иллюстрация «совсем пусто» — только на сегодняшней вкладке:
+            // на «Входящих» и «Ждут вас» своя пустота со своим текстом.
+            if c.trueEmpty && listTab == .today {
                 TodayEmptyIllustration()
             } else {
                 if taskStore.isLoading && taskStore.tasks.isEmpty {
@@ -166,39 +146,25 @@ struct TodaySectionView: View {
                 TFErrorBanner(taskStore.errorMessage, variant: .inline)
                     .padding(.horizontal, TFSpacing.lg)
 
-                switch layout {
-                case .list:
-                    TodayListView(
-                        todayTasks: c.todayTasks,
-                        today: today,
-                        onOpen: { sheetTaskID = TodaySectionTaskID(id: $0.id) },
-                        onComplete: { task in
-                            Task {
-                                await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in }
-                            }
-                        },
-                        onDelete: { task in Task { await taskStore.delete(taskId: task.id) } }
-                    )
-                case .board:
-                    TodayBoardView(
-                        columns: c.boardColumns,
-                        onOpenTask: { sheetTaskID = TodaySectionTaskID(id: $0) },
-                        onReschedule: { rescheduleOpen = true },
-                        onAddTask: onAddTask,
-                        isSelectingTasks: isBoardSelectionMode,
-                        selectedTaskIDs: selectedBoardTaskIDs,
-                        onToggleTaskSelection: toggleBoardTaskSelection,
-                        onToggleColumnSelection: toggleBoardColumnSelection,
-                        onVisibleColumnChange: onBoardColumnChange
-                    )
-                case .hours:
-                    EmptyView()
-                }
+                TodayListView(
+                    tab: listTab,
+                    waitingTasks: c.waitingTasks,
+                    overdueTasks: c.overdueTasks,
+                    todayTasks: c.todayTasks,
+                    upcomingTasks: c.upcomingTasks,
+                    poolTasks: c.poolTasks,
+                    today: today,
+                    onOpen: { sheetTaskID = TodaySectionTaskID(id: $0.id) },
+                    onComplete: { task in
+                        Task {
+                            await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in }
+                        }
+                    },
+                    onDelete: { task in Task { await taskStore.delete(taskId: task.id) } }
+                )
             }
         }
-        // Доске нижний отступ не нужен: её колонки прокручиваются под панель
-        // вкладок и держат свой запас внутри (см. `TodayBoardView`).
-        .padding(.bottom, layout == .board ? 0 : TFSpacing.lg)
+        .padding(.bottom, TFSpacing.lg)
     }
 
     @ViewBuilder
@@ -268,16 +234,6 @@ struct TodaySectionView: View {
 
             Divider()
 
-            if layout == .board {
-                Button {
-                    isBoardSelectionMode = true
-                    selectedBoardTaskIDs.removeAll()
-                } label: {
-                    Label("Выбрать задачи", systemImage: "checkmark.circle")
-                }
-                Divider()
-            }
-
             // «Выполненные» живут внутри этого подменю вместе с проектами и
             // агентскими — состав раздела общий с диапазонами, отдельного
             // переключателя здесь больше нет.
@@ -303,35 +259,11 @@ struct TodaySectionView: View {
         }
     }
 
-    private func toggleBoardTaskSelection(_ taskID: String) {
-        if selectedBoardTaskIDs.contains(taskID) {
-            selectedBoardTaskIDs.remove(taskID)
-        } else {
-            selectedBoardTaskIDs.insert(taskID)
-        }
-    }
-
-    private func toggleBoardColumnSelection(_ column: TodayBoardColumn) {
-        let ids = Set(column.tasks.map(\.id))
-        guard !ids.isEmpty else { return }
-        if ids.isSubset(of: selectedBoardTaskIDs) {
-            selectedBoardTaskIDs.subtract(ids)
-        } else {
-            selectedBoardTaskIDs.formUnion(ids)
-        }
-    }
-
-    private func deleteSelectedBoardTasks() async {
-        let selectedIDs = selectedBoardTaskIDs
-        for taskID in selectedIDs {
-            if await taskStore.delete(taskId: taskID) {
-                selectedBoardTaskIDs.remove(taskID)
-            }
-        }
-        if selectedBoardTaskIDs.isEmpty {
-            isBoardSelectionMode = false
-        }
-    }
+    // Режим «Выбрать задачи» с массовым переносом срока и удалением жил
+    // ТОЛЬКО на доске (LOCK-129) и ушёл вместе с ней: строка списка галочки
+    // выбора не рисует, а переделывать её — значит лезть в свежие правки
+    // свайпов (LOCK-157/158). Владельцу об этом сказано отдельно; если
+    // массовые действия нужны в списке, это отдельная задача.
 }
 
 private struct TodaySectionTaskID: Identifiable {

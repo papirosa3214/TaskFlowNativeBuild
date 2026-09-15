@@ -9,6 +9,10 @@ struct TodayScreen: View {
 
     @State private var vm = TodayViewModel()
     @State private var route: AppRoute?
+    /// Вкладка списка — тот же ключ, что и в разделе «Планирования», так что
+    /// выбор один на оба входа в список и переживает перезапуск.
+    @AppStorage("today_list_tab") private var listTabRaw = TodayListTab.today.rawValue
+    private var listTab: TodayListTab { TodayListTab(rawValue: listTabRaw) ?? .today }
     /// Открытие задачи с «Сегодня» — родная шторка (detents), не пуш через
     /// `route`. Обёртка нужна: `String` в этом проекте не `Identifiable`.
     @State private var sheetTaskID: TappedTaskID?
@@ -56,7 +60,7 @@ struct TodayScreen: View {
         let c = computation
         ScrollView {
                 VStack(spacing: 0) {
-                if c.trueEmpty && vm.layout == .list {
+                if c.trueEmpty && vm.layout == .list && listTab == .today {
                     TodayEmptyIllustration()
                 } else {
                     // Полоска проектов с «плюсом» убрана по просьбе владельца
@@ -77,7 +81,12 @@ struct TodayScreen: View {
                         switch vm.layout {
                         case .list:
                             TodayListView(
+                                tab: listTab,
+                                waitingTasks: c.waitingTasks,
+                                overdueTasks: c.overdueTasks,
                                 todayTasks: c.todayTasks,
+                                upcomingTasks: c.upcomingTasks,
+                                poolTasks: c.poolTasks,
                                 today: today,
                                 onOpen: { sheetTaskID = TappedTaskID(id: $0.id) },
                                 onComplete: { task in Task { await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in } } },
@@ -88,14 +97,6 @@ struct TodayScreen: View {
                             // строки `-mx-4`, гасящий поля списка), а отступы
                             // живут внутри самой строки. Поля на списке
                             // превращали строку в узкую полоску.
-                        case .board:
-                            TodayBoardView(
-                                columns: c.boardColumns,
-                                onOpenTask: { sheetTaskID = TappedTaskID(id: $0) },
-                                onReschedule: { rescheduleOpen = true },
-                                onAddTask: { route = .taskCreate }
-                            )
-                            .padding(.top, TFSpacing.sm)
                         case .hours:
                             TodayHoursView(
                                 day: c.hourDays[0],
@@ -155,14 +156,22 @@ struct TodayScreen: View {
                 Menu {
                     Picker("Вид", selection: Binding(get: { vm.layout }, set: { vm.layout = $0 })) {
                         Label("Список", systemImage: "list.bullet").tag(TodayLayout.list)
-                        Label("Доска", systemImage: "square.grid.2x2").tag(TodayLayout.board)
                         Label("Один день", systemImage: "calendar").tag(TodayLayout.hours)
                     }
                     .pickerStyle(.inline)
+                    if vm.layout == .list {
+                        Picker("Вкладка", selection: $listTabRaw) {
+                            ForEach(TodayListTab.allCases) { tab in
+                                Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
+                            }
+                        }
+                        .pickerStyle(.inline)
+                    }
                     Button { route = .search } label: { Label("Поиск", systemImage: "magnifyingglass") }
                 } label: {
                     Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel("Ещё")
                 .accessibilityLabel("Вид")
                 .accessibilityIdentifier("today.view-switcher")
             }

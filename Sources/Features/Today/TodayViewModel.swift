@@ -2,8 +2,39 @@ import Foundation
 import Observation
 
 /// Вид экрана «Сегодня» — persist в `taskLayout.today` (spec §4.4).
+/// Режим `board` (канбан-доска) убран 15.09.2026 по прямому решению
+/// владельца: «вообще уберем этот канбан, с ним только мучения — давай
+/// просто сделаем список, а в списке будут вкладки». Вместо колонок доски
+/// у списка появились вкладки `TodayListTab`. Сам `TodayBoardView.swift`
+/// не удалён и лежит в дереве.
 enum TodayLayout: String, CaseIterable {
-    case list, board, hours
+    case list, hours
+}
+
+/// Вкладка списка «Сегодня» — что именно лежит в ленте. Состав задан
+/// владельцем 15.09.2026 дословно: входящие это нераспределённые задачи без
+/// даты; вторая вкладка — просроченные и ждущие его; третья — сегодня плюс
+/// ближайшее будущее, «чтобы я видел, что сегодня и что ближайшее будущее».
+enum TodayListTab: String, CaseIterable, Identifiable {
+    case inbox, attention, today
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .inbox: "Входящие"
+        case .attention: "Ждут вас"
+        case .today: "Сегодня"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .inbox: "tray"
+        case .attention: "exclamationmark.circle"
+        case .today: "list.bullet"
+        }
+    }
 }
 
 /// Вью-модель «Сегодня» — собирает данные из общих сторов (`TaskStore`/
