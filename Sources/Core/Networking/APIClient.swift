@@ -41,7 +41,7 @@ public final class APIClient: Sendable {
     ) async throws -> Response {
         let request = try buildRequest(method: method, path: path, query: query, body: body)
         let (data, http) = try await send(request)
-        try Self.throwIfError(status: http.statusCode, data: data)
+        try Self.throwIfError(status: http.statusCode, data: data, request: request)
         do {
             return try decoder.decode(Response.self, from: data)
         } catch {
@@ -60,7 +60,7 @@ public final class APIClient: Sendable {
     ) async throws {
         let request = try buildRequest(method: method, path: path, query: query, body: body)
         let (data, http) = try await send(request)
-        try Self.throwIfError(status: http.statusCode, data: data)
+        try Self.throwIfError(status: http.statusCode, data: data, request: request)
     }
 
     private func buildRequest(
@@ -119,7 +119,7 @@ public final class APIClient: Sendable {
         request.httpBody = data
 
         let (responseData, http) = try await send(request)
-        try Self.throwIfError(status: http.statusCode, data: responseData)
+        try Self.throwIfError(status: http.statusCode, data: responseData, request: request)
         do {
             return try decoder.decode(Response.self, from: responseData)
         } catch {
@@ -141,7 +141,7 @@ public final class APIClient: Sendable {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         let (data, http) = try await send(request)
-        try Self.throwIfError(status: http.statusCode, data: data)
+        try Self.throwIfError(status: http.statusCode, data: data, request: request)
         return data
     }
 
@@ -166,24 +166,53 @@ public final class APIClient: Sendable {
         }
     }
 
-    private static func throwIfError(status: Int, data: Data) throws {
+    private static func throwIfError(status: Int, data: Data, request: URLRequest? = nil) throws {
         guard !(200...299).contains(status) else { return }
-        let message = (try? JSONDecoder().decode(APIErrorBody.self, from: data))?.error
-            ?? "Сервер ответил кодом \(status)"
+        let body = try? JSONDecoder().decode(APIErrorBody.self, from: data)
+        let raw = body?.bestMessage ?? "Сервер ответил кодом \(status)"
         switch status {
         case 401:
             KeychainService.shared.token = nil
             NotificationCenter.default.post(name: .taskFlowUnauthorized, object: nil)
-            throw APIError.unauthorized(message: message)
+            throw APIError.unauthorized(message: raw)
         case 403:
-            throw APIError.forbidden(message: message)
+            throw APIError.forbidden(message: raw)
         case 404:
-            throw APIError.notFound(message: message)
+            // Fastify так отвечает, когда маршрута у него просто нет: с
+            // записями это не связано вообще, чинить надо сервер или клиент.
+            if raw.contains("Route"), raw.localizedCaseInsensitiveContains("not found") {
+                let what = Self.describe(request)
+                throw APIError.routeMissing(message: what.isEmpty
+                    ? "Сервер не знает такого запроса — похоже, приложение новее сервера"
+                    : "Сервер не знает такого запроса: \(what). Похоже, приложение новее сервера")
+            }
+            throw APIError.notFound(message: Self.notFoundMessage(raw: raw, request: request))
         case 409:
-            throw APIError.conflict(message: message)
+            throw APIError.conflict(message: raw)
         default:
-            throw APIError.server(status: status, message: message)
+            throw APIError.server(status: status, message: raw)
         }
+    }
+
+    /// 404 у сервера означает три разные вещи, и раньше все три показывались
+    /// одинаково — «Не найдено или нет доступа к этой записи». Владелец
+    /// 15.09.2026 на это и указал: «пишет, что она удалена, но она не
+    /// удалена». Теперь причина называется своим именем, а к ней добавляется
+    /// упавший запрос — иначе непонятно, что именно чинить.
+    private static func notFoundMessage(raw: String, request: URLRequest?) -> String {
+        let what = describe(request)
+        // Осмысленный ответ сервера всегда информативнее нашего текста.
+        if raw.range(of: "[а-яА-ЯёЁ]", options: .regularExpression) != nil { return raw }
+        return what.isEmpty
+            ? "Запись не найдена или недоступна"
+            : "Запись не найдена или недоступна (\(what))"
+    }
+
+    /// «PATCH /api/tasks/1234» — чтобы по баннеру было видно, что упало.
+    private static func describe(_ request: URLRequest?) -> String {
+        guard let request, let path = request.url?.path else { return "" }
+        let method = request.httpMethod ?? "GET"
+        return "\(method) \(path)"
     }
 }
 

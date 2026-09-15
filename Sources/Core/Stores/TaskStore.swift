@@ -51,6 +51,16 @@ public final class TaskStore {
             }
             return true
         } catch {
+            // Сервер не знает такой задачи — значит наш список протух: её
+            // успели удалить в другом месте, а строка ещё висит на экране.
+            // Пугать этим владельца незачем (15.09.2026: «пишет, что она
+            // удалена, но она не удалена» — путаница шла именно отсюда):
+            // просто убираем строку и подтягиваем свежий список.
+            if Self.isMissingRecord(error) {
+                tasks.removeAll { $0.id == taskId }
+                await load(silent: true)
+                return false
+            }
             if let freshIndex = tasks.firstIndex(where: { $0.id == taskId }) {
                 tasks[freshIndex] = snapshot
             }
@@ -79,6 +89,9 @@ public final class TaskStore {
             try await apiClient.deleteTask(id: taskId)
             return true
         } catch {
+            // Задачи на сервере уже нет — цель удаления и так достигнута,
+            // возвращать строку на экран и ругаться незачем.
+            if Self.isMissingRecord(error) { return true }
             tasks = snapshot
             errorMessage = Self.message(for: error)
             return false
@@ -115,5 +128,13 @@ public final class TaskStore {
 
     private static func message(for error: Error) -> String {
         (error as? APIError)?.errorDescription ?? error.localizedDescription
+    }
+
+    /// Сервер сказал именно «такой записи нет». Отсутствующий МАРШРУТ сюда
+    /// не относится: по нему выводы о судьбе задачи делать нельзя — запись
+    /// жива, это у сервера нет нужной ручки.
+    private static func isMissingRecord(_ error: Error) -> Bool {
+        if case .notFound = (error as? APIError) { return true }
+        return false
     }
 }

@@ -15,6 +15,13 @@ public enum APIError: Error, LocalizedError, Sendable {
     /// Чужой ресурс, недоступный по видимости, отдаёт 404 — сервер не
     /// подтверждает даже факт существования чужого объекта (spec §2.3).
     case notFound(message: String)
+    /// Тоже 404, но совсем про другое: такого МАРШРУТА у сервера нет, и
+    /// записи тут ни при чём. Раньше эти два случая были неразличимы, и
+    /// владелец 15.09.2026 справедливо не понимал, почему приложение пишет
+    /// «запись удалена» про живую запись. Отдельный случай нужен не только
+    /// ради текста: по `notFound` строку списка можно смело считать
+    /// протухшей и убрать, а по этой ошибке — ни в коем случае.
+    case routeMissing(message: String)
     case conflict(message: String)
     case server(status: Int, message: String)
 
@@ -32,6 +39,7 @@ public enum APIError: Error, LocalizedError, Sendable {
         case .unauthorized(let message): Self.humanized(message, fallback: "Нужно войти заново")
         case .forbidden(let message): Self.humanized(message, fallback: "Недостаточно прав для этого действия")
         case .notFound(let message): Self.humanized(message, fallback: "Не найдено или нет доступа к этой записи")
+        case .routeMissing(let message): message
         case .conflict(let message): message
         case .server(_, let message): message
         }
@@ -47,9 +55,30 @@ public enum APIError: Error, LocalizedError, Sendable {
     }
 }
 
-/// Тело ошибки сервера — `{ "error": "..." }`, единственная форма во всём API.
+/// Тело ошибки сервера. Основная форма — `{ "error": "..." }`, но когда
+/// запрошенного маршрута на сервере нет, Fastify отвечает иначе:
+/// `{ "message": "Route GET:/api/me not found", "error": "Not Found" }` —
+/// и вся суть лежит в `message`, тогда как в `error` служебная заглушка.
+/// Раньше читалось только `error`, поэтому настоящая причина («такого
+/// адреса нет») до экрана не доезжала вовсе и подменялась нашей фразой про
+/// удалённую запись.
 struct APIErrorBody: Decodable {
-    let error: String
+    let error: String?
+    let message: String?
+
+    /// Самое содержательное из того, что прислал сервер.
+    var bestMessage: String? {
+        let candidates = [message, error]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        // Осмысленный русский текст важнее служебной англоязычной заглушки.
+        if let russian = candidates.first(where: {
+            $0.range(of: "[а-яА-ЯёЁ]", options: .regularExpression) != nil
+        }) { return russian }
+        // Дальше — тот, что говорит о маршруте: он объясняет причину.
+        if let route = candidates.first(where: { $0.contains("Route") }) { return route }
+        return candidates.first
+    }
 }
 
 /// Ответ вида `{ "ok": true }` — DELETE и некоторые служебные эндпоинты.
