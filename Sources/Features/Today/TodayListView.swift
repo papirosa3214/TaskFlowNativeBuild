@@ -26,10 +26,24 @@ struct TodayListView: View {
     let onOpen: (ApiTask) -> Void
     let onComplete: (ApiTask) -> Void
     let onDelete: (ApiTask) -> Void
+    /// Заголовок секции, которая сейчас закреплена у верхней кромки, — он
+    /// уезжает в шапку экрана. Пусто, когда лента в самом начале или секция
+    /// всего одна: тогда в шапке остаётся название вкладки.
+    var onPinnedSectionChange: (String) -> Void = { _ in }
+    /// Верхняя кромка прокрутки в координатах экрана — та высота, на которой
+    /// заголовок секции прилипает. Приходит от владельца прокрутки: изнутри
+    /// её не вычислить, а константой брать нельзя — замер показал 122pt там,
+    /// где «безопасная зона плюс навбар» давали 113pt.
+    var pinEdge: CGFloat = 0
 
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
     @State private var swipeActionError: String?
+    /// Верх каждого заголовка в координатах экрана. Считается, какой из них
+    /// сейчас прилип к кромке: владелец 15.09.2026 просил, чтобы подзаголовки
+    /// не были захардкожены, а «когда они подходят, появлялись в центре» —
+    /// то есть в шапке всегда стоит та секция, которую он сейчас читает.
+    @State private var sectionTops: [String: CGFloat] = [:]
 
     private let apiClient = APIClient()
 
@@ -66,11 +80,48 @@ struct TodayListView: View {
                         // он дублировал бы название самой вкладки в шапке.
                         if visible.count > 1 {
                             header(section)
+                                .background(sectionTopReader(section))
                         }
                     }
                 }
             }
         }
+    }
+
+    /// Замеряет верх заголовка секции в координатах экрана.
+    private func sectionTopReader(_ section: TodayListSection) -> some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onGeometryChange(for: CGFloat.self) { _ in
+                    proxy.frame(in: .global).minY
+                } action: { top in
+                    // Считаем по свежему снимку: присвоенный `@State` в этом
+                    // же проходе ещё содержит прошлое значение.
+                    var tops = sectionTops
+                    tops[section.id] = top
+                    sectionTops = tops
+                    reportPinnedSection(with: tops)
+                }
+        }
+    }
+
+    /// Прилипший заголовок стоит ровно у кромки прокрутки, а те, что ниже,
+    /// ещё не дошли. Значит текущая секция — самая нижняя из тех, чей верх
+    /// уже не ниже кромки. Пока до кромки не дошла ни одна, в шапке остаётся
+    /// название вкладки.
+    private func reportPinnedSection(with tops: [String: CGFloat]) {
+        let visible = sections
+        guard visible.count > 1, pinEdge > 0 else {
+            onPinnedSectionChange("")
+            return
+        }
+        // Закреплённый заголовок стоит ровно на верхней кромке прокрутки,
+        // ушедшие наверх — выше неё, не дошедшие — ниже. Значит нужен
+        // последний из тех, кто кромку уже достиг. Допуск в пару точек:
+        // у прилипшего заголовка верх подрагивает на доли точки.
+        let edge = pinEdge + 2
+        let passed = visible.filter { (tops[$0.id] ?? .greatestFiniteMagnitude) <= edge }
+        onPinnedSectionChange(passed.last?.title ?? "")
     }
 
     private var emptyText: String {

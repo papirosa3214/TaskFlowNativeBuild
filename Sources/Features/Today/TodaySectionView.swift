@@ -35,10 +35,20 @@ struct TodaySectionView: View {
 
     private var today: String { TodayDate.todayString() }
 
-    /// Что показать в шапке: у списка — название вкладки, у почасовой сетки
-    /// шапку рисует родитель по дате.
+    /// Заголовок секции, до которой долистали. Пока лента в начале — пусто.
+    @State private var pinnedSectionTitle = ""
+    /// Высота, на которой заголовок секции прилипает к шапке.
+    @State private var pinEdge: CGFloat = 0
+
+    /// Что показать в шапке: у списка — заголовок секции, которую сейчас
+    /// читают, а пока ни одна не подошла к кромке — название вкладки. У
+    /// почасовой сетки шапку рисует родитель по дате.
+    /// Владелец 15.09.2026: «я думал, ты заголовки сделаешь динамическими —
+    /// пролистываю, они в центр становятся, а они захардкоженные: здесь
+    /// „Сегодня“, а у меня тут же предстоящие, это же уже не сегодня».
     private var titleForHeader: String {
-        layout == .list ? listTab.title : ""
+        guard layout == .list else { return "" }
+        return pinnedSectionTitle.isEmpty ? listTab.title : pinnedSectionTitle
     }
 
     private var computation: TodayComputation {
@@ -74,10 +84,21 @@ struct TodaySectionView: View {
                     listContent(c: c)
                 }
                 .refreshable { await taskStore.load(silent: true) }
+                // Высота, на которой заголовок секции прилипает к шапке.
+                // Изнутри прокрутки её не видно (там безопасная зона уже
+                // нулевая), поэтому меряем снаружи и отдаём списку.
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .global).minY + proxy.safeAreaInsets.top
+                } action: { pinEdge = $0 }
             }
         }
         .onAppear { onTitleChange(titleForHeader) }
-        .onChange(of: listTab) { _, _ in onTitleChange(titleForHeader) }
+        .onChange(of: listTab) { _, newTab in
+            // Сменили вкладку — прежняя секция больше ни при чём, шапка
+            // возвращается к названию вкладки, пока не долистают до секции.
+            pinnedSectionTitle = ""
+            onTitleChange(layout == .list ? newTab.title : "")
+        }
         .onChange(of: layout) { _, _ in onTitleChange(titleForHeader) }
         .toolbar {
             // Вкладки списка живут на ЛЕВОЙ кнопке шапки (её рисует
@@ -144,7 +165,15 @@ struct TodaySectionView: View {
                             await taskStore.patch(taskId: task.id, fields: ["status": .string("completed")]) { _ in }
                         }
                     },
-                    onDelete: { task in Task { await taskStore.delete(taskId: task.id) } }
+                    onDelete: { task in Task { await taskStore.delete(taskId: task.id) } },
+                    onPinnedSectionChange: { title in
+                        guard title != pinnedSectionTitle else { return }
+                        pinnedSectionTitle = title
+                        // Считаем от свежего значения, а не от `titleForHeader`:
+                        // присвоенный `@State` в этом же проходе ещё старый.
+                        onTitleChange(title.isEmpty ? listTab.title : title)
+                    },
+                    pinEdge: pinEdge
                 )
             }
         }
