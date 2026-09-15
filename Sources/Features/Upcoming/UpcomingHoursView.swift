@@ -446,19 +446,28 @@ struct UpcomingHoursView: View {
                 grabHaptic.impactOccurred()
                 grabHaptic.prepare()
                 lastTickTime = nil
-                resizeState = ResizeState(
+                let state = ResizeState(
                     taskID: task.id,
                     edge: edge,
                     anchorY: edge == .bottom ? top : top + height,
                     top: top,
                     height: height
                 )
+                resizeState = state
+                // Та же красная метка на шкале, что и при переносе плашки:
+                // владелец 15.09.2026 просил видеть время и при растягивании,
+                // «а не так, на глаз». Показывается время ТОЙ границы, за
+                // которую тянут, — она и меняется.
+                let time = Self.edgeTime(of: state, hourHeight: hourHeight)
+                previewTime = time
+                lastTickTime = time
             },
             onChange: { point in
                 guard var state = resizeState, state.taskID == task.id else { return }
                 apply(&state, fingerY: point.y - gridFrame.minY)
                 resizeState = state
-                let time = Self.timeFromOffset(state.top, hourHeight: hourHeight)
+                let time = Self.edgeTime(of: state, hourHeight: hourHeight)
+                previewTime = time
                 if time != lastTickTime {
                     lastTickTime = time
                     tickHaptic.selectionChanged()
@@ -469,6 +478,7 @@ struct UpcomingHoursView: View {
                 guard var state = resizeState, state.taskID == task.id else { return }
                 apply(&state, fingerY: point.y - gridFrame.minY)
                 resizeState = nil
+                previewTime = nil
                 lastTickTime = nil
                 let minutes = Self.minutes(fromHeight: state.height, hourHeight: hourHeight)
                 // Начало сдвигает только верхняя ручка: у нижней конец едет,
@@ -479,6 +489,7 @@ struct UpcomingHoursView: View {
             onCancel: {
                 guard resizeState?.taskID == task.id else { return }
                 resizeState = nil
+                previewTime = nil
                 lastTickTime = nil
             }
         )
@@ -499,6 +510,13 @@ struct UpcomingHoursView: View {
             state.height = snappedHeight
             state.top = state.anchorY - snappedHeight
         }
+    }
+
+    /// Время подвижной границы: у нижней ручки это конец задачи, у верхней —
+    /// её начало. Именно оно и едет по шкале красной меткой.
+    private static func edgeTime(of state: ResizeState, hourHeight: CGFloat) -> String {
+        let y = state.edge == .top ? state.top : state.top + state.height
+        return timeFromOffset(y, hourHeight: hourHeight)
     }
 
     /// Высота, округлённая до шага сетки (те же 15 минут, что у переноса).
