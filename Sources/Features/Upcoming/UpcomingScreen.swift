@@ -26,6 +26,8 @@ public struct UpcomingScreen: View {
 
     @AppStorage("today_layout") private var todayLayoutRaw = TodayLayout.list.rawValue
     private var todayLayout: TodayLayout {
+        // У тех, кто пользовался доской, в настройках осталось `board` —
+        // режима с таким именем больше нет, и он молча превращается в список.
         get { TodayLayout(rawValue: todayLayoutRaw) ?? .list }
         nonmutating set { todayLayoutRaw = newValue.rawValue }
     }
@@ -377,11 +379,26 @@ public struct UpcomingScreen: View {
     /// Системное меню разделов. Оно используется и самим экраном, и дочерним
     /// «Сегодня», поэтому переключение не создаёт отдельную, самодельную
     /// панель под навбаром.
+    /// ПРАВЫЙ календарь — только временны́е сетки, от часа до месяца
+    /// (владелец 15.09.2026: «там, где у нас календарик — сегодня, три дня,
+    /// неделя, месяц — это всё должны быть часовые моменты; сегодня это
+    /// должны быть часы вместо сегодня»). Поэтому пункт «Сегодня» стал
+    /// «Часы» и открывает почасовую сетку, а не список: список живёт на
+    /// левой кнопке вкладок.
     private var viewSwitcherMenu: some View {
         Menu {
-            Picker("Раздел", selection: Binding(get: { view }, set: { view = $0 })) {
-                Label("Сегодня", systemImage: "list.bullet").tag(ViewMode.today)
-                Label("Три дня", systemImage: "clock").tag(ViewMode.threeDays)
+            Picker("Раздел", selection: Binding(
+                get: { view },
+                set: { newValue in
+                    view = newValue
+                    // «Часы» — это почасовая сетка сегодняшнего дня. Без
+                    // этого раздел открылся бы последним списком и пункт
+                    // выглядел бы неработающим.
+                    if newValue == .today { todayLayout = .hours }
+                }
+            )) {
+                Label("Часы", systemImage: "clock").tag(ViewMode.today)
+                Label("Три дня", systemImage: "calendar.day.timeline.left").tag(ViewMode.threeDays)
                 Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(ViewMode.week)
                 Label("Месяц", systemImage: "calendar").tag(ViewMode.month)
             }
@@ -393,29 +410,45 @@ public struct UpcomingScreen: View {
         .accessibilityIdentifier("planner.view-switcher")
     }
 
-    /// Три кнопки вида свёрнуты в один кружок с нативным меню (владелец
-    /// 10.09.2026: «спрячем под иконкой, чтобы был один шарик аккуратненький»).
-    /// `Picker` внутри `Menu` сам ставит галочку у текущего вида — тот же
-    /// приём, что у выбора периода ниже.
-    @ViewBuilder
+    /// ЛЕВАЯ кнопка шапки — вкладки списка: «Входящие», «Ждут вас»,
+    /// «Сегодня» (владелец 15.09.2026: «с левой стороны должны быть только
+    /// вот эти входящие, ждут вас и сегодня»). Раньше здесь жил выбор вида
+    /// список/доска/часы — отдельной такой ручки больше нет: список
+    /// выбирается этой кнопкой, а почасовая сетка — пунктом «Часы» в
+    /// календаре справа.
+    ///
+    /// Кнопка видна во всех разделах, а не только в «Сегодня»: выбор вкладки
+    /// и есть способ вернуться из «Трёх дней»/«Недели»/«Месяца» в список.
     private var subviewPill: some View {
-        if view == .today {
-            Menu {
-                Picker("Вид", selection: Binding(get: { todayLayout }, set: { todayLayout = $0 })) {
-                    ForEach(TodayLayout.allCases, id: \.self) { layout in
-                        Label(todayLayoutLabel(layout), systemImage: todayLayoutIcon(layout))
-                            .tag(layout)
-                    }
+        Menu {
+            Picker("Вкладка", selection: Binding(
+                get: { listTabRaw },
+                set: { newValue in
+                    listTabRaw = newValue
+                    // Выбрали вкладку — значит хотим список сегодняшнего
+                    // раздела, из какого бы диапазона ни пришли.
+                    todayLayout = .list
+                    view = .today
                 }
-            } label: {
-                TFPlannerToolbarIcon(systemName: todayLayoutIcon(todayLayout), tint: .tfSub)
+            )) {
+                ForEach(TodayListTab.allCases) { tab in
+                    Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
+                }
             }
-            .tfPlannerWideControl()
-            .accessibilityLabel("Вид: \(todayLayoutLabel(todayLayout))")
-            .accessibilityIdentifier("planner.subview-switcher")
-        } else {
-            EmptyView()
+        } label: {
+            TFPlannerToolbarIcon(systemName: listTabIcon, tint: .tfSub)
         }
+        .tfPlannerWideControl()
+        .accessibilityLabel("Вкладка: \(listTab.title)")
+        .accessibilityIdentifier("planner.list-tab-switcher")
+    }
+
+    @AppStorage("today_list_tab") private var listTabRaw = TodayListTab.today.rawValue
+    private var listTab: TodayListTab { TodayListTab(rawValue: listTabRaw) ?? .today }
+    /// В разделах-диапазонах список не показан, поэтому и подсвечивать
+    /// вкладку нечем — иконка становится нейтральной.
+    private var listTabIcon: String {
+        (view == .today && todayLayout == .list) ? listTab.icon : "list.bullet"
     }
 
     private func todayLayoutIcon(_ layout: TodayLayout) -> String {

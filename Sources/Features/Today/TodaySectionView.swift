@@ -80,11 +80,12 @@ struct TodaySectionView: View {
         .onChange(of: listTab) { _, _ in onTitleChange(titleForHeader) }
         .onChange(of: layout) { _, _ in onTitleChange(titleForHeader) }
         .toolbar {
+            // Вкладки списка живут на ЛЕВОЙ кнопке шапки (её рисует
+            // `UpcomingScreen`), справа остаются фильтр и выбор раздела —
+            // владелец 15.09.2026 отдельно попросил не заводить здесь третью
+            // кнопку, а использовать левую.
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 0) {
-                    if layout == .list {
-                        listTabMenu.tfPlannerWideControl()
-                    }
                     filterMenu(c: c).tfPlannerWideControl()
                     plannerViewSwitcher.tfPlannerWideControl()
                 }
@@ -113,23 +114,6 @@ struct TodaySectionView: View {
                 rescheduleTaskIDs = nil
             }
         }
-    }
-
-    /// Выбор вкладки — один «шарик» с всплывающим списком, тем же приёмом,
-    /// что и выбор вида рядом (владелец 15.09.2026: «можешь просто в кнопку
-    /// их зарядить — в одну кнопку всплывающий список, и всё»).
-    private var listTabMenu: some View {
-        Menu {
-            Picker("Вкладка", selection: $listTabRaw) {
-                ForEach(TodayListTab.allCases) { tab in
-                    Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
-                }
-            }
-        } label: {
-            TFPlannerToolbarIcon(systemName: listTab.icon, tint: .tfSub)
-        }
-        .accessibilityLabel("Вкладка: \(listTab.title)")
-        .accessibilityIdentifier("today.list-tab-switcher")
     }
 
     @ViewBuilder
