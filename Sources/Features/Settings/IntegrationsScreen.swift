@@ -30,11 +30,34 @@ final class IntegrationsViewModel {
     var isGoogleSyncing = false
     var isGoogleDisconnecting = false
     var isAppleSyncing = false
+    var isThingsSyncing = false
+    var thingsBridgeAvailable = false
 
     var errorMessage: String?
     var successMessage: String?
 
     var googleConnected: Bool { status?.google.connected ?? false }
+
+    func loadThingsBridge() async {
+        thingsBridgeAvailable = (try? await ThingsBridgeAPI.shared.health()) == true
+    }
+
+    func syncThings(taskStore: TaskStore, projectStore: ProjectStore) async {
+        errorMessage = nil
+        isThingsSyncing = true
+        defer { isThingsSyncing = false }
+        do {
+            let result = try await ThingsBridgeAPI.shared.sync()
+            await taskStore.load(silent: true)
+            await projectStore.load()
+            thingsBridgeAvailable = true
+            successMessage = "Things: импортировано \(result.imported), отправлено \(result.exported), обновлено \(result.updated)"
+            scheduleSuccessClear()
+        } catch {
+            thingsBridgeAvailable = false
+            errorMessage = "Ошибка синхронизации Things: \(Self.message(error))"
+        }
+    }
 
     func loadAppleState() {
         calPermGranted = AppleEventKitAccess.calendarGranted()
@@ -236,6 +259,7 @@ struct IntegrationsScreen: View {
     @State private var viewModel = IntegrationsViewModel()
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
+    @State private var isThingsOpen = false
     @State private var isGoogleTasksOpen = true // веб-дефолт: этот аккордеон открыт сразу
     @State private var isGoogleCalOpen = false
 
@@ -248,6 +272,7 @@ struct IntegrationsScreen: View {
                         successBanner(successMessage)
                     }
                     appleSection
+                    thingsSection
                     googleSection
                 }
                 .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -259,6 +284,7 @@ struct IntegrationsScreen: View {
         .background(Color.tfBackground)
         .task {
             viewModel.loadAppleState()
+            await viewModel.loadThingsBridge()
             await viewModel.loadGoogleStatus()
         }
     }
@@ -349,6 +375,29 @@ struct IntegrationsScreen: View {
                     icon: "arrow.triangle.2.circlepath", variant: .secondary, isEnabled: !viewModel.isAppleSyncing
                 ) {
                     Task { await viewModel.syncAppleReminders(taskStore: taskStore, projectStore: projectStore) }
+                }
+            }
+        }
+    }
+
+    // MARK: - Things 3 на MacBook
+
+    private var thingsSection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            SettingsCapsLabel("MacBook")
+            IntegrationAccordionCard(
+                icon: "checkmark.square", iconTint: .tfPurple, title: "Things 3",
+                subtitle: viewModel.thingsBridgeAvailable ? "Область TaskFlow · ручная синхронизация" : "Мост MacBook не найден",
+                badge: viewModel.thingsBridgeAvailable ? "В сети" : nil,
+                isExpanded: $isThingsOpen
+            ) {
+                Text("Синхронизируются только проекты в области TaskFlow. Удаление не зеркалится.")
+                    .tfText(.caption).foregroundStyle(Color.tfSub)
+                TFButton(
+                    viewModel.isThingsSyncing ? "Синхронизация..." : "Синхронизировать сейчас",
+                    icon: "arrow.triangle.2.circlepath", variant: .secondary, isEnabled: !viewModel.isThingsSyncing
+                ) {
+                    Task { await viewModel.syncThings(taskStore: taskStore, projectStore: projectStore) }
                 }
             }
         }
