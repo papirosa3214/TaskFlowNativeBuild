@@ -46,13 +46,13 @@ struct TodayBoardView: View {
                         // «эффект подглядывания следующего столбика». Раньше
                         // колонка занимала всю ширину контейнера, и соседнюю
                         // не было видно вовсе.
-                        // `width` приходит БЕЗ полей ленты и зазора между
-                        // колонками, поэтому вычитаем их сами: иначе сосед
-                        // встаёт ровно за кромкой экрана (поймано кадром).
-                        .containerRelativeFrame(.horizontal, alignment: .leading) { width, _ in
-                            width - TFSpacing.lg - TFSpacing.md - boardNextColumnPeek
+                        // Ширина — как в рабочей версии `07f7ec81`: вычитаем
+                        // поля ленты с обеих сторон и полосу подглядывания,
+                        // чтобы край следующего столбика оставался в кадре.
+                        .containerRelativeFrame(.horizontal) { availableWidth, _ in
+                            max(280, availableWidth - TFSpacing.lg * 2 - boardNextColumnPeek)
                         }
-                        .containerRelativeFrame(.vertical, alignment: .top)
+                        .frame(maxHeight: .infinity, alignment: .top)
                 }
                 // Sentinel для peek: после последней видимой колонки остаётся
                 // полоска `boardNextColumnPeek`, по которой `.viewAligned` snap'ит
@@ -86,22 +86,35 @@ struct TodayBoardView: View {
     }
 
     private func columnView(_ column: TodayBoardColumn) -> some View {
-        // Прокрутка колонки уходит под обе системные кромки: сверху её мягко
-        // размывает шапка раздела, снизу карточки проезжают под панелью
-        // вкладок с её собственным затуханием. Владелец 10.09.2026: «доски
-        // сделать, чтобы системный блюр вверху был и моё затухание внизу, как
-        // на всех экранах».
-        //
-        // Заголовок колонки живёт ВНУТРИ прокрутки — иначе он стоит между
-        // шапкой и лентой, лента до системной панели не достаёт, и размывать
-        // системе нечего: получается жёсткая обрезка под заголовком, ровно то,
-        // на что владелец и указал.
-        ScrollView(.vertical, showsIndicators: false) {
-            // Заголовок закреплён штатным `pinnedViews` — тот же приём, что у
-            // списка «Сегодня» (`TodayListView`): своей подложки и своего
-            // размытия у него нет, лента просто идёт под ним.
-            LazyVStack(spacing: TFSpacing.sm, pinnedViews: [.sectionHeaders]) {
-                Section {
+        // Колонка — самостоятельная сущность: заголовок стоит НАД лентой, а
+        // прокрутка принадлежит только ей (так и было сделано в `07f7ec81`,
+        // «per-column scroll»). Когда заголовок держали закреплённым ВНУТРИ
+        // прокрутки, он болтался вместе с карточками, а оттягивание тащило всю
+        // доску разом — владелец 15.09.2026: «у тебя должна быть прям колонка,
+        // и у неё своя полоска прокрутки».
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            HStack {
+                Text(column.title)
+                    .tfText(.title)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(column.titleIsRed ? Color.tfRed : Color.tfText)
+                Spacer()
+                if isSelectingTasks, !column.tasks.isEmpty {
+                    let allSelected = column.tasks.allSatisfy { selectedTaskIDs.contains($0.id) }
+                    Button(allSelected ? "Снять выбор" : "Выбрать все") {
+                        onToggleColumnSelection(column)
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.tfRed)
+                } else if column.id == .overdue {
+                    Button("Перенести", action: onReschedule)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.tfRed)
+                }
+            }
+
+            ScrollView(.vertical, showsIndicators: true) {
+                LazyVStack(spacing: TFSpacing.sm) {
                     if column.tasks.isEmpty && column.id != .today {
                         TFEmptyState(
                             icon: nil,
@@ -130,53 +143,13 @@ struct TodayBoardView: View {
                             }
                         }
                     }
-                } header: {
-                    HStack {
-                        Text(column.title)
-                            .tfText(.title)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(column.titleIsRed ? Color.tfRed : Color.tfText)
-                        Spacer()
-                        if isSelectingTasks, !column.tasks.isEmpty {
-                            let allSelected = column.tasks.allSatisfy { selectedTaskIDs.contains($0.id) }
-                            Button(allSelected ? "Снять выбор" : "Выбрать все") {
-                                onToggleColumnSelection(column)
-                            }
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color.tfRed)
-                        } else if column.id == .overdue {
-                            Button("Перенести", action: onReschedule)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.tfRed)
-                        }
-                    }
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // Закреплённый заголовок должен закрывать карточки под
-                    // собой. Прозрачный header давал наложение текста при
-                    // вертикальной прокрутке колонки.
-                    .background(Color.tfBackground)
-                    .zIndex(1)
                 }
+                // Запас снизу — высота панели вкладок: последняя карточка
+                // должна доезжать выше неё, а не оставаться под затуханием.
+                .padding(.bottom, TFTabBarMetrics.heightCompact + TFSpacing.lg)
             }
-            // Запас снизу — высота панели вкладок: последняя карточка должна
-            // доезжать выше неё, а не оставаться под затуханием. Отступ висит
-            // на всей ленте: на `Section` он раздувал промежуток под КАЖДОЙ
-            // карточкой (поймано кадром).
-            .padding(.bottom, TFTabBarMetrics.heightCompact + TFSpacing.lg)
+            .tfBoardNativeScrollEdges()
         }
-        // Верхняя безопасная зона (статус-бар + шапка раздела) прилетала сюда
-        // ВТОРОЙ раз: сама колонка уже стоит под шапкой — горизонтальная
-        // прокрутка доски начинается на её нижней кромке, — но вложенная
-        // вертикальная прокрутка всё равно получала тот же inset и отодвигала
-        // ленту ещё на высоту шапки. Владелец 15.09.2026: доска начиналась «где-
-        // то посередине экрана», а закреплённый заголовок колонки висел там же,
-        // и карточки проезжали ВЫШЕ него под шапку без размытия. Измерено
-        // логом: у колонки `frame.y == 122` и `safeAreaInsets.top == 122`.
-        // Гасим повторный inset; положения колонки это не меняет (родитель уже
-        // ограничил её безопасной зоной), уходит только лишний отступ.
-        .ignoresSafeArea(.container, edges: .top)
-        .tfBoardNativeScrollEdges()
         .frame(maxHeight: .infinity, alignment: .top)
         // Появление/исчезновение карточек в колонке пружинит — раньше
         // добавление задачи через Realtime или удаление свайпом «схлопывали»
