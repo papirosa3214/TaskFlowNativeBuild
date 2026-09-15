@@ -19,16 +19,14 @@ struct TodayScreen: View {
     @State private var rescheduleOpen = false
     /// Конкретная задача, перенесённая через свайп — открывает RescheduleSheet
     /// именно для неё. Приоритет над `rescheduleOpen` (тот для группы
-    /// просроченных с доски).
+    /// просроченных).
     @State private var rescheduleTask: ApiTask?
     /// Кеш снимка экрана. Раньше был computed property — на каждый re-render
     /// `body` пересобирал его с нуля (5 фильтраций + 4 сортировки на main
-    /// thread), и это пересоздавало `boardColumns` с новыми `[ApiTask]` даже
-    /// когда входы не менялись. Результат — гонка между `.id(column.id)` и
-    /// `scrollPosition`, доска «дёргалась» при refresh, фильтр-смене и т.п.
-    /// `.task(id:)` гарантирует пересчёт ТОЛЬКО при изменении хеша входов;
-    /// пока они стабильны, `boardColumns` остаётся теми же экземплярами и
-    /// `scrollTargetBehavior` держит позицию.
+    /// thread) даже когда входы не менялись, и лента дёргалась при refresh,
+    /// смене фильтра и т.п. `.task(id:)` гарантирует пересчёт ТОЛЬКО при
+    /// изменении хеша входов; пока они стабильны, наборы задач остаются теми
+    /// же экземплярами и список не пересобирается.
     @State private var computation: TodayComputation = .placeholder
     private var today: String { TodayDate.todayString() }
     private var activeHourDate: String {

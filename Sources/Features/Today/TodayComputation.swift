@@ -11,14 +11,6 @@ struct TodayHourDay {
     let isToday: Bool
 }
 
-struct TodayBoardColumn: Identifiable {
-    enum Kind: Hashable { case waiting, overdue, today, upcoming, pool }
-    let id: Kind
-    let title: String
-    let tasks: [ApiTask]
-    let titleIsRed: Bool
-}
-
 /// Пустой снимок для первого рендера `TodayScreen` (до того как `.task(id:)`
 /// пересчитает реальный). Без него `computation` нельзя объявить `@State`
 /// с non-optional типом, а optional тащит `??` по всему body.
@@ -80,7 +72,6 @@ struct TodayComputation {
     let trueEmpty: Bool
     let filteredEmpty: Bool
     let hourDays: [TodayHourDay]
-    let boardColumns: [TodayBoardColumn]
 
     init(
         allTasks: [ApiTask], currentUser: ApiUser?, agents: [ApiUser],
@@ -154,24 +145,10 @@ struct TodayComputation {
             isToday: activeHourDate == today
         )]
 
-        // Заголовки колонок — словами и без счётчиков (владелец 09.09.2026:
-        // «числа не надо указывать в названии», а у сегодняшней колонки вместо
-        // даты должно стоять «Сегодня» — дата и так стоит в шапке раздела).
-        var columns: [TodayBoardColumn] = []
-        if !filteredWaiting.isEmpty {
-            columns.append(.init(id: .waiting, title: "Ждут вас", tasks: filteredWaiting, titleIsRed: false))
-        }
-        if !overdueTasks.isEmpty {
-            columns.append(.init(id: .overdue, title: "Просрочено", tasks: overdueTasks, titleIsRed: true))
-        }
-        columns.append(.init(id: .today, title: "Сегодня", tasks: todayTasks, titleIsRed: false))
-        // Четвёртой колонкой — «Предстоящие»: всё, что позже сегодняшнего дня,
-        // одной кучей. Владелец 09.09.2026 отдельно отказался дробить её на
-        // «три дня»/«неделю» — для диапазонов есть свои виды раздела.
-        columns.append(.init(id: .upcoming, title: "Предстоящие", tasks: upcomingTasks, titleIsRed: false))
-        // Пятой — «Пул»: то, что не попало ни в одну датированную колонку.
-        columns.append(.init(id: .pool, title: "Пул", tasks: poolTasks, titleIsRed: false))
-        boardColumns = columns
+        // Колонки канбан-доски раньше собирались здесь же. Доска удалена
+        // 15.09.2026 по решению владельца («раз мы уже её не используем,
+        // сноси»), а наборы задач остались: теперь по ним раскладываются
+        // секции вкладок списка (`TodayListSection`).
     }
 
     /// Задачи без project_id (Входящие) — всегда; проектные — только opt-in
