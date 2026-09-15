@@ -41,7 +41,18 @@ struct TodayBoardView: View {
                         // identity для diffing — дополнительный `.id` лишний и
                         // только мешал SwiftUI повторно использовать view-инстанс
                         // при изменении `column.tasks`.
-                        .containerRelativeFrame(.horizontal, count: 1, span: 1, spacing: 0, alignment: .leading)
+                        // Колонка уже колонки: на ширину `boardNextColumnPeek`
+                        // остаётся край следующей — владелец 15.09.2026 просил
+                        // «эффект подглядывания следующего столбика». Раньше
+                        // колонка занимала всю ширину контейнера, и соседнюю
+                        // не было видно вовсе.
+                        .containerRelativeFrame(.horizontal, alignment: .leading) { width, _ in
+                            // `width` — вся ширина прокрутки, БЕЗ учёта полей
+                            // ленты и зазора между колонками: вычитаем их сами,
+                            // иначе сосед встаёт ровно за кромкой экрана и
+                            // подглядывать нечего (поймано кадром).
+                            width - TFSpacing.lg - TFSpacing.md - boardNextColumnPeek
+                        }
                         .containerRelativeFrame(.vertical, alignment: .top)
                 }
                 // Sentinel для peek: после последней видимой колонки остаётся
