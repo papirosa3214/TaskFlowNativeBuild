@@ -223,9 +223,6 @@ struct UpcomingHoursView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if showsDayHeader {
-                UpcomingDayColumnsHeader(days: days)
-            }
             ScrollViewReader { proxy in
                 ZStack(alignment: .topLeading) {
                     ScrollView {
@@ -243,13 +240,22 @@ struct UpcomingHoursView: View {
                         }
                     }
 
-                    if !untimed.isEmpty {
-                        // Пул лежит над прокруткой, а не отдельной строкой
-                        // `VStack`: часы проходят под карточкой, поэтому
-                        // системное scroll-edge затухание остаётся видно.
-                        untimedPool
-                            .zIndex(1)
+                    // Шапка дней и пул — два отдельных плавающих окна над
+                    // прокруткой, а не строки `VStack`: часы проходят под
+                    // ними, поэтому системное scroll-edge затухание остаётся
+                    // видно. Владелец 16.09.2026 попросил того же и для дней
+                    // недели — «в то же плавающее окно, но чтобы они
+                    // обособлены были от пула задач».
+                    VStack(spacing: TFSpacing.sm) {
+                        if showsDayHeader {
+                            UpcomingDayColumnsHeader(days: days)
+                        }
+                        if !untimed.isEmpty {
+                            untimedPool
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .zIndex(1)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -1069,22 +1075,36 @@ private extension View {
 /// Заголовок колонок дня — уходит в `ScreenHeader.below` (спека §3.5, `DayColumnsHeader`).
 struct UpcomingDayColumnsHeader: View {
     let days: [UpcomingHourColumn]
+
+    /// Высота окна. Задана явно: внутри ручная раскладка, своей высоты у
+    /// неё нет.
+    private static let height: CGFloat = 30
+
     var body: some View {
-        HStack(spacing: 0) {
-            // Без явной высоты гибкий Color забирает всю доступную высоту
-            // родительского VStack и уводит подписи дней далеко вниз.
-            Color.clear.frame(width: gutterW, height: 1)
-            ForEach(days) { day in
+        GeometryReader { proxy in
+            // Окно у́же сетки на свои боковые поля, поэтому центр колонки
+            // считается в координатах СЕТКИ и переводится в координаты окна
+            // вычитанием левого поля. Иначе подписи разъезжаются с
+            // колонками тем сильнее, чем правее колонка.
+            let gridWidth = proxy.size.width + TFSpacing.lg * 2
+            let columnWidth = (gridWidth - gutterW) / CGFloat(max(days.count, 1))
+            ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                 Text(UpcomingDate.formatDayColumnLabel(day.date))
                     .tfText(.meta)
                     .fontWeight(.semibold)
                     .foregroundStyle(day.isToday ? Color.tfRed : Color.tfSub)
-                    .frame(maxWidth: .infinity)
+                    .position(
+                        x: gutterW + columnWidth * (CGFloat(index) + 0.5) - TFSpacing.lg,
+                        y: proxy.size.height / 2
+                    )
             }
         }
-        .padding(.top, TFSpacing.xs)
-        .padding(.bottom, TFSpacing.sm)
-        .background(Color.tfBackground)
+        .frame(height: Self.height)
+        // Стекло, а не сплошной фон: сквозь окно видно уезжающие под него
+        // часы и их затухание у кромки прокрутки (владелец 16.09.2026).
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: TFRadius.xl))
+        .tfShadow(TFShadow.dropdown)
+        .padding(.horizontal, TFSpacing.lg)
     }
 }
 
