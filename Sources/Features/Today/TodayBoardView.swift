@@ -4,10 +4,6 @@ import SwiftUI
 /// но не настолько много, чтобы текущая карточка снова стала узкой.
 private let boardNextColumnPeek: CGFloat = 28
 
-/// Высота мягкого перехода под шапкой: на ней карточки растворяются, уходя
-/// под неё. Своё затухание — системное на вложенной прокрутке не работает.
-private let boardFadeHeight: CGFloat = 24
-
 // Доска «Сегодня» — spec §3.4/§5.1: колонки «Ждут вас»/«Просрочено»/«Сегодня»,
 // БЕЗ группировки по проектам (владелец, прямое решение) — поэтому drag
 // между колонками здесь не пишет `project_id` (в вебе карточка просто
@@ -27,11 +23,43 @@ struct TodayBoardView: View {
     /// стоит по центру под островом и меняется при листании столбиков
     /// (владелец 15.09.2026 — «как все обычно это делают»).
     var onVisibleColumnChange: (String) -> Void = { _ in }
-    /// Высота верхней безопасной зоны (статус-бар + шапка) — замер приходит от
-    /// родителя. Лента колонки уходит под шапку, и на эту высоту плюс мягкий
-    /// переход настроена маска затухания.
-    var topInset: CGFloat = 0
     @State private var visibleColumnID: TodayBoardColumn.Kind?
+    /// Палец во время листания колонок.
+    @State private var dragTranslation: CGFloat = 0
+    /// Ширина одной колонки — из неё считается шаг листания.
+    @State private var columnWidth: CGFloat = 0
+
+    /// Сдвиг ряда колонок: видимая колонка встаёт к левому краю, плюс палец.
+    private var boardOffset: CGFloat {
+        let index = columns.firstIndex { $0.id == visibleColumnID } ?? 0
+        return -CGFloat(index) * columnStride + dragTranslation
+    }
+
+    /// Шаг между началами соседних колонок — ширина колонки плюс зазор.
+    private var columnStride: CGFloat {
+        columnWidth + TFSpacing.md
+    }
+
+    /// Горизонтальное листание колонок. Порог — треть шага: меньше считается
+    /// промахом и колонка возвращается на место.
+    private var columnPagingGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                dragTranslation = value.translation.width
+            }
+            .onEnded { value in
+                dragTranslation = 0
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                let index = columns.firstIndex { $0.id == visibleColumnID } ?? 0
+                let threshold = columnStride / 3
+                if value.translation.width < -threshold, index + 1 < columns.count {
+                    visibleColumnID = columns[index + 1].id
+                } else if value.translation.width > threshold, index > 0 {
+                    visibleColumnID = columns[index - 1].id
+                }
+            }
+    }
 
     var body: some View {
         // Геометрия колонок теперь берётся у SwiftUI напрямую через
@@ -40,7 +68,11 @@ struct TodayBoardView: View {
         // загрузке и при rotation SwiftUI переоценивал всю иерархию и доска
         // «прыгала». Каждая колонка теперь занимает ровно ширину контейнера
         // (без peek — `boardNextColumnPeek` ниже, как sentinel).
-        ScrollView(.horizontal, showsIndicators: false) {
+        // Ряд прижат к левому краю ZStack'ом: `frame(maxWidth:alignment:)` на
+        // ряду шире экрана его не прижимает, а ЦЕНТРИРУЕТ — из-за этого под
+        // заголовком первой колонки показывалась третья (владелец 15.09.2026:
+        // «две крайние правые сделаны нормально, а „Ждут вас“ — нет»).
+        GeometryReader { geo in
             HStack(alignment: .top, spacing: TFSpacing.md) {
                 ForEach(columns) { column in
                     columnView(column)
@@ -65,19 +97,25 @@ struct TodayBoardView: View {
                             max(280, availableWidth - TFSpacing.lg * 2 - boardNextColumnPeek)
                         }
                         .frame(maxHeight: .infinity, alignment: .top)
+                        .background(GeometryReader { proxy in
+                            Color.clear.onGeometryChange(for: CGFloat.self) { _ in
+                                proxy.size.width
+                            } action: { columnWidth = $0 }
+                        })
                 }
-                // Sentinel для peek: после последней видимой колонки остаётся
-                // полоска `boardNextColumnPeek`, по которой `.viewAligned` snap'ит
-                // как на «начало следующей колонки». Без sentinel свайп бы
-                // останавливался ровно на границе колонки без подсказки «есть
-                // ещё», и анимация snap'а выглядела бы рывком.
-                Color.clear.frame(width: boardNextColumnPeek)
             }
-            .padding(.horizontal, TFSpacing.lg)
-            .scrollTargetLayout()
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.leading, TFSpacing.lg)
+            .offset(x: boardOffset)
+            // Ряд шире экрана, поэтому его надо ЯВНО положить в область
+            // экрана и прижать влево: без этого родитель центрирует ряд, и
+            // под заголовком первой колонки показывалась третья (замерено
+            // логом: index=0, offset=0, а на экране чужая колонка).
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .clipped()
         }
-        .scrollPosition(id: $visibleColumnID, anchor: .leading)
-        .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: visibleColumnID)
+        .simultaneousGesture(columnPagingGesture)
         .onAppear {
             keepVisibleColumnValid()
             reportVisibleColumnTitle()
@@ -170,29 +208,11 @@ struct TodayBoardView: View {
                 // должна доезжать выше неё, а не оставаться под затуханием.
                 .padding(.bottom, TFTabBarMetrics.heightCompact + TFSpacing.lg)
             }
-            // Лента уходит ПОД системную шапку — там её мягко размывает
-            // системная кромка прокрутки. Верхняя безопасная зона прилетает
-            // сюда вторым слоем (колонка уже стоит под шапкой: `frame.y == 122`
-            // и `safeAreaInsets.top == 122`, замерено логом), поэтому её здесь
-            // гасим — иначе доска начинается с середины экрана.
-            .ignoresSafeArea(.container, edges: .top)
-            // Своё затухание вместо системного. Системное (`scrollEdgeEffect`)
-            // здесь не включается: оно живёт на кромке КОРНЕВОЙ прокрутки
-            // экрана (как на «Обзоре»), а прокрутка колонки вложена в
-            // горизонтальную ленту доски. Тот же приём, что в вебе: маска с
-            // градиентом — карточки растворяются, уходя под шапку.
-            .mask(
-                VStack(spacing: 0) {
-                    LinearGradient(
-                        colors: [.clear, .black],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: topInset + boardFadeHeight)
-                    Color.black
-                }
-                .ignoresSafeArea(.container, edges: .top)
-            )
+            // Ни `ignoresSafeArea`, ни масок: безопасную зону SwiftUI считает
+            // сам, игнорировать её положено только фонам (HIG-материал
+            // проекта). Затухание — системная кромка прокрутки, `.soft` для
+            // обеих кромок: на iOS 27 стиль по умолчанию стал `.hard`.
+            .tfBoardNativeScrollEdges()
         }
         .frame(maxHeight: .infinity, alignment: .top)
         // Появление/исчезновение карточек в колонке пружинит — раньше
