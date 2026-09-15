@@ -49,12 +49,17 @@ private let minCardBodyHeight: CGFloat = 44
 /// «надо всё честно показывать», для читаемости есть суточный вид и тумблер
 /// масштаба трёхдневного).
 private let minVisibleBlockHeight: CGFloat = 8
-/// Видимый диапазон суток — владелец 07.09.2026: «в 6 утра всё равно никто
-/// не встаёт, в час ночи никто не встаёт», убрать портянку из пустых ночных
-/// часов. Тот же диапазон, что у «Сегодня» (см. `TodayHoursMetrics`), но
-/// этот файл — общий для «Сегодня → Часы» И «Три дня», своих констант нет.
-private let startHour = 6
-private let endHour = 22
+/// Видимый диапазон — ПОЛНЫЕ сутки, 00:00 сверху и 24:00 внизу.
+///
+/// 07.09.2026 он был урезан до 6–22 по просьбе владельца («в 6 утра всё
+/// равно никто не встаёт, в час ночи никто не встаёт») — тогда ночные часы
+/// были мёртвым грузом в ленте. 15.09.2026 владелец вернул полные сутки:
+/// «я сокращал время, чтобы лишняя ночь не мешала, она была бесполезная —
+/// сейчас она уже не бесполезная». Причина в тумблере масштаба: сжатую
+/// шкалу можно окинуть целиком, и ночь больше не растягивает экран.
+/// Масштаб часа при этом не меняется — его задаёт `hourHeight`.
+private let startHour = 0
+private let endHour = 24
 /// Если сервер ещё не прислал длительность, почасовая сетка использует тот
 /// же минимальный слот, что создаётся при переносе задачи: 15 минут.
 private let defaultDurationMin = 15
@@ -87,13 +92,27 @@ struct UpcomingHoursView: View {
     /// задаёт нативная шапка «Планирования». В «Трёх днях» она остаётся.
     let showsDayHeader: Bool
 
-    /// Два масштаба нужны только трёхдневной шкале. Выбор сохраняется между
-    /// открытиями раздела; однодневная шкала всегда вмещает 15 минут целиком.
-    @AppStorage("planner_three_day_expanded_timeline") private var isTimelineExpanded = false
+    /// Масштаб трёхдневной шкалы. По умолчанию мелкий — три колонки и так
+    /// узкие, крупный масштаб оставляет на экране всего пару часов.
+    @AppStorage("planner_three_day_expanded_timeline") private var isThreeDayExpanded = false
+    /// Масштаб суточной шкалы — свой, но схема та же, что у трёхдневного:
+    /// по умолчанию мелкий, кнопка увеличивает. Владелец 15.09.2026: «ему
+    /// нужен как раз уменьшать, схема должна быть как и у трёхдневного».
+    @AppStorage("planner_single_day_expanded_timeline") private var isSingleDayExpanded = false
 
+    /// Тумблер масштаба теперь есть у обоих видов, но помнит их раздельно.
+    private var isTimelineExpanded: Bool {
+        get { showsDayHeader ? isThreeDayExpanded : isSingleDayExpanded }
+        nonmutating set {
+            if showsDayHeader { isThreeDayExpanded = newValue } else { isSingleDayExpanded = newValue }
+        }
+    }
+
+    /// Масштаб шкалы общий для обоих почасовых видов: тумблер теперь есть и
+    /// у суточного (владелец 15.09.2026). Раньше суточный был жёстко в
+    /// крупном масштабе, и сжать его было нечем.
     private var hourHeight: CGFloat {
         let fullQuarterHourHeight = (minBlockH + 3) * 4
-        if !showsDayHeader { return fullQuarterHourHeight }
         return isTimelineExpanded ? fullQuarterHourHeight : baseHourH
     }
 
@@ -237,15 +256,16 @@ struct UpcomingHoursView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar {
-            if showsDayHeader {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { isTimelineExpanded.toggle() } label: {
-                        Image(systemName: isTimelineExpanded
-                            ? "arrow.down.right.and.arrow.up.left"
-                            : "arrow.up.left.and.arrow.down.right")
-                    }
-                    .accessibilityLabel(isTimelineExpanded ? "Сжать временную шкалу" : "Расширить временную шкалу")
+            // Тумблер масштаба нужен обоим почасовым видам — владелец
+            // 15.09.2026: «эту кнопку масштаба пусть она будет и в
+            // однодневном виде». Раньше он висел только на трёхдневном.
+            ToolbarItem(placement: .topBarLeading) {
+                Button { isTimelineExpanded.toggle() } label: {
+                    Image(systemName: isTimelineExpanded
+                        ? "arrow.down.right.and.arrow.up.left"
+                        : "arrow.up.left.and.arrow.down.right")
                 }
+                .accessibilityLabel(isTimelineExpanded ? "Сжать временную шкалу" : "Расширить временную шкалу")
             }
         }
         .gesture(
@@ -335,19 +355,29 @@ struct UpcomingHoursView: View {
     }
 
     private var untimedPoolCard: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
-                if index > 0 { TFDivider() }
-                UpcomingUntimedRow(task: task)
-                    .opacity(dragState?.taskID == task.id ? 0.3 : 1)
-                    .gesture(dragGesture(for: task, dayIndex: 0, top: nil, height: minBlockH, width: max(untimedPoolWidth, 1)))
-                    .onTapGesture { if dragState == nil { onTaskTap(task.id) } }
+        // Пул прокручивается ВНУТРИ себя и занимает не больше пары строк.
+        // Владелец 15.09.2026: «пул занял четыре часа, мне приспичило на
+        // 7 утра что-то назначить — как я туда назначу?». Высота была
+        // ограничена и раньше, но без прокрутки: всё, что не поместилось,
+        // становилось недоступным. Сворачивать целиком он же и забраковал —
+        // «а если мне нужна конкретная задача, а она не появляется в узком
+        // виде»: при прокрутке доступны все, а утренние часы открыты.
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: 0) {
+                ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
+                    if index > 0 { TFDivider() }
+                    UpcomingUntimedRow(task: task)
+                        .opacity(dragState?.taskID == task.id ? 0.3 : 1)
+                        .gesture(dragGesture(for: task, dayIndex: 0, top: nil, height: minBlockH, width: max(untimedPoolWidth, 1)))
+                        .onTapGesture { if dragState == nil { onTaskTap(task.id) } }
+                }
             }
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxHeight: Self.poolMaxHeight)
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .tfShadow(TFShadow.dropdown)
-        .frame(maxHeight: 132, alignment: .top)
     }
 
     // MARK: - Сетка часов
@@ -625,6 +655,9 @@ struct UpcomingHoursView: View {
     /// «не реагирует». Меньше делать нельзя — жест начнёт перехватывать
     /// вертикальную прокрутку сетки.
     private static let resizeHoldSeconds: Double = 0.12
+    /// Потолок высоты пула. Две строки с запасом: дальше он начинает
+    /// закрывать утренние часы, на которые как раз и надо что-то ставить.
+    private static let poolMaxHeight: CGFloat = 88
     /// Насколько метка границы отступает от бокового края плашки внутрь.
     private static let handleInset: CGFloat = 10
     /// Высота полосы захвата вдоль края: половина внутрь плашки, половина
