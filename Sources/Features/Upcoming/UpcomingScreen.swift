@@ -433,7 +433,7 @@ public struct UpcomingScreen: View {
                 }
             )) {
                 ForEach(TodayListTab.allCases) { tab in
-                    Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
+                    Label(tab.menuTitle, systemImage: tab.icon).tag(tab.rawValue)
                 }
             }
         } label: {
