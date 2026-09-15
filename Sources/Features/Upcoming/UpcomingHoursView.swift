@@ -164,8 +164,35 @@ struct UpcomingHoursView: View {
     @State private var grabHaptic = UIImpactFeedbackGenerator(style: .heavy)
     @State private var tickHaptic = UISelectionFeedbackGenerator()
 
+    /// Пул сверху — то, что ещё предстоит разложить: задачи без времени и
+    /// ПРОСРОЧЕННЫЕ. Владелец 15.09.2026: «для этого существует пул задач
+    /// наверху — там должны отображаться просроченные и неназначенные, чтобы
+    /// я мог их оттуда забрать и выставить планы».
+    ///
+    /// Задачи будущих дней сюда НЕ попадают — его же уточнение: «то, что на
+    /// другой день ещё не наступило, зачем его показывать в дневном и
+    /// трёхдневном представлении». На шкале им тоже не место: просроченные
+    /// рисовались по своему времени начала на чужой дате, отчего состав
+    /// суточного и трёхдневного вида расходился, а время выглядело съехавшим.
     private var untimed: [ApiTask] {
-        days.flatMap(\.tasks).filter { $0.startTime == nil }
+        let today = UpcomingDate.todayString()
+        var seen = Set<String>()
+        return days.flatMap { day in
+            day.tasks.filter { task in
+                // Уже стоит на шкале своего дня — в пуле ей делать нечего.
+                guard !Self.belongs(task, to: day.date) else { return false }
+                let due = task.dueDate ?? ""
+                let needsPlanning = task.startTime == nil || due < today && !due.isEmpty
+                guard needsPlanning else { return false }
+                return seen.insert(task.id).inserted
+            }
+        }
+    }
+
+    /// Задача принадлежит дню, если у неё есть время начала и её дата —
+    /// это дата колонки.
+    private static func belongs(_ task: ApiTask, to date: String) -> Bool {
+        task.startTime != nil && (task.dueDate ?? "") == date
     }
 
     var body: some View {
@@ -340,7 +367,7 @@ struct UpcomingHoursView: View {
     private func dayColumn(_ day: UpcomingHourColumn, index: Int) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                ForEach(Self.layoutDay(day.tasks, hourHeight: hourHeight)) { block in
+                ForEach(Self.layoutDay(day.tasks.filter { Self.belongs($0, to: day.date) }, hourHeight: hourHeight)) { block in
                     let isDragged = dragState?.taskID == block.task.id
                     // Пока тянут край — плашка живёт по размеру из жеста, а не
                     // по раскладке: та пересчитается только после сохранения.
@@ -388,7 +415,7 @@ struct UpcomingHoursView: View {
                 // ровно на них и ни на какой текст не наползают.
                 // Отдельным проходом поверх всех плашек: иначе соседний блок
                 // перекрывал бы ручку нижележащего.
-                ForEach(Self.layoutDay(day.tasks, hourHeight: hourHeight)) { block in
+                ForEach(Self.layoutDay(day.tasks.filter { Self.belongs($0, to: day.date) }, hourHeight: hourHeight)) { block in
                     let resize = resizeState?.taskID == block.task.id ? resizeState : nil
                     let blockTop = resize?.top ?? block.top
                     let blockHeight = resize?.height ?? block.height
@@ -398,9 +425,22 @@ struct UpcomingHoursView: View {
                     // системном Календаре. По горизонтали чуть внутрь от
                     // самого угла: так аккуратнее и метка не висит на отбивке
                     // между колонками (владелец 15.09.2026).
-                    resizeHandle(for: block.task, edge: .top, top: blockTop, height: blockHeight)
+                    // Хвататься можно за ВЕСЬ край плашки, а не только за
+                    // кружок: владелец 15.09.2026 — «не делай обязательным
+                    // хвататься за этот кругляшок, очень неудобно; они просто
+                    // показывают границы, а хвататься хотя бы за краешек».
+                    // Поэтому зона захвата — полоса во всю ширину плашки,
+                    // а кружок остался меткой и жеста на себе не несёт.
+                    resizeGrabBand(for: block.task, edge: .top, top: blockTop, height: blockHeight)
+                        .frame(width: width, height: Self.grabBandHeight)
+                        .position(x: left + width / 2, y: blockTop)
+                    resizeGrabBand(for: block.task, edge: .bottom, top: blockTop, height: blockHeight)
+                        .frame(width: width, height: Self.grabBandHeight)
+                        .position(x: left + width / 2, y: blockTop + blockHeight)
+
+                    resizeMarker(for: block.task, edge: .top)
                         .position(x: left + width - Self.handleInset, y: blockTop)
-                    resizeHandle(for: block.task, edge: .bottom, top: blockTop, height: blockHeight)
+                    resizeMarker(for: block.task, edge: .bottom)
                         .position(x: left + Self.handleInset, y: blockTop + blockHeight)
                 }
             }
@@ -410,29 +450,41 @@ struct UpcomingHoursView: View {
 
     // MARK: - Растягивание плашки за край
 
-    /// Ручка длительности: сверху и снизу плашки, как в календарях
-    /// (владелец 15.09.2026: «точечка снизу, точечка сверху, беру и
-    /// растягиваю»). Рисуется только у задач со временем — у пула тянуть
-    /// нечего, там ещё нет ни начала, ни конца.
+    /// Невидимая полоса захвата вдоль всего края плашки. Именно она несёт
+    /// жест: тянуть можно за любую точку края, а не прицеливаться в кружок.
+    /// Показывается только у взятой плашки — и у той, чей край прямо сейчас
+    /// тянут, иначе полоса пропадала бы посреди собственного жеста.
     @ViewBuilder
-    private func resizeHandle(for task: ApiTask, edge: ResizeState.Edge, top: CGFloat, height: CGFloat) -> some View {
-        // Ручки видны только у взятой плашки — и у той, чей край прямо сейчас
-        // тянут (иначе метка мигала бы посреди собственного жеста).
-        let isActive = activeTaskID == task.id || resizeState?.taskID == task.id
-        if onResize != nil, task.startTime != nil, isActive {
+    private func resizeGrabBand(for task: ApiTask, edge: ResizeState.Edge, top: CGFloat, height: CGFloat) -> some View {
+        if isResizable(task) {
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(resizeGesture(for: task, edge: edge, top: top, height: height))
+                .accessibilityLabel(edge == .top ? "Изменить начало: \(task.title)" : "Изменить длительность: \(task.title)")
+        }
+    }
+
+    /// Кружок-метка границы: только показывает, где край и за что тянуть,
+    /// жеста на себе не несёт (владелец 15.09.2026: «они просто показывают,
+    /// что вот их границы»). Как в системном Календаре.
+    @ViewBuilder
+    private func resizeMarker(for task: ApiTask, edge: ResizeState.Edge) -> some View {
+        if isResizable(task) {
             let dragging = resizeState?.taskID == task.id && resizeState?.edge == edge
             Circle()
                 .fill(Color.white)
                 .overlay(Circle().strokeBorder(Color.black.opacity(0.3), lineWidth: 0.5))
                 .frame(width: dragging ? 12 : 9, height: dragging ? 12 : 9)
-                // Кружок маленький, а палец толстый: зона захвата заметно
-                // шире самой метки, иначе в ручку не попасть.
-                .padding(12)
-                .contentShape(Rectangle())
-                .gesture(resizeGesture(for: task, edge: edge, top: top, height: height))
-                .accessibilityLabel(edge == .top ? "Изменить начало: \(task.title)" : "Изменить длительность: \(task.title)")
+                .allowsHitTesting(false)
                 .transition(.opacity)
         }
+    }
+
+    /// Тянуть можно только взятую плашку со временем: у пула ещё нет ни
+    /// начала, ни конца — растягивать нечего.
+    private func isResizable(_ task: ApiTask) -> Bool {
+        guard onResize != nil, task.startTime != nil else { return false }
+        return activeTaskID == task.id || resizeState?.taskID == task.id
     }
 
     /// Тот же распознаватель, что и у переноса: SwiftUI-жесты в этой сетке
@@ -560,8 +612,11 @@ struct UpcomingHoursView: View {
     /// «не реагирует». Меньше делать нельзя — жест начнёт перехватывать
     /// вертикальную прокрутку сетки.
     private static let resizeHoldSeconds: Double = 0.12
-    /// Насколько ручка отступает от бокового края плашки внутрь.
+    /// Насколько метка границы отступает от бокового края плашки внутрь.
     private static let handleInset: CGFloat = 10
+    /// Высота полосы захвата вдоль края: половина внутрь плашки, половина
+    /// наружу. Меньше делать нельзя — в край перестанет попадать палец.
+    private static let grabBandHeight: CGFloat = 26
 
     /// Ширина дневной колонки. 0 означает «сетка ещё не измерена» — раньше
     /// вместо этого возвращалась заглушка в 80pt, и промах молча уезжал в

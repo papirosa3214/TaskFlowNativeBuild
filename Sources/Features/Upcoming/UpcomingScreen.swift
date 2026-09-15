@@ -522,7 +522,25 @@ public struct UpcomingScreen: View {
     private var hourDays: [UpcomingHourColumn] {
         (0..<3).map { i in
             let date = UpcomingDate.addDays(threeDayStart, i)
-            return UpcomingHourColumn(date: date, tasks: byDate[date] ?? [], isToday: date == today)
+            var dayTasks = byDate[date] ?? []
+            // К первой колонке добавляем то, что ждёт распределения:
+            // просроченное и бессрочное. На шкалу оно не встанет (сетка
+            // рисует только задачи своего дня) — сетка покажет его в пуле
+            // сверху, откуда владелец перетаскивает задачи на часы.
+            // Владелец 15.09.2026: «в пуле должны отображаться просроченные
+            // и неназначенные, чтобы я мог их оттуда забрать и выставить
+            // планы». Будущие сюда не идут: «то, что ещё не наступило, зачем
+            // его показывать».
+            if i == 0 { dayTasks += tasksAwaitingPlanning }
+            return UpcomingHourColumn(date: date, tasks: dayTasks, isToday: date == today)
+        }
+    }
+
+    /// Просроченные и бессрочные — сырьё для планирования на почасовой сетке.
+    private var tasksAwaitingPlanning: [ApiTask] {
+        tasks.filter { task in
+            guard let due = task.dueDate, !due.isEmpty else { return true }
+            return due < today
         }
     }
 
