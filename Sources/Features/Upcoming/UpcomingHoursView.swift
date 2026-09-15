@@ -1082,29 +1082,26 @@ struct UpcomingDayColumnsHeader: View {
 
     var body: some View {
         GeometryReader { proxy in
-            // Окно у́же сетки на свои боковые поля, поэтому центр колонки
-            // считается в координатах СЕТКИ и переводится в координаты окна
-            // вычитанием левого поля. Иначе подписи разъезжаются с
-            // колонками тем сильнее, чем правее колонка.
-            let gridWidth = proxy.size.width + TFSpacing.lg * 2
-            let columnWidth = (gridWidth - gutterW) / CGFloat(max(days.count, 1))
+            // Подписи занимают всю ширину сетки, без боковых полей, поэтому
+            // центр колонки считается прямо в её координатах.
+            let columnWidth = (proxy.size.width - gutterW) / CGFloat(max(days.count, 1))
             ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                 Text(UpcomingDate.formatDayColumnLabel(day.date))
                     .tfText(.meta)
                     .fontWeight(.semibold)
                     .foregroundStyle(day.isToday ? Color.tfRed : Color.tfSub)
                     .position(
-                        x: gutterW + columnWidth * (CGFloat(index) + 0.5) - TFSpacing.lg,
+                        x: gutterW + columnWidth * (CGFloat(index) + 0.5),
                         y: proxy.size.height / 2
                     )
             }
         }
         .frame(height: Self.height)
-        // Стекло, а не сплошной фон: сквозь окно видно уезжающие под него
-        // часы и их затухание у кромки прокрутки (владелец 16.09.2026).
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: TFRadius.xl))
-        .tfShadow(TFShadow.dropdown)
-        .padding(.horizontal, TFSpacing.lg)
+        // Никакой подложки: владелец 16.09.2026 — «мне не нужна вот эта
+        // полоска, мне нужно, чтобы я видел только среда и число». Голый
+        // текст поверх сетки; часы проходят под ним и затухают у кромки
+        // прокрутки сами.
+        .allowsHitTesting(false)
     }
 }
 
