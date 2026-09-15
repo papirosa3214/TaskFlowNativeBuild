@@ -15,6 +15,8 @@ struct TodaySectionView: View {
     var visibleProjectIds: Set<String> = []
     var showAgentTasks = false
     var showCompleted = false
+    /// Название видимой колонки доски — уезжает в системную шапку экрана.
+    var onBoardColumnChange: (String) -> Void = { _ in }
 
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
@@ -28,6 +30,9 @@ struct TodaySectionView: View {
     @State private var isBoardSelectionMode = false
     @State private var selectedBoardTaskIDs: Set<String> = []
     @State private var isBulkDeleteConfirmationPresented = false
+    /// Высота верхней безопасной зоны — замер живёт здесь: лента колонки её
+    /// игнорирует (уходит под шапку) и померить у себя уже не может.
+    @State private var boardTopInset: CGFloat = 0
 
     private var today: String { TodayDate.todayString() }
 
@@ -60,6 +65,11 @@ struct TodaySectionView: View {
                 // колонки. Общая ScrollView связывала все три позиции.
                 listOrBoardContent(c: c)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .background(GeometryReader { proxy in
+                        Color.clear.onGeometryChange(for: CGFloat.self) { _ in
+                            proxy.safeAreaInsets.top
+                        } action: { boardTopInset = $0 }
+                    })
                     // Общий отступ под панель вкладок (`routeDestination`)
                     // держит доску НАД панелью, а карточки должны уезжать
                     // под неё — как на остальных экранах. Гасим его только
@@ -186,7 +196,9 @@ struct TodaySectionView: View {
                         isSelectingTasks: isBoardSelectionMode,
                         selectedTaskIDs: selectedBoardTaskIDs,
                         onToggleTaskSelection: toggleBoardTaskSelection,
-                        onToggleColumnSelection: toggleBoardColumnSelection
+                        onToggleColumnSelection: toggleBoardColumnSelection,
+                        onVisibleColumnChange: onBoardColumnChange,
+                        topInset: boardTopInset
                     )
                 case .hours:
                     EmptyView()

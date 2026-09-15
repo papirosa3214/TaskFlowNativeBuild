@@ -38,6 +38,8 @@ public struct UpcomingScreen: View {
     /// Показывать задачи, назначенные на ИИ-агента. Раньше они вырезались из
     /// раздела безусловно — теперь это условие состава, как и проекты.
     @State private var plannerShowAgentTasks = UserDefaults.standard.bool(forKey: "plannerShowAgentTasks")
+    /// Название видимой колонки доски — показывается в системной шапке.
+    @State private var boardColumnTitle = ""
     @State private var selectedDate: String?
     @State private var openDay: String?
     @State private var pushedTaskID: String?
@@ -91,6 +93,10 @@ public struct UpcomingScreen: View {
             // Пролистывание есть только у почасовой шкалы: в списке и на доске
             // день всегда сегодняшний, иначе шапка показывала бы завтрашнее
             // число над сегодняшним списком.
+            // На доске в шапке стоит название видимой колонки, а не дата:
+            // оно по центру под островом и меняется при листании столбиков
+            // (владелец 15.09.2026). Сами колонки текста заголовка не рисуют.
+            if todayLayout == .board { return boardColumnTitle }
             let visible = todayLayout == .hours ? todayHourDate : today
             let (_, month) = UpcomingDate.yearMonth(visible)
             let weekdayIndex = (UpcomingDate.jsWeekday(visible) + 6) % 7
@@ -106,14 +112,25 @@ public struct UpcomingScreen: View {
 
     public init() {}
 
-    public var body: some View {
+    // 15.09.2026: см. карточку задачи — тип экрана стирается на границе,
+    // чтобы цепочка обёрток не копила неразворачиваемый обобщённый тип.
+    public var body: some View { AnyView(bodyContent) }
+
+    @ViewBuilder private var bodyContent: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         .refreshable {
             await taskStore.load(silent: true)
             await projectStore.load()
         }
-        .tfNativeHeader(navigationTitle, displayMode: .inline)
+        // На доске заголовок крупный: стоит слева, при прокрутке колонки
+        // сжимается и уезжает в центр шапки — штатное поведение системы
+        // (владелец 15.09.2026: «как у всех это делается»). У остальных
+        // разделов «Планирования» в шапке дата/месяц, там `.inline`.
+        .tfNativeHeader(
+            navigationTitle,
+            displayMode: (view == .today && todayLayout == .board) ? .large : .inline
+        )
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { subviewPill }
             if view != .today {
@@ -178,7 +195,8 @@ public struct UpcomingScreen: View {
                     sectionCompositionMenu: AnyView(sectionCompositionMenu),
                     visibleProjectIds: effectivePlannerVisibleProjectIds,
                     showAgentTasks: plannerShowAgentTasks,
-                    showCompleted: filters.showCompleted
+                    showCompleted: filters.showCompleted,
+                    onBoardColumnChange: { boardColumnTitle = $0 }
                 )
             case .threeDays:
                 UpcomingHoursView(

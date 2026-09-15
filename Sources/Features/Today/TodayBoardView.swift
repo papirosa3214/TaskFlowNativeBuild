@@ -4,6 +4,10 @@ import SwiftUI
 /// но не настолько много, чтобы текущая карточка снова стала узкой.
 private let boardNextColumnPeek: CGFloat = 28
 
+/// Высота мягкого перехода под шапкой: на ней карточки растворяются, уходя
+/// под неё. Своё затухание — системное на вложенной прокрутке не работает.
+private let boardFadeHeight: CGFloat = 24
+
 // Доска «Сегодня» — spec §3.4/§5.1: колонки «Ждут вас»/«Просрочено»/«Сегодня»,
 // БЕЗ группировки по проектам (владелец, прямое решение) — поэтому drag
 // между колонками здесь не пишет `project_id` (в вебе карточка просто
@@ -19,6 +23,14 @@ struct TodayBoardView: View {
     var selectedTaskIDs: Set<String> = []
     var onToggleTaskSelection: (String) -> Void = { _ in }
     var onToggleColumnSelection: (TodayBoardColumn) -> Void = { _ in }
+    /// Название видимой колонки уезжает в системную шапку экрана: там оно
+    /// стоит по центру под островом и меняется при листании столбиков
+    /// (владелец 15.09.2026 — «как все обычно это делают»).
+    var onVisibleColumnChange: (String) -> Void = { _ in }
+    /// Высота верхней безопасной зоны (статус-бар + шапка) — замер приходит от
+    /// родителя. Лента колонки уходит под шапку, и на эту высоту плюс мягкий
+    /// переход настроена маска затухания.
+    var topInset: CGFloat = 0
     @State private var visibleColumnID: TodayBoardColumn.Kind?
 
     var body: some View {
@@ -66,8 +78,15 @@ struct TodayBoardView: View {
         }
         .scrollPosition(id: $visibleColumnID, anchor: .leading)
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-        .onAppear { keepVisibleColumnValid() }
-        .onChange(of: columns.map(\.id)) { _, _ in keepVisibleColumnValid() }
+        .onAppear {
+            keepVisibleColumnValid()
+            reportVisibleColumnTitle()
+        }
+        .onChange(of: columns.map(\.id)) { _, _ in
+            keepVisibleColumnValid()
+            reportVisibleColumnTitle()
+        }
+        .onChange(of: visibleColumnID) { _, _ in reportVisibleColumnTitle() }
         // Вход/выход из режима мультивыбора: появление/исчезновение галочек и
         // кнопок «Выбрать все»/«Снять выбор» в шапках колонок плавное.
         .animation(.easeInOut(duration: 0.2), value: isSelectingTasks)
@@ -85,6 +104,11 @@ struct TodayBoardView: View {
         visibleColumnID = first
     }
 
+    private func reportVisibleColumnTitle() {
+        let visible = columns.first { $0.id == visibleColumnID } ?? columns.first
+        onVisibleColumnChange(visible?.title ?? "")
+    }
+
     private func columnView(_ column: TodayBoardColumn) -> some View {
         // Колонка — самостоятельная сущность: заголовок стоит НАД лентой, а
         // прокрутка принадлежит только ей (так и было сделано в `07f7ec81`,
@@ -92,25 +116,23 @@ struct TodayBoardView: View {
         // прокрутки, он болтался вместе с карточками, а оттягивание тащило всю
         // доску разом — владелец 15.09.2026: «у тебя должна быть прям колонка,
         // и у неё своя полоска прокрутки».
+        // Названия колонки внутри нет: оно уехало в системную шапку экрана и
+        // меняется при листании столбиков. Здесь остаются только действия
+        // колонки — «Перенести» у просроченных и выбор в режиме мультивыбора.
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            HStack {
-                Text(column.title)
-                    .tfText(.title)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(column.titleIsRed ? Color.tfRed : Color.tfText)
-                Spacer()
-                if isSelectingTasks, !column.tasks.isEmpty {
-                    let allSelected = column.tasks.allSatisfy { selectedTaskIDs.contains($0.id) }
-                    Button(allSelected ? "Снять выбор" : "Выбрать все") {
-                        onToggleColumnSelection(column)
-                    }
+            if isSelectingTasks, !column.tasks.isEmpty {
+                let allSelected = column.tasks.allSatisfy { selectedTaskIDs.contains($0.id) }
+                Button(allSelected ? "Снять выбор" : "Выбрать все") {
+                    onToggleColumnSelection(column)
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.tfRed)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            } else if column.id == .overdue {
+                Button("Перенести", action: onReschedule)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.tfRed)
-                } else if column.id == .overdue {
-                    Button("Перенести", action: onReschedule)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tfRed)
-                }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             ScrollView(.vertical, showsIndicators: true) {
@@ -148,7 +170,29 @@ struct TodayBoardView: View {
                 // должна доезжать выше неё, а не оставаться под затуханием.
                 .padding(.bottom, TFTabBarMetrics.heightCompact + TFSpacing.lg)
             }
-            .tfBoardNativeScrollEdges()
+            // Лента уходит ПОД системную шапку — там её мягко размывает
+            // системная кромка прокрутки. Верхняя безопасная зона прилетает
+            // сюда вторым слоем (колонка уже стоит под шапкой: `frame.y == 122`
+            // и `safeAreaInsets.top == 122`, замерено логом), поэтому её здесь
+            // гасим — иначе доска начинается с середины экрана.
+            .ignoresSafeArea(.container, edges: .top)
+            // Своё затухание вместо системного. Системное (`scrollEdgeEffect`)
+            // здесь не включается: оно живёт на кромке КОРНЕВОЙ прокрутки
+            // экрана (как на «Обзоре»), а прокрутка колонки вложена в
+            // горизонтальную ленту доски. Тот же приём, что в вебе: маска с
+            // градиентом — карточки растворяются, уходя под шапку.
+            .mask(
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [.clear, .black],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: topInset + boardFadeHeight)
+                    Color.black
+                }
+                .ignoresSafeArea(.container, edges: .top)
+            )
         }
         .frame(maxHeight: .infinity, alignment: .top)
         // Появление/исчезновение карточек в колонке пружинит — раньше
