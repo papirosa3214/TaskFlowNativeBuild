@@ -82,6 +82,11 @@ final class TaskFormViewModel {
     var commentText = ""
 
     private var originalTask: ApiTask?
+    /// Роль на момент загрузки карточки — чтобы не отправлять
+    /// `owner_selected_role` при каждом сохранении, если владелец её не менял.
+    /// Отдельно от `originalTask.role`: на живом сервере то поле бывает пустым,
+    /// хотя выбранная роль записана.
+    private var originalRole: String?
 
     /// Чем агент занят прямо сейчас — пусто, когда задачу никто не держит.
     var activity: ApiTaskActivity = .idle
@@ -176,7 +181,8 @@ final class TaskFormViewModel {
             priority = TaskPriority(rawValue: task.priority) ?? .low
             selectedLabelIds = Set(task.labels.map(\.id))
             assigneeId = task.assigneeId
-            ownerSelectedRole = task.role
+            ownerSelectedRole = task.effectiveRole
+            originalRole = task.effectiveRole
             creatorName = task.creatorName
             attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID, existing: task.attachments ?? [])
         } catch let error as APIError {
@@ -657,15 +663,16 @@ final class TaskFormViewModel {
         if priority.rawValue != originalTask.priority { fields["priority"] = .number(Double(priority.rawValue)) }
         if assigneeId != originalTask.assigneeId { fields["assignee_id"] = assigneeId.map { JSONValue.string($0) } ?? .null }
         // Роль-исполнитель, выбранная владельцем (LOCK-178). Пусто — снять
-        // выбор и вернуть задачу диспетчеру («Автоматически»).
-        if ownerSelectedRole != originalTask.role {
+        // выбор и вернуть задачу диспетчеру («Автоматически»). Сравниваем со
+        // своей запомненной ролью, а не с `originalTask.role`: то поле на
+        // живом сервере может быть пустым при записанной роли.
+        if ownerSelectedRole != originalRole {
             fields["owner_selected_role"] = ownerSelectedRole.map { JSONValue.string($0) } ?? .null
         }
-        let originalLabelIds = Set(originalTask.labels.map(\.id))
-        if selectedLabelIds != originalLabelIds { fields["label_ids"] = .strings(Array(selectedLabelIds)) }
 
         guard !fields.isEmpty else { return }
         _ = await taskStore.patch(taskId: taskID, fields: fields) { _ in }
+        if ownerSelectedRole != originalRole { originalRole = ownerSelectedRole }
     }
 
     private func saveCreate(trimmedTitle: String, taskStore: TaskStore) async throws {

@@ -91,6 +91,23 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// иначе пусто (LOCK-178). Сервер отдаёт её строкой в `GET /api/tasks/:id`,
     /// чтобы клиент не гадал по двум колонкам. Пусто — роль ещё не выбрана.
     public let role: String?
+    /// Выбор владельца (кто из ролей должен исполнять) и зафиксированная
+    /// диспетчером роль — сырыми колонками. Читаем их отдельно: на живом
+    /// сервере вычисленное `role` может оказаться пустым, хотя
+    /// `owner_selected_role` записан, и тогда пикер исполнителя показывал бы
+    /// «Автоматически» вместо выбранной роли.
+    public let ownerSelectedRole: String?
+    public let dispatchedRole: String?
+
+    /// Роль для показа/выбора: зафиксированная диспетчером важнее выбора
+    /// владельца, но если обе пусты — `nil`. Падать на вычисленное `role` не
+    /// полагаемся.
+    public var effectiveRole: String? {
+        for candidate in [dispatchedRole, ownerSelectedRole, role] {
+            if let candidate, !candidate.isEmpty { return candidate }
+        }
+        return nil
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -130,6 +147,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case labels, subtasks, children, comments, events, attachments
         case attemptLadder = "attempt_ladder"
         case role
+        case ownerSelectedRole = "owner_selected_role"
+        case dispatchedRole = "dispatched_role"
     }
 
     public init(from decoder: Decoder) throws {
@@ -182,6 +201,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         attemptLadder = try c.decodeIfPresent(ApiAttemptLadder.self, forKey: .attemptLadder)
         let roleValue = try c.decodeIfPresent(String.self, forKey: .role)
         role = (roleValue?.isEmpty == false) ? roleValue : nil
+        let ownerRole = try c.decodeIfPresent(String.self, forKey: .ownerSelectedRole)
+        ownerSelectedRole = (ownerRole?.isEmpty == false) ? ownerRole : nil
+        let dispatched = try c.decodeIfPresent(String.self, forKey: .dispatchedRole)
+        dispatchedRole = (dispatched?.isEmpty == false) ? dispatched : nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -230,6 +253,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(attachments, forKey: .attachments)
         try c.encodeIfPresent(attemptLadder, forKey: .attemptLadder)
         try c.encodeIfPresent(role, forKey: .role)
+        try c.encodeIfPresent(ownerSelectedRole, forKey: .ownerSelectedRole)
+        try c.encodeIfPresent(dispatchedRole, forKey: .dispatchedRole)
     }
 
     // MARK: Удобные вычисляемые даты (raw-строки остаются полями — см. DateFormats)
