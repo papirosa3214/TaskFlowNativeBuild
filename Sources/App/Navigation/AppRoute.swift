@@ -62,4 +62,6 @@ public enum AppRoute: Hashable {
     case runtimeStatus
     /// LOCK-181: сервисные учётки (`ApiUser` + API-токен), переехали из «Команды».
     case serviceAccounts
+    /// LOCK-183: профиль роли из плоского списка «Команды» (`id` — role).
+    case agentProfile(id: String)
 }

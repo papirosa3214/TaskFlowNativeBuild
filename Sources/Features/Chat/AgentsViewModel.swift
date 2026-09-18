@@ -1,18 +1,14 @@
 import Foundation
 import Observation
 
-/// Состояние экрана «Команда» (LOCK-176).
+/// Состояние экрана «Команда» (LOCK-176, переделан в LOCK-183).
 ///
-/// Было: список `ApiUser` (люди + ИИ-учётки + сервисные личности) и их
-/// инфраструктура (executionMode, provider, baseURL, credentialRef, API-токен).
-/// Стало: список профилей ролей — исполнитель есть роль, Pi в обычном UI не
-/// показывается.
+/// Список — профили ролей (`GET /api/roles`): исполнитель есть роль, Pi и
+/// прочая машинерия в обычном UI не показываются. Модель роли правится
+/// через `PUT /api/runtime/routing/:role`.
 ///
-/// Источник — `GET /api/roles` (`APIClient.roles()`): он отдаёт и профиль, и
-/// текущую задачу роли, чего нет у тонкого `/api/runtime/profiles`.
-///
-/// Старая механика ApiUser/токена не удалена — она переехала в
-/// Settings → Service Accounts (LOCK-181), там у неё свои `ApiUser` и VM.
+/// Раскрытия строки больше нет: тап открывает отдельный экран профиля
+/// (`AgentProfileScreen`), здесь живёт только список и сводка.
 @MainActor
 @Observable
 final class AgentsViewModel {
@@ -22,14 +18,10 @@ final class AgentsViewModel {
 
     private(set) var isOwner = false
 
-    /// Каталог моделей Pi — нужен только редактору модели роли. Грузится
-    /// лениво при первом открытии редактора, один раз на жизнь экрана.
+    /// Каталог моделей Pi — нужен редактору модели роли (на экране профиля).
     private(set) var models: [RuntimeModel] = []
     private(set) var modelsLoading = false
     var modelsErrorMessage: String?
-
-    /// Какой ряд сейчас раскрыт — `nil`, если все свёрнуты.
-    private(set) var expandedRole: String?
 
     private let api = APIClient()
     private var pollTask: Task<Void, Never>?
@@ -38,11 +30,8 @@ final class AgentsViewModel {
         isOwner = currentUser?.role == .owner
     }
 
-    /// Жив ли исполнитель — общий признак на список (сервер отдаёт его в
-    /// каждом профиле одинаковым). `nil`, пока список не загружен.
-    var runtimeReady: Bool? {
-        profiles.first?.runtimeReady
-    }
+    /// Жив ли исполнитель — общий признак на список.
+    var runtimeReady: Bool? { profiles.first?.runtimeReady }
 
     /// Раз в 15с — статус роли и текущая задача живые, как в вебе.
     func start() {
@@ -61,14 +50,6 @@ final class AgentsViewModel {
         pollTask = nil
     }
 
-    func toggleExpand(_ role: String) {
-        expandedRole = (expandedRole == role) ? nil : role
-    }
-
-    func isExpanded(_ role: String) -> Bool {
-        expandedRole == role
-    }
-
     func load() async {
         if profiles.isEmpty { isLoading = true }
         defer { isLoading = false }
@@ -84,9 +65,58 @@ final class AgentsViewModel {
         profiles.first { $0.role == role }
     }
 
+    // MARK: - Сводка
+
+    /// Кто чем занят прямо сейчас. «На проверке» — отдельное состояние от
+    /// `status`: сервер считает роль `working` только для in_progress/blocked,
+    /// а задача на ревью у роли выглядит как готовая — поэтому смотрим ещё и
+    /// на состояние текущей задачи.
+    struct Summary: Equatable {
+        var working = 0
+        var review = 0
+        var free = 0
+        var blocked = 0
+        var unavailable = 0
+    }
+
+    var summary: Summary {
+        var s = Summary()
+        for profile in profiles {
+            let state = profile.currentTask?.state
+            switch profile.status {
+            case .working:
+                s.working += 1
+            case .blocked:
+                s.blocked += 1
+            case .unavailable:
+                s.unavailable += 1
+            case .ready:
+                if state == "review" { s.review += 1 } else { s.free += 1 }
+            case .unknown:
+                s.unavailable += 1
+            }
+        }
+        return s
+    }
+
+    /// «3 работают · 1 на проверке · 4 свободны». Нулевые части не показываем.
+    var summaryText: String {
+        let s = summary
+        var parts: [String] = []
+        if s.working > 0 { parts.append("\(s.working) \(Self.verb(s.working, "работает", "работают"))") }
+        if s.review > 0 { parts.append("\(s.review) на проверке") }
+        if s.free > 0 { parts.append("\(s.free) \(Self.verb(s.free, "свободен", "свободны"))") }
+        if s.blocked > 0 { parts.append("\(s.blocked) \(Self.verb(s.blocked, "заблокирован", "заблокированы"))") }
+        if s.unavailable > 0 { parts.append("\(s.unavailable) \(Self.verb(s.unavailable, "недоступен", "недоступны"))") }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func verb(_ n: Int, _ one: String, _ many: String) -> String {
+        n == 1 ? one : many
+    }
+
     // MARK: - Модель роли
 
-    /// Ленивая загрузка каталога моделей для пикера.
     func loadModelsIfNeeded() async {
         guard models.isEmpty, !modelsLoading else { return }
         modelsLoading = true
@@ -99,8 +129,6 @@ final class AgentsViewModel {
         }
     }
 
-    /// Сохранить primary + упорядоченные fallback роли. Сервер проверит, что
-    /// каждая модель есть в каталоге, и вернёт 422 иначе.
     @discardableResult
     func updateModelPolicy(role: String, primary: String, fallbacks: [String]) async -> Bool {
         do {

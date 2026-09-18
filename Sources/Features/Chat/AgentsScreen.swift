@@ -1,24 +1,26 @@
 import SwiftUI
 
-/// «Команда» — список ПРОФИЛЕЙ РОЛЕЙ (LOCK-176, миграция AgentProfile).
+/// «Команда» — плоский список сотрудников-ролей (LOCK-176 → переделан в
+/// LOCK-183). Сначала человек, потом его конфигурация: в списке только имя,
+/// роль, статус и чем занят; вся машинерия — на экране профиля.
 ///
-/// Раньше экран смешивал людей, ИИ-учётки и сервисные личности (`ApiUser`) с
-/// их инфраструктурой: API-токены, подключение модели, provider, runtime,
-/// MCP, скиллы, права. Теперь исполнитель — роль, и экран показывает восемь
-/// ролей с их моделью, текущей задачей и статусом. Pi/runtime наружу не
-/// выносится.
-///
-/// Выпуск сервисных учёток/токенов не удалён — он переехал в
-/// Settings → Service Accounts (LOCK-181): там та же механика, но она больше
-/// не называется «агентом».
+/// Данные — `GET /api/roles`. Pi и провайдеры наружу не выносятся.
 struct AgentsScreen: View {
     @Environment(SessionStore.self) private var session
+    @Environment(TaskStore.self) private var taskStore
     @State private var viewModel = AgentsViewModel()
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
+            LazyVStack(alignment: .leading, spacing: TFSpacing.lg) {
                 TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить команду" })
+
+                if !viewModel.summaryText.isEmpty {
+                    Text(viewModel.summaryText)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                }
 
                 if let ready = viewModel.runtimeReady, !ready, !viewModel.profiles.isEmpty {
                     runtimeDownBanner
@@ -27,7 +29,6 @@ struct AgentsScreen: View {
                 teamSection
                 roleInfoSection
             }
-            .padding(.horizontal, TFSpacing.lg)
             .padding(.vertical, TFSpacing.lg)
         }
         .background(Color.tfBackground)
@@ -52,51 +53,41 @@ struct AgentsScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
-    // MARK: - Команда
-
     private var teamSection: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFSectionHeader("Команда")
-
-            if viewModel.isLoading && viewModel.profiles.isEmpty {
-                TFLoading(.block)
-            }
-
-            TFCard(padding: 0) {
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.profiles.enumerated()), id: \.element.id) { index, profile in
-                        if index > 0 {
-                            TFDivider()
-                                .padding(.leading, TFSpacing.lg + 36 + TFSpacing.md)
-                        }
-                        AgentRow(
-                            profile: profile,
-                            editable: canEdit(profile),
-                            isExpanded: viewModel.isExpanded(profile.role),
-                            viewModel: viewModel,
-                            onTapRow: { viewModel.toggleExpand(profile.role) }
-                        )
+        TFCard(padding: 0) {
+            VStack(spacing: 0) {
+                if viewModel.isLoading && viewModel.profiles.isEmpty {
+                    TFLoading(.block)
+                }
+                ForEach(Array(viewModel.profiles.enumerated()), id: \.element.id) { index, profile in
+                    if index > 0 {
+                        TFDivider(inset: TFSpacing.lg + 36 + TFSpacing.md)
                     }
-                    if !viewModel.isLoading && viewModel.profiles.isEmpty {
-                        Text("Сервер не вернул ни одной роли")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .padding(.vertical, TFSpacing.md)
+                    NavigationLink(value: AppRoute.agentProfile(id: profile.role)) {
+                        AgentRow(profile: profile, currentTask: currentTask(for: profile))
                     }
+                    .buttonStyle(.plain)
+                }
+                if !viewModel.isLoading && viewModel.profiles.isEmpty {
+                    Text("Сервер не вернул ни одной роли")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                        .padding(TFSpacing.md)
                 }
             }
         }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
-    /// Менять модель роли можно владельцу и только при живом исполнителе.
-    private func canEdit(_ profile: RoleProfile) -> Bool {
-        viewModel.isOwner && profile.runtimeReady && profile.status != .unavailable
+    /// Текущая задача роли из общего стора — для названия и времени. Ищем по
+    /// id из профиля, чтобы не путать с просто назначенными задачами.
+    private func currentTask(for profile: RoleProfile) -> ApiTask? {
+        guard let id = profile.currentTask?.id else { return nil }
+        return taskStore.tasks.first { $0.id == id }
     }
-
-    // MARK: - Роль агента
 
     private var roleInfoSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
@@ -110,6 +101,7 @@ struct AgentsScreen: View {
                 }
             }
         }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
     private func roleInfoRow(color: Color, name: String, text: String) -> some View {
