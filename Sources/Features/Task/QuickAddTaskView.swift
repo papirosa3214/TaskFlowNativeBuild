@@ -42,7 +42,7 @@ struct QuickAddTaskView: View {
             Text(viewModel.saveErrorMessage ?? "")
         }
         .task {
-            await viewModel.loadAgents()
+            await viewModel.loadRoles()
             isTitleFocused = true
         }
     }
@@ -368,21 +368,22 @@ struct QuickAddTaskView: View {
             .accessibilityLabel("Метки")
             .accessibilityValue(labelsText)
 
+            // Исполнитель — роль (LOCK-178), как в полной карточке.
             Menu {
-                Button("Без исполнителя") { viewModel.assigneeId = nil }
-                ForEach(viewModel.agents.filter { $0.type == .ai }) { agent in
+                Button("Автоматически") { viewModel.ownerSelectedRole = nil }
+                ForEach(viewModel.roles) { role in
                     Button {
-                        viewModel.assigneeId = agent.id
+                        viewModel.ownerSelectedRole = role.role
                     } label: {
-                        if viewModel.assigneeId == agent.id {
-                            Label(agent.name, systemImage: "checkmark")
+                        if viewModel.ownerSelectedRole == role.role {
+                            Label(role.title, systemImage: "checkmark")
                         } else {
-                            Text(agent.name)
+                            Text(role.title)
                         }
                     }
                 }
             } label: {
-                quickIcon(slot: slot, "person", isSet: viewModel.assigneeId != nil, systemAppearance: systemAppearance)
+                quickIcon(slot: slot, "person", isSet: viewModel.ownerSelectedRole != nil, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Исполнитель")
             .accessibilityValue(assigneeName)
@@ -489,7 +490,11 @@ struct QuickAddTaskView: View {
     }
 
     private var assigneeName: String {
-        viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен"
+        guard let role = viewModel.ownerSelectedRole,
+              let profile = viewModel.roles.first(where: { $0.role == role }) else {
+            return "Автоматически"
+        }
+        return profile.title
     }
 
     private var dueDateText: String {

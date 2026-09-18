@@ -152,7 +152,7 @@ struct TaskFormScreen: View {
             .onChange(of: viewModel.projectId) { _, _ in scheduleSave() }
             .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
             .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.assigneeId) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.ownerSelectedRole) { _, _ in scheduleSave() }
             .onDisappear(perform: handleDisappear)
     }
 
@@ -463,21 +463,25 @@ struct TaskFormScreen: View {
                 }
                 .buttonStyle(.plain)
 
+                // Исполнитель — роль (AgentProfile), не учётка (LOCK-178).
+                // «Автоматически» = роли нет, диспетчер подберёт её сам.
                 Menu {
-                    Button("Не назначен") { viewModel.assigneeId = nil }
-                    ForEach(viewModel.agents.filter { $0.type == .ai }) { agent in
+                    Button("Автоматически — оркестратор выберет агента") {
+                        viewModel.ownerSelectedRole = nil
+                    }
+                    ForEach(viewModel.roles) { role in
                         Button {
-                            viewModel.assigneeId = agent.id
+                            viewModel.ownerSelectedRole = role.role
                         } label: {
-                            if viewModel.assigneeId == agent.id {
-                                Label(agent.name, systemImage: "checkmark")
+                            if viewModel.ownerSelectedRole == role.role {
+                                Label(role.title, systemImage: "checkmark")
                             } else {
-                                Text(agent.name)
+                                Text(role.title)
                             }
                         }
                     }
                 } label: {
-                    LabeledContent("Исполнитель", value: viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен")
+                    LabeledContent("Исполнитель", value: selectedRoleTitle)
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
                 }
@@ -956,6 +960,15 @@ struct TaskFormScreen: View {
         return labels.isEmpty ? "Не выбраны" : labels.joined(separator: ", ")
     }
 
+    /// Подпись исполнителя: имя выбранной роли либо «Автоматически» (LOCK-178).
+    private var selectedRoleTitle: String {
+        guard let role = viewModel.ownerSelectedRole,
+              let profile = viewModel.roles.first(where: { $0.role == role }) else {
+            return "Автоматически"
+        }
+        return profile.title
+    }
+
     private func agentStateText(_ state: AgentState) -> String {
         switch state {
         case .inProgress: "В работе"
@@ -1293,7 +1306,7 @@ struct TaskFormScreen: View {
 
     private func loadScreen() async {
         await viewModel.loadIfNeeded()
-        await viewModel.loadAgents()
+        await viewModel.loadRoles()
         if taskStore.tasks.isEmpty { await taskStore.load() }
         if projectStore.projects.isEmpty { await projectStore.load() }
         if labelStore.labels.isEmpty { await labelStore.load() }

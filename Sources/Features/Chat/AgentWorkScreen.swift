@@ -25,6 +25,12 @@ struct AgentWorkScreen: View {
     @Environment(TaskStore.self) private var taskStore
     private let apiClient = APIClient()
 
+    /// Профили ролей — только чтобы подписать строку задачи «роль · модель»
+    /// (LOCK-177). Не отдельный экран и не вкладка: чистая справка к строке.
+    /// Загружается один раз на показ экрана; ошибка загрузки не мешает
+    /// списку задач — подпись просто не появится.
+    @State private var profilesByAccountID: [String: RoleProfile] = [:]
+
     /// `nil` — обычный порядок разделов. Задан контрактом строго без
     /// параметров (`AgentWorkScreen` в таблице INTEGRATION.md — «—»), но
     /// сам параметр инициализатора СВЕРХ контракта не ломает его: вызов
@@ -97,6 +103,7 @@ struct AgentWorkScreen: View {
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Работа агентов")
+        .task { await loadRoleProfiles() }
         .sheet(item: $sheetTaskID) { ref in
             NavigationStack { TaskFormScreen(taskID: ref.id) }
                 // Те же детенты, что у карточки из проекта и с «Сегодня»:
@@ -129,11 +136,36 @@ struct AgentWorkScreen: View {
                     onOpen: { sheetTaskID = AgentWorkTaskRef(id: task.id) },
                     onDelete: { Task { await deleteTask(task) } },
                     swipeAction: ProjectTaskSwipeAction.action(for: task, isOwner: true),
-                    onSwipeAction: { Task { await performSwipe(task: task) } }
+                    onSwipeAction: { Task { await performSwipe(task: task) } },
+                    agentLine: agentLine(for: task)
                 )
             }
         }
         .padding(.bottom, TFSpacing.sm)
+    }
+
+    // MARK: - Роль и модель строки (LOCK-177)
+
+    /// Один раз подтягиваем профили ролей и индексируем их по `account_id`:
+    /// `assignee_id` задачи — это ролевая учётка, и через неё строка находит
+    /// свою роль. Если исполнитель — не роль (человек), подписи не будет.
+    private func loadRoleProfiles() async {
+        guard profilesByAccountID.isEmpty else { return }
+        guard let roles = try? await apiClient.roles() else { return }
+        var index: [String: RoleProfile] = [:]
+        for role in roles {
+            if let accountID = role.accountID { index[accountID] = role }
+        }
+        profilesByAccountID = index
+    }
+
+    /// «Builder · GPT Sol» — имя роли и primary-модель. Пусто, если роль не
+    /// нашлась: строка тогда выглядит как раньше, без выдуманной подписи.
+    private func agentLine(for task: ApiTask) -> String? {
+        guard let assigneeID = task.assigneeId,
+              let role = profilesByAccountID[assigneeID] else { return nil }
+        let model = role.model.flatMap { $0.isEmpty ? nil : $0 }
+        return model.map { "\(role.title) · \($0)" } ?? role.title
     }
 
     // MARK: - Свайпы и удаление (логика 1:1 с ProjectTasksScreen.performSwipe

@@ -67,7 +67,13 @@ final class TaskFormViewModel {
     var saveErrorMessage: String?
     var aiStructureStatus: TaskAIStructureStatus = .idle
     var directoriesErrorMessage: String?
-    var agents: [ApiUser] = []
+    /// Профили ролей для выбора исполнителя (LOCK-178). Было `agents:
+    /// [ApiUser]` — исполнитель теперь роль (AgentProfile), а не учётка.
+    var roles: [RoleProfile] = []
+    /// Выбранная владельцем роль. `nil` — «Автоматически»: диспетчер сам
+    /// подберёт роль (`owner_selected_role` на сервере). Это отдельная ось от
+    /// готовности задачи и от фактического `assignee_id`.
+    var ownerSelectedRole: String?
     /// Владелец 07.09.2026: «не наблюдаю комментариев с активности» — лента
     /// была только в мёртвом `TaskDetailScreen`/`TaskDetailViewModel` и
     /// потерялась при переезде на эту форму (LOCK-089). Логика (сортировка,
@@ -170,6 +176,7 @@ final class TaskFormViewModel {
             priority = TaskPriority(rawValue: task.priority) ?? .low
             selectedLabelIds = Set(task.labels.map(\.id))
             assigneeId = task.assigneeId
+            ownerSelectedRole = task.role
             creatorName = task.creatorName
             attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID, existing: task.attachments ?? [])
         } catch let error as APIError {
@@ -326,13 +333,12 @@ final class TaskFormViewModel {
         }
     }
 
-    func loadAgents() async {
+    /// Исполнители — роли (`GET /api/roles`), не учётки. Ошибка — та же общая
+    /// формулировка справочников, что и раньше.
+    func loadRoles() async {
         do {
-            agents = try await apiClient.agents()
+            roles = try await apiClient.roles()
         } catch {
-            // Формулировка дословно из спеки — общая ошибка справочников
-            // (проекты/метки грузит `ProjectStore`/`LabelStore` из окружения,
-            // сюда добавляются только агенты, которых стор не хранит).
             directoriesErrorMessage = "Не удалось загрузить проекты, метки или агентов. Проверьте соединение."
         }
     }
@@ -650,6 +656,11 @@ final class TaskFormViewModel {
         if projectId != originalTask.projectId { fields["project_id"] = projectId.map { JSONValue.string($0) } ?? .null }
         if priority.rawValue != originalTask.priority { fields["priority"] = .number(Double(priority.rawValue)) }
         if assigneeId != originalTask.assigneeId { fields["assignee_id"] = assigneeId.map { JSONValue.string($0) } ?? .null }
+        // Роль-исполнитель, выбранная владельцем (LOCK-178). Пусто — снять
+        // выбор и вернуть задачу диспетчеру («Автоматически»).
+        if ownerSelectedRole != originalTask.role {
+            fields["owner_selected_role"] = ownerSelectedRole.map { JSONValue.string($0) } ?? .null
+        }
         let originalLabelIds = Set(originalTask.labels.map(\.id))
         if selectedLabelIds != originalLabelIds { fields["label_ids"] = .strings(Array(selectedLabelIds)) }
 

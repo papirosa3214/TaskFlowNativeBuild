@@ -87,6 +87,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// старых задачах (созданных до спек 1.2) поле отсутствует в ответе —
     /// UI просто не рисует индикатор. Тип и история в `AttemptLadder.swift`.
     public let attemptLadder: ApiAttemptLadder?
+    /// Логическая роль задачи: `dispatched_role`, иначе `owner_selected_role`,
+    /// иначе пусто (LOCK-178). Сервер отдаёт её строкой в `GET /api/tasks/:id`,
+    /// чтобы клиент не гадал по двум колонкам. Пусто — роль ещё не выбрана.
+    public let role: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -125,6 +129,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case projectColor = "project_color"
         case labels, subtasks, children, comments, events, attachments
         case attemptLadder = "attempt_ladder"
+        case role
     }
 
     public init(from decoder: Decoder) throws {
@@ -175,6 +180,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         events = try c.decodeIfPresent([ApiTaskEvent].self, forKey: .events)
         attachments = try c.decodeIfPresent([ApiAttachment].self, forKey: .attachments)
         attemptLadder = try c.decodeIfPresent(ApiAttemptLadder.self, forKey: .attemptLadder)
+        let roleValue = try c.decodeIfPresent(String.self, forKey: .role)
+        role = (roleValue?.isEmpty == false) ? roleValue : nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -222,6 +229,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(events, forKey: .events)
         try c.encodeIfPresent(attachments, forKey: .attachments)
         try c.encodeIfPresent(attemptLadder, forKey: .attemptLadder)
+        try c.encodeIfPresent(role, forKey: .role)
     }
 
     // MARK: Удобные вычисляемые даты (raw-строки остаются полями — см. DateFormats)

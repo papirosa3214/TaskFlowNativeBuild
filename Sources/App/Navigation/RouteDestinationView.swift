@@ -91,5 +91,13 @@ private func routeContent(_ route: AppRoute) -> some View {
         TemplatesScreen()
     case .voiceModels:
         VoiceModelsScreen()
+    case .runtimeProviders:
+        RuntimeProvidersScreen()
+    case .providerDetail(let providerID):
+        ProviderDetailScreen(providerID: providerID)
+    case .runtimeStatus:
+        RuntimeStatusScreen()
+    case .serviceAccounts:
+        ServiceAccountsScreen()
     }
 }

@@ -35,6 +35,11 @@ struct DirectoryTaskRow: View {
     let swipeAction: ProjectTaskSwipeAction?
     let onSwipeAction: () -> Void
 
+    /// Необязательная строка «роль · модель» (LOCK-177). Заполняется только
+    /// на «Работе агентов»; у остальных списков остаётся пустой и ничего не
+    /// меняет. `var` с дефолтом, чтобы не трогать существующие вызовы.
+    var agentLine: String? = nil
+
     /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
     @State private var rowID = UUID()
     @State private var settledOffset: CGFloat = 0
@@ -150,6 +155,19 @@ struct DirectoryTaskRow: View {
                         Text(agentText)
                             .tfText(.meta)
                             .foregroundStyle(DirectoryAgentStateTag.color(task))
+                    }
+
+                    // Роль и текущая модель агента (LOCK-177) — «Builder ·
+                    // GPT Sol». Только «Работа агентов» передаёт эту строку.
+                    if let agentLine, !agentLine.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 10))
+                            Text(agentLine)
+                        }
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
                     }
 
                     if hasBadges {

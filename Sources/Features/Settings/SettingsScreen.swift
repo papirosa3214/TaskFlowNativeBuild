@@ -118,12 +118,14 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder
+    /// LOCK-179: ИИ разделён на СЕРВЕРНЫЙ (провайдеры и модели Pi) и
+    /// ЛОКАЛЬНЫЙ («На устройстве»). Раньше единственная строка вела в
+    /// `VoiceModelsScreen` — локальные модели; теперь это разные пункты.
     private var aiSection: some View {
         section(title: "Искусственный интеллект", isExpanded: $aiExpanded) {
-            NavigationLink(value: AppRoute.voiceModels) {
-                TFListRow(icon: "sparkles", iconStyle: .plain, title: "Искусственный интеллект", trailing: AnyView(chevron), titleStyle: .action, verticalPadding: TFSpacing.xs)
-            }
-            .buttonStyle(.plain)
+            navRow(icon: "cpu", title: "Модели и провайдеры", route: .runtimeProviders)
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "iphone", title: "На устройстве", route: .voiceModels)
         }
     }
 
@@ -141,9 +143,16 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder
+    /// LOCK-180/181: к серверным строкам добавлены «Pi Runtime» (статус
+    /// рантайма) и «Service Accounts» (переехавшая из «Команды» механика
+    /// ApiUser/токена).
     private var serverSection: some View {
         section(title: "Сервер", isExpanded: $serverExpanded) {
             ServerStatusSection()
+            TFDivider(inset: rowDividerInset)
+            RuntimeStatusRow()
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "person.badge.key", title: "Service Accounts", route: .serviceAccounts)
         }
     }
 
