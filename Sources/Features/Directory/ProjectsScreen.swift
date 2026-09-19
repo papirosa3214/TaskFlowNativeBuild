@@ -50,6 +50,10 @@ struct ProjectsScreen: View {
                     ProjectCreateForm(onCreated: { showCreate = false }, onCancel: { showCreate = false })
                 }
 
+                if !isSelecting {
+                    noProjectRow
+                }
+
                 ForEach(visibleProjects) { project in
                     if editingID == project.id {
                         ProjectEditForm(project: project, apiClient: apiClient, onSaved: {
@@ -216,6 +220,45 @@ struct ProjectsScreen: View {
     /// владелец 08.09.2026 попросил видеть в списке жизнь проекта, а не одно
     /// число. Сам ряд остался кнопкой в тот же маршрут и по-прежнему живёт
     /// внутри `DirectorySwipeRow` (правка/удаление свайпом).
+    /// «Без проекта» — синтетический раздел рядом со списком проектов: все
+    /// задачи без проекта аккумулируются в один список. Владелец 19.09.2026:
+    /// неназначенные задачи терялись по спискам, хочу видеть их
+    /// централизованно, как проект. Это не проектная сущность: ни свайпа,
+    /// ни выбора, ни формы — только переход в список.
+    private var noProjectCount: Int {
+        taskStore.tasks.filter { $0.projectId == nil && $0.status == .active }.count
+    }
+
+    private var noProjectRow: some View {
+        NavigationLink(value: AppRoute.noProjectTasks) {
+            TFCard {
+                HStack(spacing: TFSpacing.md) {
+                    Image(systemName: "tray")
+                        .tfText(.title)
+                        .foregroundStyle(Color.tfSub)
+                        .frame(width: 28, alignment: .center)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Без проекта")
+                            .tfText(.title)
+                            .foregroundStyle(Color.tfText)
+                        Text(
+                            noProjectCount == 0
+                                ? "Нет активных задач"
+                                : "\(noProjectCount) \(DirectoryPluralize.taskWord(noProjectCount))"
+                        )
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                }
+            }
+        }
+        .buttonStyle(TFTapRowStyle())
+    }
+
     private func projectRow(_ project: ApiProject) -> some View {
         NavigationLink(value: AppRoute.projectTasks(projectID: project.id)) {
             ProjectCard(project: project, tasks: taskStore.tasks)

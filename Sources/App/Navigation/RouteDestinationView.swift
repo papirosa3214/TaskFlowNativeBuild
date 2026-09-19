@@ -69,6 +69,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         KnowledgeScreen()
     case .projectTasks(let projectID):
         ProjectTasksScreen(projectID: projectID)
+    case .noProjectTasks:
+        ProjectTasksScreen(projectID: nil)
     case .labels:
         LabelsScreen()
     case .labelTasks(let labelID):

@@ -17,7 +17,8 @@ import SwiftUI
 // сверх контракта (`.notes` без параметра не тронут) — `NotesScreen` теперь
 // умеет открыться сразу на нужной папке.
 struct ProjectTasksScreen: View {
-    let projectID: String
+    /// `nil` — раздел «Без проекта»: все задачи без проекта, тем же списком.
+    let projectID: String?
 
     @Environment(ProjectStore.self) private var projectStore
     @Environment(TaskStore.self) private var taskStore
@@ -38,7 +39,8 @@ struct ProjectTasksScreen: View {
     private var isTaskOwner: Bool { true }
 
     private var project: ApiProject? {
-        projectStore.projects.first { $0.id == projectID }
+        guard let projectID else { return nil }
+        return projectStore.projects.first { $0.id == projectID }
     }
 
     /// Закреплённые — единым блоком сверху, порядок внутри каждой группы не
@@ -70,7 +72,7 @@ struct ProjectTasksScreen: View {
     }
 
     private var notFound: Bool {
-        !projectStore.isLoading && projectStore.errorMessage == nil && project == nil
+        projectID != nil && !projectStore.isLoading && projectStore.errorMessage == nil && project == nil
     }
 
     var body: some View {
@@ -83,11 +85,11 @@ struct ProjectTasksScreen: View {
 
                 if notFound {
                     notFoundView
-                } else if let project {
+                } else if projectID == nil || project != nil {
                     if tasks.isEmpty {
                         TFEmptyState(
                             icon: "tray",
-                            text: "В проекте пока нет задач"
+                            text: projectID == nil ? "Задач без проекта нет" : "В проекте пока нет задач"
                         )
                         .padding(.horizontal, TFSpacing.xs)
                     } else {
@@ -98,9 +100,11 @@ struct ProjectTasksScreen: View {
                         }
                     }
 
-                    ProjectNotesSection(project: project, onProjectPatched: { _ in
-                        Task { await projectStore.load() }
-                    })
+                    if let project {
+                        ProjectNotesSection(project: project, onProjectPatched: { _ in
+                            Task { await projectStore.load() }
+                        })
+                    }
                 }
             }
             .padding(.top, TFSpacing.sm)
@@ -119,14 +123,14 @@ struct ProjectTasksScreen: View {
         // содержимое заголовка на произвольное вью, сам разруливая место с
         // соседним «+» (тот самый наезд текста на кнопку, LOCK-060/061,
         // здесь в принципе невозможен на системном toolbar).
-        .tfNativeHeader(project?.name ?? "Проект", displayMode: .inline)
+        .tfNativeHeader(projectID == nil ? "Без проекта" : (project?.name ?? "Проект"), displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
                     if let project {
                         Circle().fill(Color(hex: project.color ?? TFHexDefault.unassigned)).frame(width: 10, height: 10)
                     }
-                    Text(project?.name ?? "Проект")
+                    Text(projectID == nil ? "Без проекта" : (project?.name ?? "Проект"))
                         .tfText(.title)
                         .foregroundStyle(Color.tfText)
                         .lineLimit(1)

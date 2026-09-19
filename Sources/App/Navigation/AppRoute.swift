@@ -38,6 +38,8 @@ public enum AppRoute: Hashable {
     /// Смысловой поиск по документации всех проектов (KnowledgeScreen).
     case knowledge
     case projectTasks(projectID: String)
+    /// Задачи без проекта — тот же экран списка, но `projectID == nil`.
+    case noProjectTasks
     case labels
     case labelTasks(labelID: String)
     case search
