@@ -172,10 +172,23 @@ struct ProjectTasksScreen: View {
             task: task,
             isOwner: isTaskOwner,
             onOpen: { pendingDetail = task.id },
-            onDelete: { Task { await taskStore.delete(taskId: task.id) } },
+            onDelete: { Task { await deleteTask(task) } },
             swipeAction: swipeAction,
             onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
         )
+    }
+
+    /// Удаление строки из проектного списка. `TaskStore.delete` чистит только
+    /// `taskStore.tasks`, а строки этого экрана рисуются из
+    /// `relationshipTasks` (`tasks(includeChildren: true)`) — из-за этого
+    /// удалённая задача оставалась на месте до ручного pull-to-refresh
+    /// (владелец 19.09.2026: «после действия не исчезают, сам должен
+    /// обновлять»). Гасим строку в обоих источниках и подтягиваем свежий
+    /// список, чтобы пересчиталось дерево.
+    private func deleteTask(_ task: ApiTask) async {
+        _ = await taskStore.delete(taskId: task.id)
+        relationshipTasks.removeAll { $0.id == task.id }
+        await refreshRelationshipTasks()
     }
 
     /// Свайп-действие по строке проекта. Поднять флаг — PATCH ready_for_pickup.
@@ -196,6 +209,7 @@ struct ProjectTasksScreen: View {
                 _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
             }
             await taskStore.load(silent: true)
+            await refreshRelationshipTasks()
         } catch {
             // Тихая ошибка: визуально строка просто не изменится. Подробный
             // тост для свайпа не показывается — это быстрый жест, и отдельная
