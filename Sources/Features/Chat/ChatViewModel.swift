@@ -363,7 +363,20 @@ final class ChatViewModel {
 
     // MARK: - Реалтайм
 
-    private func handle(_ event: RealtimeEvent) {
+    /// Положить пришедшее по сокету сообщение в ленту, если оно из открытого
+    /// канала. Идемпотентно: то же сообщение не задваивается (своё уже могло
+    /// прийти ответом `POST /chat`).
+    ///
+    /// Событие `chat:new` несёт сообщение целиком — сервер рассылает строку
+    /// `chat_messages` с joins, включая `task_title` (см. `ownerDraft.ts`,
+    /// ответ Секретаря), поэтому дозагружать его отдельным запросом не нужно.
+    func receiveRealtimeMessage(_ message: ApiChatMessage) {
+        guard message.channel == activeChannel else { return }
+        guard !messages.contains(where: { $0.id == message.id }) else { return }
+        messages.append(message)
+    }
+
+    func handle(_ event: RealtimeEvent) {
         switch event {
         case .chatNew(let message):
             // Пришло само сообщение — автор больше не «печатает» (то же,
@@ -371,7 +384,11 @@ final class ChatViewModel {
             // отдельного chat:typing stop).
             if let from = message.fromUserId { typingDeadlines.removeValue(forKey: from) }
             recomputeTypists()
-            Task { await loadHistory() }
+            // Раньше здесь звался `loadHistory()` — но это ПАГИНАЦИЯ: она
+            // тянет сообщения СТАРШЕ курсора, и новое в ленту не попадало.
+            // Ответ Секретаря с карточкой был виден только после повторного
+            // входа на экран (владелец 19.09.2026).
+            receiveRealtimeMessage(message)
         case .chatTyping(let raw):
             applyTypingEvent(raw)
         default:
