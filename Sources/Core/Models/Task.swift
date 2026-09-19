@@ -51,6 +51,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let readySetBy: String?
     /// Новая карточка по умолчанию проходит Reviewer; старые — direct owner-flow.
     public let requiresReviewerReview: Bool
+    /// Повтор карточки: none|daily|weekdays|weekly|monthly.
+    public let runRepeat: String?
+    /// До какой даты повторять (ISO-дата); nil — постоянно.
+    public let repeatUntil: String?
 
     // MARK: Derived (hydrateTask()/withAgentStale())
 
@@ -134,6 +138,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case readySetAt = "ready_set_at"
         case readySetBy = "ready_set_by"
         case requiresReviewerReview = "requires_reviewer_review"
+        case runRepeat = "run_repeat"
+        case repeatUntil = "repeat_until"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -183,6 +189,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         readySetAt = try c.decodeIfPresent(String.self, forKey: .readySetAt)
         readySetBy = try c.decodeIfPresent(String.self, forKey: .readySetBy)
         requiresReviewerReview = try c.decodeIntBool(forKey: .requiresReviewerReview)
+        runRepeat = try c.decodeIfPresent(String.self, forKey: .runRepeat)
+        repeatUntil = try c.decodeIfPresent(String.self, forKey: .repeatUntil)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -237,6 +245,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(readySetAt, forKey: .readySetAt)
         try c.encodeIfPresent(readySetBy, forKey: .readySetBy)
         try c.encode(requiresReviewerReview ? 1 : 0, forKey: .requiresReviewerReview)
+        try c.encodeIfPresent(runRepeat, forKey: .runRepeat)
+        try c.encodeIfPresent(repeatUntil, forKey: .repeatUntil)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)

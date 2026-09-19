@@ -149,6 +149,8 @@ struct TaskFormScreen: View {
             .onChange(of: viewModel.dueDate) { _, _ in scheduleSave() }
             .onChange(of: viewModel.startMinutes) { _, _ in scheduleSave() }
             .onChange(of: viewModel.durationMin) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.runRepeat) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.repeatUntil) { _, _ in scheduleSave() }
             .onChange(of: viewModel.projectId) { _, _ in scheduleSave() }
             .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
             .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
@@ -402,7 +404,9 @@ struct TaskFormScreen: View {
                     ExistingTaskDueEditor(
                         dueDate: $viewModel.dueDate,
                         startMinutes: $viewModel.startMinutes,
-                        durationMin: $viewModel.durationMin
+                        durationMin: $viewModel.durationMin,
+                        runRepeat: $viewModel.runRepeat,
+                        repeatUntil: $viewModel.repeatUntil
                     )
                 }
 
@@ -1419,6 +1423,8 @@ private struct ExistingTaskDueEditor: View {
     @Binding var dueDate: Date?
     @Binding var startMinutes: Int?
     @Binding var durationMin: Int?
+    @Binding var runRepeat: String
+    @Binding var repeatUntil: Date?
 
     private static let durationOptions: [(minutes: Int, label: String)] = [
         (15, "15м"), (30, "30м"), (45, "45м"), (60, "1ч"), (120, "2ч"), (180, "3ч"),
@@ -1440,12 +1446,36 @@ private struct ExistingTaskDueEditor: View {
             DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
             DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
 
+            // Время не задано — старт всё равно будет, в 09:00. Скажем прямо.
+            if dueDate != nil && startMinutes == nil {
+                Text("Старт по умолчанию — 9:00. Измените время, если нужно.")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfSub)
+            }
+
             if dueDate != nil {
                 Picker("Продолжительность", selection: $durationMin) {
                     Text("Не указана").tag(Int?.none)
                     ForEach(Self.durationOptions, id: \.minutes) { option in
                         Text(option.label).tag(Optional(option.minutes))
                     }
+                }
+
+                // Повтор: одна карточка за раз, следующая создаётся, когда
+                // текущая закрыта. Работает до конца календарного года —
+                // дальше назначается заново.
+                Picker("Повтор", selection: $runRepeat) {
+                    Text("Не повторять").tag("none")
+                    Text("Ежедневно").tag("daily")
+                    Text("По будням").tag("weekdays")
+                    Text("Еженедельно").tag("weekly")
+                    Text("Ежемесячно").tag("monthly")
+                }
+                if runRepeat != "none" {
+                    DatePicker("Повторять до", selection: untilBinding, displayedComponents: .date)
+                    Text("Повтор идёт до конца года, дальше назначьте заново.")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
                 }
 
                 Button {
@@ -1466,6 +1496,24 @@ private struct ExistingTaskDueEditor: View {
                 durationMin = nil
             }
         }
+    }
+
+    /// «Повторять до»: если не задано — показываем конец текущего года
+    /// (дальше серия всё равно не идёт, владелец 20.09.2026).
+    private var untilBinding: Binding<Date> {
+        Binding(
+            get: { repeatUntil ?? Self.yearEnd },
+            set: { repeatUntil = $0 }
+        )
+    }
+
+    private static var yearEnd: Date {
+        let cal = Calendar(identifier: .gregorian)
+        var comps = DateComponents()
+        comps.year = cal.component(.year, from: Date())
+        comps.month = 12
+        comps.day = 31
+        return cal.date(from: comps) ?? Date()
     }
 
     private func quickButton(_ title: String, action: @escaping () -> Void) -> some View {

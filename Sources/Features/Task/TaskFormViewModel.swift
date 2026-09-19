@@ -48,6 +48,19 @@ final class TaskFormViewModel {
     var selectedLabelIds: Set<String> = []
     var assigneeId: String?
     var requiresReviewerReview = true
+
+    /// Повтор карточки: none|daily|weekdays|weekly|monthly и «до даты».
+    var runRepeat: String = "none"
+    var repeatUntil: Date?
+
+    static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "Europe/Moscow")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
     /// Имя того, кто завёл карточку — только для показа, менять его нельзя.
     var creatorName: String?
     var attachments: TaskAttachmentsController
@@ -183,6 +196,8 @@ final class TaskFormViewModel {
             selectedLabelIds = Set(task.labels.map(\.id))
             assigneeId = task.assigneeId
             requiresReviewerReview = task.requiresReviewerReview
+            runRepeat = task.runRepeat ?? "none"
+            repeatUntil = task.repeatUntil.flatMap { Self.dayFormatter.date(from: $0) }
             ownerSelectedRole = task.effectiveRole
             originalRole = task.effectiveRole
             creatorName = task.creatorName
@@ -695,6 +710,13 @@ final class TaskFormViewModel {
         }
         if requiresReviewerReview != originalTask.requiresReviewerReview {
             fields["requires_reviewer_review"] = .bool(requiresReviewerReview)
+        }
+        if runRepeat != (originalTask.runRepeat ?? "none") {
+            fields["run_repeat"] = .string(runRepeat)
+        }
+        let untilStr = repeatUntil.map { Self.dayFormatter.string(from: $0) }
+        if untilStr != originalTask.repeatUntil {
+            fields["repeat_until"] = untilStr.map { JSONValue.string($0) } ?? .null
         }
 
         guard !fields.isEmpty else { return }
