@@ -148,16 +148,18 @@ struct SystemControlSection: View {
                     titleStyle: .action,
                     verticalPadding: TFSpacing.xs
                 )
-                TFDivider(inset: rowDividerInset)
-                TFListRow(
-                    icon: "slider.horizontal.3", iconStyle: .plain,
-                    title: "Режим",
-                    subtitle: modeSubtitle,
-                    trailing: AnyView(TFToggle(isOn: automaticBinding)
-                        .disabled(!viewModel.isModeKnown || viewModel.isSavingMode)),
-                    titleStyle: .action,
-                    verticalPadding: TFSpacing.xs
-                )
+                if viewModel.isSystemOn {
+                    TFDivider(inset: rowDividerInset)
+                    TFListRow(
+                        icon: "slider.horizontal.3", iconStyle: .plain,
+                        title: "Режим",
+                        subtitle: modeSubtitle,
+                        trailing: AnyView(TFToggle(isOn: automaticBinding)
+                            .disabled(!viewModel.isModeKnown || viewModel.isSavingMode)),
+                        titleStyle: .action,
+                        verticalPadding: TFSpacing.xs
+                    )
+                }
                 if viewModel.errorMessage != nil {
                     TFErrorBanner(viewModel.errorMessage)
                         .padding(.horizontal, TFSpacing.lg)

@@ -66,6 +66,12 @@ final class TaskFormViewModel {
     var notFound = false
     var loadErrorMessage: String?
     var saveErrorMessage: String?
+
+    /// Работает ли служба-будильник сейчас (`GET /api/agent-service`).
+    /// Флаги раздачи (готовность к самозахвату) показываем владельцу только
+    /// когда автоматика включена: при выключенной службе они всё равно ничего
+    /// не делают и только путают. `nil` — ещё не прочитано (показываем).
+    var systemActive: Bool?
     var aiStructureStatus: TaskAIStructureStatus = .idle
     var directoriesErrorMessage: String?
     /// Профили ролей для выбора исполнителя (LOCK-178). Было `agents:
@@ -187,6 +193,7 @@ final class TaskFormViewModel {
             originalRole = task.effectiveRole
             creatorName = task.creatorName
             attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID, existing: task.attachments ?? [])
+            systemActive = (try? await apiClient.fetchSystemRunState())?.active
         } catch let error as APIError {
             if case .notFound = error { notFound = true } else { loadErrorMessage = Self.message(error) }
         } catch {
