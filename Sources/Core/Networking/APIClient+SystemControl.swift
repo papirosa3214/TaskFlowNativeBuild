@@ -27,6 +27,20 @@ public enum TaskIntakeMode: String, Codable, Sendable {
 
 public struct TaskIntakeSettings: Codable, Sendable {
     public let mode: TaskIntakeMode
+    /// Общая настройка «Сначала проверка Reviewer» для новых карточек.
+    /// У серверов старее поля нет — тогда считаем включённой, как раньше.
+    public let reviewerFirstDefault: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case mode
+        case reviewerFirstDefault = "reviewer_first_default"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try c.decode(TaskIntakeMode.self, forKey: .mode)
+        reviewerFirstDefault = try c.decodeIfPresent(Bool.self, forKey: .reviewerFirstDefault) ?? true
+    }
 }
 
 /// Ответ `GET/POST /api/agent-service`.
@@ -82,6 +96,7 @@ private extension ISO8601DateFormatter {
 private struct SystemToggleBody: Encodable { let on: Bool }
 private struct SystemToggleAck: Decodable { let ok: Bool }
 private struct TaskIntakeModeBody: Encodable { let mode: TaskIntakeMode }
+private struct ReviewerFirstBody: Encodable { let reviewer_first_default: Bool }
 
 public extension APIClient {
     func fetchSystemRunState() async throws -> SystemRunState {
@@ -106,5 +121,11 @@ public extension APIClient {
     /// поэтому источник правды — его ответ, а не наше намерение.
     func updateTaskIntakeMode(_ mode: TaskIntakeMode) async throws -> TaskIntakeSettings {
         try await request(.patch, "/task-intake/settings", body: TaskIntakeModeBody(mode: mode))
+    }
+
+    /// Общая настройка «Сначала проверка Reviewer» для новых карточек —
+    /// тот же маршрут настроек, отдельным полем.
+    func updateReviewerFirstDefault(_ on: Bool) async throws -> TaskIntakeSettings {
+        try await request(.patch, "/task-intake/settings", body: ReviewerFirstBody(reviewer_first_default: on))
     }
 }

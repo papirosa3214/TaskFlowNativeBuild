@@ -44,6 +44,12 @@ final class SystemControlViewModel {
     private(set) var isModeKnown = false
     private(set) var isSavingMode = false
 
+    /// «Сначала проверка Reviewer» — общий маршрут новых карточек
+    /// (раньше это был флаг на каждой карточке).
+    private(set) var reviewerFirstDefault = true
+    private(set) var isReviewerDefaultKnown = false
+    private(set) var isSavingReviewerDefault = false
+
     /// Показывается только на собственное действие владельца. Неудачное
     /// чтение состояния его не касается — он ничего не трогал, и ругаться
     /// на него за молчащий сервер незачем.
@@ -65,8 +71,11 @@ final class SystemControlViewModel {
             log.error("не удалось прочитать состояние системы: \(error.localizedDescription, privacy: .public)")
         }
         do {
-            mode = try await api.fetchTaskIntakeSettings().mode
+            let settings = try await api.fetchTaskIntakeSettings()
+            mode = settings.mode
+            reviewerFirstDefault = settings.reviewerFirstDefault
             isModeKnown = true
+            isReviewerDefaultKnown = true
         } catch {
             log.error("не удалось прочитать режим постановки: \(error.localizedDescription, privacy: .public)")
         }
@@ -105,6 +114,22 @@ final class SystemControlViewModel {
             mode = confirmed
             errorMessage = "Не удалось сменить режим"
             log.error("смена режима отклонена: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func setReviewerDefault(_ on: Bool) async {
+        guard isReviewerDefaultKnown, on != reviewerFirstDefault, !isSavingReviewerDefault else { return }
+        let confirmed = reviewerFirstDefault
+        reviewerFirstDefault = on
+        isSavingReviewerDefault = true
+        errorMessage = nil
+        defer { isSavingReviewerDefault = false }
+        do {
+            reviewerFirstDefault = try await api.updateReviewerFirstDefault(on).reviewerFirstDefault
+        } catch {
+            reviewerFirstDefault = confirmed
+            errorMessage = "Не удалось изменить проверку ревьюера"
+            log.error("смена проверки ревьюера отклонена: \(error.localizedDescription, privacy: .public)")
         }
     }
 }
@@ -160,6 +185,16 @@ struct SystemControlSection: View {
                         verticalPadding: TFSpacing.xs
                     )
                 }
+                TFDivider(inset: rowDividerInset)
+                TFListRow(
+                    icon: "checkmark.seal", iconStyle: .plain,
+                    title: "Сначала проверка Reviewer",
+                    subtitle: reviewerDefaultSubtitle,
+                    trailing: AnyView(TFToggle(isOn: reviewerDefaultBinding)
+                        .disabled(!viewModel.isReviewerDefaultKnown || viewModel.isSavingReviewerDefault)),
+                    titleStyle: .action,
+                    verticalPadding: TFSpacing.xs
+                )
                 if viewModel.errorMessage != nil {
                     TFErrorBanner(viewModel.errorMessage)
                         .padding(.horizontal, TFSpacing.lg)
@@ -245,6 +280,20 @@ struct SystemControlSection: View {
         Binding(
             get: { viewModel.mode == .automatic },
             set: { isAutomatic in Task { await viewModel.setMode(isAutomatic ? .automatic : .manual) } }
+        )
+    }
+
+    private var reviewerDefaultSubtitle: String {
+        guard viewModel.isReviewerDefaultKnown else { return "Нет связи с сервером" }
+        return viewModel.reviewerFirstDefault
+            ? "Новые задачи проверяет Reviewer"
+            : "Новые задачи сразу к вам"
+    }
+
+    private var reviewerDefaultBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.reviewerFirstDefault },
+            set: { on in Task { await viewModel.setReviewerDefault(on) } }
         )
     }
 }

@@ -722,7 +722,9 @@ final class TaskFormViewModel {
             parentId: parentId,
             labelIds: selectedLabelIds.isEmpty ? nil : Array(selectedLabelIds),
             subtasks: subtaskDrafts.isEmpty ? nil : subtaskDrafts.map(\.title),
-            requiresReviewerReview: requiresReviewerReview
+            // Флаг не шлём: маршрут новой карточки решает общая настройка
+            // владельца «Сначала проверка Reviewer» (Обзор → Система).
+            requiresReviewerReview: nil
         )
         guard let created = await taskStore.create(payload) else {
             throw APIError.server(status: 0, message: "Не удалось сохранить задачу")
