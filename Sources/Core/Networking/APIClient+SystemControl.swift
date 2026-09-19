@@ -43,6 +43,36 @@ public struct TaskIntakeSettings: Codable, Sendable {
     }
 }
 
+/// Планировщик (`taskflow-scheduler`) — отдельная лампа: он живёт независимо
+/// от будильника и делает расписание карточек и отложенные повторы.
+public struct SchedulerRunState: Decodable, Sendable {
+    public let active: Bool
+    public let lastRunAt: Date?
+    /// Сколько карточек поднято по расписанию за последний обход.
+    public let scheduled: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case active
+        case lastRunAt = "last_run_at"
+        case handled
+    }
+
+    private struct Handled: Decodable {
+        let scheduled: Int?
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        active = (try? c.decode(Bool.self, forKey: .active)) ?? false
+        if let raw = try? c.decode(String.self, forKey: .lastRunAt) {
+            lastRunAt = ISO8601DateFormatter.systemControl.date(from: raw)
+        } else {
+            lastRunAt = nil
+        }
+        scheduled = (try? c.decodeIfPresent(Handled.self, forKey: .handled))?.scheduled
+    }
+}
+
 /// Ответ `GET/POST /api/agent-service`.
 ///
 /// `enabled` — включён ли systemd-юнит, `active` — работает ли он прямо
@@ -59,12 +89,15 @@ public struct SystemRunState: Decodable, Sendable {
     /// Период обхода в секундах — приходит с сервера, чтобы экран не зашивал
     /// своё число и не разошёлся с настоящим расписанием.
     public let scanIntervalSec: Int?
+    /// Планировщик расписания — у серверов старее поля нет.
+    public let scheduler: SchedulerRunState?
 
     enum CodingKeys: String, CodingKey {
         case active
         case enabled
         case nextScanAt = "next_scan_at"
         case scanIntervalSec = "scan_interval_sec"
+        case scheduler
     }
 
     // Поля добавлены 16.09.2026 и отсутствуют у серверов старее — поэтому
@@ -75,6 +108,7 @@ public struct SystemRunState: Decodable, Sendable {
         active = try c.decode(Bool.self, forKey: .active)
         enabled = try c.decode(Bool.self, forKey: .enabled)
         scanIntervalSec = try c.decodeIfPresent(Int.self, forKey: .scanIntervalSec)
+        scheduler = try c.decodeIfPresent(SchedulerRunState.self, forKey: .scheduler)
         if let raw = try c.decodeIfPresent(String.self, forKey: .nextScanAt) {
             nextScanAt = ISO8601DateFormatter.systemControl.date(from: raw)
         } else {

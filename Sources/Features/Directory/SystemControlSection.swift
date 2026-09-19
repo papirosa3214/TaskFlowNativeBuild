@@ -40,6 +40,9 @@ final class SystemControlViewModel {
     /// нужен только для подписи: сама работа от него не зависит.
     private(set) var nextScanAt: Date?
 
+    /// Планировщик расписания (taskflow-scheduler) — независимая лампа.
+    private(set) var scheduler: SchedulerRunState?
+
     private(set) var mode: TaskIntakeMode = .manual
     private(set) var isModeKnown = false
     private(set) var isSavingMode = false
@@ -66,6 +69,7 @@ final class SystemControlViewModel {
             let state = try await api.fetchSystemRunState()
             isSystemOn = state.active
             nextScanAt = state.nextScanAt
+            scheduler = state.scheduler
             isSystemStateKnown = true
         } catch {
             log.error("не удалось прочитать состояние системы: \(error.localizedDescription, privacy: .public)")
@@ -193,6 +197,19 @@ struct SystemControlSection: View {
                     titleStyle: .action,
                     verticalPadding: TFSpacing.xs
                 )
+                // Расписание — отдельная лампа: воркер живёт независимо от
+                // будильника и делает запуск по времени и отложенные повторы.
+                TFDivider(inset: rowDividerInset)
+                TFListRow(
+                    icon: "clock.arrow.circlepath", iconStyle: .plain,
+                    title: "Расписание",
+                    subtitle: schedulerSubtitle,
+                    trailing: AnyView(
+                        Circle().fill(schedulerLampColor).frame(width: 10, height: 10)
+                    ),
+                    titleStyle: .action,
+                    verticalPadding: TFSpacing.xs
+                )
                 if viewModel.errorMessage != nil {
                     TFErrorBanner(viewModel.errorMessage)
                         .padding(.horizontal, TFSpacing.lg)
@@ -293,5 +310,23 @@ struct SystemControlSection: View {
             get: { viewModel.reviewerFirstDefault },
             set: { on in Task { await viewModel.setReviewerDefault(on) } }
         )
+    }
+
+    /// Подпись расписания: работает ли воркер и когда был последний обход.
+    /// Молчит дольше 15 минут при активном таймере — это тихий отказ.
+    private var schedulerSubtitle: String {
+        guard let s = viewModel.scheduler else { return "Нет данных" }
+        guard s.active else { return "Не работает" }
+        guard let last = s.lastRunAt else { return "Работает" }
+        let mins = Int(Date().timeIntervalSince(last) / 60)
+        if mins > 15 { return "Молчит \(mins) мин — проверьте" }
+        return "Работает · обход \(Self.scanTimeFormatter.string(from: last))"
+    }
+
+    private var schedulerLampColor: Color {
+        guard let s = viewModel.scheduler, s.active, let last = s.lastRunAt else {
+            return viewModel.scheduler?.active == true ? Color.tfGreen : Color.tfDim
+        }
+        return Date().timeIntervalSince(last) > 15 * 60 ? Color.tfRed : Color.tfGreen
     }
 }
