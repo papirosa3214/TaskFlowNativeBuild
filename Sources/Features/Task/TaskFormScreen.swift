@@ -1113,7 +1113,7 @@ struct TaskFormScreen: View {
         switch state {
         case .review:
             Button { Task { await viewModel.performOwnerAction(.acceptReview, comment: nil, taskStore: taskStore) } } label: {
-                Label("Принять", systemImage: "checkmark")
+                Label("Принять и закрыть задачу", systemImage: "checkmark.circle")
             }
             Button { pendingAction = .returnToWorkFromReview } label: {
                 Label("Вернуть на доработку", systemImage: "arrow.uturn.backward")
