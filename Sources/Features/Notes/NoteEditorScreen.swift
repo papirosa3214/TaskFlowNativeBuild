@@ -219,6 +219,7 @@ struct NoteEditorScreen: View {
         } label: {
             Image(systemName: "ellipsis")
         }
+        .accessibilityLabel("Ещё")
     }
 
     // MARK: - Меню AI / «Ещё» — действия

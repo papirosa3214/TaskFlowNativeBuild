@@ -203,6 +203,7 @@ public struct NotesScreen: View {
         } label: {
             Image(systemName: "ellipsis")
         }
+        .accessibilityLabel("Ещё")
         .accessibilityLabel("Действия")
     }
 
@@ -252,6 +253,7 @@ public struct NotesScreen: View {
         } label: {
             Image(systemName: "ellipsis")
         }
+        .accessibilityLabel("Ещё")
         .disabled(!viewModel.hasSelection)
         .accessibilityLabel("Действия с выбранным")
     }

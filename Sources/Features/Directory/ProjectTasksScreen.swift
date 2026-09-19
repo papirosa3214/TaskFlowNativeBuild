@@ -137,6 +137,7 @@ struct ProjectTasksScreen: View {
                     Button { showNewTask = true } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("Добавить")
                 }
             }
         }

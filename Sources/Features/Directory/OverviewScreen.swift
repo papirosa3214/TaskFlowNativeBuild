@@ -70,6 +70,7 @@ struct OverviewScreen: View {
                     Image(systemName: "magnifyingglass")
                 }
                 .accessibilityLabel("Поиск")
+                .accessibilityLabel("Поиск")
                 .accessibilityIdentifier("overview.search")
             }
         }

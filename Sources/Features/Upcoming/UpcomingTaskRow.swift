@@ -151,7 +151,7 @@ struct UpcomingTaskRow: View {
     }
 
     private func close() {
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: 0)) {
             settledOffset = 0
             dragOffset = 0
         }
@@ -163,7 +163,7 @@ struct UpcomingTaskRow: View {
     /// «резина» `over×30/(30+over)`. Скорость приходит от UIKit в px/с.
     private func settle(dx: CGFloat, velocity: CGFloat) {
         let finalOffset = clamp(settledOffset + dx)
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity)) {
             if settledOffset == 0 {
                 if finalOffset < -openThreshold || velocity < -openVelocity {
                     settledOffset = -actionWidth

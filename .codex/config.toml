@@ -10,3 +10,9 @@ url = "http://192.168.1.110:8802/mcp"
 
 [mcp_servers.taskflow.http_headers]
 Authorization = "Bearer 50a2fac613567e73c52e2bbb5ce445524812d6bab87fede1e397875224e4415a"
+
+[mcp_servers.infra-panel]
+url = "http://192.168.1.110:8803/mcp"
+
+[mcp_servers.infra-panel.http_headers]
+Authorization = "Bearer c9b00b913a3724f3bdf357cea29b6b4decadd9dc34c385ac1a2f152ecd93e63c"

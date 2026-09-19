@@ -415,6 +415,14 @@ final class TaskFormViewModel {
         (error as? APIError)?.errorDescription ?? "Не удалось изменить состояние задачи"
     }
 
+    /// Текст из alert нужно забрать до закрытия alert: `Task {}` стартует
+    /// асинхронно, а сброс `@State` сразу после него иначе стирает комментарий
+    /// раньше, чем он попадёт в запрос review → in_progress.
+    nonisolated static func ownerActionCommentForSubmission(_ text: String) -> String? {
+        let comment = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return comment.isEmpty ? nil : comment
+    }
+
     /// `taskStore` — тот же общий кэш списков, что и у `save(taskStore:)`.
     /// Своей карточки мало: «Работа агентов» и плитки «Обзора» рисуют секции
     /// из стора, а он о владельческом действии не знает. Владелец 10.09.2026

@@ -59,6 +59,19 @@ targets:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: Приложение обращается к серверу задач в домашней сети.
         NSMicrophoneUsageDescription: Нужен для голосового ввода задач и заметок.
+        # Ключи приватности из `spec/NATIVE-PARTS.md` §4. Без строки-объяснения
+        # iOS убивает процесс при первом обращении к системному API — при том
+        # что СИМУЛЯТОР это молча пропускает, и дефект виден только на
+        # устройстве. Именно так «вылетал» экран «Интеграции» (LOCK-156).
+        # Apple Календарь/Напоминания — `AppleEventKitAccess.swift`, `EventKit`.
+        NSCalendarsUsageDescription: Нужен для отображения и создания событий в календаре.
+        NSCalendarsFullAccessUsageDescription: Нужен для синхронизации событий календаря с вашими задачами.
+        NSRemindersUsageDescription: Нужен для синхронизации задач с Apple Напоминаниями.
+        NSRemindersFullAccessUsageDescription: Нужен для создания и управления напоминаниями в Apple Напоминаниях.
+        # Вход по Face ID — `SettingsViewModel.swift`, `LAContext`.
+        NSFaceIDUsageDescription: Используется для быстрого и безопасного входа в TaskFlow.
+        # Распознавание надиктованного текста прямо на телефоне.
+        NSSpeechRecognitionUsageDescription: Нужен, чтобы распознавать надиктованный текст задач прямо на телефоне, без отправки на сервер.
         # Без этого ключа ActivityKit не разрешает запускать Live Activity
         # вовсе: areActivitiesEnabled возвращает false, и кнопка «Вывести в
         # Dynamic Island» молча ничего не делает.

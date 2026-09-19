@@ -37,6 +37,46 @@ public struct TaskIntakeSettings: Codable, Sendable {
 public struct SystemRunState: Decodable, Sendable {
     public let active: Bool
     public let enabled: Bool
+    /// Ближайший обход доски. Система проверяет назначенное раз в несколько
+    /// минут, и владельцу важно видеть, сколько ждать: без этого работающая
+    /// система выглядит одинаково и за десять секунд до обхода, и сразу
+    /// после него. `nil` — система остановлена либо сервер старой версии.
+    public let nextScanAt: Date?
+    /// Период обхода в секундах — приходит с сервера, чтобы экран не зашивал
+    /// своё число и не разошёлся с настоящим расписанием.
+    public let scanIntervalSec: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case active
+        case enabled
+        case nextScanAt = "next_scan_at"
+        case scanIntervalSec = "scan_interval_sec"
+    }
+
+    // Поля добавлены 16.09.2026 и отсутствуют у серверов старее — поэтому
+    // декодируются мягко. Уронить весь экран состояния из-за отсутствующего
+    // таймера нельзя: тумблер системы важнее подписи под ним.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        active = try c.decode(Bool.self, forKey: .active)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        scanIntervalSec = try c.decodeIfPresent(Int.self, forKey: .scanIntervalSec)
+        if let raw = try c.decodeIfPresent(String.self, forKey: .nextScanAt) {
+            nextScanAt = ISO8601DateFormatter.systemControl.date(from: raw)
+        } else {
+            nextScanAt = nil
+        }
+    }
+}
+
+private extension ISO8601DateFormatter {
+    /// Сервер отдаёт время через `toISOString()` — с миллисекундами, поэтому
+    /// разбор без `withFractionalSeconds` молча возвращал бы nil.
+    static let systemControl: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 }
 
 private struct SystemToggleBody: Encodable { let on: Bool }

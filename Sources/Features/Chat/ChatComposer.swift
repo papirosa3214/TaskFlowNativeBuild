@@ -255,6 +255,7 @@ struct ChatComposer: View {
                     .foregroundStyle(Color.tfDim)
                     .frame(width: 28, height: 28)
             }
+            .accessibilityLabel("Закрыть")
             .buttonStyle(TFTapScaleStyle())
         }
         .padding(.horizontal, TFSpacing.md)

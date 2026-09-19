@@ -43,6 +43,7 @@ struct ChatScreen: View {
                 Button { chatBack?() } label: {
                     Image(systemName: "chevron.left")
                 }
+                .accessibilityLabel("Назад")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -70,6 +71,7 @@ struct ChatScreen: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel("Ещё")
             }
         }
         .background(Color.tfBackground)

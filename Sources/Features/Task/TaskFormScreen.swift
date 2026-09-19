@@ -219,6 +219,21 @@ struct TaskFormScreen: View {
         // заменяет. Штатный путь — `navigationBarBackButtonHidden` + свой
         // toolbar вместо самодельной шапки.
         .tfNativeHeader(viewModel.isEditing ? "Задача" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
+        // Мягкая кромка прокрутки под шапкой (iOS 26+).
+        //
+        // По умолчанию система гасит уезжающий контент жёстко: на кадре
+        // 16.09.2026 текст обрывался ровно по горизонтальной линии — строка
+        // «Кегли-сироты…» срезана посередине, выше линии буквы притушены,
+        // ниже целые. Владелец: «градация прям чёткая, есть линия, не мутная».
+        //
+        // `.soft` растягивает затухание, и текст уходит под шапку размыто,
+        // без видимой границы. Это штатный путь Apple вместо самодельных
+        // градиентных подложек (ср. TFHeaderBackdrop, который делает то же
+        // руками там, где шапка не нативная).
+        //
+        // Цель сборки — iOS 18, поэтому под проверкой доступности: на
+        // старых системах эффекта нет вовсе и кромка остаётся прежней.
+        .modifier(TFSoftTopScrollEdge())
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -247,6 +262,7 @@ struct TaskFormScreen: View {
                 } label: {
                     Image(systemName: "xmark")
                 }
+                .accessibilityLabel("Закрыть")
             }
             if viewModel.isEditing {
                 editingToolbarItems
@@ -280,9 +296,13 @@ struct TaskFormScreen: View {
         ), presenting: pendingAction) { action in
             TextField(action.commentRequired ? "Комментарий (обязателен)" : "Комментарий (необязательно)", text: $actionComment)
             Button("Отправить") {
-                Task { await viewModel.performOwnerAction(action, comment: actionComment.isEmpty ? nil : actionComment, taskStore: taskStore) }
+                // `Task` начинает выполняться после возврата из обработчика,
+                // поэтому перед сбросом alert сохраняем снимок текста. Иначе
+                // review → in_progress уходит без обязательного comment.
+                let comment = TaskFormViewModel.ownerActionCommentForSubmission(actionComment)
                 actionComment = ""
                 pendingAction = nil
+                Task { await viewModel.performOwnerAction(action, comment: comment, taskStore: taskStore) }
             }
             .disabled(action.commentRequired && actionComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Отмена", role: .cancel) {
@@ -317,20 +337,12 @@ struct TaskFormScreen: View {
     /// Единая карточка существующей задачи: это одновременно и просмотр,
     /// и форма. Никакого второго экрана за «Изменить» больше нет: название,
     /// описание и все свойства задачи активны прямо здесь.
-    private var nativeTaskDetail: some View {
-        List {
-            aiStructureStatusSection
-
-            if let message = viewModel.saveErrorMessage {
-                Section {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                        .listRowSeparator(.hidden)
-                }
-                .listRowSeparator(.hidden)
-                .listSectionSeparator(.hidden)
-            }
-
+    // 15.09.2026: список карточки развалился на секции-переменные.
+    // Одним куском его тип вырастал настолько, что рантайм не мог
+    // развернуть имя типа и падал переполнением стека на устройстве
+    // (в симуляторе стек больше — там держалось). Вид и поведение
+    // прежние, поделены только границы.
+    @ViewBuilder private var headerSection: some View {
             Section {
                 HStack(alignment: .center, spacing: TFSpacing.sm) {
                     TextField("Название задачи", text: $viewModel.title, axis: .vertical)
@@ -372,16 +384,9 @@ struct TaskFormScreen: View {
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
+    }
 
-            subtasksSection
-
-            // У несохранённой задачи связывать нечего — секция появляется
-            // вместе с самой задачей. Исключение — создание дочерней:
-            // родитель уже известен и должен быть виден до сохранения.
-            if viewModel.isEditing || viewModel.parentTitle != nil {
-                linkedTasksSection
-            }
-
+    @ViewBuilder private var detailsSection: some View {
             Section {
                 Button {
                     isDueEditorExpanded.toggle()
@@ -503,6 +508,41 @@ struct TaskFormScreen: View {
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
+    }
+
+    // 15.09.2026: тип экрана стирается здесь намеренно. Цепочка
+    // body → fullFormBody → formNavigationBody → formPresentationBody →
+    // List копила такой generic-тип, что рантайм не мог развернуть его
+    // имя и падал переполнением стека прямо при открытии карточки на
+    // устройстве. AnyView разрывает цепочку: дальше вглубь тип не растёт.
+    private var nativeTaskDetail: AnyView { AnyView(nativeTaskDetailBody) }
+
+    private var nativeTaskDetailBody: some View {
+        List {
+            aiStructureStatusSection
+
+            if let message = viewModel.saveErrorMessage {
+                Section {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                        .listRowSeparator(.hidden)
+                }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
+            }
+
+            headerSection
+
+            subtasksSection
+
+            // У несохранённой задачи связывать нечего — секция появляется
+            // вместе с самой задачей. Исключение — создание дочерней:
+            // родитель уже известен и должен быть виден до сохранения.
+            if viewModel.isEditing || viewModel.parentTitle != nil {
+                linkedTasksSection
+            }
+
+            detailsSection
 
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
                 Section {
@@ -1058,6 +1098,7 @@ struct TaskFormScreen: View {
                 Image(systemName: "ellipsis")
                     .foregroundStyle(Color.tfText)
             }
+            .accessibilityLabel("Ещё")
         }
     }
 
@@ -1120,6 +1161,7 @@ struct TaskFormScreen: View {
         } label: {
             Image(systemName: "keyboard.chevron.compact.down")
         }
+        .accessibilityLabel("Скрыть клавиатуру")
         .accessibilityLabel("Скрыть клавиатуру")
     }
 
@@ -1531,6 +1573,24 @@ private struct LinkedTaskPicker: View {
                     Button("Отмена") { dismiss() }
                 }
             }
+        }
+    }
+}
+
+/// Мягкая верхняя кромка прокрутки (iOS 26+).
+///
+/// Вынесено отдельным модификатором, потому что `.scrollEdgeEffectStyle`
+/// доступен с iOS 26, а цель сборки — iOS 18: `if #available` внутри цепочки
+/// модификаторов дал бы две разные ветки типа и не собрался бы.
+///
+/// На системах старше 26 модификатор ничего не делает — кромка остаётся
+/// системной по умолчанию (жёсткой), экран при этом полностью рабочий.
+struct TFSoftTopScrollEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            content
         }
     }
 }

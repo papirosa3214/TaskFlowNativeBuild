@@ -25,7 +25,12 @@ struct QuickAddTaskView: View {
     @State private var isDueDatePopoverPresented = false
     @State private var isAttachmentsPopoverPresented = false
 
-    var body: some View {
+    // 15.09.2026: тип экрана стирается на границе — та же защита, что
+    // спасла карточку задачи. Форма растёт секциями, и без разрыва
+    // цепочки рантайм рано или поздно упрётся в стек при развороте типа.
+    var body: some View { AnyView(bodyContent) }
+
+    @ViewBuilder private var bodyContent: some View {
         Group {
             if #available(iOS 26.0, *) {
                 systemQuickAdd

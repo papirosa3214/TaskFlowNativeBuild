@@ -3,6 +3,13 @@ import XCTest
 @testable import TaskFlow
 
 final class TaskReviewTests: XCTestCase {
+    func testOwnerActionSubmissionCapturesTrimmedCommentBeforeClosingAlert() {
+        XCTAssertEqual(
+            TaskFormViewModel.ownerActionCommentForSubmission("  поправь обработку ответа  "),
+            "поправь обработку ответа"
+        )
+    }
+
     func testOwnerActionPreservesServerReason() {
         let error = APIError.server(
             status: 400,
