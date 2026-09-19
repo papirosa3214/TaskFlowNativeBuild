@@ -465,6 +465,20 @@ final class TaskFormViewModel {
         }
     }
 
+    /// Ручной разовый запуск агента на этой карточке — исполнителя или
+    /// верификатора. Автоматику не включает: один заход по команде владельца.
+    /// `true` — сервер принял запуск.
+    func runAgent(mode: String) async -> Bool {
+        guard let taskID else { return false }
+        do {
+            try await apiClient.runTask(id: taskID, mode: mode)
+            return true
+        } catch {
+            saveErrorMessage = Self.ownerActionErrorMessage(error)
+            return false
+        }
+    }
+
     // MARK: - Подзадачи (edit) — точечные вызовы, отдельные от общего PATCH задачи.
 
     /// Поднять/снять флаг готовности задачи к самозахвату (миграция 026,

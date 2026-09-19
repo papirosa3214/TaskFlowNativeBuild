@@ -143,6 +143,16 @@ public extension APIClient {
         let _: APIOkResponse = try await request(.delete, "/tasks/\(id)")
     }
 
+    /// Ручной разовый запуск агента на карточке — только владелец.
+    /// `mode`: `executor` — поднять исполнителя, `reviewer` — верификатора.
+    /// Служба-будильник при этом может быть выключена: это одиночный заход
+    /// по команде владельца, автоматику он не включает.
+    func runTask(id: String, mode: String) async throws {
+        let _: APIOkResponse = try await request(
+            .post, "/tasks/\(id)/run", body: ["mode": JSONValue.string(mode)]
+        )
+    }
+
     // MARK: - Агентский протокол (spec §5.2/§7) — на карточке задачи владелец
     // видит статус агента/аренду, поэтому клиенту нужно уметь их читать; сами
     // мутации (claim/heartbeat/state) пригодятся экрану «Работа агента».

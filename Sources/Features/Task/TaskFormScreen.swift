@@ -1050,6 +1050,31 @@ struct TaskFormScreen: View {
                     ownerActionMenuItems(state)
                 }
                 if isOwner {
+                    // Ручной разовый запуск: поднять исполнителя или
+                    // верификатора на этой карточке, не включая будильник.
+                    Button {
+                        Task {
+                            if await viewModel.runAgent(mode: "executor") {
+                                toast = TaskToastMessage("Исполнитель поднят — возьмёт карточку")
+                            }
+                        }
+                    } label: {
+                        Label("Запустить исполнителя", systemImage: "play.circle")
+                    }
+                    .disabled((viewModel.assigneeId ?? "").isEmpty)
+                    if viewModel.agentState == .review {
+                        Button {
+                            Task {
+                                if await viewModel.runAgent(mode: "reviewer") {
+                                    toast = TaskToastMessage("Верификатор поднят — проверит карточку")
+                                }
+                            }
+                        } label: {
+                            Label("Отправить на проверку верификатору", systemImage: "checkmark.seal")
+                        }
+                    }
+                }
+                if isOwner {
                     // Готовность к самозахвату (миграция 026, карточка
                     // 04426aeb). Кнопка одна и в том же меню «…», где уже
                     // живут действия владельца — отдельной иконкой в
