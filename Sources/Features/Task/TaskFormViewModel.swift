@@ -494,6 +494,22 @@ final class TaskFormViewModel {
         }
     }
 
+    /// Серия повтора завершена (воркер ждёт «Продлить на год»).
+    var seriesEnded: Bool { (originalTask?.recurrenceSpawned ?? 0) == 1 }
+
+    /// Продлить серию повтора на следующий календарный год (владелец).
+    func extendRepeat() async -> Bool {
+        guard let taskID else { return false }
+        do {
+            try await apiClient.extendRepeat(id: taskID)
+            await loadIfNeeded()
+            return true
+        } catch {
+            saveErrorMessage = Self.ownerActionErrorMessage(error)
+            return false
+        }
+    }
+
     // MARK: - Подзадачи (edit) — точечные вызовы, отдельные от общего PATCH задачи.
 
     /// Поднять/снять флаг готовности задачи к самозахвату (миграция 026,

@@ -1097,6 +1097,19 @@ struct TaskFormScreen: View {
                         }
                     }
                 }
+                // Серия повтора завершилась на конце года — одним тапом
+                // продлеваем на следующий (владелец 20.09.2026).
+                if isOwner, viewModel.seriesEnded {
+                    Button {
+                        Task {
+                            if await viewModel.extendRepeat() {
+                                toast = TaskToastMessage("Серия продлена на следующий год")
+                            }
+                        }
+                    } label: {
+                        Label("Продлить на год", systemImage: "calendar.badge.plus")
+                    }
+                }
                 if isOwner {
                     // Готовность к самозахвату (миграция 026, карточка
                     // 04426aeb). Кнопка одна и в том же меню «…», где уже

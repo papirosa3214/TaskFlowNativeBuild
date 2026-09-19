@@ -55,6 +55,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let runRepeat: String?
     /// До какой даты повторять (ISO-дата); nil — постоянно.
     public let repeatUntil: String?
+    /// 1 — серия повтора уже завершена (следующее вхождение не создавать),
+    /// 0 — ещё идёт. Признак воркера, владельцу виден для «Продлить на год».
+    public let recurrenceSpawned: Int?
 
     // MARK: Derived (hydrateTask()/withAgentStale())
 
@@ -140,6 +143,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case requiresReviewerReview = "requires_reviewer_review"
         case runRepeat = "run_repeat"
         case repeatUntil = "repeat_until"
+        case recurrenceSpawned = "recurrence_spawned"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -191,6 +195,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         requiresReviewerReview = try c.decodeIntBool(forKey: .requiresReviewerReview)
         runRepeat = try c.decodeIfPresent(String.self, forKey: .runRepeat)
         repeatUntil = try c.decodeIfPresent(String.self, forKey: .repeatUntil)
+        recurrenceSpawned = try c.decodeIfPresent(Int.self, forKey: .recurrenceSpawned)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -247,6 +252,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encode(requiresReviewerReview ? 1 : 0, forKey: .requiresReviewerReview)
         try c.encodeIfPresent(runRepeat, forKey: .runRepeat)
         try c.encodeIfPresent(repeatUntil, forKey: .repeatUntil)
+        try c.encodeIfPresent(recurrenceSpawned, forKey: .recurrenceSpawned)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)
