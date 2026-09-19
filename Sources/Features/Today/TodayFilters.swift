@@ -104,6 +104,7 @@ enum TodayTaskOwner {
     static func isWaitingForUser(_ task: ApiTask, _ user: ApiUser?) -> Bool {
         guard let user else { return false }
         return task.status == .active
+            && task.parentId == nil
             && isOwner(user, task)
             && (task.agentState == .blocked || task.agentState == .review)
     }
