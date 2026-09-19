@@ -64,7 +64,7 @@ struct ProjectTasksScreen: View {
         }
 
         let scoped = source.filter { task in
-            task.projectId == projectID && task.parentId == nil && openTreeIDs.contains(task.id)
+            task.projectId == projectID && openTreeIDs.contains(task.id)
         }
         return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
     }
