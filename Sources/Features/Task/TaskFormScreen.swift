@@ -1070,7 +1070,7 @@ struct TaskFormScreen: View {
                         }
                     }
                 }
-                if isOwner, viewModel.systemActive != false {
+                if isOwner {
                     // Готовность к самозахвату (миграция 026, карточка
                     // 04426aeb). Кнопка одна и в том же меню «…», где уже
                     // живут действия владельца — отдельной иконкой в
