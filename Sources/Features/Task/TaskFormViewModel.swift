@@ -679,7 +679,7 @@ final class TaskFormViewModel {
         if ownerSelectedRole != originalRole {
             fields["owner_selected_role"] = ownerSelectedRole.map { JSONValue.string($0) } ?? .null
         }
-        if requiresReviewerReview != (originalTask?.requiresReviewerReview ?? false) {
+        if requiresReviewerReview != originalTask.requiresReviewerReview {
             fields["requires_reviewer_review"] = .bool(requiresReviewerReview)
         }
 
