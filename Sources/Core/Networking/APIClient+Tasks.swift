@@ -76,6 +76,7 @@ public extension APIClient {
         public var parentId: String?
         public var labelIds: [String]?
         public var subtasks: [String]?
+        public var requiresReviewerReview: Bool?
 
         enum CodingKeys: String, CodingKey {
             case title, description
@@ -88,18 +89,20 @@ public extension APIClient {
             case parentId = "parent_id"
             case labelIds = "label_ids"
             case subtasks
+            case requiresReviewerReview = "requires_reviewer_review"
         }
 
         public init(
             title: String, description: String? = nil, dueDate: String? = nil,
             startTime: String? = nil, durationMin: Int? = nil, projectId: String? = nil,
             assigneeId: String? = nil, priority: Int? = nil, parentId: String? = nil,
-            labelIds: [String]? = nil, subtasks: [String]? = nil
+            labelIds: [String]? = nil, subtasks: [String]? = nil, requiresReviewerReview: Bool? = nil
         ) {
             self.title = title; self.description = description; self.dueDate = dueDate
             self.startTime = startTime; self.durationMin = durationMin; self.projectId = projectId
             self.assigneeId = assigneeId; self.priority = priority; self.parentId = parentId
             self.labelIds = labelIds; self.subtasks = subtasks
+            self.requiresReviewerReview = requiresReviewerReview
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -115,6 +118,7 @@ public extension APIClient {
             if let v = parentId { try c.encode(v, forKey: .parentId) }
             if let v = labelIds { try c.encode(v, forKey: .labelIds) }
             if let v = subtasks { try c.encode(v, forKey: .subtasks) }
+            if let v = requiresReviewerReview { try c.encode(v, forKey: .requiresReviewerReview) }
         }
     }
 

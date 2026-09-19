@@ -425,6 +425,10 @@ struct TaskFormScreen: View {
                 }
                 .buttonStyle(.plain)
 
+                Toggle("Сначала проверка Reviewer", isOn: $viewModel.requiresReviewerReview)
+                    .tfText(.action)
+                    .accessibilityHint("Если выключить, задачу можно принять напрямую владельцу")
+
                 Menu {
                     ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
                         Button {

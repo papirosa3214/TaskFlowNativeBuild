@@ -47,6 +47,7 @@ final class TaskFormViewModel {
     var priority: TaskPriority = .low
     var selectedLabelIds: Set<String> = []
     var assigneeId: String?
+    var requiresReviewerReview = true
     /// Имя того, кто завёл карточку — только для показа, менять его нельзя.
     var creatorName: String?
     var attachments: TaskAttachmentsController
@@ -181,6 +182,7 @@ final class TaskFormViewModel {
             priority = TaskPriority(rawValue: task.priority) ?? .low
             selectedLabelIds = Set(task.labels.map(\.id))
             assigneeId = task.assigneeId
+            requiresReviewerReview = task.requiresReviewerReview
             ownerSelectedRole = task.effectiveRole
             originalRole = task.effectiveRole
             creatorName = task.creatorName
@@ -677,6 +679,9 @@ final class TaskFormViewModel {
         if ownerSelectedRole != originalRole {
             fields["owner_selected_role"] = ownerSelectedRole.map { JSONValue.string($0) } ?? .null
         }
+        if requiresReviewerReview != (originalTask?.requiresReviewerReview ?? false) {
+            fields["requires_reviewer_review"] = .bool(requiresReviewerReview)
+        }
 
         guard !fields.isEmpty else { return }
         _ = await taskStore.patch(taskId: taskID, fields: fields) { _ in }
@@ -695,7 +700,8 @@ final class TaskFormViewModel {
             priority: priority.rawValue,
             parentId: parentId,
             labelIds: selectedLabelIds.isEmpty ? nil : Array(selectedLabelIds),
-            subtasks: subtaskDrafts.isEmpty ? nil : subtaskDrafts.map(\.title)
+            subtasks: subtaskDrafts.isEmpty ? nil : subtaskDrafts.map(\.title),
+            requiresReviewerReview: requiresReviewerReview
         )
         guard let created = await taskStore.create(payload) else {
             throw APIError.server(status: 0, message: "Не удалось сохранить задачу")

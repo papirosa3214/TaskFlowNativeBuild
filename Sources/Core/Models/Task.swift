@@ -49,6 +49,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let readySetAt: String?
     /// id учётки, кто поднял.
     public let readySetBy: String?
+    /// Новая карточка по умолчанию проходит Reviewer; старые — direct owner-flow.
+    public let requiresReviewerReview: Bool
 
     // MARK: Derived (hydrateTask()/withAgentStale())
 
@@ -131,6 +133,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case readyForPickup = "ready_for_pickup"
         case readySetAt = "ready_set_at"
         case readySetBy = "ready_set_by"
+        case requiresReviewerReview = "requires_reviewer_review"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -179,6 +182,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         readyForPickup = try c.decodeIntBool(forKey: .readyForPickup)
         readySetAt = try c.decodeIfPresent(String.self, forKey: .readySetAt)
         readySetBy = try c.decodeIfPresent(String.self, forKey: .readySetBy)
+        requiresReviewerReview = try c.decodeIntBool(forKey: .requiresReviewerReview)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -232,6 +236,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encode(readyForPickup ? 1 : 0, forKey: .readyForPickup)
         try c.encodeIfPresent(readySetAt, forKey: .readySetAt)
         try c.encodeIfPresent(readySetBy, forKey: .readySetBy)
+        try c.encode(requiresReviewerReview ? 1 : 0, forKey: .requiresReviewerReview)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)
