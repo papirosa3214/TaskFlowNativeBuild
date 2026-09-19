@@ -153,6 +153,7 @@ struct TaskFormScreen: View {
             .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
             .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
             .onChange(of: viewModel.ownerSelectedRole) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.assigneeId) { _, _ in scheduleSave() }
             .onDisappear(perform: handleDisappear)
     }
 
@@ -473,10 +474,28 @@ struct TaskFormScreen: View {
                 Menu {
                     Button("Автоматически — оркестратор выберет агента") {
                         viewModel.ownerSelectedRole = nil
+                        viewModel.assigneeId = nil
+                    }
+                    // Себя — тем же именем, что и в остальных местах: карточка
+                    // на владельце. Назначенную на человека задачу агенты не
+                    // берут и работник расписания не трогает; в истории видно
+                    // имя, а не «кого-то».
+                    if let me = session.currentUser {
+                        Button {
+                            viewModel.assigneeId = me.id
+                            viewModel.ownerSelectedRole = nil
+                        } label: {
+                            if viewModel.assigneeId == me.id {
+                                Label(me.name, systemImage: "checkmark")
+                            } else {
+                                Text(me.name)
+                            }
+                        }
                     }
                     ForEach(viewModel.roles) { role in
                         Button {
                             viewModel.ownerSelectedRole = role.role
+                            viewModel.assigneeId = nil
                         } label: {
                             if viewModel.ownerSelectedRole == role.role {
                                 Label(role.title, systemImage: "checkmark")
@@ -1000,8 +1019,12 @@ struct TaskFormScreen: View {
         return labels.isEmpty ? "Не выбраны" : labels.joined(separator: ", ")
     }
 
-    /// Подпись исполнителя: имя выбранной роли либо «Автоматически» (LOCK-178).
+    /// Подпись исполнителя: имя владельца (карточка на человеке), имя
+    /// выбранной роли либо «Автоматически» (LOCK-178).
     private var selectedRoleTitle: String {
+        if let me = session.currentUser, viewModel.assigneeId == me.id {
+            return me.name
+        }
         guard let role = viewModel.ownerSelectedRole,
               let profile = viewModel.roles.first(where: { $0.role == role }) else {
             return "Автоматически"
