@@ -53,16 +53,6 @@ struct VoiceModelsScreen: View {
         case actionExplain
     }
 
-    /// Штатный системный промпт серверного observer'а (`activity.ts`) —
-    /// показываем его прямо в окошке «Расшифровка действий», чтобы владелец
-    /// видел, что уходит в модель. Пусто — сервер берёт этот же.
-    static let observerDefaultPrompt =
-        "Ты наблюдаешь за работой ИИ-агента над задачей в трекере. По названию " +
-        "задачи, текущему шагу и списку последних технических действий выдай " +
-        "ОДНУ короткую фразу по-русски (до 60 символов) о том, ЗАЧЕМ агент это " +
-        "делает — намерение, а не пересказ вызовов. Без кавычек, без markdown, " +
-        "без пояснений — только сама фраза."
-
     @State private var promptsStore = AIPromptsStore.shared
     /// Дебаунс-отправка промптов на сервер: при каждом нажатии клавиши
     /// отменяем предыдущую задачу и через 0.6с шлём актуальное значение.
@@ -234,7 +224,9 @@ struct VoiceModelsScreen: View {
         case .unknown: "…"
         case .notDownloaded: "скачать"
         case .downloading(let progress): "\(Int((progress * 100).rounded()))%"
-        case .ready: "готова"
+        // Единое слово с серверными строками: там «работает», и локальная
+        // модель не должна выбиваться («готова») — просьба владельца.
+        case .ready: "работает"
         case .failed: "ошибка"
         }
     }
@@ -280,11 +272,8 @@ struct VoiceModelsScreen: View {
             case .actionExplain:
                 promptEditor(
                     title: "Системный промпт для расшифровки действий",
-                    subtitle: "Как серверная модель объясняет, чем занят агент, в ленте активности карточки",
-                    // Показываем штатный промпт observer'а прямо в поле — чтобы
-                    // владелец видел, что именно уходит в модель. Пусто — сервер
-                    // возьмёт этот же штатный.
-                    placeholder: Self.observerDefaultPrompt,
+                    subtitle: "Что серверная модель учитывает, объясняя, чем занят агент",
+                    placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
                     text: $store.activityPrompt,
                     saveState: activitySaveState,
                     onCommit: { scheduleSave(scope: .actionExplain) },
@@ -468,7 +457,7 @@ struct VoiceModelsScreen: View {
                         promptExpansion(.extractTasks)
                     }
 
-                    TFDivider(inset: rowDividerInset)
+                    TFDivider(inset: rowDividerInset).padding(.trailing, rowDividerInset)
                     Button { toggleExpanded(.journalAssist) } label: {
                         VoiceModelRow(
                             icon: "cloud", title: "Разбор диктовки",
@@ -487,7 +476,7 @@ struct VoiceModelsScreen: View {
                     // готовую фразу в активность (activity.ts, observer).
                     // На телефоне модели для этого нет — отдельного движка
                     // не заводим (решение владельца 20.09.2026).
-                    TFDivider(inset: rowDividerInset)
+                    TFDivider(inset: rowDividerInset).padding(.trailing, rowDividerInset)
                     Button { toggleExpanded(.actionExplain) } label: {
                         VoiceModelRow(
                             icon: "sparkles", title: "Расшифровка действий",
@@ -497,14 +486,7 @@ struct VoiceModelsScreen: View {
                     }
                     .buttonStyle(TFTapRowStyle())
                     if expandedRow == .actionExplain {
-                        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                            Text("Пока карточка задачи открыта, сервер сам зовёт локальную модель и кладёт готовую фразу о том, чем занят агент, в ленту активности. На телефоне для этого ничего качать не нужно — расшифровка идёт на .110. Ниже — её системный промпт.")
-                                .tfText(.action)
-                                .foregroundStyle(Color.tfSub)
-                                .padding(.horizontal, TFSpacing.lg)
-                            promptExpansion(.actionExplain)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        promptExpansion(.actionExplain)
                     }
                 }
             }
@@ -654,35 +636,34 @@ struct VoiceModelsScreen: View {
             SettingsCapsLabel("Диагностика диктовки")
 
             TFCard(padding: 0) {
-                VoiceModelRow(
-                    icon: "icloud.and.arrow.up",
-                    title: "Архив аудио на сервере",
-                    subtitle: pendingArchiveCount == 0 ? "Всё выгружено" : "Ждут отправки: \(pendingArchiveCount). Уйдут, когда .110 будет доступен",
-                    value: nil, dot: nil
-                )
-            }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-
-            TFCard(padding: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Записывать, что распознала модель").tfText(.body).foregroundStyle(Color.tfText)
-                        Text("Видно текст от модели и текст после исправлений").tfText(.action).foregroundStyle(Color.tfSub)
+                VStack(spacing: 0) {
+                    VoiceModelRow(
+                        icon: "icloud.and.arrow.up",
+                        title: "Архив аудио на сервере",
+                        subtitle: pendingArchiveCount == 0 ? "Всё выгружено" : "Ждут отправки: \(pendingArchiveCount). Уйдут, когда .110 будет доступен",
+                        value: nil, dot: nil
+                    )
+                    TFDivider(inset: rowDividerInset).padding(.trailing, rowDividerInset)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Записывать, что распознала модель").tfText(.body).foregroundStyle(Color.tfText)
+                            Text("Видно текст от модели и текст после исправлений").tfText(.action).foregroundStyle(Color.tfSub)
+                        }
+                        Spacer()
+                        Button(isLogEnabled ? "Включено" : "Выключено") {
+                            isLogEnabled.toggle()
+                            DictationLog.setEnabled(isLogEnabled)
+                        }
+                        .buttonStyle(TFTapScaleStyle())
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(isLogEnabled ? Color.tfGreen : Color.tfBlue)
+                        .padding(.horizontal, TFSpacing.sm)
+                        .padding(.vertical, TFSpacing.xs)
+                        .background((isLogEnabled ? Color.tfGreen : Color.tfBlue).opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
                     }
-                    Spacer()
-                    Button(isLogEnabled ? "Включено" : "Выключено") {
-                        isLogEnabled.toggle()
-                        DictationLog.setEnabled(isLogEnabled)
-                    }
-                    .buttonStyle(TFTapScaleStyle())
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(isLogEnabled ? Color.tfGreen : Color.tfBlue)
-                    .padding(.horizontal, TFSpacing.sm)
-                    .padding(.vertical, TFSpacing.xs)
-                    .background((isLogEnabled ? Color.tfGreen : Color.tfBlue).opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+                    .padding(TFSpacing.md)
                 }
-                .padding(TFSpacing.md)
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
 
