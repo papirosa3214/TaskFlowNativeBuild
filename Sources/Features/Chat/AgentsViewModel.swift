@@ -130,9 +130,13 @@ final class AgentsViewModel {
     }
 
     @discardableResult
-    func updateModelPolicy(role: String, primary: String, fallbacks: [String]) async -> Bool {
+    /// Модель роли. Резервные модели убраны (20.09.2026): они нигде не
+    /// использовались и ни на что не влияли — подробная причина в
+    /// `AgentProfileScreen.modelMenuRow`. Серверу отправляем пустой список,
+    /// он затирает оставшиеся с прежних времён резервные.
+    func updateModelPolicy(role: String, primary: String) async -> Bool {
         do {
-            _ = try await api.updateRuntimeRouting(role: role, primary: primary, fallbacks: fallbacks)
+            _ = try await api.updateRuntimeRouting(role: role, primary: primary, fallbacks: [])
             await load()
             return true
         } catch {

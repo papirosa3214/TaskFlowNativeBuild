@@ -3,7 +3,7 @@ import SwiftUI
 /// Профиль роли (LOCK-183): сначала сотрудник, потом его конфигурация.
 /// Открывается тапом по строке «Команды», а не раскрытием тяжёлой карточки.
 ///
-/// Здесь только то, что относится к роли: чем занята, модель и резерв,
+/// Здесь только то, что относится к роли: чем занята, модель,
 /// инструкции, инструменты, навыки, права и короткий итог работы. Pi,
 /// провайдеры, OAuth и credentials не показываются.
 struct AgentProfileScreen: View {
@@ -12,7 +12,6 @@ struct AgentProfileScreen: View {
     @Environment(TaskStore.self) private var taskStore
     @Environment(SessionStore.self) private var session
     @State private var viewModel = AgentsViewModel()
-    @State private var isEditingModel = false
     @State private var sheetTaskID: String?
 
     private var profile: RoleProfile? { viewModel.profile(for: roleID) }
@@ -36,11 +35,7 @@ struct AgentProfileScreen: View {
         .task {
             viewModel.configure(currentUser: session.currentUser)
             await viewModel.load()
-        }
-        .sheet(isPresented: $isEditingModel) {
-            if let profile {
-                RoleModelEditorSheet(profile: profile, viewModel: viewModel)
-            }
+            await viewModel.loadModelsIfNeeded()
         }
         .sheet(item: Binding(
             get: { sheetTaskID.map(TaskRef.init) },
@@ -106,17 +101,7 @@ struct AgentProfileScreen: View {
 
             TFDivider(inset: TFSpacing.lg)
 
-            actionRow(
-                title: "Модель",
-                value: profile.model ?? "не задана",
-                detail: nil,
-                action: canEdit ? { isEditingModel = true } : nil
-            )
-
-            if !profile.fallbacks.isEmpty {
-                TFDivider(inset: TFSpacing.lg)
-                fallbacksBlock(profile.fallbacks)
-            }
+            modelMenuRow(profile)
 
             TFDivider(inset: TFSpacing.lg)
             valueRow(
@@ -227,21 +212,88 @@ struct AgentProfileScreen: View {
         .contentShape(Rectangle())
     }
 
+    /// Строка «Модель» с системным меню выбора. Показываем только ДОСТУПНЫЕ
+    /// модели (провайдер авторизован — ключ есть и жив), сгруппированные по
+    /// провайдеру: каталог Pi отдаёт 1000+ моделей всех провайдеров, включая
+    /// недоступные, — весь этот список показывать нельзя (владелец 20.09.2026).
+    /// Выбор применяется сразу.
+    ///
+    /// РЕЗЕРВНЫЕ МОДЕЛИ УДАЛЕНЫ (20.09.2026) — не по прихоти, а потому что они
+    /// НИГДЕ не использовались и ни на что не влияли: эскалацию при сбое делает
+    /// глобальная лесенка (`model_ladder` / `nextModelForFailure` в
+    /// `agent-state.ts`), а роль-специфичную цепочку primary+fallbacks читала
+    /// единственная функция `nextModelForProfile` в `roleRouting.ts`, и она не
+    /// вызывается нигде. В запуск Pi уходит только основная модель
+    /// (`PiRuntimeAdapter`: `routing.models[role]`). То есть ручка «резервная»
+    /// была пустой. Убраны и «Резервные модели» из карточки, и шторка-редактор
+    /// `RoleModelEditorSheet`. Возвращать — только вместе с подключением
+    /// резервных к реальной эскалации (серверная работа), иначе это самообман.
     @ViewBuilder
-    private func fallbacksBlock(_ fallbacks: [String]) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Text("Резервные модели")
-                .tfText(.meta)
-                .foregroundStyle(Color.tfDim)
-            ForEach(Array(fallbacks.enumerated()), id: \.offset) { index, model in
-                Text("\(index + 1). \(model)")
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
+    private func modelMenuRow(_ profile: RoleProfile) -> some View {
+        if canEdit {
+            Menu {
+                ForEach(modelProviderGroups) { group in
+                    Section(modelProviderTitle(group.provider)) {
+                        ForEach(group.models) { model in
+                            Button {
+                                setModel(model.id, role: profile.role)
+                            } label: {
+                                if model.id == profile.model {
+                                    Label(model.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(model.displayName)
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                rowContent(
+                    title: "Модель",
+                    value: profile.model ?? "не задана",
+                    detail: nil,
+                    showsChevron: true
+                )
             }
+            .buttonStyle(.plain)
+            .tint(Color.tfSub)
+        } else {
+            valueRow(title: "Модель", value: profile.model ?? "не задана", detail: nil)
         }
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func setModel(_ id: String, role: String) {
+        Task {
+            _ = await viewModel.updateModelPolicy(role: role, primary: id)
+        }
+    }
+
+    /// Доступные модели, сгруппированные по провайдеру (порядок — как в каталоге).
+    private var modelProviderGroups: [ModelGroup] {
+        var order: [String] = []
+        var byProvider: [String: [RuntimeModel]] = [:]
+        for model in viewModel.models where model.available {
+            if byProvider[model.provider] == nil { order.append(model.provider) }
+            if byProvider[model.provider, default: []].contains(where: { $0.id == model.id }) {
+                continue
+            }
+            byProvider[model.provider, default: []].append(model)
+        }
+        return order.map { ModelGroup(provider: $0, models: byProvider[$0] ?? []) }
+    }
+
+    /// Человеческие подписи провайдеров; неизвестный — как есть.
+    private func modelProviderTitle(_ provider: String) -> String {
+        switch provider {
+        case "anthropic": return "Anthropic"
+        case "openai", "openai-codex": return "OpenAI"
+        case "minimax", "minimax-cn": return "MiniMax"
+        case "opencode": return "OpenCode"
+        case "opencode-go": return "OpenCode Go"
+        case "google", "google-vertex": return "Google"
+        case "ollama": return "Ollama (на сервере)"
+        default: return provider
+        }
     }
 
     @ViewBuilder
@@ -267,114 +319,9 @@ struct AgentProfileScreen: View {
     }
 }
 
-// MARK: - Редактор модели роли
-
-/// Primary + упорядоченные fallback. Порядок fallback'ов — порядок
-/// эскалации, поэтому список перемещаемый, а не сортируемый.
-private struct RoleModelEditorSheet: View {
-    let profile: RoleProfile
-    let viewModel: AgentsViewModel
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var primary: String = ""
-    @State private var fallbacks: [String] = []
-    @State private var isSaving = false
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if viewModel.modelsLoading {
-                    HStack { ProgressView(); Text("Загружаем модели…").foregroundStyle(.secondary) }
-                }
-                if let msg = viewModel.modelsErrorMessage {
-                    Text(msg).foregroundStyle(Color.tfRed)
-                }
-
-                Section {
-                    Picker("Основная", selection: $primary) {
-                        ForEach(primaryChoices, id: \.self) { id in
-                            Text(label(for: id)).tag(id)
-                        }
-                    }
-                } header: {
-                    Text("Primary")
-                } footer: {
-                    Text("Модель, с которой роль начинает работу.")
-                }
-
-                Section {
-                    ForEach(fallbacks, id: \.self) { id in
-                        Text(label(for: id))
-                    }
-                    .onMove { from, to in fallbacks.move(fromOffsets: from, toOffset: to) }
-                    .onDelete { offsets in fallbacks.remove(atOffsets: offsets) }
-
-                    Menu {
-                        ForEach(addableChoices, id: \.self) { id in
-                            Button(label(for: id)) { fallbacks.append(id) }
-                        }
-                    } label: {
-                        Label("Добавить fallback", systemImage: "plus.circle")
-                    }
-                    .disabled(addableChoices.isEmpty)
-                } header: {
-                    Text("Fallback")
-                } footer: {
-                    Text("Порядок — порядок эскалации: если primary не справился, роль переходит к следующей сверху вниз.")
-                }
-            }
-            .navigationTitle("Модель роли")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Сохранить") {
-                        isSaving = true
-                        Task {
-                            let ok = await viewModel.updateModelPolicy(
-                                role: profile.role, primary: primary, fallbacks: fallbacks
-                            )
-                            isSaving = false
-                            if ok { dismiss() }
-                        }
-                    }
-                    .disabled(isSaving || primary.isEmpty)
-                }
-                ToolbarItem(placement: .topBarTrailing) { EditButton() }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .task {
-            await viewModel.loadModelsIfNeeded()
-            primary = profile.model ?? primaryChoices.first ?? ""
-            fallbacks = profile.fallbacks
-        }
-    }
-
-    private var primaryChoices: [String] {
-        var ids = orderedModelIDs
-        if let current = profile.model, !current.isEmpty, !ids.contains(current) {
-            ids.insert(current, at: 0)
-        }
-        return ids
-    }
-
-    private var addableChoices: [String] {
-        orderedModelIDs.filter { $0 != primary && !fallbacks.contains($0) }
-    }
-
-    private var orderedModelIDs: [String] {
-        var seen = Set<String>()
-        return viewModel.models.compactMap { model in
-            seen.insert(model.id).inserted ? model.id : nil
-        }
-    }
-
-    private func label(for id: String) -> String {
-        viewModel.models.first { $0.id == id }.map { model in
-            model.displayName == model.id ? id : "\(model.displayName) · \(id)"
-        } ?? id
-    }
+/// Группа доступных моделей одного провайдера для меню выбора «Модель».
+private struct ModelGroup: Identifiable {
+    let provider: String
+    let models: [RuntimeModel]
+    var id: String { provider }
 }
