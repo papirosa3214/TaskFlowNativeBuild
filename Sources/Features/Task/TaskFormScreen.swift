@@ -913,6 +913,9 @@ struct TaskFormScreen: View {
     private func subtaskDetails(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if isRunning, viewModel.activity.isActive {
+                if !viewModel.activity.actions.isEmpty {
+                    activityChips(viewModel.activity.actions)
+                }
                 if let text = viewModel.activity.text {
                     Text(text)
                         .tfText(.action)
@@ -942,6 +945,61 @@ struct TaskFormScreen: View {
             } else if isOwner, subtask.agentState == .blocked {
                 Button("Ответить") { replyingSubtask = subtask }
             }
+        }
+    }
+
+    /// Ярлычки действий агента у идущего шага: по иконке на каждый ВИД
+    /// действия (чтение/правка/поиск/запуск) плюс счётчик всех действий.
+    /// Владелец 20.09.2026: пока агент работает, должно быть видно, что он
+    /// предпринимал, — компактной полоской, как в референсе.
+    @ViewBuilder
+    private func activityChips(_ actions: [ApiTaskActivityAction]) -> some View {
+        HStack(spacing: TFSpacing.xs) {
+            ForEach(activityKinds(actions), id: \.self) { kind in
+                Image(systemName: activityIcon(kind))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.tfDim)
+                    .frame(width: 24, height: 24)
+                    .background(Color.tfCard2)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            Text("\(actions.count) \(pluralActions(actions.count))")
+                .tfText(.micro)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.sm)
+                .frame(height: 24)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    /// Виды действий в порядке первого появления, без повторов.
+    private func activityKinds(_ actions: [ApiTaskActivityAction]) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for action in actions where seen.insert(action.kind).inserted {
+            out.append(action.kind)
+        }
+        return out
+    }
+
+    private func activityIcon(_ kind: String) -> String {
+        switch kind {
+        case "read": "book"
+        case "edit": "chevron.left.forwardslash.chevron.right"
+        case "search": "magnifyingglass"
+        case "run": "terminal"
+        default: "ellipsis"
+        }
+    }
+
+    private func pluralActions(_ n: Int) -> String {
+        let mod100 = n % 100
+        if mod100 >= 11 && mod100 <= 14 { return "действий" }
+        switch n % 10 {
+        case 1: return "действие"
+        case 2, 3, 4: return "действия"
+        default: return "действий"
         }
     }
 
