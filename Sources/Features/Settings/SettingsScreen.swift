@@ -123,9 +123,9 @@ struct SettingsScreen: View {
     /// `VoiceModelsScreen` — локальные модели; теперь это разные пункты.
     private var aiSection: some View {
         section(title: "Искусственный интеллект", isExpanded: $aiExpanded) {
-            navRow(icon: "cpu", title: "Модели и провайдеры", route: .runtimeProviders)
+            navRow(icon: "cpu", title: "Агенты (модели и провайдеры)", route: .runtimeProviders)
             TFDivider(inset: rowDividerInset)
-            navRow(icon: "iphone", title: "На устройстве", route: .voiceModels)
+            navRow(icon: "iphone", title: "Приложение (телефон и сервер)", route: .voiceModels)
         }
     }
 
@@ -148,6 +148,10 @@ struct SettingsScreen: View {
     /// ApiUser/токена).
     private var serverSection: some View {
         section(title: "Сервер", isExpanded: $serverExpanded) {
+            if session.currentUser?.role == .owner {
+                SystemControlSection()
+                TFDivider(inset: rowDividerInset)
+            }
             ServerStatusSection()
             TFDivider(inset: rowDividerInset)
             RuntimeStatusRow()

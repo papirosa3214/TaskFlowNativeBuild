@@ -2,25 +2,27 @@ import SwiftUI
 import Observation
 import os
 
-// Управление системой на «Обзоре» — две ручки владельца рядом.
+// Управление системой в «Настройки → Сервер» — четыре ручки владельца рядом.
 //
 // Владелец 14.09.2026, дословно: «это по сути вся система, она либо
 // включена, либо выключена, и соответственно её режим — либо ручной, либо
-// автомат». Поэтому здесь нет ни «будильника» (`taskflow-trigger`), ни
-// «службы», ни «intake»: внутренние слова на экран не выносятся, владелец
-// видит состояние и режим.
+// автомат». Тогда ручки жили в «Настройки → Сервер»; в LOCK-151 их перенесли
+// на «Обзор», но владелец 20.09.2026 вернул их обратно: «перенести вот эти
+// все наши тумблеры и лампочки — система, режим, сначала проверка ревьюер и
+// расписание — всё-таки опять в настройки, в раздел сервер». Поэтому секция
+// снова рендерится в серверной секции настроек, а не на стартовом экране.
 //
-// ПОЧЕМУ ОБЕ ВМЕСТЕ И ПОЧЕМУ НА «ОБЗОРЕ». Раньше включение жило в
-// «Настройки → Сервер» строкой «Будильник (служба)», а режима постановки в
-// приложении не было вовсе — он существовал только серверной ручкой. Порознь
-// они вводят в заблуждение: «Автомат» при выключенной системе выглядит
-// работающим, хотя карточка уйдёт исполнителю, а звать его будет некому.
-// Рядом на стартовом экране это видно одним взглядом.
+// Внутренние слова («будильник», «служба», «intake») на экран не выносятся,
+// владелец видит состояние и режим. Подписи короткие: у каждой ручки тумблер
+// или лампа сами показывают своё состояние, словами его дублировать незачем
+// (просьба владельца 20.09.2026 — «убрать все лишние подписи»): у «Системы»
+// остаётся только момент обхода, у «Расписания» — только последний обход.
 //
-// Обе ручки owner-only на сервере (`/api/agent-service`,
+// Обе серверные ручки owner-only (`/api/agent-service`,
 // `/api/task-intake/settings` отвечают 403 остальным), поэтому не владельцу
-// секция не показывается вовсе — мёртвых переключателей в интерфейсе быть
-// не должно. Транспорт — `APIClient+SystemControl.swift` в `Core`.
+// секция не показывается вовсе — вызывающий её прячет, мёртвых
+// переключателей в интерфейсе быть не должно. Транспорт —
+// `APIClient+SystemControl.swift` в `Core`.
 
 @MainActor
 @Observable
@@ -180,8 +182,7 @@ struct SystemControlSection: View {
                 TFDivider(inset: rowDividerInset)
                 TFListRow(
                     icon: "slider.horizontal.3", iconStyle: .plain,
-                    title: "Режим",
-                    subtitle: modeSubtitle,
+                    title: "Автоодобрение задачи",
                     trailing: AnyView(TFToggle(isOn: automaticBinding)
                         .disabled(!viewModel.isModeKnown || viewModel.isSavingMode)),
                     titleStyle: .action,
@@ -190,8 +191,7 @@ struct SystemControlSection: View {
                 TFDivider(inset: rowDividerInset)
                 TFListRow(
                     icon: "checkmark.seal", iconStyle: .plain,
-                    title: "Сначала проверка Reviewer",
-                    subtitle: reviewerDefaultSubtitle,
+                    title: "Авторевьюер",
                     trailing: AnyView(TFToggle(isOn: reviewerDefaultBinding)
                         .disabled(!viewModel.isReviewerDefaultKnown || viewModel.isSavingReviewerDefault)),
                     titleStyle: .action,
@@ -199,14 +199,14 @@ struct SystemControlSection: View {
                 )
                 // Расписание — отдельная лампа: воркер живёт независимо от
                 // будильника и делает запуск по времени и отложенные повторы.
+                // Лампа и её подпись собраны ТЕМ ЖЕ видом, что у «Pi Runtime»
+                // ниже (кружок 7pt слева от значения), чтобы в одной секции не
+                // было двух разных способов показать состояние.
                 TFDivider(inset: rowDividerInset)
                 TFListRow(
                     icon: "clock.arrow.circlepath", iconStyle: .plain,
                     title: "Расписание",
-                    subtitle: schedulerSubtitle,
-                    trailing: AnyView(
-                        Circle().fill(schedulerLampColor).frame(width: 10, height: 10)
-                    ),
+                    trailing: AnyView(schedulerAccessory),
                     titleStyle: .action,
                     verticalPadding: TFSpacing.xs
                 )
@@ -239,9 +239,10 @@ struct SystemControlSection: View {
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
 
-    // Заголовок строки ПОСТОЯННЫЙ («Система», «Режим»), состояние живёт в
-    // подписи и в самом тумблере: меняющийся заголовок читался бы двояко —
-    // это текущее положение или то, что случится по нажатию.
+    // Заголовок строки ПОСТОЯННЫЙ («Система», «Автоодобрение задачи»,
+    // «Авторевьюер», «Расписание»), состояние живёт в тумблере/лампе:
+    // меняющийся заголовок читался бы двояко — это текущее положение или то,
+    // что случится по нажатию.
     //
     // Подписи короткие намеренно: `TFListRow` режет subtitle в одну строку
     // (`lineLimit(1)`), длинная фраза оборвалась бы многоточием.
@@ -249,17 +250,20 @@ struct SystemControlSection: View {
     /// Пока состояние не прочитано — говорим об этом прямо. Показать
     /// «Остановлена» там, где мы просто не дозвонились до сервера, — соврать
     /// владельцу: он решит, что систему кто-то выключил, и полезет включать.
-    private var systemSubtitle: String {
+    /// А когда система точно выключена, молчим: об этом и так говорит
+    /// тумблер (просьба владельца 20.09.2026 — убрать слово «Остановлена»).
+    /// В подписи остаётся только то, что тумблер показать не может, — момент
+    /// ближайшего обхода.
+    private var systemSubtitle: String? {
         guard viewModel.isSystemStateKnown else { return "Нет связи с сервером" }
-        guard viewModel.isSystemOn else { return "Остановлена" }
-        guard let scan = nextScanText else { return "Работает" }
-        return "Работает · \(scan)"
+        guard viewModel.isSystemOn else { return nil }
+        return nextScanText
     }
 
     /// «обход в 14:26» — момент ближайшего обхода доски.
     ///
     /// `nil` — сервер не сообщил срок (старая версия или система стоит): тогда
-    /// подпись остаётся прежней, без выдуманного времени.
+    /// подпись пуста, без выдуманного времени.
     private var nextScanText: String? {
         guard let next = viewModel.nextScanAt else { return nil }
         // Срок уже прошёл, а состояние ещё не перечитано — значит обход
@@ -277,13 +281,6 @@ struct SystemControlSection: View {
         return f
     }()
 
-    /// Подпись говорит, что случится с надиктовкой: «Ручной» и «Автомат»
-    /// сами по себе о последствии не сообщают.
-    private var modeSubtitle: String {
-        guard viewModel.isModeKnown else { return "Нет связи с сервером" }
-        return viewModel.mode == .automatic ? "Автомат, без подтверждения" : "Ручной, ждёт вашего флага"
-    }
-
     private var systemBinding: Binding<Bool> {
         Binding(
             get: { viewModel.isSystemOn },
@@ -298,13 +295,6 @@ struct SystemControlSection: View {
         )
     }
 
-    private var reviewerDefaultSubtitle: String {
-        guard viewModel.isReviewerDefaultKnown else { return "Нет связи с сервером" }
-        return viewModel.reviewerFirstDefault
-            ? "Новые задачи проверяет Reviewer"
-            : "Новые задачи сразу к вам"
-    }
-
     private var reviewerDefaultBinding: Binding<Bool> {
         Binding(
             get: { viewModel.reviewerFirstDefault },
@@ -312,15 +302,30 @@ struct SystemControlSection: View {
         )
     }
 
-    /// Подпись расписания: работает ли воркер и когда был последний обход.
-    /// Молчит дольше 15 минут при активном таймере — это тихий отказ.
-    private var schedulerSubtitle: String {
-        guard let s = viewModel.scheduler else { return "Нет данных" }
-        guard s.active else { return "Не работает" }
-        guard let last = s.lastRunAt else { return "Работает" }
-        let mins = Int(Date().timeIntervalSince(last) / 60)
-        if mins > 15 { return "Молчит \(mins) мин — проверьте" }
-        return "Работает · обход \(Self.scanTimeFormatter.string(from: last))"
+    /// Лампа расписания — ровно тот же вид, что у «Pi Runtime»:
+    /// `Circle` 7pt слева от значения. Работает воркер или нет, показывает
+    /// цвет (зелёный — жив и обходил доску недавно, красный — молчит дольше
+    /// 15 минут, серый — выключен); словами это не дублируем, справа остаётся
+    /// только время последнего обхода (просьба владельца 20.09.2026: «либо
+    /// лампочку убирай, либо надпись убирай, а вот последний обход имеет
+    /// смысл показывать»).
+    @ViewBuilder
+    private var schedulerAccessory: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(schedulerLampColor)
+                .frame(width: 7, height: 7)
+            Text(schedulerLastRunText)
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+                .lineLimit(1)
+                .fixedSize()
+        }
+    }
+
+    private var schedulerLastRunText: String {
+        guard let last = viewModel.scheduler?.lastRunAt else { return "обходов ещё не было" }
+        return "Последний обход \(Self.scanTimeFormatter.string(from: last))"
     }
 
     private var schedulerLampColor: Color {
