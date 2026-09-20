@@ -53,13 +53,25 @@ struct VoiceModelsScreen: View {
         case actionExplain
     }
 
+    /// Штатный системный промпт серверного observer'а (`activity.ts`) —
+    /// показываем его прямо в окошке «Расшифровка действий», чтобы владелец
+    /// видел, что уходит в модель. Пусто — сервер берёт этот же.
+    static let observerDefaultPrompt =
+        "Ты наблюдаешь за работой ИИ-агента над задачей в трекере. По названию " +
+        "задачи, текущему шагу и списку последних технических действий выдай " +
+        "ОДНУ короткую фразу по-русски (до 60 символов) о том, ЗАЧЕМ агент это " +
+        "делает — намерение, а не пересказ вызовов. Без кавычек, без markdown, " +
+        "без пояснений — только сама фраза."
+
     @State private var promptsStore = AIPromptsStore.shared
     /// Дебаунс-отправка промптов на сервер: при каждом нажатии клавиши
     /// отменяем предыдущую задачу и через 0.6с шлём актуальное значение.
     @State private var extractSaveTask: Task<Void, Never>?
     @State private var journalSaveTask: Task<Void, Never>?
+    @State private var activitySaveTask: Task<Void, Never>?
     @State private var extractSaveState: PromptSaveState = .saved
     @State private var journalSaveState: PromptSaveState = .saved
+    @State private var activitySaveState: PromptSaveState = .saved
 
     var body: some View {
         VStack(spacing: 0) {
@@ -94,11 +106,13 @@ struct VoiceModelsScreen: View {
         .onDisappear {
             extractSaveTask?.cancel()
             journalSaveTask?.cancel()
+            activitySaveTask?.cancel()
             // Последний flush, если пользователь ушёл со страницы на полуслове.
             // @MainActor — `save*` помечены, иначе Swift 6 ругается на
             // пересечение акторов.
             Task { @MainActor in await promptsStore.saveExtractTasksPrompt() }
             Task { @MainActor in await promptsStore.saveJournalAssistPrompt() }
+            Task { @MainActor in await promptsStore.saveActivityPrompt() }
         }
     }
 
@@ -154,13 +168,6 @@ struct VoiceModelsScreen: View {
                         } label: {
                             Label("Заменить модель", systemImage: "arrow.triangle.2.circlepath")
                         }
-                        if dictation.modelState == .ready {
-                            Button(role: .destructive) {
-                                showDeleteConfirm = true
-                            } label: {
-                                Label("Удалить модель", systemImage: "trash")
-                            }
-                        }
                         Button {
                             dictation.setEnabled(!dictation.isEnabled)
                         } label: {
@@ -168,6 +175,14 @@ struct VoiceModelsScreen: View {
                                 dictation.isEnabled ? "Выключить диктовку" : "Включить диктовку",
                                 systemImage: dictation.isEnabled ? "mic.slash" : "mic"
                             )
+                        }
+                        // Разрушительное — всегда последним, ниже «выключить».
+                        if dictation.modelState == .ready {
+                            Button(role: .destructive) {
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("Удалить модель", systemImage: "trash")
+                            }
                         }
                     }
 
@@ -262,6 +277,19 @@ struct VoiceModelsScreen: View {
                     onCommit: { scheduleSave(scope: .journalAssist) },
                     onReset: { resetPrompt(scope: .journalAssist) }
                 )
+            case .actionExplain:
+                promptEditor(
+                    title: "Системный промпт для расшифровки действий",
+                    subtitle: "Как серверная модель объясняет, чем занят агент, в ленте активности карточки",
+                    // Показываем штатный промпт observer'а прямо в поле — чтобы
+                    // владелец видел, что именно уходит в модель. Пусто — сервер
+                    // возьмёт этот же штатный.
+                    placeholder: Self.observerDefaultPrompt,
+                    text: $store.activityPrompt,
+                    saveState: activitySaveState,
+                    onCommit: { scheduleSave(scope: .actionExplain) },
+                    onReset: { resetPrompt(scope: .actionExplain) }
+                )
             default:
                 EmptyView()
             }
@@ -352,7 +380,7 @@ struct VoiceModelsScreen: View {
         }
     }
 
-    private enum PromptScope { case extractTasks, journalAssist }
+    private enum PromptScope { case extractTasks, journalAssist, actionExplain }
 
     private enum PromptSaveState: Equatable {
         case saved
@@ -389,6 +417,18 @@ struct VoiceModelsScreen: View {
                     journalSaveState = saveStateFromStore(scope: .journalAssist)
                 }
             }
+        case .actionExplain:
+            activitySaveTask?.cancel()
+            activitySaveState = .saving
+            activitySaveTask = Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                if Task.isCancelled { return }
+                await promptsStore.saveActivityPrompt()
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    activitySaveState = saveStateFromStore(scope: .actionExplain)
+                }
+            }
         }
     }
 
@@ -396,6 +436,7 @@ struct VoiceModelsScreen: View {
         switch scope {
         case .extractTasks: promptsStore.extractTasksPrompt = ""
         case .journalAssist: promptsStore.journalAssistPrompt = ""
+        case .actionExplain: promptsStore.activityPrompt = ""
         }
         scheduleSave(scope: scope)
     }
@@ -457,12 +498,12 @@ struct VoiceModelsScreen: View {
                     .buttonStyle(TFTapRowStyle())
                     if expandedRow == .actionExplain {
                         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                            Text("Пока карточка задачи открыта, сервер сам зовёт локальную модель и кладёт готовую фразу о том, чем занят агент, в ленту активности. На телефоне для этого ничего качать не нужно — расшифровка идёт на .110.")
+                            Text("Пока карточка задачи открыта, сервер сам зовёт локальную модель и кладёт готовую фразу о том, чем занят агент, в ленту активности. На телефоне для этого ничего качать не нужно — расшифровка идёт на .110. Ниже — её системный промпт.")
                                 .tfText(.action)
                                 .foregroundStyle(Color.tfSub)
+                                .padding(.horizontal, TFSpacing.lg)
+                            promptExpansion(.actionExplain)
                         }
-                        .padding(.horizontal, TFSpacing.lg)
-                        .padding(.bottom, TFSpacing.md)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }

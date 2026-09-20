@@ -25,9 +25,13 @@ final class AIPromptsStore {
     /// ему нужны; сервер может принимать любые строки в `scope`.
     static let scopeExtractTasks = "extract_tasks"
     static let scopeJournalAssist = "journal_assist"
+    /// Промпт расшифровки действий агента — читает серверный observer
+    /// (`activity.ts`), подмешивая его вместо штатного, когда он задан.
+    static let scopeActivity = "activity"
 
     private static let extractTasksKey = "taskflow_ai_prompt_extract_tasks"
     private static let journalAssistKey = "taskflow_ai_prompt_journal_assist"
+    private static let activityKey = "taskflow_ai_prompt_activity"
 
     /// Последняя ошибка сохранения — `nil`, если синхронизировано. UI
     /// показывает её рядом с полем как «не сохранено: <причина>».
@@ -42,6 +46,9 @@ final class AIPromptsStore {
     var journalAssistPrompt: String {
         didSet { onPromptChanged(scope: Self.scopeJournalAssist, key: Self.journalAssistKey, value: journalAssistPrompt) }
     }
+    var activityPrompt: String {
+        didSet { onPromptChanged(scope: Self.scopeActivity, key: Self.activityKey, value: activityPrompt) }
+    }
 
     private let api: APIClient
 
@@ -52,6 +59,7 @@ final class AIPromptsStore {
         self.api = api
         extractTasksPrompt = UserDefaults.standard.string(forKey: Self.extractTasksKey) ?? ""
         journalAssistPrompt = UserDefaults.standard.string(forKey: Self.journalAssistKey) ?? ""
+        activityPrompt = UserDefaults.standard.string(forKey: Self.activityKey) ?? ""
     }
 
     /// Фоновая синхронизация с сервера. Дёргается при старте экрана настроек.
@@ -74,6 +82,11 @@ final class AIPromptsStore {
                     if entry.prompt != journalAssistPrompt {
                         journalAssistPrompt = entry.prompt
                         UserDefaults.standard.set(entry.prompt, forKey: Self.journalAssistKey)
+                    }
+                case Self.scopeActivity:
+                    if entry.prompt != activityPrompt {
+                        activityPrompt = entry.prompt
+                        UserDefaults.standard.set(entry.prompt, forKey: Self.activityKey)
                     }
                 default:
                     break
@@ -102,6 +115,10 @@ final class AIPromptsStore {
         await save(scope: Self.scopeJournalAssist, key: Self.journalAssistKey, value: journalAssistPrompt)
     }
 
+    func saveActivityPrompt() async {
+        await save(scope: Self.scopeActivity, key: Self.activityKey, value: activityPrompt)
+    }
+
     // MARK: - Внутреннее
 
     /// `didSet` срабатывает СИНХРОННО при каждом нажатии клавиши в `TextEditor`.
@@ -128,6 +145,10 @@ final class AIPromptsStore {
             case Self.scopeJournalAssist:
                 if updated.prompt != journalAssistPrompt {
                     journalAssistPrompt = updated.prompt
+                }
+            case Self.scopeActivity:
+                if updated.prompt != activityPrompt {
+                    activityPrompt = updated.prompt
                 }
             default: break
             }
