@@ -51,6 +51,7 @@ struct VoiceModelsScreen: View {
         case extractTasks
         case journalAssist
         case actionExplain
+        case taskIntake
     }
 
     @State private var promptsStore = AIPromptsStore.shared
@@ -59,9 +60,11 @@ struct VoiceModelsScreen: View {
     @State private var extractSaveTask: Task<Void, Never>?
     @State private var journalSaveTask: Task<Void, Never>?
     @State private var activitySaveTask: Task<Void, Never>?
+    @State private var taskIntakeSaveTask: Task<Void, Never>?
     @State private var extractSaveState: PromptSaveState = .saved
     @State private var journalSaveState: PromptSaveState = .saved
     @State private var activitySaveState: PromptSaveState = .saved
+    @State private var taskIntakeSaveState: PromptSaveState = .saved
 
     var body: some View {
         VStack(spacing: 0) {
@@ -97,12 +100,14 @@ struct VoiceModelsScreen: View {
             extractSaveTask?.cancel()
             journalSaveTask?.cancel()
             activitySaveTask?.cancel()
+            taskIntakeSaveTask?.cancel()
             // Последний flush, если пользователь ушёл со страницы на полуслове.
             // @MainActor — `save*` помечены, иначе Swift 6 ругается на
             // пересечение акторов.
             Task { @MainActor in await promptsStore.saveExtractTasksPrompt() }
             Task { @MainActor in await promptsStore.saveJournalAssistPrompt() }
             Task { @MainActor in await promptsStore.saveActivityPrompt() }
+            Task { @MainActor in await promptsStore.saveTaskIntakePrompt() }
         }
     }
 
@@ -271,6 +276,16 @@ struct VoiceModelsScreen: View {
                     onCommit: { scheduleSave(scope: .actionExplain) },
                     onReset: { resetPrompt(scope: .actionExplain) }
                 )
+            case .taskIntake:
+                promptEditor(
+                    title: "Как собирать постановку",
+                    subtitle: "Правила разбора текста в родителя с дочерними карточками: стиль названия, глубина разбиения, когда одна карточка, а когда дерево",
+                    placeholder: promptPlaceholder(AIPromptsStore.scopeTaskIntake),
+                    text: $store.taskIntakePrompt,
+                    saveState: taskIntakeSaveState,
+                    onCommit: { scheduleSave(scope: .taskIntake) },
+                    onReset: { resetPrompt(scope: .taskIntake) }
+                )
             default:
                 EmptyView()
             }
@@ -370,7 +385,7 @@ struct VoiceModelsScreen: View {
         }
     }
 
-    private enum PromptScope { case extractTasks, journalAssist, actionExplain }
+    private enum PromptScope { case extractTasks, journalAssist, actionExplain, taskIntake }
 
     private enum PromptSaveState: Equatable {
         case saved
@@ -419,6 +434,18 @@ struct VoiceModelsScreen: View {
                     activitySaveState = saveStateFromStore(scope: .actionExplain)
                 }
             }
+        case .taskIntake:
+            taskIntakeSaveTask?.cancel()
+            taskIntakeSaveState = .saving
+            taskIntakeSaveTask = Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                if Task.isCancelled { return }
+                await promptsStore.saveTaskIntakePrompt()
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    taskIntakeSaveState = saveStateFromStore(scope: .taskIntake)
+                }
+            }
         }
     }
 
@@ -427,6 +454,7 @@ struct VoiceModelsScreen: View {
         case .extractTasks: promptsStore.extractTasksPrompt = ""
         case .journalAssist: promptsStore.journalAssistPrompt = ""
         case .actionExplain: promptsStore.activityPrompt = ""
+        case .taskIntake: promptsStore.taskIntakePrompt = ""
         }
         scheduleSave(scope: scope)
     }
@@ -488,6 +516,23 @@ struct VoiceModelsScreen: View {
                     .buttonStyle(TFTapRowStyle())
                     if expandedRow == .actionExplain {
                         promptExpansion(.actionExplain)
+                    }
+
+                    // Слой владельца «как собирать постановку» (scope
+                    // task_intake): им руководствуется машинная постановка,
+                    // когда из текста собирается родитель + дочерние карточки.
+                    TFDivider(inset: rowDividerInset).padding(.trailing, rowDividerInset)
+                    Button { toggleExpanded(.taskIntake) } label: {
+                        VoiceModelRow(
+                            icon: "square.stack.3d.up",
+                            title: "Постановка задач",
+                            subtitle: "\(effectiveServerModelName) · текст в дерево карточек",
+                            value: serverModelValue
+                        )
+                    }
+                    .buttonStyle(TFTapRowStyle())
+                    if expandedRow == .taskIntake {
+                        promptExpansion(.taskIntake)
                     }
                 }
             }

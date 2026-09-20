@@ -28,10 +28,16 @@ final class AIPromptsStore {
     /// Промпт расшифровки действий агента — читает серверный observer
     /// (`activity.ts`), подмешивая его вместо штатного, когда он задан.
     static let scopeActivity = "activity"
+    /// Слой владельца «как собирать постановку» — стиль названия, глубина
+    /// разбиения, когда одна карточка, а когда дерево. Читает серверный
+    /// `structureDictationToCards` (`scope task_intake`); формат ответа
+    /// пользователь всё равно переопределить не может — только смысл.
+    static let scopeTaskIntake = "task_intake"
 
     private static let extractTasksKey = "taskflow_ai_prompt_extract_tasks"
     private static let journalAssistKey = "taskflow_ai_prompt_journal_assist"
     private static let activityKey = "taskflow_ai_prompt_activity"
+    private static let taskIntakeKey = "taskflow_ai_prompt_task_intake"
 
     /// Последняя ошибка сохранения — `nil`, если синхронизировано. UI
     /// показывает её рядом с полем как «не сохранено: <причина>».
@@ -58,6 +64,9 @@ final class AIPromptsStore {
     var activityPrompt: String {
         didSet { onPromptChanged(scope: Self.scopeActivity, key: Self.activityKey, value: activityPrompt) }
     }
+    var taskIntakePrompt: String {
+        didSet { onPromptChanged(scope: Self.scopeTaskIntake, key: Self.taskIntakeKey, value: taskIntakePrompt) }
+    }
 
     private let api: APIClient
 
@@ -69,6 +78,7 @@ final class AIPromptsStore {
         extractTasksPrompt = UserDefaults.standard.string(forKey: Self.extractTasksKey) ?? ""
         journalAssistPrompt = UserDefaults.standard.string(forKey: Self.journalAssistKey) ?? ""
         activityPrompt = UserDefaults.standard.string(forKey: Self.activityKey) ?? ""
+        taskIntakePrompt = UserDefaults.standard.string(forKey: Self.taskIntakeKey) ?? ""
     }
 
     /// Фоновая синхронизация с сервера. Дёргается при старте экрана настроек.
@@ -97,6 +107,11 @@ final class AIPromptsStore {
                     if entry.prompt != activityPrompt {
                         activityPrompt = entry.prompt
                         UserDefaults.standard.set(entry.prompt, forKey: Self.activityKey)
+                    }
+                case Self.scopeTaskIntake:
+                    if entry.prompt != taskIntakePrompt {
+                        taskIntakePrompt = entry.prompt
+                        UserDefaults.standard.set(entry.prompt, forKey: Self.taskIntakeKey)
                     }
                 default:
                     break
@@ -129,6 +144,10 @@ final class AIPromptsStore {
         await save(scope: Self.scopeActivity, key: Self.activityKey, value: activityPrompt)
     }
 
+    func saveTaskIntakePrompt() async {
+        await save(scope: Self.scopeTaskIntake, key: Self.taskIntakeKey, value: taskIntakePrompt)
+    }
+
     // MARK: - Внутреннее
 
     /// `didSet` срабатывает СИНХРОННО при каждом нажатии клавиши в `TextEditor`.
@@ -159,6 +178,10 @@ final class AIPromptsStore {
             case Self.scopeActivity:
                 if updated.prompt != activityPrompt {
                     activityPrompt = updated.prompt
+                }
+            case Self.scopeTaskIntake:
+                if updated.prompt != taskIntakePrompt {
+                    taskIntakePrompt = updated.prompt
                 }
             default: break
             }
