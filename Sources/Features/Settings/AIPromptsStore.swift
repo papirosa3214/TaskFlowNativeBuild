@@ -37,6 +37,15 @@ final class AIPromptsStore {
     /// показывает её рядом с полем как «не сохранено: <причина>».
     var lastSaveError: String?
 
+    /// Штатные серверные промпты по скоупам (с сервера). Показываются
+    /// placeholder'ом в окошке, чтобы владелец видел системный промпт целиком.
+    var defaultPrompts: [String: String] = [:]
+
+    /// Дефолт для скоупа — то, что уходит в модель, когда поле пустое.
+    func defaultPrompt(for scope: String) -> String? {
+        defaultPrompts[scope].flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     /// `true`, пока идёт фоновая синхронизация при старте.
     private(set) var isRefreshing = false
 
@@ -70,8 +79,9 @@ final class AIPromptsStore {
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            let remote = try await api.aiUserPrompts()
-            for entry in remote {
+            let payload = try await api.aiUserPrompts()
+            defaultPrompts = payload.defaults
+            for entry in payload.prompts {
                 switch entry.scope {
                 case Self.scopeExtractTasks:
                     if entry.prompt != extractTasksPrompt {

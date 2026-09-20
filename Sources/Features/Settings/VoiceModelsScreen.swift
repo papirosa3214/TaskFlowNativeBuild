@@ -253,7 +253,7 @@ struct VoiceModelsScreen: View {
                 promptEditor(
                     title: "Системный промпт для задач",
                     subtitle: "Что серверная модель учитывает при разборе диктовки в задачи",
-                    placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
+                    placeholder: promptPlaceholder(AIPromptsStore.scopeExtractTasks),
                     text: $store.extractTasksPrompt,
                     saveState: extractSaveState,
                     onCommit: { scheduleSave(scope: .extractTasks) },
@@ -263,7 +263,7 @@ struct VoiceModelsScreen: View {
                 promptEditor(
                     title: "Системный промпт для журнала",
                     subtitle: "Что серверная модель учитывает при «продолжить / сократить / развить» в Дневнике",
-                    placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
+                    placeholder: promptPlaceholder(AIPromptsStore.scopeJournalAssist),
                     text: $store.journalAssistPrompt,
                     saveState: journalSaveState,
                     onCommit: { scheduleSave(scope: .journalAssist) },
@@ -273,7 +273,7 @@ struct VoiceModelsScreen: View {
                 promptEditor(
                     title: "Системный промпт для расшифровки действий",
                     subtitle: "Что серверная модель учитывает, объясняя, чем занят агент",
-                    placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
+                    placeholder: promptPlaceholder(AIPromptsStore.scopeActivity),
                     text: $store.activityPrompt,
                     saveState: activitySaveState,
                     onCommit: { scheduleSave(scope: .actionExplain) },
@@ -288,6 +288,15 @@ struct VoiceModelsScreen: View {
         }
         .padding(.bottom, TFSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Placeholder для поля промпта: показываем ШТАТНЫЙ серверный промпт —
+    /// ровно он применяется, пока поле пустое. Он полупрозрачный и исчезает
+    /// при вводе первой буквы (так устроен редактор). Сервер не отдал дефолты —
+    /// обычная короткая подсказка.
+    private func promptPlaceholder(_ scope: String) -> String {
+        promptsStore.defaultPrompt(for: scope)
+            ?? "Оставьте пустым — сервер возьмёт свой промпт по умолчанию"
     }
 
     @ViewBuilder
