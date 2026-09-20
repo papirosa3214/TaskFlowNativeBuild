@@ -20,6 +20,8 @@ struct AgentProfileScreen: View {
     @State private var sheetTaskID: String?
     /// Развёрнута ли инструкция роли (тап по строке «Инструкции»).
     @State private var isInstructionsExpanded = false
+    /// Развёрнут ли список инструментов MCP (тап по строке «Инструменты»).
+    @State private var isToolsExpanded = false
 
     private var profile: RoleProfile? { viewModel.profile(for: roleID) }
 
@@ -110,11 +112,10 @@ struct AgentProfileScreen: View {
             }
 
             section(title: "Возможности") {
-                infoRow(
-                    icon: "wrench.and.screwdriver",
-                    title: "Инструменты",
-                    subtitle: joined(profile.tools, empty: "не заданы")
-                )
+                toolsRow(profile)
+                if isToolsExpanded && !profile.tools.isEmpty {
+                    toolsBlock(profile.tools)
+                }
                 rowDivider
                 infoRow(
                     icon: "graduationcap",
@@ -277,6 +278,88 @@ struct AgentProfileScreen: View {
             .padding(.horizontal, TFSpacing.lg)
             .padding(.bottom, TFSpacing.md)
     }
+
+    /// Строка «Инструменты» — как раздел MCP: имя сервера, статус-точка,
+    /// тап раскрывает русский список. Владелец 20.09.2026: сырые английские
+    /// имена (`taskflow_create_task`) на экране не нужны.
+    @ViewBuilder
+    private func toolsRow(_ profile: RoleProfile) -> some View {
+        let connected = !profile.tools.isEmpty
+        infoRow(
+            icon: "puzzlepiece.extension",
+            title: "Инструменты",
+            subtitle: "TaskFlow MCP",
+            value: connected ? "подключён" : "не подключён",
+            dot: connected ? .ok : .off,
+            action: connected ? {
+                withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                    isToolsExpanded.toggle()
+                }
+            } : nil
+        )
+    }
+
+    /// Список инструментов MCP по-русски: «Создать задачу — …».
+    @ViewBuilder
+    private func toolsBlock(_ tools: [String]) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            ForEach(tools, id: \.self) { tool in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Self.toolPresentation[tool]?.name ?? Self.humanizedTool(tool))
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                    if let text = Self.toolPresentation[tool]?.description {
+                        Text(text)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.bottom, TFSpacing.md)
+    }
+
+    private static func humanizedTool(_ tool: String) -> String {
+        tool.replacingOccurrences(of: "taskflow_", with: "")
+            .replacingOccurrences(of: "_", with: " ")
+    }
+
+    /// Русские подписи инструментов MCP. Источник смысла — `mcp_server.py`
+    /// (`TOOLS[...].description`); здесь — короткая презентационная карта для
+    /// экрана (как `roleSubtitle` для ролей). Добавили инструмент на сервере —
+    /// допиши строку и сюда.
+    private static let toolPresentation: [String: (name: String, description: String)] = [
+        "taskflow_my_tasks": ("Мои задачи", "Задачи, назначенные на роль: свободные, в работе, на проверке, заблокированные."),
+        "taskflow_task": ("Карточка задачи", "Задача целиком: описание, шаги, лента комментариев и событий."),
+        "taskflow_claim": ("Взять в работу", "Забрать задачу себе. Дальше аренду нужно продлевать."),
+        "taskflow_heartbeat": ("Продлить аренду", "Сигнал, что работа идёт: без него задача считается брошенной."),
+        "taskflow_state": ("Сменить состояние", "Сдать на проверку, заблокировать или вернуться в работу. Нужен комментарий."),
+        "taskflow_review": ("Вердикт проверки", "Одобрить результат или вернуть задачу в работу."),
+        "taskflow_comment": ("Комментарий", "Написать в ленту задачи; можно приложить файлы — владелец увидит их в карточке."),
+        "taskflow_subtask_done": ("Закрыть шаг", "Отметить шаг сделанным с коротким итогом."),
+        "taskflow_subtask_add": ("Добавить шаг", "Вставить шаг в задачу — в конец или сразу за указанным."),
+        "taskflow_rules": ("Правила учёта", "Правила ведения задач, как их требует сервер."),
+        "taskflow_runtime": ("Рантайм", "Какие провайдеры и модели реально доступны сейчас."),
+        "taskflow_status": ("Состояние системы", "Что происходит: служба, кто что делает, что брошено, что ждёт проверки."),
+        "taskflow_agents": ("Команда", "Кто есть в команде и кто на связи."),
+        "taskflow_chat_send": ("Сообщение в чат", "Написать в канал координации с указанием адресата."),
+        "taskflow_chat_typing": ("«Печатает…»", "Показать, что ответ готовится, а не тишина."),
+        "taskflow_chat_read": ("История чата", "Свежие сообщения канала координации."),
+        "taskflow_subtask_work": ("Работа над шагом", "Отметить, что взялся за шаг, упёрся или закончил."),
+        "taskflow_projects": ("Проекты", "Список проектов и их идентификаторов."),
+        "taskflow_project_tasks": ("Задачи проекта", "Все задачи проекта, отсортированные по сроку."),
+        "taskflow_create_project": ("Создать проект", "Завести проект под задачу вместе с папкой документации."),
+        "taskflow_create_task": ("Создать задачу", "Завести задачу, при желании со списком шагов."),
+        "taskflow_suggest_subtasks": ("Разбить на шаги", "Умная разбивка задачи на шаги той же AI-моделью, что у владельца."),
+        "taskflow_structure_dictation": ("Причесать текст", "Из сырого или надиктованного текста собрать чистую задачу: заголовок, описание, шаги, срок."),
+        "taskflow_docs": ("Документация", "Папка документации проекта и всё, что в ней лежит."),
+        "taskflow_doc_read": ("Прочитать заметку", "Прочитать документ проекта целиком."),
+        "taskflow_doc_write": ("Записать в документацию", "Создать или дополнить документ проекта."),
+        "taskflow_kb_search": ("Поиск по документации", "Найти по смыслу в документации всех проектов."),
+    ]
 
     // MARK: - Данные строк
 
