@@ -13,6 +13,8 @@ struct AgentProfileScreen: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = AgentsViewModel()
     @State private var sheetTaskID: String?
+    /// Развёрнута ли инструкция роли (тап по строке «Инструкции»).
+    @State private var isInstructionsExpanded = false
 
     private var profile: RoleProfile? { viewModel.profile(for: roleID) }
 
@@ -104,11 +106,23 @@ struct AgentProfileScreen: View {
             modelMenuRow(profile)
 
             TFDivider(inset: TFSpacing.lg)
-            valueRow(
+            actionRow(
                 title: "Инструкции",
                 value: profile.prompt.isEmpty ? "не заданы" : "\(profile.prompt.count) символов",
-                detail: nil
+                detail: nil,
+                // Владелец 20.09.2026: «у агента просто символы и всё, а что
+                // там за символы — непонятно». Тап раскрывает ПОЛНЫЙ текст
+                // инструкции роли (сервер отдаёт его в `prompt`), чтобы было
+                // видно, что именно исполняет агент.
+                action: profile.prompt.isEmpty ? nil : {
+                    withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                        isInstructionsExpanded.toggle()
+                    }
+                }
             )
+            if isInstructionsExpanded && !profile.prompt.isEmpty {
+                instructionsBlock(profile.prompt)
+            }
 
             TFDivider(inset: TFSpacing.lg)
             listBlock(title: "Инструменты", items: profile.tools, empty: "не заданы")
@@ -210,6 +224,22 @@ struct AgentProfileScreen: View {
         .padding(.horizontal, TFSpacing.lg)
         .frame(minHeight: TFField.height)
         .contentShape(Rectangle())
+    }
+
+    /// Полный текст инструкции роли — читаемый блок под раскрытой строкой.
+    /// Промпт read-only: источник правды — файл на сервере (`roles.ts`),
+    /// владелец его не редактирует отсюда.
+    @ViewBuilder
+    private func instructionsBlock(_ prompt: String) -> some View {
+        Text(prompt)
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TFSpacing.lg)
+            .padding(.bottom, TFSpacing.md)
     }
 
     /// Строка «Модель» с системным меню выбора. Показываем только ДОСТУПНЫЕ
