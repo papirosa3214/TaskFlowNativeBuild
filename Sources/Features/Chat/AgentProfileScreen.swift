@@ -29,6 +29,7 @@ struct AgentProfileScreen: View {
                 TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить профиль роли" })
 
                 if let profile {
+                    header(profile)
                     sections(profile)
                 } else if viewModel.isLoading {
                     TFLoading(.block)
@@ -54,6 +55,43 @@ struct AgentProfileScreen: View {
     }
 
     private struct TaskRef: Identifiable { let id: String }
+
+    // MARK: - Шапка профиля
+
+    /// Кто это: аватар, имя роли, её назначение и статус. Шапка — не часть
+    /// эталонных строк «Моделей и голосов», а идентичность сотрудника; владелец
+    /// 20.09.2026 прямо просил её вернуть.
+    private func header(_ profile: RoleProfile) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            HStack(spacing: TFSpacing.md) {
+                RoleAvatarView(initials: initials(profile.title), tint: roleAccentColor(profile.role), size: 48)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(profile.title)
+                        .tfText(.title)
+                        .foregroundStyle(Color.tfText)
+                    Text(roleSubtitle(profile.role))
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfDim)
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(roleStatusColor(profile.status))
+                    .frame(width: 8, height: 8)
+                Text(roleStatusLabel(profile.status))
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+            }
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    private func initials(_ title: String) -> String {
+        let parts = title.split(separator: " ").prefix(2)
+        let letters = parts.compactMap { $0.first }.map(String.init).joined()
+        return letters.isEmpty ? "?" : letters.uppercased()
+    }
 
     // MARK: - Секции
 
@@ -144,7 +182,6 @@ struct AgentProfileScreen: View {
                 icon: "bolt",
                 title: "Сейчас",
                 subtitle: "Роль свободна",
-                value: roleStatusLabel(profile.status),
                 dot: dot
             )
         }
@@ -194,14 +231,14 @@ struct AgentProfileScreen: View {
 
     /// Строка «Инструкции». Тап раскрывает ПОЛНЫЙ текст промпта роли — владелец
     /// 20.09.2026: «у агента просто символы и всё, а что там за символы —
-    /// непонятно». Текст read-only: источник правды — файл на сервере.
+    /// непонятно». Счётчик символов не показываем: в эталоне его нет, там сам
+    /// текст. Текст read-only: источник правды — файл на сервере.
     @ViewBuilder
     private func instructionsRow(_ profile: RoleProfile) -> some View {
         infoRow(
             icon: "text.alignleft",
             title: "Инструкции",
-            subtitle: "Системный промпт роли",
-            value: profile.prompt.isEmpty ? "не заданы" : "\(profile.prompt.count) символов",
+            subtitle: profile.prompt.isEmpty ? "не заданы" : "Системный промпт роли",
             action: profile.prompt.isEmpty ? nil : {
                 withAnimation(.easeInOut(duration: TFDuration.fast)) {
                     isInstructionsExpanded.toggle()
