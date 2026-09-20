@@ -60,9 +60,10 @@ struct AgentProfileScreen: View {
 
     // MARK: - Шапка профиля
 
-    /// Кто это: аватар, имя роли, её назначение и статус. Шапка — не часть
+    /// Кто это: аватар, имя роли, её назначение. Шапка — не часть
     /// эталонных строк «Моделей и голосов», а идентичность сотрудника; владелец
-    /// 20.09.2026 прямо просил её вернуть.
+    /// 20.09.2026 прямо просил её вернуть. Статус тут не дублируем — он в
+    /// строке «Сейчас».
     private func header(_ profile: RoleProfile) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             HStack(spacing: TFSpacing.md) {
@@ -77,9 +78,6 @@ struct AgentProfileScreen: View {
                 }
                 Spacer(minLength: 0)
             }
-            Text(roleStatusLabel(profile.status))
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
@@ -160,23 +158,23 @@ struct AgentProfileScreen: View {
 
     // MARK: - Строки
 
-    /// Строка «Сейчас»: чем занята роль. Есть задача — тап открывает её.
+    /// «Сейчас» — статус роли СЛОВОМ. Владелец 20.09.2026: одна роль может
+    /// вести несколько задач параллельно (технического ограничения нет),
+    /// поэтому «Роль свободна» неверно; показываем статус. Идущая задача, если
+    /// сервер её отдал, остаётся доступной тапом.
     @ViewBuilder
     private func currentRow(_ profile: RoleProfile) -> some View {
+        let status = roleStatusLabel(profile.status)
         if let task = profile.currentTask {
             infoRow(
                 icon: "bolt",
                 title: "Сейчас",
-                subtitle: task.title,
-                value: taskStateTitle(task.state),
+                subtitle: status,
+                value: task.title,
                 action: { sheetTaskID = task.id }
             )
         } else {
-            infoRow(
-                icon: "bolt",
-                title: "Сейчас",
-                subtitle: "Роль свободна"
-            )
+            infoRow(icon: "bolt", title: "Сейчас", subtitle: status)
         }
     }
 
@@ -357,15 +355,6 @@ struct AgentProfileScreen: View {
 
     private func joined(_ items: [String], empty: String) -> String {
         items.isEmpty ? empty : items.joined(separator: " · ")
-    }
-
-    private func taskStateTitle(_ state: String?) -> String? {
-        switch state {
-        case "in_progress": "в работе"
-        case "blocked": "заблокирована"
-        case "review": "на проверке"
-        default: nil
-        }
     }
 
     /// «12 задач · 10 завершено» — по задачам, где исполнитель = учётка роли.
