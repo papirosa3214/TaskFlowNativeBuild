@@ -6,6 +6,11 @@ import SwiftUI
 /// Здесь только то, что относится к роли: чем занята, модель,
 /// инструкции, инструменты, навыки, права и короткий итог работы. Pi,
 /// провайдеры, OAuth и credentials не показываются.
+///
+/// Визуально это тот же образец, что и «Модели и голоса» — эталон владельца
+/// (20.09.2026): карточки `TFCard` со строками `VoiceModelRow` (иконка,
+/// заголовок, подпись, значение, точка-статус), разделители `TFDivider`,
+/// раскрытие прямо в строке. Своей вёрстки строк здесь нет.
 struct AgentProfileScreen: View {
     let roleID: String
 
@@ -24,7 +29,6 @@ struct AgentProfileScreen: View {
                 TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить профиль роли" })
 
                 if let profile {
-                    header(profile)
                     sections(profile)
                 } else if viewModel.isLoading {
                     TFLoading(.block)
@@ -51,106 +55,207 @@ struct AgentProfileScreen: View {
 
     private struct TaskRef: Identifiable { let id: String }
 
-    // MARK: - Шапка профиля
-
-    private func header(_ profile: RoleProfile) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            HStack(spacing: TFSpacing.md) {
-                RoleAvatarView(initials: initials(profile.title), tint: roleAccentColor(profile.role), size: 48)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(profile.title)
-                        .tfText(.title)
-                        .foregroundStyle(Color.tfText)
-                    Text(roleSubtitle(profile.role))
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfDim)
-                }
-                Spacer(minLength: 0)
-            }
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(roleStatusColor(profile.status))
-                    .frame(width: 8, height: 8)
-                Text(roleStatusLabel(profile.status))
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
-            }
-        }
-        .padding(.horizontal, TFSpacing.screenHorizontal)
-    }
-
-    private func initials(_ title: String) -> String {
-        let parts = title.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init).joined()
-        return letters.isEmpty ? "?" : letters.uppercased()
-    }
-
     // MARK: - Секции
 
     @ViewBuilder
     private func sections(_ profile: RoleProfile) -> some View {
-        VStack(spacing: 0) {
-            if let task = profile.currentTask {
-                actionRow(
-                    title: "Сейчас",
-                    value: task.title,
-                    detail: taskStateTitle(task.state),
-                    action: { sheetTaskID = task.id }
-                )
-            } else {
-                valueRow(title: "Сейчас", value: "Свободен", detail: nil)
-            }
-
-            TFDivider(inset: TFSpacing.lg)
-
-            modelMenuRow(profile)
-
-            TFDivider(inset: TFSpacing.lg)
-            actionRow(
-                title: "Инструкции",
-                value: profile.prompt.isEmpty ? "не заданы" : "\(profile.prompt.count) символов",
-                detail: nil,
-                // Владелец 20.09.2026: «у агента просто символы и всё, а что
-                // там за символы — непонятно». Тап раскрывает ПОЛНЫЙ текст
-                // инструкции роли (сервер отдаёт его в `prompt`), чтобы было
-                // видно, что именно исполняет агент.
-                action: profile.prompt.isEmpty ? nil : {
-                    withAnimation(.easeInOut(duration: TFDuration.fast)) {
-                        isInstructionsExpanded.toggle()
-                    }
+        VStack(alignment: .leading, spacing: TFSpacing.lg) {
+            section(title: "Роль") {
+                currentRow(profile)
+                rowDivider
+                modelRow(profile)
+                rowDivider
+                instructionsRow(profile)
+                if isInstructionsExpanded && !profile.prompt.isEmpty {
+                    instructionsBlock(profile.prompt)
                 }
-            )
-            if isInstructionsExpanded && !profile.prompt.isEmpty {
-                instructionsBlock(profile.prompt)
             }
 
-            TFDivider(inset: TFSpacing.lg)
-            listBlock(title: "Инструменты", items: profile.tools, empty: "не заданы")
-
-            TFDivider(inset: TFSpacing.lg)
-            listBlock(title: "Навыки", items: profile.skills.map(\.name), empty: "не установлены")
-
-            if let permissions = profile.permissions, !permissions.isEmpty {
-                TFDivider(inset: TFSpacing.lg)
-                valueRow(title: "Права", value: permissions, detail: nil)
-            }
-
-            TFDivider(inset: TFSpacing.lg)
-            valueRow(title: "Последняя работа", value: lastWorkText(profile), detail: nil)
-
-            if profile.hasProblems {
-                TFDivider(inset: TFSpacing.lg)
-                listBlock(title: "Проблемы", items: profile.problems, empty: "—")
+            section(title: "Возможности") {
+                infoRow(
+                    icon: "wrench.and.screwdriver",
+                    title: "Инструменты",
+                    subtitle: joined(profile.tools, empty: "не заданы")
+                )
+                rowDivider
+                infoRow(
+                    icon: "graduationcap",
+                    title: "Навыки",
+                    subtitle: joined(profile.skills.map(\.name), empty: "не установлены")
+                )
+                if let permissions = profile.permissions, !permissions.isEmpty {
+                    rowDivider
+                    infoRow(icon: "lock.shield", title: "Права", subtitle: permissions)
+                }
+                rowDivider
+                infoRow(
+                    icon: "clock.arrow.circlepath",
+                    title: "Последняя работа",
+                    subtitle: lastWorkText(profile)
+                )
+                if profile.hasProblems {
+                    rowDivider
+                    infoRow(
+                        icon: "exclamationmark.triangle",
+                        title: "Проблемы",
+                        subtitle: profile.problems.joined(separator: " · ")
+                    )
+                }
             }
         }
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
-    /// Модель меняет только владелец; сервер всё равно вернёт 403, но
-    /// не показывать лишнюю ручку — честнее.
+    /// Карточка раздела ровно как в «Моделях и голосах»: caps-заголовок,
+    /// `TFCard(padding: 0)` и строки с разделителями.
+    @ViewBuilder
+    private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            SettingsCapsLabel(title)
+            TFCard(padding: 0) {
+                VStack(spacing: 0) { content() }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+        }
+    }
+
+    private var rowDivider: some View {
+        TFDivider(inset: rowDividerInset).padding(.trailing, rowDividerInset)
+    }
+
+    private var rowDividerInset: CGFloat { TFSpacing.lg + 32 + TFSpacing.md }
+
+    // MARK: - Строки
+
+    /// Строка «Сейчас»: чем занята роль. Есть задача — тап открывает её.
+    @ViewBuilder
+    private func currentRow(_ profile: RoleProfile) -> some View {
+        let dot = dotState(for: profile.status)
+        if let task = profile.currentTask {
+            infoRow(
+                icon: "bolt",
+                title: "Сейчас",
+                subtitle: task.title,
+                value: taskStateTitle(task.state),
+                dot: dot,
+                action: { sheetTaskID = task.id }
+            )
+        } else {
+            infoRow(
+                icon: "bolt",
+                title: "Сейчас",
+                subtitle: "Роль свободна",
+                value: roleStatusLabel(profile.status),
+                dot: dot
+            )
+        }
+    }
+
+    /// Строка «Модель». Меняет только владелец (сервер всё равно вернёт 403).
+    /// Меню — только ДОСТУПНЫЕ модели, по провайдеру; выбор применяется сразу.
+    ///
+    /// РЕЗЕРВНЫЕ МОДЕЛИ УДАЛЕНЫ (20.09.2026) — не по прихоти, а потому что они
+    /// НИГДЕ не использовались и ни на что не влияли: эскалацию при сбое делает
+    /// глобальная лесенка (`model_ladder` / `nextModelForFailure` в
+    /// `agent-state.ts`), а роль-специфичную цепочку primary+fallbacks читала
+    /// единственная функция `nextModelForProfile` в `roleRouting.ts`, и она не
+    /// вызывается нигде. В запуск Pi уходит только основная модель
+    /// (`PiRuntimeAdapter`: `routing.models[role]`). Возвращать — только вместе
+    /// с подключением резервных к реальной эскалации (серверная работа).
+    @ViewBuilder
+    private func modelRow(_ profile: RoleProfile) -> some View {
+        let subtitle = "Основная модель роли"
+        let value = profile.model ?? "не задана"
+        if canEdit {
+            Menu {
+                ForEach(modelProviderGroups) { group in
+                    Section(modelProviderTitle(group.provider)) {
+                        ForEach(group.models) { model in
+                            Button {
+                                setModel(model.id, role: profile.role)
+                            } label: {
+                                if model.id == profile.model {
+                                    Label(model.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(model.displayName)
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                VoiceModelRow(icon: "cpu", title: "Модель", subtitle: subtitle, value: value, dot: nil)
+            }
+            .buttonStyle(.plain)
+            .tint(Color.tfSub)
+        } else {
+            infoRow(icon: "cpu", title: "Модель", subtitle: subtitle, value: value)
+        }
+    }
+
+    /// Строка «Инструкции». Тап раскрывает ПОЛНЫЙ текст промпта роли — владелец
+    /// 20.09.2026: «у агента просто символы и всё, а что там за символы —
+    /// непонятно». Текст read-only: источник правды — файл на сервере.
+    @ViewBuilder
+    private func instructionsRow(_ profile: RoleProfile) -> some View {
+        infoRow(
+            icon: "text.alignleft",
+            title: "Инструкции",
+            subtitle: "Системный промпт роли",
+            value: profile.prompt.isEmpty ? "не заданы" : "\(profile.prompt.count) символов",
+            action: profile.prompt.isEmpty ? nil : {
+                withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                    isInstructionsExpanded.toggle()
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func infoRow(
+        icon: String,
+        title: String,
+        subtitle: String,
+        value: String? = nil,
+        dot: VoiceDotState? = nil,
+        action: (() -> Void)? = nil
+    ) -> some View {
+        let row = VoiceModelRow(icon: icon, title: title, subtitle: subtitle, value: value, dot: dot)
+        if let action {
+            Button(action: action) { row }.buttonStyle(TFTapRowStyle())
+        } else {
+            row
+        }
+    }
+
+    /// Полный текст инструкции роли — читаемый блок под раскрытой строкой.
+    @ViewBuilder
+    private func instructionsBlock(_ prompt: String) -> some View {
+        Text(prompt)
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TFSpacing.lg)
+            .padding(.bottom, TFSpacing.md)
+    }
+
+    // MARK: - Данные строк
+
     private var canEdit: Bool { viewModel.isOwner }
+
+    private func joined(_ items: [String], empty: String) -> String {
+        items.isEmpty ? empty : items.joined(separator: " · ")
+    }
+
+    private func dotState(for status: RoleRuntimeStatus) -> VoiceDotState {
+        switch status {
+        case .ready, .working: .ok
+        case .blocked: .warn
+        case .unavailable, .unknown: .off
+        }
+    }
 
     private func taskStateTitle(_ state: String?) -> String? {
         switch state {
@@ -178,117 +283,6 @@ struct AgentProfileScreen: View {
         case 1: return one
         case 2, 3, 4: return few
         default: return many
-        }
-    }
-
-    // MARK: - Строители строк
-
-    @ViewBuilder
-    private func actionRow(title: String, value: String, detail: String?, action: (() -> Void)?) -> some View {
-        let content = rowContent(title: title, value: value, detail: detail, showsChevron: action != nil)
-        if let action {
-            Button(action: action) { content }.buttonStyle(.plain)
-        } else {
-            content
-        }
-    }
-
-    @ViewBuilder
-    private func valueRow(title: String, value: String, detail: String?) -> some View {
-        rowContent(title: title, value: value, detail: detail, showsChevron: false)
-    }
-
-    private func rowContent(title: String, value: String, detail: String?, showsChevron: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: TFSpacing.md) {
-            Text(title)
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-            Spacer(minLength: TFSpacing.sm)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(value)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
-                    .multilineTextAlignment(.trailing)
-                if let detail, !detail.isEmpty {
-                    Text(detail)
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfDim)
-                }
-            }
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.tfDim)
-            }
-        }
-        .padding(.horizontal, TFSpacing.lg)
-        .frame(minHeight: TFField.height)
-        .contentShape(Rectangle())
-    }
-
-    /// Полный текст инструкции роли — читаемый блок под раскрытой строкой.
-    /// Промпт read-only: источник правды — файл на сервере (`roles.ts`),
-    /// владелец его не редактирует отсюда.
-    @ViewBuilder
-    private func instructionsBlock(_ prompt: String) -> some View {
-        Text(prompt)
-            .tfText(.action)
-            .foregroundStyle(Color.tfSub)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, TFSpacing.lg)
-            .padding(.bottom, TFSpacing.md)
-    }
-
-    /// Строка «Модель» с системным меню выбора. Показываем только ДОСТУПНЫЕ
-    /// модели (провайдер авторизован — ключ есть и жив), сгруппированные по
-    /// провайдеру: каталог Pi отдаёт 1000+ моделей всех провайдеров, включая
-    /// недоступные, — весь этот список показывать нельзя (владелец 20.09.2026).
-    /// Выбор применяется сразу.
-    ///
-    /// РЕЗЕРВНЫЕ МОДЕЛИ УДАЛЕНЫ (20.09.2026) — не по прихоти, а потому что они
-    /// НИГДЕ не использовались и ни на что не влияли: эскалацию при сбое делает
-    /// глобальная лесенка (`model_ladder` / `nextModelForFailure` в
-    /// `agent-state.ts`), а роль-специфичную цепочку primary+fallbacks читала
-    /// единственная функция `nextModelForProfile` в `roleRouting.ts`, и она не
-    /// вызывается нигде. В запуск Pi уходит только основная модель
-    /// (`PiRuntimeAdapter`: `routing.models[role]`). То есть ручка «резервная»
-    /// была пустой. Убраны и «Резервные модели» из карточки, и шторка-редактор
-    /// `RoleModelEditorSheet`. Возвращать — только вместе с подключением
-    /// резервных к реальной эскалации (серверная работа), иначе это самообман.
-    @ViewBuilder
-    private func modelMenuRow(_ profile: RoleProfile) -> some View {
-        if canEdit {
-            Menu {
-                ForEach(modelProviderGroups) { group in
-                    Section(modelProviderTitle(group.provider)) {
-                        ForEach(group.models) { model in
-                            Button {
-                                setModel(model.id, role: profile.role)
-                            } label: {
-                                if model.id == profile.model {
-                                    Label(model.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(model.displayName)
-                                }
-                            }
-                        }
-                    }
-                }
-            } label: {
-                rowContent(
-                    title: "Модель",
-                    value: profile.model ?? "не задана",
-                    detail: nil,
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-            .tint(Color.tfSub)
-        } else {
-            valueRow(title: "Модель", value: profile.model ?? "не задана", detail: nil)
         }
     }
 
@@ -324,28 +318,6 @@ struct AgentProfileScreen: View {
         case "ollama": return "Ollama (на сервере)"
         default: return provider
         }
-    }
-
-    @ViewBuilder
-    private func listBlock(title: String, items: [String], empty: String) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Text(title)
-                .tfText(.meta)
-                .foregroundStyle(Color.tfDim)
-            if items.isEmpty {
-                Text(empty)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfDim)
-            } else {
-                Text(items.joined(separator: " · "))
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

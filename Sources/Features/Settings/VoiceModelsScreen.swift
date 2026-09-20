@@ -741,7 +741,11 @@ struct VoiceModelsScreen: View {
 /// Одна строка раздела ИИ — иконка/точка-статус/заголовок/подпись/значение
 /// (`ModelRow` в вебе — здесь намеренно с префиксом `Voice`, модуль один на
 /// весь таргет, `ModelRow` слишком общее имя для отдельного экрана).
-private struct VoiceModelRow: View {
+///
+/// С 20.09.2026 не `private`: это ЭТАЛОННЫЙ вид строки приложения (владелец:
+/// «Модели и голоса — эталон»), и им же собирается профиль роли
+/// (`AgentProfileScreen`), чтобы агентские экраны не выдумывали свой вид.
+struct VoiceModelRow: View {
     let icon: String
     let title: String
     let subtitle: String
