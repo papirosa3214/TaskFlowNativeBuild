@@ -122,6 +122,11 @@ struct ChatBubble: View {
 
     @State private var pendingTaskID: String?
 
+    /// Задачи из вложения: что предложила локальная модель и показывать ли шторку.
+    @State private var extractedTasks: [ExtractedNoteTask] = []
+    @State private var isShowingExtractedTasks = false
+    @State private var extractErrorMessage: String?
+
     private struct TaskRef: Identifiable {
         let id: String
     }
@@ -167,7 +172,19 @@ struct ChatBubble: View {
                     if let mime = attachment.mime, mime.hasPrefix("image/") {
                         ChatAttachmentImage(attachmentId: attachment.id, fileName: attachment.fileName)
                     } else {
+                        // Долгое нажатие на файл — «Создать задачи»: сервер
+                        // вытащит текст и отдаст его локальной модели, список
+                        // подтвердим в общей шторке.
                         ChatFileChip(fileName: attachment.fileName)
+                            .contextMenu {
+                                if attachmentSupportsTaskExtraction(mime: attachment.mime) {
+                                    Button {
+                                        Task { await extractTasks(from: attachment.id) }
+                                    } label: {
+                                        Label("Создать задачи", systemImage: "wand.and.stars")
+                                    }
+                                }
+                            }
                     }
                 }
 
@@ -208,6 +225,39 @@ struct ChatBubble: View {
             NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isShowingExtractedTasks) {
+            TFBottomSheetContent(title: "Задачи из файла", onClose: { isShowingExtractedTasks = false }) {
+                NoteExtractedTasksSheetContent(tasks: extractedTasks) {
+                    isShowingExtractedTasks = false
+                }
+            }
+            .presentationBackground(Color.tfSheetBackground)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("Не получилось", isPresented: Binding(
+            get: { extractErrorMessage != nil },
+            set: { if !$0 { extractErrorMessage = nil } }
+        )) {
+            Button("Понятно", role: .cancel) {}
+        } message: {
+            Text(extractErrorMessage ?? "")
+        }
+    }
+
+    private func extractTasks(from attachmentId: String) async {
+        do {
+            let tasks = try await APIClient().extractTasksFromAttachment(id: attachmentId)
+            guard !tasks.isEmpty else {
+                extractErrorMessage = "В файле не нашлось конкретных задач"
+                return
+            }
+            extractedTasks = tasks
+            isShowingExtractedTasks = true
+        } catch {
+            extractErrorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Не удалось разобрать файл"
         }
     }
 
