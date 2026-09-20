@@ -43,3 +43,27 @@ extension APIClient {
         return response.tasks
     }
 }
+
+/// Ответ сервера на сбор постановки: id родительской карточки, сколько
+/// дочерних и как она названа.
+struct StructureDraftResult: Decodable {
+    let taskID: String
+    let children: Int
+    let title: String
+
+    enum CodingKeys: String, CodingKey {
+        case taskID = "task_id"
+        case children, title
+    }
+}
+
+extension APIClient {
+    /// Собрать ПОСТАНОВКУ из большого текста (заметка): сервер отдаёт текст
+    /// локальной модели ТЕМ ЖЕ контуром, что и надиктовку из чата, и заводит
+    /// черновик — родитель + шаги + дочерние карточки со связью `parent_id`.
+    /// Запуска не происходит: карточка лежит без флага, владелец поднимает сам.
+    func structureDraft(text: String) async throws -> StructureDraftResult {
+        let body: [String: JSONValue] = ["text": .string(text)]
+        return try await request(.post, "/ai/structure-draft", body: body)
+    }
+}

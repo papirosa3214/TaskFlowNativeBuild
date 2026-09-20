@@ -105,7 +105,17 @@ struct NoteEditorScreen: View {
                 viewModel.showExtractedTasksSheet = false
             }
         }
+        .sheet(item: Binding(
+            get: { viewModel.createdDraftTask.map { DraftTaskRef(id: $0.taskID) } },
+            set: { if $0 == nil { viewModel.createdDraftTask = nil } }
+        )) { ref in
+            NavigationStack { TaskFormScreen(taskID: ref.id) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
+
+    private struct DraftTaskRef: Identifiable { let id: String }
 
     // MARK: - Тело
 
@@ -202,6 +212,12 @@ struct NoteEditorScreen: View {
                     Task { await viewModel.runExtractTasks(selectedText: selection) }
                 } label: {
                     Label("Собрать задачи из текста", systemImage: "checklist")
+                }
+                Button {
+                    let selection = focus.controller?.selectedText()
+                    Task { await viewModel.collectDraft(selectedText: selection) }
+                } label: {
+                    Label("Собрать постановку", systemImage: "point.3.connected.trianglepath.dotted")
                 }
             }
             .disabled(viewModel.aiBusy)
