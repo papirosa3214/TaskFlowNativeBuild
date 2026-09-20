@@ -64,6 +64,8 @@ extension APIClient {
     /// Запуска не происходит: карточка лежит без флага, владелец поднимает сам.
     func structureDraft(text: String) async throws -> StructureDraftResult {
         let body: [String: JSONValue] = ["text": .string(text)]
-        return try await request(.post, "/ai/structure-draft", body: body)
+        // Локальная модель на большом тексте думает десятки секунд — даём
+        // запас, иначе запрос обрывается раньше, чем сервер доведёт работу.
+        return try await request(.post, "/ai/structure-draft", body: body, timeout: 300)
     }
 }

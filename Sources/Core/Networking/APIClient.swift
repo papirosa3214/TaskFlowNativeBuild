@@ -37,9 +37,10 @@ public final class APIClient: Sendable {
         _ method: HTTPMethodKind,
         _ path: String,
         query: [URLQueryItem] = [],
-        body: (any Encodable)? = nil
+        body: (any Encodable)? = nil,
+        timeout: TimeInterval? = nil
     ) async throws -> Response {
-        let request = try buildRequest(method: method, path: path, query: query, body: body)
+        let request = try buildRequest(method: method, path: path, query: query, body: body, timeout: timeout)
         let (data, http) = try await send(request)
         try Self.throwIfError(status: http.statusCode, data: data, request: request)
         do {
@@ -67,7 +68,8 @@ public final class APIClient: Sendable {
         method: HTTPMethodKind,
         path: String,
         query: [URLQueryItem],
-        body: (any Encodable)?
+        body: (any Encodable)?,
+        timeout: TimeInterval? = nil
     ) throws -> URLRequest {
         guard var components = URLComponents(
             url: Self.baseURL.appendingPathComponent("/api" + path),
@@ -78,6 +80,11 @@ public final class APIClient: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
+        // Долгие AI-операции (постановка большого текста локальной моделью)
+        // идут десятки секунд — дефолтных 60с не хватает, и запрос обрывается
+        // с «не удалось», хотя сервер доводит работу до конца. Явный таймаут
+        // для таких маршрутов.
+        if let timeout { request.timeoutInterval = timeout }
         // Признак «это приложение, а не скрипт»: по нему сервер пускает вход
         // без пароля из домашней сети (`looksLikeBrowser` в server/src/auth.ts).
         // Браузер там опознаётся по своим заголовкам, у нативного клиента их нет.

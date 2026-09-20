@@ -132,6 +132,26 @@ struct NoteEditorScreen: View {
                 .padding(.top, TFSpacing.xs)
             TFErrorBanner(viewModel.actionErrorMessage)
                 .padding(.horizontal, TFSpacing.screenHorizontal)
+            // «Идёт процесс»: долгие AI-операции (постановка, разбор, ассист)
+            // держат модель десятки секунд, и без видимого сигнала это
+            // выглядит как «нажал — тишина, пустота» (жалоба владельца
+            // 20.09.2026). Спиннер с подписью и есть этот сигнал.
+            if viewModel.aiBusy {
+                HStack(spacing: TFSpacing.sm) {
+                    ProgressView().controlSize(.small)
+                    Text(viewModel.aiLabel)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfText)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, TFSpacing.sm)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.top, TFSpacing.xs)
+                .transition(.opacity)
+            }
             // Статус сохранения ниже — ОВЕРЛЕЕМ, не строкой стека. Строкой он
             // сначала резервировал полоску ~20pt всегда, потом (03.09.2026)
             // появлялся только при непустом тексте — и именно это добивало:

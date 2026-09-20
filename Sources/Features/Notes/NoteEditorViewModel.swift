@@ -260,7 +260,8 @@ final class NoteEditorViewModel {
         do {
             createdDraftTask = try await apiClient.structureDraft(text: text)
         } catch {
-            aiErrorMessage = "Не удалось собрать постановку"
+            aiErrorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Не удалось собрать постановку"
         }
     }
 
