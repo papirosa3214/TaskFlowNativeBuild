@@ -77,14 +77,9 @@ struct AgentProfileScreen: View {
                 }
                 Spacer(minLength: 0)
             }
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(roleStatusColor(profile.status))
-                    .frame(width: 8, height: 8)
-                Text(roleStatusLabel(profile.status))
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
-            }
+            Text(roleStatusLabel(profile.status))
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
@@ -153,8 +148,8 @@ struct AgentProfileScreen: View {
             TFCard(padding: 0) {
                 VStack(spacing: 0) { content() }
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
         }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
     private var rowDivider: some View {
@@ -168,22 +163,19 @@ struct AgentProfileScreen: View {
     /// Строка «Сейчас»: чем занята роль. Есть задача — тап открывает её.
     @ViewBuilder
     private func currentRow(_ profile: RoleProfile) -> some View {
-        let dot = dotState(for: profile.status)
         if let task = profile.currentTask {
             infoRow(
                 icon: "bolt",
                 title: "Сейчас",
                 subtitle: task.title,
                 value: taskStateTitle(task.state),
-                dot: dot,
                 action: { sheetTaskID = task.id }
             )
         } else {
             infoRow(
                 icon: "bolt",
                 title: "Сейчас",
-                subtitle: "Роль свободна",
-                dot: dot
+                subtitle: "Роль свободна"
             )
         }
     }
@@ -221,7 +213,7 @@ struct AgentProfileScreen: View {
                     }
                 }
             } label: {
-                VoiceModelRow(icon: "cpu", title: "Модель", subtitle: subtitle, value: value, dot: nil)
+                VoiceModelRow(icon: "cpu", title: "Модель", subtitle: subtitle, value: value)
             }
             .buttonStyle(.plain)
             .tint(Color.tfSub)
@@ -254,10 +246,9 @@ struct AgentProfileScreen: View {
         title: String,
         subtitle: String,
         value: String? = nil,
-        dot: VoiceDotState? = nil,
         action: (() -> Void)? = nil
     ) -> some View {
-        let row = VoiceModelRow(icon: icon, title: title, subtitle: subtitle, value: value, dot: dot)
+        let row = VoiceModelRow(icon: icon, title: title, subtitle: subtitle, value: value)
         if let action {
             Button(action: action) { row }.buttonStyle(TFTapRowStyle())
         } else {
@@ -290,7 +281,6 @@ struct AgentProfileScreen: View {
             title: "Инструменты",
             subtitle: "TaskFlow MCP",
             value: connected ? "подключён" : "не подключён",
-            dot: connected ? .ok : .off,
             action: connected ? {
                 withAnimation(.easeInOut(duration: TFDuration.fast)) {
                     isToolsExpanded.toggle()
@@ -367,14 +357,6 @@ struct AgentProfileScreen: View {
 
     private func joined(_ items: [String], empty: String) -> String {
         items.isEmpty ? empty : items.joined(separator: " · ")
-    }
-
-    private func dotState(for status: RoleRuntimeStatus) -> VoiceDotState {
-        switch status {
-        case .ready, .working: .ok
-        case .blocked: .warn
-        case .unavailable, .unknown: .off
-        }
     }
 
     private func taskStateTitle(_ state: String?) -> String? {

@@ -159,7 +159,7 @@ struct ServerStatusSection: View {
             VStack(spacing: 0) {
                 switch viewModel.phase {
                 case .failed:
-                    TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", titleDot: .warn, trailing: AnyView(valueText("не отвечает", color: .tfCoral)), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                    TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("не отвечает", color: .tfCoral)), titleStyle: .action, verticalPadding: TFSpacing.xs)
                     TFDivider(inset: rowDividerInset)
                     TFListRow(icon: "arrow.clockwise", iconStyle: .plain, title: "Сервер", trailing: AnyView(Image(systemName: "arrow.clockwise")), titleStyle: .action, verticalPadding: TFSpacing.xs, action: { Task { await viewModel.load() } })
                 case .loading:

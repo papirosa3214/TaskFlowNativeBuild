@@ -129,7 +129,7 @@ struct VoiceModelsScreen: View {
                             icon: dictation.isEnabled ? "mic" : "mic.slash",
                             title: "Распознавание речи",
                             subtitle: speechSubtitle,
-                            value: speechValue, dot: speechDot
+                            value: speechValue
                         )
                     }
                     .buttonStyle(TFTapRowStyle())
@@ -228,14 +228,6 @@ struct VoiceModelsScreen: View {
         // модель не должна выбиваться («готова») — просьба владельца.
         case .ready: "работает"
         case .failed: "ошибка"
-        }
-    }
-    private var speechDot: VoiceDotState {
-        switch dictation.modelState {
-        case .ready: .ok
-        case .downloading: .warn
-        case .failed: .warn
-        case .unknown, .notDownloaded: .off
         }
     }
 
@@ -457,7 +449,7 @@ struct VoiceModelsScreen: View {
                         VoiceModelRow(
                             icon: "cpu", title: "Мозг для задач",
                             subtitle: brainSubtitle,
-                            value: brainValue, dot: brainDot
+                            value: brainValue
                         )
                     }
                     .buttonStyle(TFTapRowStyle())
@@ -471,7 +463,7 @@ struct VoiceModelsScreen: View {
                         VoiceModelRow(
                             icon: "cloud", title: "Разбор диктовки",
                             subtitle: serverModelSubtitle,
-                            value: serverModelValue, dot: serverModelDot
+                            value: serverModelValue
                         )
                     }
                     .buttonStyle(TFTapRowStyle())
@@ -490,7 +482,7 @@ struct VoiceModelsScreen: View {
                         VoiceModelRow(
                             icon: "sparkles", title: "Расшифровка действий",
                             subtitle: "\(effectiveServerModelName) · чем занят агент",
-                            value: serverModelValue, dot: serverModelDot
+                            value: serverModelValue
                         )
                     }
                     .buttonStyle(TFTapRowStyle())
@@ -586,9 +578,6 @@ struct VoiceModelsScreen: View {
     private var brainValue: String {
         isLoadingServerStatus ? "…" : (serverStatus?.online == true ? "работает" : "нет связи")
     }
-    private var brainDot: VoiceDotState {
-        isLoadingServerStatus ? .off : (serverStatus?.online == true ? .ok : .off)
-    }
 
     /// Тот же образец, что у «Мозга для задач»: в заголовке функция, в
     /// подписи — «Модель · что делает». Раньше здесь модель стояла заголовком
@@ -604,10 +593,6 @@ struct VoiceModelsScreen: View {
         // вручную мы взяли из списка установленных, она по определению есть.
         if selectedServerModel.isEmpty, serverStatus.installed == false { return "не найдена" }
         return "работает"
-    }
-    private var serverModelDot: VoiceDotState {
-        guard !isLoadingServerStatus, let serverStatus, serverStatus.online else { return .off }
-        return serverStatus.installed == false ? .warn : .ok
     }
 
     /// Порт `serverModelName` (`src/lib/aiStatus.ts`) — «qwen3.6-27b-iq4-16k:latest» → «Qwen 3.6 · 27B».
@@ -650,7 +635,7 @@ struct VoiceModelsScreen: View {
                         icon: "icloud.and.arrow.up",
                         title: "Архив аудио на сервере",
                         subtitle: pendingArchiveCount == 0 ? "Всё выгружено" : "Ждут отправки: \(pendingArchiveCount). Уйдут, когда .110 будет доступен",
-                        value: nil, dot: nil
+                        value: nil
                     )
                     TFDivider(inset: rowDividerInset).padding(.trailing, rowDividerInset)
                     HStack {
@@ -731,38 +716,34 @@ struct VoiceModelsScreen: View {
     private var rowDividerInset: CGFloat { TFSpacing.lg + 32 + TFSpacing.md }
 }
 
-// MARK: - Единый словарь статусов (spec §16: работает/прогревается/скачивается/не скачана/нет связи/не найдена)
+// MARK: - Строка раздела ИИ
 //
-// `VoiceDotState`/`VoiceStatusDot` переехали в `TFCard.swift` (DesignSystem,
-// 03.09.2026) — тот же приём точки-индикатора понадобился и в
-// `ServerStatusSection` (просьба владельца: «эти же точки, что в
-// искусственном интеллекте»), а раздваивать компонент по экранам ни к чему.
+// Статусы-точки убраны 20.09.2026 (владелец): статус пишется словом, точек нет.
 
-/// Одна строка раздела ИИ — иконка/точка-статус/заголовок/подпись/значение
+/// Одна строка раздела ИИ — иконка/заголовок/подпись/значение
 /// (`ModelRow` в вебе — здесь намеренно с префиксом `Voice`, модуль один на
 /// весь таргет, `ModelRow` слишком общее имя для отдельного экрана).
 ///
 /// С 20.09.2026 не `private`: это ЭТАЛОННЫЙ вид строки приложения (владелец:
 /// «Модели и голоса — эталон»), и им же собирается профиль роли
 /// (`AgentProfileScreen`), чтобы агентские экраны не выдумывали свой вид.
+///
+/// Точки-статусы убраны (владелец 20.09.2026): статус пишется СЛОВОМ
+/// («работает», «не работает»), а не цветной точкой.
 struct VoiceModelRow: View {
     let icon: String
     let title: String
     let subtitle: String
     let value: String?
-    let dot: VoiceDotState?
 
     var body: some View {
         HStack(spacing: TFSpacing.md) {
             Image(systemName: icon).font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim).frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: TFSpacing.xs) {
-                    if let dot { VoiceStatusDot(state: dot) }
-                    // Длинные заголовки («Расшифровка действий») слегка
-                    // ужимаются, а не обрезаются многоточием.
-                    Text(title).tfText(.body).foregroundStyle(Color.tfText)
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                }
+                // Длинные заголовки («Расшифровка действий») слегка
+                // ужимаются, а не обрезаются многоточием.
+                Text(title).tfText(.body).foregroundStyle(Color.tfText)
+                    .lineLimit(1).minimumScaleFactor(0.8)
                 // Подпись «Модель · что делает» — до двух строк: в одну она
                 // физически не влезает и рвалась многоточием посреди слова.
                 Text(subtitle).tfText(.action).foregroundStyle(Color.tfSub)
