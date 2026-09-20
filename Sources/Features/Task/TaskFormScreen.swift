@@ -949,9 +949,11 @@ struct TaskFormScreen: View {
     }
 
     /// Ярлычки действий агента у идущего шага: по иконке на каждый ВИД
-    /// действия (чтение/правка/поиск/запуск) плюс счётчик всех действий.
-    /// Владелец 20.09.2026: пока агент работает, должно быть видно, что он
-    /// предпринимал, — компактной полоской, как в референсе.
+    /// действия плюс счётчик всех действий. Владелец 20.09.2026: пока агент
+    /// работает, должно быть видно, что он предпринимал, — компактной полоской.
+    /// Виды: чтение/правка/запись/поиск/запуск/раздумье/интернет/картинка/
+    /// тесты/сборка/git/вложение (см. `activity.ts` и Pi-расширение
+    /// `taskflow-activity.ts`).
     @ViewBuilder
     private func activityChips(_ actions: [ApiTaskActivityAction]) -> some View {
         HStack(spacing: TFSpacing.xs) {
@@ -987,8 +989,16 @@ struct TaskFormScreen: View {
         switch kind {
         case "read": "book"
         case "edit": "chevron.left.forwardslash.chevron.right"
+        case "write": "doc.badge.plus"
         case "search": "magnifyingglass"
         case "run": "terminal"
+        case "think": "brain"
+        case "web": "globe"
+        case "image": "photo"
+        case "test": "checkmark.seal"
+        case "build": "hammer"
+        case "git": "arrow.triangle.branch"
+        case "attach": "paperclip"
         default: "ellipsis"
         }
     }
