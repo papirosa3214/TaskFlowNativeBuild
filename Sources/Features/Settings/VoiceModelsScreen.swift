@@ -31,6 +31,27 @@ struct VoiceModelsScreen: View {
     @State private var logEntries = DictationLog.readEntries()
     @State private var pendingArchiveCount = DictationArchiveQueue.pendingCount()
     @State private var dictation = DictationEngine.shared
+    /// Подтверждение удаления весов модели — необратимое действие, спрашиваем.
+    @State private var showDeleteConfirm = false
+
+    /// Локальные (Ollama) модели сервера — для меню замены; память берётся
+    /// из `size`/`size_vram`, которые сервер подмешивает из `/api/ps`.
+    @State private var serverModels: [AILocalModel] = []
+    /// Выбранная серверная модель приложения. Пусто — серверная по умолчанию.
+    @State private var selectedServerModel: String = AIServerModelSetting.selected ?? ""
+    /// Какая строка развёрнута (аккордеон). Тап по строке разворачивает её
+    /// НА МЕСТЕ — описание модели для локальной, промпт для серверной
+    /// (владелец 20.09.2026: «тапнул — расширилась, и в расширенной карточке
+    /// описание; промпт так же, а не отдельными всплывающими окнами»).
+    /// Одновременно развёрнута одна строка. Шевронов не рисуем.
+    @State private var expandedRow: ExpandedRow?
+
+    private enum ExpandedRow: String {
+        case speech
+        case extractTasks
+        case journalAssist
+        case actionExplain
+    }
 
     @State private var promptsStore = AIPromptsStore.shared
     /// Дебаунс-отправка промптов на сервер: при каждом нажатии клавиши
@@ -46,7 +67,6 @@ struct VoiceModelsScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     onDeviceSection
                     onServerSection
-                    userPromptsSection
                     dictationLogSection
                 }
                 .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -60,6 +80,16 @@ struct VoiceModelsScreen: View {
             dictation.refreshModelState()
             await loadServerStatus()
             await promptsStore.refresh()
+        }
+        .confirmationDialog(
+            "Удалить \(dictation.selectedModel.displayName)?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) { dictation.deleteModel() }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Веса модели исчезнут с телефона. При следующей диктовке её придётся скачать заново.")
         }
         .onDisappear {
             extractSaveTask?.cancel()
@@ -76,6 +106,9 @@ struct VoiceModelsScreen: View {
         isLoadingServerStatus = true
         defer { isLoadingServerStatus = false }
         serverStatus = try? await APIClient().aiStatus()
+        // Список моделей и их память — тем же заходом; недоступен сервер —
+        // просто не показываем варианты замены.
+        serverModels = (try? await APIClient().aiLocalModels()) ?? []
     }
 
     // MARK: - На телефоне
@@ -86,40 +119,100 @@ struct VoiceModelsScreen: View {
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
                     Button {
-                        Task { await dictation.downloadModelIfNeeded() }
+                        toggleExpanded(.speech)
                     } label: {
                         VoiceModelRow(
-                            icon: "mic", title: "Распознавание речи",
+                            icon: dictation.isEnabled ? "mic" : "mic.slash",
+                            title: "Распознавание речи",
                             subtitle: speechSubtitle,
                             value: speechValue, dot: speechDot
                         )
                     }
                     .buttonStyle(TFTapRowStyle())
-                    .disabled(!isSpeechRowTappable)
+                    // Всё управление моделью — в долгом нажатии, отдельного
+                    // тумблера нет (владелец 20.09.2026: «тумблер не нужен
+                    // отдельный, добавь выключить в меню»). Меню нужно и когда
+                    // модель готова, поэтому строка не выключается `.disabled`.
+                    .contextMenu {
+                        Button {
+                            Task { await dictation.checkModel() }
+                        } label: {
+                            Label("Проверить и обновить", systemImage: "arrow.down.circle")
+                        }
+                        Menu {
+                            ForEach(DictationEngine.ModelChoice.allCases) { choice in
+                                Button {
+                                    Task { await dictation.selectModel(choice) }
+                                } label: {
+                                    if choice == dictation.selectedModel {
+                                        Label(choice.displayName, systemImage: "checkmark")
+                                    } else {
+                                        Text("\(choice.displayName) — \(choice.note)")
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label("Заменить модель", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        if dictation.modelState == .ready {
+                            Button(role: .destructive) {
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("Удалить модель", systemImage: "trash")
+                            }
+                        }
+                        Button {
+                            dictation.setEnabled(!dictation.isEnabled)
+                        } label: {
+                            Label(
+                                dictation.isEnabled ? "Выключить диктовку" : "Включить диктовку",
+                                systemImage: dictation.isEnabled ? "mic.slash" : "mic"
+                            )
+                        }
+                    }
 
-                    TFDivider(inset: rowDividerInset)
-                    // «Расшифровка действий» — отдельный движок (локальная
-                    // LLM, объясняющая, чем занят агент), не распознавание
-                    // речи. Владелец 03.09.2026 попросил начать с диктовки —
-                    // эта строка честно ждёт своей очереди.
-                    VoiceModelRow(
-                        icon: "sparkles", title: "Расшифровка действий",
-                        subtitle: "Объясняет, чем занят агент в задаче",
-                        value: "не скачана", dot: .off
-                    )
+                    if expandedRow == .speech {
+                        speechDescription
+                    }
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
-            Text("Распознавание речи — Parakeet TDT v3 (NVIDIA), полностью на телефоне, без сервера, понимает русский и ещё два десятка языков. Модель качается один раз при первом использовании.")
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-                .padding(.horizontal, TFSpacing.screenHorizontal + TFSpacing.xs)
         }
     }
 
+    /// Описание модели в развёрнутой строке: что это, где работает и как
+    /// управлять. Заменяет прежний отдельный абзац под карточкой.
+    private var speechDescription: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            Text("Parakeet TDT v3 (NVIDIA) — \(dictation.selectedModel.note).")
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+            Text("Движок работает полностью на телефоне, без сервера: диктовка задач, заметок и комментариев идёт офлайн и не отправляет аудио в сеть. Понимает русский и ещё два десятка языков.")
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+            Text("Веса качаются один раз и живут на устройстве. Долгое нажатие на строку — скачать или обновить, заменить модель, удалить её или выключить диктовку.")
+                .tfText(.action)
+                .foregroundStyle(Color.tfDim)
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.bottom, TFSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func toggleExpanded(_ row: ExpandedRow) {
+        withAnimation(.easeInOut(duration: TFDuration.fast)) {
+            expandedRow = expandedRow == row ? nil : row
+        }
+    }
+
+    /// Один образец подписи на весь раздел ИИ: «Модель · что делает».
+    /// Модель называем всегда, даже пока не скачана — владелец видит, что
+    /// именно стоит на телефоне. Короткий отклик на действие («Модель
+    /// актуальна», «Модель удалена») временно подменяет подпись.
     private var speechSubtitle: String {
+        if let feedback = dictation.feedback { return feedback }
         if case .failed(let message) = dictation.modelState { return message }
-        return "Диктовка задач, заметок и комментариев"
+        return "\(dictation.selectedModel.displayName) · диктовка задач и заметок"
     }
     private var speechValue: String {
         switch dictation.modelState {
@@ -138,48 +231,46 @@ struct VoiceModelsScreen: View {
         case .unknown, .notDownloaded: .off
         }
     }
-    private var isSpeechRowTappable: Bool {
-        switch dictation.modelState {
-        case .notDownloaded, .failed: true
-        case .unknown, .downloading, .ready: false
-        }
-    }
 
-    // MARK: - Свои промпты
+    // MARK: - Промпт модели (разворот в карточке)
 
-    private var userPromptsSection: some View {
+    /// Промпт конкретной серверной способности — разворачивается ПРЯМО в
+    /// карточке под строкой (владелец 20.09.2026: «промпт так же, а не
+    /// отдельными всплывающими окнами»). Отдельного раздела «Свои промпты» нет.
+    @ViewBuilder
+    private func promptExpansion(_ row: ExpandedRow) -> some View {
+        @Bindable var store = promptsStore
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Свои промпты")
-            @Bindable var store = promptsStore
-            TFCard(padding: 0) {
-                VStack(spacing: 0) {
-                    promptEditor(
-                        title: "Системный промпт для задач",
-                        subtitle: "Что серверная модель учитывает при разборе диктовки в задачи",
-                        placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
-                        text: $store.extractTasksPrompt,
-                        saveState: extractSaveState,
-                        onCommit: { scheduleSave(scope: .extractTasks) },
-                        onReset: { resetPrompt(scope: .extractTasks) }
-                    )
-                    TFDivider()
-                    promptEditor(
-                        title: "Системный промпт для журнала",
-                        subtitle: "Что серверная модель учитывает при «продолжить / сократить / развить» в Дневнике",
-                        placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
-                        text: $store.journalAssistPrompt,
-                        saveState: journalSaveState,
-                        onCommit: { scheduleSave(scope: .journalAssist) },
-                        onReset: { resetPrompt(scope: .journalAssist) }
-                    )
-                }
+            switch row {
+            case .extractTasks:
+                promptEditor(
+                    title: "Системный промпт для задач",
+                    subtitle: "Что серверная модель учитывает при разборе диктовки в задачи",
+                    placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
+                    text: $store.extractTasksPrompt,
+                    saveState: extractSaveState,
+                    onCommit: { scheduleSave(scope: .extractTasks) },
+                    onReset: { resetPrompt(scope: .extractTasks) }
+                )
+            case .journalAssist:
+                promptEditor(
+                    title: "Системный промпт для журнала",
+                    subtitle: "Что серверная модель учитывает при «продолжить / сократить / развить» в Дневнике",
+                    placeholder: "Оставьте пустым — сервер возьмёт свой промпт по умолчанию",
+                    text: $store.journalAssistPrompt,
+                    saveState: journalSaveState,
+                    onCommit: { scheduleSave(scope: .journalAssist) },
+                    onReset: { resetPrompt(scope: .journalAssist) }
+                )
+            default:
+                EmptyView()
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
             Text("Сервер сам подмешивает ваш промпт при вызове модели. Меняется только для вашего аккаунта, на других устройствах и в вебе появится автоматически.")
                 .tfText(.caption)
                 .foregroundStyle(Color.tfDim)
-                .padding(.horizontal, TFSpacing.screenHorizontal + TFSpacing.xs)
         }
+        .padding(.bottom, TFSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -321,26 +412,144 @@ struct VoiceModelsScreen: View {
             SettingsCapsLabel("На сервере")
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
-                    VoiceModelRow(
-                        icon: "cpu", title: "Мозг для задач",
-                        subtitle: brainSubtitle,
-                        value: brainValue, dot: brainDot
-                    )
+                    // Тап — развернуть промпт этой способности прямо в карточке,
+                    // долгое нажатие — выбор серверной модели.
+                    Button { toggleExpanded(.extractTasks) } label: {
+                        VoiceModelRow(
+                            icon: "cpu", title: "Мозг для задач",
+                            subtitle: brainSubtitle,
+                            value: brainValue, dot: brainDot
+                        )
+                    }
+                    .buttonStyle(TFTapRowStyle())
+                    .contextMenu { serverModelMenu }
+                    if expandedRow == .extractTasks {
+                        promptExpansion(.extractTasks)
+                    }
+
                     TFDivider(inset: rowDividerInset)
-                    VoiceModelRow(
-                        icon: "cloud", title: serverModelTitle,
-                        subtitle: "Разбор диктовки, сводки и AI-действия в Дневнике",
-                        value: serverModelValue, dot: serverModelDot
-                    )
+                    Button { toggleExpanded(.journalAssist) } label: {
+                        VoiceModelRow(
+                            icon: "cloud", title: "Разбор диктовки",
+                            subtitle: serverModelSubtitle,
+                            value: serverModelValue, dot: serverModelDot
+                        )
+                    }
+                    .buttonStyle(TFTapRowStyle())
+                    .contextMenu { serverModelMenu }
+                    if expandedRow == .journalAssist {
+                        promptExpansion(.journalAssist)
+                    }
+
+                    // «Расшифровка действий» живёт НА СЕРВЕРЕ: пока карточка
+                    // открыта, сервер сам зовёт локальную модель и кладёт
+                    // готовую фразу в активность (activity.ts, observer).
+                    // На телефоне модели для этого нет — отдельного движка
+                    // не заводим (решение владельца 20.09.2026).
+                    TFDivider(inset: rowDividerInset)
+                    Button { toggleExpanded(.actionExplain) } label: {
+                        VoiceModelRow(
+                            icon: "sparkles", title: "Расшифровка действий",
+                            subtitle: "\(effectiveServerModelName) · чем занят агент",
+                            value: serverModelValue, dot: serverModelDot
+                        )
+                    }
+                    .buttonStyle(TFTapRowStyle())
+                    if expandedRow == .actionExplain {
+                        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                            Text("Пока карточка задачи открыта, сервер сам зовёт локальную модель и кладёт готовую фразу о том, чем занят агент, в ленту активности. На телефоне для этого ничего качать не нужно — расшифровка идёт на .110.")
+                                .tfText(.action)
+                                .foregroundStyle(Color.tfSub)
+                        }
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.bottom, TFSpacing.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
         }
     }
 
+    /// Меню серверной модели: только проверка и замена — удаления на сервере
+    /// нет (решение владельца 20.09.2026: «удалять ничего не надо, чисто
+    /// замена»). В списке видно размер и распределение GPU/CPU.
+    @ViewBuilder
+    private var serverModelMenu: some View {
+        Button {
+            Task { await loadServerStatus() }
+        } label: {
+            Label("Проверить", systemImage: "arrow.clockwise")
+        }
+        Menu {
+            if serverModels.isEmpty {
+                Text("Не удалось получить список моделей")
+            } else {
+                ForEach(serverModels) { model in
+                    Button {
+                        selectServerModel(model.name)
+                    } label: {
+                        if model.name == effectiveServerModel {
+                            Label(serverModelLabel(model), systemImage: "checkmark")
+                        } else {
+                            Text(serverModelLabel(model))
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("Заменить модель", systemImage: "arrow.triangle.2.circlepath")
+        }
+    }
+
+    /// «Qwen 3.6 · 27B · 9.2 ГБ · 100% на GPU» — размер и где реально лежат
+    /// веса. Для незагруженной — только размер и «не загружена».
+    private func serverModelLabel(_ model: AILocalModel) -> String {
+        var parts = [VoiceModelsScreen.humanServerModelName(model.name)]
+        if let size = model.size { parts.append(Self.modelBytes(size)) }
+        if model.loaded == true {
+            if let size = model.size, size > 0, let vram = model.sizeVram {
+                if vram <= 0 {
+                    parts.append("на CPU")
+                } else {
+                    let pct = Int((Double(vram) / Double(size) * 100).rounded())
+                    parts.append(pct >= 99 ? "на GPU" : "\(pct)% на GPU")
+                }
+            } else {
+                parts.append("загружена")
+            }
+        } else {
+            parts.append("не загружена")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func modelBytes(_ bytes: Int) -> String {
+        let gb = Double(bytes) / 1_073_741_824
+        if gb >= 1 { return String(format: "%.1f ГБ", gb) }
+        return String(format: "%.0f МБ", Double(bytes) / 1_048_576)
+    }
+
+    /// Какая модель показывается в подписи: выбранная вручную, иначе — та,
+    /// что отдаёт сервер (его значение по умолчанию).
+    private var effectiveServerModel: String {
+        if !selectedServerModel.isEmpty { return selectedServerModel }
+        return serverStatus?.model ?? ""
+    }
+
+    private var effectiveServerModelName: String {
+        let raw = effectiveServerModel
+        return raw.isEmpty ? "Серверная модель" : VoiceModelsScreen.humanServerModelName(raw)
+    }
+
+    private func selectServerModel(_ name: String) {
+        selectedServerModel = name
+        AIServerModelSetting.set(name)
+        Task { await loadServerStatus() }
+    }
+
     private var brainSubtitle: String {
-        guard let serverStatus else { return "разбивка задач на шаги" }
-        return "\(VoiceModelsScreen.humanServerModelName(serverStatus.model)) · разбивка задач на шаги"
+        "\(effectiveServerModelName) · разбивка задач на шаги"
     }
     private var brainValue: String {
         isLoadingServerStatus ? "…" : (serverStatus?.online == true ? "работает" : "нет связи")
@@ -349,13 +558,19 @@ struct VoiceModelsScreen: View {
         isLoadingServerStatus ? .off : (serverStatus?.online == true ? .ok : .off)
     }
 
-    private var serverModelTitle: String {
-        serverStatus.map { VoiceModelsScreen.humanServerModelName($0.model) } ?? "Серверная модель"
+    /// Тот же образец, что у «Мозга для задач»: в заголовке функция, в
+    /// подписи — «Модель · что делает». Раньше здесь модель стояла заголовком
+    /// и строка выбивалась из соседней (замечание владельца 20.09.2026:
+    /// «Делай по одному образцу»).
+    private var serverModelSubtitle: String {
+        "\(effectiveServerModelName) · диктовка, сводки и Дневник"
     }
     private var serverModelValue: String {
         guard !isLoadingServerStatus else { return "…" }
         guard let serverStatus, serverStatus.online else { return "нет связи" }
-        if serverStatus.installed == false { return "не найдена" }
+        // Про «не найдена» говорим только про модель по умолчанию: выбранную
+        // вручную мы взяли из списка установленных, она по определению есть.
+        if selectedServerModel.isEmpty, serverStatus.installed == false { return "не найдена" }
         return "работает"
     }
     private var serverModelDot: VoiceDotState {
@@ -508,9 +723,15 @@ private struct VoiceModelRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: TFSpacing.xs) {
                     if let dot { VoiceStatusDot(state: dot) }
-                    Text(title).tfText(.body).foregroundStyle(Color.tfText).lineLimit(1)
+                    // Длинные заголовки («Расшифровка действий») слегка
+                    // ужимаются, а не обрезаются многоточием.
+                    Text(title).tfText(.body).foregroundStyle(Color.tfText)
+                        .lineLimit(1).minimumScaleFactor(0.8)
                 }
-                Text(subtitle).tfText(.action).foregroundStyle(Color.tfSub).lineLimit(1)
+                // Подпись «Модель · что делает» — до двух строк: в одну она
+                // физически не влезает и рвалась многоточием посреди слова.
+                Text(subtitle).tfText(.action).foregroundStyle(Color.tfSub)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             if let value {

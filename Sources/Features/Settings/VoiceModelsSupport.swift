@@ -19,6 +19,39 @@ extension APIClient {
     }
 }
 
+/// Одна локальная (Ollama) модель сервера — `GET /ai/local-models`.
+///
+/// `size` — размер (для загруженной модели — фактический в памяти, иначе
+/// размер файла на диске); `sizeVram` — сколько из него лежит в видеопамяти;
+/// `loaded` — модель сейчас резидентна. Полей `size_vram`/`loaded` нет у
+/// сервера старее — тогда `nil`, и распределение просто не показываем.
+struct AILocalModel: Decodable, Sendable, Identifiable {
+    let name: String
+    let size: Int?
+    let loaded: Bool?
+    let sizeVram: Int?
+
+    var id: String { name }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case size
+        case loaded
+        case sizeVram = "size_vram"
+    }
+}
+
+private struct AILocalModelsResponse: Decodable {
+    let models: [AILocalModel]
+}
+
+extension APIClient {
+    func aiLocalModels() async throws -> [AILocalModel] {
+        let response: AILocalModelsResponse = try await request(.get, "/ai/local-models")
+        return response.models
+    }
+}
+
 /// Запись журнала диктовки — порт `DictationLogEntry` (`src/lib/dictationLog.ts`).
 struct DictationLogEntry: Codable, Equatable {
     /// ISO-момент — форматируется при выводе, не при записи (как в вебе).

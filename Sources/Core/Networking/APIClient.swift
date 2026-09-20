@@ -82,6 +82,11 @@ public final class APIClient: Sendable {
         // без пароля из домашней сети (`looksLikeBrowser` в server/src/auth.ts).
         // Браузер там опознаётся по своим заголовкам, у нативного клиента их нет.
         request.setValue("ios-native", forHTTPHeaderField: "X-TaskFlow-Client")
+        // Выбор серверной модели приложения — необязательная подсказка серверу;
+        // читается только там, где модель реально уместна (см. AIServerModelSetting).
+        if let model = AIServerModelSetting.selected {
+            request.setValue(model, forHTTPHeaderField: "X-Ollama-Model")
+        }
         if let token = KeychainService.shared.token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
