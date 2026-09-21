@@ -11,6 +11,8 @@ struct ChatScreen: View {
     @Environment(\.chatBackAction) private var chatBack
     @State private var viewModel = ChatViewModel()
     @State private var isClearConfirmOpen = false
+    /// Пушем экран открывает системная кнопка «назад» — тогда своя не нужна.
+    var hidesOwnBackButton = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,11 +44,17 @@ struct ChatScreen: View {
         // были готовы — не хватало только этого экрана).
         .tfNativeHeader(viewModel.headerTitle, displayMode: .inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { chatBack?() } label: {
-                    Image(systemName: "chevron.left")
+            // Своя стрелка «назад» нужна только когда экран КОРЕНЬ вкладки:
+            // тогда системной кнопки нет и выйти больше нечем. Пушем из
+            // списка чатов («Секретарь») системная кнопка есть, и рядом с ней
+            // эта рисовала вторую стрелку (владелец 21.09.2026, LOCK-195).
+            if !hidesOwnBackButton {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { chatBack?() } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel("Назад")
                 }
-                .accessibilityLabel("Назад")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

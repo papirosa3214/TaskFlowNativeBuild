@@ -90,4 +90,11 @@ public extension APIClient {
         )
         return response.chat
     }
+
+    /// Отметить чат прочитанным (участник). По этой отметке список чатов
+    /// считает бейдж непрочитанных (миграция 055); зовётся при открытии
+    /// комнаты и когда в открытом чате появилось чужое сообщение.
+    func markRoleChatRead(id: String) async throws {
+        try await requestVoid(.post, "/chats/\(id)/read")
+    }
 }

@@ -1,10 +1,33 @@
 import SwiftUI
 
+/// Оформление пузыря голосового сообщения.
+///
+/// Цвета задаёт ВЫЗЫВАЮЩИЙ, а не этот файл: он собирается сразу в два
+/// приложения — в TaskFlow и в отдельный прототип `VoiceMessageLab`, у
+/// которого дизайн-системы TaskFlow нет. Значения по умолчанию — прежний
+/// вид прототипа (заливка акцентом).
+///
+/// В чате вид сообщения не зависит от того, как его отправили (владелец
+/// 21.09.2026): у своего голосового — та же красная обводка без заливки, что
+/// у своего текстового. Чужое голосовое остаётся прежним пузырём прототипа,
+/// как и раньше.
+struct VoiceBubbleStyle {
+    var fill: Color = .accentColor
+    var stroke: Color?
+    /// Кнопка воспроизведения: у своего сообщения заливки нет вовсе, поэтому
+    /// она тоже становится обводкой.
+    var playTint: Color = .accentColor
+    var playFilled: Bool = true
+}
+
 /// Один пузырь для прототипа и настоящего чата.
 struct VoiceMessageBubble: View {
     let message: VoiceMessage
     let player: VoicePlayer
+    var style = VoiceBubbleStyle()
     @State private var showsTranscript = true
+
+    private let cornerRadius: CGFloat = 22
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -13,8 +36,13 @@ struct VoiceMessageBubble: View {
                     Image(systemName: player.playingURL == message.audioURL ? "pause.fill" : "play.fill")
                         .font(.system(size: 20, weight: .medium))
                         .frame(width: 36, height: 36)
-                        .background(.white, in: Circle())
-                        .foregroundStyle(Color.accentColor)
+                        .background { if style.playFilled { Circle().fill(.white) } }
+                        .overlay {
+                            if !style.playFilled {
+                                Circle().strokeBorder(style.playTint, lineWidth: 1)
+                            }
+                        }
+                        .foregroundStyle(style.playTint)
                 }
                 .accessibilityLabel(player.playingURL == message.audioURL ? "Пауза" : "Воспроизвести")
                 WaveformView(levels: message.waveform, color: .white).frame(height: 30)
@@ -25,7 +53,13 @@ struct VoiceMessageBubble: View {
         }
         .padding(14)
         .foregroundStyle(.white)
-        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(style.fill, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            if let stroke = style.stroke {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(stroke, lineWidth: 1)
+            }
+        }
         .frame(maxWidth: 330, alignment: .trailing)
     }
 
