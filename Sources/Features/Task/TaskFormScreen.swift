@@ -44,6 +44,11 @@ struct TaskFormScreen: View {
     @State private var isAttachmentPickerPresented = false
     /// Выбор документа из базы знаний (второй источник у «Прикрепить файл»).
     @State private var isKnowledgePickerPresented = false
+    /// Вложение, которое ЗАМЕНЯЕМ (длинное нажатие → «Заменить…»): после
+    /// загрузки нового старое удаляем.
+    @State private var replaceAttachmentTarget: ApiAttachment?
+
+    private enum AttachmentSource { case phone, knowledge }
     @State private var isDeleteConfirmationPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
@@ -339,8 +344,24 @@ struct TaskFormScreen: View {
         )
         .sheet(isPresented: $isKnowledgePickerPresented) {
             KnowledgePickerSheet { noteID, title in
-                Task { await attachKnowledgeNote(noteID: noteID, title: title) }
+                let old = replaceAttachmentTarget
+                replaceAttachmentTarget = nil
+                Task {
+                    await attachKnowledgeNote(noteID: noteID, title: title)
+                    if let old { await viewModel.attachments.removeUploaded(old) }
+                }
             }
+            .onDisappear { replaceAttachmentTarget = nil }
+        }
+    }
+
+    /// Длинное нажатие на вложение → «Заменить…»: запоминаем, что меняем, и
+    /// открываем нужный источник. После успешной загрузки старое удаляется.
+    private func replaceAttachment(from source: AttachmentSource, target: ApiAttachment) {
+        replaceAttachmentTarget = target
+        switch source {
+        case .phone: isAttachmentPickerPresented = true
+        case .knowledge: isKnowledgePickerPresented = true
         }
     }
 
@@ -580,11 +601,38 @@ struct TaskFormScreen: View {
                         Label(attachment.fileName, systemImage: "paperclip")
                             .tfText(.action)
                             .foregroundStyle(Color.tfSub)
+                            .contextMenu {
+                                Button { replaceAttachment(from: .phone, target: attachment) } label: {
+                                    Label("Заменить с iPhone", systemImage: "iphone")
+                                }
+                                Button { replaceAttachment(from: .knowledge, target: attachment) } label: {
+                                    Label("Заменить из базы знаний", systemImage: "books.vertical")
+                                }
+                                Button(role: .destructive) {
+                                    Task { await viewModel.attachments.removeUploaded(attachment) }
+                                } label: {
+                                    Label("Удалить", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.attachments.removeUploaded(attachment) }
+                                } label: {
+                                    Label("Удалить", systemImage: "trash")
+                                }
+                            }
                     }
                     ForEach(viewModel.attachments.pending) { attachment in
                         Label(attachment.fileName, systemImage: "paperclip")
                             .tfText(.action)
                             .foregroundStyle(Color.tfSub)
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    viewModel.attachments.removePending(attachment)
+                                } label: {
+                                    Label("Удалить", systemImage: "trash")
+                                }
+                            }
                     }
                 } header: {
                     taskSectionHeader("Вложения")
@@ -1489,8 +1537,16 @@ struct TaskFormScreen: View {
     }
 
     private func handleAttachmentImport(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else { return }
-        Task { await viewModel.attachments.add(url: url) }
+        guard case .success(let url) = result else {
+            replaceAttachmentTarget = nil
+            return
+        }
+        let old = replaceAttachmentTarget
+        replaceAttachmentTarget = nil
+        Task {
+            await viewModel.attachments.add(url: url)
+            if let old { await viewModel.attachments.removeUploaded(old) }
+        }
     }
 
     /// Приложить документ из базы знаний: забираем его markdown и кладём

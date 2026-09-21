@@ -58,14 +58,30 @@ enum TaskAttachmentDisplay {
     static func rejectionReason(fileName: String, mime: String, size: Int) -> String? {
         let maxSize = 15 * 1024 * 1024
         if size > maxSize { return "«\(fileName)» больше 15 МБ — столько сервер не принимает" }
+        // Владелец 20.09.2026: «почему только текстовые документы, почему не
+        // приложить вообще всё — код, скрипт, ссылку». Принимаем любой текст
+        // (`text/*` покрывает .py/.js/.sh и т.п.), частые кодовые/конфиговые
+        // типы и всё неопознанное (`application/octet-stream`) — вложение это
+        // КОНТЕКСТ задачи, а не исполняемый артефакт. Предел 15 МБ остаётся.
         let allowed = mime.hasPrefix("image/")
+            || mime.hasPrefix("text/")
             || mime == "application/pdf"
-            || mime == "text/plain"
-            || mime == "text/markdown"
             || mime == "application/msword"
             || mime.hasPrefix("application/vnd.openxmlformats-officedocument.")
             || mime.hasPrefix("application/vnd.oasis.opendocument.")
+            || mime == "application/octet-stream"
+            || Self.codeMimeTypes.contains(mime)
         if !allowed { return "«\(fileName)» — такие файлы не принимаем" }
         return nil
     }
+
+    /// Кодовые и конфиговые типы, которые не всегда попадают под `text/*`
+    /// (некоторые расширения система отдаёт именно этими MIME).
+    private static let codeMimeTypes: Set<String> = [
+        "application/json", "application/xml", "application/yaml", "application/x-yaml",
+        "application/javascript", "application/x-javascript", "application/x-sh",
+        "application/x-shellscript", "application/x-python", "application/x-ruby",
+        "application/x-perl", "application/x-httpd-php", "application/sql",
+        "application/graphql", "application/toml", "application/x-ndjson",
+    ]
 }
