@@ -94,6 +94,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let comments: [ApiComment]?
     /// Только `GET /api/tasks/:id`.
     public let events: [ApiTaskEvent]?
+    /// Только `GET /api/tasks/:id` — чаты, привязанные к этой задаче. Нужны
+    /// карточке для перехода «Чат по задаче»; сам чат в карточке не рисуется
+    /// (владелец 21.09.2026, LOCK-195).
+    public let chats: [ApiTaskChat]?
     /// Только `GET /api/tasks/:id` — файлы самой задачи (`kind='task'`).
     public let attachments: [ApiAttachment]?
     /// Спек 1.2, 1.2.10 — лесенка модели. Только `GET /api/tasks/:id`. На
@@ -162,7 +166,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case creatorInitials = "creator_initials"
         case projectName = "project_name"
         case projectColor = "project_color"
-        case labels, subtasks, children, comments, events, attachments
+        case labels, subtasks, children, comments, events, chats, attachments
         case attemptLadder = "attempt_ladder"
         case role
         case ownerSelectedRole = "owner_selected_role"
@@ -220,6 +224,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         children = try c.decodeIfPresent([ApiTask].self, forKey: .children)
         comments = try c.decodeIfPresent([ApiComment].self, forKey: .comments)
         events = try c.decodeIfPresent([ApiTaskEvent].self, forKey: .events)
+        chats = try c.decodeIfPresent([ApiTaskChat].self, forKey: .chats)
         attachments = try c.decodeIfPresent([ApiAttachment].self, forKey: .attachments)
         attemptLadder = try c.decodeIfPresent(ApiAttemptLadder.self, forKey: .attemptLadder)
         let roleValue = try c.decodeIfPresent(String.self, forKey: .role)

@@ -743,6 +743,7 @@ struct TaskFormScreen: View {
         .refreshable { await viewModel.refresh() }
     }
 
+    @ViewBuilder
     private var linkedTasksSection: some View {
         Section {
             if let parent = viewModel.parentTask {
@@ -784,6 +785,41 @@ struct TaskFormScreen: View {
         .listRowBackground(Color.tfBackground)
         .listRowSeparator(.hidden)
         .listSectionSeparator(.hidden)
+
+        // Чаты, привязанные к задаче. Секция только ПЕРЕХОДИТ в переписку:
+        // свой чат внутри карточки не заводится и не рисуется — для этого есть
+        // отдельный экран (владелец 21.09.2026: «заводить прям чат прямо в
+        // карточке не надо, надо чтобы просто переходил»). Появляется только
+        // когда чат уже привязан — со стороны чата.
+        if !viewModel.taskChats.isEmpty {
+            Section {
+                ForEach(viewModel.taskChats) { chat in
+                    NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
+                        HStack(spacing: TFSpacing.sm) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(chat.displayTitle)
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfSub)
+                                    .lineLimit(2)
+                                if let members = chat.membersCount, members > 0 {
+                                    Text("Участников: \(members)")
+                                        .tfText(.meta)
+                                        .foregroundStyle(Color.tfDim)
+                                }
+                            }
+                            Spacer(minLength: TFSpacing.sm)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .listRowSeparator(.hidden)
+                }
+            } header: {
+                taskSectionHeader("Чат по задаче")
+            }
+            .listRowBackground(Color.tfBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
+        }
     }
 
     private func linkedTaskRow(_ task: ApiTask, relation: String) -> some View {

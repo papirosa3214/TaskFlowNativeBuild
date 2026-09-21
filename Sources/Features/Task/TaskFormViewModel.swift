@@ -113,6 +113,12 @@ final class TaskFormViewModel {
         TaskJournalEntry.merged(comments: originalTask?.comments ?? [], events: originalTask?.events ?? [])
     }
 
+    /// Чаты, привязанные к этой задаче. Карточка по ним только ПЕРЕХОДИТ в
+    /// переписку — свой чат внутри карточки не заводится и не рисуется
+    /// (владелец 21.09.2026: «заводить прям чат прямо в карточке не надо,
+    /// надо чтобы просто переходил в чат»).
+    var taskChats: [ApiTaskChat] { originalTask?.chats ?? [] }
+
     var isEditing: Bool { taskID != nil }
     /// Для меню «…» (перенесено из `TaskDetailScreen` — открытие задачи
     /// больше не ведёт на отдельный экран-просмотр, она сама и есть форма).

@@ -133,7 +133,8 @@ struct RoleChatsScreen: View {
             title: chat.displayTitle(excluding: session.currentUser?.id),
             preview: previewText(chat),
             time: ChatListTime.label(chat.lastMessage?.createdAt),
-            unread: chat.unread
+            unread: chat.unread,
+            taskTitle: chat.taskTitle
         )
     }
 
@@ -249,6 +250,8 @@ private struct ChatListRow: View {
     let preview: String
     let time: String?
     let unread: Int
+    /// Название задачи, за которой закреплён чат (`nil` — свободный).
+    var taskTitle: String?
 
     var body: some View {
         HStack(spacing: TFSpacing.md) {
@@ -266,6 +269,14 @@ private struct ChatListRow: View {
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(1)
+                // Пометка «чат за задачей»: по ней видно, куда уходит
+                // переписка (владелец 21.09.2026: «пометка нужна»).
+                if let taskTitle, !taskTitle.isEmpty {
+                    Label(taskTitle, systemImage: "checklist")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: TFSpacing.sm)
             VStack(alignment: .trailing, spacing: TFSpacing.sm) {

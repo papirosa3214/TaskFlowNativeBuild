@@ -20,6 +20,9 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     /// участнике чата). Опционально: сервер до этой правки поля не слал, и
     /// старый ответ не должен ронять декодирование.
     public let unreadCount: Int?
+    /// Название задачи, к которой привязан чат (`nil` — свободный). Нужно
+    /// пометкой в строке списка: по ней видно, какой чат за какой задачей.
+    public let taskTitle: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, kind, members
@@ -27,6 +30,7 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case taskID = "task_id"
         case lastMessage = "last_message"
         case unreadCount = "unread_count"
+        case taskTitle = "task_title"
     }
 
     public var unread: Int { unreadCount ?? 0 }
@@ -92,6 +96,29 @@ public struct RoleChatPreview: Decodable, Sendable {
         if (audioCount ?? 0) > 0 { return "Голосовое сообщение" }
         if (attachmentCount ?? 0) > 0 { return "Файл" }
         return ""
+    }
+}
+
+/// Чат, привязанный к задаче — карточка отдаёт их списком, чтобы дать переход
+/// в переписку. Сам чат в карточке не рисуется: для него есть свой экран
+/// (владелец 21.09.2026, LOCK-195).
+public struct ApiTaskChat: Decodable, Identifiable, Sendable, Hashable {
+    public let id: String
+    public let title: String?
+    public let kind: String?
+    public let membersCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, kind
+        case membersCount = "members_count"
+    }
+
+    /// Что показать в строке карточки: название чата, иначе — по составу.
+    public var displayTitle: String {
+        if let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+        return kind == "group" ? "Групповой чат" : "Чат"
     }
 }
 
