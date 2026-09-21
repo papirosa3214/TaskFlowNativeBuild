@@ -775,11 +775,27 @@ private struct RoleChatRoomScreen: View {
 enum RoleChatVoiceStyle {
     /// Своё голосовое — та же подложка, что у остальных, и красная обводка
     /// поверх. Отличает свои сообщения только обводка, как и у текстовых.
+    /// Кнопка воспроизведения — один красный треугольник, без круга и без
+    /// обводки (владелец 21.09.2026).
+    ///
+    /// Отступ и радиус — как у текстового сообщения в чате. С числами
+    /// прототипа (14 и 22) иконка отправителя и текст расшифровки вставали
+    /// на других вертикалях, чем в текстовом: владелец 21.09.2026 —
+    /// «интервалы абсолютно одинаковые, симметрия».
     static let own = VoiceBubbleStyle(
         fill: Color.tfCard,
         stroke: Color.tfRed,
         playTint: Color.tfRed,
-        playFilled: true
+        playDisc: .none,
+        padding: TFSpacing.md,
+        cornerRadius: TFRadius.lg
+    )
+
+    /// Чужое голосовое: пузырь прототипа, но с теми же отступами, что у
+    /// текстового сообщения — по той же причине.
+    static let others = VoiceBubbleStyle(
+        padding: TFSpacing.md,
+        cornerRadius: TFRadius.lg
     )
 }
 
@@ -807,7 +823,7 @@ private struct RoleChatRemoteVoiceBubble: View {
                 VoiceMessageBubble(
                     message: localMessage,
                     player: player,
-                    style: isOwn ? RoleChatVoiceStyle.own : VoiceBubbleStyle(),
+                    style: isOwn ? RoleChatVoiceStyle.own : RoleChatVoiceStyle.others,
                     header: header
                 )
             } else if failed {

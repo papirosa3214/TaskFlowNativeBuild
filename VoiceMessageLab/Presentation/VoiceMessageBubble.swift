@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Как нарисована кнопка воспроизведения.
+enum VoicePlayDisc {
+    /// Белый залитый круг под треугольником — прежний вид прототипа.
+    case white
+    /// Круга нет вовсе: только треугольник, без фона и без обводки
+    /// (владелец 21.09.2026).
+    case none
+}
+
 /// Оформление пузыря голосового сообщения.
 ///
 /// Цвета задаёт ВЫЗЫВАЮЩИЙ, а не этот файл: он собирается сразу в два
@@ -8,16 +17,22 @@ import SwiftUI
 /// вид прототипа (заливка акцентом).
 ///
 /// В чате вид сообщения не зависит от того, как его отправили (владелец
-/// 21.09.2026): у своего голосового — та же красная обводка без заливки, что
+/// 21.09.2026): у своего голосового — та же подложка и красная обводка, что
 /// у своего текстового. Чужое голосовое остаётся прежним пузырём прототипа,
 /// как и раньше.
 struct VoiceBubbleStyle {
     var fill: Color = .accentColor
     var stroke: Color?
-    /// Кнопка воспроизведения: у своего сообщения заливки нет вовсе, поэтому
-    /// она тоже становится обводкой.
+    /// Треугольник воспроизведения.
     var playTint: Color = .accentColor
-    var playFilled: Bool = true
+    var playDisc: VoicePlayDisc = .white
+    /// Внутренний отступ пузыря и радиус скругления. По умолчанию — прежние
+    /// числа прототипа (14 и 22). Чат передаёт СВОИ — те же, что у текстового
+    /// сообщения (`TFSpacing.md` и `TFRadius.lg`): иначе иконка отправителя и
+    /// текст расшифровки стоят на разных вертикалях в текстовом и голосовом
+    /// сообщении (владелец 21.09.2026).
+    var padding: CGFloat = 14
+    var cornerRadius: CGFloat = 22
 }
 
 /// Один пузырь для прототипа и настоящего чата.
@@ -31,23 +46,12 @@ struct VoiceMessageBubble: View {
     var header: AnyView?
     @State private var showsTranscript = true
 
-    private let cornerRadius: CGFloat = 22
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let header { header }
             HStack(spacing: 12) {
                 Button { try? player.toggle(url: message.audioURL) } label: {
-                    Image(systemName: player.playingURL == message.audioURL ? "pause.fill" : "play.fill")
-                        .font(.system(size: 20, weight: .medium))
-                        .frame(width: 36, height: 36)
-                        .background { if style.playFilled { Circle().fill(.white) } }
-                        .overlay {
-                            if !style.playFilled {
-                                Circle().strokeBorder(style.playTint, lineWidth: 1)
-                            }
-                        }
-                        .foregroundStyle(style.playTint)
+                    playGlyph
                 }
                 .accessibilityLabel(player.playingURL == message.audioURL ? "Пауза" : "Воспроизвести")
                 WaveformView(levels: message.waveform, color: .white).frame(height: 30)
@@ -56,16 +60,55 @@ struct VoiceMessageBubble: View {
             }
             transcript
         }
-        .padding(14)
+        .padding(style.padding)
         .foregroundStyle(.white)
-        .background(style.fill, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .background(style.fill, in: RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous))
         .overlay {
             if let stroke = style.stroke {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous)
                     .strokeBorder(stroke, lineWidth: 1)
             }
         }
         .frame(maxWidth: 330, alignment: .trailing)
+    }
+
+    /// Кнопка воспроизведения.
+    ///
+    /// `.none` — ровно глиф, без рамки, круга и обводки: владелец 21.09.2026 —
+    /// «не надо рисовать гигантскую кнопку, чисто только треугольничек».
+    /// Поэтому у такого варианта нет ни 36pt-рамки, ни фона. Сам глиф не
+    /// уменьшается — прежние 20pt, дело было только в лишней рамке вокруг него.
+    ///
+    /// `.white` — прежний вид прототипа: белый залитый круг 36pt, глиф по
+    /// центру.
+    @ViewBuilder
+    private var playGlyph: some View {
+        let glyph = Image(systemName: player.playingURL == message.audioURL ? "pause.fill" : "play.fill")
+            .font(.system(size: 20, weight: .medium))
+        switch style.playDisc {
+        case .white:
+            glyph
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(.white))
+                .foregroundStyle(style.playTint)
+        case .none:
+            // У `play.fill` есть собственный боковой пробел внутри глифа
+            // (около 2pt при 20pt) — без компенсации треугольник встаёт
+            // правее иконки отправителя и текста, хотя рамка начинается с
+            // того же края. Владелец 21.09.2026: «интервалы абсолютно
+            // одинаковые, симметрия». Сдвиг постоянный: кегль глифа
+            // фиксированный (20pt), от Dynamic Type пробел не зависит.
+            //
+            // Рамка нужна ради НАЖАТИЯ, а не вида: сам треугольник её не
+            // заполняет и остаётся единственным, что видно (владелец
+            // 21.09.2026: «не надо рисовать гигантскую кнопку»). Без неё
+            // зона нажатия ужималась до размеров глифа (~17pt) и попасть по
+            // кнопке было почти невозможно.
+            glyph
+                .foregroundStyle(style.playTint)
+                .frame(width: 36, height: 36, alignment: .leading)
+                .offset(x: -2)
+        }
     }
 
     @ViewBuilder private var transcript: some View {
