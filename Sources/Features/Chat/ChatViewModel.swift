@@ -285,6 +285,17 @@ final class ChatViewModel {
 
     // MARK: - Вложения
 
+    /// Очистить ленту текущего канала (владелец). Владелец 21.09.2026:
+    /// «должна быть возможность очищать этот чат».
+    func clearChat() async {
+        do {
+            try await api.clearChatMessages(channel: activeChannel)
+            messages = []
+        } catch {
+            sendErrorMessage = Self.message(for: error)
+        }
+    }
+
     func attach(fileName: String, data: Data, mime: String) async {
         isUploadingAttachment = true
         uploadErrorMessage = nil
@@ -358,7 +369,14 @@ final class ChatViewModel {
     }
 
     private func recomputeTypists() {
-        typists = typingDeadlines.map { ChatTypist(userId: $0.key, name: $0.value.name) }
+        // СТАБИЛЬНЫЙ порядок: словарь в Swift перебирается недетерминированно,
+        // поэтому без сортировки массив каждый секундный sweep выглядел новым,
+        // `onChange(of: visibleTypists)` срабатывал постоянно и лента сообщений
+        // прыгала вверх-вниз (владелец 21.09.2026). Сортируем по id — тогда
+        // значение меняется только при реальном изменении состава.
+        typists = typingDeadlines
+            .map { ChatTypist(userId: $0.key, name: $0.value.name) }
+            .sorted { $0.userId < $1.userId }
     }
 
     // MARK: - Реалтайм

@@ -303,11 +303,19 @@ private struct RoleChatRoomScreen: View {
                 }
                 if !message.text.isEmpty && !hasAudio {
                     Text(message.text)
-                        .foregroundStyle(mine ? .white : Color.tfText)
+                        // Мои — только красная обводка, без заливки; у
+                        // остальных обводки нет (владелец 21.09.2026).
+                        .foregroundStyle(Color.tfText)
                 }
             }
             .padding(hasAudio ? 0 : TFSpacing.md)
-            .background(hasAudio ? Color.clear : (mine ? Color.tfRed : Color.tfCard))
+            .background(hasAudio ? Color.clear : (mine ? Color.clear : Color.tfCard))
+            .overlay {
+                if mine && !hasAudio {
+                    RoundedRectangle(cornerRadius: TFRadius.lg)
+                        .strokeBorder(Color.tfRed, lineWidth: TFBorder.width)
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
             if !mine { Spacer(minLength: 48) }
         }

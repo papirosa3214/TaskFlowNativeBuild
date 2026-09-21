@@ -10,6 +10,7 @@ struct ChatScreen: View {
     /// вкладка, `dismiss()` тут закрывать нечего.
     @Environment(\.chatBackAction) private var chatBack
     @State private var viewModel = ChatViewModel()
+    @State private var isClearConfirmOpen = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,6 +79,15 @@ struct ChatScreen: View {
                     } label: {
                         Label("Статистика", systemImage: "chart.bar")
                     }
+                    // Очистка чата — только владелец (владелец 21.09.2026:
+                    // «должна быть возможность очищать этот чат»).
+                    if session.currentUser?.role == .owner {
+                        Button(role: .destructive) {
+                            isClearConfirmOpen = true
+                        } label: {
+                            Label("Очистить чат", systemImage: "trash")
+                        }
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                 }
@@ -85,6 +95,14 @@ struct ChatScreen: View {
             }
         }
         .background(Color.tfBackground)
+        .alert("Очистить чат?", isPresented: $isClearConfirmOpen) {
+            Button("Очистить", role: .destructive) {
+                Task { await viewModel.clearChat() }
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Все сообщения этого канала будут удалены. Отменить будет нельзя.")
+        }
         .accessibilityIdentifier("chat.screen")
         .task {
             viewModel.configure(currentUser: session.currentUser)

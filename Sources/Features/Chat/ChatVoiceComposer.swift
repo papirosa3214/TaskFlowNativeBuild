@@ -90,7 +90,7 @@ struct ChatVoiceComposer: View {
         HStack(spacing: 16) {
             WaveformView(levels: voice.recorderWaveform, color: .red)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(height: 32)
             Text(recordingDuration).font(.title3.monospacedDigit()).foregroundStyle(.red)
             Button(action: stopVoiceRecording) {
                 Image(systemName: "stop.fill")
@@ -101,6 +101,7 @@ struct ChatVoiceComposer: View {
             .accessibilityLabel("Остановить запись")
         }
         .padding(.horizontal, 18).padding(.vertical, 8)
+        .frame(minHeight: composerHeight)
         .voiceCapsuleSurface()
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.vertical, 10)
@@ -135,6 +136,7 @@ struct ChatVoiceComposer: View {
                 }
             }
             .padding(.leading, 6).padding(.trailing, 4).padding(.vertical, 4)
+            .frame(minHeight: composerHeight)
             .voiceCapsuleSurface()
         }
         .padding(.horizontal).padding(.vertical, 10)

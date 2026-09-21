@@ -155,12 +155,15 @@ struct ChatBubble: View {
                 if !message.text.isEmpty {
                     Text(message.text)
                         .tfText(.row) // 14px — веб text-[14px]
-                        .foregroundStyle(mine ? .white : Color.tfText)
+                        // Мои сообщения — БЕЗ красной заливки, только красная
+                        // обводка; у остальных обводки нет вовсе (владелец
+                        // 21.09.2026). Поэтому цвет текста единый.
+                        .foregroundStyle(Color.tfText)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(mine ? Color.tfRed : Color.tfCard)
+                        .background(mine ? Color.clear : Color.tfCard)
                         .overlay {
-                            if !mine && toMe {
+                            if mine {
                                 RoundedRectangle(cornerRadius: TFRadius.xl)
                                     .strokeBorder(Color.tfRed, lineWidth: TFBorder.width)
                             }
