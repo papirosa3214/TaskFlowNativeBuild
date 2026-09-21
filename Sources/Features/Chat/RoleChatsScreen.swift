@@ -510,14 +510,14 @@ private struct RoleChatRoomScreen: View {
                         }
                         ForEach(pendingVoices) { message in
                             VStack(alignment: .trailing, spacing: 4) {
-                                // Своё голосовое — только красная обводка, без
-                                // заливки: вид отправленного сообщения не
-                                // зависит от способа отправки (владелец
-                                // 21.09.2026).
+                                // Ещё не отправленное голосовое: имя и иконка
+                                // берутся из текущей сессии — сообщения с
+                                // сервера для него пока нет.
                                 VoiceMessageBubble(
                                     message: message,
                                     player: player,
-                                    style: RoleChatVoiceStyle.own
+                                    style: RoleChatVoiceStyle.own,
+                                    header: AnyView(ownSenderLine)
                                 )
                                 if sendingVoiceIDs.contains(message.id) { ProgressView("Отправка…") }
                                 else if message.transcript != .pending {
@@ -610,26 +610,37 @@ private struct RoleChatRoomScreen: View {
         let hasAudio = message.attachments?.contains { $0.isVoiceRecording } ?? false
         return HStack(alignment: .top, spacing: TFSpacing.sm) {
             if mine { Spacer(minLength: 48) }
-            if !mine {
-                RoleChatAvatar(message: message)
-            }
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text(message.fromUserName ?? "Участник")
-                    .font(.caption)
-                    .foregroundStyle(Color.tfSub)
+                // Иконка отправителя — вплотную слева от его имени, внутри
+                // сообщения сверху (владелец 21.09.2026). Раньше она стояла
+                // отдельным столбцом сбоку и у своих сообщений не рисовалась
+                // вовсе, хотя иконка есть у всех.
+                //
+                // У голосового своя подложка — пузырь, поэтому там эта строка
+                // уезжает ВНУТРЬ пузыря, а не висит над ним отдельно.
+                if !hasAudio {
+                    senderLine(message, color: Color.tfSub)
+                }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
-                    RoleChatRemoteVoiceBubble(attachment: attachment, transcript: message.text,
-                                              player: player, api: api, isOwn: mine)
+                    RoleChatRemoteVoiceBubble(
+                        attachment: attachment,
+                        message: message,
+                        player: player,
+                        api: api,
+                        isOwn: mine,
+                        header: AnyView(senderLine(message, color: .white.opacity(0.85)))
+                    )
                 }
                 if !message.text.isEmpty && !hasAudio {
                     Text(message.text)
-                        // Мои — только красная обводка, без заливки; у
-                        // остальных обводки нет (владелец 21.09.2026).
                         .foregroundStyle(Color.tfText)
                 }
             }
             .padding(hasAudio ? 0 : TFSpacing.md)
-            .background(hasAudio ? Color.clear : (mine ? Color.clear : Color.tfCard))
+            // Подложка одна и та же у своих и у чужих — отличает их только
+            // обводка (владелец 21.09.2026: «в моих сообщениях делай такую же
+            // самую подложку, как фон делаешь другим»).
+            .background(hasAudio ? Color.clear : Color.tfCard)
             .overlay {
                 if mine && !hasAudio {
                     RoundedRectangle(cornerRadius: TFRadius.lg)
@@ -638,6 +649,29 @@ private struct RoleChatRoomScreen: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
             if !mine { Spacer(minLength: 48) }
+        }
+    }
+
+    /// Иконка отправителя вплотную слева от имени — одна и та же строка и в
+    /// текстовом сообщении, и внутри голосового пузыря. Цвет подписи зависит
+    /// от подложки: на карточке — приглушённый, на заливке пузыря — белый.
+    private func senderLine(_ message: RoleChatMessage, color: Color) -> some View {
+        HStack(spacing: TFSpacing.sm) {
+            RoleChatAvatar(message: message, size: .sm)
+            Text(message.fromUserName ?? "Участник")
+                .font(.caption)
+                .foregroundStyle(color)
+        }
+    }
+
+    /// Строка отправителя для голосового, которое ещё не отправлено: на
+    /// сервере его пока нет, поэтому имя и иконка берутся из сессии.
+    private var ownSenderLine: some View {
+        HStack(spacing: TFSpacing.sm) {
+            RoleChatAvatar(user: session.currentUser, size: .sm)
+            Text(session.currentUser?.name ?? "Вы")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.85))
         }
     }
 
@@ -739,36 +773,42 @@ private struct RoleChatRoomScreen: View {
 /// ещё и в отдельное приложение-прототип `VoiceMessageLab`, которому
 /// дизайн-система TaskFlow недоступна.
 enum RoleChatVoiceStyle {
+    /// Своё голосовое — та же подложка, что у остальных, и красная обводка
+    /// поверх. Отличает свои сообщения только обводка, как и у текстовых.
     static let own = VoiceBubbleStyle(
-        fill: .clear,
+        fill: Color.tfCard,
         stroke: Color.tfRed,
         playTint: Color.tfRed,
-        playFilled: false
+        playFilled: true
     )
 }
 
 private struct RoleChatRemoteVoiceBubble: View {
     let attachment: ApiChatAttachment
-    let transcript: String
+    /// Сообщение-владелец вложения: из него берётся расшифровка и строка
+    /// отправителя (иконка + имя), которая у голосового стоит ВНУТРИ пузыря.
+    let message: RoleChatMessage
     let player: VoicePlayer
     let api: APIClient
     /// Своё ли сообщение: голосовое приходит из истории теми же вложениями,
     /// поэтому сторону нужно передать явно — иначе своё голосовое нарисовалось
     /// бы чужой карточкой.
     let isOwn: Bool
+    let header: AnyView
     @State private var localMessage: VoiceMessage?
     @State private var failed = false
 
     var body: some View {
         Group {
             if let localMessage {
-                // Своё голосовое — обводка без заливки, как у своего
-                // текстового; чужое — прежний пузырь прототипа (владелец
-                // 21.09.2026: вид не зависит от способа отправки).
+                // Своё голосовое — та же подложка, что у остальных, плюс
+                // красная обводка; чужое — прежний пузырь прототипа
+                // (владелец 21.09.2026: вид не зависит от способа отправки).
                 VoiceMessageBubble(
                     message: localMessage,
                     player: player,
-                    style: isOwn ? RoleChatVoiceStyle.own : VoiceBubbleStyle()
+                    style: isOwn ? RoleChatVoiceStyle.own : VoiceBubbleStyle(),
+                    header: header
                 )
             } else if failed {
                 Label("Не удалось загрузить аудио", systemImage: "exclamationmark.triangle")
@@ -782,6 +822,7 @@ private struct RoleChatRemoteVoiceBubble: View {
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent("role-chat-\(attachment.id).m4a")
                 try data.write(to: url, options: .atomic)
                 let duration = try AVAudioPlayer(contentsOf: url).duration
+                let transcript = message.text
                 localMessage = VoiceMessage(
                     audioURL: url,
                     duration: duration,
@@ -793,22 +834,43 @@ private struct RoleChatRemoteVoiceBubble: View {
 }
 
 private struct RoleChatAvatar: View {
-    let message: RoleChatMessage
+    let initials: String
+    let tint: Color
+    let avatarURL: String?
+    /// В строке сообщения иконка стоит рядом с именем — там нужен мелкий
+    /// размер (`.sm`), а не полноразмерный аватар отдельным столбцом.
+    var size: TFAvatar.Size = .md
+
+    /// Иконка автора сообщения с сервера.
+    init(message: RoleChatMessage, size: TFAvatar.Size = .md) {
+        self.initials = message.fromUserInitials ?? String((message.fromUserName ?? "?").prefix(1))
+        self.tint = Color(hex: message.fromUserColor ?? TFHexDefault.unassigned)
+        self.avatarURL = message.fromUserAvatarURL
+        self.size = size
+    }
+
+    /// Иконка текущего пользователя — для голосового, которое ещё не ушло на
+    /// сервер и потому не имеет строки сообщения.
+    init(user: ApiUser?, size: TFAvatar.Size = .md) {
+        let name = user?.name ?? "?"
+        self.initials = user?.initials ?? String(name.prefix(1))
+        self.tint = Color(hex: user?.avatarColor ?? TFHexDefault.unassigned)
+        self.avatarURL = user?.avatarUrl
+        self.size = size
+    }
 
     var body: some View {
-        let initials = message.fromUserInitials ?? String((message.fromUserName ?? "?").prefix(1))
-        let tint = Color(hex: message.fromUserColor ?? TFHexDefault.unassigned)
-        if let path = message.fromUserAvatarURL,
+        if let path = avatarURL,
            let url = URL(string: APIClient.baseURL.absoluteString + path) {
             AsyncImage(url: url) { phase in
                 if case .success(let image) = phase {
-                    TFAvatar(size: .md, image: image, initials: initials, tint: tint)
+                    TFAvatar(size: size, image: image, initials: initials, tint: tint)
                 } else {
-                    TFAvatar(size: .md, initials: initials, tint: tint)
+                    TFAvatar(size: size, initials: initials, tint: tint)
                 }
             }
         } else {
-            TFAvatar(size: .md, initials: initials, tint: tint)
+            TFAvatar(size: size, initials: initials, tint: tint)
         }
     }
 }

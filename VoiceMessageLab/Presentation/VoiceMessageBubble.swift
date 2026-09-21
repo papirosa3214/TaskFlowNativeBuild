@@ -25,12 +25,17 @@ struct VoiceMessageBubble: View {
     let message: VoiceMessage
     let player: VoicePlayer
     var style = VoiceBubbleStyle()
+    /// Строка отправителя (иконка + имя) ВНУТРИ пузыря — как у текстового
+    /// сообщения в чате. Прототипу она не нужна и по умолчанию пуста; в чат
+    /// её кладёт `RoleChatsScreen`, потому что знает, кто отправил.
+    var header: AnyView?
     @State private var showsTranscript = true
 
     private let cornerRadius: CGFloat = 22
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let header { header }
             HStack(spacing: 12) {
                 Button { try? player.toggle(url: message.audioURL) } label: {
                     Image(systemName: player.playingURL == message.audioURL ? "pause.fill" : "play.fill")
