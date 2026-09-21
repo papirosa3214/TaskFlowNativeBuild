@@ -34,13 +34,16 @@ cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild
 - **Ассеты обязаны быть в `sources` в `project.yml`** — ключа `resources`
   у таргета в xcodegen нет. Каталог, положенный не туда, молча не попадает
   в бандл (так пропадал `Assets.car` и вместе с ним альтернативные значки).
-- **Шапки экранов** — общий компонент `Sources/DesignSystem/Components/TFScreenHeader.swift`
-  (48pt, заголовок `.title` по центру, `FrostedGlass(axis: .top)`). Экраны,
-  рисующие шапку сами, обязаны совпадать с ним по геометрии — иначе владелец
-  сразу видит разнобой.
-- **Свой навбар:** экран со своей шапкой обязан скрывать системный —
-  `.toolbar(.hidden, for: .navigationBar)`, иначе поверх нашей стрелки
-  рисуется вторая, системная.
+- **Шапки экранов — системные, свои не рисуем.** Модификатор
+  `.tfNativeHeader(_:displayMode:)` из
+  `Sources/DesignSystem/Components/TFNativeHeader.swift`: внутри только
+  `navigationTitle` + `toolbarTitleDisplayMode`. Фон и блюр не задаём —
+  на нашем deploymentTarget систему рисует сама (scroll edge effect).
+  Мягкий верхний край — `.tfSoftTopScrollEdge()`.
+  Самодельные `TFScreenHeader`, `FrostedGlass`, `SettingsHeaderChrome`,
+  `DirectoryCompactHeader` заменены и лежат в `archive/design-system-2026-09-11`
+  (правка 22.09.2026: до неё здесь был предписан `TFScreenHeader`, удалённый
+  ещё 11.09 — по этому указанию сессии искали несуществующий файл).
 - **Экран логина в симуляторе — не преграда.** В отладочной сборке есть штатный
   вход по токену: переменная окружения `TASKFLOW_DEBUG_TOKEN` кладётся прямо в
   Keychain при старте (`SessionStore.bootstrap()`, блок `#if DEBUG`). Токен —
