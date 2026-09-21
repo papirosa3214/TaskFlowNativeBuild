@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import UniformTypeIdentifiers
 
 /// Личные и групповые чаты живут отдельно от старого окна постановки задач.
 struct RoleChatsScreen: View {
@@ -160,6 +161,9 @@ private struct RoleChatRoomScreen: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var voice = RoleChatVoiceController()
+    @State private var isFileImporterPresented = false
+    @State private var pendingAttachments: [ApiChatAttachment] = []
+    @State private var isUploadingAttachment = false
     @State private var player = VoicePlayer()
     @State private var pendingVoices: [VoiceMessage] = []
     @State private var uploadedVoiceIDs: [UUID: String] = [:]
@@ -210,32 +214,30 @@ private struct RoleChatRoomScreen: View {
                     if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
                 }
             }
-            HStack(spacing: TFSpacing.sm) {
-                TextField("Сообщение", text: $draft, axis: .vertical)
-                    .lineLimit(1...5)
-                    .textFieldStyle(.roundedBorder)
-                Button { Task { await toggleVoice() } } label: {
-                    Group {
-                        switch voice.phase {
-                        case .recording:
-                            Image(systemName: "waveform")
-                                .symbolEffect(.variableColor.iterative, isActive: true)
-                        case .transcribing, .uploading: ProgressView()
-                        case .idle: Image(systemName: "mic.fill")
+            if !pendingAttachments.isEmpty {
+                HStack {
+                    ForEach(pendingAttachments) { attachment in
+                        Label(attachment.fileName, systemImage: "paperclip")
+                            .lineLimit(1)
+                        Button { pendingAttachments.removeAll { $0.id == attachment.id } } label: {
+                            Image(systemName: "xmark")
                         }
+                        .accessibilityLabel("Убрать вложение")
                     }
-                    .frame(width: 32, height: 32)
                 }
-                .disabled(voice.phase == .transcribing || voice.phase == .uploading)
-                .accessibilityLabel(voice.phase == .recording ? "Остановить запись" : "Голосовое сообщение")
-                Button { Task { await send() } } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                }
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
-                .accessibilityLabel("Отправить")
+                .padding(.horizontal, TFSpacing.lg)
             }
-            .padding(TFSpacing.md)
+            ChatVoiceComposer(
+                text: $draft,
+                placeholder: "Сообщение",
+                canSendText: (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
+                    && !isSending && !isUploadingAttachment,
+                voice: voice,
+                onAttachment: { isFileImporterPresented = true },
+                onSendText: { Task { await send() } },
+                onSendVoice: sendVoicePreview,
+                onDiscardVoice: { _ in }
+            )
         }
         .background(Color.tfBackground)
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
@@ -273,6 +275,12 @@ private struct RoleChatRoomScreen: View {
             Button("Повторить") { Task { await refresh() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
+        .fileImporter(isPresented: $isFileImporterPresented, allowedContentTypes: [.item]) { result in
+            handleFileImport(result)
+        }
+        .onChange(of: voice.errorMessage) { _, reason in
+            if let reason { errorMessage = reason }
+        }
         .onDisappear { voice.cancel(); player.stop() }
     }
 
@@ -318,31 +326,40 @@ private struct RoleChatRoomScreen: View {
 
     private func send() async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment else { return }
         isSending = true
         defer { isSending = false }
         do {
-            let message = try await api.sendRoleChatMessage(chatID: chat.id, text: text)
+            let message = try await api.sendRoleChatMessage(chatID: chat.id, text: text,
+                                                            attachmentIDs: pendingAttachments.map(\.id))
             draft = ""
+            pendingAttachments = []
             if !messages.contains(where: { $0.id == message.id }) { messages.append(message) }
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private func toggleVoice() async {
-        if voice.phase == .idle {
-            await voice.start()
-            if let reason = voice.errorMessage { errorMessage = reason }
-            return
-        }
-        guard let message = voice.finish() else { return }
-        pendingVoices.append(message)
-        let transcript = await voice.transcribe(message)
-        if let index = pendingVoices.firstIndex(where: { $0.id == message.id }) {
-            pendingVoices[index].transcript = transcript
-        }
-        voice.uploading()
+    private func sendVoicePreview(_ message: VoiceMessage) async -> Bool {
+        if !pendingVoices.contains(where: { $0.id == message.id }) { pendingVoices.append(message) }
         await sendVoice(message.id)
-        voice.complete()
+        // Запись передана ленте; при сетевой ошибке в ней остаётся повтор.
+        return true
+    }
+
+    private func handleFileImport(_ result: Result<URL, Error>) {
+        guard case .success(let url) = result else { return }
+        Task {
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            isUploadingAttachment = true
+            defer { isUploadingAttachment = false }
+            do {
+                let data = try Data(contentsOf: url)
+                let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+                let attachment = try await api.uploadRoleChatAttachment(fileName: url.lastPathComponent,
+                                                                        data: data, mime: mime)
+                pendingAttachments.append(attachment)
+            } catch { errorMessage = error.localizedDescription }
+        }
     }
 
     private func sendVoice(_ id: UUID) async {

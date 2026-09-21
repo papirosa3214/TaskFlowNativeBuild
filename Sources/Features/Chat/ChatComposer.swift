@@ -1,17 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Строка ввода чата — 1:1 геометрия и поведение `src/components/ChatComposer.tsx`
-// (комментарий там выводит H=44/ICON=32/GAP=8/EDGE=16 из шрифта поля;
-// spec/DESIGN-TOKENS.md §4 «Строка ввода чата» подтверждает те же числа).
+// Голосовой композер повторяет утверждённый VoiceMessageLabScreen.
 struct ChatComposer: View {
     @Bindable var viewModel: ChatViewModel
-    @FocusState private var isFieldFocused: Bool
     @State private var isFileImporterPresented = false
     @State private var voice = RoleChatVoiceController()
+    @State private var uploadedVoiceID: String?
 
     private let H: CGFloat = TFChatComposer.elementHeight
-    private let ICON: CGFloat = TFChatComposer.iconSize
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,13 +32,20 @@ struct ChatComposer: View {
                 .padding(.bottom, TFSpacing.sm)
             }
 
-            HStack(alignment: .bottom, spacing: TFSpacing.sm) {
+            if viewModel.activeChannel != .owner {
                 addresseeSlot
-                fieldRow
-                sendButton
+                    .padding(.horizontal, TFSpacing.lg)
             }
-            .padding(.horizontal, TFSpacing.lg)
-            .padding(.vertical, TFSpacing.sm)
+            ChatVoiceComposer(
+                text: $viewModel.draftText,
+                placeholder: placeholder,
+                canSendText: viewModel.canSend,
+                voice: voice,
+                onAttachment: { isFileImporterPresented = true },
+                onSendText: { Task { await viewModel.send() } },
+                onSendVoice: sendVoice,
+                onDiscardVoice: discardVoice
+            )
         }
         .background(.ultraThinMaterial)
         .fileImporter(
@@ -154,59 +158,6 @@ struct ChatComposer: View {
         .buttonStyle(TFTapRowStyle())
     }
 
-    // MARK: - Поле
-
-    private var fieldRow: some View {
-        HStack(alignment: .bottom, spacing: 4) {
-            TextField("", text: $viewModel.draftText, prompt: Text(placeholder).foregroundStyle(Color.tfDim), axis: .vertical)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .focused($isFieldFocused)
-                .lineLimit(1...4)
-                .padding(.vertical, 11)
-                .accessibilityIdentifier("chat.message")
-
-            // Скрепка и микрофон — тап не должен отбирать фокус у поля
-            // (иначе открытая клавиатура дёргалась бы на каждый тап,
-            // spec/SCREENS-2.md §3.1 «важная деталь реализации»).
-            iconButton("paperclip") {
-                isFileImporterPresented = true
-            }
-            .disabled(viewModel.isUploadingAttachment)
-
-            Button { Task { await toggleVoice() } } label: {
-                Group {
-                    switch voice.phase {
-                    case .recording:
-                        Image(systemName: "waveform")
-                            .symbolEffect(.variableColor.iterative, isActive: true)
-                    case .transcribing, .uploading:
-                        ProgressView()
-                    case .idle:
-                        Image(systemName: "mic.fill")
-                    }
-                }
-                .font(.system(size: 18))
-                .foregroundStyle(Color.tfSub)
-                .frame(width: ICON, height: ICON)
-                .contentShape(Rectangle().inset(by: -6))
-            }
-            .buttonStyle(TFTapScaleStyle())
-            .disabled(voice.phase == .transcribing || voice.phase == .uploading)
-            .accessibilityLabel(voice.phase == .recording ? "Остановить запись" : "Голосовое сообщение")
-        }
-        .padding(.leading, TFSpacing.md)
-        .padding(.trailing, 6)
-        // Фиксированная высота 44pt обрезала многострочный TextField, хотя
-        // `axis: .vertical` и `lineLimit(1...4)` уже были заданы. Теперь
-        // капсула растёт вместе с полем до четырёх строк, после чего SwiftUI
-        // включает внутреннюю прокрутку; боковые кнопки остаются у нижней
-        // кромки и не прыгают относительно кнопки отправки.
-        .frame(minHeight: H)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-    }
-
     private var placeholder: String {
         switch viewModel.addressee {
         case .user(_, let name) where viewModel.activeChannel != .owner:
@@ -221,59 +172,33 @@ struct ChatComposer: View {
         }
     }
 
-    private func iconButton(_ systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 18))
-                .foregroundStyle(Color.tfSub)
-                .frame(width: ICON, height: ICON)
-                .contentShape(Rectangle().inset(by: -6)) // добивает тап-зону до 44
-        }
-        .buttonStyle(TFTapScaleStyle())
-    }
-
-    private func toggleVoice() async {
-        if voice.phase == .idle {
-            await voice.start()
-            return
-        }
-        guard let recording = voice.finish() else { return }
-        let transcript = await voice.transcribe(recording)
-        voice.uploading()
+    private func sendVoice(_ recording: VoiceMessage) async -> Bool {
         let text: String
-        if case .ready(let recognized) = transcript { text = recognized }
+        if case .ready(let recognized) = recording.transcript { text = recognized }
         else { text = "" }
-        let previousCount = viewModel.pendingAttachments.count
-        let previousDraft = viewModel.draftText
-        viewModel.draftText = [previousDraft, text].filter { !$0.isEmpty }.joined(separator: " ")
-        guard let data = try? Data(contentsOf: recording.audioURL) else {
-            voice.fail("Не удалось прочитать запись")
-            return
+        if uploadedVoiceID == nil {
+            guard let data = try? Data(contentsOf: recording.audioURL) else {
+                voice.fail("Не удалось прочитать запись")
+                return false
+            }
+            let previousCount = viewModel.pendingAttachments.count
+            await viewModel.attach(fileName: recording.audioURL.lastPathComponent, data: data, mime: "application/octet-stream")
+            guard viewModel.pendingAttachments.count > previousCount else { return false }
+            uploadedVoiceID = viewModel.pendingAttachments.last?.id
+            viewModel.draftText = [viewModel.draftText, text].filter { !$0.isEmpty }.joined(separator: " ")
         }
-        await viewModel.attach(fileName: recording.audioURL.lastPathComponent, data: data, mime: "application/octet-stream")
-        if viewModel.pendingAttachments.count > previousCount { await viewModel.send() }
-        voice.complete()
+        await viewModel.send()
+        guard viewModel.sendErrorMessage == nil else { return false }
+        uploadedVoiceID = nil
+        try? VoiceRecorder.cancelRecordingFile(at: recording.audioURL)
+        return true
     }
 
-    // MARK: - Отправка
-
-    private var sendButton: some View {
-        Button {
-            isFieldFocused = false
-            Task { await viewModel.send() }
-        } label: {
-            Image(systemName: "chevron.up")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: H, height: H)
-                .background(Color.tfRed)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+    private func discardVoice(_ recording: VoiceMessage) {
+        if let id = uploadedVoiceID {
+            Task { await viewModel.removePendingAttachment(id) }
+            uploadedVoiceID = nil
         }
-        .buttonStyle(TFTapScaleStyle())
-        .opacity(viewModel.canSend ? 1 : 0.4)
-        .disabled(!viewModel.canSend)
-        .accessibilityLabel("Отправить")
-        .accessibilityIdentifier("chat.send")
     }
 
     // MARK: - Вложения

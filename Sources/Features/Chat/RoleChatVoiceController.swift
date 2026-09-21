@@ -11,6 +11,8 @@ final class RoleChatVoiceController {
     private let transcriber = ParakeetVoiceTranscriber()
     private(set) var phase: Phase = .idle
     private(set) var errorMessage: String?
+    var recordingState: VoiceRecorder.State { recorder.state }
+    var recorderWaveform: [Double] { recorder.waveform }
 
     func start() async {
         guard phase == .idle else { return }
