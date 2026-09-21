@@ -1168,7 +1168,8 @@ struct TaskFormScreen: View {
                 Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
                     .tfText(.body).fontWeight(.medium)
                 if comment.isFromChat {
-                    TFPill("из чата", color: Color.tfBlue)
+                    // Пометка нейтральная: синий акцент в приложении не используется.
+                    TFPill("из чата", color: Color.tfSub)
                 }
                 Spacer()
                 if let date = comment.createdAtDate {

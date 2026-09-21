@@ -98,6 +98,14 @@ public extension APIClient {
         try await requestVoid(.delete, "/chats/\(id)")
     }
 
+    /// Переименовать чат (создатель). Пустая строка снимает название — тогда
+    /// список и шапка показывают состав участников.
+    func renameRoleChat(id: String, title: String) async throws -> RoleChat {
+        let body: [String: JSONValue] = ["title": .string(title)]
+        let response: RoleChatEnvelope = try await request(.patch, "/chats/\(id)", body: body)
+        return response.chat
+    }
+
     /// Привязать чат к задаче или отвязать (`nil`). Только создатель чата.
     /// Привязанный чат показывается в ленте задачи, а его сообщения начинают
     /// наследовать её — сервер переносит и уже написанные.

@@ -439,12 +439,18 @@ private struct CreateRoleChatScreen: View {
             .navigationTitle("Новый чат")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Крестик слева — закрыть, галочка справа — подтвердить:
+                // так во всём приложении (владелец 21.09.2026).
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Отмена") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Закрыть")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Создать") { Task { await create() } }
-                        .disabled(selectedIDs.isEmpty || isSaving)
+                    Button { Task { await create() } } label: {
+                        Image(systemName: "checkmark")
+                    }
+                    .disabled(selectedIDs.isEmpty || isSaving)
+                    .accessibilityLabel("Создать чат")
                 }
             }
             .task { await loadRoles() }
@@ -479,6 +485,7 @@ private struct CreateRoleChatScreen: View {
 
 private struct RoleChatRoomScreen: View {
     @Environment(SessionStore.self) private var session
+    @Environment(TaskStore.self) private var taskStore
     @Environment(\.dismiss) private var dismiss
     @State private var chat: RoleChat
     @State private var messages: [RoleChatMessage] = []
@@ -502,7 +509,7 @@ private struct RoleChatRoomScreen: View {
     @State private var isDeleteSelectedConfirmOpen = false
     @State private var isClearChatConfirmOpen = false
     @State private var isDeleteChatConfirmOpen = false
-    @State private var isTaskPickerPresented = false
+    @State private var isDetailsPresented = false
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
@@ -582,9 +589,27 @@ private struct RoleChatRoomScreen: View {
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // Шапка — ещё и вход в состав: владелец 21.09.2026 — «нет
+            // возможности понять, кто в этом чате присутствует». Тап открывает
+            // название и участников.
+            ToolbarItem(placement: .principal) {
+                Button { isDetailsPresented = true } label: {
+                    VStack(spacing: 1) {
+                        Text(chat.displayTitle(excluding: session.currentUser?.id))
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text("\(chat.members.count) \(participantsWord(chat.members.count))")
+                            .font(.caption2)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Чат: название и участники")
+            }
             if isSelecting {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Отмена") { exitSelection() }
+                    Button { exitSelection() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Отменить выбор")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) {
@@ -599,38 +624,63 @@ private struct RoleChatRoomScreen: View {
             } else {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        // Меню «…» — обычное место действий над чатом
-                        // (владелец 21.09.2026: «нажать троеточие и либо
-                        // удалить все, либо выбрать отдельные сообщения»).
-                        // Мёртвой кнопки «Собрать задачу» здесь больше нет:
-                        // её маршрут на сервере так и не появился.
-                        Button { enterSelection(selecting: nil) } label: {
-                            Label("Выбрать сообщения", systemImage: "checkmark.circle")
-                        }
-                        // Привязка к задаче — только создателю: сервер
-                        // остальным отвечает 403. Привязанный чат попадает в
-                        // ленту задачи, и туда же уходят его сообщения.
-                        if chat.createdBy == session.currentUser?.id {
-                            Button { isTaskPickerPresented = true } label: {
-                                Label(chat.taskID == nil ? "Привязать к задаче" : "Сменить задачу",
-                                      systemImage: "checklist")
+                        // Меню «…» построено как соседние меню приложения
+                        // (`ChatScreen`, `TodayScreen`, `VoiceModelsScreen`):
+                        // действия — `Label`, связанные группы — `Section`,
+                        // выбор из списка — ПОДМЕНЮ `Menu`, выбранное отмечено
+                        // галочкой (владелец 21.09.2026: «посмотри, как у нас
+                        // троеточия и подменю, и сделай ровно так же»).
+                        Section {
+                            Button { isDetailsPresented = true } label: {
+                                Label("Название и участники", systemImage: "person.2")
                             }
-                            if chat.taskID != nil {
-                                Button { Task { await bindTask(nil) } } label: {
-                                    Label("Отвязать от задачи", systemImage: "xmark.circle")
+                            // Привязка к задаче — только создателю: сервер
+                            // остальным отвечает 403.
+                            if chat.createdBy == session.currentUser?.id {
+                                Menu {
+                                    if taskStore.tasks.isEmpty {
+                                        Text("Нет задач")
+                                    } else {
+                                        ForEach(taskStore.tasks) { task in
+                                            Button {
+                                                Task { await bindTask(task.id) }
+                                            } label: {
+                                                if task.id == chat.taskID {
+                                                    Label(task.title, systemImage: "checkmark")
+                                                } else {
+                                                    Text(task.title)
+                                                }
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Label(chat.taskID == nil ? "Привязать к задаче" : "Сменить задачу",
+                                          systemImage: "checklist")
+                                }
+                                if chat.taskID != nil {
+                                    Button { Task { await bindTask(nil) } } label: {
+                                        Label("Отвязать от задачи", systemImage: "xmark.circle")
+                                    }
                                 }
                             }
                         }
-                        if session.currentUser?.role == .owner {
-                            Button(role: .destructive) {
-                                isClearChatConfirmOpen = true
-                            } label: {
-                                Label("Удалить все сообщения", systemImage: "trash")
+                        Section {
+                            Button { enterSelection(selecting: nil) } label: {
+                                Label("Выбрать сообщения", systemImage: "checkmark.circle")
                             }
-                            Button(role: .destructive) {
-                                isDeleteChatConfirmOpen = true
-                            } label: {
-                                Label("Удалить чат", systemImage: "trash")
+                        }
+                        if session.currentUser?.role == .owner {
+                            Section {
+                                Button(role: .destructive) {
+                                    isClearChatConfirmOpen = true
+                                } label: {
+                                    Label("Удалить все сообщения", systemImage: "trash")
+                                }
+                                Button(role: .destructive) {
+                                    isDeleteChatConfirmOpen = true
+                                } label: {
+                                    Label("Удалить чат", systemImage: "trash")
+                                }
                             }
                         }
                     } label: {
@@ -665,9 +715,10 @@ private struct RoleChatRoomScreen: View {
             Button("Повторить") { Task { await refresh() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
-        .sheet(isPresented: $isTaskPickerPresented) {
-            RoleChatTaskPickerSheet(currentTaskID: chat.taskID) { taskID in
-                Task { await bindTask(taskID) }
+        .sheet(isPresented: $isDetailsPresented) {
+            RoleChatDetailsSheet(chat: chat) { updated in
+                chat = updated
+                Task { await refresh() }
             }
         }
         .confirmationDialog("Удалить выбранные сообщения?", isPresented: $isDeleteSelectedConfirmOpen,
@@ -715,6 +766,18 @@ private struct RoleChatRoomScreen: View {
 
     private var allMessagesSelected: Bool {
         !messages.isEmpty && selectedMessageIDs.count == messages.count
+    }
+
+    /// «1 участник / 2 участника / 5 участников» — тот же разбор исключений
+    /// 11–14, что у `DirectoryPluralize`, но для слова «участник».
+    private func participantsWord(_ count: Int) -> String {
+        let mod100 = count % 100
+        if mod100 >= 11 && mod100 <= 14 { return "участников" }
+        switch count % 10 {
+        case 1: return "участник"
+        case 2, 3, 4: return "участника"
+        default: return "участников"
+        }
     }
 
     private func enterSelection(selecting id: String?) {
@@ -941,57 +1004,181 @@ private struct RoleChatRoomScreen: View {
 /// Выбор задачи для привязки чата (владелец 21.09.2026: «привязка конкретных
 /// чатов к проекту и, соответственно, к задаче»). Список берётся из общего
 /// `TaskStore` — задачи уже загружены приложением, отдельный запрос не нужен.
-private struct RoleChatTaskPickerSheet: View {
-    @Environment(TaskStore.self) private var taskStore
+/// Название и состав чата: переименование, добавление и исключение участников.
+/// Владелец 21.09.2026: «нет возможности вообще как-то понять, кто в этом чате
+/// присутствует», «переименовывать не умею», «исключать не умею», «добавлять не
+/// умею».
+///
+/// Построено как остальные экраны приложения: крестик слева — закрыть, «…»
+/// справа — действия (добавление участника — ПОДМЕНЮ со списком ролей, как
+/// выбор модели в `VoiceModelsScreen`), удаление участника — по зажатию на
+/// строке, без значков в списке.
+private struct RoleChatDetailsSheet: View {
+    @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
-    let currentTaskID: String?
-    let onPick: (String) -> Void
-    @State private var query = ""
+    let onChanged: (RoleChat) -> Void
+    @State private var chat: RoleChat
+    @State private var title: String
+    @State private var roles: [RoleProfile] = []
+    @State private var isBusy = false
+    @State private var errorMessage: String?
+    private let api = APIClient()
 
-    private var filtered: [ApiTask] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return taskStore.tasks }
-        return taskStore.tasks.filter { $0.title.lowercased().contains(trimmed) }
+    init(chat: RoleChat, onChanged: @escaping (RoleChat) -> Void) {
+        _chat = State(initialValue: chat)
+        _title = State(initialValue: chat.title ?? "")
+        self.onChanged = onChanged
+    }
+
+    private var isCreator: Bool { chat.createdBy == session.currentUser?.id }
+
+    /// Роли, которых в чате ещё нет: участником может быть только роль с
+    /// серверной учёткой — иначе отвечать в чате ей нечем.
+    private var availableRoles: [RoleProfile] {
+        roles.filter { profile in
+            guard let account = profile.accountID, account.hasPrefix("role_") else { return false }
+            return !chat.members.contains { $0.id == account }
+        }
+    }
+
+    private var titleChanged: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines) != (chat.title ?? "")
     }
 
     var body: some View {
         NavigationStack {
-            List(filtered) { task in
-                Button {
-                    onPick(task.id)
-                    dismiss()
-                } label: {
-                    HStack(spacing: TFSpacing.md) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(task.title)
-                                .tfText(.body)
-                                .foregroundStyle(task.status == .completed ? Color.tfDim : Color.tfText)
-                            if let project = task.projectName, !project.isEmpty {
-                                Text(project).tfText(.action).foregroundStyle(Color.tfSub)
-                            }
-                        }
-                        Spacer(minLength: TFSpacing.sm)
-                        if task.id == currentTaskID {
-                            Image(systemName: "checkmark").foregroundStyle(Color.tfRed)
-                        }
+            Form {
+                Section("Название") {
+                    if isCreator {
+                        TextField("Без названия", text: $title)
+                            .onSubmit { Task { await saveTitle() } }
+                    } else {
+                        Text(chat.title?.isEmpty == false ? chat.title! : "Без названия")
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+                Section("Участники") {
+                    ForEach(chat.members) { member in
+                        memberRow(member)
                     }
                 }
             }
-            .searchable(text: $query, prompt: "Поиск задачи")
-            .navigationTitle("Задача для чата")
+            .navigationTitle("Чат")
             .navigationBarTitleDisplayMode(.inline)
+            .tint(.primary)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Отмена") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Закрыть")
+                }
+                if isCreator {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Menu {
+                                if availableRoles.isEmpty {
+                                    Text("Все роли уже в чате")
+                                } else {
+                                    ForEach(availableRoles) { profile in
+                                        Button {
+                                            guard let account = profile.accountID else { return }
+                                            Task { await addMember(account) }
+                                        } label: {
+                                            Text(profile.title)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label("Добавить участника", systemImage: "person.badge.plus")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .accessibilityLabel("Ещё")
+                    }
                 }
             }
-            .overlay {
-                if filtered.isEmpty {
-                    ContentUnavailableView("Задачи не найдены", systemImage: "checklist")
-                }
+            .alert("Не удалось изменить чат", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("Закрыть", role: .cancel) { errorMessage = nil }
+            } message: { Text(errorMessage ?? "") }
+            // Название сохраняется само: отдельной кнопки в шапке нет — там
+            // «…». Правка уходит на сервер по клавише «готово» и при закрытии
+            // шторки, если текст успел измениться.
+            .onDisappear {
+                if titleChanged { Task { await saveTitle() } }
             }
-            .task { if taskStore.tasks.isEmpty { await taskStore.load() } }
+            .task {
+                roles = (try? await api.roles()) ?? []
+            }
         }
+    }
+
+    private func memberRow(_ member: RoleChatMember) -> some View {
+        HStack(spacing: TFSpacing.md) {
+            RoleMemberAvatar(member: member, size: .lg)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(member.name).foregroundStyle(Color.tfText)
+                if member.id == chat.createdBy {
+                    Text("создатель чата").tfText(.meta).foregroundStyle(Color.tfDim)
+                }
+            }
+            Spacer(minLength: TFSpacing.sm)
+        }
+        // Удаление — по зажатию: всплывает контекстное меню. Никаких значков в
+        // строке (владелец 21.09.2026: «по зажатию, чтоб выплывало контекстное
+        // окно… а не крестики, какие-то иконки рисовать»). Свайп оставлен
+        // вторым, невидимым путём — он ничего не рисует.
+        .contentShape(Rectangle())
+        .contextMenu {
+            if isCreator, member.id != session.currentUser?.id {
+                Button(role: .destructive) {
+                    Task { await removeMember(member) }
+                } label: {
+                    Label("Удалить из чата", systemImage: "trash")
+                }
+            }
+        }
+        .swipeActions(edge: .trailing) {
+            if isCreator, member.id != session.currentUser?.id {
+                Button(role: .destructive) {
+                    Task { await removeMember(member) }
+                } label: {
+                    Label("Удалить", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    /// Сервер отвечает обновлённым чатом — им и обновляем экран, и отдаём
+    /// наверх, в комнату: переименование и состав видны сразу.
+    private func apply(_ updated: RoleChat) {
+        chat = updated
+        title = updated.title ?? ""
+        onChanged(updated)
+    }
+
+    private func saveTitle() async {
+        guard titleChanged else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do { apply(try await api.renameRoleChat(id: chat.id, title: title)) }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    private func addMember(_ memberID: String) async {
+        isBusy = true
+        defer { isBusy = false }
+        do { apply(try await api.addRoleChatMember(chatID: chat.id, memberID: memberID)) }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    private func removeMember(_ member: RoleChatMember) async {
+        isBusy = true
+        defer { isBusy = false }
+        do { apply(try await api.removeRoleChatMember(chatID: chat.id, memberID: member.id)) }
+        catch { errorMessage = error.localizedDescription }
     }
 }
 
