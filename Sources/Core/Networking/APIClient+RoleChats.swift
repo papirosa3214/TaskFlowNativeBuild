@@ -11,6 +11,22 @@ private struct CreateRoleChatBody: Encodable {
     let member_ids: [String]
 }
 
+/// Согласованный клиентский ответ этапа 4: сервер возвращает идентификатор
+/// созданной карточки, чтобы сразу открыть её из чата.
+public struct RoleChatDraftResult: Decodable, Sendable {
+    public let taskID: String?
+    public let task: TaskReference?
+    public let draftID: String?
+    public let status: String?
+
+    public struct TaskReference: Decodable, Sendable { public let id: String }
+    enum CodingKeys: String, CodingKey {
+        case taskID = "task_id", task, status
+        case draftID = "draft_id"
+    }
+    public var createdTaskID: String? { taskID ?? task?.id }
+}
+
 public extension APIClient {
     func roleChats() async throws -> [RoleChat] {
         let response: RoleChatsEnvelope = try await request(.get, "/chats")
@@ -37,11 +53,28 @@ public extension APIClient {
         return response.messages
     }
 
-    func sendRoleChatMessage(chatID: String, text: String) async throws -> RoleChatMessage {
+    func sendRoleChatMessage(chatID: String, text: String, attachmentIDs: [String] = []) async throws -> RoleChatMessage {
+        struct Body: Encodable { let text: String; let attachment_ids: [String] }
         let response: RoleChatMessageEnvelope = try await request(
-            .post, "/chats/\(chatID)/messages", body: ["text": text]
+            .post, "/chats/\(chatID)/messages", body: Body(text: text, attachment_ids: attachmentIDs)
         )
         return response.message
+    }
+
+    /// Сервер использует тот же raw-upload, что `/chat/attachments`.
+    func uploadRoleChatAttachment(fileName: String, data: Data, mime: String) async throws -> ApiChatAttachment {
+        struct Envelope: Decodable { let attachment: ApiChatAttachment }
+        let response: Envelope = try await uploadRaw(
+            path: "/chats/attachments",
+            query: [URLQueryItem(name: "name", value: fileName)],
+            data: data,
+            mime: mime
+        )
+        return response.attachment
+    }
+
+    func assembleRoleChatTask(chatID: String) async throws -> RoleChatDraftResult {
+        try await request(.post, "/chats/\(chatID)/draft", body: [String: String]())
     }
 
     func addRoleChatMember(chatID: String, memberID: String) async throws -> RoleChat {

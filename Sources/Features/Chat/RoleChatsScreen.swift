@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 /// Личные и групповые чаты живут отдельно от старого окна постановки задач.
 struct RoleChatsScreen: View {
@@ -158,12 +159,27 @@ private struct RoleChatRoomScreen: View {
     @State private var draft = ""
     @State private var isSending = false
     @State private var errorMessage: String?
+    @State private var voice = RoleChatVoiceController()
+    @State private var player = VoicePlayer()
+    @State private var pendingVoices: [VoiceMessage] = []
+    @State private var uploadedVoiceIDs: [UUID: String] = [:]
+    @State private var sendingVoiceIDs: Set<UUID> = []
+    @State private var isDrafting = false
+    @State private var assembledTaskID: String?
+    @State private var draftStatusText: String?
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
 
     var body: some View {
         VStack(spacing: 0) {
+            if let draftStatusText {
+                Text(draftStatusText)
+                    .font(.footnote)
+                    .foregroundStyle(Color.tfSub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, TFSpacing.md)
+            }
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
@@ -174,6 +190,18 @@ private struct RoleChatRoomScreen: View {
                         ForEach(messages) { message in
                             messageRow(message)
                                 .id(message.id)
+                        }
+                        ForEach(pendingVoices) { message in
+                            VStack(alignment: .trailing, spacing: 4) {
+                                VoiceMessageBubble(message: message, player: player)
+                                if sendingVoiceIDs.contains(message.id) { ProgressView("Отправка…") }
+                                else if message.transcript != .pending {
+                                    Button("Повторить отправку") { Task { await sendVoice(message.id) } }
+                                        .font(.caption)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .id(message.id)
                         }
                     }
                     .padding(TFSpacing.lg)
@@ -186,6 +214,20 @@ private struct RoleChatRoomScreen: View {
                 TextField("Сообщение", text: $draft, axis: .vertical)
                     .lineLimit(1...5)
                     .textFieldStyle(.roundedBorder)
+                Button { Task { await toggleVoice() } } label: {
+                    Group {
+                        switch voice.phase {
+                        case .recording:
+                            Image(systemName: "waveform")
+                                .symbolEffect(.variableColor.iterative, isActive: true)
+                        case .transcribing, .uploading: ProgressView()
+                        case .idle: Image(systemName: "mic.fill")
+                        }
+                    }
+                    .frame(width: 32, height: 32)
+                }
+                .disabled(voice.phase == .transcribing || voice.phase == .uploading)
+                .accessibilityLabel(voice.phase == .recording ? "Остановить запись" : "Голосовое сообщение")
                 Button { Task { await send() } } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
@@ -198,6 +240,24 @@ private struct RoleChatRoomScreen: View {
         .background(Color.tfBackground)
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Собрать задачу") { Task { await assembleTask() } }
+                    .disabled(isDrafting)
+            }
+        }
+        .safeAreaInset(edge: .top) {
+            if let taskID = chat.taskID ?? assembledTaskID {
+                NavigationLink {
+                    TaskFormScreen(taskID: taskID)
+                } label: {
+                    Label("Задача чата", systemImage: "checklist")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(TFSpacing.md)
+                }
+                .background(Color.tfCard)
+            }
+        }
         .task {
             // Пока у новых чатов нет отдельного WS-клиента: обновляем ленту при открытом экране.
             await refresh()
@@ -213,10 +273,12 @@ private struct RoleChatRoomScreen: View {
             Button("Повторить") { Task { await refresh() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
+        .onDisappear { voice.cancel(); player.stop() }
     }
 
     private func messageRow(_ message: RoleChatMessage) -> some View {
         let mine = message.fromUserID == session.currentUser?.id
+        let hasAudio = message.attachments?.contains { $0.isVoiceRecording } ?? false
         return HStack(alignment: .top, spacing: TFSpacing.sm) {
             if mine { Spacer(minLength: 48) }
             if !mine {
@@ -226,11 +288,16 @@ private struct RoleChatRoomScreen: View {
                 Text(message.fromUserName ?? "Участник")
                     .font(.caption)
                     .foregroundStyle(Color.tfSub)
-                Text(message.text)
-                    .foregroundStyle(mine ? .white : Color.tfText)
+                ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
+                    RoleChatRemoteVoiceBubble(attachment: attachment, transcript: message.text, player: player, api: api)
+                }
+                if !message.text.isEmpty && !hasAudio {
+                    Text(message.text)
+                        .foregroundStyle(mine ? .white : Color.tfText)
+                }
             }
-            .padding(TFSpacing.md)
-            .background(mine ? Color.tfRed : Color.tfCard)
+            .padding(hasAudio ? 0 : TFSpacing.md)
+            .background(hasAudio ? Color.clear : (mine ? Color.tfRed : Color.tfCard))
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
             if !mine { Spacer(minLength: 48) }
         }
@@ -242,7 +309,10 @@ private struct RoleChatRoomScreen: View {
             async let messagesRequest = api.roleChatMessages(id: chat.id)
             let (updatedChat, updatedMessages) = try await (chatRequest, messagesRequest)
             chat = updatedChat
-            if updatedMessages.map(\.id) != messages.map(\.id) { messages = updatedMessages }
+            if chat.taskID != nil { draftStatusText = nil }
+            if updatedMessages.map(\.id) != messages.map(\.id) || updatedMessages.map(\.attachments) != messages.map(\.attachments) {
+                messages = updatedMessages
+            }
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -256,6 +326,95 @@ private struct RoleChatRoomScreen: View {
             draft = ""
             if !messages.contains(where: { $0.id == message.id }) { messages.append(message) }
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func toggleVoice() async {
+        if voice.phase == .idle {
+            await voice.start()
+            if let reason = voice.errorMessage { errorMessage = reason }
+            return
+        }
+        guard let message = voice.finish() else { return }
+        pendingVoices.append(message)
+        let transcript = await voice.transcribe(message)
+        if let index = pendingVoices.firstIndex(where: { $0.id == message.id }) {
+            pendingVoices[index].transcript = transcript
+        }
+        voice.uploading()
+        await sendVoice(message.id)
+        voice.complete()
+    }
+
+    private func sendVoice(_ id: UUID) async {
+        guard let message = pendingVoices.first(where: { $0.id == id }),
+              message.transcript != .pending,
+              sendingVoiceIDs.insert(id).inserted else { return }
+        defer { sendingVoiceIDs.remove(id) }
+        do {
+            let attachmentID: String
+            if let existing = uploadedVoiceIDs[id] {
+                attachmentID = existing
+            } else {
+                let data = try Data(contentsOf: message.audioURL)
+                let attachment = try await api.uploadRoleChatAttachment(
+                    fileName: message.audioURL.lastPathComponent, data: data, mime: "application/octet-stream"
+                )
+                attachmentID = attachment.id
+                uploadedVoiceIDs[id] = attachmentID
+            }
+            let text: String
+            if case .ready(let recognized) = message.transcript { text = recognized }
+            else { text = "" }
+            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID])
+            if !messages.contains(where: { $0.id == sent.id }) { messages.append(sent) }
+            pendingVoices.removeAll { $0.id == id }
+            uploadedVoiceIDs.removeValue(forKey: id)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func assembleTask() async {
+        isDrafting = true
+        defer { isDrafting = false }
+        do {
+            let result = try await api.assembleRoleChatTask(chatID: chat.id)
+            assembledTaskID = result.createdTaskID
+            draftStatusText = result.createdTaskID == nil ? "Задача собирается…" : nil
+            await refresh()
+        } catch { errorMessage = error.localizedDescription }
+    }
+}
+
+private struct RoleChatRemoteVoiceBubble: View {
+    let attachment: ApiChatAttachment
+    let transcript: String
+    let player: VoicePlayer
+    let api: APIClient
+    @State private var localMessage: VoiceMessage?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let localMessage {
+                VoiceMessageBubble(message: localMessage, player: player)
+            } else if failed {
+                Label("Не удалось загрузить аудио", systemImage: "exclamationmark.triangle")
+            } else {
+                ProgressView("Загрузка аудио…")
+            }
+        }
+        .task(id: attachment.id) {
+            do {
+                let data = try await api.downloadRaw(path: "/attachments/\(attachment.id)")
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("role-chat-\(attachment.id).m4a")
+                try data.write(to: url, options: .atomic)
+                let duration = try AVAudioPlayer(contentsOf: url).duration
+                localMessage = VoiceMessage(
+                    audioURL: url,
+                    duration: duration,
+                    transcript: transcript.isEmpty ? .failed : .ready(transcript)
+                )
+            } catch { failed = true }
+        }
     }
 }
 

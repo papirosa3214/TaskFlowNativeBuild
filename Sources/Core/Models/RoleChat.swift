@@ -1,17 +1,26 @@
 import Foundation
 
+extension ApiChatAttachment {
+    /// Пока серверный валидатор не принимает audio/mp4, .m4a приходит как octet-stream.
+    var isVoiceRecording: Bool {
+        mime?.hasPrefix("audio/") == true || fileName.lowercased().hasSuffix(".m4a")
+    }
+}
+
 /// Отдельный чат с ролями; старые каналы owner/agents имеют другой контракт.
 public struct RoleChat: Decodable, Identifiable, Sendable {
     public let id: String
     public let title: String?
     public let kind: String
     public let createdBy: String
+    public let taskID: String?
     public let members: [RoleChatMember]
     public let lastMessage: RoleChatPreview?
 
     enum CodingKeys: String, CodingKey {
         case id, title, kind, members
         case createdBy = "created_by"
+        case taskID = "task_id"
         case lastMessage = "last_message"
     }
 
@@ -63,9 +72,10 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let fromUserInitials: String?
     public let text: String
     public let createdAt: String?
+    public let attachments: [ApiChatAttachment]?
 
     enum CodingKeys: String, CodingKey {
-        case id, text
+        case id, text, attachments
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"

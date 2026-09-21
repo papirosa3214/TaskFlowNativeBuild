@@ -21,6 +21,14 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      # Общий код голосового прототипа используется в основном приложении.
+      - path: VoiceMessageLab/Audio/VoiceActivityGate.swift
+      - path: VoiceMessageLab/Audio/VoicePlayer.swift
+      - path: VoiceMessageLab/Audio/VoiceRecorder.swift
+      - path: VoiceMessageLab/Audio/VoiceWaveform.swift
+      - path: VoiceMessageLab/Domain/VoiceMessage.swift
+      - path: VoiceMessageLab/Presentation/VoiceMessageBubble.swift
+      - path: VoiceMessageLab/Transcription/VoiceTranscriber.swift
       # Каталог ассетов ОБЯЗАН быть в `sources`: ключа `resources` у xcodegen
       # нет, он молча игнорировался — каталог не попадал в проект вообще
       # (`grep Assets.xcassets project.pbxproj` давал 0), поэтому не собирались

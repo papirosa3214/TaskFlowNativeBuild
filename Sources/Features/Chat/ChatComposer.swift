@@ -8,6 +8,7 @@ struct ChatComposer: View {
     @Bindable var viewModel: ChatViewModel
     @FocusState private var isFieldFocused: Bool
     @State private var isFileImporterPresented = false
+    @State private var voice = RoleChatVoiceController()
 
     private let H: CGFloat = TFChatComposer.elementHeight
     private let ICON: CGFloat = TFChatComposer.iconSize
@@ -20,6 +21,9 @@ struct ChatComposer: View {
             TFErrorBanner(viewModel.sendErrorMessage.map { _ in "Не удалось отправить сообщение" })
                 .padding(.horizontal, TFSpacing.lg)
                 .padding(.bottom, viewModel.sendErrorMessage == nil ? 0 : TFSpacing.sm)
+            TFErrorBanner(voice.errorMessage)
+                .padding(.horizontal, TFSpacing.lg)
+                .padding(.bottom, voice.errorMessage == nil ? 0 : TFSpacing.sm)
 
             if !viewModel.pendingAttachments.isEmpty {
                 VStack(spacing: 4) {
@@ -170,11 +174,26 @@ struct ChatComposer: View {
             }
             .disabled(viewModel.isUploadingAttachment)
 
-            // MicOverlay — общий компонент §0.7 спеки, в DesignSystem его
-            // ещё нет (запись/распознавание — отдельная инфраструктура,
-            // Speech-разрешение в Info.plist сюда не входит). Кнопка стоит
-            // для визуального паритета, действия у неё пока нет — см. отчёт.
-            iconButton("mic.fill") {}
+            Button { Task { await toggleVoice() } } label: {
+                Group {
+                    switch voice.phase {
+                    case .recording:
+                        Image(systemName: "waveform")
+                            .symbolEffect(.variableColor.iterative, isActive: true)
+                    case .transcribing, .uploading:
+                        ProgressView()
+                    case .idle:
+                        Image(systemName: "mic.fill")
+                    }
+                }
+                .font(.system(size: 18))
+                .foregroundStyle(Color.tfSub)
+                .frame(width: ICON, height: ICON)
+                .contentShape(Rectangle().inset(by: -6))
+            }
+            .buttonStyle(TFTapScaleStyle())
+            .disabled(voice.phase == .transcribing || voice.phase == .uploading)
+            .accessibilityLabel(voice.phase == .recording ? "Остановить запись" : "Голосовое сообщение")
         }
         .padding(.leading, TFSpacing.md)
         .padding(.trailing, 6)
@@ -211,6 +230,29 @@ struct ChatComposer: View {
                 .contentShape(Rectangle().inset(by: -6)) // добивает тап-зону до 44
         }
         .buttonStyle(TFTapScaleStyle())
+    }
+
+    private func toggleVoice() async {
+        if voice.phase == .idle {
+            await voice.start()
+            return
+        }
+        guard let recording = voice.finish() else { return }
+        let transcript = await voice.transcribe(recording)
+        voice.uploading()
+        let text: String
+        if case .ready(let recognized) = transcript { text = recognized }
+        else { text = "" }
+        let previousCount = viewModel.pendingAttachments.count
+        let previousDraft = viewModel.draftText
+        viewModel.draftText = [previousDraft, text].filter { !$0.isEmpty }.joined(separator: " ")
+        guard let data = try? Data(contentsOf: recording.audioURL) else {
+            voice.fail("Не удалось прочитать запись")
+            return
+        }
+        await viewModel.attach(fileName: recording.audioURL.lastPathComponent, data: data, mime: "application/octet-stream")
+        if viewModel.pendingAttachments.count > previousCount { await viewModel.send() }
+        voice.complete()
     }
 
     // MARK: - Отправка
