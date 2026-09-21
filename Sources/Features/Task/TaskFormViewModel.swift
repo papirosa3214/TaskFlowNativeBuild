@@ -104,6 +104,8 @@ final class TaskFormViewModel {
 
     /// Чем агент занят прямо сейчас — пусто, когда задачу никто не держит.
     var activity: ApiTaskActivity = .idle
+    /// Отчёты задачи — «зеркало» документов из папки проекта.
+    var reports: [TaskReport] = []
 
     private var pollTask: Task<Void, Never>?
 
@@ -335,6 +337,17 @@ final class TaskFormViewModel {
 
     /// Строка активности. Ошибку глотаем: это надстройка над карточкой,
     /// ронять из-за неё экран нельзя.
+    /// Отчёты задачи. Загружаются один раз с карточкой: их немного, и они не
+    /// живые (в отличие от активности), обновлять по таймеру незачем.
+    func loadReports() async {
+        guard let taskID else { return }
+        do {
+            reports = try await apiClient.taskReports(taskId: taskID)
+        } catch {
+            reports = []
+        }
+    }
+
     func loadActivity() async {
         guard let taskID else {
             NSLog("[TFACT] taskID пуст")

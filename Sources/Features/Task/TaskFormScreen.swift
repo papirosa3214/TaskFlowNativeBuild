@@ -47,6 +47,8 @@ struct TaskFormScreen: View {
     /// Вложение, которое ЗАМЕНЯЕМ (длинное нажатие → «Заменить…»): после
     /// загрузки нового старое удаляем.
     @State private var replaceAttachmentTarget: ApiAttachment?
+    /// Открытый отчёт: показываем его документ-зеркало.
+    @State private var openedReportNoteID: String?
 
     private enum AttachmentSource { case phone, knowledge }
     @State private var isDeleteConfirmationPresented = false
@@ -353,6 +355,14 @@ struct TaskFormScreen: View {
             }
             .onDisappear { replaceAttachmentTarget = nil }
         }
+        .sheet(isPresented: Binding(
+            get: { openedReportNoteID != nil },
+            set: { if !$0 { openedReportNoteID = nil } }
+        )) {
+            if let noteID = openedReportNoteID {
+                NavigationStack { NoteEditorScreen(noteID: noteID) }
+            }
+        }
     }
 
     /// Длинное нажатие на вложение → «Заменить…»: запоминаем, что меняем, и
@@ -636,6 +646,33 @@ struct TaskFormScreen: View {
                     }
                 } header: {
                     taskSectionHeader("Вложения")
+                }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
+            }
+
+            // Отчёты — «зеркало» документов из папки проекта: сам файл лежит
+            // в документации, здесь название, автор и время; тап открывает
+            // документ. Владелец 20.09.2026.
+            if !viewModel.reports.isEmpty {
+                Section {
+                    ForEach(viewModel.reports) { report in
+                        Button {
+                            if let noteID = report.noteID { openedReportNoteID = noteID }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label(report.title, systemImage: "doc.text")
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfText)
+                                Text(reportSubtitle(report))
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfDim)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    taskSectionHeader("Отчёты")
                 }
                 .listRowSeparator(.hidden)
                 .listSectionSeparator(.hidden)
@@ -1536,6 +1573,13 @@ struct TaskFormScreen: View {
         Task { await saveExistingEdits() }
     }
 
+    private func reportSubtitle(_ report: TaskReport) -> String {
+        var parts: [String] = []
+        if let author = report.authorName, !author.isEmpty { parts.append(author) }
+        if let date = report.createdAtDate { parts.append(TaskDateText.relativeTime(date)) }
+        return parts.joined(separator: " · ")
+    }
+
     private func handleAttachmentImport(_ result: Result<URL, Error>) {
         guard case .success(let url) = result else {
             replaceAttachmentTarget = nil
@@ -1577,6 +1621,7 @@ struct TaskFormScreen: View {
         if labelStore.labels.isEmpty { await labelStore.load() }
         if viewModel.startDictation { isTitleFocused = true }
         await viewModel.loadActivity()
+        await viewModel.loadReports()
         viewModel.startPolling()
         isEditorReady = true
     }
