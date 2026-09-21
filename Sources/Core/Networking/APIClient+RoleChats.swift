@@ -97,4 +97,17 @@ public extension APIClient {
     func deleteRoleChat(id: String) async throws {
         try await requestVoid(.delete, "/chats/\(id)")
     }
+
+    /// Привязать чат к задаче или отвязать (`nil`). Только создатель чата.
+    /// Привязанный чат показывается в ленте задачи, а его сообщения начинают
+    /// наследовать её — сервер переносит и уже написанные.
+    ///
+    /// Тело собирается вручную, а не `Encodable` с опционалом: синтезированный
+    /// энкодер ПРОПУСКАЕТ `nil`, и сервер не отличил бы «отвязать» от «поле не
+    /// пришло». Здесь `task_id: null` уходит явно.
+    func bindRoleChatToTask(id: String, taskID: String?) async throws -> RoleChat {
+        let body: [String: JSONValue] = ["task_id": taskID.map { .string($0) } ?? .null]
+        let response: RoleChatEnvelope = try await request(.patch, "/chats/\(id)", body: body)
+        return response.chat
+    }
 }

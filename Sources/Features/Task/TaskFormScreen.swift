@@ -1101,40 +1101,16 @@ struct TaskFormScreen: View {
     private func nativeJournalRow(_ entry: TaskJournalEntry) -> some View {
         switch entry {
         case .comment(let comment):
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
-                        .tfText(.body).fontWeight(.medium)
-                    Spacer()
-                    if let date = comment.createdAtDate {
-                        Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
-                    }
+            // Сообщение привязанного чата открывает саму переписку: лента
+            // задачи показывает её, но продолжать разговор нужно в чате
+            // (владелец 21.09.2026: «чтобы не комментарии писать в самой
+            // задаче, а в чате переписываться»).
+            if comment.isFromChat, let chatID = comment.chatID {
+                NavigationLink(value: AppRoute.roleChat(id: chatID)) {
+                    journalCommentBody(comment)
                 }
-                Text(comment.text).tfText(.action).foregroundStyle(Color.tfSub)
-                // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
-                // текст, и приложенные кадры в приложении не показывались
-                // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
-                // — а он живёт в мёртвом `TaskDetailScreen` и не исполняется;
-                // рабочая лента здесь. Картинки грузит `ChatAttachmentImage`
-                // (умеет ходить с авторизацией, обычный AsyncImage к этому
-                // эндпоинту не годится), прочие файлы — строкой с именем.
-                if let attachments = comment.attachments, !attachments.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(attachments) { attachment in
-                            if attachment.mime?.hasPrefix("image/") == true {
-                                ChatAttachmentImage(
-                                    attachmentId: attachment.id,
-                                    fileName: attachment.fileName
-                                )
-                            } else {
-                                Label(attachment.fileName, systemImage: "paperclip")
-                                    .tfText(.meta)
-                                    .foregroundStyle(Color.tfSub)
-                            }
-                        }
-                    }
-                    .padding(.top, 4)
-                }
+            } else {
+                journalCommentBody(comment)
             }
         case .event(let event):
             HStack {
@@ -1143,6 +1119,50 @@ struct TaskFormScreen: View {
                 if let date = event.createdAtDate {
                     Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
+            }
+        }
+    }
+
+    /// Тело комментария ленты — общее для обычного комментария и для сообщения
+    /// привязанного чата (у второго только добавляется пометка).
+    @ViewBuilder
+    private func journalCommentBody(_ comment: ApiComment) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
+                    .tfText(.body).fontWeight(.medium)
+                if comment.isFromChat {
+                    TFPill("из чата", color: Color.tfBlue)
+                }
+                Spacer()
+                if let date = comment.createdAtDate {
+                    Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
+                }
+            }
+            Text(comment.text).tfText(.action).foregroundStyle(Color.tfSub)
+            // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
+            // текст, и приложенные кадры в приложении не показывались
+            // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
+            // — а он живёт в мёртвом `TaskDetailScreen` и не исполняется;
+            // рабочая лента здесь. Картинки грузит `ChatAttachmentImage`
+            // (умеет ходить с авторизацией, обычный AsyncImage к этому
+            // эндпоинту не годится), прочие файлы — строкой с именем.
+            if let attachments = comment.attachments, !attachments.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(attachments) { attachment in
+                        if attachment.mime?.hasPrefix("image/") == true {
+                            ChatAttachmentImage(
+                                attachmentId: attachment.id,
+                                fileName: attachment.fileName
+                            )
+                        } else {
+                            Label(attachment.fileName, systemImage: "paperclip")
+                                .tfText(.meta)
+                                .foregroundStyle(Color.tfSub)
+                        }
+                    }
+                }
+                .padding(.top, 4)
             }
         }
     }

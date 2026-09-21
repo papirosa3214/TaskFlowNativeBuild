@@ -491,6 +491,7 @@ private struct RoleChatRoomScreen: View {
     @State private var isDeleteSelectedConfirmOpen = false
     @State private var isClearChatConfirmOpen = false
     @State private var isDeleteChatConfirmOpen = false
+    @State private var isTaskPickerPresented = false
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
@@ -595,6 +596,20 @@ private struct RoleChatRoomScreen: View {
                         Button { enterSelection(selecting: nil) } label: {
                             Label("Выбрать сообщения", systemImage: "checkmark.circle")
                         }
+                        // Привязка к задаче — только создателю: сервер
+                        // остальным отвечает 403. Привязанный чат попадает в
+                        // ленту задачи, и туда же уходят его сообщения.
+                        if chat.createdBy == session.currentUser?.id {
+                            Button { isTaskPickerPresented = true } label: {
+                                Label(chat.taskID == nil ? "Привязать к задаче" : "Сменить задачу",
+                                      systemImage: "checklist")
+                            }
+                            if chat.taskID != nil {
+                                Button { Task { await bindTask(nil) } } label: {
+                                    Label("Отвязать от задачи", systemImage: "xmark.circle")
+                                }
+                            }
+                        }
                         if session.currentUser?.role == .owner {
                             Button(role: .destructive) {
                                 isClearChatConfirmOpen = true
@@ -639,6 +654,11 @@ private struct RoleChatRoomScreen: View {
             Button("Повторить") { Task { await refresh() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
+        .sheet(isPresented: $isTaskPickerPresented) {
+            RoleChatTaskPickerSheet(currentTaskID: chat.taskID) { taskID in
+                Task { await bindTask(taskID) }
+            }
+        }
         .confirmationDialog("Удалить выбранные сообщения?", isPresented: $isDeleteSelectedConfirmOpen,
                             titleVisibility: .visible) {
             Button("Удалить (\(selectedMessageIDs.count))", role: .destructive) {
@@ -723,6 +743,15 @@ private struct RoleChatRoomScreen: View {
         do {
             try await api.deleteRoleChat(id: chat.id)
             dismiss()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Привязать чат к задаче (`taskID == nil` — отвязать). Сервер отвечает
+    /// обновлённым чатом, поэтому локальный состав переписки перечитывать не
+    /// нужно — меняется только сама привязка.
+    private func bindTask(_ taskID: String?) async {
+        do {
+            chat = try await api.bindRoleChatToTask(id: chat.id, taskID: taskID)
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -895,6 +924,63 @@ private struct RoleChatRoomScreen: View {
             pendingVoices.removeAll { $0.id == id }
             uploadedVoiceIDs.removeValue(forKey: id)
         } catch { errorMessage = error.localizedDescription }
+    }
+}
+
+/// Выбор задачи для привязки чата (владелец 21.09.2026: «привязка конкретных
+/// чатов к проекту и, соответственно, к задаче»). Список берётся из общего
+/// `TaskStore` — задачи уже загружены приложением, отдельный запрос не нужен.
+private struct RoleChatTaskPickerSheet: View {
+    @Environment(TaskStore.self) private var taskStore
+    @Environment(\.dismiss) private var dismiss
+    let currentTaskID: String?
+    let onPick: (String) -> Void
+    @State private var query = ""
+
+    private var filtered: [ApiTask] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return taskStore.tasks }
+        return taskStore.tasks.filter { $0.title.lowercased().contains(trimmed) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(filtered) { task in
+                Button {
+                    onPick(task.id)
+                    dismiss()
+                } label: {
+                    HStack(spacing: TFSpacing.md) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(task.title)
+                                .tfText(.body)
+                                .foregroundStyle(task.status == .completed ? Color.tfDim : Color.tfText)
+                            if let project = task.projectName, !project.isEmpty {
+                                Text(project).tfText(.action).foregroundStyle(Color.tfSub)
+                            }
+                        }
+                        Spacer(minLength: TFSpacing.sm)
+                        if task.id == currentTaskID {
+                            Image(systemName: "checkmark").foregroundStyle(Color.tfRed)
+                        }
+                    }
+                }
+            }
+            .searchable(text: $query, prompt: "Поиск задачи")
+            .navigationTitle("Задача для чата")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Отмена") { dismiss() }
+                }
+            }
+            .overlay {
+                if filtered.isEmpty {
+                    ContentUnavailableView("Задачи не найдены", systemImage: "checklist")
+                }
+            }
+            .task { if taskStore.tasks.isEmpty { await taskStore.load() } }
+        }
     }
 }
 
