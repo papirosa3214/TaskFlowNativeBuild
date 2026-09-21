@@ -51,6 +51,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let readySetBy: String?
     /// Новая карточка по умолчанию проходит Reviewer; старые — direct owner-flow.
     public let requiresReviewerReview: Bool
+    /// «Нужно глубокое исследование» (миграция 052, сервер New-Todoist) —
+    /// галочка владельца, по ней запускается серверный конвейер исследования.
+    /// Старые ответы поля не содержат — `decodeIntBool` даёт false.
+    public let needsResearch: Bool
     /// Повтор карточки: none|daily|weekdays|weekly|monthly.
     public let runRepeat: String?
     /// До какой даты повторять (ISO-дата); nil — постоянно.
@@ -141,6 +145,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case readySetAt = "ready_set_at"
         case readySetBy = "ready_set_by"
         case requiresReviewerReview = "requires_reviewer_review"
+        case needsResearch = "needs_research"
         case runRepeat = "run_repeat"
         case repeatUntil = "repeat_until"
         case recurrenceSpawned = "recurrence_spawned"
@@ -193,6 +198,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         readySetAt = try c.decodeIfPresent(String.self, forKey: .readySetAt)
         readySetBy = try c.decodeIfPresent(String.self, forKey: .readySetBy)
         requiresReviewerReview = try c.decodeIntBool(forKey: .requiresReviewerReview)
+        needsResearch = try c.decodeIntBool(forKey: .needsResearch)
         runRepeat = try c.decodeIfPresent(String.self, forKey: .runRepeat)
         repeatUntil = try c.decodeIfPresent(String.self, forKey: .repeatUntil)
         recurrenceSpawned = try c.decodeIfPresent(Int.self, forKey: .recurrenceSpawned)
@@ -250,6 +256,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(readySetAt, forKey: .readySetAt)
         try c.encodeIfPresent(readySetBy, forKey: .readySetBy)
         try c.encode(requiresReviewerReview ? 1 : 0, forKey: .requiresReviewerReview)
+        try c.encode(needsResearch ? 1 : 0, forKey: .needsResearch)
         try c.encodeIfPresent(runRepeat, forKey: .runRepeat)
         try c.encodeIfPresent(repeatUntil, forKey: .repeatUntil)
         try c.encodeIfPresent(recurrenceSpawned, forKey: .recurrenceSpawned)

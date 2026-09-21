@@ -566,6 +566,48 @@ final class TaskFormViewModel {
         originalTask?.readyForPickup ?? false
     }
 
+    /// «Нужно глубокое исследование» (миграция 052 сервера New-Todoist) —
+    /// обычное поле карточки. Тумблер в меню «…» владельца; каскада на
+    /// дочерние, как у флага готовности, здесь нет: это отметка одной задачи.
+    func toggleNeedsResearch(taskStore: TaskStore) async {
+        guard let task = originalTask else { return }
+        let next = !task.needsResearch
+        do {
+            _ = try await apiClient.patchTask(id: task.id, fields: [
+                "needs_research": .bool(next),
+            ])
+            await loadIfNeeded()
+            await taskStore.load(silent: true)
+        } catch {
+            saveErrorMessage = "Не удалось изменить отметку исследования"
+        }
+    }
+
+    var needsResearch: Bool {
+        originalTask?.needsResearch ?? false
+    }
+
+    /// Запустить серверный конвейер глубокого исследования. Если флага нет —
+    /// сначала поднимаем его (конвейер пускает только помеченные задачи),
+    /// затем дёргаем `POST /research`. Возвращает `true`, когда запуск принят:
+    /// по нему экран показывает подтверждение.
+    func startResearch() async -> Bool {
+        guard let task = originalTask else { return false }
+        do {
+            if !task.needsResearch {
+                _ = try await apiClient.patchTask(id: task.id, fields: [
+                    "needs_research": .bool(true),
+                ])
+                await loadIfNeeded()
+            }
+            try await apiClient.startResearch(id: task.id)
+            return true
+        } catch {
+            saveErrorMessage = "Не удалось запустить исследование"
+            return false
+        }
+    }
+
     var pinned: Bool { originalTask?.pinned ?? false }
 
     /// Закрепить/открепить задачу. Раньше это делала скрепка в каждой строке

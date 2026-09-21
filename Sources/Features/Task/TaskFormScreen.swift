@@ -1289,6 +1289,34 @@ struct TaskFormScreen: View {
                                 : "flag.fill"
                         )
                     }
+
+                    // Глубокое исследование (миграция 052 сервера
+                    // New-Todoist). Тумблер-отметка и кнопка запуска
+                    // серверного конвейера: он сам собирает источники,
+                    // проверяет их и кладёт отчёт в секцию «Отчёты».
+                    Button {
+                        Task { await viewModel.toggleNeedsResearch(taskStore: taskStore) }
+                    } label: {
+                        Label(
+                            viewModel.needsResearch
+                                ? "Глубокое исследование: включено"
+                                : "Нужно глубокое исследование",
+                            systemImage: viewModel.needsResearch
+                                ? "magnifyingglass.circle.fill"
+                                : "magnifyingglass"
+                        )
+                    }
+                    if viewModel.needsResearch {
+                        Button {
+                            Task {
+                                if await viewModel.startResearch() {
+                                    toast = TaskToastMessage("Исследование запущено — отчёт появится в карточке")
+                                }
+                            }
+                        } label: {
+                            Label("Запустить исследование", systemImage: "sparkles")
+                        }
+                    }
                 }
                 // Закрепление переехало сюда из строки списка проекта
                 // (владелец 11.09.2026): «закреплять я буду в самой карточке,

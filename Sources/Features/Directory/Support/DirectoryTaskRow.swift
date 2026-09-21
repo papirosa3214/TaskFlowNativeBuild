@@ -179,6 +179,12 @@ struct DirectoryTaskRow: View {
                             if task.readyForPickup {
                                 TFReadyFlag()
                             }
+                            // Отметка глубокого исследования (миграция 052) —
+                            // рядом с флагом готовности, чтобы помеченные
+                            // задачи были видны прямо в списке проекта.
+                            if task.needsResearch {
+                                TFPill("Исследование", color: .tfSub, solidBackground: .tfCard)
+                            }
                             if !task.subtasks.isEmpty {
                                 let done = task.subtasks.count { $0.done }
                                 TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
@@ -224,6 +230,7 @@ struct DirectoryTaskRow: View {
 
     private var hasBadges: Bool {
         !task.subtasks.isEmpty || task.dueDate != nil || !task.labels.isEmpty
+            || task.needsResearch
     }
 
     private func close() {

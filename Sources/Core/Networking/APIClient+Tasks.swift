@@ -160,6 +160,14 @@ public extension APIClient {
         let _: APIOkResponse = try await request(.post, "/tasks/\(id)/repeat-extend")
     }
 
+    /// Запуск серверного конвейера глубокого исследования (владелец;
+    /// задача должна быть помечена `needs_research`). Сервер поднимает
+    /// отдельный процесс и сразу отвечает: план → сбор → проверка → синтез →
+    /// отчёт в секции «Отчёты» карточки.
+    func startResearch(id: String) async throws {
+        let _: APIOkResponse = try await request(.post, "/tasks/\(id)/research")
+    }
+
     // MARK: - Агентский протокол (spec §5.2/§7) — на карточке задачи владелец
     // видит статус агента/аренду, поэтому клиенту нужно уметь их читать; сами
     // мутации (claim/heartbeat/state) пригодятся экрану «Работа агента».
