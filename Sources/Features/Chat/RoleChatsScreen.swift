@@ -468,6 +468,7 @@ private struct CreateRoleChatScreen: View {
 
 private struct RoleChatRoomScreen: View {
     @Environment(SessionStore.self) private var session
+    @Environment(\.dismiss) private var dismiss
     @State private var chat: RoleChat
     @State private var messages: [RoleChatMessage] = []
     @State private var draft = ""
@@ -481,22 +482,21 @@ private struct RoleChatRoomScreen: View {
     @State private var pendingVoices: [VoiceMessage] = []
     @State private var uploadedVoiceIDs: [UUID: String] = [:]
     @State private var sendingVoiceIDs: Set<UUID> = []
-    @State private var isDrafting = false
-    @State private var assembledTaskID: String?
-    @State private var draftStatusText: String?
+    /// Режим выбора сообщений: включается из меню «…» или долгим нажатием на
+    /// сообщение. В нём панель ввода заменяется полосой выбора, а тап по
+    /// сообщению отмечает его (владелец 21.09.2026: «долгое нажатие максимум
+    /// активирует эту функцию выбора, чтобы я потом протыкал и удалил»).
+    @State private var isSelecting = false
+    @State private var selectedMessageIDs: Set<String> = []
+    @State private var isDeleteSelectedConfirmOpen = false
+    @State private var isClearChatConfirmOpen = false
+    @State private var isDeleteChatConfirmOpen = false
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
 
     var body: some View {
         VStack(spacing: 0) {
-            if let draftStatusText {
-                Text(draftStatusText)
-                    .font(.footnote)
-                    .foregroundStyle(Color.tfSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, TFSpacing.md)
-            }
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
@@ -551,28 +551,71 @@ private struct RoleChatRoomScreen: View {
             }
         }
         .chatComposerBar {
-            ChatVoiceComposer(
-                text: $draft,
-                placeholder: "Сообщение",
-                canSendText: (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
-                    && !isSending && !isUploadingAttachment,
-                voice: voice,
-                onAttachment: { isFileImporterPresented = true },
-                onSendText: { Task { await send() } },
-                onSendVoice: sendVoicePreview,
-                onDiscardVoice: { _ in }
-            )
+            if isSelecting {
+                selectionBar
+            } else {
+                ChatVoiceComposer(
+                    text: $draft,
+                    placeholder: "Сообщение",
+                    canSendText: (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
+                        && !isSending && !isUploadingAttachment,
+                    voice: voice,
+                    onAttachment: { isFileImporterPresented = true },
+                    onSendText: { Task { await send() } },
+                    onSendVoice: sendVoicePreview,
+                    onDiscardVoice: { _ in }
+                )
+            }
         }
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Собрать задачу") { Task { await assembleTask() } }
-                    .disabled(isDrafting)
+            if isSelecting {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Отмена") { exitSelection() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) {
+                        isDeleteSelectedConfirmOpen = true
+                    } label: {
+                        Text(selectedMessageIDs.isEmpty
+                             ? "Удалить"
+                             : "Удалить (\(selectedMessageIDs.count))")
+                    }
+                    .disabled(selectedMessageIDs.isEmpty)
+                }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        // Меню «…» — обычное место действий над чатом
+                        // (владелец 21.09.2026: «нажать троеточие и либо
+                        // удалить все, либо выбрать отдельные сообщения»).
+                        // Мёртвой кнопки «Собрать задачу» здесь больше нет:
+                        // её маршрут на сервере так и не появился.
+                        Button { enterSelection(selecting: nil) } label: {
+                            Label("Выбрать сообщения", systemImage: "checkmark.circle")
+                        }
+                        if session.currentUser?.role == .owner {
+                            Button(role: .destructive) {
+                                isClearChatConfirmOpen = true
+                            } label: {
+                                Label("Удалить все сообщения", systemImage: "trash")
+                            }
+                            Button(role: .destructive) {
+                                isDeleteChatConfirmOpen = true
+                            } label: {
+                                Label("Удалить чат", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .accessibilityLabel("Ещё")
+                }
             }
         }
         .safeAreaInset(edge: .top) {
-            if let taskID = chat.taskID ?? assembledTaskID {
+            if let taskID = chat.taskID {
                 NavigationLink(value: AppRoute.taskDetail(taskID: taskID)) {
                     Label("Задача чата", systemImage: "checklist")
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -596,6 +639,20 @@ private struct RoleChatRoomScreen: View {
             Button("Повторить") { Task { await refresh() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
+        .confirmationDialog("Удалить выбранные сообщения?", isPresented: $isDeleteSelectedConfirmOpen,
+                            titleVisibility: .visible) {
+            Button("Удалить (\(selectedMessageIDs.count))", role: .destructive) {
+                Task { await deleteSelected() }
+            }
+        }
+        .confirmationDialog("Удалить все сообщения чата?", isPresented: $isClearChatConfirmOpen,
+                            titleVisibility: .visible) {
+            Button("Удалить все", role: .destructive) { Task { await clearChat() } }
+        }
+        .confirmationDialog("Удалить чат?", isPresented: $isDeleteChatConfirmOpen,
+                            titleVisibility: .visible) {
+            Button("Удалить чат", role: .destructive) { Task { await deleteChat() } }
+        }
         .fileImporter(isPresented: $isFileImporterPresented, allowedContentTypes: [.item]) { result in
             handleFileImport(result)
         }
@@ -605,10 +662,83 @@ private struct RoleChatRoomScreen: View {
         .onDisappear { voice.cancel(); player.stop() }
     }
 
+    /// Полоса выбора вместо панели ввода: отметить всё или снять отметки.
+    private var selectionBar: some View {
+        HStack(spacing: TFSpacing.md) {
+            Button(allMessagesSelected ? "Снять выбор" : "Выбрать все") {
+                if allMessagesSelected {
+                    selectedMessageIDs.removeAll()
+                } else {
+                    selectedMessageIDs = Set(messages.map(\.id))
+                }
+            }
+            .disabled(messages.isEmpty)
+            Spacer(minLength: TFSpacing.md)
+            Text("Выбрано: \(selectedMessageIDs.count)")
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.vertical, TFSpacing.md)
+    }
+
+    private var allMessagesSelected: Bool {
+        !messages.isEmpty && selectedMessageIDs.count == messages.count
+    }
+
+    private func enterSelection(selecting id: String?) {
+        isSelecting = true
+        selectedMessageIDs = id.map { [$0] } ?? []
+    }
+
+    private func exitSelection() {
+        isSelecting = false
+        selectedMessageIDs.removeAll()
+    }
+
+    private func toggleSelection(_ id: String) {
+        if selectedMessageIDs.contains(id) { selectedMessageIDs.remove(id) }
+        else { selectedMessageIDs.insert(id) }
+    }
+
+    private func deleteSelected() async {
+        let ids = selectedMessageIDs
+        guard !ids.isEmpty else { return }
+        do {
+            try await api.deleteRoleChatMessages(chatID: chat.id, ids: Array(ids))
+            messages.removeAll { ids.contains($0.id) }
+            exitSelection()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func clearChat() async {
+        do {
+            try await api.deleteRoleChatMessages(chatID: chat.id)
+            messages = []
+            exitSelection()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func deleteChat() async {
+        do {
+            try await api.deleteRoleChat(id: chat.id)
+            dismiss()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     private func messageRow(_ message: RoleChatMessage) -> some View {
         let mine = message.fromUserID == session.currentUser?.id
         let hasAudio = message.attachments?.contains { $0.isVoiceRecording } ?? false
         return HStack(alignment: .top, spacing: TFSpacing.sm) {
+            if isSelecting {
+                // Отметка выбора слева от сообщения — как в почте и Teams.
+                Image(systemName: selectedMessageIDs.contains(message.id)
+                      ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(selectedMessageIDs.contains(message.id)
+                                     ? Color.tfRed : Color.tfDim)
+                    .padding(.top, TFSpacing.md)
+            }
             if mine { Spacer(minLength: 48) }
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
                 // Иконка отправителя — вплотную слева от его имени, внутри
@@ -650,6 +780,21 @@ private struct RoleChatRoomScreen: View {
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
             if !mine { Spacer(minLength: 48) }
         }
+        // Долгое нажатие только ВКЛЮЧАЕТ выбор — с этим сообщением уже
+        // отмеченным; дальше отмечаешь тапами (владелец 21.09.2026). В самом
+        // режиме выбора тап по сообщению отмечает его, а внутренние кнопки
+        // (воспроизведение) перекрыты прозрачным слоем, чтобы не срабатывали.
+        .contentShape(Rectangle())
+        .onLongPressGesture {
+            if !isSelecting { enterSelection(selecting: message.id) }
+        }
+        .overlay {
+            if isSelecting {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { toggleSelection(message.id) }
+            }
+        }
     }
 
     /// Иконка отправителя вплотную слева от имени — одна и та же строка и в
@@ -681,7 +826,6 @@ private struct RoleChatRoomScreen: View {
             async let messagesRequest = api.roleChatMessages(id: chat.id)
             let (updatedChat, updatedMessages) = try await (chatRequest, messagesRequest)
             chat = updatedChat
-            if chat.taskID != nil { draftStatusText = nil }
             if updatedMessages.map(\.id) != messages.map(\.id) || updatedMessages.map(\.attachments) != messages.map(\.attachments) {
                 messages = updatedMessages
             }
@@ -750,17 +894,6 @@ private struct RoleChatRoomScreen: View {
             if !messages.contains(where: { $0.id == sent.id }) { messages.append(sent) }
             pendingVoices.removeAll { $0.id == id }
             uploadedVoiceIDs.removeValue(forKey: id)
-        } catch { errorMessage = error.localizedDescription }
-    }
-
-    private func assembleTask() async {
-        isDrafting = true
-        defer { isDrafting = false }
-        do {
-            let result = try await api.assembleRoleChatTask(chatID: chat.id)
-            assembledTaskID = result.createdTaskID
-            draftStatusText = result.createdTaskID == nil ? "Задача собирается…" : nil
-            await refresh()
         } catch { errorMessage = error.localizedDescription }
     }
 }

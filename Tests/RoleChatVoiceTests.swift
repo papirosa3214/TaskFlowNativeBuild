@@ -16,12 +16,4 @@ final class RoleChatVoiceTests: XCTestCase {
         let currentServer = try decoder.decode(RoleChatMessage.self, from: Data(#"{"id":"m2","text":"","attachments":[{"id":"a2","file_name":"voice.m4a","mime":"application/octet-stream"}]}"#.utf8))
         XCTAssertEqual(currentServer.attachments?.first?.isVoiceRecording, true)
     }
-
-    func testDraftResponseAcceptsTaskIDAndTaskObject() throws {
-        let decoder = JSONDecoder()
-        let direct = try decoder.decode(RoleChatDraftResult.self, from: Data(#"{"task_id":"t1"}"#.utf8))
-        let wrapped = try decoder.decode(RoleChatDraftResult.self, from: Data(#"{"task":{"id":"t2"}}"#.utf8))
-        XCTAssertEqual(direct.createdTaskID, "t1")
-        XCTAssertEqual(wrapped.createdTaskID, "t2")
-    }
 }

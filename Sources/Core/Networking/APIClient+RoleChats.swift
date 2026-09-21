@@ -11,22 +11,6 @@ private struct CreateRoleChatBody: Encodable {
     let member_ids: [String]
 }
 
-/// Согласованный клиентский ответ этапа 4: сервер возвращает идентификатор
-/// созданной карточки, чтобы сразу открыть её из чата.
-public struct RoleChatDraftResult: Decodable, Sendable {
-    public let taskID: String?
-    public let task: TaskReference?
-    public let draftID: String?
-    public let status: String?
-
-    public struct TaskReference: Decodable, Sendable { public let id: String }
-    enum CodingKeys: String, CodingKey {
-        case taskID = "task_id", task, status
-        case draftID = "draft_id"
-    }
-    public var createdTaskID: String? { taskID ?? task?.id }
-}
-
 public extension APIClient {
     func roleChats() async throws -> [RoleChat] {
         let response: RoleChatsEnvelope = try await request(.get, "/chats")
@@ -73,10 +57,6 @@ public extension APIClient {
         return response.attachment
     }
 
-    func assembleRoleChatTask(chatID: String) async throws -> RoleChatDraftResult {
-        try await request(.post, "/chats/\(chatID)/draft", body: [String: String]())
-    }
-
     func addRoleChatMember(chatID: String, memberID: String) async throws -> RoleChat {
         let response: RoleChatEnvelope = try await request(
             .post, "/chats/\(chatID)/members", body: ["member_id": memberID]
@@ -96,5 +76,25 @@ public extension APIClient {
     /// комнаты и когда в открытом чате появилось чужое сообщение.
     func markRoleChatRead(id: String) async throws {
         try await requestVoid(.post, "/chats/\(id)/read")
+    }
+
+    /// Удалить сообщения чата. `ids` — выборка из режима выбора в комнате;
+    /// пустой список означает «очистить чат целиком» и разрешён только
+    /// создателю (владелец 21.09.2026: «либо удалить все, либо выбрать
+    /// отдельные сообщения и потом удалить их»).
+    @discardableResult
+    func deleteRoleChatMessages(chatID: String, ids: [String] = []) async throws -> Int {
+        var query: [URLQueryItem] = []
+        if !ids.isEmpty {
+            query.append(URLQueryItem(name: "ids", value: ids.joined(separator: ",")))
+        }
+        struct Result: Decodable { let deleted: Int }
+        let response: Result = try await request(.delete, "/chats/\(chatID)/messages", query: query)
+        return response.deleted
+    }
+
+    /// Удалить чат целиком (создатель). Сообщения уходят каскадом.
+    func deleteRoleChat(id: String) async throws {
+        try await requestVoid(.delete, "/chats/\(id)")
     }
 }
