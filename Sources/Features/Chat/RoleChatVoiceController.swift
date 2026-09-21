@@ -32,7 +32,11 @@ final class RoleChatVoiceController {
         do {
             guard let recorded = try recorder.finish() else { return nil }
             phase = .transcribing
-            return VoiceMessage(audioURL: recorded.url, duration: recorded.duration, waveform: recorded.waveform)
+            // Волна — огибающая из самого файла (реальная), а не живые уровни:
+            // иначе при короткой записи она выглядит пунктиром.
+            let envelope = VoiceWaveform.envelope(fromAudioFile: recorded.url)
+            let waveform = envelope.isEmpty ? recorded.waveform : envelope
+            return VoiceMessage(audioURL: recorded.url, duration: recorded.duration, waveform: waveform)
         } catch {
             errorMessage = error.localizedDescription
             phase = .idle

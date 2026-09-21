@@ -1,6 +1,42 @@
 import Foundation
+import AVFoundation
 
 enum VoiceWaveform {
+    /// Огибающая из РЕАЛЬНОГО аудиофайла: читаем PCM, считаем RMS по корзинам,
+    /// нормируем. Это «настоящая» волна по всему файлу, а не живые уровни,
+    /// которые при короткой/тихой записи схлопываются в точки
+    /// (владелец 21.09.2026).
+    static func envelope(fromAudioFile url: URL, bars: Int = 48) -> [Double] {
+        guard bars > 0, let file = try? AVAudioFile(forReading: url) else { return [] }
+        let format = file.processingFormat
+        let frames = AVAudioFrameCount(file.length)
+        guard frames > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)
+        else { return [] }
+        do { try file.read(into: buffer) } catch { return [] }
+        guard let channel = buffer.floatChannelData?[0] else { return [] }
+        let total = Int(buffer.frameLength)
+        guard total > 0 else { return [] }
+
+        let bucket = max(1, total / bars)
+        var out: [Double] = []
+        out.reserveCapacity(bars)
+        var index = 0
+        while index < total && out.count < bars {
+            let end = min(index + bucket, total)
+            var sum = 0.0
+            for i in index..<end {
+                let value = Double(channel[i])
+                sum += value * value
+            }
+            out.append((sum / Double(end - index)).squareRoot())
+            index = end
+        }
+        let peak = out.max() ?? 0
+        guard peak > 0 else { return out }
+        return out.map { min(1, $0 / peak) }
+    }
+
     static func microphoneLevel(averageDecibels: Float, peakDecibels: Float) -> Double {
         let speechThreshold: Float = -38
         guard averageDecibels > speechThreshold else { return 0 }

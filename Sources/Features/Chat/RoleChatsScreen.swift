@@ -210,6 +210,7 @@ private struct RoleChatRoomScreen: View {
                     }
                     .padding(TFSpacing.lg)
                 }
+                .background(Color.tfBackground)
                 .onChange(of: messages.last?.id) { _, id in
                     if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
                 }
@@ -227,6 +228,8 @@ private struct RoleChatRoomScreen: View {
                 }
                 .padding(.horizontal, TFSpacing.lg)
             }
+        }
+        .chatComposerBar {
             ChatVoiceComposer(
                 text: $draft,
                 placeholder: "Сообщение",
@@ -239,7 +242,6 @@ private struct RoleChatRoomScreen: View {
                 onDiscardVoice: { _ in }
             )
         }
-        .background(Color.tfBackground)
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

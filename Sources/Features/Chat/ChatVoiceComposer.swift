@@ -21,52 +21,22 @@ struct ChatVoiceComposer: View {
     @Namespace private var composerNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Единая высота элементов композера: круглая кнопка вложений и капсула —
+    /// одной высоты (владелец 21.09.2026: «у всех величины одинаковые всегда,
+    /// не одна маленькая, другая большая»).
+    private let composerHeight: CGFloat = 52
+
     var body: some View {
         ZStack {
-            if !isRecording, preview == nil { inputAnchor }
-            else { inputAnchor.opacity(0.01).allowsHitTesting(false) }
-            composerVisual
+            // Поле не удаляется при морфинге, поэтому клавиатура остаётся на месте.
+            idleComposer
+            if isRecording { recordingComposer }
+            if let preview { previewComposer(preview) }
         }
         .onDisappear {
             voice.cancel()
             player.stop()
         }
-    }
-
-    @ViewBuilder private var composerVisual: some View {
-        if let preview { previewComposer(preview) }
-        else if isRecording { recordingComposer }
-        else { idleComposer }
-    }
-
-    private var inputAnchor: some View {
-        HStack(spacing: 12) {
-            Color.clear.frame(width: 36, height: 36)
-            HStack(spacing: 0) {
-                TextField(placeholder, text: $text, axis: .vertical)
-                    .focused($isTextFieldFocused)
-                    .lineLimit(1...4)
-                    .textInputAutocapitalization(.sentences)
-                    .submitLabel(.send)
-                    .onSubmit(onSendText)
-                    .accessibilityIdentifier("chat.message")
-                Spacer(minLength: 48)
-                if canSendText {
-                    Button(action: onSendText) {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 20, weight: .medium))
-                            .frame(width: 36, height: 36)
-                    }
-                    .accessibilityLabel("Отправить")
-                    .accessibilityIdentifier("chat.send")
-                }
-            }
-            .padding(.horizontal, 20)
-            .frame(minHeight: 52)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-        .zIndex(1)
     }
 
     private var idleComposer: some View {
@@ -75,26 +45,43 @@ struct ChatVoiceComposer: View {
                 Image(systemName: "plus")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.primary)
-                    .frame(width: 36, height: 36)
-                    .background(.thinMaterial, in: Circle())
+                    .frame(width: composerHeight, height: composerHeight)
+                    .voiceCircleSurface()
             }
-            .tint(.primary)
+            .buttonStyle(.plain)
+            .opacity(isRecording || preview != nil ? 0 : 1)
             .accessibilityLabel("Добавить вложение")
-            HStack {
-                Spacer()
-                Image(systemName: "waveform")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 36)
-                    .contentShape(Rectangle())
-                    .onLongPressGesture(minimumDuration: 0.18, perform: startVoiceRecording)
-                    .opacity(canSendText ? 0 : 1)
+            HStack(spacing: 8) {
+                TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
+                    .lineLimit(1...4)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.send)
+                    .focused($isTextFieldFocused)
+                    .onSubmit(onSendText)
+                    .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.primary)
+                    .accessibilityIdentifier("chat.message")
+                if canSendText {
+                    actionButton("arrow.up", label: "Отправить", identifier: "chat.send", tint: .accentColor, action: onSendText)
+                        .opacity(isRecording || preview != nil ? 0 : 1)
+                } else {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                        .onLongPressGesture(minimumDuration: 0.18, perform: startVoiceRecording)
+                        .accessibilityLabel("Удерживайте для начала записи")
+                        .opacity(isRecording || preview != nil ? 0 : 1)
+                }
             }
-            .padding(.horizontal, 20)
-            .frame(height: 52)
-            .background(.thinMaterial, in: Capsule())
+            .padding(.horizontal, 12)
+            .frame(minHeight: composerHeight)
+            .voiceCapsuleSurface()
+            // Пока идёт запись или открыто превью, капсулу покоя прячем ЦЕЛИКОМ
+            // (вместе с её стеклом), иначе её подложка просвечивает под капсулой
+            // записи/превью — «задвоение» (владелец 21.09.2026).
+            .opacity(isRecording || preview != nil ? 0 : 1)
             .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-            .accessibilityLabel("Удерживайте для начала записи")
         }
         .padding(.horizontal).padding(.vertical, 10)
     }
@@ -114,7 +101,7 @@ struct ChatVoiceComposer: View {
             .accessibilityLabel("Остановить запись")
         }
         .padding(.horizontal, 18).padding(.vertical, 8)
-        .background(.thinMaterial, in: Capsule())
+        .voiceCapsuleSurface()
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.vertical, 10)
         .transition(.opacity)
@@ -126,41 +113,51 @@ struct ChatVoiceComposer: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.primary)
-                    .frame(width: 36, height: 36)
-                    .background(.thinMaterial, in: Circle())
+                    .frame(width: composerHeight, height: composerHeight)
+                    .voiceCircleSurface()
             }
             .tint(.primary)
             .buttonStyle(.plain)
             .accessibilityLabel("Удалить запись")
             HStack(spacing: 12) {
-                Button { try? player.toggle(url: message.audioURL) } label: {
-                    Image(systemName: player.playingURL == message.audioURL ? "pause.fill" : "play.fill")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .frame(width: 36, height: 36)
-                }
-                .accessibilityLabel("Воспроизвести запись")
+                actionButton(
+                    player.playingURL == message.audioURL ? "pause.fill" : "play.fill",
+                    label: "Воспроизвести запись"
+                ) { try? player.toggle(url: message.audioURL) }
                 WaveformView(levels: message.waveform, color: .secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 38)
                 Text(durationText(message.duration)).font(.body.monospacedDigit()).foregroundStyle(.secondary)
-                Button(action: sendPreview) {
-                    if isSendingVoice { ProgressView().frame(width: 36, height: 36) }
-                    else {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 36, height: 36)
-                    }
+                if isSendingVoice {
+                    ProgressView().frame(width: 36, height: 36)
+                } else {
+                    actionButton("arrow.up", label: "Отправить голосовое сообщение", tint: .accentColor, action: sendPreview)
                 }
-                .disabled(isSendingVoice)
-                .accessibilityLabel("Отправить голосовое сообщение")
             }
             .padding(.leading, 6).padding(.trailing, 4).padding(.vertical, 4)
-            .background(.thinMaterial, in: Capsule())
+            .voiceCapsuleSurface()
         }
         .padding(.horizontal).padding(.vertical, 10)
         .transition(.opacity.combined(with: .scale(scale: 0.97)))
+    }
+
+    /// Кнопки ВНУТРИ пилюли — плоские: без своего стекла/кружка, лежат прямо на
+    /// поверхности капсулы (владелец 21.09.2026: «не надо кругляшок в кругляшке,
+    /// там задвоение/затроение материала»). Как в прототипе: только иконка.
+    private func actionButton(
+        _ symbol: String, label: String, identifier: String? = nil,
+        tint: Color = .primary, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier ?? label)
     }
 
     private var recordingDuration: String {
@@ -174,10 +171,11 @@ struct ChatVoiceComposer: View {
 
     private func startVoiceRecording() {
         guard !isRecording, preview == nil else { return }
-        isTextFieldFocused = true
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
             isRecording = true
         }
+        // После смены ветки повторно удерживаем фокус того же поля.
+        DispatchQueue.main.async { isTextFieldFocused = true }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         Task {
             await voice.start()
@@ -192,6 +190,7 @@ struct ChatVoiceComposer: View {
 
     private func stopVoiceRecording() {
         guard voice.phase == .recording else { return }
+        isTextFieldFocused = true
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
             isRecording = false
             preview = voice.finish()
@@ -239,6 +238,30 @@ struct ChatVoiceComposer: View {
             withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
                 preview = nil
             }
+        }
+    }
+}
+
+/// На iOS 26 стекло рисует система; для iOS 18–25 остаётся материал.
+private extension View {
+    @ViewBuilder func voiceCircleSurface() -> some View {
+        if #available(iOS 26.0, *) { glassEffect(.regular, in: .circle) }
+        else { background(.thinMaterial, in: Circle()) }
+    }
+
+    @ViewBuilder func voiceCapsuleSurface() -> some View {
+        if #available(iOS 26.0, *) { glassEffect(.regular, in: .capsule) }
+        else { background(.thinMaterial, in: Capsule()) }
+    }
+}
+
+/// Системная нижняя safe area следует за клавиатурой, как в QuickAddTaskView.
+extension View {
+    @ViewBuilder func chatComposerBar<BarContent: View>(@ViewBuilder content: () -> BarContent) -> some View {
+        if #available(iOS 26.0, *) {
+            safeAreaBar(edge: .bottom, content: content)
+        } else {
+            safeAreaInset(edge: .bottom, content: content)
         }
     }
 }

@@ -20,6 +20,8 @@ struct ChatScreen: View {
             messageList
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+        }
+        .chatComposerBar {
             ChatComposer(viewModel: viewModel)
         }
         // Была своя ZStack-шапка (`TFScreenHeader`) поверх ещё и системного

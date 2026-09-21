@@ -47,7 +47,6 @@ struct ChatComposer: View {
                 onDiscardVoice: discardVoice
             )
         }
-        .background(.ultraThinMaterial)
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: [.image, .pdf, .plainText, .text, .item],
