@@ -16,9 +16,15 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     }
 
     public func displayTitle(excluding userID: String?) -> String {
-        if let title, !title.isEmpty { return title }
-        let names = members.filter { $0.id != userID }.map(\.name)
-        return names.isEmpty ? "Чат" : names.joined(separator: ", ")
+        if let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+        // Сервер может вернуть пустое название группы: перечисляем роли без владельца.
+        let names = members
+            .filter { $0.id != userID }
+            .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return names.isEmpty ? (kind == "group" ? "Групповой чат" : "Чат") : names.joined(separator: ", ")
     }
 }
 
