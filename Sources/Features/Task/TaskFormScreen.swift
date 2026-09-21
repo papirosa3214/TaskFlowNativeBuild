@@ -42,6 +42,8 @@ struct TaskFormScreen: View {
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
     @State private var isAttachmentPickerPresented = false
+    /// Выбор документа из базы знаний (второй источник у «Прикрепить файл»).
+    @State private var isKnowledgePickerPresented = false
     @State private var isDeleteConfirmationPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
@@ -335,6 +337,11 @@ struct TaskFormScreen: View {
             allowedContentTypes: [.item],
             onCompletion: handleAttachmentImport
         )
+        .sheet(isPresented: $isKnowledgePickerPresented) {
+            KnowledgePickerSheet { noteID, title in
+                Task { await attachKnowledgeNote(noteID: noteID, title: title) }
+            }
+        }
     }
 
     /// Единая карточка существующей задачи: это одновременно и просмотр,
@@ -1209,7 +1216,14 @@ struct TaskFormScreen: View {
                         systemImage: viewModel.pinned ? "pin.slash" : "pin"
                     )
                 }
-                Button { isAttachmentPickerPresented = true } label: {
+                Menu {
+                    Button { isAttachmentPickerPresented = true } label: {
+                        Label("С iPhone", systemImage: "iphone")
+                    }
+                    Button { isKnowledgePickerPresented = true } label: {
+                        Label("Из базы знаний", systemImage: "books.vertical")
+                    }
+                } label: {
                     Label("Прикрепить файл", systemImage: "paperclip")
                 }
                 Button { outputDynamicIsland() } label: {
@@ -1477,6 +1491,26 @@ struct TaskFormScreen: View {
     private func handleAttachmentImport(_ result: Result<URL, Error>) {
         guard case .success(let url) = result else { return }
         Task { await viewModel.attachments.add(url: url) }
+    }
+
+    /// Приложить документ из базы знаний: забираем его markdown и кладём
+    /// файлом .md к задаче — тем же путём, что и любой другой файл.
+    private func attachKnowledgeNote(noteID: String, title: String) async {
+        do {
+            let note = try await APIClient().note(id: noteID, format: "markdown")
+            let markdown = note.markdown ?? ""
+            guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                viewModel.attachments.errorMessage = "Документ пуст"
+                return
+            }
+            let base = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = String((base.isEmpty ? "Документ" : base).prefix(80)) + ".md"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            try markdown.data(using: .utf8)?.write(to: url, options: .atomic)
+            await viewModel.attachments.add(url: url)
+        } catch {
+            viewModel.attachments.errorMessage = "Не удалось приложить документ"
+        }
     }
 
     private func loadScreen() async {
