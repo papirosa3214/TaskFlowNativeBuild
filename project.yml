@@ -98,6 +98,41 @@ targets:
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         TARGETED_DEVICE_FAMILY: "1"
 
+  VoiceMessageLab:
+    type: application
+    platform: iOS
+    sources:
+      - path: VoiceMessageLab
+    dependencies:
+      - package: FluidAudio
+    info:
+      path: VoiceMessageLab/Info.plist
+      properties:
+        CFBundleDisplayName: Voice Message Lab
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSMicrophoneUsageDescription: Нужен для проверки записи голосовых сообщений.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.voicemessagelab
+        TARGETED_DEVICE_FAMILY: "1"
+
+  VoiceMessageLabTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VoiceMessageLabTests
+    dependencies:
+      - target: VoiceMessageLab
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.voicemessagelab.tests
+        TEST_TARGET_NAME: VoiceMessageLab
+        GENERATE_INFOPLIST_FILE: true
+
   # Расширение с Live Activity (Dynamic Island). Код восстановлен из
   # Capacitor-обёртки, снесённой 09.09.2026 — там он работал; в нативном
   # клиенте кнопка «Вывести в Dynamic Island» до 10.09.2026 показывала
@@ -199,6 +234,18 @@ packages:
     from: 0.14.6
 
 schemes:
+  VoiceMessageLab:
+    build:
+      targets:
+        VoiceMessageLab: all
+        VoiceMessageLabTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VoiceMessageLabTests
+
   TaskFlow:
     build:
       targets:
