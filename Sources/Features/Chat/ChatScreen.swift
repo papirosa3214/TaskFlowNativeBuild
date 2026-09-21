@@ -46,6 +46,14 @@ struct ChatScreen: View {
                 .accessibilityLabel("Назад")
             }
             ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    RoleChatsScreen()
+                } label: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                }
+                .accessibilityLabel("Чаты с ролями")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if viewModel.bothChannelsVisible {
                         Section("Канал") {
