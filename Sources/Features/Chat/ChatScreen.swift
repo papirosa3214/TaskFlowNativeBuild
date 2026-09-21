@@ -49,14 +49,6 @@ struct ChatScreen: View {
                 .accessibilityLabel("Назад")
             }
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    RoleChatsScreen()
-                } label: {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                }
-                .accessibilityLabel("Чаты с ролями")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if viewModel.bothChannelsVisible {
                         Section("Канал") {
@@ -65,12 +57,6 @@ struct ChatScreen: View {
                             } label: {
                                 if viewModel.activeChannel == .owner { Label(viewModel.counterpartFirstName, systemImage: "checkmark") }
                                 else { Text(viewModel.counterpartFirstName) }
-                            }
-                            Button {
-                                viewModel.switchChannel(to: .agents)
-                            } label: {
-                                if viewModel.activeChannel == .agents { Label("Агенты", systemImage: "checkmark") }
-                                else { Text("Агенты") }
                             }
                         }
                     }

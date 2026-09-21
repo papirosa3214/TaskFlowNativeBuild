@@ -55,7 +55,10 @@ struct ChatVoiceComposer: View {
                 TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
                     .lineLimit(1...4)
                     .textInputAutocapitalization(.sentences)
-                    .submitLabel(.send)
+                    // Без `.submitLabel(.send)`: системная клавиатура должна
+                    // рисовать обычную клавишу Return, а не синюю кнопку
+                    // «отправить» (владелец 21.09.2026). Return всё равно
+                    // отправляет — через `onSubmit`.
                     .focused($isTextFieldFocused)
                     .onSubmit(onSendText)
                     .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.primary)

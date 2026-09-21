@@ -48,7 +48,9 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .timeline:
         TimelineScreen()
     case .chat:
-        ChatScreen()
+        // Вкладка «Чат» ведёт в СПИСОК чатов, а не сразу в открытый чат:
+        // сначала меню чатов, потом конкретный чат (владелец 21.09.2026).
+        RoleChatsScreen()
     case .taskDetail(let taskID):
         TaskFormScreen(taskID: taskID)
     case .taskCreate:
