@@ -1040,23 +1040,14 @@ struct TaskFormScreen: View {
         }
     }
 
-    /// Ярлычки действий агента у идущего шага: по иконке на каждый ВИД
-    /// действия плюс счётчик всех действий. Владелец 20.09.2026: пока агент
-    /// работает, должно быть видно, что он предпринимал, — компактной полоской.
-    /// Виды: чтение/правка/запись/поиск/запуск/раздумье/интернет/картинка/
-    /// тесты/сборка/git/вложение (см. `activity.ts` и Pi-расширение
-    /// `taskflow-activity.ts`).
+    /// Ярлычки действий агента у идущего шага: СНАЧАЛА число всех действий,
+    /// ПОСЛЕ — последние пять иконок (владелец 21.09.2026: «в самом начале
+    /// делаем число, а эти пять меняются после»). Раньше было наоборот —
+    /// уникальные виды иконок, потом счётчик; владелец это забраковал.
+    /// Никакой истории: живая картинка на момент просмотра.
     @ViewBuilder
     private func activityChips(_ actions: [ApiTaskActivityAction]) -> some View {
         HStack(spacing: TFSpacing.xs) {
-            ForEach(activityKinds(actions), id: \.self) { kind in
-                Image(systemName: activityIcon(kind))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.tfDim)
-                    .frame(width: 24, height: 24)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-            }
             Text("\(actions.count) \(pluralActions(actions.count))")
                 .tfText(.micro)
                 .foregroundStyle(Color.tfSub)
@@ -1064,17 +1055,15 @@ struct TaskFormScreen: View {
                 .frame(height: 24)
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+            ForEach(Array(actions.suffix(5)), id: \.id) { action in
+                Image(systemName: activityIcon(action.kind))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.tfDim)
+                    .frame(width: 24, height: 24)
+                    .background(Color.tfCard2)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
         }
-    }
-
-    /// Виды действий в порядке первого появления, без повторов.
-    private func activityKinds(_ actions: [ApiTaskActivityAction]) -> [String] {
-        var seen = Set<String>()
-        var out: [String] = []
-        for action in actions where seen.insert(action.kind).inserted {
-            out.append(action.kind)
-        }
-        return out
     }
 
     private func activityIcon(_ kind: String) -> String {
