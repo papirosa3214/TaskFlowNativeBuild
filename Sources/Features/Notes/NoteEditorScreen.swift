@@ -29,8 +29,6 @@ struct NoteEditorScreen: View {
 
     @State private var showMovePicker = false
     @State private var showDeleteConfirm = false
-    @State private var shareURL: URL?
-    @State private var showShareSheet = false
 
     init(noteID: String) {
         self.noteID = noteID
@@ -96,9 +94,6 @@ struct NoteEditorScreen: View {
             FolderPickerSheet(folders: viewModel.folders, title: "Переместить в папку") { folderID in
                 Task { await viewModel.moveToFolder(folderID) }
             }
-        }
-        .sheet(isPresented: $showShareSheet) {
-            if let shareURL { NoteShareSheet(items: [shareURL]) }
         }
         .tfBottomSheet(isPresented: $viewModel.showExtractedTasksSheet, title: "Задачи из текста") {
             NoteExtractedTasksSheetContent(tasks: viewModel.extractedTasks) {
@@ -278,10 +273,31 @@ struct NoteEditorScreen: View {
     }
 
     private func exportMarkdown() async {
-        if let url = await viewModel.exportToMarkdownFile() {
-            shareURL = url
-            showShareSheet = true
+        guard let url = await viewModel.exportToMarkdownFile() else { return }
+        // Показываем системный лист «Поделиться» НАПРЯМУЮ, а не через
+        // SwiftUI `.sheet`. Вложенный в шторку `UIActivityViewController`
+        // рисовался серой пустой панелью без действий (жалоба владельца
+        // 20.09.2026) — он рассчитан на собственное модальное представление.
+        presentShareSheet(url: url)
+    }
+
+    private func presentShareSheet(url: URL) {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+            let root = scene.keyWindow?.rootViewController
+        else { return }
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = top.view
+            popover.sourceRect = CGRect(
+                x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0
+            )
+            popover.permittedArrowDirections = []
         }
+        top.present(controller, animated: true)
     }
 
     private func performDelete() async {
@@ -565,13 +581,6 @@ private struct NoteTableRowHeightPreferenceKey: PreferenceKey {
     }
 }
 
-/// Обёртка `UIActivityViewController` для «Выгрузить в Markdown» — своя
-/// копия: у соседа в `NotesScreen.swift` тот же тип объявлен `private`,
-/// наружу недоступен.
-private struct NoteShareSheet: UIViewControllerRepresentable {
-    let items: [URL]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
+/// Обёртка `UIActivityViewController` для «Выгрузить в Markdown» больше не
+/// нужна: лист показывается напрямую из `presentShareSheet` (вложенный в
+/// SwiftUI-шторку он рисовался серой пустой панелью).
