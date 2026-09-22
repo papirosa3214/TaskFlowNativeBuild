@@ -483,8 +483,20 @@ final class TaskFormViewModel {
                 }
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: nil, comment: comment)
                 _ = try await apiClient.patchTask(id: taskID, fields: ["status": .string("completed")])
-            case .returnToWorkFromReview, .replyAndReturnFromBlocked:
+            case .returnToWorkFromReview:
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: .inProgress, comment: comment)
+            case .replyAndReturnFromBlocked:
+                // `blocked → in_progress` сервер пропускает только
+                // исполнителю: владелец получал 400 «invalid transition»,
+                // и комментарий из того же запроса пропадал (22.09.2026).
+                // Как в вебе (`TaskJournal.tsx`, `handleAnswer`): СНАЧАЛА
+                // снять блокировку, ПОТОМ комментарий — будильник
+                // просыпается по комментарию и сразу перечитывает задачу;
+                // застанет её ещё blocked — пройдёт мимо.
+                _ = try await apiClient.setTaskAgentState(id: taskID, state: nil)
+                if let comment {
+                    _ = try await apiClient.createComment(taskId: taskID, text: comment)
+                }
             case .returnToWorkFromInProgress:
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: nil, comment: comment)
             }
