@@ -402,7 +402,7 @@ struct TaskFormScreen: View {
                         if let state = viewModel.agentState {
                             Label(agentStateText(state), systemImage: agentStateIcon(state))
                                 .tfText(.caption)
-                                .foregroundStyle(state == .blocked ? Color.orange : Color.tfSub)
+                                .foregroundStyle(agentStateColor(state))
                         }
                         AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
                     }
@@ -1254,6 +1254,36 @@ struct TaskFormScreen: View {
         case .inProgress: "В работе"
         case .blocked: "Заблокирована"
         case .review: "На проверке"
+        }
+    }
+
+    /// Цвет подписи состояния в шапке. «На проверке»: серая — ждёт
+    /// проверяющего, синяя — отправлена ему и он работает, зелёная — он
+    /// вынес вердикт (владелец 22.09.2026). Считаем по ленте после
+    /// последнего ухода в review: прошлые круги проверки не в счёт.
+    private func agentStateColor(_ state: AgentState) -> Color {
+        switch state {
+        case .blocked:
+            return .orange
+        case .inProgress:
+            return .tfSub
+        case .review:
+            let events = viewModel.journalEntries.compactMap { entry -> ApiTaskEvent? in
+                if case .event(let event) = entry { return event }
+                return nil
+            }
+            // `journalEntries` идут от новых к старым: всё, что новее
+            // последнего ухода в review, лежит ДО него.
+            let end = events.firstIndex { $0.kind == "state_changed" && $0.toValue == "review" }
+                ?? events.endIndex
+            let current = events[..<end]
+            if current.contains(where: { $0.kind == "review_recorded" }) { return .tfGreen }
+            if current.contains(where: {
+                $0.kind == "reviewer_sent" || ($0.kind == "run_requested" && $0.field == "reviewer")
+            }) {
+                return .tfBlue
+            }
+            return .tfSub
         }
     }
 
