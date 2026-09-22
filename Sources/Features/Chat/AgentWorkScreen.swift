@@ -76,7 +76,7 @@ struct AgentWorkScreen: View {
                 // КАЖДЫЙ `load()`, включая переподключение реалтайма; без
                 // проверки на пустой кэш «Загрузка…» мигала бы поверх уже
                 // показанного списка (веб-`isLoading` — только первый запрос).
-                if taskStore.isLoading && taskStore.tasks.isEmpty {
+                if taskStore.isLoading && taskStore.agentWorkTasks.isEmpty {
                     TFLoading(.block)
                         .frame(maxWidth: .infinity)
                         .padding(.top, TFSpacing.xl)
@@ -212,7 +212,7 @@ struct AgentWorkScreen: View {
     // MARK: - Группировка (буквально `AgentWorkScreen.tsx`, useMemo groups)
 
     private var active: [ApiTask] {
-        taskStore.tasks.filter { $0.status == .active }
+        taskStore.agentWorkTasks.filter { $0.status == .active }
     }
 
     private var groupInProgress: [ApiTask] {

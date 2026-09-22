@@ -215,15 +215,15 @@ struct OverviewScreen: View {
     private func navigateToSearch() { searchPushed = true }
 
     private var workingCount: Int {
-        taskStore.tasks.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale != true }
+        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale != true }
     }
     private var reviewCount: Int {
-        taskStore.tasks.count { $0.status == .active && $0.agentState == .review }
+        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .review }
     }
     private var blockedCount: Int {
-        taskStore.tasks.count { $0.status == .active && $0.agentState == .blocked }
+        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .blocked }
     }
     private var staleCount: Int {
-        taskStore.tasks.count { $0.agentState == .inProgress && $0.agentStale == true }
+        taskStore.agentWorkTasks.count { $0.agentState == .inProgress && $0.agentStale == true }
     }
 }
