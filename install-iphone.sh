@@ -24,11 +24,19 @@ DEVICE_ID="B752C915-688A-5FE2-B7A2-CD355FCD8D47"
 xcodegen generate
 
 шаг "Собираю и подписываю"
+# `-allowProvisioningUpdates` — чтобы xcodebuild мог САМ перевыпустить профиль
+# бесплатной подписи. Без флага, когда профиль истёк, сборка падает на
+# «No profiles for 'com.maksim.taskflow.native' were found… Automatic signing is
+# disabled and unable to generate a profile», хотя код собирается (проверено
+# 22.09.2026 — владелец ловил именно это). В Xcode профиль обновляется молча,
+# из командной строки для этого нужно разрешение явно; иначе пришлось бы каждый
+# раз открывать Xcode руками.
 xcodebuild \
   -project TaskFlow.xcodeproj \
   -scheme TaskFlow \
   -destination "id=$DEVICE_ID" \
   -derivedDataPath build_device \
+  -allowProvisioningUpdates \
   build
 
 шаг "Ставлю на телефон"
