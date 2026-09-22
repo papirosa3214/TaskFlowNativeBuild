@@ -332,9 +332,12 @@ enum TodayTaskSwipeAction: Equatable {
     case acceptReview
     case markReadyForPickup
 
-    static func action(for task: ApiTask, isOwner: Bool) -> Self? {
+    /// `currentUserID` — чтобы у личного дела (исполнитель — сам владелец)
+    /// был «Завершить», а не «Запустить»: запускать там некого (23.09.2026).
+    static func action(for task: ApiTask, isOwner: Bool, currentUserID: String? = nil) -> Self? {
         guard task.status == .active else { return nil }
         if isOwner, task.agentState == .review { return .acceptReview }
+        if let me = currentUserID, task.assigneeId == me { return .complete }
         if isOwner, task.agentState == nil, !task.readyForPickup { return .markReadyForPickup }
         return .complete
     }

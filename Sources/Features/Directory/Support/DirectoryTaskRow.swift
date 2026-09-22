@@ -317,9 +317,12 @@ enum ProjectTaskSwipeAction: Equatable {
     /// и просто активную задачу в пуле.
     case complete
 
-    static func action(for task: ApiTask, isOwner: Bool) -> Self? {
+    /// `currentUserID` — у личного дела (исполнитель — сам владелец) сразу
+    /// «Принять», а не «Запустить»: запускать там некого (23.09.2026).
+    static func action(for task: ApiTask, isOwner: Bool, currentUserID: String? = nil) -> Self? {
         guard isOwner else { return nil }
         guard task.status == .active else { return nil }
+        if let me = currentUserID, task.assigneeId == me { return .complete }
         if !task.readyForPickup { return .markReadyForPickup }
         return .complete
     }

@@ -135,7 +135,8 @@ struct TodayListView: View {
     private func row(_ task: ApiTask, overdue: Bool) -> some View {
         let swipeAction = TodayTaskSwipeAction.action(
             for: task,
-            isOwner: session.currentUser?.role == .owner
+            isOwner: session.currentUser?.role == .owner,
+            currentUserID: session.currentUser?.id
         )
         return TodayTaskRow(task: task, overdue: overdue,
                             onOpen: { onOpen(task) },

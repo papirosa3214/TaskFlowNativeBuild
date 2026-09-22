@@ -22,6 +22,7 @@ struct ProjectTasksScreen: View {
 
     @Environment(ProjectStore.self) private var projectStore
     @Environment(TaskStore.self) private var taskStore
+    @Environment(SessionStore.self) private var session
     @State private var relationshipTasks: [ApiTask] = []
 
     private let apiClient = APIClient()
@@ -170,7 +171,9 @@ struct ProjectTasksScreen: View {
     private func rowWithIndex(_ rowIndex: Int) -> some View {
         let task = tasks[rowIndex]
         let shortId = String(task.id.prefix(8))
-        let swipeAction = ProjectTaskSwipeAction.action(for: task, isOwner: isTaskOwner)
+        let swipeAction = ProjectTaskSwipeAction.action(
+            for: task, isOwner: isTaskOwner, currentUserID: session.currentUser?.id
+        )
         DirectoryTaskRow(
             index: shortId,
             task: task,
