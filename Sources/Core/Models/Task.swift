@@ -115,6 +115,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// «Автоматически» вместо выбранной роли.
     public let ownerSelectedRole: String?
     public let dispatchedRole: String?
+    /// Роль, подобранная при постановке (Секретарём) или диспетчером, до
+    /// раздачи. Отдельно от `effectiveRole`: её показывает только карточка
+    /// черновика в чате — там исполнитель виден ещё до запуска.
+    public let machineSelectedRole: String?
 
     /// Роль для показа/выбора: зафиксированная диспетчером важнее выбора
     /// владельца, но если обе пусты — `nil`. Падать на вычисленное `role` не
@@ -171,6 +175,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case role
         case ownerSelectedRole = "owner_selected_role"
         case dispatchedRole = "dispatched_role"
+        case machineSelectedRole = "machine_selected_role"
     }
 
     public init(from decoder: Decoder) throws {
@@ -233,6 +238,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         ownerSelectedRole = (ownerRole?.isEmpty == false) ? ownerRole : nil
         let dispatched = try c.decodeIfPresent(String.self, forKey: .dispatchedRole)
         dispatchedRole = (dispatched?.isEmpty == false) ? dispatched : nil
+        let machine = try c.decodeIfPresent(String.self, forKey: .machineSelectedRole)
+        machineSelectedRole = (machine?.isEmpty == false) ? machine : nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -288,6 +295,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(role, forKey: .role)
         try c.encodeIfPresent(ownerSelectedRole, forKey: .ownerSelectedRole)
         try c.encodeIfPresent(dispatchedRole, forKey: .dispatchedRole)
+        try c.encodeIfPresent(machineSelectedRole, forKey: .machineSelectedRole)
     }
 
     // MARK: Удобные вычисляемые даты (raw-строки остаются полями — см. DateFormats)

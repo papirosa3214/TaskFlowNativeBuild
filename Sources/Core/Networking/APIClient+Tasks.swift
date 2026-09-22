@@ -143,6 +143,13 @@ public extension APIClient {
         let _: APIOkResponse = try await request(.delete, "/tasks/\(id)")
     }
 
+    /// «✓ Запустить» на карточке Секретаря: сервер поднимает флаг дереву
+    /// черновика и отдаёт карточки с учётом очереди; личные дела не трогает.
+    func startDraft(taskID: String) async throws {
+        struct Response: Decodable { let ok: Bool }
+        let _: Response = try await request(.post, "/task-intake/drafts/\(taskID)/start")
+    }
+
     /// Ручной разовый запуск агента на карточке — только владелец.
     /// `mode`: `executor` — поднять исполнителя, `reviewer` — верификатора.
     /// Служба-будильник при этом может быть выключена: это одиночный заход

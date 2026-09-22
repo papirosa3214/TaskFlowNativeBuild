@@ -116,6 +116,9 @@ private struct ChatFileChip: View {
 }
 
 struct ChatBubble: View {
+    /// Учётка Секретаря на сервере (`lib/ownerDraft.ts`, SECRETARY_ID).
+    static let secretaryID = "u-secretary"
+
     let message: ApiChatMessage
     let mine: Bool
     let toMe: Bool
@@ -191,7 +194,11 @@ struct ChatBubble: View {
                     }
                 }
 
-                if let taskId = message.taskId, let taskTitle = message.taskTitle {
+                if let taskId = message.taskId, message.fromUserId == Self.secretaryID {
+                    // Ответ Секретаря о постановке — карточкой с шагами,
+                    // дочерними и «Запустить / Удалить» (владелец 23.09.2026).
+                    SecretaryDraftCard(taskID: taskId) { pendingTaskID = taskId }
+                } else if let taskId = message.taskId, let taskTitle = message.taskTitle {
                     Button { pendingTaskID = taskId } label: {
                         Text(taskTitle)
                             .tfText(.meta)
