@@ -1149,8 +1149,15 @@ struct TaskFormScreen: View {
                 journalCommentBody(comment)
             }
         case .event(let event):
-            HStack {
-                Text(TaskJournalView.eventText(event)).tfText(.action).foregroundStyle(Color.tfSub)
+            // Кто сделал — обязательно (владелец 22.09.2026: безличное
+            // «выполнил шаг» не говорит, чья это работа). Нет автора —
+            // действие системы. Имя и действие разделены точкой, чтобы не
+            // согласовывать глагол с родом («Система взял»).
+            HStack(alignment: .firstTextBaseline) {
+                (Text(event.actorName?.isEmpty == false ? event.actorName! : "Система").fontWeight(.medium)
+                    + Text(" · ")
+                    + Text(TaskJournalView.eventText(event)))
+                    .tfText(.action).foregroundStyle(Color.tfSub)
                 Spacer()
                 if let date = event.createdAtDate {
                     Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
