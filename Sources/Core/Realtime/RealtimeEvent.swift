@@ -24,6 +24,13 @@ public enum RealtimeEvent: Sendable {
     case notificationNew(ApiNotification)
     case chatNew(ApiChatMessage)
     case chatTyping(raw: JSONValue)
+    /// Новое сообщение в чате с ролями (`chat:new` с `chat_id`). Несём только
+    /// id чата: экран сам перечитывает ленту и список — формат строки у
+    /// новых чатов свой (`RoleChatMessage`), не `ApiChatMessage` канала.
+    case roleChatMessage(chatId: String)
+    /// Роль готовит ответ в чате (`chats:typing`): `active` — начала/закончила.
+    /// Сигнал даёт сервер ровно на время ответа роли (22.09.2026).
+    case roleChatTyping(chatId: String, userId: String, name: String, active: Bool)
     case serverError(message: String?)
     case unknown(type: String, raw: JSONValue)
 
@@ -31,6 +38,16 @@ public enum RealtimeEvent: Sendable {
     private struct BareID: Decodable { let id: String }
     private struct TaskIdField: Decodable { let task_id: String? }
     private struct ErrorPayload: Decodable { let message: String?; let error: String? }
+    private struct ChatIDEnvelope: Decodable {
+        struct Message: Decodable { let chat_id: String? }
+        let message: Message?
+    }
+    private struct RoleTypingPayload: Decodable {
+        let chat_id: String
+        let user_id: String
+        let name: String?
+        let active: Bool
+    }
 
     public static func parse(_ data: Data) -> RealtimeEvent? {
         let decoder = JSONDecoder()
@@ -64,12 +81,24 @@ public enum RealtimeEvent: Sendable {
             }
             return .notificationNew(n)
         case "chat:new":
+            // Сообщение чата с ролями — отдельное событие. Раньше оно
+            // разбиралось как сообщение канала (у него тоже channel = chat)
+            // и могло попасть в открытую ленту канала координации.
+            if let envelope = try? decoder.decode(ChatIDEnvelope.self, from: data),
+               let chatId = envelope.message?.chat_id, !chatId.isEmpty {
+                return .roleChatMessage(chatId: chatId)
+            }
             guard let m = try? decoder.decode(ApiChatMessage.self, from: data) else {
                 return .unknown(type: envelope.type, raw: raw)
             }
             return .chatNew(m)
         case "chat:typing":
             return .chatTyping(raw: raw)
+        case "chats:typing":
+            guard let p = try? decoder.decode(RoleTypingPayload.self, from: data) else {
+                return .unknown(type: envelope.type, raw: raw)
+            }
+            return .roleChatTyping(chatId: p.chat_id, userId: p.user_id, name: p.name ?? "", active: p.active)
         case "error":
             let payload = try? decoder.decode(ErrorPayload.self, from: data)
             return .serverError(message: payload?.message ?? payload?.error)

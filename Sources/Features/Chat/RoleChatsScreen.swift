@@ -20,6 +20,7 @@ struct RoleChatsScreen: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showingCreate = false
+    @State private var realtime = RealtimeClient()
     private let api = APIClient()
 
     /// Блок «Секретарь» кормится старым каналом `owner`: у новых чатов
@@ -83,6 +84,24 @@ struct RoleChatsScreen: View {
         }
         .task { await load() }
         .refreshable { await load() }
+        // Живое обновление (владелец 22.09.2026: «чтобы не выходить и не
+        // заходить заново»): пока список открыт, слушаем сокет и на новое
+        // сообщение тихо перечитываем превью и непрочитанные.
+        .task {
+            realtime.onEvent = { event in
+                switch event {
+                case .roleChatMessage:
+                    Task { await reloadSilently() }
+                case .chatNew:
+                    Task { await loadSecretary() }
+                default:
+                    break
+                }
+            }
+            realtime.onReconnected = { Task { await reloadSilently() } }
+            realtime.connect()
+        }
+        .onDisappear { realtime.disconnect() }
         .alert("Не удалось загрузить чаты", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -170,6 +189,12 @@ struct RoleChatsScreen: View {
         do { chats = try await api.roleChats() }
         catch { errorMessage = error.localizedDescription }
         await loadSecretary()
+    }
+
+    /// Фоновое обновление по сокету: без спиннера и без алерта — сбой
+    /// здесь не повод пугать, следующее событие или «потянуть вниз» догонят.
+    private func reloadSilently() async {
+        if let fresh = try? await api.roleChats() { chats = fresh }
     }
 
     /// Отдельно от списка чатов: падение этого блока не должно показывать
@@ -305,6 +330,33 @@ private struct ChatListRow: View {
             .frame(minWidth: 20, minHeight: 20)
             .background(Capsule().fill(Color.tfRedSolid))
             .accessibilityLabel("Непрочитанных: \(unread)")
+    }
+}
+
+/// «Разработчик печатает…» с анимированными точками — показывается только
+/// по сигналу сервера, пока роль действительно готовит ответ (22.09.2026).
+private struct RoleChatTypingLine: View {
+    let names: [String]
+
+    var body: some View {
+        HStack(spacing: TFSpacing.sm) {
+            Text(text)
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .lineLimit(1)
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { i in
+                    TypingDot(delay: Double(i) * TFAnimation.typingDotPhaseShift)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+    }
+
+    private var text: String {
+        if names.count == 1 { return "\(names[0]) печатает" }
+        return "\(names.dropLast().joined(separator: ", ")) и \(names.last ?? "") печатают"
     }
 }
 
@@ -510,6 +562,10 @@ private struct RoleChatRoomScreen: View {
     @State private var isClearChatConfirmOpen = false
     @State private var isDeleteChatConfirmOpen = false
     @State private var isDetailsPresented = false
+    @State private var realtime = RealtimeClient()
+    /// Кто сейчас готовит ответ: userId → имя. Наполняет только сервер
+    /// (`chats:typing`) — на время, пока роль действительно отвечает.
+    @State private var typists: [String: String] = [:]
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
@@ -547,6 +603,10 @@ private struct RoleChatRoomScreen: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             .id(message.id)
                         }
+                        if !typists.isEmpty {
+                            RoleChatTypingLine(names: typists.values.sorted())
+                                .id("typing-line")
+                        }
                     }
                     .padding(TFSpacing.lg)
                 }
@@ -554,6 +614,12 @@ private struct RoleChatRoomScreen: View {
                 .onChange(of: messages.last?.id) { _, id in
                     if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
                 }
+                .onChange(of: typists.isEmpty) { _, isEmpty in
+                    if !isEmpty { withAnimation { proxy.scrollTo("typing-line", anchor: .bottom) } }
+                }
+            }
+            if !mentionCandidates.isEmpty {
+                mentionSuggestions
             }
             if !pendingAttachments.isEmpty {
                 HStack {
@@ -701,7 +767,30 @@ private struct RoleChatRoomScreen: View {
             }
         }
         .task {
-            // Пока у новых чатов нет отдельного WS-клиента: обновляем ленту при открытом экране.
+            // Живые события (22.09.2026): новое сообщение этого чата — сразу
+            // перечитываем ленту; «печатает» — ровно по сигналу сервера.
+            let chatID = chat.id
+            realtime.onEvent = { event in
+                switch event {
+                case .roleChatMessage(let id) where id == chatID:
+                    Task { await refresh() }
+                case .roleChatTyping(let id, let userID, let name, let active) where id == chatID:
+                    if active { typists[userID] = name.isEmpty ? "Участник" : name }
+                    else { typists[userID] = nil }
+                default:
+                    break
+                }
+            }
+            realtime.onReconnected = {
+                // За время разрыва сигнал «закончил» мог потеряться.
+                typists = [:]
+                Task { await refresh() }
+            }
+            realtime.connect()
+        }
+        .onDisappear { realtime.disconnect() }
+        .task {
+            // Опрос остаётся запасным путём на случай, если сокет молчит.
             await refresh()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(4))
@@ -947,6 +1036,62 @@ private struct RoleChatRoomScreen: View {
             pendingAttachments = []
             if !messages.contains(where: { $0.id == message.id }) { messages.append(message) }
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    // MARK: - Упоминание через «@»
+
+    /// Набираемое упоминание в конце черновика: «…@Раз» → «Раз». `nil` —
+    /// упоминание сейчас не идёт. «@» засчитывается только в начале текста
+    /// или после пробела — иначе сработало бы на адресе почты.
+    private var mentionQuery: String? {
+        guard let at = draft.lastIndex(of: "@") else { return nil }
+        if at > draft.startIndex {
+            let before = draft[draft.index(before: at)]
+            guard before.isWhitespace else { return nil }
+        }
+        let query = draft[draft.index(after: at)...]
+        guard !query.contains(where: { $0.isWhitespace }) else { return nil }
+        return String(query)
+    }
+
+    /// Справочник для «@» — участники этого чата, кроме меня: сервер
+    /// отвечает только ролями, которые есть в чате. Сначала совпадения с
+    /// начала имени, потом по вхождению.
+    private var mentionCandidates: [RoleChatMember] {
+        guard !isSelecting, let query = mentionQuery?.lowercased() else { return [] }
+        let others = chat.members.filter { $0.id != session.currentUser?.id }
+        guard !query.isEmpty else { return others }
+        let matching = others.filter { $0.name.lowercased().contains(query) }
+        return matching.filter { $0.name.lowercased().hasPrefix(query) }
+            + matching.filter { !$0.name.lowercased().hasPrefix(query) }
+    }
+
+    private var mentionSuggestions: some View {
+        VStack(spacing: 0) {
+            ForEach(mentionCandidates) { member in
+                Button { insertMention(member) } label: {
+                    HStack(spacing: TFSpacing.md) {
+                        RoleMemberAvatar(member: member, size: .md)
+                        Text(member.name)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfText)
+                        Spacer()
+                    }
+                    .padding(.horizontal, TFSpacing.lg)
+                    .padding(.vertical, TFSpacing.sm)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color.tfCard)
+    }
+
+    /// «…@Раз» → «…@Разработчик » — пробел в конце, чтобы продолжение
+    /// набора не слилось с именем и подсказка закрылась.
+    private func insertMention(_ member: RoleChatMember) {
+        guard let at = draft.lastIndex(of: "@") else { return }
+        draft = String(draft[..<at]) + "@\(member.name) "
     }
 
     private func sendVoicePreview(_ message: VoiceMessage) async -> Bool {
