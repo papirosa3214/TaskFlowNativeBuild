@@ -199,11 +199,6 @@ struct TodayTaskRow: View {
 
                 if hasBadges {
                     HStack(spacing: TFSpacing.xs) {
-                        // Флаг готовности — первым, перед счётчиком шагов
-                        // (владелец 11.09.2026).
-                        if task.readyForPickup {
-                            TFReadyFlag()
-                        }
                         if !task.subtasks.isEmpty {
                             let done = task.subtasks.count { $0.done }
                             TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
@@ -258,7 +253,7 @@ struct TodayTaskRow: View {
     }
 
     private var hasBadges: Bool {
-        !task.subtasks.isEmpty || TaskPriority(rawValue: task.priority) != nil || task.readyForPickup
+        !task.subtasks.isEmpty || TaskPriority(rawValue: task.priority) != nil
             || overdue || task.dueDate != nil || !task.labels.isEmpty
     }
 
@@ -347,7 +342,7 @@ enum TodayTaskSwipeAction: Equatable {
     var icon: String {
         switch self {
         case .complete, .acceptReview: "checkmark"
-        case .markReadyForPickup: "flag.fill"
+        case .markReadyForPickup: "play.fill"
         }
     }
 
@@ -355,7 +350,7 @@ enum TodayTaskSwipeAction: Equatable {
         switch self {
         case .complete: "Завершить"
         case .acceptReview: "Принять"
-        case .markReadyForPickup: "Готово к работе"
+        case .markReadyForPickup: "Запустить"
         }
     }
 

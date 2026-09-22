@@ -159,7 +159,12 @@ struct TodayListView: View {
                 _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
                 await taskStore.load(silent: true)
             case .markReadyForPickup:
-                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                // «Запустить» — тем же путём, что в карточке и в чате Секретаря.
+                if task.parentId == nil {
+                    try await apiClient.startDraft(taskID: task.id)
+                } else {
+                    _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                }
                 await taskStore.load(silent: true)
             }
         } catch {

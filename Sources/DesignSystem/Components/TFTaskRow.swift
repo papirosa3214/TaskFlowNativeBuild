@@ -25,8 +25,6 @@ public struct TFTaskRowModel {
     public var subtasksDone: Int?
     public var subtasksTotal: Int?
     public var priority: TaskPriority?
-    /// Владелец подтвердил карточку — исполнитель вправе её взять.
-    public var isReadyForPickup: Bool
     public var isOverdue: Bool
     public var dueText: String?
     public var labels: [(title: String, color: Color)]
@@ -44,7 +42,6 @@ public struct TFTaskRowModel {
         subtasksDone: Int? = nil,
         subtasksTotal: Int? = nil,
         priority: TaskPriority? = nil,
-        isReadyForPickup: Bool = false,
         isOverdue: Bool = false,
         dueText: String? = nil,
         labels: [(title: String, color: Color)] = []
@@ -61,7 +58,6 @@ public struct TFTaskRowModel {
         self.subtasksDone = subtasksDone
         self.subtasksTotal = subtasksTotal
         self.priority = priority
-        self.isReadyForPickup = isReadyForPickup
         self.isOverdue = isOverdue
         self.dueText = dueText
         self.labels = labels
@@ -115,12 +111,6 @@ public struct TFTaskRow: View {
 
                 if hasBadges {
                     HStack(spacing: TFSpacing.xs) {
-                        // Флаг готовности — первым в нижнем ряду, перед
-                        // счётчиком шагов (владелец 11.09.2026). Нет значка
-                        // значит «владелец ещё не подтвердил».
-                        if model.isReadyForPickup {
-                            TFReadyFlag()
-                        }
                         if let done = model.subtasksDone, let total = model.subtasksTotal {
                             TFPill("\(done)/\(total)", color: .tfSub, solidBackground: .tfCard)
                         }
@@ -154,7 +144,7 @@ public struct TFTaskRow: View {
     }
 
     private var hasBadges: Bool {
-        model.subtasksTotal != nil || model.priority != nil || model.isReadyForPickup
+        model.subtasksTotal != nil || model.priority != nil
             || model.isOverdue || model.dueText != nil || !model.labels.isEmpty
     }
 }

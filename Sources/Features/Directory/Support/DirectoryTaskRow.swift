@@ -172,13 +172,6 @@ struct DirectoryTaskRow: View {
 
                     if hasBadges {
                         HStack(spacing: TFSpacing.xs) {
-                            // Флаг готовности — там же, где во всех остальных
-                            // списках: первым в нижнем ряду, перед счётчиком
-                            // шагов (владелец 11.09.2026). Раньше он стоял
-                            // справа, в одной куче с шевронами приоритета.
-                            if task.readyForPickup {
-                                TFReadyFlag()
-                            }
                             // Отметка глубокого исследования (миграция 052) —
                             // рядом с флагом готовности, чтобы помеченные
                             // задачи были видны прямо в списке проекта.
@@ -334,14 +327,14 @@ enum ProjectTaskSwipeAction: Equatable {
     var icon: String {
         switch self {
         case .complete: "checkmark"
-        case .markReadyForPickup: "flag.fill"
+        case .markReadyForPickup: "play.fill"
         }
     }
 
     var accessibilityLabel: String {
         switch self {
         case .complete: "Принять"
-        case .markReadyForPickup: "Готово к работе"
+        case .markReadyForPickup: "Запустить"
         }
     }
 

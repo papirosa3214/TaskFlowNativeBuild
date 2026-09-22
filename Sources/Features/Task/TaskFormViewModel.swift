@@ -543,6 +543,24 @@ final class TaskFormViewModel {
 
     // MARK: - Подзадачи (edit) — точечные вызовы, отдельные от общего PATCH задачи.
 
+    /// «Запустить» (23.09.2026): задача верхнего уровня — через сервер, тем же
+    /// путём, что кнопка на карточке Секретаря: дерево целиком, с очередью,
+    /// личные дела не трогаются. Дочерняя — флаг одной этой карточке.
+    func startTask(taskStore: TaskStore) async {
+        guard let task = originalTask else { return }
+        do {
+            if task.parentId == nil {
+                try await apiClient.startDraft(taskID: task.id)
+            } else {
+                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+            }
+            await loadIfNeeded()
+            await taskStore.load(silent: true)
+        } catch {
+            saveErrorMessage = (error as? APIError)?.errorDescription ?? "Не удалось запустить задачу"
+        }
+    }
+
     /// Поднять/снять флаг готовности задачи к самозахвату (миграция 026,
     /// карточка 04426aeb). Сервер примет PATCH только от владельца
     /// (`isOwner` на клиенте гейт уже отрезал), иначе 403. Здесь мы

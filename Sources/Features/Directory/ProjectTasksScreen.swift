@@ -195,14 +195,19 @@ struct ProjectTasksScreen: View {
         await refreshRelationshipTasks()
     }
 
-    /// Свайп-действие по строке проекта. Поднять флаг — PATCH ready_for_pickup.
+    /// Свайп-действие по строке проекта. «Запустить» — сервер поднимает флаг.
     /// Принять ревью — снять блокировку и закрыть задачу (как в TaskDetailViewModel).
     private func performSwipe(task: ApiTask, action: ProjectTaskSwipeAction?) async {
         guard let action else { return }
         do {
             switch action {
             case .markReadyForPickup:
-                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                // «Запустить» — тем же путём, что в карточке и в чате Секретаря.
+                if task.parentId == nil {
+                    try await apiClient.startDraft(taskID: task.id)
+                } else {
+                    _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                }
             case .complete:
                 // complete покрывает «принять задачу» — и ревью, и просто
                 // завершить. Если был ревью — сначала снимаем блокировку.

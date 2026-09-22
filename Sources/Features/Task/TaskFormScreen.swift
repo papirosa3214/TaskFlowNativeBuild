@@ -390,10 +390,6 @@ struct TaskFormScreen: View {
                         .font(.headline)
                         .lineLimit(1...6)
                         .focused($isTitleFocused)
-
-                    if viewModel.readyForPickup {
-                        TFReadyFlag()
-                    }
                 }
                 .listRowSeparator(.hidden)
 
@@ -1354,23 +1350,22 @@ struct TaskFormScreen: View {
                     }
                 }
                 if isOwner {
-                    // Готовность к самозахвату (миграция 026, карточка
-                    // 04426aeb). Кнопка одна и в том же меню «…», где уже
-                    // живут действия владельца — отдельной иконкой в
-                    // topBarTrailing конкурировать за место не даём. Сервер
-                    // примет PATCH только от владельца; кнопка скрыта от
-                    // остальных условием `isOwner` сверху.
-                    Button {
-                        Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
-                    } label: {
-                        Label(
-                            viewModel.readyForPickup
-                                ? "Снять флаг готовности"
-                                : "Готово к работе",
-                            systemImage: viewModel.readyForPickup
-                                ? "flag.slash"
-                                : "flag.fill"
-                        )
+                    // «Запустить» / «Вернуть в черновик» (23.09.2026): флаг
+                    // готовности остался внутренним стопором сервера, а
+                    // владельцу видно только это. Вернуть в черновик можно,
+                    // пока за карточку никто не взялся.
+                    if !viewModel.readyForPickup {
+                        Button {
+                            Task { await viewModel.startTask(taskStore: taskStore) }
+                        } label: {
+                            Label("Запустить", systemImage: "play.fill")
+                        }
+                    } else if viewModel.agentState == nil {
+                        Button {
+                            Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
+                        } label: {
+                            Label("Вернуть в черновик", systemImage: "pause")
+                        }
                     }
 
                     // Глубокое исследование (миграция 052 сервера
