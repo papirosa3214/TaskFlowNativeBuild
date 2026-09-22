@@ -27,7 +27,6 @@ func roleSubtitle(_ role: String) -> String {
     case "qa": "Проверка качества"
     case "researcher": "Исследование"
     case "analyst": "Аналитика"
-    case "synthesizer": "Синтез материалов"
     case "critic_verifier": "Критика и проверка"
     case "designer": "Дизайн интерфейсов"
     default: role

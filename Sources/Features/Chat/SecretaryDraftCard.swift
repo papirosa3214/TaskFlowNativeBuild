@@ -196,7 +196,7 @@ struct SecretaryDraftCard: View {
     }
 
     private static let roleTitles: [String: String] = [
-        "researcher": "Исследователь", "analyst": "Аналитик", "synthesizer": "Синтезатор",
+        "researcher": "Исследователь", "analyst": "Аналитик",
         "critic_verifier": "Критик-проверяющий", "architect": "Архитектор",
         "builder": "Разработчик", "qa": "QA", "designer": "Дизайнер",
     ]
