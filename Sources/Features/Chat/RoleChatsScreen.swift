@@ -1021,6 +1021,12 @@ private struct RoleChatRoomScreen: View {
             if updatedMessages.map(\.id) != messages.map(\.id) || updatedMessages.map(\.attachments) != messages.map(\.attachments) {
                 messages = updatedMessages
             }
+            // Комната открыта — всё в ней прочитано. Бейдж в списке сервер
+            // считает от отметки прочтения, а двигает её только этот вызов
+            // (LOCK-206): без него счётчик копился навсегда.
+            if updatedChat.unread > 0 {
+                try? await api.markRoleChatRead(id: chat.id)
+            }
         } catch { errorMessage = error.localizedDescription }
     }
 
