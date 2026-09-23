@@ -16,3 +16,17 @@ url = "http://192.168.1.110:8803/mcp"
 
 [mcp_servers.infra-panel.http_headers]
 Authorization = "Bearer c9b00b913a3724f3bdf357cea29b6b4decadd9dc34c385ac1a2f152ecd93e63c"
+
+[mcp_servers.graft-ios]
+command = "/Users/max/.local/graft/node_modules/.bin/graft"
+args = [
+    "mcp",
+    "/Users/max/Проекты/TaskFlowNativeBuild",
+]
+
+[mcp_servers.graft-server]
+command = "ssh"
+args = [
+    "maksim",
+    "cd ~/Проекты/New-Todoist && graft mcp",
+]
