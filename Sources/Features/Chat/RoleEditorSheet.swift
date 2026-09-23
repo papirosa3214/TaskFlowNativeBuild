@@ -192,13 +192,22 @@ struct RoleEditorSheet: View {
         // не должно ругаться, чтобы не моргало красным при первом открытии.
         guard !key.isEmpty else { return nil }
         if key.count < 2 || key.count > 32 { return "Ключ должен быть от 2 до 32 знаков" }
+        // Только ASCII (LOCK-207): `isLetter`/`isNumber` пропускали кириллицу
+        // и нелатинские цифры, которые сервер всё равно отвергает.
+        let latin: ClosedRange<Character> = "a"..."z"
+        let digits: ClosedRange<Character> = "0"..."9"
         guard let first = key.first else { return nil }
-        if !first.isLetter || first.isUppercase { return "Ключ начинается со строчной латинской буквы" }
-        if !key.allSatisfy({ $0.isLetter && $0.isLowercase || $0.isNumber || $0 == "_" }) {
+        if !latin.contains(first) { return "Ключ начинается со строчной латинской буквы" }
+        if !key.allSatisfy({ latin.contains($0) || digits.contains($0) || $0 == "_" }) {
             return "Только строчная латиница, цифры и _"
         }
+        // Служебные учётки: сервер не даёт роли такой ключ (New-Todoist
+        // `server/src/routes/roles.ts`, `RESERVED_ROLE_KEYS`).
+        if Self.reservedKeys.contains(key) { return "Этот ключ занят системой — выберите другой" }
         return nil
     }
+
+    private static let reservedKeys: Set<String> = ["owner", "agent", "viewer", "orchestrator", "service"]
 
     // MARK: - Действия
 
