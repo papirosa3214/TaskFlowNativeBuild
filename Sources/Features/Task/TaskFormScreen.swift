@@ -16,7 +16,7 @@ struct TaskFormScreen: View {
         }
     }
 
-    private enum DictationTarget: Equatable {
+    fileprivate enum DictationTarget: Equatable {
         case title, description, comment, subtask(String), newSubtask
     }
 
@@ -140,31 +140,15 @@ struct TaskFormScreen: View {
     private var fullFormBody: some View {
         formNavigationBody
             .task { await loadScreen() }
-            .onChange(of: isTitleFocused) { wasFocused, isFocused in
-                if isFocused { dictationTarget = .title }
-                if wasFocused, !isFocused { scheduleSave() }
-            }
-            .onChange(of: isDescriptionFocused) { _, isFocused in
-                if isFocused { dictationTarget = .description }
-            }
-            .onChange(of: isCommentFocused) { _, isFocused in
-                if isFocused { dictationTarget = .comment }
-            }
-            .onChange(of: isNewSubtaskFocused) { _, isFocused in
-                if isFocused { dictationTarget = .newSubtask }
-            }
-            .onChange(of: viewModel.title) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.taskDescription) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.dueDate) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.startMinutes) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.durationMin) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.runRepeat) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.repeatUntil) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.projectId) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.ownerSelectedRole) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.assigneeId) { _, _ in scheduleSave() }
+            .modifier(FocusDictationTargetModifier(
+                isTitleFocused: isTitleFocused,
+                isDescriptionFocused: isDescriptionFocused,
+                isCommentFocused: isCommentFocused,
+                isNewSubtaskFocused: isNewSubtaskFocused,
+                dictationTarget: $dictationTarget,
+                scheduleSave: scheduleSave
+            ))
+            .modifier(AutosaveFieldsModifier(viewModel: viewModel, scheduleSave: scheduleSave))
             .onDisappear(perform: handleDisappear)
     }
 
@@ -1736,6 +1720,67 @@ struct TaskFormScreen: View {
         if await viewModel.save(taskStore: taskStore) {
             dismiss()
         }
+    }
+}
+
+/// Раньше это была одна цепочка из 14 `.onChange` подряд прямо на `fullFormBody`
+/// — Swift 6.6 typecheck таймаутит на такой длине ("unable to type-check this
+/// expression in reasonable time"), Xcode 27 справлялся, 26.6 — нет. Разбито
+/// на два модификатора без изменения поведения (см. TaskFormScreen 22.09.2026).
+private struct FocusDictationTargetModifier: ViewModifier {
+    let isTitleFocused: Bool
+    let isDescriptionFocused: Bool
+    let isCommentFocused: Bool
+    let isNewSubtaskFocused: Bool
+    @Binding var dictationTarget: TaskFormScreen.DictationTarget
+    let scheduleSave: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: isTitleFocused) { wasFocused, isFocused in
+                if isFocused { dictationTarget = .title }
+                if wasFocused, !isFocused { scheduleSave() }
+            }
+            .onChange(of: isDescriptionFocused) { _, isFocused in
+                if isFocused { dictationTarget = .description }
+            }
+            .onChange(of: isCommentFocused) { _, isFocused in
+                if isFocused { dictationTarget = .comment }
+            }
+            .onChange(of: isNewSubtaskFocused) { _, isFocused in
+                if isFocused { dictationTarget = .newSubtask }
+            }
+    }
+}
+
+private struct AutosaveFieldsModifier: ViewModifier {
+    let viewModel: TaskFormViewModel
+    let scheduleSave: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: viewModel.title) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.taskDescription) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.dueDate) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.startMinutes) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.durationMin) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.runRepeat) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.repeatUntil) { _, _ in scheduleSave() }
+            .modifier(AutosaveFieldsModifierTail(viewModel: viewModel, scheduleSave: scheduleSave))
+    }
+}
+
+private struct AutosaveFieldsModifierTail: ViewModifier {
+    let viewModel: TaskFormViewModel
+    let scheduleSave: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: viewModel.projectId) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.ownerSelectedRole) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.assigneeId) { _, _ in scheduleSave() }
     }
 }
 
