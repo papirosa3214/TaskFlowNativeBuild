@@ -85,6 +85,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         NotificationsScreen()
     case .agents:
         AgentsScreen()
+    case .roleRunJobs:
+        RoleRunJobsScreen()
     case .agentWork(let focus):
         AgentWorkScreen(focus: focus)
     case .settings:

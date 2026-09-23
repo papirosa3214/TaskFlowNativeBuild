@@ -28,6 +28,9 @@ struct AgentsScreen: View {
                     runtimeDownBanner
                 }
 
+                if viewModel.isOwner {
+                    runJobsEntry
+                }
                 enabledSection
                 if !viewModel.disabledProfiles.isEmpty {
                     disabledSection
@@ -79,6 +82,26 @@ struct AgentsScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    /// Вход в очередь запусков ролей (LOCK-208) — только владельцу: сервер
+    /// остальным отвечает `403`. Строка как в «Настройках» (`navRow`).
+    private var runJobsEntry: some View {
+        TFCard(padding: 0) {
+            NavigationLink(value: AppRoute.roleRunJobs) {
+                TFListRow(
+                    icon: "bolt.horizontal", iconStyle: .plain, title: "Запуски агентов",
+                    trailing: AnyView(
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.tfDim)
+                    ),
+                    titleStyle: .action, verticalPadding: TFSpacing.xs
+                )
+            }
+            .buttonStyle(.plain)
+        }
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
