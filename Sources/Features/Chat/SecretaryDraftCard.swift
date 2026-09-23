@@ -22,6 +22,12 @@ struct SecretaryDraftCard: View {
     @State private var errorText: String?
     @State private var isDeleteConfirmOpen = false
     @State private var isDeleted = false
+    /// Кэш названий ролей (LOCK-205): ключ → русская подпись с сервера.
+    /// `ApiTask` присылает `dispatchedRole` как сырой ключ, без перевода;
+    /// прежний ручной словарь не знал новых ролей. Загружаем лениво при
+    /// показе карточки — карточки нечастые, лишний `GET /api/roles?all=1`
+    /// на каждое появление не критичен.
+    @State private var roleTitleByKey: [String: String] = [:]
 
     private let api = APIClient()
 
@@ -43,7 +49,11 @@ struct SecretaryDraftCard: View {
                 ProgressView().padding(TFSpacing.md)
             }
         }
-        .task(id: taskID) { await load() }
+        .task(id: taskID) {
+            async let titles: Void = loadRoleTitles()
+            await load()
+            await titles
+        }
         .confirmationDialog("Удалить постановку целиком?", isPresented: $isDeleteConfirmOpen,
                             titleVisibility: .visible) {
             Button("Удалить", role: .destructive) { Task { await deleteTree() } }
@@ -183,7 +193,10 @@ struct SecretaryDraftCard: View {
         if child.assigneeId == ownerID {
             parts.append("Вы")
         } else if let role = child.dispatchedRole ?? child.ownerSelectedRole ?? child.machineSelectedRole {
-            parts.append(Self.roleTitles[role] ?? role)
+            // Серверный кэш. Если роль не пришла (новая, или сеть легла) —
+            // показываем ключ как есть: пользователь увидит «role_builder»
+            // вместо «Разработчик», но не провал.
+            parts.append(roleTitleByKey[role] ?? role)
         } else {
             parts.append("исполнитель подберётся")
         }
@@ -194,12 +207,6 @@ struct SecretaryDraftCard: View {
         }
         return parts.joined(separator: " · ")
     }
-
-    private static let roleTitles: [String: String] = [
-        "researcher": "Исследователь", "analyst": "Аналитик",
-        "critic_verifier": "Критик-проверяющий", "architect": "Архитектор",
-        "builder": "Разработчик", "qa": "QA", "designer": "Дизайнер",
-    ]
 
     private static func stepsWord(_ n: Int) -> String {
         let mod100 = n % 100, mod10 = n % 10
@@ -229,6 +236,18 @@ struct SecretaryDraftCard: View {
             failed = false
         } catch {
             failed = parent == nil
+        }
+    }
+
+    /// Подписи ролей с сервера (`GET /api/roles?all=1`). Падаем молча: без
+    /// кэша карточка покажет ключи ролей как есть, и это лучше, чем баннер
+    /// ошибки поверх ответа Секретаря.
+    private func loadRoleTitles() async {
+        do {
+            let all = try await api.roles(all: true)
+            roleTitleByKey = Dictionary(uniqueKeysWithValues: all.map { ($0.role, $0.title) })
+        } catch {
+            roleTitleByKey = [:]
         }
     }
 

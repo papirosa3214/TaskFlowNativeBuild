@@ -111,8 +111,12 @@ struct AgentRow: View {
                         .tfText(.meta)
                         .foregroundStyle(Color.tfSub)
                         .lineLimit(1)
-                } else {
-                    Text(roleSubtitle(profile.role))
+                } else if let summary = profile.summary, !summary.isEmpty {
+                    // «Чем занимается» — серверный (LOCK-205). Ручной
+                    // `roleSubtitle(_:)` остался в файле ради прежних мест
+                    // (`AgentProfileScreen`), здесь показываем то, что
+                    // прислал сервер.
+                    Text(summary)
                         .tfText(.meta)
                         .foregroundStyle(Color.tfDim)
                         .lineLimit(1)

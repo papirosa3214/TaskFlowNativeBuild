@@ -94,8 +94,21 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
     public let attemptPolicy: [RoleAttemptPolicy]
     public let currentTask: RoleCurrentTask?
     public let lastActivity: String?
+    /// «Чем занимается» — владелец задаёт его в экране «Команда» (LOCK-205).
+    /// Для прежних ролей сервер может не прислать (миграция `057_roles_prompt`
+    /// его не трогала) — `nil` означает «не задано», и в строке списка поле
+    /// просто не показывается.
+    public let summary: String?
+    /// Включена ли роль. Сервер отдаёт его с момента, как появился
+    /// `?all=1` (LOCK-205): владелец видит отключённые, чтобы было что
+    /// включить обратно. `nil` — для прежних ответов без этого поля.
+    public let enabled: Bool?
 
     public var id: String { role }
+
+    /// Удобный флаг для UI: включать в список, отдавать «живым» исполнителям.
+    /// По умолчанию `true`, чтобы старые ответы без `enabled` не теряли роли.
+    public var isEnabled: Bool { enabled ?? true }
 
     /// Политика моделей в терминах `AgentProfile`.
     public var modelPolicy: AgentModelPolicy {
@@ -119,5 +132,6 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
         case attemptPolicy = "attempt_policy"
         case currentTask = "current_task"
         case lastActivity = "last_activity"
+        case summary, enabled
     }
 }

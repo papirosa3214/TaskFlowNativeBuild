@@ -1,14 +1,16 @@
 import SwiftUI
 
 /// «Команда» — плоский список сотрудников-ролей (LOCK-176 → переделан в
-/// LOCK-183). Сначала человек, потом его конфигурация: в списке только имя,
-/// роль, статус и чем занят; вся машинерия — на экране профиля.
+/// LOCK-183, дополнен в LOCK-205).
 ///
-/// Данные — `GET /api/roles`. Pi и провайдеры наружу не выносятся.
+/// Данные — `GET /api/roles?all=1`: владелец видит и отключённые, чтобы
+/// было что включить обратно. Список делится на две секции (включённые
+/// сверху, отключённые — внизу), Pi и провайдеры наружу не выносятся.
 struct AgentsScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
     @State private var viewModel = AgentsViewModel()
+    @State private var editorMode: RoleEditorSheet.Mode?
 
     var body: some View {
         ScrollView {
@@ -26,18 +28,42 @@ struct AgentsScreen: View {
                     runtimeDownBanner
                 }
 
-                teamSection
+                enabledSection
+                if !viewModel.disabledProfiles.isEmpty {
+                    disabledSection
+                }
                 roleInfoSection
             }
             .padding(.vertical, TFSpacing.lg)
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Команда")
+        .toolbar {
+            // Кнопка «+» есть только у владельца — это единственный, кто
+            // может создать роль. `agentProfile(id:)` маршрут остаётся в
+            // `AppRoute`, но из «Команды» теперь не открывается: правка
+            // идёт через тот же лист, что и создание.
+            if viewModel.isOwner {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        editorMode = .create
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Новая роль")
+                }
+            }
+        }
         .task {
             viewModel.configure(currentUser: session.currentUser)
             viewModel.start()
         }
         .onDisappear { viewModel.stop() }
+        .sheet(item: $editorMode) { mode in
+            RoleEditorSheet(mode: mode, viewModel: viewModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private var runtimeDownBanner: some View {
@@ -56,30 +82,68 @@ struct AgentsScreen: View {
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
-    private var teamSection: some View {
+    private var enabledSection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader("В команде")
+            teamCard(profiles: viewModel.enabledProfiles)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    private var disabledSection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader("Отключённые")
+            teamCard(profiles: viewModel.disabledProfiles, dimmed: true)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    /// Список ролей внутри одной карточки — `dimmed` затемняет строки
+    /// отключённых, чтобы отделить их от рабочих без отдельной визуальной
+    /// ветки в дизайн-системе.
+    private func teamCard(profiles: [RoleProfile], dimmed: Bool = false) -> some View {
         TFCard(padding: 0) {
             VStack(spacing: 0) {
                 if viewModel.isLoading && viewModel.profiles.isEmpty {
                     TFLoading(.block)
                 }
-                ForEach(Array(viewModel.profiles.enumerated()), id: \.element.id) { index, profile in
+                ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
                     if index > 0 {
                         TFDivider(inset: TFSpacing.lg + 36 + TFSpacing.md)
                     }
-                    NavigationLink(value: AppRoute.agentProfile(id: profile.role)) {
-                        AgentRow(profile: profile, currentTask: currentTask(for: profile))
-                    }
-                    .buttonStyle(.plain)
+                    row(for: profile, dimmed: dimmed)
                 }
-                if !viewModel.isLoading && viewModel.profiles.isEmpty {
-                    Text("Сервер не вернул ни одной роли")
+                if !viewModel.isLoading && profiles.isEmpty {
+                    Text("Нет ролей")
                         .tfText(.action)
                         .foregroundStyle(Color.tfDim)
                         .padding(TFSpacing.md)
                 }
             }
         }
-        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    /// Тап открывает лист правки — для всех ролей одинаково. Внутри листа
+    /// действия («Сохранить», «Отключить/Включить») есть только у владельца:
+    /// сервер отдаёт `403` на «не владелец», и UI не показывает то, что
+    /// всё равно упрётся в ошибку.
+    @ViewBuilder
+    private func row(for profile: RoleProfile, dimmed: Bool) -> some View {
+        if viewModel.isOwner {
+            Button {
+                editorMode = .edit(profile)
+            } label: {
+                AgentRow(profile: profile, currentTask: currentTask(for: profile))
+            }
+            .buttonStyle(.plain)
+            .opacity(dimmed ? 0.55 : 1)
+        } else {
+            NavigationLink(value: AppRoute.agentProfile(id: profile.role)) {
+                AgentRow(profile: profile, currentTask: currentTask(for: profile))
+            }
+            .buttonStyle(.plain)
+            .opacity(dimmed ? 0.55 : 1)
+        }
     }
 
     /// Текущая задача роли из общего стора — для названия и времени. Ищем по

@@ -54,7 +54,10 @@ final class AgentsViewModel {
         if profiles.isEmpty { isLoading = true }
         defer { isLoading = false }
         do {
-            profiles = try await api.roles()
+            // `all=1` нужен экрану «Команда»: владелец должен видеть и
+            // отключённые роли, чтобы было что включить обратно. Для
+            // отображения их прячем отдельным списком (LOCK-205).
+            profiles = try await api.roles(all: true)
             listErrorMessage = nil
         } catch {
             listErrorMessage = Self.message(for: error)
@@ -143,6 +146,54 @@ final class AgentsViewModel {
             listErrorMessage = Self.message(for: error)
             return false
         }
+    }
+
+    // MARK: - LOCK-205: создание / правка / включение-выключение роли
+
+    /// Разделённые списки для экрана: включённые сверху, отключённые —
+    /// отдельной секцией, чтобы владелец видел, что можно вернуть.
+    var enabledProfiles: [RoleProfile] {
+        profiles.filter { $0.isEnabled }
+    }
+
+    var disabledProfiles: [RoleProfile] {
+        profiles.filter { !$0.isEnabled }
+    }
+
+    /// Только владелец может завести роль. После успеха список подгружается
+    /// заново: серверная сортировка и кэш `refreshRoles()` живут на стороне
+    /// сервера, клиент видит правду только через `GET /api/roles?all=1`.
+    func createRole(key: String, title: String, summary: String?, prompt: String?) async -> Bool {
+        do {
+            let profile = try await api.createRole(key: key, title: title, summary: summary, prompt: prompt)
+            profiles.append(profile)
+            await load()
+            return true
+        } catch {
+            listErrorMessage = Self.message(for: error)
+            return false
+        }
+    }
+
+    /// Правка роли. Все, кроме `role`, опциональны — сервер требует, чтобы
+    /// хотя бы одно поле было передано (иначе 422). `prompt: .keep` —
+    /// поле в PATCH не отправляется.
+    func patchRole(role: String, title: String?, summary: String?, prompt: APIClient.PromptChange, enabled: Bool? = nil) async -> Bool {
+        do {
+            _ = try await api.patchRole(role: role, title: title, summary: summary, prompt: prompt, enabled: enabled)
+            await load()
+            return true
+        } catch {
+            listErrorMessage = Self.message(for: error)
+            return false
+        }
+    }
+
+    /// Включить / отключить роль. Отдельной кнопкой в листе правки — для
+    /// владельца это «архив», который виден скрытно и достаётся обратно
+    /// (`?all=1`).
+    func setRoleEnabled(role: String, enabled: Bool) async -> Bool {
+        await patchRole(role: role, title: nil, summary: nil, prompt: .keep, enabled: enabled)
     }
 
     private static func message(for error: Error) -> String {
