@@ -544,6 +544,8 @@ private struct RoleChatRoomScreen: View {
     @State private var draft = ""
     @State private var isSending = false
     @State private var errorMessage: String?
+    /// Последнее сообщение, до которого чат уже отмечен прочитанным (LOCK-206).
+    @State private var markedReadMessageID: String?
     @State private var voice = RoleChatVoiceController()
     @State private var isFileImporterPresented = false
     @State private var pendingAttachments: [ApiChatAttachment] = []
@@ -1023,9 +1025,13 @@ private struct RoleChatRoomScreen: View {
             }
             // Комната открыта — всё в ней прочитано. Бейдж в списке сервер
             // считает от отметки прочтения, а двигает её только этот вызов
-            // (LOCK-206): без него счётчик копился навсегда.
-            if updatedChat.unread > 0 {
-                try? await api.markRoleChatRead(id: chat.id)
+            // (LOCK-206): без него счётчик копился навсегда. Счётчика в
+            // ответе на один чат нет, поэтому отмечаем при открытии и когда
+            // появилось новое последнее сообщение, а не каждые 4 с опроса.
+            if let lastID = updatedMessages.last?.id, lastID != markedReadMessageID {
+                if (try? await api.markRoleChatRead(id: chat.id)) != nil {
+                    markedReadMessageID = lastID
+                }
             }
         } catch { errorMessage = error.localizedDescription }
     }
