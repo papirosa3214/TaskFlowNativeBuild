@@ -113,5 +113,7 @@ private func routeContent(_ route: AppRoute) -> some View {
         RoleChatRoomLoader(chatID: id)
     case .secretaryChat:
         SecretaryChatScreen()
+    case .secretaryVoiceCall:
+        SecretaryVoiceScreen()
     }
 }

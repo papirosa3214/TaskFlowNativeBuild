@@ -50,6 +50,7 @@ targets:
       # `AgentAvatarView` в `Sources/Features/Chat/AgentRow.swift`.
       - package: SDWebImageSwiftUI
       - package: SDWebImageWebPCoder
+      - package: LiveKit
       # Расширение с виджетом: без явной зависимости xcodegen не вложит его
       # в бандл приложения, и Live Activity не за что будет зацепиться.
       - target: TaskFlowWidgets
@@ -240,6 +241,9 @@ packages:
   SDWebImageWebPCoder:
     url: https://github.com/SDWebImage/SDWebImageWebPCoder.git
     from: 0.14.6
+  LiveKit:
+    url: https://github.com/livekit/client-sdk-swift.git
+    from: 2.17.0
 
 schemes:
   VoiceMessageLab:

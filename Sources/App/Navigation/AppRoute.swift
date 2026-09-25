@@ -77,4 +77,8 @@ public enum AppRoute: Hashable {
     /// LOCK-195: прежний owner-канал «Секретарь» (надиктовать → карточка) —
     /// тот же экран `ChatScreen`, но открытый из списка чатов.
     case secretaryChat
+    /// Голосовой разговор с Секретарём через LiveKit (Задача 5 плана Супер
+    /// Секретарь) — отдельный полноэкранный маршрут поверх комнаты
+    /// `chat-secretary`.
+    case secretaryVoiceCall
 }

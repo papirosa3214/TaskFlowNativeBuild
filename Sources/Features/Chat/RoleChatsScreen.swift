@@ -690,6 +690,14 @@ private struct RoleChatRoomScreen: View {
                     .disabled(selectedMessageIDs.isEmpty)
                 }
             } else {
+                if chat.id == "chat-secretary" {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink(value: AppRoute.secretaryVoiceCall) {
+                            Image(systemName: "waveform")
+                        }
+                        .accessibilityLabel("Голосовой разговор с Секретарём")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         // Меню «…» построено как соседние меню приложения
