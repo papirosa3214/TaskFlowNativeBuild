@@ -2,8 +2,10 @@ import SwiftUI
 import LiveKit
 
 /// Голосовой разговор с Секретарём через LiveKit (Задача 5 плана Супер
-/// Секретарь). Состояния `.thinking`/`.speaking` здесь не запитаны реальными
-/// событиями комнаты (barge-in, `RoomDelegate`) — это Задача 6.
+/// Секретарь). Состояния `.speaking`/`.listening` запитаны событиями комнаты
+/// через `RoomDelegate` (Задача 6). `.thinking` не используется отдельно —
+/// Gemini Live отвечает почти без паузы, различимой паузы «думает» на живой
+/// проверке не искали отдельного сигнала под неё (см. журнал плана).
 enum SecretaryVoiceState: Equatable {
     case connecting
     case listening
@@ -21,6 +23,7 @@ final class SecretaryVoiceViewModel {
 
     func start() async {
         do {
+            room.add(delegate: self)
             let token = try await api.secretaryVoiceToken()
             try await room.connect(url: token.url, token: token.token)
             try await room.localParticipant.setMicrophone(enabled: true)
@@ -32,6 +35,17 @@ final class SecretaryVoiceViewModel {
 
     func stop() async {
         await room.disconnect()
+    }
+}
+
+extension SecretaryVoiceViewModel: RoomDelegate {
+    func room(_ room: Room, didUpdateSpeakingParticipants participants: [Participant]) {
+        let agentSpeaking = participants.contains { $0.identity != room.localParticipant.identity }
+        state = agentSpeaking ? .speaking : .listening
+    }
+
+    func room(_ room: Room, didDisconnectWithError error: LiveKitError?) {
+        state = .failed(error?.localizedDescription ?? "соединение разорвано")
     }
 }
 
