@@ -36,11 +36,17 @@ public final class TaskStore {
         async let withChildren = apiClient.tasks(includeChildren: true)
         do {
             tasks = try await apiClient.tasks()
+        } catch is CancellationError {
+            // Экран перезапросил список раньше, чем доехал предыдущий заход
+            // (смена формата «Список»/«Один день», быстрый повторный вход) —
+            // отмена штатная, банер «Сеть недоступна» тут ни при чём.
         } catch {
             errorMessage = Self.message(for: error)
         }
         do {
             agentWorkTasks = try await withChildren
+        } catch is CancellationError {
+            // см. комментарий выше
         } catch {
             errorMessage = errorMessage ?? Self.message(for: error)
         }

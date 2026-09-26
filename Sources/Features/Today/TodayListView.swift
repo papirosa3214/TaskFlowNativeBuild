@@ -168,6 +168,10 @@ struct TodayListView: View {
                 }
                 await taskStore.load(silent: true)
             }
+        } catch is CancellationError {
+            // Экран пересобрался (смена формата «Список»/«Один день» и
+            // т.п.) быстрее, чем действие успело доехать — запрос отменился
+            // штатно, показывать баннер не о чем.
         } catch {
             swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }

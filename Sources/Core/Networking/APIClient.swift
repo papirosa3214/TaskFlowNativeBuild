@@ -178,6 +178,17 @@ public final class APIClient: Sendable {
             return (data, http)
         } catch let error as APIError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            // SwiftUI пересоздаёт `.task`/`.refreshable` чаще, чем ждёт их
+            // завершения — предыдущий запрос отменяется штатно, это не сбой
+            // сети. Раньше это заворачивалось в `APIError.transport` и
+            // владелец видел баннер «Сеть недоступна: cancelled» на ровном
+            // месте (тот же класс бага уже чинили точечно в
+            // TaskFormScreen.swift). Отдаём настоящую `CancellationError`,
+            // чтобы вызывающий код мог её молча проигнорировать.
+            throw CancellationError()
         } catch {
             throw APIError.transport(error)
         }
