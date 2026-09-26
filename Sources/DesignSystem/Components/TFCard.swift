@@ -36,29 +36,9 @@ public struct TFSectionHeader: View {
     }
 }
 
-// Единый словарь статусов-точек (изначально spec §16 «Модели и голоса» —
-// работает/прогревается/скачивается/не скачана/нет связи/не найдена;
-// 03.09.2026 переехал сюда из `VoiceModelsScreen.swift` public'ом — тот же
-// приём понадобился `ServerStatusSection`, просьба владельца «эти же точки»).
-public enum VoiceDotState { case ok, warn, off }
-
-public struct VoiceStatusDot: View {
-    let state: VoiceDotState
-    public init(state: VoiceDotState) { self.state = state }
-    public var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 8, height: 8)
-    }
-    private var color: Color {
-        switch state {
-        case .ok: .tfGreen
-        case .warn: .tfYellow
-        case .off: Color.tfDim.opacity(0.5)
-        }
-    }
-}
-
+// Статусы-точки (`VoiceDotState`/`VoiceStatusDot`) УДАЛЕНЫ 20.09.2026 по
+// требованию владельца: статус пишется СЛОВОМ («работает», «не работает»),
+// цветных точек в приложении быть не должно.
 /// Строка настроек/справочника с иконкой слева, заголовком, подписью и
 /// шевроном справа — универсальный «пункт меню», из которого собираются
 /// списки настроек/справочников.
@@ -86,7 +66,6 @@ public struct TFListRow: View {
     let iconTint: Color
     let iconStyle: IconStyle
     let title: String
-    let titleDot: VoiceDotState?
     let subtitle: String?
     let trailing: AnyView?
     let action: (() -> Void)?
@@ -98,7 +77,6 @@ public struct TFListRow: View {
         iconTint: Color = .tfRed,
         iconStyle: IconStyle = .tinted,
         title: String,
-        titleDot: VoiceDotState? = nil,
         subtitle: String? = nil,
         trailing: AnyView? = nil,
         titleStyle: TFTextStyle = .body,
@@ -109,7 +87,6 @@ public struct TFListRow: View {
         self.iconTint = iconTint
         self.iconStyle = iconStyle
         self.title = title
-        self.titleDot = titleDot
         self.subtitle = subtitle
         self.trailing = trailing
         self.titleStyle = titleStyle
@@ -121,14 +98,11 @@ public struct TFListRow: View {
         let row = HStack(spacing: TFSpacing.md) {
             iconView
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: TFSpacing.xs) {
-                    if let titleDot { VoiceStatusDot(state: titleDot) }
-                    Text(title)
-                        .tfText(titleStyle)
-                        .foregroundStyle(Color.tfText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
+                Text(title)
+                    .tfText(titleStyle)
+                    .foregroundStyle(Color.tfText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 if let subtitle {
                     Text(subtitle)
                         .tfText(.action)

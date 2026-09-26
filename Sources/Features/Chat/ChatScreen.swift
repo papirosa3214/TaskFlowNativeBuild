@@ -10,6 +10,9 @@ struct ChatScreen: View {
     /// вкладка, `dismiss()` тут закрывать нечего.
     @Environment(\.chatBackAction) private var chatBack
     @State private var viewModel = ChatViewModel()
+    @State private var isClearConfirmOpen = false
+    /// Пушем экран открывает системная кнопка «назад» — тогда своя не нужна.
+    var hidesOwnBackButton = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +23,8 @@ struct ChatScreen: View {
             messageList
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+        }
+        .chatComposerBar {
             ChatComposer(viewModel: viewModel)
         }
         // Была своя ZStack-шапка (`TFScreenHeader`) поверх ещё и системного
@@ -39,9 +44,16 @@ struct ChatScreen: View {
         // были готовы — не хватало только этого экрана).
         .tfNativeHeader(viewModel.headerTitle, displayMode: .inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { chatBack?() } label: {
-                    Image(systemName: "chevron.left")
+            // Своя стрелка «назад» нужна только когда экран КОРЕНЬ вкладки:
+            // тогда системной кнопки нет и выйти больше нечем. Пушем из
+            // списка чатов («Секретарь») системная кнопка есть, и рядом с ней
+            // эта рисовала вторую стрелку (владелец 21.09.2026, LOCK-195).
+            if !hidesOwnBackButton {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { chatBack?() } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel("Назад")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -54,12 +66,6 @@ struct ChatScreen: View {
                                 if viewModel.activeChannel == .owner { Label(viewModel.counterpartFirstName, systemImage: "checkmark") }
                                 else { Text(viewModel.counterpartFirstName) }
                             }
-                            Button {
-                                viewModel.switchChannel(to: .agents)
-                            } label: {
-                                if viewModel.activeChannel == .agents { Label("Агенты", systemImage: "checkmark") }
-                                else { Text("Агенты") }
-                            }
                         }
                     }
                     Button {
@@ -67,12 +73,30 @@ struct ChatScreen: View {
                     } label: {
                         Label("Статистика", systemImage: "chart.bar")
                     }
+                    // Очистка чата — только владелец (владелец 21.09.2026:
+                    // «должна быть возможность очищать этот чат»).
+                    if session.currentUser?.role == .owner {
+                        Button(role: .destructive) {
+                            isClearConfirmOpen = true
+                        } label: {
+                            Label("Очистить чат", systemImage: "trash")
+                        }
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel("Ещё")
             }
         }
         .background(Color.tfBackground)
+        .alert("Очистить чат?", isPresented: $isClearConfirmOpen) {
+            Button("Очистить", role: .destructive) {
+                Task { await viewModel.clearChat() }
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Все сообщения этого канала будут удалены. Отменить будет нельзя.")
+        }
         .accessibilityIdentifier("chat.screen")
         .task {
             viewModel.configure(currentUser: session.currentUser)
@@ -124,6 +148,8 @@ struct ChatScreen: View {
                 }
                 .padding(.top, TFSpacing.md)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .hideComposerScrollEdgeEffect()
             .onChange(of: viewModel.messages.count) { _, _ in scrollToBottom(proxy) }
             .onChange(of: viewModel.visibleTypists) { _, _ in scrollToBottom(proxy) }
         }

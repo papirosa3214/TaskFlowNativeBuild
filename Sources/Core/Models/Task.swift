@@ -49,6 +49,19 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let readySetAt: String?
     /// id учётки, кто поднял.
     public let readySetBy: String?
+    /// Новая карточка по умолчанию проходит Reviewer; старые — direct owner-flow.
+    public let requiresReviewerReview: Bool
+    /// «Нужно глубокое исследование» (миграция 052, сервер New-Todoist) —
+    /// галочка владельца, по ней запускается серверный конвейер исследования.
+    /// Старые ответы поля не содержат — `decodeIntBool` даёт false.
+    public let needsResearch: Bool
+    /// Повтор карточки: none|daily|weekdays|weekly|monthly.
+    public let runRepeat: String?
+    /// До какой даты повторять (ISO-дата); nil — постоянно.
+    public let repeatUntil: String?
+    /// 1 — серия повтора уже завершена (следующее вхождение не создавать),
+    /// 0 — ещё идёт. Признак воркера, владельцу виден для «Продлить на год».
+    public let recurrenceSpawned: Int?
 
     // MARK: Derived (hydrateTask()/withAgentStale())
 
@@ -81,12 +94,41 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let comments: [ApiComment]?
     /// Только `GET /api/tasks/:id`.
     public let events: [ApiTaskEvent]?
+    /// Только `GET /api/tasks/:id` — чаты, привязанные к этой задаче. Нужны
+    /// карточке для перехода «Чат по задаче»; сам чат в карточке не рисуется
+    /// (владелец 21.09.2026, LOCK-195).
+    public let chats: [ApiTaskChat]?
     /// Только `GET /api/tasks/:id` — файлы самой задачи (`kind='task'`).
     public let attachments: [ApiAttachment]?
     /// Спек 1.2, 1.2.10 — лесенка модели. Только `GET /api/tasks/:id`. На
     /// старых задачах (созданных до спек 1.2) поле отсутствует в ответе —
     /// UI просто не рисует индикатор. Тип и история в `AttemptLadder.swift`.
     public let attemptLadder: ApiAttemptLadder?
+    /// Логическая роль задачи: `dispatched_role`, иначе `owner_selected_role`,
+    /// иначе пусто (LOCK-178). Сервер отдаёт её строкой в `GET /api/tasks/:id`,
+    /// чтобы клиент не гадал по двум колонкам. Пусто — роль ещё не выбрана.
+    public let role: String?
+    /// Выбор владельца (кто из ролей должен исполнять) и зафиксированная
+    /// диспетчером роль — сырыми колонками. Читаем их отдельно: на живом
+    /// сервере вычисленное `role` может оказаться пустым, хотя
+    /// `owner_selected_role` записан, и тогда пикер исполнителя показывал бы
+    /// «Автоматически» вместо выбранной роли.
+    public let ownerSelectedRole: String?
+    public let dispatchedRole: String?
+    /// Роль, подобранная при постановке (Секретарём) или диспетчером, до
+    /// раздачи. Отдельно от `effectiveRole`: её показывает только карточка
+    /// черновика в чате — там исполнитель виден ещё до запуска.
+    public let machineSelectedRole: String?
+
+    /// Роль для показа/выбора: зафиксированная диспетчером важнее выбора
+    /// владельца, но если обе пусты — `nil`. Падать на вычисленное `role` не
+    /// полагаемся.
+    public var effectiveRole: String? {
+        for candidate in [dispatchedRole, ownerSelectedRole, role] {
+            if let candidate, !candidate.isEmpty { return candidate }
+        }
+        return nil
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -110,6 +152,11 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case readyForPickup = "ready_for_pickup"
         case readySetAt = "ready_set_at"
         case readySetBy = "ready_set_by"
+        case requiresReviewerReview = "requires_reviewer_review"
+        case needsResearch = "needs_research"
+        case runRepeat = "run_repeat"
+        case repeatUntil = "repeat_until"
+        case recurrenceSpawned = "recurrence_spawned"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -123,8 +170,12 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case creatorInitials = "creator_initials"
         case projectName = "project_name"
         case projectColor = "project_color"
-        case labels, subtasks, children, comments, events, attachments
+        case labels, subtasks, children, comments, events, chats, attachments
         case attemptLadder = "attempt_ladder"
+        case role
+        case ownerSelectedRole = "owner_selected_role"
+        case dispatchedRole = "dispatched_role"
+        case machineSelectedRole = "machine_selected_role"
     }
 
     public init(from decoder: Decoder) throws {
@@ -155,6 +206,11 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         readyForPickup = try c.decodeIntBool(forKey: .readyForPickup)
         readySetAt = try c.decodeIfPresent(String.self, forKey: .readySetAt)
         readySetBy = try c.decodeIfPresent(String.self, forKey: .readySetBy)
+        requiresReviewerReview = try c.decodeIntBool(forKey: .requiresReviewerReview)
+        needsResearch = try c.decodeIntBool(forKey: .needsResearch)
+        runRepeat = try c.decodeIfPresent(String.self, forKey: .runRepeat)
+        repeatUntil = try c.decodeIfPresent(String.self, forKey: .repeatUntil)
+        recurrenceSpawned = try c.decodeIfPresent(Int.self, forKey: .recurrenceSpawned)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -173,8 +229,17 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         children = try c.decodeIfPresent([ApiTask].self, forKey: .children)
         comments = try c.decodeIfPresent([ApiComment].self, forKey: .comments)
         events = try c.decodeIfPresent([ApiTaskEvent].self, forKey: .events)
+        chats = try c.decodeIfPresent([ApiTaskChat].self, forKey: .chats)
         attachments = try c.decodeIfPresent([ApiAttachment].self, forKey: .attachments)
         attemptLadder = try c.decodeIfPresent(ApiAttemptLadder.self, forKey: .attemptLadder)
+        let roleValue = try c.decodeIfPresent(String.self, forKey: .role)
+        role = (roleValue?.isEmpty == false) ? roleValue : nil
+        let ownerRole = try c.decodeIfPresent(String.self, forKey: .ownerSelectedRole)
+        ownerSelectedRole = (ownerRole?.isEmpty == false) ? ownerRole : nil
+        let dispatched = try c.decodeIfPresent(String.self, forKey: .dispatchedRole)
+        dispatchedRole = (dispatched?.isEmpty == false) ? dispatched : nil
+        let machine = try c.decodeIfPresent(String.self, forKey: .machineSelectedRole)
+        machineSelectedRole = (machine?.isEmpty == false) ? machine : nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -202,6 +267,11 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encode(readyForPickup ? 1 : 0, forKey: .readyForPickup)
         try c.encodeIfPresent(readySetAt, forKey: .readySetAt)
         try c.encodeIfPresent(readySetBy, forKey: .readySetBy)
+        try c.encode(requiresReviewerReview ? 1 : 0, forKey: .requiresReviewerReview)
+        try c.encode(needsResearch ? 1 : 0, forKey: .needsResearch)
+        try c.encodeIfPresent(runRepeat, forKey: .runRepeat)
+        try c.encodeIfPresent(repeatUntil, forKey: .repeatUntil)
+        try c.encodeIfPresent(recurrenceSpawned, forKey: .recurrenceSpawned)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)
@@ -222,6 +292,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(events, forKey: .events)
         try c.encodeIfPresent(attachments, forKey: .attachments)
         try c.encodeIfPresent(attemptLadder, forKey: .attemptLadder)
+        try c.encodeIfPresent(role, forKey: .role)
+        try c.encodeIfPresent(ownerSelectedRole, forKey: .ownerSelectedRole)
+        try c.encodeIfPresent(dispatchedRole, forKey: .dispatchedRole)
+        try c.encodeIfPresent(machineSelectedRole, forKey: .machineSelectedRole)
     }
 
     // MARK: Удобные вычисляемые даты (raw-строки остаются полями — см. DateFormats)

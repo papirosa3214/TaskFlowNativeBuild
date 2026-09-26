@@ -12,6 +12,11 @@ enum AppIconOption: String, CaseIterable, Identifiable {
     case glass
     case classic
     case dark
+    case recessedCheck
+    case flowRibbon
+    case taskOrbit
+    case stepBlocks
+    case foldedFlight
 
     var id: String { rawValue }
 
@@ -21,6 +26,11 @@ enum AppIconOption: String, CaseIterable, Identifiable {
         case .glass: nil
         case .classic: "AppIconClassic"
         case .dark: "AppIconDark"
+        case .recessedCheck: "AppIconRecessedCheck"
+        case .flowRibbon: "AppIconFlowRibbon"
+        case .taskOrbit: "AppIconTaskOrbit"
+        case .stepBlocks: "AppIconStepBlocks"
+        case .foldedFlight: "AppIconFoldedFlight"
         }
     }
 
@@ -29,6 +39,11 @@ enum AppIconOption: String, CaseIterable, Identifiable {
         case .glass: "Pure Minimal Glass"
         case .classic: "Классика"
         case .dark: "Тёмная"
+        case .recessedCheck: "Вогнутая галочка"
+        case .flowRibbon: "Лента"
+        case .taskOrbit: "Орбита задач"
+        case .stepBlocks: "Ступени"
+        case .foldedFlight: "Полёт"
         }
     }
 
@@ -39,6 +54,11 @@ enum AppIconOption: String, CaseIterable, Identifiable {
         case .glass: "AppIconPreviewGlass"
         case .classic: "AppIconPreviewClassic"
         case .dark: "AppIconPreviewDark"
+        case .recessedCheck: "AppIconPreviewRecessedCheck"
+        case .flowRibbon: "AppIconPreviewFlowRibbon"
+        case .taskOrbit: "AppIconPreviewTaskOrbit"
+        case .stepBlocks: "AppIconPreviewStepBlocks"
+        case .foldedFlight: "AppIconPreviewFoldedFlight"
         }
     }
 
@@ -65,30 +85,34 @@ struct AppIconPickerSheet: View {
             .padding(.horizontal, TFSpacing.lg)
             .padding(.bottom, TFSpacing.md)
 
-            ForEach(AppIconOption.allCases) { option in
-                Button {
-                    apply(option)
-                } label: {
-                    HStack(spacing: TFSpacing.md) {
-                        Image(option.previewAsset)
-                            .resizable()
-                            .frame(width: 52, height: 52)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        Text(option.title)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                        Spacer()
-                        if option == selection {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(Color.tfRed)
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(AppIconOption.allCases) { option in
+                        Button {
+                            apply(option)
+                        } label: {
+                            HStack(spacing: TFSpacing.md) {
+                                Image(option.previewAsset)
+                                    .resizable()
+                                    .frame(width: 52, height: 52)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                Text(option.title)
+                                    .tfText(.body)
+                                    .foregroundStyle(Color.tfText)
+                                Spacer()
+                                if option == selection {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.tfRed)
+                                }
+                            }
+                            .padding(.horizontal, TFSpacing.lg)
+                            .padding(.vertical, TFSpacing.sm)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("settings.app-icon.\(option.rawValue)")
                     }
-                    .padding(.horizontal, TFSpacing.lg)
-                    .padding(.vertical, TFSpacing.sm)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings.app-icon.\(option.rawValue)")
             }
 
             if let errorMessage {

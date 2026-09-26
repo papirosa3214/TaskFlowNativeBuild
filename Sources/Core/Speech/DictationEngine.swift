@@ -46,15 +46,129 @@ public final class DictationEngine {
         case failed(String)
     }
 
+    /// Какую версию Parakeet держим на телефоне. Владелец 20.09.2026:
+    /// «пусть будет лёгкая и тяжёлая — двух моделей достаточно». Английскую
+    /// v2 не показываем вовсе: русский она не понимает.
+    public enum ModelChoice: String, CaseIterable, Identifiable, Sendable {
+        case tdtCtc110m
+        case v3
+
+        public var id: String { rawValue }
+
+        var version: AsrModelVersion {
+            switch self {
+            case .v3: .v3
+            case .tdtCtc110m: .tdtCtc110m
+            }
+        }
+
+        public var displayName: String {
+            switch self {
+            case .v3: "Parakeet TDT v3"
+            case .tdtCtc110m: "Parakeet 110M"
+            }
+        }
+
+        public var note: String {
+            switch self {
+            case .v3: "тяжёлая, понимает русский"
+            case .tdtCtc110m: "лёгкая и быстрая"
+            }
+        }
+    }
+
+    private static let selectedModelKey = "dictation.selectedModel"
+    private static let enabledKey = "dictation.isEnabled"
+
+    /// Выбранная модель переживает перезапуск: выбор владельца не должен
+    /// сбрасываться к v3 при каждом входе в настройки.
+    public private(set) var selectedModel: ModelChoice
+    /// Диктовка на устройстве вкл/выкл. Выключена — микрофон не пишет вовсе,
+    /// приложение не трогает модель (и не докачивает её втихую).
+    public private(set) var isEnabled: Bool
+
     public private(set) var modelState: ModelState = .unknown
     public private(set) var recordingState: RecordingState = .idle
+
+    /// Короткое сообщение о результате действия («Модель актуальна»,
+    /// «Модель удалена»). Нужно потому, что кнопка без отклика выглядит
+    /// мёртвой (замечание владельца 20.09.2026: «нажимаю, ничего не
+    /// происходит, и мне непонятно, работает кнопка или нет»). Гаснет само.
+    public private(set) var feedback: String?
+    private var feedbackTask: Task<Void, Never>?
 
     private var asrManager: AsrManager?
     private var decoderState: TdtDecoderState?
     private let recorder = MicRecorder()
 
     private init() {
+        let raw = UserDefaults.standard.string(forKey: Self.selectedModelKey) ?? ""
+        selectedModel = ModelChoice(rawValue: raw) ?? .v3
+        isEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
         refreshModelState()
+    }
+
+    private func showFeedback(_ text: String) {
+        feedback = text
+        feedbackTask?.cancel()
+        feedbackTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled { feedback = nil }
+        }
+    }
+
+    // MARK: - Настройки модели
+
+    public func setEnabled(_ enabled: Bool) {
+        guard enabled != isEnabled else { return }
+        isEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.enabledKey)
+        if !enabled { cancelRecording() }
+    }
+
+    /// Замена модели: сохраняем выбор, снимаем старые веса из памяти (они не
+    /// подходят новому движку) и сразу качаем, если выбранной версии нет.
+    public func selectModel(_ choice: ModelChoice) async {
+        guard choice != selectedModel else { return }
+        selectedModel = choice
+        UserDefaults.standard.set(choice.rawValue, forKey: Self.selectedModelKey)
+        asrManager = nil
+        decoderState = nil
+        refreshModelState()
+        if case .notDownloaded = modelState {
+            await downloadModelIfNeeded()
+        }
+        if case .ready = modelState {
+            showFeedback("Выбрана \(choice.displayName)")
+        }
+    }
+
+    /// «Проверить и обновить». FluidAudio обновления сам не сверяет, поэтому
+    /// честно сообщаем по факту: весов нет — качаем; веса на месте — значит
+    /// актуальны. Без сообщения кнопка выглядит нерабочей.
+    public func checkModel() async {
+        let hadFiles = AsrModels.modelsExist(
+            at: AsrModels.defaultCacheDirectory(for: selectedModel.version),
+            version: selectedModel.version
+        )
+        await downloadModelIfNeeded()
+        switch modelState {
+        case .ready: showFeedback(hadFiles ? "Модель актуальна" : "Модель скачана")
+        case .failed(let message): showFeedback(message)
+        default: break
+        }
+    }
+
+    /// Удаление весов выбранной версии с диска. Статус пересчитывается по
+    /// факту (папка), а не по флагу: прерванная загрузка флаг разъедет.
+    public func deleteModel() {
+        cancelRecording()
+        asrManager = nil
+        decoderState = nil
+        let dir = AsrModels.defaultCacheDirectory(for: selectedModel.version)
+        try? FileManager.default.removeItem(at: dir)
+        refreshModelState()
+        showFeedback("Модель удалена")
     }
 
     // MARK: - Модель
@@ -64,18 +178,19 @@ public final class DictationEngine {
     /// «скачана»/«не скачана», не имитируя.
     public func refreshModelState() {
         guard case .downloading = modelState else {
-            let dir = AsrModels.defaultCacheDirectory(for: .v3)
-            modelState = AsrModels.modelsExist(at: dir, version: .v3) ? .ready : .notDownloaded
+            let dir = AsrModels.defaultCacheDirectory(for: selectedModel.version)
+            modelState = AsrModels.modelsExist(at: dir, version: selectedModel.version) ? .ready : .notDownloaded
             return
         }
     }
 
     public func downloadModelIfNeeded() async {
         if case .ready = modelState, asrManager != nil { return }
+        let version = selectedModel.version
         modelState = .downloading(0)
         do {
             let models = try await AsrModels.downloadAndLoad(
-                version: .v3,
+                version: version,
                 progressHandler: { progress in
                     Task { @MainActor in
                         if case .downloading = DictationEngine.shared.modelState {
@@ -101,6 +216,11 @@ public final class DictationEngine {
     /// сама, если она ещё не скачана (первая диктовка в жизни установки).
     public func startRecording() async {
         guard recordingState == .idle else { return }
+        // Выключено в настройках — не пишем и не докачиваем модель втихую.
+        guard isEnabled else {
+            recordingState = .failed("Диктовка на устройстве выключена в настройках")
+            return
+        }
         let granted = await AVAudioApplication.requestRecordPermission()
         guard granted else {
             recordingState = .failed("Нет доступа к микрофону — разрешите в Настройках iOS")

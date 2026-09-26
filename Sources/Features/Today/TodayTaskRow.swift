@@ -199,11 +199,6 @@ struct TodayTaskRow: View {
 
                 if hasBadges {
                     HStack(spacing: TFSpacing.xs) {
-                        // Флаг готовности — первым, перед счётчиком шагов
-                        // (владелец 11.09.2026).
-                        if task.readyForPickup {
-                            TFReadyFlag()
-                        }
                         if !task.subtasks.isEmpty {
                             let done = task.subtasks.count { $0.done }
                             TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
@@ -258,7 +253,7 @@ struct TodayTaskRow: View {
     }
 
     private var hasBadges: Bool {
-        !task.subtasks.isEmpty || TaskPriority(rawValue: task.priority) != nil || task.readyForPickup
+        !task.subtasks.isEmpty || TaskPriority(rawValue: task.priority) != nil
             || overdue || task.dueDate != nil || !task.labels.isEmpty
     }
 
@@ -272,7 +267,7 @@ struct TodayTaskRow: View {
     }
 
     private func close() {
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: 0)) {
             settledOffset = 0
             dragOffset = 0
         }
@@ -289,7 +284,7 @@ struct TodayTaskRow: View {
     /// невпопад: бросок открывал строку через раз.
     private func settle(dx: CGFloat, velocity: CGFloat) {
         let finalOffset = clamp(settledOffset + dx)
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity)) {
             if settledOffset == 0 {
                 // Влево — одно действие, зависящее от состояния задачи.
                 if swipeAction != nil && (finalOffset < -openThreshold || velocity < -openVelocity) {
@@ -337,9 +332,12 @@ enum TodayTaskSwipeAction: Equatable {
     case acceptReview
     case markReadyForPickup
 
-    static func action(for task: ApiTask, isOwner: Bool) -> Self? {
+    /// `currentUserID` — чтобы у личного дела (исполнитель — сам владелец)
+    /// был «Завершить», а не «Запустить»: запускать там некого (23.09.2026).
+    static func action(for task: ApiTask, isOwner: Bool, currentUserID: String? = nil) -> Self? {
         guard task.status == .active else { return nil }
         if isOwner, task.agentState == .review { return .acceptReview }
+        if let me = currentUserID, task.assigneeId == me { return .complete }
         if isOwner, task.agentState == nil, !task.readyForPickup { return .markReadyForPickup }
         return .complete
     }
@@ -347,7 +345,7 @@ enum TodayTaskSwipeAction: Equatable {
     var icon: String {
         switch self {
         case .complete, .acceptReview: "checkmark"
-        case .markReadyForPickup: "flag.fill"
+        case .markReadyForPickup: "play.fill"
         }
     }
 
@@ -355,7 +353,7 @@ enum TodayTaskSwipeAction: Equatable {
         switch self {
         case .complete: "Завершить"
         case .acceptReview: "Принять"
-        case .markReadyForPickup: "Готово к работе"
+        case .markReadyForPickup: "Запустить"
         }
     }
 

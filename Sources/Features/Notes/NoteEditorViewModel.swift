@@ -21,6 +21,8 @@ final class NoteEditorViewModel {
     var aiErrorMessage: String?
     var extractedTasks: [ExtractedNoteTask] = []
     var showExtractedTasksSheet = false
+    /// Собранная постановка (родитель + дочерние) — показываем карточку.
+    var createdDraftTask: StructureDraftResult?
 
     // Меню «Ещё» / удаление / перемещение / экспорт.
     var actionErrorMessage: String?
@@ -236,6 +238,30 @@ final class NoteEditorViewModel {
             }
         } catch {
             aiErrorMessage = "Не удалось извлечь задачи"
+        }
+    }
+
+    /// Собрать ПОСТАНОВКУ из текста: тем же контуром, что надиктовка из чата
+    /// (`/ai/structure-draft`) — родитель + шаги + дочерние карточки, черновиком
+    /// без флага. Плоский «разбор задач» оставлен рядом: он про список дел,
+    /// этот — про структуру работы.
+    func collectDraft(selectedText: String?) async {
+        let text = selectedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? selectedText!
+            : wholeDocumentText
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 20 else {
+            aiErrorMessage = "Для постановки текста слишком мало"
+            return
+        }
+        aiErrorMessage = nil
+        aiLabel = "Собираю постановку…"
+        aiBusy = true
+        defer { aiBusy = false }
+        do {
+            createdDraftTask = try await apiClient.structureDraft(text: text)
+        } catch {
+            aiErrorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Не удалось собрать постановку"
         }
     }
 

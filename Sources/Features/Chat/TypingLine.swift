@@ -32,7 +32,7 @@ struct TypingLine: View {
     }
 }
 
-private struct TypingDot: View {
+struct TypingDot: View {
     let delay: Double
     @State private var lit = false
 

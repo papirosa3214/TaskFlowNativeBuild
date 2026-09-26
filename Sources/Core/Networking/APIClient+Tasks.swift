@@ -76,6 +76,7 @@ public extension APIClient {
         public var parentId: String?
         public var labelIds: [String]?
         public var subtasks: [String]?
+        public var requiresReviewerReview: Bool?
 
         enum CodingKeys: String, CodingKey {
             case title, description
@@ -88,18 +89,20 @@ public extension APIClient {
             case parentId = "parent_id"
             case labelIds = "label_ids"
             case subtasks
+            case requiresReviewerReview = "requires_reviewer_review"
         }
 
         public init(
             title: String, description: String? = nil, dueDate: String? = nil,
             startTime: String? = nil, durationMin: Int? = nil, projectId: String? = nil,
             assigneeId: String? = nil, priority: Int? = nil, parentId: String? = nil,
-            labelIds: [String]? = nil, subtasks: [String]? = nil
+            labelIds: [String]? = nil, subtasks: [String]? = nil, requiresReviewerReview: Bool? = nil
         ) {
             self.title = title; self.description = description; self.dueDate = dueDate
             self.startTime = startTime; self.durationMin = durationMin; self.projectId = projectId
             self.assigneeId = assigneeId; self.priority = priority; self.parentId = parentId
             self.labelIds = labelIds; self.subtasks = subtasks
+            self.requiresReviewerReview = requiresReviewerReview
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -115,6 +118,7 @@ public extension APIClient {
             if let v = parentId { try c.encode(v, forKey: .parentId) }
             if let v = labelIds { try c.encode(v, forKey: .labelIds) }
             if let v = subtasks { try c.encode(v, forKey: .subtasks) }
+            if let v = requiresReviewerReview { try c.encode(v, forKey: .requiresReviewerReview) }
         }
     }
 
@@ -137,6 +141,38 @@ public extension APIClient {
     /// Только создатель задачи ИЛИ владелец — оркестратору 403 (spec §5.1).
     func deleteTask(id: String) async throws {
         let _: APIOkResponse = try await request(.delete, "/tasks/\(id)")
+    }
+
+    /// «✓ Запустить» на карточке Секретаря: сервер поднимает флаг дереву
+    /// черновика и отдаёт карточки с учётом очереди; личные дела не трогает.
+    func startDraft(taskID: String) async throws {
+        struct Response: Decodable { let ok: Bool }
+        let _: Response = try await request(.post, "/task-intake/drafts/\(taskID)/start")
+    }
+
+    /// Ручной разовый запуск агента на карточке — только владелец.
+    /// `mode`: `executor` — поднять исполнителя, `reviewer` — верификатора.
+    /// Служба-будильник при этом может быть выключена: это одиночный заход
+    /// по команде владельца, автоматику он не включает.
+    func runTask(id: String, mode: String) async throws {
+        let _: APIOkResponse = try await request(
+            .post, "/tasks/\(id)/run", body: ["mode": JSONValue.string(mode)]
+        )
+    }
+
+    /// Продлить серию повтора на следующий календарный год (владелец):
+    /// «повторять до 31 декабря следующего» и снова разрешить воркеру
+    /// создавать следующее вхождение.
+    func extendRepeat(id: String) async throws {
+        let _: APIOkResponse = try await request(.post, "/tasks/\(id)/repeat-extend")
+    }
+
+    /// Запуск серверного конвейера глубокого исследования (владелец;
+    /// задача должна быть помечена `needs_research`). Сервер поднимает
+    /// отдельный процесс и сразу отвечает: план → сбор → проверка → синтез →
+    /// отчёт в секции «Отчёты» карточки.
+    func startResearch(id: String) async throws {
+        let _: APIOkResponse = try await request(.post, "/tasks/\(id)/research")
     }
 
     // MARK: - Агентский протокол (spec §5.2/§7) — на карточке задачи владелец

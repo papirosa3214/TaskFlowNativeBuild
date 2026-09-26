@@ -68,22 +68,6 @@ public struct TFPriorityArrows: View {
     }
 }
 
-/// Поднятый флаг готовности — владелец подтвердил карточку, и исполнитель
-/// вправе её взять. Освободившийся флажок (до 11.09.2026 он обозначал
-/// приоритет) достался именно этому: владелец просил видеть, «по каким
-/// карточкам уже поднят флаг, по каким нет». Рисуется только когда флаг
-/// поднят — отсутствие значка и есть «не подтверждена».
-public struct TFReadyFlag: View {
-    public init() {}
-
-    public var body: some View {
-        Image(systemName: "flag.fill")
-            .font(.system(size: 11))
-            .foregroundStyle(Color.tfGreen)
-            .accessibilityLabel("Готова к работе: флаг поднят")
-    }
-}
-
 /// Метка (label) — пилюля, фон = цвет метки + альфа `26`(hex)≈15%, как в спеке.
 public struct TFLabelPill: View {
     let title: String
@@ -153,7 +137,6 @@ public struct TFAccentTag: View {
             TFPriorityArrows(.high)
             TFPriorityArrows(.medium)
             TFPriorityArrows(.low)
-            TFReadyFlag()
         }
         HStack(spacing: TFSpacing.sm) {
             TFOverduePill()

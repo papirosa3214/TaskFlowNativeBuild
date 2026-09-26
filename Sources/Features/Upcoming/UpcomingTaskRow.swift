@@ -115,9 +115,6 @@ struct UpcomingTaskRow: View {
             subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done },
             subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count,
             priority: TaskPriority(rawValue: task.priority),
-            // Поднятый флаг готовности — виден и здесь: иначе его пришлось бы
-            // искать, проваливаясь в каждую задачу (владелец 11.09.2026).
-            isReadyForPickup: task.readyForPickup,
             isOverdue: false, // «Планирование» никогда не показывает просроченное (спека §5.2)
             dueText: nil,     // showDueBadge=false (спека §5.2)
             labels: task.labels.prefix(1).map { ($0.name, Color(hex: $0.color ?? TFHexDefault.unassigned)) } // maxLabels=1
@@ -151,7 +148,7 @@ struct UpcomingTaskRow: View {
     }
 
     private func close() {
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: 0)) {
             settledOffset = 0
             dragOffset = 0
         }
@@ -163,7 +160,7 @@ struct UpcomingTaskRow: View {
     /// «резина» `over×30/(30+over)`. Скорость приходит от UIKit в px/с.
     private func settle(dx: CGFloat, velocity: CGFloat) {
         let finalOffset = clamp(settledOffset + dx)
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity)) {
             if settledOffset == 0 {
                 if finalOffset < -openThreshold || velocity < -openVelocity {
                     settledOffset = -actionWidth
