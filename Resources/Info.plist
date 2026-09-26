@@ -29,6 +29,8 @@
 	<string>Нужен для синхронизации событий календаря с вашими задачами.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Нужен для отображения и создания событий в календаре.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Нужен, чтобы сделать снимок и прикрепить его к сообщению в чате.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Используется для быстрого и безопасного входа в TaskFlow.</string>
 	<key>NSLocalNetworkUsageDescription</key>

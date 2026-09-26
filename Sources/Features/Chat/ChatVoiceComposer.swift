@@ -1,13 +1,26 @@
 import SwiftUI
 import UIKit
 
+enum ChatComposerKeyboardDismissGesture {
+    static func shouldDismiss(translation: CGSize) -> Bool {
+        translation.height >= 38 && translation.height > abs(translation.width) * 1.2
+    }
+}
+
+/// Три пункта меню «+» (владелец 26.09.2026): фото из галереи, файл,
+/// снимок камерой прямо на месте. «Из базы знаний» и отдельная пилюля для
+/// квик-реплаев в том же разговоре обсуждались и отклонены владельцем.
+enum ChatAttachmentSource {
+    case photo, file, camera
+}
+
 /// Тот же трёхсостоянийный композер, что в VoiceMessageLabScreen.
 struct ChatVoiceComposer: View {
     @Binding var text: String
     let placeholder: String
     let canSendText: Bool
     @Bindable var voice: RoleChatVoiceController
-    let onAttachment: () -> Void
+    let onAttachmentSource: (ChatAttachmentSource) -> Void
     let onSendText: () -> Void
     let onSendVoice: (VoiceMessage) async -> Bool
     let onDiscardVoice: (VoiceMessage) -> Void
@@ -23,8 +36,12 @@ struct ChatVoiceComposer: View {
 
     /// Единая высота элементов композера: круглая кнопка вложений и капсула —
     /// одной высоты (владелец 21.09.2026: «у всех величины одинаковые всегда,
-    /// не одна маленькая, другая большая»).
-    private let composerHeight: CGFloat = 52
+    /// не одна маленькая, другая большая»). Владелец 25.09.2026: состояние
+    /// покоя было слишком высоким — снижено до `TFChatComposer.elementHeight`
+    /// (та же высота, что у остальных элементов композера, напр. адресата в
+    /// `ChatComposer.swift`); авто-рост под длинный текст не затронут —
+    /// им управляет `.lineLimit(1...4)` у `TextField`, не эта константа.
+    private let composerHeight: CGFloat = TFChatComposer.elementHeight
 
     var body: some View {
         ZStack {
@@ -33,6 +50,14 @@ struct ChatVoiceComposer: View {
             if isRecording { recordingComposer }
             if let preview { previewComposer(preview) }
         }
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 16)
+                .onEnded { value in
+                    guard ChatComposerKeyboardDismissGesture.shouldDismiss(translation: value.translation) else { return }
+                    isTextFieldFocused = false
+                }
+        )
         .onDisappear {
             voice.cancel()
             player.stop()
@@ -41,19 +66,33 @@ struct ChatVoiceComposer: View {
 
     private var idleComposer: some View {
         HStack(spacing: 12) {
-            Button(action: onAttachment) {
+            Menu {
+                Button { onAttachmentSource(.photo) } label: {
+                    Label("Фото", systemImage: "photo.on.rectangle")
+                }
+                Button { onAttachmentSource(.file) } label: {
+                    Label("Файл", systemImage: "doc")
+                }
+                Button { onAttachmentSource(.camera) } label: {
+                    Label("Камера", systemImage: "camera")
+                }
+            } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.primary)
                     .frame(width: composerHeight, height: composerHeight)
                     .voiceCircleSurface()
             }
-            .buttonStyle(.plain)
+            .tint(.primary)
             .opacity(isRecording || preview != nil ? 0 : 1)
             .accessibilityLabel("Добавить вложение")
             HStack(spacing: 8) {
                 TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
                     .lineLimit(1...4)
+                    // Вся свободная левая часть капсулы принадлежит полю:
+                    // можно поставить курсор даже тапом по пустому месту.
+                    .frame(maxWidth: .infinity, minHeight: composerHeight, alignment: .leading)
+                    .contentShape(Rectangle())
                     .textInputAutocapitalization(.sentences)
                     // Без `.submitLabel(.send)`: системная клавиатура должна
                     // рисовать обычную клавишу Return, а не синюю кнопку
@@ -71,6 +110,7 @@ struct ChatVoiceComposer: View {
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 36, height: 36)
+                        .frame(width: composerHeight * 2, height: composerHeight, alignment: .trailing)
                         .contentShape(Rectangle())
                         .onLongPressGesture(minimumDuration: 0.18, perform: startVoiceRecording)
                         .accessibilityLabel("Удерживайте для начала записи")
@@ -91,7 +131,10 @@ struct ChatVoiceComposer: View {
 
     private var recordingComposer: some View {
         HStack(spacing: 16) {
-            VoiceBarsView(level: recordingLevel, color: .red, barWidth: 5, spacing: 4, maxHeight: 28)
+            VoiceBarsView(
+                level: recordingLevel, color: .red,
+                barWidth: 3, spacing: 2, maxHeight: 28, isSmooth: true
+            )
                 .frame(maxWidth: .infinity)
                 .frame(height: 32)
             Text(recordingDuration).font(.title3.monospacedDigit()).foregroundStyle(.red)
@@ -253,7 +296,10 @@ struct ChatVoiceComposer: View {
 }
 
 /// На iOS 26 стекло рисует система; для iOS 18–25 остаётся материал.
-private extension View {
+/// Не `private` — тем же стеклом владелец 26.09.2026 попросил одеть пилюлю
+/// квик-реплаев в `RoleChatsScreen`, чтобы она выглядела так же, как
+/// капсула поля ввода, а не плоской заливкой и не голым контуром.
+extension View {
     @ViewBuilder func voiceCircleSurface() -> some View {
         if #available(iOS 26.0, *) { glassEffect(.regular, in: .circle) }
         else { background(.thinMaterial, in: Circle()) }
@@ -273,5 +319,17 @@ extension View {
         } else {
             safeAreaInset(edge: .bottom, content: content)
         }
+    }
+
+    /// `safeAreaBar` (iOS 26+) сама включает системный blur-переход там, где
+    /// лента сообщений уходит под панель ввода — визуально это подложка под
+    /// композером и рядом стоящими квик-реплаями/подсказками (владелец
+    /// 26.09.2026: «какая-то подложка/повидла», просил убрать). Это штатный
+    /// `ScrollEdgeEffectStyle`, а не наш фон — выключается своим модификатором.
+    /// На iOS до 26 `chatComposerBar` использует `safeAreaInset`, у которого
+    /// такого эффекта нет вовсе — модификатор просто недоступен.
+    @ViewBuilder func hideComposerScrollEdgeEffect() -> some View {
+        if #available(iOS 26.0, *) { scrollEdgeEffectHidden(true, for: .bottom) }
+        else { self }
     }
 }

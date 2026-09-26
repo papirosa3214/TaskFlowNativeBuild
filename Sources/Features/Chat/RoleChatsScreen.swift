@@ -1,6 +1,8 @@
 import SwiftUI
 import AVFoundation
 import UniformTypeIdentifiers
+import PhotosUI
+import UIKit
 
 /// Личные и групповые чаты живут отдельно от старого окна постановки задач.
 ///
@@ -118,7 +120,7 @@ struct RoleChatsScreen: View {
         // Только владельцу: owner-канал — его разговор с секретарём, у
         // остальных учёток этого чата нет.
         if session.currentUser?.role == .owner {
-            NavigationLink(value: AppRoute.secretaryChat) {
+            NavigationLink(value: AppRoute.roleChat(id: "chat-secretary")) {
                 ChatListRow(
                     avatar: AnyView(TFAvatar(
                         size: .xl,
@@ -186,15 +188,25 @@ struct RoleChatsScreen: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        do { chats = try await api.roleChats() }
+        do { chats = try await api.roleChats().filter { $0.id != Self.secretaryChatID } }
+        catch is CancellationError {
+            // Потянули «обновить» ещё раз, пока прошлая загрузка не
+            // закончилась — предыдущая отменяется штатно, не повод пугать.
+        }
         catch { errorMessage = error.localizedDescription }
         await loadSecretary()
     }
 
+    /// Секретарь (владелец 25.09.2026, docs/ПЛАН Супер Секретарь/) — с этого
+    /// момента настоящая комната `/api/chats`, но в общем списке стоит
+    /// особняком своим блоком (владелец 21.09.2026) — фильтруем, чтобы не
+    /// задвоилась.
+    private static let secretaryChatID = "chat-secretary"
+
     /// Фоновое обновление по сокету: без спиннера и без алерта — сбой
     /// здесь не повод пугать, следующее событие или «потянуть вниз» догонят.
     private func reloadSilently() async {
-        if let fresh = try? await api.roleChats() { chats = fresh }
+        if let fresh = try? await api.roleChats() { chats = fresh.filter { $0.id != Self.secretaryChatID } }
     }
 
     /// Отдельно от списка чатов: падение этого блока не должно показывать
@@ -535,6 +547,9 @@ private struct CreateRoleChatScreen: View {
     }
 }
 
+/// `.sheet(item:)` требует `Identifiable` — `String` сам по себе не годится.
+private struct RoomTaskRef: Identifiable { let id: String }
+
 private struct RoleChatRoomScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
@@ -546,8 +561,15 @@ private struct RoleChatRoomScreen: View {
     @State private var errorMessage: String?
     /// Последнее сообщение, до которого чат уже отмечен прочитанным (LOCK-206).
     @State private var markedReadMessageID: String?
+    /// Карточка задачи в сообщении (владелец 25.09.2026, этап 2 «Супер
+    /// Секретаря») — открывает её шторкой, тот же приём, что у ChatBubble.
+    @State private var pendingTaskID: String?
     @State private var voice = RoleChatVoiceController()
     @State private var isFileImporterPresented = false
+    /// Меню «+» (владелец 26.09.2026): фото/файл/камера.
+    @State private var isPhotoPickerPresented = false
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var isCameraPresented = false
     @State private var pendingAttachments: [ApiChatAttachment] = []
     @State private var isUploadingAttachment = false
     @State private var player = VoicePlayer()
@@ -562,7 +584,6 @@ private struct RoleChatRoomScreen: View {
     @State private var selectedMessageIDs: Set<String> = []
     @State private var isDeleteSelectedConfirmOpen = false
     @State private var isClearChatConfirmOpen = false
-    @State private var isDeleteChatConfirmOpen = false
     @State private var isDetailsPresented = false
     @State private var realtime = RealtimeClient()
     /// Кто сейчас готовит ответ: userId → имя. Наполняет только сервер
@@ -573,51 +594,29 @@ private struct RoleChatRoomScreen: View {
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
 
     var body: some View {
+        ZStack {
+            // Владелец 25.09.2026: фон экрана ЗДЕСЬ — на самом верхнем
+            // уровне, а не за панелью композера, и без ограничения edges
+            // (регион .keyboard входит в .ignoresSafeArea() по умолчанию).
+            // Иначе в углах системной клавиатуры (у неё скруглённые верхние
+            // углы) сквозь скругление просвечивал фон корневого UIWindow
+            // (чёрный) — композер стоит НАД клавиатурой, его собственный фон
+            // до этого места физически не достаёт.
+            Color.tfBackground.ignoresSafeArea()
+            composerRoom
+        }
+    }
+
+    private var composerRoom: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
-                        if messages.isEmpty {
-                            ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
-                                                   description: Text("Напишите первое сообщение."))
-                        }
-                        ForEach(messages) { message in
-                            messageRow(message)
-                                .id(message.id)
-                        }
-                        ForEach(pendingVoices) { message in
-                            VStack(alignment: .trailing, spacing: 4) {
-                                // Ещё не отправленное голосовое: имя и иконка
-                                // берутся из текущей сессии — сообщения с
-                                // сервера для него пока нет.
-                                VoiceMessageBubble(
-                                    message: message,
-                                    player: player,
-                                    style: RoleChatVoiceStyle.own,
-                                    header: AnyView(ownSenderLine)
-                                )
-                                if sendingVoiceIDs.contains(message.id) { ProgressView("Отправка…") }
-                                else if message.transcript != .pending {
-                                    Button("Повторить отправку") { Task { await sendVoice(message.id) } }
-                                        .font(.caption)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .id(message.id)
-                        }
-                        if !typists.isEmpty {
-                            RoleChatTypingLine(names: typists.values.sorted())
-                                .id("typing-line")
-                        }
-                    }
-                    .padding(TFSpacing.lg)
-                }
-                .background(Color.tfBackground)
-                .onChange(of: messages.last?.id) { _, id in
-                    if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
-                }
-                .onChange(of: typists.isEmpty) { _, isEmpty in
-                    if !isEmpty { withAnimation { proxy.scrollTo("typing-line", anchor: .bottom) } }
+            // Квик-реплаи — оверлей ПОВЕРХ ленты, а не отдельная строка в
+            // layout (владелец 26.09.2026: со строкой в layout лента упиралась
+            // в пилюлю и обрезалась вместо того, чтобы уходить под неё). Лента
+            // теперь занимает всю высоту сама, пилюля просто висит сверху.
+            ZStack(alignment: .bottom) {
+                messageScroll
+                if !isSelecting, let replies = lastQuickReplies {
+                    quickReplyRow(replies)
                 }
             }
             if !mentionCandidates.isEmpty {
@@ -647,7 +646,13 @@ private struct RoleChatRoomScreen: View {
                     canSendText: (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
                         && !isSending && !isUploadingAttachment,
                     voice: voice,
-                    onAttachment: { isFileImporterPresented = true },
+                    onAttachmentSource: { source in
+                        switch source {
+                        case .photo: isPhotoPickerPresented = true
+                        case .file: isFileImporterPresented = true
+                        case .camera: isCameraPresented = true
+                        }
+                    },
                     onSendText: { Task { await send() } },
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in }
@@ -707,9 +712,6 @@ private struct RoleChatRoomScreen: View {
                         // галочкой (владелец 21.09.2026: «посмотри, как у нас
                         // троеточия и подменю, и сделай ровно так же»).
                         Section {
-                            Button { isDetailsPresented = true } label: {
-                                Label("Название и участники", systemImage: "person.2")
-                            }
                             // Привязка к задаче — только создателю: сервер
                             // остальным отвечает 403.
                             if chat.createdBy == session.currentUser?.id {
@@ -744,6 +746,12 @@ private struct RoleChatRoomScreen: View {
                             Button { enterSelection(selecting: nil) } label: {
                                 Label("Выбрать сообщения", systemImage: "checkmark.circle")
                             }
+                            // Владелец 25.09.2026: «очистить чат не надо —
+                            // надо по сессиям потом полистать». История не
+                            // трогается, сбрасывается только память роли.
+                            Button { Task { await newSession() } } label: {
+                                Label("Новая сессия", systemImage: "arrow.triangle.2.circlepath")
+                            }
                         }
                         if session.currentUser?.role == .owner {
                             Section {
@@ -751,11 +759,6 @@ private struct RoleChatRoomScreen: View {
                                     isClearChatConfirmOpen = true
                                 } label: {
                                     Label("Удалить все сообщения", systemImage: "trash")
-                                }
-                                Button(role: .destructive) {
-                                    isDeleteChatConfirmOpen = true
-                                } label: {
-                                    Label("Удалить чат", systemImage: "trash")
                                 }
                             }
                         }
@@ -815,10 +818,10 @@ private struct RoleChatRoomScreen: View {
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
         .sheet(isPresented: $isDetailsPresented) {
-            RoleChatDetailsSheet(chat: chat) { updated in
+            RoleChatDetailsSheet(chat: chat, onChanged: { updated in
                 chat = updated
                 Task { await refresh() }
-            }
+            }, onDeleted: { dismiss() })
         }
         .confirmationDialog("Удалить выбранные сообщения?", isPresented: $isDeleteSelectedConfirmOpen,
                             titleVisibility: .visible) {
@@ -830,17 +833,88 @@ private struct RoleChatRoomScreen: View {
                             titleVisibility: .visible) {
             Button("Удалить все", role: .destructive) { Task { await clearChat() } }
         }
-        .confirmationDialog("Удалить чат?", isPresented: $isDeleteChatConfirmOpen,
-                            titleVisibility: .visible) {
-            Button("Удалить чат", role: .destructive) { Task { await deleteChat() } }
-        }
         .fileImporter(isPresented: $isFileImporterPresented, allowedContentTypes: [.item]) { result in
             handleFileImport(result)
+        }
+        .photosPicker(isPresented: $isPhotoPickerPresented, selection: $photoPickerItem, matching: .images)
+        .onChange(of: photoPickerItem) { _, item in
+            guard let item else { return }
+            photoPickerItem = nil
+            Task { await uploadPickedPhoto(item) }
+        }
+        .fullScreenCover(isPresented: $isCameraPresented) {
+            CameraCaptureView(
+                onCapture: { image in
+                    isCameraPresented = false
+                    Task { await uploadCameraPhoto(image) }
+                },
+                onCancel: { isCameraPresented = false }
+            )
+            .ignoresSafeArea()
         }
         .onChange(of: voice.errorMessage) { _, reason in
             if let reason { errorMessage = reason }
         }
         .onDisappear { voice.cancel(); player.stop() }
+        .sheet(item: Binding(
+            get: { pendingTaskID.map(RoomTaskRef.init) },
+            set: { pendingTaskID = $0?.id }
+        )) { ref in
+            NavigationStack { TaskFormScreen(taskID: ref.id) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var messageScroll: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+                    if messages.isEmpty {
+                        ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
+                                               description: Text("Напишите первое сообщение."))
+                    }
+                    ForEach(messages) { message in
+                        messageRow(message)
+                            .id(message.id)
+                    }
+                    ForEach(pendingVoices) { message in
+                        VStack(alignment: .trailing, spacing: 4) {
+                            // Ещё не отправленное голосовое: имя и иконка
+                            // берутся из текущей сессии — сообщения с
+                            // сервера для него пока нет.
+                            VoiceMessageBubble(
+                                message: message,
+                                player: player,
+                                style: RoleChatVoiceStyle.own,
+                                header: AnyView(ownSenderLine)
+                            )
+                            if sendingVoiceIDs.contains(message.id) { ProgressView("Отправка…") }
+                            else if message.transcript != .pending {
+                                Button("Повторить отправку") { Task { await sendVoice(message.id) } }
+                                    .font(.caption)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .id(message.id)
+                    }
+                    if !typists.isEmpty {
+                        RoleChatTypingLine(names: typists.values.sorted())
+                            .id("typing-line")
+                    }
+                }
+                .padding(TFSpacing.lg)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color.tfBackground)
+            .hideComposerScrollEdgeEffect()
+            .onChange(of: messages.last?.id) { _, id in
+                if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
+            }
+            .onChange(of: typists.isEmpty) { _, isEmpty in
+                if !isEmpty { withAnimation { proxy.scrollTo("typing-line", anchor: .bottom) } }
+            }
+        }
     }
 
     /// Полоса выбора вместо панели ввода: отметить всё или снять отметки.
@@ -904,18 +978,22 @@ private struct RoleChatRoomScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
+    /// Новая сессия (владелец 25.09.2026, docs/ПЛАН Супер Секретарь/):
+    /// сбрасывает память роли, история остаётся — сервер сам вставляет
+    /// метку-разделитель, которую здесь просто дописываем в ленту.
+    private func newSession() async {
+        guard let roleID = chat.others(excluding: session.currentUser?.id).first?.id else { return }
+        do {
+            let marker = try await api.newRoleChatSession(chatID: chat.id, roleID: roleID)
+            if !messages.contains(where: { $0.id == marker.id }) { messages.append(marker) }
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     private func clearChat() async {
         do {
             try await api.deleteRoleChatMessages(chatID: chat.id)
             messages = []
             exitSelection()
-        } catch { errorMessage = error.localizedDescription }
-    }
-
-    private func deleteChat() async {
-        do {
-            try await api.deleteRoleChat(id: chat.id)
-            dismiss()
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -928,7 +1006,32 @@ private struct RoleChatRoomScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
+    @ViewBuilder
     private func messageRow(_ message: RoleChatMessage) -> some View {
+        if message.isSessionMarker {
+            sessionMarkerRow(message)
+        } else {
+            messageBubbleRow(message)
+        }
+    }
+
+    /// Разделитель «новая сессия» (владелец 25.09.2026) — не пузырь,
+    /// центрированная метка, как разрыв даты в iMessage.
+    private func sessionMarkerRow(_ message: RoleChatMessage) -> some View {
+        HStack {
+            Spacer()
+            Text("Новая сессия")
+                .tfText(.caption)
+                .foregroundStyle(Color.tfDim)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, 4)
+                .background(Color.tfCard)
+                .clipShape(Capsule())
+            Spacer()
+        }
+    }
+
+    private func messageBubbleRow(_ message: RoleChatMessage) -> some View {
         let mine = message.fromUserID == session.currentUser?.id
         let hasAudio = message.attachments?.contains { $0.isVoiceRecording } ?? false
         return HStack(alignment: .top, spacing: TFSpacing.sm) {
@@ -963,7 +1066,13 @@ private struct RoleChatRoomScreen: View {
                         header: AnyView(senderLine(message, color: .white.opacity(0.85)))
                     )
                 }
-                if !message.text.isEmpty && !hasAudio {
+                // Карточка задачи (владелец 25.09.2026, этап 2 «Супер
+                // Секретаря») — раньше была только у Секретаря
+                // (ChatBubble.swift, message.fromUserId == secretaryID),
+                // здесь — для любой роли, отправитель не важен.
+                if let taskID = message.taskID {
+                    SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
+                } else if !message.text.isEmpty && !hasAudio {
                     Text(message.text)
                         .foregroundStyle(Color.tfText)
                 }
@@ -1042,6 +1151,70 @@ private struct RoleChatRoomScreen: View {
                 }
             }
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Быстрые ответы (владелец 25.09.2026, docs/ПЛАН Супер Секретарь/) —
+    /// только у самого последнего сообщения, и только если оно не моё:
+    /// собственный ответ снимает актуальность предложенных вариантов.
+    /// Владелец 26.09.2026: модель иногда даёт 4 — обрезаем до 3, четвёртый
+    /// почти никогда не нужен и только загромождает ряд.
+    private var lastQuickReplies: [String]? {
+        guard let last = messages.last, last.fromUserID != session.currentUser?.id,
+              let replies = last.quickReplies, !replies.isEmpty else { return nil }
+        return Array(replies.prefix(3))
+    }
+
+    /// То же стекло, что у капсулы поля ввода (`voiceCapsuleSurface`) —
+    /// владелец 26.09.2026: «почему у композера фон есть, а тут нет» —
+    /// плоская заливка читалась плашкой, голый контур без заливки — как
+    /// дыра; нужна была именно системная капсула, а не то и не другое.
+    private func quickReplyPillStyle<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .tfText(.meta)
+            .foregroundStyle(Color.tfText)
+            .padding(.horizontal, TFSpacing.md)
+            .padding(.vertical, TFSpacing.sm)
+            .voiceCapsuleSurface()
+            .overlay {
+                Capsule().strokeBorder(Color.tfRed.opacity(0.3), lineWidth: TFBorder.width)
+            }
+    }
+
+    /// Сразу в развёрнутом виде — владелец 26.09.2026: раз сам ряд вариантов
+    /// уже нормально смотрится (то же стекло, что у поля ввода, лента видна
+    /// сквозь него), сворачивать в отдельный триггер незачем — лишний тап.
+    /// Владелец 26.09.2026 (продолжение): по бокам скролл резал пилюлю
+    /// жёсткой границей — вместо нее градиентная маска, край уходит в
+    /// прозрачность постепенно. Отступ — внутри контента (после маски),
+    /// иначе в покое пилюля с краю сама попадала бы в зону затухания.
+    private func quickReplyRow(_ replies: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: TFSpacing.sm) {
+                ForEach(replies, id: \.self) { reply in
+                    Button {
+                        draft = reply
+                        Task { await send() }
+                    } label: {
+                        quickReplyPillStyle { Text(reply) }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSending)
+                }
+            }
+            .padding(.horizontal, TFSpacing.lg)
+        }
+        .mask {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.06),
+                    .init(color: .black, location: 0.94),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .leading, endPoint: .trailing
+            )
+        }
+        .padding(.vertical, TFSpacing.xs)
     }
 
     private func send() async {
@@ -1138,6 +1311,33 @@ private struct RoleChatRoomScreen: View {
         }
     }
 
+    /// Фото из галереи (владелец 26.09.2026, пункт «Фото» в «+»). JPEG —
+    /// `PhotosPickerItem` сам даёт исходные данные оригинала любого формата,
+    /// но сервер/лента ожидают предсказуемый тип; пережимаем в JPEG 0.9,
+    /// как это уже делает камера ниже.
+    private func uploadPickedPhoto(_ item: PhotosPickerItem) async {
+        isUploadingAttachment = true
+        defer { isUploadingAttachment = false }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data),
+                  let jpeg = image.jpegData(compressionQuality: 0.9) else { return }
+            let attachment = try await api.uploadRoleChatAttachment(fileName: "photo.jpg", data: jpeg, mime: "image/jpeg")
+            pendingAttachments.append(attachment)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Снимок камерой (владелец 26.09.2026, пункт «Камера» в «+»).
+    private func uploadCameraPhoto(_ image: UIImage) async {
+        isUploadingAttachment = true
+        defer { isUploadingAttachment = false }
+        guard let jpeg = image.jpegData(compressionQuality: 0.9) else { return }
+        do {
+            let attachment = try await api.uploadRoleChatAttachment(fileName: "camera.jpg", data: jpeg, mime: "image/jpeg")
+            pendingAttachments.append(attachment)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     private func sendVoice(_ id: UUID) async {
         guard let message = pendingVoices.first(where: { $0.id == id }),
               message.transcript != .pending,
@@ -1182,20 +1382,29 @@ private struct RoleChatDetailsSheet: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     let onChanged: (RoleChat) -> Void
+    /// Владелец 26.09.2026: «Удалить чат» переехал сюда, в «…» этой же
+    /// шторки — раньше жил в общем меню комнаты чата вместе с «Название и
+    /// участники», хотя открыть их можно было и тапом по имени. Строка
+    /// удаления сама закрывает шторку и вызывает этот колбэк, который
+    /// закрывает саму комнату чата (чата больше нет — там нечего показывать).
+    let onDeleted: () -> Void
     @State private var chat: RoleChat
     @State private var title: String
     @State private var roles: [RoleProfile] = []
     @State private var isBusy = false
     @State private var errorMessage: String?
+    @State private var isDeleteChatConfirmOpen = false
     private let api = APIClient()
 
-    init(chat: RoleChat, onChanged: @escaping (RoleChat) -> Void) {
+    init(chat: RoleChat, onChanged: @escaping (RoleChat) -> Void, onDeleted: @escaping () -> Void) {
         _chat = State(initialValue: chat)
         _title = State(initialValue: chat.title ?? "")
         self.onChanged = onChanged
+        self.onDeleted = onDeleted
     }
 
     private var isCreator: Bool { chat.createdBy == session.currentUser?.id }
+    private var isOwner: Bool { session.currentUser?.role == .owner }
 
     /// Роли, которых в чате ещё нет: участником может быть только роль с
     /// серверной учёткой — иначе отвечать в чате ей нечем.
@@ -1236,24 +1445,33 @@ private struct RoleChatDetailsSheet: View {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
                         .accessibilityLabel("Закрыть")
                 }
-                if isCreator {
+                if isCreator || isOwner {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            Menu {
-                                if availableRoles.isEmpty {
-                                    Text("Все роли уже в чате")
-                                } else {
-                                    ForEach(availableRoles) { profile in
-                                        Button {
-                                            guard let account = profile.accountID else { return }
-                                            Task { await addMember(account) }
-                                        } label: {
-                                            Text(profile.title)
+                            if isCreator {
+                                Menu {
+                                    if availableRoles.isEmpty {
+                                        Text("Все роли уже в чате")
+                                    } else {
+                                        ForEach(availableRoles) { profile in
+                                            Button {
+                                                guard let account = profile.accountID else { return }
+                                                Task { await addMember(account) }
+                                            } label: {
+                                                Text(profile.title)
+                                            }
                                         }
                                     }
+                                } label: {
+                                    Label("Добавить участника", systemImage: "person.badge.plus")
                                 }
-                            } label: {
-                                Label("Добавить участника", systemImage: "person.badge.plus")
+                            }
+                            if isOwner {
+                                Button(role: .destructive) {
+                                    isDeleteChatConfirmOpen = true
+                                } label: {
+                                    Label("Удалить чат", systemImage: "trash")
+                                }
                             }
                         } label: {
                             Image(systemName: "ellipsis")
@@ -1268,6 +1486,10 @@ private struct RoleChatDetailsSheet: View {
             )) {
                 Button("Закрыть", role: .cancel) { errorMessage = nil }
             } message: { Text(errorMessage ?? "") }
+            .confirmationDialog("Удалить чат?", isPresented: $isDeleteChatConfirmOpen,
+                                titleVisibility: .visible) {
+                Button("Удалить чат", role: .destructive) { Task { await deleteChat() } }
+            }
             // Название сохраняется само: отдельной кнопки в шапке нет — там
             // «…». Правка уходит на сервер по клавише «готово» и при закрытии
             // шторки, если текст успел измениться.
@@ -1330,6 +1552,16 @@ private struct RoleChatDetailsSheet: View {
         defer { isBusy = false }
         do { apply(try await api.renameRoleChat(id: chat.id, title: title)) }
         catch { errorMessage = error.localizedDescription }
+    }
+
+    private func deleteChat() async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await api.deleteRoleChat(id: chat.id)
+            dismiss()
+            onDeleted()
+        } catch { errorMessage = error.localizedDescription }
     }
 
     private func addMember(_ memberID: String) async {

@@ -1,10 +1,16 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PhotosUI
+import UIKit
 
 // Голосовой композер повторяет утверждённый VoiceMessageLabScreen.
 struct ChatComposer: View {
     @Bindable var viewModel: ChatViewModel
     @State private var isFileImporterPresented = false
+    /// Меню «+» (владелец 26.09.2026): фото/файл/камера.
+    @State private var isPhotoPickerPresented = false
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var isCameraPresented = false
     @State private var voice = RoleChatVoiceController()
     @State private var uploadedVoiceID: String?
 
@@ -41,7 +47,13 @@ struct ChatComposer: View {
                 placeholder: placeholder,
                 canSendText: viewModel.canSend,
                 voice: voice,
-                onAttachment: { isFileImporterPresented = true },
+                onAttachmentSource: { source in
+                    switch source {
+                    case .photo: isPhotoPickerPresented = true
+                    case .file: isFileImporterPresented = true
+                    case .camera: isCameraPresented = true
+                    }
+                },
                 onSendText: { Task { await viewModel.send() } },
                 onSendVoice: sendVoice,
                 onDiscardVoice: discardVoice
@@ -53,6 +65,22 @@ struct ChatComposer: View {
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result)
+        }
+        .photosPicker(isPresented: $isPhotoPickerPresented, selection: $photoPickerItem, matching: .images)
+        .onChange(of: photoPickerItem) { _, item in
+            guard let item else { return }
+            photoPickerItem = nil
+            Task { await uploadPickedPhoto(item) }
+        }
+        .fullScreenCover(isPresented: $isCameraPresented) {
+            CameraCaptureView(
+                onCapture: { image in
+                    isCameraPresented = false
+                    Task { await uploadCameraPhoto(image) }
+                },
+                onCancel: { isCameraPresented = false }
+            )
+            .ignoresSafeArea()
         }
     }
 
@@ -239,5 +267,19 @@ struct ChatComposer: View {
             let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
             await viewModel.attach(fileName: url.lastPathComponent, data: data, mime: mime)
         }
+    }
+
+    /// Фото из галереи (владелец 26.09.2026) — пережимаем в JPEG, как и снимок камерой.
+    private func uploadPickedPhoto(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data),
+              let jpeg = image.jpegData(compressionQuality: 0.9) else { return }
+        await viewModel.attach(fileName: "photo.jpg", data: jpeg, mime: "image/jpeg")
+    }
+
+    /// Снимок камерой (владелец 26.09.2026).
+    private func uploadCameraPhoto(_ image: UIImage) async {
+        guard let jpeg = image.jpegData(compressionQuality: 0.9) else { return }
+        await viewModel.attach(fileName: "camera.jpg", data: jpeg, mime: "image/jpeg")
     }
 }
