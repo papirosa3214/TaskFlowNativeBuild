@@ -120,8 +120,8 @@ private struct HangUpSlider: View {
 
     @State private var offset: CGFloat = 0
     @State private var isDone = false
-    private let knob: CGFloat = 56
-    private let inset: CGFloat = 4
+    private let knob: CGFloat = 60
+    private let inset: CGFloat = 5
 
     var body: some View {
         GeometryReader { geo in
@@ -163,6 +163,7 @@ private struct HangUpSlider: View {
                     )
             }
         }
+        .frame(maxWidth: 320)
         .frame(height: knob + inset * 2)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Завершить разговор")

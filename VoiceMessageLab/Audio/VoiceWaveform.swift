@@ -49,6 +49,19 @@ enum VoiceWaveform {
         return min(1, normalize(averageDecibels) * 0.65 + normalize(peakDecibels) * 0.35)
     }
 
+    /// Уровень для живой волны записи: без ожидания нескольких отсчётов.
+    /// Тихие слоги остаются видимыми, пауза плавно затухает примерно за 0,7 с.
+    static func recordingLevel(previous: Double, averageDecibels: Float, peakDecibels: Float) -> Double {
+        func normalize(_ decibels: Float) -> Double {
+            guard decibels.isFinite else { return 0 }
+            let progress = Double(max(0, min(1, (decibels + 60) / 60)))
+            return pow(progress, 0.6)
+        }
+        let input = normalize(averageDecibels) * 0.65 + normalize(peakDecibels) * 0.35
+        let response = input > previous ? 0.68 : 0.12
+        return min(0.9, max(0, previous + (input - previous) * response))
+    }
+
     static func displaySamples(from samples: [Double], slots: Int) -> [Double] {
         guard slots > 0 else { return [] }
         let visible = Array(samples.suffix(slots))

@@ -134,6 +134,19 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let text: String
     public let createdAt: String?
     public let attachments: [ApiChatAttachment]?
+    /// Задача, которую роль создала этим ходом (владелец 25.09.2026,
+    /// docs/ПЛАН Супер Секретарь/, этап 2) — есть значение → вместо текста
+    /// рисуется карточка (см. RoleChatsScreen).
+    public let taskID: String?
+    public let taskTitle: String?
+    /// Быстрые ответы (владелец 25.09.2026, docs/ПЛАН Супер Секретарь/) —
+    /// 2-4 коротких варианта, которые предложила роль вместо того, чтобы
+    /// печатать руками. Только у последнего сообщения роли есть смысл.
+    public let quickReplies: [String]?
+    /// Разделитель «новая сессия» (владелец 25.09.2026) — рисуется не
+    /// пузырём, а меткой посередине; сама история при сбросе сессии не
+    /// удаляется, разделитель просто показывает границу.
+    public let isSessionMarker: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, text, attachments
@@ -144,5 +157,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case fromUserAvatarURL = "from_user_avatar_url"
         case fromUserInitials = "from_user_initials"
         case createdAt = "created_at"
+        case taskID = "task_id"
+        case taskTitle = "task_title"
+        case quickReplies = "quick_replies"
+        case isSessionMarker = "is_session_marker"
     }
 }

@@ -31,7 +31,6 @@ final class VoiceRecorder: VoiceRecording {
     private var meterTask: Task<Void, Never>?
     private(set) var waveform: [Double] = []
     private var smoothedLevel = 0.0
-    private var voiceActivityGate = VoiceActivityGate()
 
     func start() async throws {
         guard case .idle = state else { return }
@@ -63,7 +62,6 @@ final class VoiceRecorder: VoiceRecording {
         recordingURL = url
         waveform = []
         smoothedLevel = 0
-        voiceActivityGate = VoiceActivityGate()
         state = .recording(elapsed: 0, level: 0)
         startMetering()
     }
@@ -101,18 +99,11 @@ final class VoiceRecorder: VoiceRecording {
         meterTask = Task { @MainActor in
             while !Task.isCancelled, let recorder {
                 recorder.updateMeters()
-                let candidate = VoiceWaveform.microphoneLevel(
+                // Визуализация следует микрофону сразу; тишина не стирает историю.
+                smoothedLevel = VoiceWaveform.recordingLevel(
+                    previous: smoothedLevel,
                     averageDecibels: recorder.averagePower(forChannel: 0),
                     peakDecibels: recorder.peakPower(forChannel: 0)
-                )
-                let level = voiceActivityGate.filteredLevel(from: candidate)
-                if level == 0 {
-                    smoothedLevel = 0
-                    waveform = waveform.map { $0 * 0.08 }
-                }
-                smoothedLevel = VoiceWaveform.smoothedLevel(
-                    previous: smoothedLevel,
-                    raw: level
                 )
                 waveform.append(smoothedLevel)
                 if waveform.count > 120 { waveform.removeFirst(waveform.count - 120) }

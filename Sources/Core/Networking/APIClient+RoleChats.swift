@@ -45,6 +45,17 @@ public extension APIClient {
         return response.message
     }
 
+    /// Новая сессия без удаления истории (владелец 25.09.2026, docs/ПЛАН
+    /// Супер Секретарь/): сбрасывает память роли в этом чате, история
+    /// остаётся — сервер сам кладёт видимую метку-разделитель.
+    func newRoleChatSession(chatID: String, roleID: String) async throws -> RoleChatMessage {
+        struct Body: Encodable { let role_id: String }
+        let response: RoleChatMessageEnvelope = try await request(
+            .post, "/chats/\(chatID)/new-session", body: Body(role_id: roleID)
+        )
+        return response.message
+    }
+
     /// Сервер использует тот же raw-upload, что `/chat/attachments`.
     func uploadRoleChatAttachment(fileName: String, data: Data, mime: String) async throws -> ApiChatAttachment {
         struct Envelope: Decodable { let attachment: ApiChatAttachment }

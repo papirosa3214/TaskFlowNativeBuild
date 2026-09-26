@@ -28,6 +28,10 @@ struct SecretaryDraftCard: View {
     /// показе карточки — карточки нечастые, лишний `GET /api/roles?all=1`
     /// на каждое появление не критичен.
     @State private var roleTitleByKey: [String: String] = [:]
+    /// Шаги/дочерние свёрнуты по умолчанию (владелец 25.09.2026): «сразу же
+    /// высвечивались кто исполнитель, суть задачи» — заголовок и так их
+    /// показывает, разворачивать нужно только ради списка шагов.
+    @State private var isExpanded = false
 
     private let api = APIClient()
 
@@ -80,21 +84,44 @@ struct SecretaryDraftCard: View {
                 TFPill(overall.text, color: overall.color)
             }
 
-            if !parent.subtasks.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(parent.subtasks) { step in
-                        stepRow(step)
+            // Суть в одной строке, видна и свёрнутой: исполнитель + счёт
+            // шагов/подзадач (владелец 25.09.2026).
+            Text(summaryLine(parent))
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+
+            let hasDetails = !parent.subtasks.isEmpty || !children.isEmpty
+            if hasDetails {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(isExpanded ? "Свернуть шаги" : "Показать шаги")
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                     }
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfSub)
                 }
+                .buttonStyle(.plain)
             }
 
-            if !children.isEmpty {
-                VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                    ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
-                        childRow(child, number: index + 1)
+            if isExpanded {
+                if !parent.subtasks.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(parent.subtasks) { step in
+                            stepRow(step)
+                        }
                     }
                 }
-                .padding(.top, 2)
+
+                if !children.isEmpty {
+                    VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                        ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+                            childRow(child, number: index + 1)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
             }
 
             if let errorText {
@@ -206,6 +233,39 @@ struct SecretaryDraftCard: View {
             parts.append(done > 0 ? "шаги \(done) из \(steps)" : "\(steps) \(Self.stepsWord(steps))")
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// Строка «сути» под заголовком — исполнитель + счёт, одна строка,
+    /// видна и в свёрнутом виде.
+    private func summaryLine(_ parent: ApiTask) -> String {
+        if !children.isEmpty {
+            let done = children.filter { $0.status == .completed }.count
+            var text = "\(children.count) \(Self.tasksWord(children.count))"
+            if done > 0 { text += " · готово \(done) из \(children.count)" }
+            return text
+        }
+        var parts: [String] = []
+        if parent.assigneeId == ownerID {
+            parts.append("Вы")
+        } else if let role = parent.dispatchedRole ?? parent.ownerSelectedRole ?? parent.machineSelectedRole {
+            parts.append(roleTitleByKey[role] ?? role)
+        } else {
+            parts.append("исполнитель подберётся")
+        }
+        let steps = parent.subtasks.count
+        if steps > 0 {
+            let done = parent.subtasks.filter(\.done).count
+            parts.append(done > 0 ? "шаги \(done) из \(steps)" : "\(steps) \(Self.stepsWord(steps))")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func tasksWord(_ n: Int) -> String {
+        let mod100 = n % 100, mod10 = n % 10
+        if (11...14).contains(mod100) { return "задач" }
+        if mod10 == 1 { return "задача" }
+        if (2...4).contains(mod10) { return "задачи" }
+        return "задач"
     }
 
     private static func stepsWord(_ n: Int) -> String {

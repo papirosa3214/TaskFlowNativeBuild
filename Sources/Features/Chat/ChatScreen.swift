@@ -148,6 +148,8 @@ struct ChatScreen: View {
                 }
                 .padding(.top, TFSpacing.md)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .hideComposerScrollEdgeEffect()
             .onChange(of: viewModel.messages.count) { _, _ in scrollToBottom(proxy) }
             .onChange(of: viewModel.visibleTypists) { _, _ in scrollToBottom(proxy) }
         }
