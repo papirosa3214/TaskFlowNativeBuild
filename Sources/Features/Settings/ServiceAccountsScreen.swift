@@ -30,6 +30,17 @@ final class ServiceAccountsViewModel {
         isOwner = currentUser?.role == .owner
     }
 
+    /// Что получает подключившийся MCP-клиент — с сервера, не копией.
+    private(set) var manifest: MCPManifest?
+    private(set) var rules: [String] = []
+
+    func loadClientInfo() async {
+        async let manifest = try? api.mcpManifest()
+        async let rules = try? api.agentRules()
+        self.manifest = await manifest
+        self.rules = await rules ?? []
+    }
+
     func load() async {
         if accounts.isEmpty { isLoading = true }
         defer { isLoading = false }
@@ -153,15 +164,18 @@ struct ServiceAccountsScreen: View {
     @State private var newName = ""
     @State private var pendingDelete: ApiUser?
     @State private var isKeyCopied = false
+    @State private var expandedInfo: ClientInfoRow?
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
                 TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить сервисные учётки" })
 
-                Text("Сервисные учётки и их ключи доступа. Это инфраструктура, а не участники команды: исполнители задач — роли на экране «Команда».")
+                Text("Подключение сторонних ИИ-агентов и программ к TaskFlow по протоколу MCP (Model Context Protocol): Гермес, Claude Code, DSH и любой другой MCP-клиент. Подключившийся получает инструкцию и инструменты ниже и работает под своей учёткой с отдельным ключом. Роли TaskFlow сюда не относятся — их запускает сам сервер, и набор у них шире.")
                     .tfText(.caption)
                     .foregroundStyle(Color.tfSub)
+
+                clientInfoSection
 
                 if let issued = viewModel.issuedToken {
                     issuedTokenCard(issued)
@@ -177,10 +191,12 @@ struct ServiceAccountsScreen: View {
             .padding(.vertical, TFSpacing.lg)
         }
         .background(Color.tfBackground)
-        .tfNativeHeader("MCP")
+        .tfNativeHeader("Сервер MCP")
         .task {
             viewModel.configure(currentUser: session.currentUser)
-            await viewModel.load()
+            async let accounts: Void = viewModel.load()
+            async let info: Void = viewModel.loadClientInfo()
+            _ = await (accounts, info)
         }
         .alert("Удалить учётку «\(pendingDelete?.name ?? "")»?", isPresented: Binding(
             get: { pendingDelete != nil },
@@ -303,6 +319,106 @@ struct ServiceAccountsScreen: View {
                 }
             }
         }
+    }
+
+    // MARK: - Что получает подключившийся
+
+    private enum ClientInfoRow { case instructions, tools, rules }
+
+    private var clientInfoSection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader("Что получает подключившийся")
+            TFCard(padding: 0) {
+                VStack(spacing: 0) {
+                    infoRow(.instructions, title: "Инструкция при подключении", count: nil)
+                    TFDivider(inset: TFSpacing.lg)
+                    infoRow(.tools, title: "Инструменты", count: viewModel.manifest?.tools.count)
+                    TFDivider(inset: TFSpacing.lg)
+                    infoRow(.rules, title: "Полные правила", count: viewModel.rules.isEmpty ? nil : viewModel.rules.count)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func infoRow(_ row: ClientInfoRow, title: String, count: Int?) -> some View {
+        let isOpen = expandedInfo == row
+        VStack(alignment: .leading, spacing: 0) {
+            Button { expandedInfo = isOpen ? nil : row } label: {
+                HStack(spacing: TFSpacing.md) {
+                    Text(title).tfText(.body).foregroundStyle(Color.tfText)
+                    Spacer(minLength: TFSpacing.sm)
+                    if let count {
+                        Text("\(count)").tfText(.action).foregroundStyle(Color.tfDim)
+                    }
+                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.tfDim)
+                }
+                .padding(.horizontal, TFSpacing.lg)
+                .frame(minHeight: TFField.height)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isOpen {
+                infoContent(row)
+                    .padding(.horizontal, TFSpacing.lg)
+                    .padding(.bottom, TFSpacing.md)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func infoContent(_ row: ClientInfoRow) -> some View {
+        switch row {
+        case .instructions:
+            if let text = viewModel.manifest?.instructions {
+                Text(text)
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                    .textSelection(.enabled)
+            } else {
+                unavailable
+            }
+        case .tools:
+            if let tools = viewModel.manifest?.tools {
+                VStack(alignment: .leading, spacing: TFSpacing.md) {
+                    ForEach(tools) { tool in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tool.name)
+                                .tfMonospaced(12, relativeTo: .caption)
+                                .foregroundStyle(Color.tfText)
+                            Text(tool.description)
+                                .tfText(.action)
+                                .foregroundStyle(Color.tfSub)
+                        }
+                    }
+                }
+                .textSelection(.enabled)
+            } else {
+                unavailable
+            }
+        case .rules:
+            if viewModel.rules.isEmpty {
+                unavailable
+            } else {
+                VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                    ForEach(Array(viewModel.rules.enumerated()), id: \.offset) { index, rule in
+                        Text("\(index + 1). \(rule)")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+                .textSelection(.enabled)
+            }
+        }
+    }
+
+    private var unavailable: some View {
+        Text("Не удалось получить с сервера")
+            .tfText(.action)
+            .foregroundStyle(Color.tfDim)
     }
 
     private var accountsSection: some View {

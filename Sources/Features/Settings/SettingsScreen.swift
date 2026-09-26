@@ -173,7 +173,7 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             RuntimeStatusRow()
             TFDivider(inset: rowDividerInset)
-            navRow(icon: "person.badge.key", title: "MCP", route: .serviceAccounts)
+            navRow(icon: "person.badge.key", title: "Сервер MCP", route: .serviceAccounts)
         }
     }
 
