@@ -132,7 +132,10 @@ struct ChatVoiceComposer: View {
     private var recordingComposer: some View {
         HStack(spacing: 16) {
             VoiceBarsView(
-                level: recordingLevel, color: .red,
+                // Владелец 26.09.2026: волна в покое — тёмно-красная, а
+                // полоски, которые сейчас растут сильнее (амплитуда),
+                // загораются ярко-красным.
+                level: recordingLevel, color: .red.mix(with: .black, by: 0.55), peakColor: .red,
                 barWidth: 3, spacing: 2, maxHeight: 28, isSmooth: true
             )
                 .frame(maxWidth: .infinity)

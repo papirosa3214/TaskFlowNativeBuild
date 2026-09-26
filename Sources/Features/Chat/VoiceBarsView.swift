@@ -46,6 +46,10 @@ enum VoiceBarsMotion {
 struct VoiceBarsView: View {
     var level: Double
     var color: Color
+    /// Владелец 26.09.2026: полоска в покое — `color` (тёмный тон), на пике
+    /// амплитуды (чем выше сама полоска сейчас) — подмешивается этот цвет
+    /// (яркий тон). `nil` — прежнее поведение, сплошной `color` без подмеса.
+    var peakColor: Color? = nil
     var isWaiting = false
     var barWidth: CGFloat = 16
     var spacing: CGFloat = 10
@@ -72,20 +76,18 @@ struct VoiceBarsView: View {
                     )
                     HStack(spacing: spacing) {
                         ForEach(0..<count, id: \.self) { i in
+                            let h = VoiceBarsMotion.smoothHeight(
+                                level: level,
+                                bar: i,
+                                count: count,
+                                time: t,
+                                sensitivity: 2,
+                                barWidth: Double(barWidth),
+                                maxHeight: Double(maxHeight)
+                            )
                             Capsule()
-                                .fill(color)
-                                .frame(
-                                    width: barWidth,
-                                    height: CGFloat(VoiceBarsMotion.smoothHeight(
-                                        level: level,
-                                        bar: i,
-                                        count: count,
-                                        time: t,
-                                        sensitivity: 2,
-                                        barWidth: Double(barWidth),
-                                        maxHeight: Double(maxHeight)
-                                    ))
-                                )
+                                .fill(barColor(height: h))
+                                .frame(width: barWidth, height: CGFloat(h))
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -94,9 +96,10 @@ struct VoiceBarsView: View {
             } else {
                 HStack(spacing: spacing) {
                     ForEach(Self.weights.indices, id: \.self) { i in
+                        let h = height(bar: i, time: t)
                         Capsule()
-                            .fill(color)
-                            .frame(width: barWidth, height: height(bar: i, time: t))
+                            .fill(barColor(height: Double(h)))
+                            .frame(width: barWidth, height: h)
                     }
                 }
                 .frame(height: maxHeight)
@@ -108,6 +111,15 @@ struct VoiceBarsView: View {
         )
         .animation(.easeInOut(duration: 0.3), value: color)
         .accessibilityHidden(true)
+    }
+
+    /// Доля роста этой полоски сейчас относительно её собственного диапазона
+    /// (`barWidth`…`maxHeight`) — 0 в покое, 1 на максимуме амплитуды.
+    private func barColor(height h: Double) -> Color {
+        guard let peakColor else { return color }
+        let span = Double(maxHeight) - Double(barWidth)
+        let fraction = span > 0 ? min(max((h - Double(barWidth)) / span, 0), 1) : 0
+        return color.mix(with: peakColor, by: fraction)
     }
 
     private func height(bar i: Int, time t: Double) -> CGFloat {
