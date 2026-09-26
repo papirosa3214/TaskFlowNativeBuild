@@ -97,6 +97,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         TemplatesScreen()
     case .voiceModels:
         VoiceModelsScreen()
+    case .secretaryVoicePicker:
+        SecretaryVoicePickerScreen()
     case .runtimeProviders:
         RuntimeProvidersScreen()
     case .providerDetail(let providerID):

@@ -58,6 +58,8 @@ public enum AppRoute: Hashable {
     case integrations
     case templates
     case voiceModels
+    /// LOCK-218: Настройки → ИИ → выбор голоса Секретаря с прослушиванием.
+    case secretaryVoicePicker
     /// LOCK-179: серверный AI — провайдеры и модели Pi (`/api/runtime/*`).
     /// Локальные модели остаются на `.voiceModels` («На устройстве»).
     case runtimeProviders

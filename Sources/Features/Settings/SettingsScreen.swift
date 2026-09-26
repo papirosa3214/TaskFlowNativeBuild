@@ -128,27 +128,22 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             navRow(icon: "iphone", title: "Приложение (телефон и сервер)", route: .voiceModels)
             TFDivider(inset: rowDividerInset)
-            TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Секретаря",
-                      trailing: AnyView(secretaryVoiceMenu), titleStyle: .action,
-                      verticalPadding: TFSpacing.xs)
+            NavigationLink(value: AppRoute.secretaryVoicePicker) {
+                TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Секретаря",
+                          trailing: AnyView(secretaryVoiceValue), titleStyle: .action,
+                          verticalPadding: TFSpacing.xs)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.secretary-voice")
         }
     }
 
-    /// Голос живого разговора с Секретарём — применяется со следующего звонка.
-    private var secretaryVoiceMenu: some View {
-        Menu {
-            Picker("Голос Секретаря", selection: $secretaryVoice) {
-                ForEach(SecretaryVoice.allCases) { Text($0.title).tag($0.rawValue) }
-            }
-        } label: {
-            HStack(spacing: TFSpacing.xs) {
-                Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.tfDim)
-            }
+    /// Текущий голос + шеврон: выбор и прослушивание — на отдельном экране.
+    private var secretaryVoiceValue: some View {
+        HStack(spacing: TFSpacing.sm) {
+            Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
+            chevron
         }
-        .accessibilityIdentifier("settings.secretary-voice")
     }
 
     @ViewBuilder
