@@ -372,6 +372,53 @@ private struct RoleChatTypingLine: View {
     }
 }
 
+/// Подпись/иконка по имени инструмента с сервера — сервер имя не
+/// интерпретирует, это целиком презентационная таблица клиента.
+enum RoleStepPresentation {
+    static func label(forTool tool: String) -> String {
+        switch tool {
+        case "read": return "Читает"
+        case "edit", "write": return "Правит"
+        case "bash": return "Выполняет команду"
+        case "grep", "glob": return "Ищет"
+        default: return "Работает"
+        }
+    }
+
+    static func symbol(forTool tool: String) -> String {
+        switch tool {
+        case "read": return "doc.text"
+        case "edit", "write": return "pencil.line"
+        case "bash": return "bolt"
+        case "grep", "glob": return "magnifyingglass"
+        default: return "gearshape"
+        }
+    }
+}
+
+/// Строка «роль делает шаг прямо сейчас» — замена `RoleChatTypingLine`
+/// в 1:1-чате, когда для роли пришёл `tool`. По мотивам референсного
+/// AgentActivityFeed (26.09.2026, брейнсторм с владельцем).
+struct RoleStepLine: View {
+    let name: String
+    let tool: String
+
+    var body: some View {
+        HStack(spacing: TFSpacing.sm) {
+            Image(systemName: RoleStepPresentation.symbol(forTool: tool))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.tfSub)
+                .symbolEffect(.pulse, options: .repeating)
+            Text("\(name): \(RoleStepPresentation.label(forTool: tool))")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .lineLimit(1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name): \(RoleStepPresentation.label(forTool: tool))")
+    }
+}
+
 /// Аватар участника чата — фото, если оно есть у учётки, иначе инициалы.
 private struct RoleMemberAvatar: View {
     let member: RoleChatMember
@@ -589,6 +636,10 @@ private struct RoleChatRoomScreen: View {
     /// Кто сейчас готовит ответ: userId → имя. Наполняет только сервер
     /// (`chats:typing`) — на время, пока роль действительно отвечает.
     @State private var typists: [String: String] = [:]
+    /// Текущий инструмент по тайписту (userId → имя инструмента с сервера,
+    /// например "read"/"edit"/"bash") — только пока `active == true` и
+    /// сервер прислал `tool`. Живёт ровно как `typists`: без истории.
+    @State private var typistTools: [String: String] = [:]
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
@@ -787,9 +838,14 @@ private struct RoleChatRoomScreen: View {
                 switch event {
                 case .roleChatMessage(let id) where id == chatID:
                     Task { await refresh() }
-                case .roleChatTyping(let id, let userID, let name, let active) where id == chatID:
-                    if active { typists[userID] = name.isEmpty ? "Участник" : name }
-                    else { typists[userID] = nil }
+                case .roleChatTyping(let id, let userID, let name, let active, let tool) where id == chatID:
+                    if active {
+                        typists[userID] = name.isEmpty ? "Участник" : name
+                        typistTools[userID] = tool
+                    } else {
+                        typists[userID] = nil
+                        typistTools[userID] = nil
+                    }
                 default:
                     break
                 }
@@ -797,6 +853,7 @@ private struct RoleChatRoomScreen: View {
             realtime.onReconnected = {
                 // За время разрыва сигнал «закончил» мог потеряться.
                 typists = [:]
+                typistTools = [:]
                 Task { await refresh() }
             }
             realtime.connect()
@@ -899,8 +956,14 @@ private struct RoleChatRoomScreen: View {
                         .id(message.id)
                     }
                     if !typists.isEmpty {
-                        RoleChatTypingLine(names: typists.values.sorted())
-                            .id("typing-line")
+                        if chat.kind != "group", let onlyUserID = typists.keys.first,
+                           let tool = typistTools[onlyUserID] {
+                            RoleStepLine(name: typists[onlyUserID] ?? "Роль", tool: tool)
+                                .id("typing-line")
+                        } else {
+                            RoleChatTypingLine(names: typists.values.sorted())
+                                .id("typing-line")
+                        }
                     }
                 }
                 .padding(TFSpacing.lg)
