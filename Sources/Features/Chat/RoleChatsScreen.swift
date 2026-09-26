@@ -345,6 +345,53 @@ private struct ChatListRow: View {
     }
 }
 
+/// Раскладка переносом строк — сколько элементов влезает в ширину, столько
+/// и встаёт в ряд, остальное уходит на следующую строку (не горизонтальный
+/// скролл и не один элемент на строку). Используется квик-реплаями
+/// (владелец 26.09.2026).
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = TFSpacing.sm
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var maxRowWidth: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                totalHeight += rowHeight + spacing
+                maxRowWidth = max(maxRowWidth, x - spacing)
+                x = 0
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        totalHeight += rowHeight
+        maxRowWidth = max(maxRowWidth, x - spacing)
+        return CGSize(width: maxWidth.isFinite ? maxWidth : maxRowWidth, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
 /// «Разработчик печатает…» с анимированными точками — показывается только
 /// по сигналу сервера, пока роль действительно готовит ответ (22.09.2026).
 private struct RoleChatTypingLine: View {
@@ -660,16 +707,7 @@ private struct RoleChatRoomScreen: View {
 
     private var composerRoom: some View {
         VStack(spacing: 0) {
-            // Квик-реплаи — оверлей ПОВЕРХ ленты, а не отдельная строка в
-            // layout (владелец 26.09.2026: со строкой в layout лента упиралась
-            // в пилюлю и обрезалась вместо того, чтобы уходить под неё). Лента
-            // теперь занимает всю высоту сама, пилюля просто висит сверху.
-            ZStack(alignment: .bottom) {
-                messageScroll
-                if !isSelecting, let replies = lastQuickReplies {
-                    quickReplyRow(replies)
-                }
-            }
+            messageScroll
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
             }
@@ -934,6 +972,14 @@ private struct RoleChatRoomScreen: View {
                     ForEach(messages) { message in
                         messageRow(message)
                             .id(message.id)
+                    }
+                    // Владелец 26.09.2026: плашки быстрых ответов должны
+                    // крепиться к сообщению роли, а не болтаться отдельным
+                    // оверлеем над полем ввода — переехали в саму ленту,
+                    // сразу под последним сообщением, и скроллятся вместе с
+                    // перепиской.
+                    if !isSelecting, let replies = lastQuickReplies {
+                        quickReplyRow(replies)
                     }
                     ForEach(pendingVoices) { message in
                         VStack(alignment: .trailing, spacing: 4) {
@@ -1243,39 +1289,24 @@ private struct RoleChatRoomScreen: View {
             }
     }
 
-    /// Сразу в развёрнутом виде — владелец 26.09.2026: раз сам ряд вариантов
-    /// уже нормально смотрится (то же стекло, что у поля ввода, лента видна
-    /// сквозь него), сворачивать в отдельный триггер незачем — лишний тап.
-    /// Владелец 26.09.2026 (продолжение): по бокам скролл резал пилюлю
-    /// жёсткой границей — вместо нее градиентная маска, край уходит в
-    /// прозрачность постепенно. Отступ — внутри контента (после маски),
-    /// иначе в покое пилюля с краю сама попадала бы в зону затухания.
+    /// Владелец 26.09.2026: плашки крепятся к сообщению роли, в ленте, а не
+    /// в отдельном оверлее над композером. Раскладка — переносом строк
+    /// (сколько влезает в строку, столько и встаёт, лишнее уходит на
+    /// следующую), а не одна горизонтально скроллящаяся строка: владелец
+    /// прямо попросил «так и клади, не в столбик» вместо горизонтального
+    /// скролла или одного варианта на строку.
     private func quickReplyRow(_ replies: [String]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TFSpacing.sm) {
-                ForEach(replies, id: \.self) { reply in
-                    Button {
-                        draft = reply
-                        Task { await send() }
-                    } label: {
-                        quickReplyPillStyle { Text(reply) }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isSending)
+        FlowLayout(spacing: TFSpacing.sm) {
+            ForEach(replies, id: \.self) { reply in
+                Button {
+                    draft = reply
+                    Task { await send() }
+                } label: {
+                    quickReplyPillStyle { Text(reply) }
                 }
+                .buttonStyle(.plain)
+                .disabled(isSending)
             }
-            .padding(.horizontal, TFSpacing.lg)
-        }
-        .mask {
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.06),
-                    .init(color: .black, location: 0.94),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .leading, endPoint: .trailing
-            )
         }
         .padding(.vertical, TFSpacing.xs)
     }
