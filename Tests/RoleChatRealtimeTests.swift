@@ -34,7 +34,7 @@ final class RoleChatRealtimeTests: XCTestCase {
         let start = parse(#"""
         {"type":"chats:typing","chat_id":"chat-1","user_id":"role_builder","name":"Разработчик","active":true}
         """#)
-        guard case .roleChatTyping(let chatID, let userID, let name, let active) = start else {
+        guard case .roleChatTyping(let chatID, let userID, let name, let active, _) = start else {
             return XCTFail("ожидали roleChatTyping")
         }
         XCTAssertEqual(chatID, "chat-1")
@@ -45,9 +45,29 @@ final class RoleChatRealtimeTests: XCTestCase {
         let stop = parse(#"""
         {"type":"chats:typing","chat_id":"chat-1","user_id":"role_builder","name":"Разработчик","active":false}
         """#)
-        guard case .roleChatTyping(_, _, _, let stillActive) = stop else {
+        guard case .roleChatTyping(_, _, _, let stillActive, _) = stop else {
             return XCTFail("ожидали roleChatTyping")
         }
         XCTAssertFalse(stillActive)
+    }
+
+    func testTypingCarriesCurrentTool() {
+        let withTool = parse(#"""
+        {"type":"chats:typing","chat_id":"chat-1","user_id":"role_builder",
+         "name":"Разработчик","active":true,"tool":"read"}
+        """#)
+        guard case .roleChatTyping(_, _, _, _, let tool) = withTool else {
+            return XCTFail("ожидали roleChatTyping")
+        }
+        XCTAssertEqual(tool, "read")
+
+        let withoutTool = parse(#"""
+        {"type":"chats:typing","chat_id":"chat-1","user_id":"role_builder",
+         "name":"Разработчик","active":true}
+        """#)
+        guard case .roleChatTyping(_, _, _, _, let noTool) = withoutTool else {
+            return XCTFail("ожидали roleChatTyping")
+        }
+        XCTAssertNil(noTool)
     }
 }

@@ -30,7 +30,7 @@ public enum RealtimeEvent: Sendable {
     case roleChatMessage(chatId: String)
     /// Роль готовит ответ в чате (`chats:typing`): `active` — начала/закончила.
     /// Сигнал даёт сервер ровно на время ответа роли (22.09.2026).
-    case roleChatTyping(chatId: String, userId: String, name: String, active: Bool)
+    case roleChatTyping(chatId: String, userId: String, name: String, active: Bool, tool: String?)
     case serverError(message: String?)
     case unknown(type: String, raw: JSONValue)
 
@@ -47,6 +47,7 @@ public enum RealtimeEvent: Sendable {
         let user_id: String
         let name: String?
         let active: Bool
+        let tool: String?
     }
 
     public static func parse(_ data: Data) -> RealtimeEvent? {
@@ -98,7 +99,7 @@ public enum RealtimeEvent: Sendable {
             guard let p = try? decoder.decode(RoleTypingPayload.self, from: data) else {
                 return .unknown(type: envelope.type, raw: raw)
             }
-            return .roleChatTyping(chatId: p.chat_id, userId: p.user_id, name: p.name ?? "", active: p.active)
+            return .roleChatTyping(chatId: p.chat_id, userId: p.user_id, name: p.name ?? "", active: p.active, tool: p.tool)
         case "error":
             let payload = try? decoder.decode(ErrorPayload.self, from: data)
             return .serverError(message: payload?.message ?? payload?.error)
