@@ -68,15 +68,13 @@ enum AppleEventKitAccess {
     }
 
     @discardableResult
-    static func createReminder(title: String, notes: String?, dueDate: Date?, priority: Int, list: EKCalendar?) -> String? {
+    static func createReminder(title: String, notes: String?, dueDateComponents: DateComponents?, priority: Int, list: EKCalendar?) -> String? {
         let reminder = EKReminder(eventStore: store)
         reminder.title = title
         reminder.notes = notes
         reminder.priority = priority
         reminder.calendar = list ?? store.defaultCalendarForNewReminders()
-        if let dueDate {
-            reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
-        }
+        reminder.dueDateComponents = dueDateComponents
         do {
             try store.save(reminder, commit: true)
             return reminder.calendarItemIdentifier
@@ -113,6 +111,22 @@ enum AppleRemindersSync {
 
     struct Result { let imported: Int; let exported: Int; let updated: Int }
 
+    /// Календарный день напоминания → `due_date` напрямую год/месяц/день:
+    /// через `Date` и часовой пояс день без времени или до 03:00 уезжал
+    /// на сутки назад (LOCK-222).
+    static func dueDateString(from components: DateComponents) -> String? {
+        guard let year = components.year, let month = components.month, let day = components.day else { return nil }
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    /// `due_date` → день напоминания без времени (раньше через UTC-полночь
+    /// у напоминания появлялось время 03:00).
+    static func reminderComponents(dueDate: String) -> DateComponents? {
+        let parts = dueDate.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3, dueDate.count == 10 else { return nil }
+        return DateComponents(year: parts[0], month: parts[1], day: parts[2])
+    }
+
     static func syncAll(
         tasks: [ApiTask],
         list: EKCalendar?,
@@ -134,8 +148,8 @@ enum AppleRemindersSync {
             if existingTask == nil {
                 var dueDate: String?
                 var startTime: String?
-                if let components = reminder.dueDateComponents, let date = Calendar.current.date(from: components) {
-                    dueDate = DateFormats.calendarDateString(date)
+                if let components = reminder.dueDateComponents, let day = dueDateString(from: components) {
+                    dueDate = day
                     if components.hour != nil || components.minute != nil {
                         let hour = components.hour ?? 0
                         let minute = components.minute ?? 0
@@ -169,8 +183,8 @@ enum AppleRemindersSync {
 
         // 2. Экспорт из TaskFlow: незавершённые задачи, которых ещё нет в Apple.
         for task in tasks where task.status != .completed && map[task.id] == nil {
-            let dueDate = task.dueDate.flatMap(DateFormats.calendarDate)
-            if let reminderId = createReminder(title: task.title, notes: task.description, dueDate: dueDate, priority: task.priority, list: list) {
+            let dueComponents = task.dueDate.flatMap(reminderComponents(dueDate:))
+            if let reminderId = createReminder(title: task.title, notes: task.description, dueDateComponents: dueComponents, priority: task.priority, list: list) {
                 map[task.id] = reminderId
                 map[reminderId] = task.id
                 exported += 1
@@ -185,7 +199,7 @@ enum AppleRemindersSync {
         await AppleEventKitAccess.fetchReminders(in: list)
     }
 
-    private static func createReminder(title: String, notes: String?, dueDate: Date?, priority: Int, list: EKCalendar?) -> String? {
-        AppleEventKitAccess.createReminder(title: title, notes: notes, dueDate: dueDate, priority: priority, list: list)
+    private static func createReminder(title: String, notes: String?, dueDateComponents: DateComponents?, priority: Int, list: EKCalendar?) -> String? {
+        AppleEventKitAccess.createReminder(title: title, notes: notes, dueDateComponents: dueDateComponents, priority: priority, list: list)
     }
 }

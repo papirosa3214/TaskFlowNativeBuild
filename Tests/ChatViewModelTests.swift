@@ -31,6 +31,47 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertNil(snapshot.getBeforeValues[1])
         XCTAssertEqual(snapshot.getBeforeValues[2], "old")
     }
+
+    /// Ответ Секретаря приходит событием `chat:new` — он обязан попасть в
+    /// ленту открытого канала сразу, без перезахода на экран (владелец
+    /// 19.09.2026). Ссылка на карточку (`task_title`) сохраняется.
+    func testRealtimeSecretaryReplyAppearsInOwnerChannel() throws {
+        let viewModel = ChatViewModel()
+        let owner = try JSONDecoder().decode(
+            ApiUser.self,
+            from: Data(#"{"id":"owner-1","name":"Максим","role":"owner","type":"human"}"#.utf8)
+        )
+        viewModel.configure(currentUser: owner)
+
+        let reply = try JSONDecoder().decode(
+            ApiChatMessage.self,
+            from: Data(#"{"id":"sec-1","channel":"owner","text":"Собрал карточку","task_id":"t-1","task_title":"Помыть посуду"}"#.utf8)
+        )
+        viewModel.handle(.chatNew(reply))
+
+        XCTAssertEqual(viewModel.messages.map(\.id), ["sec-1"])
+        XCTAssertEqual(viewModel.messages.first?.taskTitle, "Помыть посуду")
+    }
+
+    /// Сообщение чужого канала в ленту не идёт, повтор события не задваивает.
+    func testRealtimeIgnoresOtherChannelAndDuplicates() throws {
+        let viewModel = ChatViewModel() // агентская учётка — активен канал «agents»
+
+        let other = try JSONDecoder().decode(
+            ApiChatMessage.self,
+            from: Data(#"{"id":"owner-1","channel":"owner","text":"чужое окно"}"#.utf8)
+        )
+        viewModel.handle(.chatNew(other))
+        XCTAssertTrue(viewModel.messages.isEmpty)
+
+        let mine = try JSONDecoder().decode(
+            ApiChatMessage.self,
+            from: Data(#"{"id":"agents-1","channel":"agents","text":"привет"}"#.utf8)
+        )
+        viewModel.handle(.chatNew(mine))
+        viewModel.handle(.chatNew(mine))
+        XCTAssertEqual(viewModel.messages.map(\.id), ["agents-1"])
+    }
 }
 
 private final class ChatRequestProbe: @unchecked Sendable {

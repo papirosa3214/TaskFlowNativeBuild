@@ -17,10 +17,12 @@ import SwiftUI
 // сверх контракта (`.notes` без параметра не тронут) — `NotesScreen` теперь
 // умеет открыться сразу на нужной папке.
 struct ProjectTasksScreen: View {
-    let projectID: String
+    /// `nil` — раздел «Без проекта»: все задачи без проекта, тем же списком.
+    let projectID: String?
 
     @Environment(ProjectStore.self) private var projectStore
     @Environment(TaskStore.self) private var taskStore
+    @Environment(SessionStore.self) private var session
     @State private var relationshipTasks: [ApiTask] = []
 
     private let apiClient = APIClient()
@@ -38,7 +40,8 @@ struct ProjectTasksScreen: View {
     private var isTaskOwner: Bool { true }
 
     private var project: ApiProject? {
-        projectStore.projects.first { $0.id == projectID }
+        guard let projectID else { return nil }
+        return projectStore.projects.first { $0.id == projectID }
     }
 
     /// Закреплённые — единым блоком сверху, порядок внутри каждой группы не
@@ -70,7 +73,7 @@ struct ProjectTasksScreen: View {
     }
 
     private var notFound: Bool {
-        !projectStore.isLoading && projectStore.errorMessage == nil && project == nil
+        projectID != nil && !projectStore.isLoading && projectStore.errorMessage == nil && project == nil
     }
 
     var body: some View {
@@ -83,11 +86,11 @@ struct ProjectTasksScreen: View {
 
                 if notFound {
                     notFoundView
-                } else if let project {
+                } else if projectID == nil || project != nil {
                     if tasks.isEmpty {
                         TFEmptyState(
                             icon: "tray",
-                            text: "В проекте пока нет задач"
+                            text: projectID == nil ? "Задач без проекта нет" : "В проекте пока нет задач"
                         )
                         .padding(.horizontal, TFSpacing.xs)
                     } else {
@@ -98,9 +101,11 @@ struct ProjectTasksScreen: View {
                         }
                     }
 
-                    ProjectNotesSection(project: project, onProjectPatched: { _ in
-                        Task { await projectStore.load() }
-                    })
+                    if let project {
+                        ProjectNotesSection(project: project, onProjectPatched: { _ in
+                            Task { await projectStore.load() }
+                        })
+                    }
                 }
             }
             .padding(.top, TFSpacing.sm)
@@ -119,14 +124,14 @@ struct ProjectTasksScreen: View {
         // содержимое заголовка на произвольное вью, сам разруливая место с
         // соседним «+» (тот самый наезд текста на кнопку, LOCK-060/061,
         // здесь в принципе невозможен на системном toolbar).
-        .tfNativeHeader(project?.name ?? "Проект", displayMode: .inline)
+        .tfNativeHeader(projectID == nil ? "Без проекта" : (project?.name ?? "Проект"), displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
                     if let project {
                         Circle().fill(Color(hex: project.color ?? TFHexDefault.unassigned)).frame(width: 10, height: 10)
                     }
-                    Text(project?.name ?? "Проект")
+                    Text(projectID == nil ? "Без проекта" : (project?.name ?? "Проект"))
                         .tfText(.title)
                         .foregroundStyle(Color.tfText)
                         .lineLimit(1)
@@ -137,6 +142,7 @@ struct ProjectTasksScreen: View {
                     Button { showNewTask = true } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("Добавить")
                 }
             }
         }
@@ -165,26 +171,46 @@ struct ProjectTasksScreen: View {
     private func rowWithIndex(_ rowIndex: Int) -> some View {
         let task = tasks[rowIndex]
         let shortId = String(task.id.prefix(8))
-        let swipeAction = ProjectTaskSwipeAction.action(for: task, isOwner: isTaskOwner)
+        let swipeAction = ProjectTaskSwipeAction.action(
+            for: task, isOwner: isTaskOwner, currentUserID: session.currentUser?.id
+        )
         DirectoryTaskRow(
             index: shortId,
             task: task,
             isOwner: isTaskOwner,
             onOpen: { pendingDetail = task.id },
-            onDelete: { Task { await taskStore.delete(taskId: task.id) } },
+            onDelete: { Task { await deleteTask(task) } },
             swipeAction: swipeAction,
             onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
         )
     }
 
-    /// Свайп-действие по строке проекта. Поднять флаг — PATCH ready_for_pickup.
+    /// Удаление строки из проектного списка. `TaskStore.delete` чистит только
+    /// `taskStore.tasks`, а строки этого экрана рисуются из
+    /// `relationshipTasks` (`tasks(includeChildren: true)`) — из-за этого
+    /// удалённая задача оставалась на месте до ручного pull-to-refresh
+    /// (владелец 19.09.2026: «после действия не исчезают, сам должен
+    /// обновлять»). Гасим строку в обоих источниках и подтягиваем свежий
+    /// список, чтобы пересчиталось дерево.
+    private func deleteTask(_ task: ApiTask) async {
+        _ = await taskStore.delete(taskId: task.id)
+        relationshipTasks.removeAll { $0.id == task.id }
+        await refreshRelationshipTasks()
+    }
+
+    /// Свайп-действие по строке проекта. «Запустить» — сервер поднимает флаг.
     /// Принять ревью — снять блокировку и закрыть задачу (как в TaskDetailViewModel).
     private func performSwipe(task: ApiTask, action: ProjectTaskSwipeAction?) async {
         guard let action else { return }
         do {
             switch action {
             case .markReadyForPickup:
-                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                // «Запустить» — тем же путём, что в карточке и в чате Секретаря.
+                if task.parentId == nil {
+                    try await apiClient.startDraft(taskID: task.id)
+                } else {
+                    _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                }
             case .complete:
                 // complete покрывает «принять задачу» — и ревью, и просто
                 // завершить. Если был ревью — сначала снимаем блокировку.
@@ -195,6 +221,7 @@ struct ProjectTasksScreen: View {
                 _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
             }
             await taskStore.load(silent: true)
+            await refreshRelationshipTasks()
         } catch {
             // Тихая ошибка: визуально строка просто не изменится. Подробный
             // тост для свайпа не показывается — это быстрый жест, и отдельная

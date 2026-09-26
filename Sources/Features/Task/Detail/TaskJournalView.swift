@@ -102,6 +102,15 @@ enum TaskJournalView {
             default: return "изменил состояние задачи"
             }
         case "review_recorded": return "записал итог проверки"
+        // Отправка на проверку и ручные запуски (22.09.2026): раньше они не
+        // оставляли в ленте следа вовсе.
+        case "reviewer_sent":
+            return value.isEmpty ? "отправлено на проверку" : "отправлено на проверку: \(value)"
+        case "run_requested":
+            if event.field == "reviewer" {
+                return value.isEmpty ? "отправил на проверку" : "отправил на проверку: \(value)"
+            }
+            return value.isEmpty ? "запустил исполнителя" : "запустил исполнителя: \(value)"
         case "result_version_created": return "приложил результат на проверку"
 
         // Поля карточки

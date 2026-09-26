@@ -124,7 +124,7 @@ final class ChatViewModel {
             return "Пока пусто — исполнители ещё не переписывались."
         }
         if activeChannel == .owner && isOwner {
-            return "Пока пусто. Наговорите сюда задачу — разберу и соберу карточку-черновик, останется поставить флаг готовности."
+            return "Пока пусто. Наговорите сюда задачу — разберу и соберу карточку-черновик, останется нажать «Запустить»."
         }
         return "Пока пусто — первое сообщение здесь твоё."
     }
@@ -285,6 +285,17 @@ final class ChatViewModel {
 
     // MARK: - Вложения
 
+    /// Очистить ленту текущего канала (владелец). Владелец 21.09.2026:
+    /// «должна быть возможность очищать этот чат».
+    func clearChat() async {
+        do {
+            try await api.clearChatMessages(channel: activeChannel)
+            messages = []
+        } catch {
+            sendErrorMessage = Self.message(for: error)
+        }
+    }
+
     func attach(fileName: String, data: Data, mime: String) async {
         isUploadingAttachment = true
         uploadErrorMessage = nil
@@ -358,12 +369,32 @@ final class ChatViewModel {
     }
 
     private func recomputeTypists() {
-        typists = typingDeadlines.map { ChatTypist(userId: $0.key, name: $0.value.name) }
+        // СТАБИЛЬНЫЙ порядок: словарь в Swift перебирается недетерминированно,
+        // поэтому без сортировки массив каждый секундный sweep выглядел новым,
+        // `onChange(of: visibleTypists)` срабатывал постоянно и лента сообщений
+        // прыгала вверх-вниз (владелец 21.09.2026). Сортируем по id — тогда
+        // значение меняется только при реальном изменении состава.
+        typists = typingDeadlines
+            .map { ChatTypist(userId: $0.key, name: $0.value.name) }
+            .sorted { $0.userId < $1.userId }
     }
 
     // MARK: - Реалтайм
 
-    private func handle(_ event: RealtimeEvent) {
+    /// Положить пришедшее по сокету сообщение в ленту, если оно из открытого
+    /// канала. Идемпотентно: то же сообщение не задваивается (своё уже могло
+    /// прийти ответом `POST /chat`).
+    ///
+    /// Событие `chat:new` несёт сообщение целиком — сервер рассылает строку
+    /// `chat_messages` с joins, включая `task_title` (см. `ownerDraft.ts`,
+    /// ответ Секретаря), поэтому дозагружать его отдельным запросом не нужно.
+    func receiveRealtimeMessage(_ message: ApiChatMessage) {
+        guard message.channel == activeChannel else { return }
+        guard !messages.contains(where: { $0.id == message.id }) else { return }
+        messages.append(message)
+    }
+
+    func handle(_ event: RealtimeEvent) {
         switch event {
         case .chatNew(let message):
             // Пришло само сообщение — автор больше не «печатает» (то же,
@@ -371,7 +402,11 @@ final class ChatViewModel {
             // отдельного chat:typing stop).
             if let from = message.fromUserId { typingDeadlines.removeValue(forKey: from) }
             recomputeTypists()
-            Task { await loadHistory() }
+            // Раньше здесь звался `loadHistory()` — но это ПАГИНАЦИЯ: она
+            // тянет сообщения СТАРШЕ курсора, и новое в ленту не попадало.
+            // Ответ Секретаря с карточкой был виден только после повторного
+            // входа на экран (владелец 19.09.2026).
+            receiveRealtimeMessage(message)
         case .chatTyping(let raw):
             applyTypingEvent(raw)
         default:

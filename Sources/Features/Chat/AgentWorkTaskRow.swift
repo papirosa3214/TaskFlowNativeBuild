@@ -223,11 +223,6 @@ struct AgentWorkTaskRow: View {
 
                 if hasBadges {
                     HStack(spacing: TFSpacing.xs) {
-                        // Флаг готовности — первым, перед счётчиком шагов
-                        // (владелец 11.09.2026).
-                        if task.readyForPickup {
-                            TFReadyFlag()
-                        }
                         if !task.subtasks.isEmpty {
                             let done = task.subtasks.count { $0.done }
                             TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)

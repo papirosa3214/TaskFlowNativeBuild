@@ -35,6 +35,11 @@ struct DirectoryTaskRow: View {
     let swipeAction: ProjectTaskSwipeAction?
     let onSwipeAction: () -> Void
 
+    /// Необязательная строка «роль · модель» (LOCK-177). Заполняется только
+    /// на «Работе агентов»; у остальных списков остаётся пустой и ничего не
+    /// меняет. `var` с дефолтом, чтобы не трогать существующие вызовы.
+    var agentLine: String? = nil
+
     /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
     @State private var rowID = UUID()
     @State private var settledOffset: CGFloat = 0
@@ -152,14 +157,26 @@ struct DirectoryTaskRow: View {
                             .foregroundStyle(DirectoryAgentStateTag.color(task))
                     }
 
+                    // Роль и текущая модель агента (LOCK-177) — «Builder ·
+                    // GPT Sol». Только «Работа агентов» передаёт эту строку.
+                    if let agentLine, !agentLine.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 10))
+                            Text(agentLine)
+                        }
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                    }
+
                     if hasBadges {
                         HStack(spacing: TFSpacing.xs) {
-                            // Флаг готовности — там же, где во всех остальных
-                            // списках: первым в нижнем ряду, перед счётчиком
-                            // шагов (владелец 11.09.2026). Раньше он стоял
-                            // справа, в одной куче с шевронами приоритета.
-                            if task.readyForPickup {
-                                TFReadyFlag()
+                            // Отметка глубокого исследования (миграция 052) —
+                            // рядом с флагом готовности, чтобы помеченные
+                            // задачи были видны прямо в списке проекта.
+                            if task.needsResearch {
+                                TFPill("Исследование", color: .tfSub, solidBackground: .tfCard)
                             }
                             if !task.subtasks.isEmpty {
                                 let done = task.subtasks.count { $0.done }
@@ -206,10 +223,11 @@ struct DirectoryTaskRow: View {
 
     private var hasBadges: Bool {
         !task.subtasks.isEmpty || task.dueDate != nil || !task.labels.isEmpty
+            || task.needsResearch
     }
 
     private func close() {
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: 0)) {
             settledOffset = 0
             dragOffset = 0
         }
@@ -220,7 +238,7 @@ struct DirectoryTaskRow: View {
     // обратным сдвигом >25px/250px·с⁻¹ — асимметрично, легче закрыть, чем открыть.
     private func settle(dx: CGFloat, velocity: CGFloat) {
         let finalOffset = clamp(settledOffset + dx)
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity)) {
             if settledOffset == 0 {
                 if swipeAction != nil, (finalOffset < -TFRowSwipe.openThreshold || velocity < -TFRowSwipe.openVelocity) {
                     settledOffset = -TFRowActionWidth
@@ -299,9 +317,12 @@ enum ProjectTaskSwipeAction: Equatable {
     /// и просто активную задачу в пуле.
     case complete
 
-    static func action(for task: ApiTask, isOwner: Bool) -> Self? {
+    /// `currentUserID` — у личного дела (исполнитель — сам владелец) сразу
+    /// «Принять», а не «Запустить»: запускать там некого (23.09.2026).
+    static func action(for task: ApiTask, isOwner: Bool, currentUserID: String? = nil) -> Self? {
         guard isOwner else { return nil }
         guard task.status == .active else { return nil }
+        if let me = currentUserID, task.assigneeId == me { return .complete }
         if !task.readyForPickup { return .markReadyForPickup }
         return .complete
     }
@@ -309,14 +330,14 @@ enum ProjectTaskSwipeAction: Equatable {
     var icon: String {
         switch self {
         case .complete: "checkmark"
-        case .markReadyForPickup: "flag.fill"
+        case .markReadyForPickup: "play.fill"
         }
     }
 
     var accessibilityLabel: String {
         switch self {
         case .complete: "Принять"
-        case .markReadyForPickup: "Готово к работе"
+        case .markReadyForPickup: "Запустить"
         }
     }
 

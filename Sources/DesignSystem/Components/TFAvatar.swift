@@ -13,6 +13,9 @@ public struct TFAvatar: View {
         case sm = 20   // строка задачи в списке
         case md = 30
         case lg = 32   // размер по умолчанию
+        /// Строка списка чатов (`RoleChatsScreen`) — 21.09.2026, LOCK-195:
+        /// там аватар ведущий элемент строки, а не спутник текста.
+        case xl = 44
     }
 
     let size: Size
