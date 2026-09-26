@@ -91,7 +91,7 @@ struct ChatVoiceComposer: View {
 
     private var recordingComposer: some View {
         HStack(spacing: 16) {
-            WaveformView(levels: voice.recorderWaveform, color: .red)
+            VoiceBarsView(level: recordingLevel, color: .red, barWidth: 5, spacing: 4, maxHeight: 28)
                 .frame(maxWidth: .infinity)
                 .frame(height: 32)
             Text(recordingDuration).font(.title3.monospacedDigit()).foregroundStyle(.red)
@@ -163,6 +163,11 @@ struct ChatVoiceComposer: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier ?? label)
+    }
+
+    private var recordingLevel: Double {
+        guard case let .recording(_, level) = voice.recordingState else { return 0 }
+        return level
     }
 
     private var recordingDuration: String {

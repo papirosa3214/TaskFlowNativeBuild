@@ -17,6 +17,7 @@ struct SettingsScreen: View {
     @State private var isEditProfilePresented = false
     @AppStorage("settings.user.expanded") private var userSettingsExpanded = true
     @AppStorage("settings.ai.expanded") private var aiExpanded = true
+    @AppStorage(SecretaryVoice.storageKey) private var secretaryVoice = SecretaryVoice.default.rawValue
     @AppStorage("settings.general.expanded") private var generalExpanded = true
     @AppStorage("settings.server.expanded") private var serverExpanded = true
 
@@ -126,7 +127,28 @@ struct SettingsScreen: View {
             navRow(icon: "cpu", title: "Агенты (модели и провайдеры)", route: .runtimeProviders)
             TFDivider(inset: rowDividerInset)
             navRow(icon: "iphone", title: "Приложение (телефон и сервер)", route: .voiceModels)
+            TFDivider(inset: rowDividerInset)
+            TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Секретаря",
+                      trailing: AnyView(secretaryVoiceMenu), titleStyle: .action,
+                      verticalPadding: TFSpacing.xs)
         }
+    }
+
+    /// Голос живого разговора с Секретарём — применяется со следующего звонка.
+    private var secretaryVoiceMenu: some View {
+        Menu {
+            Picker("Голос Секретаря", selection: $secretaryVoice) {
+                ForEach(SecretaryVoice.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+        } label: {
+            HStack(spacing: TFSpacing.xs) {
+                Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.tfDim)
+            }
+        }
+        .accessibilityIdentifier("settings.secretary-voice")
     }
 
     @ViewBuilder
