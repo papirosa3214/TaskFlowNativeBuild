@@ -113,6 +113,64 @@ final class AudioLevelMeter: NSObject, AudioRenderer, @unchecked Sendable {
     }
 }
 
+/// «Сдвиньте, чтобы завершить»: красный кружок с трубкой тянется вправо,
+/// дотянул почти до края — звонок завершён, отпустил раньше — вернулся.
+private struct HangUpSlider: View {
+    let onHangUp: () -> Void
+
+    @State private var offset: CGFloat = 0
+    @State private var isDone = false
+    private let knob: CGFloat = 56
+    private let inset: CGFloat = 4
+
+    var body: some View {
+        GeometryReader { geo in
+            let maxOffset = max(geo.size.width - knob - inset * 2, 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.tfCard)
+                Text("Сдвиньте, чтобы завершить")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfSub)
+                    .frame(maxWidth: .infinity)
+                    .padding(.leading, knob)
+                    .opacity(1 - Double(offset / maxOffset) * 1.5)
+                Circle()
+                    .fill(Color.tfRedSolid)
+                    .frame(width: knob, height: knob)
+                    .overlay {
+                        Image(systemName: "phone.down.fill")
+                            .font(.system(size: TFIconSize.md))
+                            .foregroundStyle(.white)
+                    }
+                    .offset(x: inset + offset)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                guard !isDone else { return }
+                                offset = min(max(value.translation.width, 0), maxOffset)
+                            }
+                            .onEnded { _ in
+                                guard !isDone else { return }
+                                if offset > maxOffset * 0.75 {
+                                    isDone = true
+                                    withAnimation(.spring(duration: 0.2)) { offset = maxOffset }
+                                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                    onHangUp()
+                                } else {
+                                    withAnimation(.spring(duration: 0.3, bounce: 0.3)) { offset = 0 }
+                                }
+                            }
+                    )
+            }
+        }
+        .frame(height: knob + inset * 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Завершить разговор")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onHangUp() }
+    }
+}
+
 struct SecretaryVoiceScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = SecretaryVoiceViewModel()
@@ -132,17 +190,14 @@ struct SecretaryVoiceScreen: View {
             caption
                 .frame(minHeight: 44, alignment: .top)
             Spacer()
+            // Завершить звонок — свайп внизу, под большим пальцем, а не
+            // крестик сверху (владелец 26.09.2026).
+            HangUpSlider { dismiss() }
         }
         .padding(TFSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.tfBackground.ignoresSafeArea())
         .navigationBarBackButtonHidden()
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { dismiss() } label: { Image(systemName: "xmark") }
-                    .accessibilityLabel("Закрыть")
-            }
-        }
         .task { await viewModel.start() }
         .onDisappear { Task { await viewModel.stop() } }
     }
