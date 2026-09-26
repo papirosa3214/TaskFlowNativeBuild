@@ -1810,7 +1810,24 @@ private struct ExistingTaskDueEditor: View {
             // по тапу всплывает маленькая панелька, как в Напоминаниях.
             // Заодно ушёл перекос барабана влево — он брался от `.wheel`
             // с `labelsHidden` в колонке с выравниванием по левому краю.
-            DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
+            HStack(spacing: TFSpacing.sm) {
+                DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
+                // Убрать срок — маленький крестик у даты, как очистка в поле
+                // ввода (владелец 26.09.2026: вместо красной кнопки на всю ширину).
+                if dueDate != nil {
+                    Button {
+                        dueDate = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: TFIconSize.sm))
+                            .foregroundStyle(Color.tfDim)
+                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(startMinutes != nil ? "Убрать дату и время" : "Убрать дату")
+                }
+            }
             DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
 
             // Время не задано — старт всё равно будет, в 09:00. Скажем прямо.
@@ -1844,16 +1861,6 @@ private struct ExistingTaskDueEditor: View {
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
                 }
-
-                Button {
-                    dueDate = nil
-                } label: {
-                    Text(startMinutes != nil ? "Убрать дату и время" : "Убрать дату")
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfCoral)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(TFTapFadeStyle())
             }
         }
         .padding(.vertical, TFSpacing.sm)

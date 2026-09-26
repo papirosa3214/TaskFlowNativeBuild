@@ -794,13 +794,19 @@ final class TaskFormViewModel {
         }
     }
 
+    /// Срок → `YYYY-MM-DD` по Москве: пикер и «Сегодня/Завтра» дают московскую
+    /// полночь (21:00 UTC прошлых суток), UTC-форматтер отдал бы день раньше.
+    nonisolated static func dueDateString(_ date: Date) -> String {
+        TaskDateText.calendarDateStringMoscow(date)
+    }
+
     private func saveEdit(taskID: String, trimmedTitle: String, taskStore: TaskStore) async throws {
         guard let originalTask else { return }
         var fields: [String: JSONValue] = [:]
         if trimmedTitle != originalTask.title { fields["title"] = .string(trimmedTitle) }
         let desc = taskDescription.isEmpty ? nil : taskDescription
         if desc != originalTask.description { fields["description"] = desc.map { JSONValue.string($0) } ?? .null }
-        let dueStr = dueDate.map(DateFormats.calendarDateString)
+        let dueStr = dueDate.map(Self.dueDateString)
         if dueStr != originalTask.dueDate { fields["due_date"] = dueStr.map { JSONValue.string($0) } ?? .null }
         let startStr = startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
         if startStr != originalTask.startTime { fields["start_time"] = startStr.map { JSONValue.string($0) } ?? .null }
@@ -835,7 +841,7 @@ final class TaskFormViewModel {
         let payload = APIClient.NewTaskRequest(
             title: trimmedTitle,
             description: taskDescription.isEmpty ? nil : taskDescription,
-            dueDate: dueDate.map(DateFormats.calendarDateString),
+            dueDate: dueDate.map(Self.dueDateString),
             startTime: startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) },
             durationMin: durationMin,
             projectId: projectId,
