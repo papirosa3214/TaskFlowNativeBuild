@@ -29,8 +29,6 @@ struct NoteEditorScreen: View {
 
     @State private var showMovePicker = false
     @State private var showDeleteConfirm = false
-    @State private var shareURL: URL?
-    @State private var showShareSheet = false
 
     init(noteID: String) {
         self.noteID = noteID
@@ -97,15 +95,22 @@ struct NoteEditorScreen: View {
                 Task { await viewModel.moveToFolder(folderID) }
             }
         }
-        .sheet(isPresented: $showShareSheet) {
-            if let shareURL { NoteShareSheet(items: [shareURL]) }
-        }
         .tfBottomSheet(isPresented: $viewModel.showExtractedTasksSheet, title: "Задачи из текста") {
             NoteExtractedTasksSheetContent(tasks: viewModel.extractedTasks) {
                 viewModel.showExtractedTasksSheet = false
             }
         }
+        .sheet(item: Binding(
+            get: { viewModel.createdDraftTask.map { DraftTaskRef(id: $0.taskID) } },
+            set: { if $0 == nil { viewModel.createdDraftTask = nil } }
+        )) { ref in
+            NavigationStack { TaskFormScreen(taskID: ref.id) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
+
+    private struct DraftTaskRef: Identifiable { let id: String }
 
     // MARK: - Тело
 
@@ -122,6 +127,26 @@ struct NoteEditorScreen: View {
                 .padding(.top, TFSpacing.xs)
             TFErrorBanner(viewModel.actionErrorMessage)
                 .padding(.horizontal, TFSpacing.screenHorizontal)
+            // «Идёт процесс»: долгие AI-операции (постановка, разбор, ассист)
+            // держат модель десятки секунд, и без видимого сигнала это
+            // выглядит как «нажал — тишина, пустота» (жалоба владельца
+            // 20.09.2026). Спиннер с подписью и есть этот сигнал.
+            if viewModel.aiBusy {
+                HStack(spacing: TFSpacing.sm) {
+                    ProgressView().controlSize(.small)
+                    Text(viewModel.aiLabel)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfText)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, TFSpacing.sm)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.top, TFSpacing.xs)
+                .transition(.opacity)
+            }
             // Статус сохранения ниже — ОВЕРЛЕЕМ, не строкой стека. Строкой он
             // сначала резервировал полоску ~20pt всегда, потом (03.09.2026)
             // появлялся только при непустом тексте — и именно это добивало:
@@ -203,6 +228,12 @@ struct NoteEditorScreen: View {
                 } label: {
                     Label("Собрать задачи из текста", systemImage: "checklist")
                 }
+                Button {
+                    let selection = focus.controller?.selectedText()
+                    Task { await viewModel.collectDraft(selectedText: selection) }
+                } label: {
+                    Label("Собрать постановку", systemImage: "point.3.connected.trianglepath.dotted")
+                }
             }
             .disabled(viewModel.aiBusy)
 
@@ -219,6 +250,7 @@ struct NoteEditorScreen: View {
         } label: {
             Image(systemName: "ellipsis")
         }
+        .accessibilityLabel("Ещё")
     }
 
     // MARK: - Меню AI / «Ещё» — действия
@@ -241,10 +273,31 @@ struct NoteEditorScreen: View {
     }
 
     private func exportMarkdown() async {
-        if let url = await viewModel.exportToMarkdownFile() {
-            shareURL = url
-            showShareSheet = true
+        guard let url = await viewModel.exportToMarkdownFile() else { return }
+        // Показываем системный лист «Поделиться» НАПРЯМУЮ, а не через
+        // SwiftUI `.sheet`. Вложенный в шторку `UIActivityViewController`
+        // рисовался серой пустой панелью без действий (жалоба владельца
+        // 20.09.2026) — он рассчитан на собственное модальное представление.
+        presentShareSheet(url: url)
+    }
+
+    private func presentShareSheet(url: URL) {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+            let root = scene.keyWindow?.rootViewController
+        else { return }
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = top.view
+            popover.sourceRect = CGRect(
+                x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0
+            )
+            popover.permittedArrowDirections = []
         }
+        top.present(controller, animated: true)
     }
 
     private func performDelete() async {
@@ -528,13 +581,6 @@ private struct NoteTableRowHeightPreferenceKey: PreferenceKey {
     }
 }
 
-/// Обёртка `UIActivityViewController` для «Выгрузить в Markdown» — своя
-/// копия: у соседа в `NotesScreen.swift` тот же тип объявлен `private`,
-/// наружу недоступен.
-private struct NoteShareSheet: UIViewControllerRepresentable {
-    let items: [URL]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
+/// Обёртка `UIActivityViewController` для «Выгрузить в Markdown» больше не
+/// нужна: лист показывается напрямую из `presentShareSheet` (вложенный в
+/// SwiftUI-шторку он рисовался серой пустой панелью).

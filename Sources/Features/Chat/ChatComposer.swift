@@ -1,16 +1,20 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PhotosUI
+import UIKit
 
-// Строка ввода чата — 1:1 геометрия и поведение `src/components/ChatComposer.tsx`
-// (комментарий там выводит H=44/ICON=32/GAP=8/EDGE=16 из шрифта поля;
-// spec/DESIGN-TOKENS.md §4 «Строка ввода чата» подтверждает те же числа).
+// Голосовой композер повторяет утверждённый VoiceMessageLabScreen.
 struct ChatComposer: View {
     @Bindable var viewModel: ChatViewModel
-    @FocusState private var isFieldFocused: Bool
     @State private var isFileImporterPresented = false
+    /// Меню «+» (владелец 26.09.2026): фото/файл/камера.
+    @State private var isPhotoPickerPresented = false
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var isCameraPresented = false
+    @State private var voice = RoleChatVoiceController()
+    @State private var uploadedVoiceID: String?
 
     private let H: CGFloat = TFChatComposer.elementHeight
-    private let ICON: CGFloat = TFChatComposer.iconSize
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +24,9 @@ struct ChatComposer: View {
             TFErrorBanner(viewModel.sendErrorMessage.map { _ in "Не удалось отправить сообщение" })
                 .padding(.horizontal, TFSpacing.lg)
                 .padding(.bottom, viewModel.sendErrorMessage == nil ? 0 : TFSpacing.sm)
+            TFErrorBanner(voice.errorMessage)
+                .padding(.horizontal, TFSpacing.lg)
+                .padding(.bottom, voice.errorMessage == nil ? 0 : TFSpacing.sm)
 
             if !viewModel.pendingAttachments.isEmpty {
                 VStack(spacing: 4) {
@@ -31,21 +38,49 @@ struct ChatComposer: View {
                 .padding(.bottom, TFSpacing.sm)
             }
 
-            HStack(alignment: .bottom, spacing: TFSpacing.sm) {
+            if viewModel.activeChannel != .owner {
                 addresseeSlot
-                fieldRow
-                sendButton
+                    .padding(.horizontal, TFSpacing.lg)
             }
-            .padding(.horizontal, TFSpacing.lg)
-            .padding(.vertical, TFSpacing.sm)
+            ChatVoiceComposer(
+                text: $viewModel.draftText,
+                placeholder: placeholder,
+                canSendText: viewModel.canSend,
+                voice: voice,
+                onAttachmentSource: { source in
+                    switch source {
+                    case .photo: isPhotoPickerPresented = true
+                    case .file: isFileImporterPresented = true
+                    case .camera: isCameraPresented = true
+                    }
+                },
+                onSendText: { Task { await viewModel.send() } },
+                onSendVoice: sendVoice,
+                onDiscardVoice: discardVoice
+            )
         }
-        .background(.ultraThinMaterial)
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: [.image, .pdf, .plainText, .text, .item],
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result)
+        }
+        .photosPicker(isPresented: $isPhotoPickerPresented, selection: $photoPickerItem, matching: .images)
+        .onChange(of: photoPickerItem) { _, item in
+            guard let item else { return }
+            photoPickerItem = nil
+            Task { await uploadPickedPhoto(item) }
+        }
+        .fullScreenCover(isPresented: $isCameraPresented) {
+            CameraCaptureView(
+                onCapture: { image in
+                    isCameraPresented = false
+                    Task { await uploadCameraPhoto(image) }
+                },
+                onCancel: { isCameraPresented = false }
+            )
+            .ignoresSafeArea()
         }
     }
 
@@ -150,44 +185,6 @@ struct ChatComposer: View {
         .buttonStyle(TFTapRowStyle())
     }
 
-    // MARK: - Поле
-
-    private var fieldRow: some View {
-        HStack(alignment: .bottom, spacing: 4) {
-            TextField("", text: $viewModel.draftText, prompt: Text(placeholder).foregroundStyle(Color.tfDim), axis: .vertical)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .focused($isFieldFocused)
-                .lineLimit(1...4)
-                .padding(.vertical, 11)
-                .accessibilityIdentifier("chat.message")
-
-            // Скрепка и микрофон — тап не должен отбирать фокус у поля
-            // (иначе открытая клавиатура дёргалась бы на каждый тап,
-            // spec/SCREENS-2.md §3.1 «важная деталь реализации»).
-            iconButton("paperclip") {
-                isFileImporterPresented = true
-            }
-            .disabled(viewModel.isUploadingAttachment)
-
-            // MicOverlay — общий компонент §0.7 спеки, в DesignSystem его
-            // ещё нет (запись/распознавание — отдельная инфраструктура,
-            // Speech-разрешение в Info.plist сюда не входит). Кнопка стоит
-            // для визуального паритета, действия у неё пока нет — см. отчёт.
-            iconButton("mic.fill") {}
-        }
-        .padding(.leading, TFSpacing.md)
-        .padding(.trailing, 6)
-        // Фиксированная высота 44pt обрезала многострочный TextField, хотя
-        // `axis: .vertical` и `lineLimit(1...4)` уже были заданы. Теперь
-        // капсула растёт вместе с полем до четырёх строк, после чего SwiftUI
-        // включает внутреннюю прокрутку; боковые кнопки остаются у нижней
-        // кромки и не прыгают относительно кнопки отправки.
-        .frame(minHeight: H)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-    }
-
     private var placeholder: String {
         switch viewModel.addressee {
         case .user(_, let name) where viewModel.activeChannel != .owner:
@@ -202,36 +199,33 @@ struct ChatComposer: View {
         }
     }
 
-    private func iconButton(_ systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 18))
-                .foregroundStyle(Color.tfSub)
-                .frame(width: ICON, height: ICON)
-                .contentShape(Rectangle().inset(by: -6)) // добивает тап-зону до 44
+    private func sendVoice(_ recording: VoiceMessage) async -> Bool {
+        let text: String
+        if case .ready(let recognized) = recording.transcript { text = recognized }
+        else { text = "" }
+        if uploadedVoiceID == nil {
+            guard let data = try? Data(contentsOf: recording.audioURL) else {
+                voice.fail("Не удалось прочитать запись")
+                return false
+            }
+            let previousCount = viewModel.pendingAttachments.count
+            await viewModel.attach(fileName: recording.audioURL.lastPathComponent, data: data, mime: "application/octet-stream")
+            guard viewModel.pendingAttachments.count > previousCount else { return false }
+            uploadedVoiceID = viewModel.pendingAttachments.last?.id
+            viewModel.draftText = [viewModel.draftText, text].filter { !$0.isEmpty }.joined(separator: " ")
         }
-        .buttonStyle(TFTapScaleStyle())
+        await viewModel.send()
+        guard viewModel.sendErrorMessage == nil else { return false }
+        uploadedVoiceID = nil
+        try? VoiceRecorder.cancelRecordingFile(at: recording.audioURL)
+        return true
     }
 
-    // MARK: - Отправка
-
-    private var sendButton: some View {
-        Button {
-            isFieldFocused = false
-            Task { await viewModel.send() }
-        } label: {
-            Image(systemName: "chevron.up")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: H, height: H)
-                .background(Color.tfRed)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+    private func discardVoice(_ recording: VoiceMessage) {
+        if let id = uploadedVoiceID {
+            Task { await viewModel.removePendingAttachment(id) }
+            uploadedVoiceID = nil
         }
-        .buttonStyle(TFTapScaleStyle())
-        .opacity(viewModel.canSend ? 1 : 0.4)
-        .disabled(!viewModel.canSend)
-        .accessibilityLabel("Отправить")
-        .accessibilityIdentifier("chat.send")
     }
 
     // MARK: - Вложения
@@ -255,6 +249,7 @@ struct ChatComposer: View {
                     .foregroundStyle(Color.tfDim)
                     .frame(width: 28, height: 28)
             }
+            .accessibilityLabel("Закрыть")
             .buttonStyle(TFTapScaleStyle())
         }
         .padding(.horizontal, TFSpacing.md)
@@ -272,5 +267,19 @@ struct ChatComposer: View {
             let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
             await viewModel.attach(fileName: url.lastPathComponent, data: data, mime: mime)
         }
+    }
+
+    /// Фото из галереи (владелец 26.09.2026) — пережимаем в JPEG, как и снимок камерой.
+    private func uploadPickedPhoto(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data),
+              let jpeg = image.jpegData(compressionQuality: 0.9) else { return }
+        await viewModel.attach(fileName: "photo.jpg", data: jpeg, mime: "image/jpeg")
+    }
+
+    /// Снимок камерой (владелец 26.09.2026).
+    private func uploadCameraPhoto(_ image: UIImage) async {
+        guard let jpeg = image.jpegData(compressionQuality: 0.9) else { return }
+        await viewModel.attach(fileName: "camera.jpg", data: jpeg, mime: "image/jpeg")
     }
 }

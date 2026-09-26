@@ -16,7 +16,7 @@ struct TaskFormScreen: View {
         }
     }
 
-    private enum DictationTarget: Equatable {
+    fileprivate enum DictationTarget: Equatable {
         case title, description, comment, subtask(String), newSubtask
     }
 
@@ -42,6 +42,15 @@ struct TaskFormScreen: View {
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
     @State private var isAttachmentPickerPresented = false
+    /// Выбор документа из базы знаний (второй источник у «Прикрепить файл»).
+    @State private var isKnowledgePickerPresented = false
+    /// Вложение, которое ЗАМЕНЯЕМ (длинное нажатие → «Заменить…»): после
+    /// загрузки нового старое удаляем.
+    @State private var replaceAttachmentTarget: ApiAttachment?
+    /// Открытый отчёт: показываем его документ-зеркало.
+    @State private var openedReportNoteID: String?
+
+    private enum AttachmentSource { case phone, knowledge }
     @State private var isDeleteConfirmationPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
@@ -131,28 +140,15 @@ struct TaskFormScreen: View {
     private var fullFormBody: some View {
         formNavigationBody
             .task { await loadScreen() }
-            .onChange(of: isTitleFocused) { wasFocused, isFocused in
-                if isFocused { dictationTarget = .title }
-                if wasFocused, !isFocused { scheduleSave() }
-            }
-            .onChange(of: isDescriptionFocused) { _, isFocused in
-                if isFocused { dictationTarget = .description }
-            }
-            .onChange(of: isCommentFocused) { _, isFocused in
-                if isFocused { dictationTarget = .comment }
-            }
-            .onChange(of: isNewSubtaskFocused) { _, isFocused in
-                if isFocused { dictationTarget = .newSubtask }
-            }
-            .onChange(of: viewModel.title) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.taskDescription) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.dueDate) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.startMinutes) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.durationMin) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.projectId) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
-            .onChange(of: viewModel.assigneeId) { _, _ in scheduleSave() }
+            .modifier(FocusDictationTargetModifier(
+                isTitleFocused: isTitleFocused,
+                isDescriptionFocused: isDescriptionFocused,
+                isCommentFocused: isCommentFocused,
+                isNewSubtaskFocused: isNewSubtaskFocused,
+                dictationTarget: $dictationTarget,
+                scheduleSave: scheduleSave
+            ))
+            .modifier(AutosaveFieldsModifier(viewModel: viewModel, scheduleSave: scheduleSave))
             .onDisappear(perform: handleDisappear)
     }
 
@@ -219,6 +215,21 @@ struct TaskFormScreen: View {
         // заменяет. Штатный путь — `navigationBarBackButtonHidden` + свой
         // toolbar вместо самодельной шапки.
         .tfNativeHeader(viewModel.isEditing ? "Задача" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
+        // Мягкая кромка прокрутки под шапкой (iOS 26+).
+        //
+        // По умолчанию система гасит уезжающий контент жёстко: на кадре
+        // 16.09.2026 текст обрывался ровно по горизонтальной линии — строка
+        // «Кегли-сироты…» срезана посередине, выше линии буквы притушены,
+        // ниже целые. Владелец: «градация прям чёткая, есть линия, не мутная».
+        //
+        // `.soft` растягивает затухание, и текст уходит под шапку размыто,
+        // без видимой границы. Это штатный путь Apple вместо самодельных
+        // градиентных подложек (ср. TFHeaderBackdrop, который делает то же
+        // руками там, где шапка не нативная).
+        //
+        // Цель сборки — iOS 18, поэтому под проверкой доступности: на
+        // старых системах эффекта нет вовсе и кромка остаётся прежней.
+        .modifier(TFSoftTopScrollEdge())
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -247,6 +258,7 @@ struct TaskFormScreen: View {
                 } label: {
                     Image(systemName: "xmark")
                 }
+                .accessibilityLabel("Закрыть")
             }
             if viewModel.isEditing {
                 editingToolbarItems
@@ -280,9 +292,13 @@ struct TaskFormScreen: View {
         ), presenting: pendingAction) { action in
             TextField(action.commentRequired ? "Комментарий (обязателен)" : "Комментарий (необязательно)", text: $actionComment)
             Button("Отправить") {
-                Task { await viewModel.performOwnerAction(action, comment: actionComment.isEmpty ? nil : actionComment, taskStore: taskStore) }
+                // `Task` начинает выполняться после возврата из обработчика,
+                // поэтому перед сбросом alert сохраняем снимок текста. Иначе
+                // review → in_progress уходит без обязательного comment.
+                let comment = TaskFormViewModel.ownerActionCommentForSubmission(actionComment)
                 actionComment = ""
                 pendingAction = nil
+                Task { await viewModel.performOwnerAction(action, comment: comment, taskStore: taskStore) }
             }
             .disabled(action.commentRequired && actionComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Отмена", role: .cancel) {
@@ -312,35 +328,52 @@ struct TaskFormScreen: View {
             allowedContentTypes: [.item],
             onCompletion: handleAttachmentImport
         )
+        .sheet(isPresented: $isKnowledgePickerPresented) {
+            KnowledgePickerSheet { noteID, title in
+                let old = replaceAttachmentTarget
+                replaceAttachmentTarget = nil
+                Task {
+                    await attachKnowledgeNote(noteID: noteID, title: title)
+                    if let old { await viewModel.attachments.removeUploaded(old) }
+                }
+            }
+            .onDisappear { replaceAttachmentTarget = nil }
+        }
+        .sheet(isPresented: Binding(
+            get: { openedReportNoteID != nil },
+            set: { if !$0 { openedReportNoteID = nil } }
+        )) {
+            if let noteID = openedReportNoteID {
+                NavigationStack { NoteEditorScreen(noteID: noteID) }
+            }
+        }
+    }
+
+    /// Длинное нажатие на вложение → «Заменить…»: запоминаем, что меняем, и
+    /// открываем нужный источник. После успешной загрузки старое удаляется.
+    private func replaceAttachment(from source: AttachmentSource, target: ApiAttachment) {
+        replaceAttachmentTarget = target
+        switch source {
+        case .phone: isAttachmentPickerPresented = true
+        case .knowledge: isKnowledgePickerPresented = true
+        }
     }
 
     /// Единая карточка существующей задачи: это одновременно и просмотр,
     /// и форма. Никакого второго экрана за «Изменить» больше нет: название,
     /// описание и все свойства задачи активны прямо здесь.
-    private var nativeTaskDetail: some View {
-        List {
-            aiStructureStatusSection
-
-            if let message = viewModel.saveErrorMessage {
-                Section {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                        .listRowSeparator(.hidden)
-                }
-                .listRowSeparator(.hidden)
-                .listSectionSeparator(.hidden)
-            }
-
+    // 15.09.2026: список карточки развалился на секции-переменные.
+    // Одним куском его тип вырастал настолько, что рантайм не мог
+    // развернуть имя типа и падал переполнением стека на устройстве
+    // (в симуляторе стек больше — там держалось). Вид и поведение
+    // прежние, поделены только границы.
+    @ViewBuilder private var headerSection: some View {
             Section {
                 HStack(alignment: .center, spacing: TFSpacing.sm) {
                     TextField("Название задачи", text: $viewModel.title, axis: .vertical)
                         .font(.headline)
                         .lineLimit(1...6)
                         .focused($isTitleFocused)
-
-                    if viewModel.readyForPickup {
-                        TFReadyFlag()
-                    }
                 }
                 .listRowSeparator(.hidden)
 
@@ -349,7 +382,7 @@ struct TaskFormScreen: View {
                         if let state = viewModel.agentState {
                             Label(agentStateText(state), systemImage: agentStateIcon(state))
                                 .tfText(.caption)
-                                .foregroundStyle(state == .blocked ? Color.orange : Color.tfSub)
+                                .foregroundStyle(agentStateColor(state))
                         }
                         AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
                     }
@@ -372,16 +405,9 @@ struct TaskFormScreen: View {
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
+    }
 
-            subtasksSection
-
-            // У несохранённой задачи связывать нечего — секция появляется
-            // вместе с самой задачей. Исключение — создание дочерней:
-            // родитель уже известен и должен быть виден до сохранения.
-            if viewModel.isEditing || viewModel.parentTitle != nil {
-                linkedTasksSection
-            }
-
+    @ViewBuilder private var detailsSection: some View {
             Section {
                 Button {
                     isDueEditorExpanded.toggle()
@@ -396,7 +422,9 @@ struct TaskFormScreen: View {
                     ExistingTaskDueEditor(
                         dueDate: $viewModel.dueDate,
                         startMinutes: $viewModel.startMinutes,
-                        durationMin: $viewModel.durationMin
+                        durationMin: $viewModel.durationMin,
+                        runRepeat: $viewModel.runRepeat,
+                        repeatUntil: $viewModel.repeatUntil
                     )
                 }
 
@@ -463,21 +491,43 @@ struct TaskFormScreen: View {
                 }
                 .buttonStyle(.plain)
 
+                // Исполнитель — роль (AgentProfile), не учётка (LOCK-178).
+                // «Автоматически» = роли нет, диспетчер подберёт её сам.
                 Menu {
-                    Button("Не назначен") { viewModel.assigneeId = nil }
-                    ForEach(viewModel.agents.filter { $0.type == .ai }) { agent in
+                    Button("Автоматически — оркестратор выберет агента") {
+                        viewModel.ownerSelectedRole = nil
+                        viewModel.assigneeId = nil
+                    }
+                    // Себя — тем же именем, что и в остальных местах: карточка
+                    // на владельце. Назначенную на человека задачу агенты не
+                    // берут и работник расписания не трогает; в истории видно
+                    // имя, а не «кого-то».
+                    if let me = session.currentUser {
                         Button {
-                            viewModel.assigneeId = agent.id
+                            viewModel.assigneeId = me.id
+                            viewModel.ownerSelectedRole = nil
                         } label: {
-                            if viewModel.assigneeId == agent.id {
-                                Label(agent.name, systemImage: "checkmark")
+                            if viewModel.assigneeId == me.id {
+                                Label(me.name, systemImage: "checkmark")
                             } else {
-                                Text(agent.name)
+                                Text(me.name)
+                            }
+                        }
+                    }
+                    ForEach(viewModel.roles) { role in
+                        Button {
+                            viewModel.ownerSelectedRole = role.role
+                            viewModel.assigneeId = nil
+                        } label: {
+                            if viewModel.ownerSelectedRole == role.role {
+                                Label(role.title, systemImage: "checkmark")
+                            } else {
+                                Text(role.title)
                             }
                         }
                     }
                 } label: {
-                    LabeledContent("Исполнитель", value: viewModel.agents.first { $0.id == viewModel.assigneeId }?.name ?? "Не назначен")
+                    LabeledContent("Исполнитель", value: selectedRoleTitle)
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
                 }
@@ -499,6 +549,41 @@ struct TaskFormScreen: View {
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
+    }
+
+    // 15.09.2026: тип экрана стирается здесь намеренно. Цепочка
+    // body → fullFormBody → formNavigationBody → formPresentationBody →
+    // List копила такой generic-тип, что рантайм не мог развернуть его
+    // имя и падал переполнением стека прямо при открытии карточки на
+    // устройстве. AnyView разрывает цепочку: дальше вглубь тип не растёт.
+    private var nativeTaskDetail: AnyView { AnyView(nativeTaskDetailBody) }
+
+    private var nativeTaskDetailBody: some View {
+        List {
+            aiStructureStatusSection
+
+            if let message = viewModel.saveErrorMessage {
+                Section {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                        .listRowSeparator(.hidden)
+                }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
+            }
+
+            headerSection
+
+            subtasksSection
+
+            // У несохранённой задачи связывать нечего — секция появляется
+            // вместе с самой задачей. Исключение — создание дочерней:
+            // родитель уже известен и должен быть виден до сохранения.
+            if viewModel.isEditing || viewModel.parentTitle != nil {
+                linkedTasksSection
+            }
+
+            detailsSection
 
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
                 Section {
@@ -506,14 +591,68 @@ struct TaskFormScreen: View {
                         Label(attachment.fileName, systemImage: "paperclip")
                             .tfText(.action)
                             .foregroundStyle(Color.tfSub)
+                            .contextMenu {
+                                Button { replaceAttachment(from: .phone, target: attachment) } label: {
+                                    Label("Заменить с iPhone", systemImage: "iphone")
+                                }
+                                Button { replaceAttachment(from: .knowledge, target: attachment) } label: {
+                                    Label("Заменить из базы знаний", systemImage: "books.vertical")
+                                }
+                                Button(role: .destructive) {
+                                    Task { await viewModel.attachments.removeUploaded(attachment) }
+                                } label: {
+                                    Label("Удалить", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.attachments.removeUploaded(attachment) }
+                                } label: {
+                                    Label("Удалить", systemImage: "trash")
+                                }
+                            }
                     }
                     ForEach(viewModel.attachments.pending) { attachment in
                         Label(attachment.fileName, systemImage: "paperclip")
                             .tfText(.action)
                             .foregroundStyle(Color.tfSub)
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    viewModel.attachments.removePending(attachment)
+                                } label: {
+                                    Label("Удалить", systemImage: "trash")
+                                }
+                            }
                     }
                 } header: {
                     taskSectionHeader("Вложения")
+                }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
+            }
+
+            // Отчёты — «зеркало» документов из папки проекта: сам файл лежит
+            // в документации, здесь название, автор и время; тап открывает
+            // документ. Владелец 20.09.2026.
+            if !viewModel.reports.isEmpty {
+                Section {
+                    ForEach(viewModel.reports) { report in
+                        Button {
+                            if let noteID = report.noteID { openedReportNoteID = noteID }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label(report.title, systemImage: "doc.text")
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfText)
+                                Text(reportSubtitle(report))
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfDim)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    taskSectionHeader("Отчёты")
                 }
                 .listRowSeparator(.hidden)
                 .listSectionSeparator(.hidden)
@@ -584,6 +723,7 @@ struct TaskFormScreen: View {
         .refreshable { await viewModel.refresh() }
     }
 
+    @ViewBuilder
     private var linkedTasksSection: some View {
         Section {
             if let parent = viewModel.parentTask {
@@ -625,6 +765,41 @@ struct TaskFormScreen: View {
         .listRowBackground(Color.tfBackground)
         .listRowSeparator(.hidden)
         .listSectionSeparator(.hidden)
+
+        // Чаты, привязанные к задаче. Секция только ПЕРЕХОДИТ в переписку:
+        // свой чат внутри карточки не заводится и не рисуется — для этого есть
+        // отдельный экран (владелец 21.09.2026: «заводить прям чат прямо в
+        // карточке не надо, надо чтобы просто переходил»). Появляется только
+        // когда чат уже привязан — со стороны чата.
+        if !viewModel.taskChats.isEmpty {
+            Section {
+                ForEach(viewModel.taskChats) { chat in
+                    NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
+                        HStack(spacing: TFSpacing.sm) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(chat.displayTitle)
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfSub)
+                                    .lineLimit(2)
+                                if let members = chat.membersCount, members > 0 {
+                                    Text("Участников: \(members)")
+                                        .tfText(.meta)
+                                        .foregroundStyle(Color.tfDim)
+                                }
+                            }
+                            Spacer(minLength: TFSpacing.sm)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .listRowSeparator(.hidden)
+                }
+            } header: {
+                taskSectionHeader("Чат по задаче")
+            }
+            .listRowBackground(Color.tfBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
+        }
     }
 
     private func linkedTaskRow(_ task: ApiTask, relation: String) -> some View {
@@ -846,6 +1021,9 @@ struct TaskFormScreen: View {
     private func subtaskDetails(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if isRunning, viewModel.activity.isActive {
+                if !viewModel.activity.actions.isEmpty {
+                    activityChips(viewModel.activity.actions)
+                }
                 if let text = viewModel.activity.text {
                     Text(text)
                         .tfText(.action)
@@ -878,6 +1056,60 @@ struct TaskFormScreen: View {
         }
     }
 
+    /// Ярлычки действий агента у идущего шага: СНАЧАЛА число всех действий,
+    /// ПОСЛЕ — последние пять иконок (владелец 21.09.2026: «в самом начале
+    /// делаем число, а эти пять меняются после»). Раньше было наоборот —
+    /// уникальные виды иконок, потом счётчик; владелец это забраковал.
+    /// Никакой истории: живая картинка на момент просмотра.
+    @ViewBuilder
+    private func activityChips(_ actions: [ApiTaskActivityAction]) -> some View {
+        HStack(spacing: TFSpacing.xs) {
+            Text("\(actions.count) \(pluralActions(actions.count))")
+                .tfText(.micro)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.sm)
+                .frame(height: 24)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            ForEach(Array(actions.suffix(5)), id: \.id) { action in
+                Image(systemName: activityIcon(action.kind))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.tfDim)
+                    .frame(width: 24, height: 24)
+                    .background(Color.tfCard2)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private func activityIcon(_ kind: String) -> String {
+        switch kind {
+        case "read": "book"
+        case "edit": "chevron.left.forwardslash.chevron.right"
+        case "write": "doc.badge.plus"
+        case "search": "magnifyingglass"
+        case "run": "terminal"
+        case "think": "brain"
+        case "web": "globe"
+        case "image": "photo"
+        case "test": "checkmark.seal"
+        case "build": "hammer"
+        case "git": "arrow.triangle.branch"
+        case "attach": "paperclip"
+        default: "ellipsis"
+        }
+    }
+
+    private func pluralActions(_ n: Int) -> String {
+        let mod100 = n % 100
+        if mod100 >= 11 && mod100 <= 14 { return "действий" }
+        switch n % 10 {
+        case 1: return "действие"
+        case 2, 3, 4: return "действия"
+        default: return "действий"
+        }
+    }
+
     /// Плоская строка ленты — без аватарок/цветных плашек `TaskJournalView`
     /// (та осталась только в мёртвом `TaskDetailScreen`), обычный `Text` в
     /// `Form`, текст события — тот же словарь §19.2 (`TaskJournalView.eventText`).
@@ -885,48 +1117,76 @@ struct TaskFormScreen: View {
     private func nativeJournalRow(_ entry: TaskJournalEntry) -> some View {
         switch entry {
         case .comment(let comment):
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
-                        .tfText(.body).fontWeight(.medium)
-                    Spacer()
-                    if let date = comment.createdAtDate {
-                        Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
-                    }
+            // Сообщение привязанного чата открывает саму переписку: лента
+            // задачи показывает её, но продолжать разговор нужно в чате
+            // (владелец 21.09.2026: «чтобы не комментарии писать в самой
+            // задаче, а в чате переписываться»).
+            if comment.isFromChat, let chatID = comment.chatID {
+                NavigationLink(value: AppRoute.roleChat(id: chatID)) {
+                    journalCommentBody(comment)
                 }
-                Text(comment.text).tfText(.action).foregroundStyle(Color.tfSub)
-                // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
-                // текст, и приложенные кадры в приложении не показывались
-                // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
-                // — а он живёт в мёртвом `TaskDetailScreen` и не исполняется;
-                // рабочая лента здесь. Картинки грузит `ChatAttachmentImage`
-                // (умеет ходить с авторизацией, обычный AsyncImage к этому
-                // эндпоинту не годится), прочие файлы — строкой с именем.
-                if let attachments = comment.attachments, !attachments.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(attachments) { attachment in
-                            if attachment.mime?.hasPrefix("image/") == true {
-                                ChatAttachmentImage(
-                                    attachmentId: attachment.id,
-                                    fileName: attachment.fileName
-                                )
-                            } else {
-                                Label(attachment.fileName, systemImage: "paperclip")
-                                    .tfText(.meta)
-                                    .foregroundStyle(Color.tfSub)
-                            }
-                        }
-                    }
-                    .padding(.top, 4)
-                }
+            } else {
+                journalCommentBody(comment)
             }
         case .event(let event):
-            HStack {
-                Text(TaskJournalView.eventText(event)).tfText(.action).foregroundStyle(Color.tfSub)
+            // Кто сделал — обязательно (владелец 22.09.2026: безличное
+            // «выполнил шаг» не говорит, чья это работа). Нет автора —
+            // действие системы. Имя и действие разделены точкой, чтобы не
+            // согласовывать глагол с родом («Система взял»).
+            HStack(alignment: .firstTextBaseline) {
+                (Text(event.actorName?.isEmpty == false ? event.actorName! : "Система").fontWeight(.medium)
+                    + Text(" · ")
+                    + Text(TaskJournalView.eventText(event)))
+                    .tfText(.action).foregroundStyle(Color.tfSub)
                 Spacer()
                 if let date = event.createdAtDate {
                     Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
+            }
+        }
+    }
+
+    /// Тело комментария ленты — общее для обычного комментария и для сообщения
+    /// привязанного чата (у второго только добавляется пометка).
+    @ViewBuilder
+    private func journalCommentBody(_ comment: ApiComment) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
+                    .tfText(.body).fontWeight(.medium)
+                if comment.isFromChat {
+                    // Пометка нейтральная: синий акцент в приложении не используется.
+                    TFPill("из чата", color: Color.tfSub)
+                }
+                Spacer()
+                if let date = comment.createdAtDate {
+                    Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
+                }
+            }
+            Text(comment.text).tfText(.action).foregroundStyle(Color.tfSub)
+            // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
+            // текст, и приложенные кадры в приложении не показывались
+            // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
+            // — а он живёт в мёртвом `TaskDetailScreen` и не исполняется;
+            // рабочая лента здесь. Картинки грузит `ChatAttachmentImage`
+            // (умеет ходить с авторизацией, обычный AsyncImage к этому
+            // эндпоинту не годится), прочие файлы — строкой с именем.
+            if let attachments = comment.attachments, !attachments.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(attachments) { attachment in
+                        if attachment.mime?.hasPrefix("image/") == true {
+                            ChatAttachmentImage(
+                                attachmentId: attachment.id,
+                                fileName: attachment.fileName
+                            )
+                        } else {
+                            Label(attachment.fileName, systemImage: "paperclip")
+                                .tfText(.meta)
+                                .foregroundStyle(Color.tfSub)
+                        }
+                    }
+                }
+                .padding(.top, 4)
             }
         }
     }
@@ -956,11 +1216,54 @@ struct TaskFormScreen: View {
         return labels.isEmpty ? "Не выбраны" : labels.joined(separator: ", ")
     }
 
+    /// Подпись исполнителя: имя владельца (карточка на человеке), имя
+    /// выбранной роли либо «Автоматически» (LOCK-178).
+    private var selectedRoleTitle: String {
+        if let me = session.currentUser, viewModel.assigneeId == me.id {
+            return me.name
+        }
+        guard let role = viewModel.ownerSelectedRole,
+              let profile = viewModel.roles.first(where: { $0.role == role }) else {
+            return "Автоматически"
+        }
+        return profile.title
+    }
+
     private func agentStateText(_ state: AgentState) -> String {
         switch state {
         case .inProgress: "В работе"
         case .blocked: "Заблокирована"
         case .review: "На проверке"
+        }
+    }
+
+    /// Цвет подписи состояния в шапке. «На проверке»: серая — ждёт
+    /// проверяющего, синяя — отправлена ему и он работает, зелёная — он
+    /// вынес вердикт (владелец 22.09.2026). Считаем по ленте после
+    /// последнего ухода в review: прошлые круги проверки не в счёт.
+    private func agentStateColor(_ state: AgentState) -> Color {
+        switch state {
+        case .blocked:
+            return .orange
+        case .inProgress:
+            return .tfSub
+        case .review:
+            let events = viewModel.journalEntries.compactMap { entry -> ApiTaskEvent? in
+                if case .event(let event) = entry { return event }
+                return nil
+            }
+            // `journalEntries` идут от новых к старым: всё, что новее
+            // последнего ухода в review, лежит ДО него.
+            let end = events.firstIndex { $0.kind == "state_changed" && $0.toValue == "review" }
+                ?? events.endIndex
+            let current = events[..<end]
+            if current.contains(where: { $0.kind == "review_recorded" }) { return .tfGreen }
+            if current.contains(where: {
+                $0.kind == "reviewer_sent" || ($0.kind == "run_requested" && $0.field == "reviewer")
+            }) {
+                return .tfBlue
+            }
+            return .tfSub
         }
     }
 
@@ -993,23 +1296,88 @@ struct TaskFormScreen: View {
                     ownerActionMenuItems(state)
                 }
                 if isOwner {
-                    // Готовность к самозахвату (миграция 026, карточка
-                    // 04426aeb). Кнопка одна и в том же меню «…», где уже
-                    // живут действия владельца — отдельной иконкой в
-                    // topBarTrailing конкурировать за место не даём. Сервер
-                    // примет PATCH только от владельца; кнопка скрыта от
-                    // остальных условием `isOwner` сверху.
+                    // Ручной разовый запуск: поднять исполнителя или
+                    // верификатора на этой карточке, не включая будильник.
                     Button {
-                        Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
+                        Task {
+                            if await viewModel.runAgent(mode: "executor") {
+                                toast = TaskToastMessage("Исполнитель поднят — возьмёт карточку")
+                            }
+                        }
+                    } label: {
+                        Label("Запустить исполнителя", systemImage: "play.circle")
+                    }
+                    .disabled((viewModel.assigneeId ?? "").isEmpty)
+                    if viewModel.agentState == .review {
+                        Button {
+                            Task {
+                                if await viewModel.runAgent(mode: "reviewer") {
+                                    toast = TaskToastMessage("Верификатор поднят — проверит карточку")
+                                }
+                            }
+                        } label: {
+                            Label("Отправить на проверку верификатору", systemImage: "checkmark.seal")
+                        }
+                    }
+                }
+                // Серия повтора завершилась на конце года — одним тапом
+                // продлеваем на следующий (владелец 20.09.2026).
+                if isOwner, viewModel.seriesEnded {
+                    Button {
+                        Task {
+                            if await viewModel.extendRepeat() {
+                                toast = TaskToastMessage("Серия продлена на следующий год")
+                            }
+                        }
+                    } label: {
+                        Label("Продлить на год", systemImage: "calendar.badge.plus")
+                    }
+                }
+                if isOwner {
+                    // «Запустить» / «Вернуть в черновик» (23.09.2026): флаг
+                    // готовности остался внутренним стопором сервера, а
+                    // владельцу видно только это. Вернуть в черновик можно,
+                    // пока за карточку никто не взялся.
+                    if !viewModel.readyForPickup {
+                        Button {
+                            Task { await viewModel.startTask(taskStore: taskStore) }
+                        } label: {
+                            Label("Запустить", systemImage: "play.fill")
+                        }
+                    } else if viewModel.agentState == nil {
+                        Button {
+                            Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
+                        } label: {
+                            Label("Вернуть в черновик", systemImage: "pause")
+                        }
+                    }
+
+                    // Глубокое исследование (миграция 052 сервера
+                    // New-Todoist). Тумблер-отметка и кнопка запуска
+                    // серверного конвейера: он сам собирает источники,
+                    // проверяет их и кладёт отчёт в секцию «Отчёты».
+                    Button {
+                        Task { await viewModel.toggleNeedsResearch(taskStore: taskStore) }
                     } label: {
                         Label(
-                            viewModel.readyForPickup
-                                ? "Снять флаг готовности"
-                                : "Готово к работе",
-                            systemImage: viewModel.readyForPickup
-                                ? "flag.slash"
-                                : "flag.fill"
+                            viewModel.needsResearch
+                                ? "Глубокое исследование: включено"
+                                : "Нужно глубокое исследование",
+                            systemImage: viewModel.needsResearch
+                                ? "magnifyingglass.circle.fill"
+                                : "magnifyingglass"
                         )
+                    }
+                    if viewModel.needsResearch {
+                        Button {
+                            Task {
+                                if await viewModel.startResearch() {
+                                    toast = TaskToastMessage("Исследование запущено — отчёт появится в карточке")
+                                }
+                            }
+                        } label: {
+                            Label("Запустить исследование", systemImage: "sparkles")
+                        }
                     }
                 }
                 // Закрепление переехало сюда из строки списка проекта
@@ -1023,7 +1391,14 @@ struct TaskFormScreen: View {
                         systemImage: viewModel.pinned ? "pin.slash" : "pin"
                     )
                 }
-                Button { isAttachmentPickerPresented = true } label: {
+                Menu {
+                    Button { isAttachmentPickerPresented = true } label: {
+                        Label("С iPhone", systemImage: "iphone")
+                    }
+                    Button { isKnowledgePickerPresented = true } label: {
+                        Label("Из базы знаний", systemImage: "books.vertical")
+                    }
+                } label: {
                     Label("Прикрепить файл", systemImage: "paperclip")
                 }
                 Button { outputDynamicIsland() } label: {
@@ -1045,6 +1420,7 @@ struct TaskFormScreen: View {
                 Image(systemName: "ellipsis")
                     .foregroundStyle(Color.tfText)
             }
+            .accessibilityLabel("Ещё")
         }
     }
 
@@ -1055,7 +1431,7 @@ struct TaskFormScreen: View {
         switch state {
         case .review:
             Button { Task { await viewModel.performOwnerAction(.acceptReview, comment: nil, taskStore: taskStore) } } label: {
-                Label("Принять", systemImage: "checkmark")
+                Label("Принять и закрыть задачу", systemImage: "checkmark.circle")
             }
             Button { pendingAction = .returnToWorkFromReview } label: {
                 Label("Вернуть на доработку", systemImage: "arrow.uturn.backward")
@@ -1107,6 +1483,7 @@ struct TaskFormScreen: View {
         } label: {
             Image(systemName: "keyboard.chevron.compact.down")
         }
+        .accessibilityLabel("Скрыть клавиатуру")
         .accessibilityLabel("Скрыть клавиатуру")
     }
 
@@ -1286,19 +1663,55 @@ struct TaskFormScreen: View {
         Task { await saveExistingEdits() }
     }
 
+    private func reportSubtitle(_ report: TaskReport) -> String {
+        var parts: [String] = []
+        if let author = report.authorName, !author.isEmpty { parts.append(author) }
+        if let date = report.createdAtDate { parts.append(TaskDateText.relativeTime(date)) }
+        return parts.joined(separator: " · ")
+    }
+
     private func handleAttachmentImport(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else { return }
-        Task { await viewModel.attachments.add(url: url) }
+        guard case .success(let url) = result else {
+            replaceAttachmentTarget = nil
+            return
+        }
+        let old = replaceAttachmentTarget
+        replaceAttachmentTarget = nil
+        Task {
+            await viewModel.attachments.add(url: url)
+            if let old { await viewModel.attachments.removeUploaded(old) }
+        }
+    }
+
+    /// Приложить документ из базы знаний: забираем его markdown и кладём
+    /// файлом .md к задаче — тем же путём, что и любой другой файл.
+    private func attachKnowledgeNote(noteID: String, title: String) async {
+        do {
+            let note = try await APIClient().note(id: noteID, format: "markdown")
+            let markdown = note.markdown ?? ""
+            guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                viewModel.attachments.errorMessage = "Документ пуст"
+                return
+            }
+            let base = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = String((base.isEmpty ? "Документ" : base).prefix(80)) + ".md"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            try markdown.data(using: .utf8)?.write(to: url, options: .atomic)
+            await viewModel.attachments.add(url: url)
+        } catch {
+            viewModel.attachments.errorMessage = "Не удалось приложить документ"
+        }
     }
 
     private func loadScreen() async {
         await viewModel.loadIfNeeded()
-        await viewModel.loadAgents()
+        await viewModel.loadRoles()
         if taskStore.tasks.isEmpty { await taskStore.load() }
         if projectStore.projects.isEmpty { await projectStore.load() }
         if labelStore.labels.isEmpty { await labelStore.load() }
         if viewModel.startDictation { isTitleFocused = true }
         await viewModel.loadActivity()
+        await viewModel.loadReports()
         viewModel.startPolling()
         isEditorReady = true
     }
@@ -1310,12 +1723,75 @@ struct TaskFormScreen: View {
     }
 }
 
+/// Раньше это была одна цепочка из 14 `.onChange` подряд прямо на `fullFormBody`
+/// — Swift 6.6 typecheck таймаутит на такой длине ("unable to type-check this
+/// expression in reasonable time"), Xcode 27 справлялся, 26.6 — нет. Разбито
+/// на два модификатора без изменения поведения (см. TaskFormScreen 22.09.2026).
+private struct FocusDictationTargetModifier: ViewModifier {
+    let isTitleFocused: Bool
+    let isDescriptionFocused: Bool
+    let isCommentFocused: Bool
+    let isNewSubtaskFocused: Bool
+    @Binding var dictationTarget: TaskFormScreen.DictationTarget
+    let scheduleSave: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: isTitleFocused) { wasFocused, isFocused in
+                if isFocused { dictationTarget = .title }
+                if wasFocused, !isFocused { scheduleSave() }
+            }
+            .onChange(of: isDescriptionFocused) { _, isFocused in
+                if isFocused { dictationTarget = .description }
+            }
+            .onChange(of: isCommentFocused) { _, isFocused in
+                if isFocused { dictationTarget = .comment }
+            }
+            .onChange(of: isNewSubtaskFocused) { _, isFocused in
+                if isFocused { dictationTarget = .newSubtask }
+            }
+    }
+}
+
+private struct AutosaveFieldsModifier: ViewModifier {
+    let viewModel: TaskFormViewModel
+    let scheduleSave: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: viewModel.title) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.taskDescription) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.dueDate) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.startMinutes) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.durationMin) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.runRepeat) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.repeatUntil) { _, _ in scheduleSave() }
+            .modifier(AutosaveFieldsModifierTail(viewModel: viewModel, scheduleSave: scheduleSave))
+    }
+}
+
+private struct AutosaveFieldsModifierTail: ViewModifier {
+    let viewModel: TaskFormViewModel
+    let scheduleSave: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: viewModel.projectId) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.priority) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.selectedLabelIds) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.ownerSelectedRole) { _, _ in scheduleSave() }
+            .onChange(of: viewModel.assigneeId) { _, _ in scheduleSave() }
+    }
+}
+
 /// Тот же редактор срока, что в форме создания: быстрые даты,
 /// календарь, системный барабан времени и длительность.
 private struct ExistingTaskDueEditor: View {
     @Binding var dueDate: Date?
     @Binding var startMinutes: Int?
     @Binding var durationMin: Int?
+    @Binding var runRepeat: String
+    @Binding var repeatUntil: Date?
 
     private static let durationOptions: [(minutes: Int, label: String)] = [
         (15, "15м"), (30, "30м"), (45, "45м"), (60, "1ч"), (120, "2ч"), (180, "3ч"),
@@ -1334,8 +1810,32 @@ private struct ExistingTaskDueEditor: View {
             // по тапу всплывает маленькая панелька, как в Напоминаниях.
             // Заодно ушёл перекос барабана влево — он брался от `.wheel`
             // с `labelsHidden` в колонке с выравниванием по левому краю.
-            DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
+            HStack(spacing: TFSpacing.sm) {
+                DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
+                // Убрать срок — маленький крестик у даты, как очистка в поле
+                // ввода (владелец 26.09.2026: вместо красной кнопки на всю ширину).
+                if dueDate != nil {
+                    Button {
+                        dueDate = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: TFIconSize.sm))
+                            .foregroundStyle(Color.tfDim)
+                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(startMinutes != nil ? "Убрать дату и время" : "Убрать дату")
+                }
+            }
             DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
+
+            // Время не задано — старт всё равно будет, в 09:00. Скажем прямо.
+            if dueDate != nil && startMinutes == nil {
+                Text("Старт по умолчанию — 9:00. Измените время, если нужно.")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfSub)
+            }
 
             if dueDate != nil {
                 Picker("Продолжительность", selection: $durationMin) {
@@ -1345,15 +1845,22 @@ private struct ExistingTaskDueEditor: View {
                     }
                 }
 
-                Button {
-                    dueDate = nil
-                } label: {
-                    Text(startMinutes != nil ? "Убрать дату и время" : "Убрать дату")
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfCoral)
-                        .frame(maxWidth: .infinity)
+                // Повтор: одна карточка за раз, следующая создаётся, когда
+                // текущая закрыта. Работает до конца календарного года —
+                // дальше назначается заново.
+                Picker("Повтор", selection: $runRepeat) {
+                    Text("Не повторять").tag("none")
+                    Text("Ежедневно").tag("daily")
+                    Text("По будням").tag("weekdays")
+                    Text("Еженедельно").tag("weekly")
+                    Text("Ежемесячно").tag("monthly")
                 }
-                .buttonStyle(TFTapFadeStyle())
+                if runRepeat != "none" {
+                    DatePicker("Повторять до", selection: untilBinding, displayedComponents: .date)
+                    Text("Повтор идёт до конца года, дальше назначьте заново.")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                }
             }
         }
         .padding(.vertical, TFSpacing.sm)
@@ -1363,6 +1870,24 @@ private struct ExistingTaskDueEditor: View {
                 durationMin = nil
             }
         }
+    }
+
+    /// «Повторять до»: если не задано — показываем конец текущего года
+    /// (дальше серия всё равно не идёт, владелец 20.09.2026).
+    private var untilBinding: Binding<Date> {
+        Binding(
+            get: { repeatUntil ?? Self.yearEnd },
+            set: { repeatUntil = $0 }
+        )
+    }
+
+    private static var yearEnd: Date {
+        let cal = Calendar(identifier: .gregorian)
+        var comps = DateComponents()
+        comps.year = cal.component(.year, from: Date())
+        comps.month = 12
+        comps.day = 31
+        return cal.date(from: comps) ?? Date()
     }
 
     private func quickButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -1518,6 +2043,24 @@ private struct LinkedTaskPicker: View {
                     Button("Отмена") { dismiss() }
                 }
             }
+        }
+    }
+}
+
+/// Мягкая верхняя кромка прокрутки (iOS 26+).
+///
+/// Вынесено отдельным модификатором, потому что `.scrollEdgeEffectStyle`
+/// доступен с iOS 26, а цель сборки — iOS 18: `if #available` внутри цепочки
+/// модификаторов дал бы две разные ветки типа и не собрался бы.
+///
+/// На системах старше 26 модификатор ничего не делает — кромка остаётся
+/// системной по умолчанию (жёсткой), экран при этом полностью рабочий.
+struct TFSoftTopScrollEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            content
         }
     }
 }

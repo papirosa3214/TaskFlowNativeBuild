@@ -32,7 +32,6 @@ public struct NotesScreen: View {
     @State private var showDeleteConfirm = false
     @State private var pendingNoteID: String?
     @State private var shareURLs: [URL] = []
-    @State private var showShareSheet = false
 
     private let apiClient = APIClient()
 
@@ -168,9 +167,6 @@ public struct NotesScreen: View {
         } message: {
             Text(viewModel.deleteConfirmDescription)
         }
-        .sheet(isPresented: $showShareSheet) {
-            ShareSheet(items: shareURLs)
-        }
     }
 
     // MARK: - Меню «…» (нативные, см. комментарий в начале файла)
@@ -189,7 +185,7 @@ public struct NotesScreen: View {
             Button {
                 Task {
                     shareURLs = await viewModel.exportAllToMarkdownFiles()
-                    if !shareURLs.isEmpty { showShareSheet = true }
+                    if !shareURLs.isEmpty { presentShareSheet(urls: shareURLs) }
                 }
             } label: {
                 Label("Выгрузить всё в Markdown", systemImage: "square.and.arrow.up")
@@ -203,6 +199,7 @@ public struct NotesScreen: View {
         } label: {
             Image(systemName: "ellipsis")
         }
+        .accessibilityLabel("Ещё")
         .accessibilityLabel("Действия")
     }
 
@@ -238,7 +235,7 @@ public struct NotesScreen: View {
                         }
                     }
                     shareURLs = urls
-                    if !shareURLs.isEmpty { showShareSheet = true }
+                    if !shareURLs.isEmpty { presentShareSheet(urls: shareURLs) }
                 }
             } label: {
                 Label("Выгрузить в Markdown", systemImage: "square.and.arrow.up")
@@ -252,6 +249,7 @@ public struct NotesScreen: View {
         } label: {
             Image(systemName: "ellipsis")
         }
+        .accessibilityLabel("Ещё")
         .disabled(!viewModel.hasSelection)
         .accessibilityLabel("Действия с выбранным")
     }
@@ -519,13 +517,25 @@ public struct NotesScreen: View {
     }
 }
 
-/// Обёртка `UIActivityViewController` — «Выгрузить в Markdown» отдаёт
-/// системный лист «Поделиться» с уже готовыми файлами (сохранение в
-/// Файлы/AirDrop/шаринг — вариант из спеки «серия файлов в Файлы/шеринг»).
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [URL]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+/// Системный лист «Поделиться» показываем НАПРЯМУЮ, а не через SwiftUI
+/// `.sheet`: вложенный в шторку `UIActivityViewController` рисовался серой
+/// пустой панелью без действий (жалоба владельца 20.09.2026) — он рассчитан
+/// на собственное модальное представление.
+private func presentShareSheet(urls: [URL]) {
+    guard let scene = UIApplication.shared.connectedScenes
+        .compactMap({ $0 as? UIWindowScene })
+        .first(where: { $0.activationState == .foregroundActive }),
+        let root = scene.keyWindow?.rootViewController
+    else { return }
+    var top = root
+    while let presented = top.presentedViewController { top = presented }
+    let controller = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+    if let popover = controller.popoverPresentationController {
+        popover.sourceView = top.view
+        popover.sourceRect = CGRect(
+            x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0
+        )
+        popover.permittedArrowDirections = []
     }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    top.present(controller, animated: true)
 }

@@ -8,6 +8,9 @@ public struct ApiTaskEvent: Codable, Identifiable, Sendable, Hashable {
     public let taskId: String?
     /// `nil` = системная запись, не действие конкретного пользователя.
     public let actorId: String?
+    /// Имя автора — сервер присылает его JOIN'ом по `users`. `nil` у
+    /// системной записи: тогда в ленте пишется «Система».
+    public let actorName: String?
     public let kind: String
     public let field: String?
     public let fromValue: String?
@@ -18,6 +21,7 @@ public struct ApiTaskEvent: Codable, Identifiable, Sendable, Hashable {
         case id
         case taskId = "task_id"
         case actorId = "actor_id"
+        case actorName = "actor_name"
         case kind, field
         case fromValue = "from_value"
         case toValue = "to_value"

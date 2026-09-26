@@ -21,12 +21,23 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      # Общий код голосового прототипа используется в основном приложении.
+      - path: VoiceMessageLab/Audio/VoiceActivityGate.swift
+      - path: VoiceMessageLab/Audio/VoicePlayer.swift
+      - path: VoiceMessageLab/Audio/VoiceRecorder.swift
+      - path: VoiceMessageLab/Audio/VoiceWaveform.swift
+      - path: VoiceMessageLab/Domain/VoiceMessage.swift
+      - path: VoiceMessageLab/Presentation/VoiceMessageBubble.swift
+      - path: VoiceMessageLab/Transcription/VoiceTranscriber.swift
       # Каталог ассетов ОБЯЗАН быть в `sources`: ключа `resources` у xcodegen
       # нет, он молча игнорировался — каталог не попадал в проект вообще
       # (`grep Assets.xcassets project.pbxproj` давал 0), поэтому не собирались
       # ни иконка приложения, ни альтернативные значки, и
       # `supportsAlternateIcons` возвращал false.
       - path: Resources/Assets.xcassets
+      # Образцы голосов Секретаря для прослушивания в настройках (LOCK-218).
+      - path: Resources/SecretaryVoices
+        buildPhase: resources
       # Модель состояния островка общая с расширением: оно её рисует,
       # приложение заполняет. Один файл на два таргета — чтобы поля не
       # разъехались молча.
@@ -42,6 +53,7 @@ targets:
       # `AgentAvatarView` в `Sources/Features/Chat/AgentRow.swift`.
       - package: SDWebImageSwiftUI
       - package: SDWebImageWebPCoder
+      - package: LiveKit
       # Расширение с виджетом: без явной зависимости xcodegen не вложит его
       # в бандл приложения, и Live Activity не за что будет зацепиться.
       - target: TaskFlowWidgets
@@ -59,6 +71,21 @@ targets:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: Приложение обращается к серверу задач в домашней сети.
         NSMicrophoneUsageDescription: Нужен для голосового ввода задач и заметок.
+        # Ключи приватности из `spec/NATIVE-PARTS.md` §4. Без строки-объяснения
+        # iOS убивает процесс при первом обращении к системному API — при том
+        # что СИМУЛЯТОР это молча пропускает, и дефект виден только на
+        # устройстве. Именно так «вылетал» экран «Интеграции» (LOCK-156).
+        # Apple Календарь/Напоминания — `AppleEventKitAccess.swift`, `EventKit`.
+        NSCalendarsUsageDescription: Нужен для отображения и создания событий в календаре.
+        NSCalendarsFullAccessUsageDescription: Нужен для синхронизации событий календаря с вашими задачами.
+        # Снимок камерой в чат — пункт «Камера» в меню «+» (владелец 26.09.2026).
+        NSCameraUsageDescription: Нужен, чтобы сделать снимок и прикрепить его к сообщению в чате.
+        NSRemindersUsageDescription: Нужен для синхронизации задач с Apple Напоминаниями.
+        NSRemindersFullAccessUsageDescription: Нужен для создания и управления напоминаниями в Apple Напоминаниях.
+        # Вход по Face ID — `SettingsViewModel.swift`, `LAContext`.
+        NSFaceIDUsageDescription: Используется для быстрого и безопасного входа в TaskFlow.
+        # Распознавание надиктованного текста прямо на телефоне.
+        NSSpeechRecognitionUsageDescription: Нужен, чтобы распознавать надиктованный текст задач прямо на телефоне, без отправки на сервер.
         # Без этого ключа ActivityKit не разрешает запускать Live Activity
         # вовсе: areActivitiesEnabled возвращает false, и кнопка «Вывести в
         # Dynamic Island» молча ничего не делает.
@@ -80,10 +107,45 @@ targets:
         # Сменные значки: строка «Иконка» в настройках переключает их через
         # штатный `setAlternateIconName`. Без этих двух ключей альтернативные
         # наборы не попадают в сборку и вызов падает с ошибкой.
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIconClassic AppIconDark
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIconClassic AppIconDark AppIconRecessedCheck AppIconFlowRibbon AppIconTaskOrbit AppIconStepBlocks AppIconFoldedFlight
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: true
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         TARGETED_DEVICE_FAMILY: "1"
+
+  VoiceMessageLab:
+    type: application
+    platform: iOS
+    sources:
+      - path: VoiceMessageLab
+    dependencies:
+      - package: FluidAudio
+    info:
+      path: VoiceMessageLab/Info.plist
+      properties:
+        CFBundleDisplayName: Voice Message Lab
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSMicrophoneUsageDescription: Нужен для проверки записи голосовых сообщений.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.voicemessagelab
+        TARGETED_DEVICE_FAMILY: "1"
+
+  VoiceMessageLabTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VoiceMessageLabTests
+    dependencies:
+      - target: VoiceMessageLab
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.voicemessagelab.tests
+        TEST_TARGET_NAME: VoiceMessageLab
+        GENERATE_INFOPLIST_FILE: true
 
   # Расширение с Live Activity (Dynamic Island). Код восстановлен из
   # Capacitor-обёртки, снесённой 09.09.2026 — там он работал; в нативном
@@ -184,8 +246,23 @@ packages:
   SDWebImageWebPCoder:
     url: https://github.com/SDWebImage/SDWebImageWebPCoder.git
     from: 0.14.6
+  LiveKit:
+    url: https://github.com/livekit/client-sdk-swift.git
+    from: 2.17.0
 
 schemes:
+  VoiceMessageLab:
+    build:
+      targets:
+        VoiceMessageLab: all
+        VoiceMessageLabTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VoiceMessageLabTests
+
   TaskFlow:
     build:
       targets:

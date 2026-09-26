@@ -23,14 +23,25 @@ struct AIUserPrompt: Codable, Hashable, Sendable {
     }
 }
 
-private struct AIUserPromptsResponse: Decodable { let prompts: [AIUserPrompt] }
+private struct AIUserPromptsResponse: Decodable {
+    let prompts: [AIUserPrompt]
+    /// Штатные серверные промпты по скоупам — показываем их placeholder'ом.
+    let defaults: [String: String]?
+}
 private struct AIUserPromptUpsertRequest: Encodable { let prompt: String }
 
+/// Разобранный ответ `GET /api/ai/prompts`.
+struct AIUserPromptsPayload: Sendable {
+    let prompts: [AIUserPrompt]
+    let defaults: [String: String]
+}
+
 extension APIClient {
-    /// `GET /api/ai/prompts` — все сохранённые промпты текущего пользователя.
-    func aiUserPrompts() async throws -> [AIUserPrompt] {
+    /// `GET /api/ai/prompts` — все сохранённые промпты текущего пользователя
+    /// плюс штатные серверные (для показа placeholder'ом).
+    func aiUserPrompts() async throws -> AIUserPromptsPayload {
         let response: AIUserPromptsResponse = try await request(.get, "/ai/prompts")
-        return response.prompts
+        return AIUserPromptsPayload(prompts: response.prompts, defaults: response.defaults ?? [:])
     }
 
     /// `PUT /api/ai/prompts/:scope` — сохранить/перезаписать промпт.

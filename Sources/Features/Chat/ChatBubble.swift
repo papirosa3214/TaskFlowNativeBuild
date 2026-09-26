@@ -116,11 +116,19 @@ private struct ChatFileChip: View {
 }
 
 struct ChatBubble: View {
+    /// Учётка Секретаря на сервере (`lib/ownerDraft.ts`, SECRETARY_ID).
+    static let secretaryID = "u-secretary"
+
     let message: ApiChatMessage
     let mine: Bool
     let toMe: Bool
 
     @State private var pendingTaskID: String?
+
+    /// Задачи из вложения: что предложила локальная модель и показывать ли шторку.
+    @State private var extractedTasks: [ExtractedNoteTask] = []
+    @State private var isShowingExtractedTasks = false
+    @State private var extractErrorMessage: String?
 
     private struct TaskRef: Identifiable {
         let id: String
@@ -150,12 +158,15 @@ struct ChatBubble: View {
                 if !message.text.isEmpty {
                     Text(message.text)
                         .tfText(.row) // 14px — веб text-[14px]
-                        .foregroundStyle(mine ? .white : Color.tfText)
+                        // Мои сообщения — БЕЗ красной заливки, только красная
+                        // обводка; у остальных обводки нет вовсе (владелец
+                        // 21.09.2026). Поэтому цвет текста единый.
+                        .foregroundStyle(Color.tfText)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(mine ? Color.tfRed : Color.tfCard)
+                        .background(mine ? Color.clear : Color.tfCard)
                         .overlay {
-                            if !mine && toMe {
+                            if mine {
                                 RoundedRectangle(cornerRadius: TFRadius.xl)
                                     .strokeBorder(Color.tfRed, lineWidth: TFBorder.width)
                             }
@@ -167,11 +178,27 @@ struct ChatBubble: View {
                     if let mime = attachment.mime, mime.hasPrefix("image/") {
                         ChatAttachmentImage(attachmentId: attachment.id, fileName: attachment.fileName)
                     } else {
+                        // Долгое нажатие на файл — «Создать задачи»: сервер
+                        // вытащит текст и отдаст его локальной модели, список
+                        // подтвердим в общей шторке.
                         ChatFileChip(fileName: attachment.fileName)
+                            .contextMenu {
+                                if attachmentSupportsTaskExtraction(mime: attachment.mime) {
+                                    Button {
+                                        Task { await extractTasks(from: attachment.id) }
+                                    } label: {
+                                        Label("Создать задачи", systemImage: "wand.and.stars")
+                                    }
+                                }
+                            }
                     }
                 }
 
-                if let taskId = message.taskId, let taskTitle = message.taskTitle {
+                if let taskId = message.taskId, message.fromUserId == Self.secretaryID {
+                    // Ответ Секретаря о постановке — карточкой с шагами,
+                    // дочерними и «Запустить / Удалить» (владелец 23.09.2026).
+                    SecretaryDraftCard(taskID: taskId) { pendingTaskID = taskId }
+                } else if let taskId = message.taskId, let taskTitle = message.taskTitle {
                     Button { pendingTaskID = taskId } label: {
                         Text(taskTitle)
                             .tfText(.meta)
@@ -208,6 +235,39 @@ struct ChatBubble: View {
             NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isShowingExtractedTasks) {
+            TFBottomSheetContent(title: "Задачи из файла", onClose: { isShowingExtractedTasks = false }) {
+                NoteExtractedTasksSheetContent(tasks: extractedTasks) {
+                    isShowingExtractedTasks = false
+                }
+            }
+            .presentationBackground(Color.tfSheetBackground)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("Не получилось", isPresented: Binding(
+            get: { extractErrorMessage != nil },
+            set: { if !$0 { extractErrorMessage = nil } }
+        )) {
+            Button("Понятно", role: .cancel) {}
+        } message: {
+            Text(extractErrorMessage ?? "")
+        }
+    }
+
+    private func extractTasks(from attachmentId: String) async {
+        do {
+            let tasks = try await APIClient().extractTasksFromAttachment(id: attachmentId)
+            guard !tasks.isEmpty else {
+                extractErrorMessage = "В файле не нашлось конкретных задач"
+                return
+            }
+            extractedTasks = tasks
+            isShowingExtractedTasks = true
+        } catch {
+            extractErrorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Не удалось разобрать файл"
         }
     }
 

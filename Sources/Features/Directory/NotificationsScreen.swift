@@ -112,6 +112,7 @@ struct NotificationsScreen: View {
                         Image(systemName: "trash").font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim)
                             .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                     }
+                    .accessibilityLabel("Удалить")
                     .buttonStyle(TFTapScaleStyle())
                 }
             }

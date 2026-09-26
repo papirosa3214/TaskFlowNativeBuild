@@ -9,10 +9,6 @@ import SwiftUI
 // молча показывают 0.
 struct OverviewScreen: View {
     @Environment(TaskStore.self) private var taskStore
-    /// Управление системой owner-only: обе серверные ручки отвечают 403
-    /// остальным, и показывать чужой учётке переключатели, которые ей
-    /// откажут, незачем.
-    @Environment(SessionStore.self) private var session
 
     /// Поиск открывается кнопкой в шапке, а не пунктом навигации, поэтому
     /// ему нужен свой флаг: `NavigationLink(value:)` требует собственный
@@ -28,14 +24,6 @@ struct OverviewScreen: View {
             // отделены друг от друга, а связанные переходы собраны в одну
             // карточку-список.
             VStack(spacing: TFSpacing.xl) {
-                // Выше сводок: владелец 14.09.2026 просил обе ручки
-                // («включена/выключена» и «ручной/автомат») рядом и
-                // на «Обзоре», а не в чате и не в глубине настроек.
-                // Счётчики ниже описывают, что СЕЙЧАС происходит; эта
-                // карточка отвечает, будет ли происходить вообще.
-                if session.currentUser?.role == .owner {
-                    SystemControlSection()
-                }
                 statusGrid
                 weeklySummaryCard
                 navigationSection
@@ -69,6 +57,7 @@ struct OverviewScreen: View {
                 } label: {
                     Image(systemName: "magnifyingglass")
                 }
+                .accessibilityLabel("Поиск")
                 .accessibilityLabel("Поиск")
                 .accessibilityIdentifier("overview.search")
             }
@@ -226,15 +215,15 @@ struct OverviewScreen: View {
     private func navigateToSearch() { searchPushed = true }
 
     private var workingCount: Int {
-        taskStore.tasks.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale != true }
+        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale != true }
     }
     private var reviewCount: Int {
-        taskStore.tasks.count { $0.status == .active && $0.agentState == .review }
+        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .review }
     }
     private var blockedCount: Int {
-        taskStore.tasks.count { $0.status == .active && $0.agentState == .blocked }
+        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .blocked }
     }
     private var staleCount: Int {
-        taskStore.tasks.count { $0.agentState == .inProgress && $0.agentStale == true }
+        taskStore.agentWorkTasks.count { $0.agentState == .inProgress && $0.agentStale == true }
     }
 }

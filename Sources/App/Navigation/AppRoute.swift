@@ -38,12 +38,16 @@ public enum AppRoute: Hashable {
     /// Смысловой поиск по документации всех проектов (KnowledgeScreen).
     case knowledge
     case projectTasks(projectID: String)
+    /// Задачи без проекта — тот же экран списка, но `projectID == nil`.
+    case noProjectTasks
     case labels
     case labelTasks(labelID: String)
     case search
     case activity
     case notifications
     case agents
+    /// Очередь запусков ролей (LOCK-208) — только для владельца.
+    case roleRunJobs
     /// `focus` — с какого состояния открыть сводку. Четыре плитки «Обзора»
     /// («В работе», «На проверке», «Заблокированы», «Пропали») вели сюда без
     /// параметра, и каждая показывала один и тот же полный список: владелец
@@ -54,4 +58,29 @@ public enum AppRoute: Hashable {
     case integrations
     case templates
     case voiceModels
+    /// LOCK-218: Настройки → ИИ → выбор голоса Секретаря с прослушиванием.
+    case secretaryVoicePicker
+    /// LOCK-179: серверный AI — провайдеры и модели Pi (`/api/runtime/*`).
+    /// Локальные модели остаются на `.voiceModels` («На устройстве»).
+    case runtimeProviders
+    case providerDetail(providerID: String)
+    /// LOCK-180: статус Pi Runtime из «Настройки → Сервер».
+    case runtimeStatus
+    /// LOCK-181: сервисные учётки (`ApiUser` + API-токен), переехали из «Команды».
+    case serviceAccounts
+    /// LOCK-183: профиль роли из плоского списка «Команды» (`id` — role).
+    case agentProfile(id: String)
+    /// LOCK-195: чат с ролями открывается маршрутом, а не передачей значения.
+    /// Маршрут — единственная форма пуша, которая кладёт элемент в
+    /// `NavigationPath`; по нему `RootShellView` понимает, что на вкладке есть
+    /// пуш, и прячет панель вкладок. С формой `NavigationLink { }` панель
+    /// оставалась и накрывала панель ввода чата (найдено 21.09.2026).
+    case roleChat(id: String)
+    /// LOCK-195: прежний owner-канал «Секретарь» (надиктовать → карточка) —
+    /// тот же экран `ChatScreen`, но открытый из списка чатов.
+    case secretaryChat
+    /// Голосовой разговор с Секретарём через LiveKit (Задача 5 плана Супер
+    /// Секретарь) — отдельный полноэкранный маршрут поверх комнаты
+    /// `chat-secretary`.
+    case secretaryVoiceCall
 }

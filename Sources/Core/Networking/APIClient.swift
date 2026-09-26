@@ -37,9 +37,10 @@ public final class APIClient: Sendable {
         _ method: HTTPMethodKind,
         _ path: String,
         query: [URLQueryItem] = [],
-        body: (any Encodable)? = nil
+        body: (any Encodable)? = nil,
+        timeout: TimeInterval? = nil
     ) async throws -> Response {
-        let request = try buildRequest(method: method, path: path, query: query, body: body)
+        let request = try buildRequest(method: method, path: path, query: query, body: body, timeout: timeout)
         let (data, http) = try await send(request)
         try Self.throwIfError(status: http.statusCode, data: data, request: request)
         do {
@@ -67,7 +68,8 @@ public final class APIClient: Sendable {
         method: HTTPMethodKind,
         path: String,
         query: [URLQueryItem],
-        body: (any Encodable)?
+        body: (any Encodable)?,
+        timeout: TimeInterval? = nil
     ) throws -> URLRequest {
         guard var components = URLComponents(
             url: Self.baseURL.appendingPathComponent("/api" + path),
@@ -78,12 +80,16 @@ public final class APIClient: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        // Признак «это приложение, а не скрипт»: по нему сервер пускает вход
-        // без пароля из домашней сети (`looksLikeBrowser` в server/src/auth.ts).
-        // Браузер там опознаётся по своим заголовкам, у нативного клиента их нет.
-        request.setValue("ios-native", forHTTPHeaderField: "X-TaskFlow-Client")
-        if let token = KeychainService.shared.token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        // Долгие AI-операции (постановка большого текста локальной моделью)
+        // идут десятки секунд — дефолтных 60с не хватает, и запрос обрывается
+        // с «не удалось», хотя сервер доводит работу до конца. Явный таймаут
+        // для таких маршрутов.
+        if let timeout { request.timeoutInterval = timeout }
+        Self.applyIdentity(to: &request)
+        // Выбор серверной модели приложения — необязательная подсказка серверу;
+        // читается только там, где модель реально уместна (см. AIServerModelSetting).
+        if let model = AIServerModelSetting.selected {
+            request.setValue(model, forHTTPHeaderField: "X-Ollama-Model")
         }
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -113,9 +119,7 @@ public final class APIClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = HTTPMethodKind.post.rawValue
         request.setValue(mime, forHTTPHeaderField: "Content-Type")
-        if let token = KeychainService.shared.token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        Self.applyIdentity(to: &request)
         request.httpBody = data
 
         let (responseData, http) = try await send(request)
@@ -137,9 +141,7 @@ public final class APIClient: Sendable {
             throw APIError.invalidResponse
         }
         var request = URLRequest(url: url)
-        if let token = KeychainService.shared.token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        Self.applyIdentity(to: &request)
         let (data, http) = try await send(request)
         try Self.throwIfError(status: http.statusCode, data: data, request: request)
         return data
@@ -154,6 +156,21 @@ public final class APIClient: Sendable {
 
     // MARK: - Транспорт
 
+    /// Кто спрашивает: признак приложения и ключ. Общий для ВСЕХ запросов —
+    /// раньше признак ставил только `buildRequest`, и сырые запросы
+    /// (голосовые, вложения) при входе без пароля получали 401, а 401 стирал
+    /// сессию (LOCK-209).
+    ///
+    /// Признак «это приложение, а не скрипт»: по нему сервер пускает вход
+    /// без пароля из домашней сети (`looksLikeBrowser` в server/src/auth.ts).
+    /// Браузер там опознаётся по своим заголовкам, у нативного клиента их нет.
+    private static func applyIdentity(to request: inout URLRequest) {
+        request.setValue("ios-native", forHTTPHeaderField: "X-TaskFlow-Client")
+        if let token = KeychainService.shared.token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
     private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         do {
             let (data, response) = try await session.data(for: request)
@@ -161,6 +178,17 @@ public final class APIClient: Sendable {
             return (data, http)
         } catch let error as APIError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            // SwiftUI пересоздаёт `.task`/`.refreshable` чаще, чем ждёт их
+            // завершения — предыдущий запрос отменяется штатно, это не сбой
+            // сети. Раньше это заворачивалось в `APIError.transport` и
+            // владелец видел баннер «Сеть недоступна: cancelled» на ровном
+            // месте (тот же класс бага уже чинили точечно в
+            // TaskFormScreen.swift). Отдаём настоящую `CancellationError`,
+            // чтобы вызывающий код мог её молча проигнорировать.
+            throw CancellationError()
         } catch {
             throw APIError.transport(error)
         }
