@@ -47,6 +47,20 @@ final class TaskFormViewModel {
     var priority: TaskPriority = .low
     var selectedLabelIds: Set<String> = []
     var assigneeId: String?
+    var requiresReviewerReview = true
+
+    /// Повтор карточки: none|daily|weekdays|weekly|monthly и «до даты».
+    var runRepeat: String = "none"
+    var repeatUntil: Date?
+
+    static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "Europe/Moscow")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
     /// Имя того, кто завёл карточку — только для показа, менять его нельзя.
     var creatorName: String?
     var attachments: TaskAttachmentsController
@@ -67,7 +81,13 @@ final class TaskFormViewModel {
     var saveErrorMessage: String?
     var aiStructureStatus: TaskAIStructureStatus = .idle
     var directoriesErrorMessage: String?
-    var agents: [ApiUser] = []
+    /// Профили ролей для выбора исполнителя (LOCK-178). Было `agents:
+    /// [ApiUser]` — исполнитель теперь роль (AgentProfile), а не учётка.
+    var roles: [RoleProfile] = []
+    /// Выбранная владельцем роль. `nil` — «Автоматически»: диспетчер сам
+    /// подберёт роль (`owner_selected_role` на сервере). Это отдельная ось от
+    /// готовности задачи и от фактического `assignee_id`.
+    var ownerSelectedRole: String?
     /// Владелец 07.09.2026: «не наблюдаю комментариев с активности» — лента
     /// была только в мёртвом `TaskDetailScreen`/`TaskDetailViewModel` и
     /// потерялась при переезде на эту форму (LOCK-089). Логика (сортировка,
@@ -76,15 +96,28 @@ final class TaskFormViewModel {
     var commentText = ""
 
     private var originalTask: ApiTask?
+    /// Роль на момент загрузки карточки — чтобы не отправлять
+    /// `owner_selected_role` при каждом сохранении, если владелец её не менял.
+    /// Отдельно от `originalTask.role`: на живом сервере то поле бывает пустым,
+    /// хотя выбранная роль записана.
+    private var originalRole: String?
 
     /// Чем агент занят прямо сейчас — пусто, когда задачу никто не держит.
     var activity: ApiTaskActivity = .idle
+    /// Отчёты задачи — «зеркало» документов из папки проекта.
+    var reports: [TaskReport] = []
 
     private var pollTask: Task<Void, Never>?
 
     var journalEntries: [TaskJournalEntry] {
         TaskJournalEntry.merged(comments: originalTask?.comments ?? [], events: originalTask?.events ?? [])
     }
+
+    /// Чаты, привязанные к этой задаче. Карточка по ним только ПЕРЕХОДИТ в
+    /// переписку — свой чат внутри карточки не заводится и не рисуется
+    /// (владелец 21.09.2026: «заводить прям чат прямо в карточке не надо,
+    /// надо чтобы просто переходил в чат»).
+    var taskChats: [ApiTaskChat] { originalTask?.chats ?? [] }
 
     var isEditing: Bool { taskID != nil }
     /// Для меню «…» (перенесено из `TaskDetailScreen` — открытие задачи
@@ -170,6 +203,11 @@ final class TaskFormViewModel {
             priority = TaskPriority(rawValue: task.priority) ?? .low
             selectedLabelIds = Set(task.labels.map(\.id))
             assigneeId = task.assigneeId
+            requiresReviewerReview = task.requiresReviewerReview
+            runRepeat = task.runRepeat ?? "none"
+            repeatUntil = task.repeatUntil.flatMap { Self.dayFormatter.date(from: $0) }
+            ownerSelectedRole = task.effectiveRole
+            originalRole = task.effectiveRole
             creatorName = task.creatorName
             attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID, existing: task.attachments ?? [])
         } catch let error as APIError {
@@ -305,6 +343,17 @@ final class TaskFormViewModel {
 
     /// Строка активности. Ошибку глотаем: это надстройка над карточкой,
     /// ронять из-за неё экран нельзя.
+    /// Отчёты задачи. Загружаются один раз с карточкой: их немного, и они не
+    /// живые (в отличие от активности), обновлять по таймеру незачем.
+    func loadReports() async {
+        guard let taskID else { return }
+        do {
+            reports = try await apiClient.taskReports(taskId: taskID)
+        } catch {
+            reports = []
+        }
+    }
+
     func loadActivity() async {
         guard let taskID else {
             NSLog("[TFACT] taskID пуст")
@@ -326,13 +375,12 @@ final class TaskFormViewModel {
         }
     }
 
-    func loadAgents() async {
+    /// Исполнители — роли (`GET /api/roles`), не учётки. Ошибка — та же общая
+    /// формулировка справочников, что и раньше.
+    func loadRoles() async {
         do {
-            agents = try await apiClient.agents()
+            roles = try await apiClient.roles()
         } catch {
-            // Формулировка дословно из спеки — общая ошибка справочников
-            // (проекты/метки грузит `ProjectStore`/`LabelStore` из окружения,
-            // сюда добавляются только агенты, которых стор не хранит).
             directoriesErrorMessage = "Не удалось загрузить проекты, метки или агентов. Проверьте соединение."
         }
     }
@@ -403,6 +451,14 @@ final class TaskFormViewModel {
         (error as? APIError)?.errorDescription ?? "Не удалось изменить состояние задачи"
     }
 
+    /// Текст из alert нужно забрать до закрытия alert: `Task {}` стартует
+    /// асинхронно, а сброс `@State` сразу после него иначе стирает комментарий
+    /// раньше, чем он попадёт в запрос review → in_progress.
+    nonisolated static func ownerActionCommentForSubmission(_ text: String) -> String? {
+        let comment = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return comment.isEmpty ? nil : comment
+    }
+
     /// `taskStore` — тот же общий кэш списков, что и у `save(taskStore:)`.
     /// Своей карточки мало: «Работа агентов» и плитки «Обзора» рисуют секции
     /// из стора, а он о владельческом действии не знает. Владелец 10.09.2026
@@ -427,8 +483,20 @@ final class TaskFormViewModel {
                 }
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: nil, comment: comment)
                 _ = try await apiClient.patchTask(id: taskID, fields: ["status": .string("completed")])
-            case .returnToWorkFromReview, .replyAndReturnFromBlocked:
+            case .returnToWorkFromReview:
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: .inProgress, comment: comment)
+            case .replyAndReturnFromBlocked:
+                // `blocked → in_progress` сервер пропускает только
+                // исполнителю: владелец получал 400 «invalid transition»,
+                // и комментарий из того же запроса пропадал (22.09.2026).
+                // Как в вебе (`TaskJournal.tsx`, `handleAnswer`): СНАЧАЛА
+                // снять блокировку, ПОТОМ комментарий — будильник
+                // просыпается по комментарию и сразу перечитывает задачу;
+                // застанет её ещё blocked — пройдёт мимо.
+                _ = try await apiClient.setTaskAgentState(id: taskID, state: nil)
+                if let comment {
+                    _ = try await apiClient.createComment(taskId: taskID, text: comment)
+                }
             case .returnToWorkFromInProgress:
                 _ = try await apiClient.setTaskAgentState(id: taskID, state: nil, comment: comment)
             }
@@ -443,7 +511,55 @@ final class TaskFormViewModel {
         }
     }
 
+    /// Ручной разовый запуск агента на этой карточке — исполнителя или
+    /// верификатора. Автоматику не включает: один заход по команде владельца.
+    /// `true` — сервер принял запуск.
+    func runAgent(mode: String) async -> Bool {
+        guard let taskID else { return false }
+        do {
+            try await apiClient.runTask(id: taskID, mode: mode)
+            return true
+        } catch {
+            saveErrorMessage = Self.ownerActionErrorMessage(error)
+            return false
+        }
+    }
+
+    /// Серия повтора завершена (воркер ждёт «Продлить на год»).
+    var seriesEnded: Bool { (originalTask?.recurrenceSpawned ?? 0) == 1 }
+
+    /// Продлить серию повтора на следующий календарный год (владелец).
+    func extendRepeat() async -> Bool {
+        guard let taskID else { return false }
+        do {
+            try await apiClient.extendRepeat(id: taskID)
+            await loadIfNeeded()
+            return true
+        } catch {
+            saveErrorMessage = Self.ownerActionErrorMessage(error)
+            return false
+        }
+    }
+
     // MARK: - Подзадачи (edit) — точечные вызовы, отдельные от общего PATCH задачи.
+
+    /// «Запустить» (23.09.2026): задача верхнего уровня — через сервер, тем же
+    /// путём, что кнопка на карточке Секретаря: дерево целиком, с очередью,
+    /// личные дела не трогаются. Дочерняя — флаг одной этой карточке.
+    func startTask(taskStore: TaskStore) async {
+        guard let task = originalTask else { return }
+        do {
+            if task.parentId == nil {
+                try await apiClient.startDraft(taskID: task.id)
+            } else {
+                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+            }
+            await loadIfNeeded()
+            await taskStore.load(silent: true)
+        } catch {
+            saveErrorMessage = (error as? APIError)?.errorDescription ?? "Не удалось запустить задачу"
+        }
+    }
 
     /// Поднять/снять флаг готовности задачи к самозахвату (миграция 026,
     /// карточка 04426aeb). Сервер примет PATCH только от владельца
@@ -484,6 +600,48 @@ final class TaskFormViewModel {
     /// неверно, но и экран ещё нельзя трогать.
     var readyForPickup: Bool {
         originalTask?.readyForPickup ?? false
+    }
+
+    /// «Нужно глубокое исследование» (миграция 052 сервера New-Todoist) —
+    /// обычное поле карточки. Тумблер в меню «…» владельца; каскада на
+    /// дочерние, как у флага готовности, здесь нет: это отметка одной задачи.
+    func toggleNeedsResearch(taskStore: TaskStore) async {
+        guard let task = originalTask else { return }
+        let next = !task.needsResearch
+        do {
+            _ = try await apiClient.patchTask(id: task.id, fields: [
+                "needs_research": .bool(next),
+            ])
+            await loadIfNeeded()
+            await taskStore.load(silent: true)
+        } catch {
+            saveErrorMessage = "Не удалось изменить отметку исследования"
+        }
+    }
+
+    var needsResearch: Bool {
+        originalTask?.needsResearch ?? false
+    }
+
+    /// Запустить серверный конвейер глубокого исследования. Если флага нет —
+    /// сначала поднимаем его (конвейер пускает только помеченные задачи),
+    /// затем дёргаем `POST /research`. Возвращает `true`, когда запуск принят:
+    /// по нему экран показывает подтверждение.
+    func startResearch() async -> Bool {
+        guard let task = originalTask else { return false }
+        do {
+            if !task.needsResearch {
+                _ = try await apiClient.patchTask(id: task.id, fields: [
+                    "needs_research": .bool(true),
+                ])
+                await loadIfNeeded()
+            }
+            try await apiClient.startResearch(id: task.id)
+            return true
+        } catch {
+            saveErrorMessage = "Не удалось запустить исследование"
+            return false
+        }
     }
 
     var pinned: Bool { originalTask?.pinned ?? false }
@@ -636,13 +794,19 @@ final class TaskFormViewModel {
         }
     }
 
+    /// Срок → `YYYY-MM-DD` по Москве: пикер и «Сегодня/Завтра» дают московскую
+    /// полночь (21:00 UTC прошлых суток), UTC-форматтер отдал бы день раньше.
+    nonisolated static func dueDateString(_ date: Date) -> String {
+        TaskDateText.calendarDateStringMoscow(date)
+    }
+
     private func saveEdit(taskID: String, trimmedTitle: String, taskStore: TaskStore) async throws {
         guard let originalTask else { return }
         var fields: [String: JSONValue] = [:]
         if trimmedTitle != originalTask.title { fields["title"] = .string(trimmedTitle) }
         let desc = taskDescription.isEmpty ? nil : taskDescription
         if desc != originalTask.description { fields["description"] = desc.map { JSONValue.string($0) } ?? .null }
-        let dueStr = dueDate.map(DateFormats.calendarDateString)
+        let dueStr = dueDate.map(Self.dueDateString)
         if dueStr != originalTask.dueDate { fields["due_date"] = dueStr.map { JSONValue.string($0) } ?? .null }
         let startStr = startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
         if startStr != originalTask.startTime { fields["start_time"] = startStr.map { JSONValue.string($0) } ?? .null }
@@ -650,18 +814,34 @@ final class TaskFormViewModel {
         if projectId != originalTask.projectId { fields["project_id"] = projectId.map { JSONValue.string($0) } ?? .null }
         if priority.rawValue != originalTask.priority { fields["priority"] = .number(Double(priority.rawValue)) }
         if assigneeId != originalTask.assigneeId { fields["assignee_id"] = assigneeId.map { JSONValue.string($0) } ?? .null }
-        let originalLabelIds = Set(originalTask.labels.map(\.id))
-        if selectedLabelIds != originalLabelIds { fields["label_ids"] = .strings(Array(selectedLabelIds)) }
+        // Роль-исполнитель, выбранная владельцем (LOCK-178). Пусто — снять
+        // выбор и вернуть задачу диспетчеру («Автоматически»). Сравниваем со
+        // своей запомненной ролью, а не с `originalTask.role`: то поле на
+        // живом сервере может быть пустым при записанной роли.
+        if ownerSelectedRole != originalRole {
+            fields["owner_selected_role"] = ownerSelectedRole.map { JSONValue.string($0) } ?? .null
+        }
+        if requiresReviewerReview != originalTask.requiresReviewerReview {
+            fields["requires_reviewer_review"] = .bool(requiresReviewerReview)
+        }
+        if runRepeat != (originalTask.runRepeat ?? "none") {
+            fields["run_repeat"] = .string(runRepeat)
+        }
+        let untilStr = repeatUntil.map { Self.dayFormatter.string(from: $0) }
+        if untilStr != originalTask.repeatUntil {
+            fields["repeat_until"] = untilStr.map { JSONValue.string($0) } ?? .null
+        }
 
         guard !fields.isEmpty else { return }
         _ = await taskStore.patch(taskId: taskID, fields: fields) { _ in }
+        if ownerSelectedRole != originalRole { originalRole = ownerSelectedRole }
     }
 
     private func saveCreate(trimmedTitle: String, taskStore: TaskStore) async throws {
         let payload = APIClient.NewTaskRequest(
             title: trimmedTitle,
             description: taskDescription.isEmpty ? nil : taskDescription,
-            dueDate: dueDate.map(DateFormats.calendarDateString),
+            dueDate: dueDate.map(Self.dueDateString),
             startTime: startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) },
             durationMin: durationMin,
             projectId: projectId,
@@ -669,7 +849,10 @@ final class TaskFormViewModel {
             priority: priority.rawValue,
             parentId: parentId,
             labelIds: selectedLabelIds.isEmpty ? nil : Array(selectedLabelIds),
-            subtasks: subtaskDrafts.isEmpty ? nil : subtaskDrafts.map(\.title)
+            subtasks: subtaskDrafts.isEmpty ? nil : subtaskDrafts.map(\.title),
+            // Флаг не шлём: маршрут новой карточки решает общая настройка
+            // владельца «Сначала проверка Reviewer» (Обзор → Система).
+            requiresReviewerReview: nil
         )
         guard let created = await taskStore.create(payload) else {
             throw APIError.server(status: 0, message: "Не удалось сохранить задачу")

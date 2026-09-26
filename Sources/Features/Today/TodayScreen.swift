@@ -160,7 +160,7 @@ struct TodayScreen: View {
                     if vm.layout == .list {
                         Picker("Вкладка", selection: $listTabRaw) {
                             ForEach(TodayListTab.allCases) { tab in
-                                Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
+                                Label(tab.menuTitle, systemImage: tab.icon).tag(tab.rawValue)
                             }
                         }
                         .pickerStyle(.inline)

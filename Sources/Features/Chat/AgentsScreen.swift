@@ -1,221 +1,181 @@
 import SwiftUI
 
-/// «Команда» — `/agents` (SCREENS-2 §4): список людей/агентов, форма
-/// выпуска нового агента, справка по ролям. 1:1 `src/screens/AgentsScreen.tsx`.
+/// «Команда» — плоский список сотрудников-ролей (LOCK-176 → переделан в
+/// LOCK-183, дополнен в LOCK-205).
+///
+/// Данные — `GET /api/roles?all=1`: владелец видит и отключённые, чтобы
+/// было что включить обратно. Список делится на две секции (включённые
+/// сверху, отключённые — внизу), Pi и провайдеры наружу не выносятся.
 struct AgentsScreen: View {
     @Environment(SessionStore.self) private var session
+    @Environment(TaskStore.self) private var taskStore
     @State private var viewModel = AgentsViewModel()
-
-    @State private var isInviteFormOpen = false
-    @State private var newAgentName = ""
-    @State private var isKeyCopied = false
-    @State private var agentPendingDelete: ApiUser?
+    @State private var editorMode: RoleEditorSheet.Mode?
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
-                TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить список агентов" })
+            LazyVStack(alignment: .leading, spacing: TFSpacing.lg) {
+                TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить команду" })
 
-                teamSection
-                newAgentSection
+                if !viewModel.summaryText.isEmpty {
+                    Text(viewModel.summaryText)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                }
+
+                if let ready = viewModel.runtimeReady, !ready, !viewModel.profiles.isEmpty {
+                    runtimeDownBanner
+                }
+
+                if viewModel.isOwner {
+                    runJobsEntry
+                }
+                enabledSection
+                if !viewModel.disabledProfiles.isEmpty {
+                    disabledSection
+                }
                 roleInfoSection
             }
-            .padding(.horizontal, TFSpacing.lg)
             .padding(.vertical, TFSpacing.lg)
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Команда")
+        .toolbar {
+            // Кнопка «+» есть только у владельца — это единственный, кто
+            // может создать роль. `agentProfile(id:)` маршрут остаётся в
+            // `AppRoute`, но из «Команды» теперь не открывается: правка
+            // идёт через тот же лист, что и создание.
+            if viewModel.isOwner {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        editorMode = .create
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Новая роль")
+                }
+            }
+        }
         .task {
             viewModel.configure(currentUser: session.currentUser)
             viewModel.start()
         }
         .onDisappear { viewModel.stop() }
-        .sheet(item: $agentPendingDelete) { agent in
-            deleteConfirmSheet(for: agent)
+        .sheet(item: $editorMode) { mode in
+            RoleEditorSheet(mode: mode, viewModel: viewModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
-    // MARK: - Команда
-
-    private var teamSection: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFSectionHeader("Команда")
-
-            TFErrorBanner(viewModel.deleteErrorMessage.map { _ in "Не удалось удалить агента" }, variant: .block)
-
-            if viewModel.isLoading && viewModel.agents.isEmpty {
-                TFLoading(.block)
-            }
-
-            TFCard(padding: 0) {
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.agents.enumerated()), id: \.element.id) { index, agent in
-                        if index > 0 {
-                            TFDivider()
-                                .padding(.leading, TFSpacing.lg + 40 + TFSpacing.md)
-                        }
-                        AgentRow(
-                            agent: agent,
-                            editable: viewModel.isOwner && agent.type == .ai,
-                            isExpanded: viewModel.isExpanded(agent.id),
-                            viewModel: viewModel,
-                            onTapRow: { viewModel.toggleExpand(agent.id) },
-                            onRequestDelete: { agentPendingDelete = $0 }
-                        )
-                    }
-                    if !viewModel.isLoading && viewModel.agents.isEmpty {
-                        Text("Нет пользователей")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .padding(.vertical, TFSpacing.md)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Новый агент
-
-    private var newAgentSection: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFSectionHeader("Новый агент")
-
-            TFCard(padding: 0) {
-                if let issued = viewModel.issuedToken {
-                    issuedTokenCard(issued)
-                } else if isInviteFormOpen {
-                    inviteForm
-                } else {
-                    Button {
-                        isInviteFormOpen = true
-                    } label: {
-                        HStack(spacing: TFSpacing.md) {
-                            Image(systemName: "plus")
-                                .font(.system(size: TFIconSize.sm))
-                                .foregroundStyle(Color.tfRed)
-                            Text("Завести агента")
-                                .tfText(.row)
-                                .foregroundStyle(Color.tfText)
-                        }
-                        .padding(.horizontal, TFSpacing.lg)
-                        .padding(.vertical, TFSpacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: TFRadius.xl)
-                                .strokeBorder(Color.tfStroke, style: StrokeStyle(lineWidth: TFBorder.width, dash: [5]))
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(TFTapRowStyle())
-                }
-            }
-        }
-    }
-
-    private func issuedTokenCard(_ issued: (agentID: String, name: String, token: String)) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Агент «\(issued.name)» заведён")
-                .tfText(.body)
-                .foregroundStyle(Color.tfText)
-            Text("Ключ показывается один раз — сохраните его сейчас. Потом он нигде не отображается, можно только выпустить новый.")
-                .tfText(.meta)
+    private var runtimeDownBanner: some View {
+        HStack(alignment: .top, spacing: TFSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.tfOrange)
+            Text("Исполнитель не запущен — роли не начнут работу, пока служба не поднимется.")
+                .tfText(.action)
                 .foregroundStyle(Color.tfSub)
-
-            Text(issued.token)
-                .tfMonospaced(12, relativeTo: .caption)
-                .foregroundStyle(Color.tfText)
-                .padding(TFSpacing.md)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-                .textSelection(.enabled)
-
-            HStack(spacing: TFSpacing.sm) {
-                Button {
-                    UIPasteboard.general.string = issued.token
-                    isKeyCopied = true
-                } label: {
-                    Text(isKeyCopied ? "Скопировано" : "Скопировать ключ")
-                        .tfText(.row).fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, TFSpacing.lg)
-                        .frame(height: 44)
-                        .background(Color.tfRedSolid)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-                }
-                .buttonStyle(TFTapScaleStyle())
-
-                Button {
-                    viewModel.dismissIssuedToken()
-                    isKeyCopied = false
-                } label: {
-                    Text("Готово")
-                        .tfText(.row)
-                        .foregroundStyle(Color.tfSub)
-                        .padding(.horizontal, TFSpacing.lg)
-                        .frame(height: 44)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-                }
-                .buttonStyle(TFTapScaleStyle())
-            }
+            Spacer(minLength: 0)
         }
-        .padding(TFSpacing.lg)
+        .padding(TFSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tfCard)
+        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
-    private var inviteForm: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            TFTextField("Имя агента — например, Гермес", text: $newAgentName)
-            TFErrorBanner(viewModel.createErrorMessage, variant: .block)
-            HStack(spacing: TFSpacing.sm) {
-                Button {
-                    Task {
-                        await viewModel.createAgent(name: newAgentName)
-                        if viewModel.issuedToken != nil {
-                            newAgentName = ""
-                            isInviteFormOpen = false
-                        }
+    /// Вход в очередь запусков ролей (LOCK-208) — только владельцу: сервер
+    /// остальным отвечает `403`. Строка как в «Настройках» (`navRow`).
+    private var runJobsEntry: some View {
+        TFCard(padding: 0) {
+            NavigationLink(value: AppRoute.roleRunJobs) {
+                TFListRow(
+                    icon: "bolt.horizontal", iconStyle: .plain, title: "Запуски агентов",
+                    trailing: AnyView(
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.tfDim)
+                    ),
+                    titleStyle: .action, verticalPadding: TFSpacing.xs
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    private var enabledSection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader("В команде")
+            teamCard(profiles: viewModel.enabledProfiles)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    private var disabledSection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader("Отключённые")
+            teamCard(profiles: viewModel.disabledProfiles, dimmed: true)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    /// Список ролей внутри одной карточки — `dimmed` затемняет строки
+    /// отключённых, чтобы отделить их от рабочих без отдельной визуальной
+    /// ветки в дизайн-системе.
+    private func teamCard(profiles: [RoleProfile], dimmed: Bool = false) -> some View {
+        TFCard(padding: 0) {
+            VStack(spacing: 0) {
+                if viewModel.isLoading && viewModel.profiles.isEmpty {
+                    TFLoading(.block)
+                }
+                ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                    if index > 0 {
+                        TFDivider(inset: TFSpacing.lg + 36 + TFSpacing.md)
                     }
-                } label: {
-                    Text("Завести")
-                        .tfText(.row).fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, TFSpacing.lg)
-                        .frame(height: 44)
-                        .background(Color.tfRedSolid)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                    row(for: profile, dimmed: dimmed)
                 }
-                .buttonStyle(TFTapScaleStyle())
-                .opacity(newAgentName.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
-                .disabled(newAgentName.trimmingCharacters(in: .whitespaces).isEmpty)
-
-                Button {
-                    isInviteFormOpen = false
-                    newAgentName = ""
-                } label: {
-                    Text("Отмена")
-                        .tfText(.row)
-                        .foregroundStyle(Color.tfSub)
-                        .padding(.horizontal, TFSpacing.lg)
-                        .frame(height: 44)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                if !viewModel.isLoading && profiles.isEmpty {
+                    Text("Нет ролей")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                        .padding(TFSpacing.md)
                 }
-                .buttonStyle(TFTapScaleStyle())
             }
         }
-        .padding(TFSpacing.lg)
     }
 
-    // MARK: - Роль агента
+    /// Тап открывает лист правки — для всех ролей одинаково. Внутри листа
+    /// действия («Сохранить», «Отключить/Включить») есть только у владельца:
+    /// сервер отдаёт `403` на «не владелец», и UI не показывает то, что
+    /// всё равно упрётся в ошибку.
+    @ViewBuilder
+    private func row(for profile: RoleProfile, dimmed: Bool) -> some View {
+        if viewModel.isOwner {
+            Button {
+                editorMode = .edit(profile)
+            } label: {
+                AgentRow(profile: profile, currentTask: currentTask(for: profile))
+            }
+            .buttonStyle(.plain)
+            .opacity(dimmed ? 0.55 : 1)
+        } else {
+            NavigationLink(value: AppRoute.agentProfile(id: profile.role)) {
+                AgentRow(profile: profile, currentTask: currentTask(for: profile))
+            }
+            .buttonStyle(.plain)
+            .opacity(dimmed ? 0.55 : 1)
+        }
+    }
 
-    // Была цветная иконка (crown/square.and.arrow.up/cpu/eye) перед именем
-    // роли — просьба владельца 03.09.2026: «убери аватарки [иконки], сделай
-    // такие же бейджи — агент фиолетовый с фиолетовой подложкой» — та же
-    // приглушённая плашка (`color.opacity(0.18)`), что и у настоящих ролей
-    // в списке выше (`AgentRow.roleBadge`), легенда теперь выглядит как её
-    // прямое продолжение, а не отдельным стилем.
+    /// Текущая задача роли из общего стора — для названия и времени. Ищем по
+    /// id из профиля, чтобы не путать с просто назначенными задачами.
+    private func currentTask(for profile: RoleProfile) -> ApiTask? {
+        guard let id = profile.currentTask?.id else { return nil }
+        return taskStore.tasks.first { $0.id == id }
+    }
+
     private var roleInfoSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Роль агента")
@@ -228,6 +188,7 @@ struct AgentsScreen: View {
                 }
             }
         }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
     private func roleInfoRow(color: Color, name: String, text: String) -> some View {
@@ -243,36 +204,5 @@ struct AgentsScreen: View {
                 .tfText(.action)
                 .foregroundStyle(Color.tfSub)
         }
-    }
-
-    // MARK: - Удаление (SCREENS-2 §0.5: свой bottom sheet, БЕЗ drag-to-dismiss)
-
-    private func deleteConfirmSheet(for agent: ApiUser) -> some View {
-        TFBottomSheetContent(onClose: { agentPendingDelete = nil }) {
-            VStack(alignment: .leading, spacing: TFSpacing.md) {
-                HStack(spacing: TFSpacing.sm) {
-                    Image(systemName: "trash.fill")
-                        .foregroundStyle(Color.tfCoral)
-                    Text("Удалить агента «\(agent.name)»?")
-                        .tfText(.title)
-                        .foregroundStyle(Color.tfText)
-                }
-                Text("Учётка и ключ доступа удалятся. Если за агентом остались задачи, шаги или комментарии — сервер откажет, их сначала нужно переназначить. Действие нельзя отменить.")
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
-
-                TFButton("Удалить", variant: .primary) {
-                    Task {
-                        await viewModel.deleteAgent(agent)
-                        agentPendingDelete = nil
-                    }
-                }
-                TFButton("Отмена", variant: .secondary) {
-                    agentPendingDelete = nil
-                }
-            }
-            .padding(.bottom, TFSpacing.xl)
-        }
-        .interactiveDismissDisabled() // §0.5: подтверждающая шторка не закрывается случайным свайпом
     }
 }

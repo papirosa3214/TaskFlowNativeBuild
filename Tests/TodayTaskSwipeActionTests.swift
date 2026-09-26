@@ -12,6 +12,18 @@ final class TodayTaskSwipeActionTests: XCTestCase {
         XCTAssertEqual(TodayTaskSwipeAction.action(for: task, isOwner: true), .markReadyForPickup)
     }
 
+    func testPersonalTaskGetsCompleteNotStart() {
+        let personal = TestTaskFactory.makeTask(id: "personal", assigneeId: "u-owner")
+        XCTAssertEqual(
+            TodayTaskSwipeAction.action(for: personal, isOwner: true, currentUserID: "u-owner"),
+            .complete
+        )
+        XCTAssertEqual(
+            ProjectTaskSwipeAction.action(for: personal, isOwner: true, currentUserID: "u-owner"),
+            .complete
+        )
+    }
+
     func testOtherActiveTasksKeepCompleteAndCompletedTasksHaveNoAction() throws {
         let working = TestTaskFactory.makeTask(id: "working", agentState: .inProgress)
         let completed = try JSONDecoder().decode(

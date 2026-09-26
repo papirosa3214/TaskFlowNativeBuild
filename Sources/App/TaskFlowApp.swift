@@ -36,6 +36,13 @@ struct TaskFlowApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // 15.09.2026: мягкая верхняя кромка прокрутки на всех
+                // экранах. После обновления iOS система перестала
+                // выбирать её сама, и под шапкой появилась резкая
+                // граница везде, кроме двух экранов, где вызов стоял
+                // руками. Модификатор действует на вложенные прокрутки,
+                // поэтому ставится один раз здесь.
+                .tfSoftTopScrollEdge()
                 .environment(session)
                 .environment(taskStore)
                 .environment(projectStore)

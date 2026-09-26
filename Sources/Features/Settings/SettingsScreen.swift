@@ -17,6 +17,7 @@ struct SettingsScreen: View {
     @State private var isEditProfilePresented = false
     @AppStorage("settings.user.expanded") private var userSettingsExpanded = true
     @AppStorage("settings.ai.expanded") private var aiExpanded = true
+    @AppStorage(SecretaryVoice.storageKey) private var secretaryVoice = SecretaryVoice.default.rawValue
     @AppStorage("settings.general.expanded") private var generalExpanded = true
     @AppStorage("settings.server.expanded") private var serverExpanded = true
 
@@ -118,12 +119,30 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder
+    /// LOCK-179: ИИ разделён на СЕРВЕРНЫЙ (провайдеры и модели Pi) и
+    /// ЛОКАЛЬНЫЙ («На устройстве»). Раньше единственная строка вела в
+    /// `VoiceModelsScreen` — локальные модели; теперь это разные пункты.
     private var aiSection: some View {
         section(title: "Искусственный интеллект", isExpanded: $aiExpanded) {
-            NavigationLink(value: AppRoute.voiceModels) {
-                TFListRow(icon: "sparkles", iconStyle: .plain, title: "Искусственный интеллект", trailing: AnyView(chevron), titleStyle: .action, verticalPadding: TFSpacing.xs)
+            navRow(icon: "cpu", title: "Агенты (модели и провайдеры)", route: .runtimeProviders)
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "iphone", title: "Приложение (телефон и сервер)", route: .voiceModels)
+            TFDivider(inset: rowDividerInset)
+            NavigationLink(value: AppRoute.secretaryVoicePicker) {
+                TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Секретаря",
+                          trailing: AnyView(secretaryVoiceValue), titleStyle: .action,
+                          verticalPadding: TFSpacing.xs)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.secretary-voice")
+        }
+    }
+
+    /// Текущий голос + шеврон: выбор и прослушивание — на отдельном экране.
+    private var secretaryVoiceValue: some View {
+        HStack(spacing: TFSpacing.sm) {
+            Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
+            chevron
         }
     }
 
@@ -141,9 +160,20 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder
+    /// LOCK-180/181: к серверным строкам добавлены «Pi Runtime» (статус
+    /// рантайма) и «Service Accounts» (переехавшая из «Команды» механика
+    /// ApiUser/токена).
     private var serverSection: some View {
         section(title: "Сервер", isExpanded: $serverExpanded) {
+            if session.currentUser?.role == .owner {
+                SystemControlSection()
+                TFDivider(inset: rowDividerInset)
+            }
             ServerStatusSection()
+            TFDivider(inset: rowDividerInset)
+            RuntimeStatusRow()
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "person.badge.key", title: "Сервер MCP", route: .serviceAccounts)
         }
     }
 

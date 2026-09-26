@@ -312,7 +312,10 @@ struct RootShellView: View {
     /// отсебятина». Прячем панель, как только на вкладке есть хоть один
     /// пуш — то же правило, что раньше было только у чата.
     private var shouldHideTabBar: Bool {
-        selectedTab == .chat || !(paths[selectedTab]?.isEmpty ?? true)
+        // Панель вкладок прячем только когда внутри вкладки есть пуш (открыт
+        // конкретный чат). На КОРНЕ вкладки «Чат» (список чатов) панель нужна
+        // — иначе с неё некуда вернуться (владелец 21.09.2026).
+        !(paths[selectedTab]?.isEmpty ?? true)
     }
 
     private func navigationStack(for tab: Tab) -> some View {

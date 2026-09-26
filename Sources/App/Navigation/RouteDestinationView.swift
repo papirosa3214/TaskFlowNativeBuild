@@ -48,7 +48,9 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .timeline:
         TimelineScreen()
     case .chat:
-        ChatScreen()
+        // Вкладка «Чат» ведёт в СПИСОК чатов, а не сразу в открытый чат:
+        // сначала меню чатов, потом конкретный чат (владелец 21.09.2026).
+        RoleChatsScreen()
     case .taskDetail(let taskID):
         TaskFormScreen(taskID: taskID)
     case .taskCreate:
@@ -69,6 +71,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         KnowledgeScreen()
     case .projectTasks(let projectID):
         ProjectTasksScreen(projectID: projectID)
+    case .noProjectTasks:
+        ProjectTasksScreen(projectID: nil)
     case .labels:
         LabelsScreen()
     case .labelTasks(let labelID):
@@ -81,6 +85,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         NotificationsScreen()
     case .agents:
         AgentsScreen()
+    case .roleRunJobs:
+        RoleRunJobsScreen()
     case .agentWork(let focus):
         AgentWorkScreen(focus: focus)
     case .settings:
@@ -91,5 +97,25 @@ private func routeContent(_ route: AppRoute) -> some View {
         TemplatesScreen()
     case .voiceModels:
         VoiceModelsScreen()
+    case .secretaryVoicePicker:
+        SecretaryVoicePickerScreen()
+    case .runtimeProviders:
+        RuntimeProvidersScreen()
+    case .providerDetail(let providerID):
+        ProviderDetailScreen(providerID: providerID)
+    case .runtimeStatus:
+        RuntimeStatusScreen()
+    case .serviceAccounts:
+        ServiceAccountsScreen()
+    case .agentProfile(let id):
+        AgentProfileScreen(roleID: id)
+    case .roleChat(let id):
+        // Комната грузится по идентификатору: маршрут несёт только id, а
+        // состав и последнее сообщение берутся запросом (LOCK-195).
+        RoleChatRoomLoader(chatID: id)
+    case .secretaryChat:
+        SecretaryChatScreen()
+    case .secretaryVoiceCall:
+        SecretaryVoiceScreen()
     }
 }

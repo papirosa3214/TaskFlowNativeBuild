@@ -11,6 +11,12 @@ import Observation
 @Observable
 public final class TaskStore {
     public private(set) var tasks: [ApiTask] = []
+    /// Тот же список, но С ДОЧЕРНИМИ (`include_children`). Только для плиток
+    /// «Обзора» и «Работы агентов»: работу там ведут именно дочерние, а в
+    /// `tasks` сервер кладёт лишь те из них, у кого есть проект — дочерняя
+    /// «в работе» в плитках не считалась (владелец 22.09.2026). `tasks` не
+    /// расширяем: иначе дочерние вывалились бы строками во все списки.
+    public private(set) var agentWorkTasks: [ApiTask] = []
     public private(set) var isLoading = false
     public var errorMessage: String?
 
@@ -27,10 +33,22 @@ public final class TaskStore {
         if !silent { isLoading = true }
         errorMessage = nil
         defer { if !silent { isLoading = false } }
+        async let withChildren = apiClient.tasks(includeChildren: true)
         do {
             tasks = try await apiClient.tasks()
+        } catch is CancellationError {
+            // Экран перезапросил список раньше, чем доехал предыдущий заход
+            // (смена формата «Список»/«Один день», быстрый повторный вход) —
+            // отмена штатная, банер «Сеть недоступна» тут ни при чём.
         } catch {
             errorMessage = Self.message(for: error)
+        }
+        do {
+            agentWorkTasks = try await withChildren
+        } catch is CancellationError {
+            // см. комментарий выше
+        } catch {
+            errorMessage = errorMessage ?? Self.message(for: error)
         }
     }
 
@@ -106,6 +124,7 @@ public final class TaskStore {
             upsert(task)
         case .taskDeleted(let id):
             tasks.removeAll { $0.id == id }
+            agentWorkTasks.removeAll { $0.id == id }
         default:
             break
         }
@@ -123,6 +142,11 @@ public final class TaskStore {
             tasks[index] = task
         } else {
             tasks.append(task)
+        }
+        if let index = agentWorkTasks.firstIndex(where: { $0.id == task.id }) {
+            agentWorkTasks[index] = task
+        } else {
+            agentWorkTasks.append(task)
         }
     }
 

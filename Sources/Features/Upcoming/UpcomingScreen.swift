@@ -18,6 +18,11 @@ public struct UpcomingScreen: View {
     /// вкладка приложения: это первый, сохранённый по умолчанию раздел.
     enum ViewMode: String, CaseIterable { case today, threeDays, week, month }
 
+    /// Пункты правого календаря. Отдельный тип нужен ровно потому, что
+    /// «Список» и «Часы» — это один `ViewMode.today`, различаемый только
+    /// `todayLayout`.
+    enum PlannerSection: String, CaseIterable { case list, hours, threeDays, week, month }
+
     @AppStorage("plannerSection") private var upcomingLayoutRaw = ViewMode.today.rawValue
     private var view: ViewMode {
         get { ViewMode(rawValue: upcomingLayoutRaw) ?? .today }
@@ -30,6 +35,27 @@ public struct UpcomingScreen: View {
         // режима с таким именем больше нет, и он молча превращается в список.
         get { TodayLayout(rawValue: todayLayoutRaw) ?? .list }
         nonmutating set { todayLayoutRaw = newValue.rawValue }
+    }
+
+    /// Пара `view` + `todayLayout` одним значением — для правого календаря.
+    private var plannerSection: PlannerSection {
+        get {
+            switch view {
+            case .today: todayLayout == .hours ? .hours : .list
+            case .threeDays: .threeDays
+            case .week: .week
+            case .month: .month
+            }
+        }
+        nonmutating set {
+            switch newValue {
+            case .list: view = .today; todayLayout = .list
+            case .hours: view = .today; todayLayout = .hours
+            case .threeDays: view = .threeDays
+            case .week: view = .week
+            case .month: view = .month
+            }
+        }
     }
 
     /// «Выполненные» переехали в «Показывать в разделе» и вместе с остальным
@@ -133,7 +159,14 @@ public struct UpcomingScreen: View {
         // выбранный владельцем мелкий заголовок оставлен как есть.
         .tfNativeHeader(navigationTitle, displayMode: .inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { subviewPill }
+            // Вкладки списка нужны только самому списку: «Три дня» — это
+            // три дня, к «Сегодня»/«Ждут вас» они отношения не имеют
+            // (владелец 16.09.2026). Вернуться в список теперь можно
+            // пунктом «Список» в правом календаре, поэтому кнопка больше
+            // не обязана висеть в диапазонах ради одного этого.
+            if plannerSection == .list {
+                ToolbarItem(placement: .topBarLeading) { subviewPill }
+            }
             if view != .today {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 0) {
@@ -380,28 +413,26 @@ public struct UpcomingScreen: View {
     /// Системное меню разделов. Оно используется и самим экраном, и дочерним
     /// «Сегодня», поэтому переключение не создаёт отдельную, самодельную
     /// панель под навбаром.
-    /// ПРАВЫЙ календарь — только временны́е сетки, от часа до месяца
-    /// (владелец 15.09.2026: «там, где у нас календарик — сегодня, три дня,
-    /// неделя, месяц — это всё должны быть часовые моменты; сегодня это
-    /// должны быть часы вместо сегодня»). Поэтому пункт «Сегодня» стал
-    /// «Часы» и открывает почасовую сетку, а не список: список живёт на
-    /// левой кнопке вкладок.
+    /// ПРАВЫЙ календарь — все разделы планирования, от списка до месяца
+    /// (владелец 16.09.2026: «где у нас календарь — часы, три дня, неделя,
+    /// месяц — пятым должен быть список… получается у нас должен быть
+    /// список, часы, три дня, неделя, месяц»). Порядок взят из последней
+    /// его формулировки: «Список» стоит первым.
+    ///
+    /// «Список» и «Часы» — это один и тот же `ViewMode.today` с разным
+    /// `todayLayout`, поэтому у пунктов свой пятизначный тип: `ViewMode`
+    /// один эти два пункта не различает.
     private var viewSwitcherMenu: some View {
         Menu {
             Picker("Раздел", selection: Binding(
-                get: { view },
-                set: { newValue in
-                    view = newValue
-                    // «Часы» — это почасовая сетка сегодняшнего дня. Без
-                    // этого раздел открылся бы последним списком и пункт
-                    // выглядел бы неработающим.
-                    if newValue == .today { todayLayout = .hours }
-                }
+                get: { plannerSection },
+                set: { plannerSection = $0 }
             )) {
-                Label("Часы", systemImage: "clock").tag(ViewMode.today)
-                Label("Три дня", systemImage: "calendar.day.timeline.left").tag(ViewMode.threeDays)
-                Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(ViewMode.week)
-                Label("Месяц", systemImage: "calendar").tag(ViewMode.month)
+                Label("Список", systemImage: "list.bullet").tag(PlannerSection.list)
+                Label("Часы", systemImage: "clock").tag(PlannerSection.hours)
+                Label("Три дня", systemImage: "calendar.day.timeline.left").tag(PlannerSection.threeDays)
+                Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(PlannerSection.week)
+                Label("Месяц", systemImage: "calendar").tag(PlannerSection.month)
             }
             .pickerStyle(.inline)
         } label: {
@@ -418,8 +449,9 @@ public struct UpcomingScreen: View {
     /// выбирается этой кнопкой, а почасовая сетка — пунктом «Часы» в
     /// календаре справа.
     ///
-    /// Кнопка видна во всех разделах, а не только в «Сегодня»: выбор вкладки
-    /// и есть способ вернуться из «Трёх дней»/«Недели»/«Месяца» в список.
+    /// Кнопка видна только в разделе «Список» (владелец 16.09.2026): в
+    /// «Трёх днях» и прочих сетках вкладки списка ничего не значат. Выйти
+    /// из сетки обратно в список — пункт «Список» в правом календаре.
     private var subviewPill: some View {
         Menu {
             Picker("Вкладка", selection: Binding(
@@ -433,7 +465,7 @@ public struct UpcomingScreen: View {
                 }
             )) {
                 ForEach(TodayListTab.allCases) { tab in
-                    Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
+                    Label(tab.menuTitle, systemImage: tab.icon).tag(tab.rawValue)
                 }
             }
         } label: {

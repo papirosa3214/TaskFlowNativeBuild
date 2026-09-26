@@ -100,6 +100,16 @@ public extension APIClient {
         try await requestVoid(.post, "/chat/read")
     }
 
+    /// Очистить ленту канала (владелец). Владелец 21.09.2026: «должна быть
+    /// возможность очищать этот чат». Сервер удаляет все сообщения канала.
+    func clearChatMessages(channel: ChatChannel) async throws {
+        try await requestVoid(
+            .delete,
+            "/chat/messages",
+            query: [URLQueryItem(name: "channel", value: channel.rawValue)]
+        )
+    }
+
     struct ChatAttachmentUpload: Decodable, Sendable {
         public let attachment: ApiChatAttachment
     }

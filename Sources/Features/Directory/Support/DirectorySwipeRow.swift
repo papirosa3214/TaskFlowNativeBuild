@@ -34,6 +34,26 @@ struct DirectorySwipeRow<Content: View>: View {
 
     private var offsetX: CGFloat { clamp(settledOffset + dragOffset) }
 
+    /// Ширина открытой панели действия с заходом ПОД карточку.
+    ///
+    /// 16.09.2026, владелец: «карточки с закруглениями, а свайп ровные
+    /// 90 угловые, захватывает фон». Карточка скруглена со всех сторон, панель
+    /// обрезается по внешней границе строки — и на стыке, под скруглением
+    /// карточки, открывался тёмный серп фона.
+    ///
+    /// Панель делается шире ровно на радиус и, поскольку прижата к своему краю
+    /// строки, этим излишком заезжает под карточку. Под скруглением оказывается
+    /// её цвет, стык становится сплошным. Снаружи обрезка по
+    /// `RoundedRectangle(cornerRadius:)` сохраняется, поэтому внешние углы
+    /// остаются скруглёнными как у карточки.
+    ///
+    /// Закрытая панель имеет нулевую ширину: излишек добавляется только когда
+    /// она реально раскрывается, иначе полоска цвета торчала бы в покое.
+    private func panelWidth(forOpening isOpening: Bool, shift: CGFloat) -> CGFloat {
+        guard isOpening, shift > 0 else { return 0 }
+        return shift + cornerRadius
+    }
+
     var body: some View {
         ZStack {
             HStack(spacing: 0) {
@@ -42,7 +62,7 @@ struct DirectorySwipeRow<Content: View>: View {
                         .font(.system(size: 20, weight: .regular))
                         .foregroundStyle(.white)
                 }
-                .frame(width: max(offsetX, 0))
+                .frame(width: panelWidth(forOpening: offsetX > 0, shift: offsetX))
                 .frame(maxHeight: .infinity)
                 .background(Color.tfSwipeDelete)
                 .opacity(offsetX > 0 ? 1 : 0)
@@ -52,7 +72,7 @@ struct DirectorySwipeRow<Content: View>: View {
                         .font(.system(size: 20, weight: .regular))
                         .foregroundStyle(.white)
                 }
-                .frame(width: max(-offsetX, 0))
+                .frame(width: panelWidth(forOpening: offsetX < 0, shift: -offsetX))
                 .frame(maxHeight: .infinity)
                 .background(Color.tfSwipeEdit)
                 .opacity(offsetX < 0 ? 1 : 0)
@@ -79,7 +99,7 @@ struct DirectorySwipeRow<Content: View>: View {
     }
 
     private func close() {
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        withAnimation(TFRowSwipe.settleAnimation()) {
             settledOffset = 0
             dragOffset = 0
         }
@@ -88,7 +108,12 @@ struct DirectorySwipeRow<Content: View>: View {
 
     private func settle(dx: CGFloat, velocity: CGFloat) {
         let finalOffset = clamp(settledOffset + dx)
-        withAnimation(.timingCurve(0.2, 0.9, 0.28, 1, duration: 0.28)) {
+        // 16.09.2026: `velocity` здесь нужен только для условия открыть/закрыть
+        // ниже. Анимация доведения от скорости пальца НЕ зависит — пружина
+        // фиксированная, см. шапку `TFRowSwipe.settleAnimation` в
+        // `HorizontalPan.swift`. Как в нативных Mail/Notes: свайпнул — плашка
+        // доезжает со своей скоростью, рука быстрая или медленная — без разницы.
+        withAnimation(TFRowSwipe.settleAnimation()) {
             if settledOffset == 0 {
                 if finalOffset < -openPx || velocity < -openVelocity {
                     settledOffset = -actionWidth

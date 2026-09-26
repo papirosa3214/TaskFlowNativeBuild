@@ -135,7 +135,8 @@ struct TodayListView: View {
     private func row(_ task: ApiTask, overdue: Bool) -> some View {
         let swipeAction = TodayTaskSwipeAction.action(
             for: task,
-            isOwner: session.currentUser?.role == .owner
+            isOwner: session.currentUser?.role == .owner,
+            currentUserID: session.currentUser?.id
         )
         return TodayTaskRow(task: task, overdue: overdue,
                             onOpen: { onOpen(task) },
@@ -159,9 +160,18 @@ struct TodayListView: View {
                 _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
                 await taskStore.load(silent: true)
             case .markReadyForPickup:
-                _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                // «Запустить» — тем же путём, что в карточке и в чате Секретаря.
+                if task.parentId == nil {
+                    try await apiClient.startDraft(taskID: task.id)
+                } else {
+                    _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
+                }
                 await taskStore.load(silent: true)
             }
+        } catch is CancellationError {
+            // Экран пересобрался (смена формата «Список»/«Один день» и
+            // т.п.) быстрее, чем действие успело доехать — запрос отменился
+            // штатно, показывать баннер не о чем.
         } catch {
             swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
@@ -174,10 +184,15 @@ struct TodayListView: View {
                     .font(.system(size: 16))
                     .foregroundStyle(section.color)
             }
+            // Владелец 15.09.2026: «подзаголовки чуть-чуть покрупнее шрифт
+            // сделай и белым их, чтобы они выделялись, а то прям они как
+            // будто бы не подзаголовки, а спрятались так тускленько».
+            // Поэтому ступень типографики выше (.title → .taskTitle) и
+            // основной цвет текста вместо приглушённого `section.color`.
             Text(section.title)
-                .tfText(.title)
+                .tfText(.taskTitle)
                 .fontWeight(.semibold)
-                .foregroundStyle(section.color)
+                .foregroundStyle(Color.tfText)
         }
         .padding(.horizontal, TFSpacing.lg)
         .padding(.top, 8)
