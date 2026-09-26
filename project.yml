@@ -78,6 +78,8 @@ targets:
         # Apple Календарь/Напоминания — `AppleEventKitAccess.swift`, `EventKit`.
         NSCalendarsUsageDescription: Нужен для отображения и создания событий в календаре.
         NSCalendarsFullAccessUsageDescription: Нужен для синхронизации событий календаря с вашими задачами.
+        # Снимок камерой в чат — пункт «Камера» в меню «+» (владелец 26.09.2026).
+        NSCameraUsageDescription: Нужен, чтобы сделать снимок и прикрепить его к сообщению в чате.
         NSRemindersUsageDescription: Нужен для синхронизации задач с Apple Напоминаниями.
         NSRemindersFullAccessUsageDescription: Нужен для создания и управления напоминаниями в Apple Напоминаниях.
         # Вход по Face ID — `SettingsViewModel.swift`, `LAContext`.
@@ -105,7 +107,7 @@ targets:
         # Сменные значки: строка «Иконка» в настройках переключает их через
         # штатный `setAlternateIconName`. Без этих двух ключей альтернативные
         # наборы не попадают в сборку и вызов падает с ошибкой.
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIconClassic AppIconDark
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIconClassic AppIconDark AppIconRecessedCheck AppIconFlowRibbon AppIconTaskOrbit AppIconStepBlocks AppIconFoldedFlight
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: true
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         TARGETED_DEVICE_FAMILY: "1"
