@@ -47,7 +47,7 @@ struct NotificationsScreen: View {
                 TFErrorBanner(serviceTicketsError, variant: .inline)
 
                 if !serviceTickets.isEmpty {
-                    TFSectionHeader("Сторонние сервисы")
+                    TFSectionHeader("Серверные уведомления")
                     VStack(spacing: TFSpacing.sm) {
                         ForEach(serviceTickets) { summary in
                             NotificationTicketCard(
