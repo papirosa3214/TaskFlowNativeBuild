@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 // «Задачи проекта» — spec/SCREENS-2.md §8, `/projects/:id`. Сверено построчно
 // с живым `src/screens/ProjectTasksScreen.tsx` 31.08.2026.
@@ -26,6 +27,7 @@ struct ProjectTasksScreen: View {
     @State private var relationshipTasks: [ApiTask] = []
 
     private let apiClient = APIClient()
+    private let logger = Logger(subsystem: "com.taskflow.apiclient", category: "project-tasks")
 
     @State private var pendingDetail: String?
 
@@ -167,21 +169,26 @@ struct ProjectTasksScreen: View {
         .navigationDestination(isPresented: $showNewTask) { routeDestination(.taskCreate) }
     }
 
-    @ViewBuilder
     private func rowWithIndex(_ rowIndex: Int) -> some View {
+        if rowIndex < 0 || rowIndex >= tasks.count {
+            logger.error("rowWithIndex out of bounds: index=\(rowIndex) count=\(tasks.count)")
+            return AnyView(EmptyView())
+        }
         let task = tasks[rowIndex]
         let shortId = String(task.id.prefix(8))
         let swipeAction = ProjectTaskSwipeAction.action(
             for: task, isOwner: isTaskOwner, currentUserID: session.currentUser?.id
         )
-        DirectoryTaskRow(
-            index: shortId,
-            task: task,
-            isOwner: isTaskOwner,
-            onOpen: { pendingDetail = task.id },
-            onDelete: { Task { await deleteTask(task) } },
-            swipeAction: swipeAction,
-            onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
+        return AnyView(
+            DirectoryTaskRow(
+                index: shortId,
+                task: task,
+                isOwner: isTaskOwner,
+                onOpen: { pendingDetail = task.id },
+                onDelete: { Task { await deleteTask(task) } },
+                swipeAction: swipeAction,
+                onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
+            )
         )
     }
 
