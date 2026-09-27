@@ -149,4 +149,68 @@ final class ServiceTicketMarkdownParserTests: XCTestCase {
         let d = try XCTUnwrap(ServiceTicketMarkdownParser.parse(liveExampleWithDiagnosticSection))
         XCTAssertEqual(d.diagnosticTaskId, "88a18485-120a-4e97-ab20-e45a48d5fe58")
     }
+
+    // Important #4 финального ревью LOCK-227: старый символьный класс
+    // `[^0-9)]+?` в захватывающей группе исключал ВСЕ цифры, поэтому вариант
+    // с числом внутри текста (таймауты, секунды, порты — обычный контент для
+    // этого домена) терялся целиком. Фикс — `.+?` + lookahead "пробел(ы) +
+    // цифры + `)`" — должен и захватить цифру внутри текста, и не сломать
+    // границу с соседним вариантом.
+    private let withDigitInsideOption = """
+    # Тикет с цифрой внутри варианта
+
+    - когда: 2026-09-27T02:00:00
+    - от кого: demo
+    - уровень: error
+    - тревога: да
+
+    ## Сводка (для отображения в приложении)
+    ```
+    demo
+    ```
+
+    ## Итог по устранению
+    - канал telegram — (не исправлено, нужно ваше решение по вопросу выбора канала:
+      1) переключить на резервный канал
+      2) увеличить таймаут отправки до 30 секунд
+      3) отключить проверку на 6 часов
+      4) свой вариант)
+    """
+
+    func test_extractNumberedOptions_keepsOptionWithDigitInside() throws {
+        let d = try XCTUnwrap(ServiceTicketMarkdownParser.parse(withDigitInsideOption))
+        XCTAssertEqual(d.resolutionItems.count, 1)
+        guard case .needsDecision(let options) = d.resolutionItems[0].status else {
+            return XCTFail("expected needsDecision")
+        }
+        XCTAssertEqual(options, [
+            "переключить на резервный канал",
+            "увеличить таймаут отправки до 30 секунд",
+            "отключить проверку на 6 часов"
+        ])
+    }
+
+    // Critical #1 финального ревью LOCK-227: "сегодня" для запроса
+    // `fetchInbox(date:)` должно быть локальным календарным днём устройства,
+    // НЕ UTC. `ISO8601DateFormatter` по умолчанию отдаёт GMT — ровно в
+    // 01:00 по Москве (UTC+3) это ещё 22:00 предыдущего дня по UTC, и наивный
+    // расчёт запросил бы вчерашнюю дату, пропустив только что созданный тикет.
+    func test_localDayString_usesLocalCalendarDayNotUTC() throws {
+        var moscow = Calendar(identifier: .gregorian)
+        moscow.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Moscow"))
+
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+
+        // 2026-09-27T01:00:00 по Москве == 2026-09-26T22:00:00 UTC.
+        let instant = try XCTUnwrap(utc.date(from: DateComponents(
+            year: 2026, month: 9, day: 26, hour: 22, minute: 0, second: 0
+        )))
+
+        XCTAssertEqual(ServiceTicketDate.localDayString(for: instant, calendar: moscow), "2026-09-27")
+        // Санитарная проверка: наивный UTC-расчёт для этого же момента
+        // ошибочно отдал бы "26", а не "27" — именно этот класс багов и
+        // исправляет `localDayString`.
+        XCTAssertEqual(ServiceTicketDate.localDayString(for: instant, calendar: utc), "2026-09-26")
+    }
 }

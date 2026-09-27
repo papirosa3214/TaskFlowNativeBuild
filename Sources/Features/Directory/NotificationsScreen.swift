@@ -32,6 +32,7 @@ struct NotificationsScreen: View {
     @State private var serviceTickets: [ServiceTicketSummary] = []
     @State private var serviceTicketDetails: [String: ServiceTicketDetail] = [:]
     @State private var serviceTicketsError: String?
+    @State private var isLoadingServiceTickets = false
     @State private var resolutionSheetItem: ServiceTicketResolutionItem?
     @State private var resolutionSheetTaskId: String?
     private let serviceClient = ServiceNotificationsClient()
@@ -232,15 +233,35 @@ struct NotificationsScreen: View {
     }
 
     private func loadServiceTickets() async {
+        // `.task` (первичная загрузка) и `.refreshable` (pull-to-refresh) оба
+        // зовут этот метод — без гварда они бы мутировали одни и те же
+        // `@State`-массивы одновременно (найдено финальным ревью LOCK-227,
+        // Minor: "нет in-flight guard").
+        guard !isLoadingServiceTickets else { return }
+        isLoadingServiceTickets = true
+        defer { isLoadingServiceTickets = false }
+
         serviceTicketsError = nil
-        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        // Локальный календарный день устройства, НЕ UTC — иначе ночью по
+        // Москве (UTC+3) сегодняшние тикеты запрашиваются как "вчера" (см.
+        // `ServiceTicketDate.localDayString`, Critical #1 финального ревью).
+        let today = ServiceTicketDate.localDayString()
         do {
-            let list = try await serviceClient.fetchInbox(date: String(today))
+            let list = try await serviceClient.fetchInbox(date: today)
             serviceTickets = list
             for summary in list where serviceTicketDetails[summary.id] == nil {
-                let raw = try await serviceClient.fetchRaw(path: summary.path)
-                if let detail = ServiceTicketMarkdownParser.parse(raw) {
-                    serviceTicketDetails[summary.id] = detail
+                // Сбой ОДНОГО тикета не должен обрывать загрузку деталей для
+                // всех остальных и показывать общий баннер ошибки поверх уже
+                // отрисованного списка — карточка и так падает на fallback
+                // `summary.snippet`, когда `detail` не пришёл (Important #2
+                // финального ревью).
+                do {
+                    let raw = try await serviceClient.fetchRaw(path: summary.path)
+                    if let detail = ServiceTicketMarkdownParser.parse(raw) {
+                        serviceTicketDetails[summary.id] = detail
+                    }
+                } catch {
+                    continue
                 }
             }
         } catch {

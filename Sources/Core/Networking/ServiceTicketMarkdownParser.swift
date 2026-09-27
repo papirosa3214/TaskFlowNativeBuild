@@ -97,7 +97,7 @@ public enum ServiceTicketMarkdownParser {
                 current = String(trimmed.dropFirst(2))
             } else if !trimmed.isEmpty, current != nil {
                 current! += " " + trimmed
-            } else if trimmed.isEmpty, current != nil, !blocks.contains(current!) {
+            } else if trimmed.isEmpty, current != nil {
                 // Пустая строка внутри многострочного пункта — ещё не конец,
                 // граница — следующий "- " или "##"; продолжаем накопление.
                 continue
@@ -128,8 +128,15 @@ public enum ServiceTicketMarkdownParser {
     }
 
     /// "1) ... 2) ... 3) ... 4) свой вариант" → ["...", "...", "..."] (без пункта 4 — он всегда отдельное поле ввода в модалке).
+    ///
+    /// Захватывающая группа — `.+?` (любой символ, включая цифры), НЕ
+    /// `[^0-9)]+?`: старый символьный класс исключал ВСЕ цифры и терял целиком
+    /// вариант вроде "увеличить таймаут до 30 секунд" (Important #4 финального
+    /// ревью). Границу следующего варианта ищем через lookahead "пробел(ы) +
+    /// цифры + `)`" — этому не соответствует цифра посреди прозы без `)` сразу
+    /// после неё (например "30 секунд"), поэтому граница определяется корректно.
     private static func extractNumberedOptions(_ text: String) -> [String] {
-        let pattern = #"(\d+)\)\s*([^0-9)]+?)(?=\s*\d+\)|$)"#
+        let pattern = #"(\d+)\)\s*(.+?)(?=\s+\d+\)|$)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let range = NSRange(text.startIndex..., in: text)
         var options: [String] = []

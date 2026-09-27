@@ -16,12 +16,15 @@ struct NotificationTicketCard: View {
                 metaRow
 
                 if let summaryText = detail?.summaryText, !summaryText.isEmpty {
-                    // `Text(LocalizedStringKey:)` рендерит `**жирный**`/`*курсив*` из
-                    // сырого markdown-блока сводки — обычный `Text(String)` этого не
-                    // делает и показывает звёздочки буквально.
-                    Text(LocalizedStringKey(summaryText)).tfText(.meta).foregroundStyle(Color.tfSub)
+                    // `markdownText` рендерит `**жирный**`/`*курсив*` из сырого
+                    // markdown-блока сводки, но безопасно: `LocalizedStringKey`
+                    // прогоняло бы через markdown-парсер ЛЮБОЙ будущий текст
+                    // (одиночная звёздочка, подчёркивание в `autonomy_110`,
+                    // обратные кавычки), а не только уже пофикшенный случай
+                    // `**bold**` (Important #5 финального ревью).
+                    markdownText(summaryText).tfText(.meta).foregroundStyle(Color.tfSub)
                 } else {
-                    Text(LocalizedStringKey(summary.snippet)).tfText(.meta).foregroundStyle(Color.tfSub)
+                    markdownText(summary.snippet).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
                 // `detail.notWorkingText` НЕ рендерится отдельным блоком — он уже
                 // часть `summaryText` выше (тот же фрагмент "## Сводка" целиком,
@@ -66,13 +69,39 @@ struct NotificationTicketCard: View {
             .buttonStyle(TFTapScaleStyle())
             .disabled(item.taskId == nil)
         case .unresolved, .needsDecision:
+            // Симметрично ветке `.fixed`: тап должен реально открывать модалку
+            // (комментарий уйдёт в задачу `taskId`) — если ни у пункта, ни у
+            // тикета в целом (fallback `detail?.diagnosticTaskId`, та же
+            // логика, что использует `NotificationsScreen` при выборе
+            // `taskId` для модалки) нет ссылки на задачу, строка дизейблится
+            // и гаснет, а не остаётся тапабельной без эффекта (Important #3
+            // финального ревью).
+            let canResolve = item.taskId != nil || detail?.diagnosticTaskId != nil
             Button {
                 onTapResolutionItem(item)
             } label: {
-                Text(resolutionRowText(item)).tfText(.meta).foregroundStyle(Color.tfRed).underline()
+                Text(resolutionRowText(item)).tfText(.meta)
+                    .foregroundStyle(canResolve ? Color.tfRed : Color.tfDim)
+                    .underline(canResolve)
             }
             .buttonStyle(TFTapScaleStyle())
+            .disabled(!canResolve)
         }
+    }
+
+    /// `AttributedString(markdown:)` с фолбэком на буквальный `Text` при
+    /// ошибке парсинга — не `Text(LocalizedStringKey:)` (см. Important #5
+    /// выше): `.inlineOnlyPreservingWhitespace` рендерит `**bold**`/`*italic*`
+    /// без риска сломанной разметки крашнуть или искажать текст, а провал
+    /// парсинга просто показывает исходную строку как есть.
+    private func markdownText(_ raw: String) -> Text {
+        if let attributed = try? AttributedString(
+            markdown: raw,
+            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            return Text(attributed)
+        }
+        return Text(raw)
     }
 
     private func resolutionRowText(_ item: ServiceTicketResolutionItem) -> String {

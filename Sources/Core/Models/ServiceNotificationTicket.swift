@@ -47,7 +47,11 @@ public struct ServiceTicketResolutionItem: Identifiable, Sendable, Hashable {
     public let taskId: String?
 
     public init(problem: String, status: ServiceTicketResolutionStatus, taskId: String?) {
-        self.id = problem
+        // `id` — отдельный UUID, НЕ `problem`: два пункта "Итог по устранению"
+        // с одинаковым текстом проблемы (формат это не запрещает) иначе
+        // коллидировали бы в `ForEach`/списочной идентичности SwiftUI
+        // (найдено финальным ревью LOCK-227, Minor).
+        self.id = UUID().uuidString
         self.problem = problem
         self.status = status
         self.taskId = taskId
@@ -82,4 +86,23 @@ public struct ServiceTicketDetail: Sendable, Hashable {
 
 extension ServiceTicketDetail: Identifiable {
     public var id: String { title + when }
+}
+
+/// Локальный календарный день устройства для запроса `fetchInbox(date:)`.
+///
+/// НЕ использовать `ISO8601DateFormatter` тут — он по умолчанию отдаёт GMT
+/// (документировано Apple), а сервер `.110` живёт в Москве (UTC+3): ночью,
+/// между полуночью и ~03:00 по Москве, UTC-дата — это ещё "вчера", и запрос
+/// с `date=<вчера>` пропускает тикеты, созданные уже "сегодня" по местному
+/// времени устройства. Найдено финальным ревью LOCK-227, Critical #1.
+/// Извлечено в отдельный testable-тип специально ради регрессионного теста
+/// на этот класс ошибок (см. `Tests/ServiceTicketMarkdownParserTests.swift`).
+public enum ServiceTicketDate {
+    public static func localDayString(for date: Date = Date(), calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = calendar.timeZone
+        return formatter.string(from: date)
+    }
 }
