@@ -2,27 +2,10 @@ import SwiftUI
 import Observation
 import os
 
-// Управление системой в «Настройки → Сервер» — четыре ручки владельца рядом.
-//
-// Владелец 14.09.2026, дословно: «это по сути вся система, она либо
-// включена, либо выключена, и соответственно её режим — либо ручной, либо
-// автомат». Тогда ручки жили в «Настройки → Сервер»; в LOCK-151 их перенесли
-// на «Обзор», но владелец 20.09.2026 вернул их обратно: «перенести вот эти
-// все наши тумблеры и лампочки — система, режим, сначала проверка ревьюер и
-// расписание — всё-таки опять в настройки, в раздел сервер». Поэтому секция
-// снова рендерится в серверной секции настроек, а не на стартовом экране.
-//
-// Внутренние слова («будильник», «служба», «intake») на экран не выносятся,
-// владелец видит состояние и режим. Подписи короткие: у каждой ручки тумблер
-// или лампа сами показывают своё состояние, словами его дублировать незачем
-// (просьба владельца 20.09.2026 — «убрать все лишние подписи»): у «Системы»
-// остаётся только момент обхода, у «Расписания» — только последний обход.
-//
-// Обе серверные ручки owner-only (`/api/agent-service`,
-// `/api/task-intake/settings` отвечают 403 остальным), поэтому не владельцу
-// секция не показывается вовсе — вызывающий её прячет, мёртвых
-// переключателей в интерфейсе быть не должно. Транспорт —
-// `APIClient+SystemControl.swift` в `Core`.
+// Настройки → Сервер: один переключатель автоматики «Система».
+// ВКЛ — автоматические допуск, назначение и запуск; ВЫКЛ — ручной запуск.
+// «Авторевьюер» управляет маршрутом проверки, «Расписание» — индикатор.
+// Состояние хранится на сервере; непрочитанное значение не показываем как ВЫКЛ.
 
 @MainActor
 @Observable
@@ -44,10 +27,6 @@ final class SystemControlViewModel {
 
     /// Планировщик расписания (taskflow-scheduler) — независимая лампа.
     private(set) var scheduler: SchedulerRunState?
-
-    private(set) var mode: TaskIntakeMode = .manual
-    private(set) var isModeKnown = false
-    private(set) var isSavingMode = false
 
     /// «Сначала проверка Reviewer» — общий маршрут новых карточек
     /// (раньше это был флаг на каждой карточке).
@@ -78,12 +57,10 @@ final class SystemControlViewModel {
         }
         do {
             let settings = try await api.fetchTaskIntakeSettings()
-            mode = settings.mode
             reviewerFirstDefault = settings.reviewerFirstDefault
-            isModeKnown = true
             isReviewerDefaultKnown = true
         } catch {
-            log.error("не удалось прочитать режим постановки: \(error.localizedDescription, privacy: .public)")
+            log.error("не удалось прочитать настройку авторевьюера: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -104,22 +81,6 @@ final class SystemControlViewModel {
             isSystemOn = confirmed
             errorMessage = on ? "Не удалось включить систему" : "Не удалось выключить систему"
             log.error("переключение системы отклонено: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    func setMode(_ newMode: TaskIntakeMode) async {
-        guard isModeKnown, newMode != mode, !isSavingMode else { return }
-        let confirmed = mode
-        mode = newMode
-        isSavingMode = true
-        errorMessage = nil
-        defer { isSavingMode = false }
-        do {
-            mode = try await api.updateTaskIntakeMode(newMode).mode
-        } catch {
-            mode = confirmed
-            errorMessage = "Не удалось сменить режим"
-            log.error("смена режима отклонена: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -181,15 +142,6 @@ struct SystemControlSection: View {
                 )
                 TFDivider(inset: rowDividerInset)
                 TFListRow(
-                    icon: "slider.horizontal.3", iconStyle: .plain,
-                    title: "Автоодобрение задачи",
-                    trailing: AnyView(TFToggle(isOn: automaticBinding)
-                        .disabled(!viewModel.isModeKnown || viewModel.isSavingMode)),
-                    titleStyle: .action,
-                    verticalPadding: TFSpacing.xs
-                )
-                TFDivider(inset: rowDividerInset)
-                TFListRow(
                     icon: "checkmark.seal", iconStyle: .plain,
                     title: "Авторевьюер",
                     trailing: AnyView(TFToggle(isOn: reviewerDefaultBinding)
@@ -239,7 +191,7 @@ struct SystemControlSection: View {
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
 
-    // Заголовок строки ПОСТОЯННЫЙ («Система», «Автоодобрение задачи»,
+    // Заголовок строки ПОСТОЯННЫЙ («Система»,
     // «Авторевьюер», «Расписание»), состояние живёт в тумблере/лампе:
     // меняющийся заголовок читался бы двояко — это текущее положение или то,
     // что случится по нажатию.
@@ -285,13 +237,6 @@ struct SystemControlSection: View {
         Binding(
             get: { viewModel.isSystemOn },
             set: { on in Task { await viewModel.setSystemOn(on) } }
-        )
-    }
-
-    private var automaticBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.mode == .automatic },
-            set: { isAutomatic in Task { await viewModel.setMode(isAutomatic ? .automatic : .manual) } }
         )
     }
 

@@ -1,7 +1,6 @@
 import Foundation
 
-// Две серверные ручки владельца, которыми управляет карточка на «Обзоре»:
-// работает ли система и что она делает с надиктовкой.
+// Настройки серверной автоматики и маршрута проверки новых задач.
 //
 // Лежит в `Core/Networking` рядом с остальными расширениями `APIClient`
 // (`APIClient+AgentDetails.swift`, `APIClient+Reviews.swift`), а не во
@@ -75,9 +74,8 @@ public struct SchedulerRunState: Decodable, Sendable {
 
 /// Ответ `GET/POST /api/agent-service`.
 ///
-/// `enabled` — включён ли systemd-юнит, `active` — работает ли он прямо
-/// сейчас. Владельцу показываем второе: включённая, но упавшая система
-/// карточку не возьмёт, и тумблер обязан показывать факт, а не намерение.
+/// `active` и `enabled` отражают единый сохранённый режим автоматики сервера.
+/// Состояние отдельного systemd-триггера больше не управляет запуском ролей.
 public struct SystemRunState: Decodable, Sendable {
     public let active: Bool
     public let enabled: Bool
@@ -137,10 +135,7 @@ public extension APIClient {
         try await request(.get, "/agent-service")
     }
 
-    /// `POST /api/agent-service` отдаёт только `{ ok }`, а systemd применяет
-    /// изменение не мгновенно — поэтому состояние не выводится из ответа, а
-    /// перечитывается. Эхо запроса показало бы «работает» раньше, чем
-    /// система реально встала.
+    /// После сохранения перечитываем подтверждённое сервером состояние.
     func setSystemRunning(_ on: Bool) async throws -> SystemRunState {
         let ack: SystemToggleAck = try await request(.post, "/agent-service", body: SystemToggleBody(on: on))
         guard ack.ok else { throw APIError.transport(URLError(.badServerResponse)) }

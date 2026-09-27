@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import TaskFlow
 
-/// Карточка управления системой на «Обзоре»: включение и режим постановки.
+/// Настройки сервера: единый переключатель автоматики и авторевьюер.
 /// Проверяется главное — что интерфейс не врёт владельцу: отказ сервера
 /// возвращает подтверждённое значение, а непрочитанное состояние не
 /// выдаётся за «выключено»/«ручной».
@@ -19,7 +19,7 @@ final class SystemControlViewModelTests: XCTestCase {
         return SystemControlViewModel(api: APIClient(session: URLSession(configuration: configuration)))
     }
 
-    func testLoadReadsRunningStateAndMode() async {
+    func testLoadReadsRunningStateAndReviewerDefault() async {
         SystemControlURLProtocol.handler = { request in
             if request.url?.path.hasSuffix("/agent-service") == true {
                 return (200, Data(#"{"active":true,"enabled":true}"#.utf8))
@@ -31,8 +31,7 @@ final class SystemControlViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.isSystemOn)
         XCTAssertTrue(viewModel.isSystemStateKnown)
-        XCTAssertEqual(viewModel.mode, .automatic)
-        XCTAssertTrue(viewModel.isModeKnown)
+        XCTAssertTrue(viewModel.isReviewerDefaultKnown)
     }
 
     /// Юнит включён, но не работает — владельцу это «выключено»: задачу
@@ -59,51 +58,50 @@ final class SystemControlViewModelTests: XCTestCase {
         await viewModel.load()
 
         XCTAssertFalse(viewModel.isSystemStateKnown)
-        XCTAssertFalse(viewModel.isModeKnown)
+        XCTAssertFalse(viewModel.isReviewerDefaultKnown)
     }
 
-    func testModeToggleSurvivesRoundTrip() async {
+    func testSystemToggleSurvivesRoundTrip() async {
+        var serverOn = false
         SystemControlURLProtocol.handler = { request in
+            if request.httpMethod == "POST" {
+                serverOn = true
+                return (200, Data(#"{"ok":true}"#.utf8))
+            }
             if request.url?.path.hasSuffix("/agent-service") == true {
-                return (200, Data(#"{"active":true,"enabled":true}"#.utf8))
+                return (200, Data("{\"active\":\(serverOn),\"enabled\":\(serverOn)}".utf8))
             }
-            if request.httpMethod == "PATCH" {
-                return (200, Data(#"{"mode":"automatic"}"#.utf8))
-            }
-            return (200, Data(#"{"mode":"manual"}"#.utf8))
+            return (200, Data(#"{"mode":"manual","reviewer_first_default":true}"#.utf8))
         }
         let viewModel = makeViewModel()
         await viewModel.load()
-        await viewModel.setMode(.automatic)
-
-        XCTAssertEqual(viewModel.mode, .automatic)
+        await viewModel.setSystemOn(true)
+        XCTAssertTrue(viewModel.isSystemOn)
         XCTAssertNil(viewModel.errorMessage)
+        await viewModel.load()
+        XCTAssertTrue(viewModel.isSystemOn)
     }
 
-    /// Отказ сервера обязан вернуть ровно подтверждённое значение —
-    /// иначе оптимистичный показ превращается в тихое враньё.
-    func testRejectedModeChangeRestoresConfirmedValue() async {
+    func testReviewerSettingDoesNotEnableSystem() async {
         SystemControlURLProtocol.handler = { request in
             if request.url?.path.hasSuffix("/agent-service") == true {
-                return (200, Data(#"{"active":true,"enabled":true}"#.utf8))
+                return (200, Data(#"{"active":false,"enabled":false}"#.utf8))
             }
-            if request.httpMethod == "PATCH" {
-                return (400, Data(#"{"error":"нераспознанный режим"}"#.utf8))
-            }
-            return (200, Data(#"{"mode":"manual"}"#.utf8))
+            let reviewer = request.httpMethod != "PATCH"
+            return (200, Data("{\"mode\":\"manual\",\"reviewer_first_default\":\(reviewer)}".utf8))
         }
         let viewModel = makeViewModel()
         await viewModel.load()
-        await viewModel.setMode(.automatic)
-
-        XCTAssertEqual(viewModel.mode, .manual)
-        XCTAssertNotNil(viewModel.errorMessage)
+        await viewModel.setReviewerDefault(false)
+        XCTAssertFalse(viewModel.reviewerFirstDefault)
+        XCTAssertFalse(viewModel.isSystemOn)
+        XCTAssertNil(viewModel.errorMessage)
     }
 
     func testRejectedSystemToggleRestoresConfirmedValue() async {
         SystemControlURLProtocol.handler = { request in
             if request.httpMethod == "POST" {
-                return (500, Data(#"{"error":"systemd"}"#.utf8))
+                return (500, Data(#"{"error":"server"}"#.utf8))
             }
             if request.url?.path.hasSuffix("/agent-service") == true {
                 return (200, Data(#"{"active":true,"enabled":true}"#.utf8))
@@ -131,7 +129,6 @@ final class SystemControlViewModelTests: XCTestCase {
         let afterLoad = requestCount
 
         await viewModel.setSystemOn(true)
-        await viewModel.setMode(.automatic)
 
         XCTAssertEqual(requestCount, afterLoad)
     }
