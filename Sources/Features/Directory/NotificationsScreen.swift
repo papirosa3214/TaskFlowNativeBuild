@@ -65,22 +65,6 @@ struct NotificationsScreen: View {
                     }
                 }
 
-                TFCard(padding: 0) {
-                    Button {
-                        route = .activity
-                    } label: {
-                        HStack {
-                            Text("Завершённые задачи").tfText(.row).foregroundStyle(Color.tfText)
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim)
-                        }
-                        .padding(.horizontal, TFSpacing.md)
-                        .padding(.vertical, TFSpacing.sm + 2)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(TFTapRowStyle())
-                }
-
                 if notificationStore.notifications.isEmpty {
                     TFEmptyState(text: "Уведомлений пока нет").padding(.top, TFSpacing.xl)
                 } else {
