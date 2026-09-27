@@ -1,11 +1,14 @@
 // Sources/Core/Networking/ServiceTicketMarkdownParser.swift
 import Foundation
 
-/// Разбирает markdown-сводку `.110` — docs/2026-09-27-notifications-service-tickets-spec.md.
-/// Метаданные и блок «Сводка» — живой, проверенный формат. Блок
+/// Разбирает markdown-сводку `.110` — docs/2026-09-27-notifications-service-tickets-spec.md,
+/// формат зафиксирован в официальной документации `file-format.md` (NAS
+/// `00-taskflow/notifications-backend/`, получена 27.09.2026). Метаданные —
+/// живой, проверенный формат (ключи в `**жирном**` начертании — writer
+/// `rendezvous.py` переключился на это между первой и второй проверкой
+/// в тот же день, парсер принимает оба варианта). Блок
 /// «## Итог по устранению» — Phase 4 backend, на 27.09.2026 сервер его
-/// ещё не пишет; парсинг best-effort по эталонному шаблону, перепроверить
-/// на первом живом файле.
+/// ещё не пишет; парсинг best-effort, перепроверить на первом живом файле.
 public enum ServiceTicketMarkdownParser {
     public static func parse(_ raw: String) -> ServiceTicketDetail? {
         let lines = raw.components(separatedBy: .newlines)
@@ -14,9 +17,20 @@ public enum ServiceTicketMarkdownParser {
             .dropFirst(2).trimmingCharacters(in: .whitespaces) else { return nil }
 
         func metaValue(_ key: String) -> String? {
-            guard let line = lines.first(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("- \(key):") }) else { return nil }
-            return line.split(separator: ":", maxSplits: 1).dropFirst().first
-                .map { $0.trimmingCharacters(in: .whitespaces) }
+            // Ключ может быть в `**жирном**` начертании ("- **когда:** ...")
+            // или без него ("- когда: ...") — оба варианта встречались в
+            // живых файлах `.110` в один день 27.09.2026.
+            let pattern = "^-\\s+\\*{0,2}\(NSRegularExpression.escapedPattern(for: key))\\*{0,2}:\\*{0,2}\\s*(.+)$"
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                let range = NSRange(trimmed.startIndex..., in: trimmed)
+                if let match = regex.firstMatch(in: trimmed, range: range),
+                   let valueRange = Range(match.range(at: 1), in: trimmed) {
+                    return String(trimmed[valueRange]).trimmingCharacters(in: .whitespaces)
+                }
+            }
+            return nil
         }
 
         guard let when = metaValue("когда"),
@@ -27,7 +41,10 @@ public enum ServiceTicketMarkdownParser {
 
         let summaryText = extractFencedBlock(lines, afterHeading: "## Сводка")
         let notWorkingText = extractNotWorkingLine(summaryText)
-        let diagnosticTaskId = firstTaskLink(in: summaryText)
+        // Ссылка на карточку диагностики живёт в своей секции "## Карточка
+        // диагностики" (file-format.md), не внутри блока "## Сводка" —
+        // ищем по всему файлу, не только в отрывке сводки.
+        let diagnosticTaskId = firstTaskLink(in: raw)
         let resolutionItems = extractResolutionItems(lines)
 
         return ServiceTicketDetail(
