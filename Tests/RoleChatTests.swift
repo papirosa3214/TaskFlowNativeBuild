@@ -85,7 +85,7 @@ final class RoleChatTests: XCTestCase {
           "from_user_name": "Ревьюер", "from_user_color": "#123456",
           "from_user_avatar_url": "/avatar/reviewer.png", "from_user_initials": "Р",
           "text": "Проверил задачу", "created_at": "2026-09-21T10:01:00.000Z",
-          "attachments": []
+          "attachments": [], "is_session_marker": false
         }
         """#)
 
@@ -104,7 +104,8 @@ final class RoleChatTests: XCTestCase {
         let message = try decode(RoleChatMessage.self, #"""
         {"id":"msg-2","chat_id":"chat-1","from_user_id":null,
          "from_user_name":null,"from_user_color":null,"from_user_avatar_url":null,
-         "from_user_initials":null,"text":"Системное сообщение","created_at":null}
+         "from_user_initials":null,"text":"Системное сообщение","created_at":null,
+         "is_session_marker":false}
         """#)
         XCTAssertNil(message.fromUserID)
         XCTAssertNil(message.fromUserName)
