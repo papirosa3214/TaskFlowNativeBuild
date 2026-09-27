@@ -12,6 +12,7 @@ struct QuickAddTaskView: View {
     var onExpand: () -> Void
 
     @Environment(TaskStore.self) private var taskStore
+    @Environment(SessionStore.self) private var session
     @Environment(ProjectStore.self) private var projectStore
     @Environment(LabelStore.self) private var labelStore
     @Environment(\.dismiss) private var dismiss
@@ -375,10 +376,29 @@ struct QuickAddTaskView: View {
 
             // Исполнитель — роль (LOCK-178), как в полной карточке.
             Menu {
-                Button("Автоматически") { viewModel.ownerSelectedRole = nil }
+                Button("Автоматически") {
+                    viewModel.ownerSelectedRole = nil
+                    viewModel.assigneeId = nil
+                }
+                // Себя — как в полной карточке (владелец 27.09.2026: при
+                // создании себя было не выбрать): карточку на владельце
+                // агенты не берут.
+                if let me = session.currentUser {
+                    Button {
+                        viewModel.assigneeId = me.id
+                        viewModel.ownerSelectedRole = nil
+                    } label: {
+                        if viewModel.assigneeId == me.id {
+                            Label(me.name, systemImage: "checkmark")
+                        } else {
+                            Text(me.name)
+                        }
+                    }
+                }
                 ForEach(viewModel.roles) { role in
                     Button {
                         viewModel.ownerSelectedRole = role.role
+                        viewModel.assigneeId = nil
                     } label: {
                         if viewModel.ownerSelectedRole == role.role {
                             Label(role.title, systemImage: "checkmark")
@@ -388,7 +408,7 @@ struct QuickAddTaskView: View {
                     }
                 }
             } label: {
-                quickIcon(slot: slot, "person", isSet: viewModel.ownerSelectedRole != nil, systemAppearance: systemAppearance)
+                quickIcon(slot: slot, "person", isSet: viewModel.ownerSelectedRole != nil || viewModel.assigneeId != nil, systemAppearance: systemAppearance)
             }
             .accessibilityLabel("Исполнитель")
             .accessibilityValue(assigneeName)
@@ -495,6 +515,9 @@ struct QuickAddTaskView: View {
     }
 
     private var assigneeName: String {
+        if let me = session.currentUser, viewModel.assigneeId == me.id {
+            return me.name
+        }
         guard let role = viewModel.ownerSelectedRole,
               let profile = viewModel.roles.first(where: { $0.role == role }) else {
             return "Автоматически"
