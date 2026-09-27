@@ -65,14 +65,14 @@ struct NotificationsScreen: View {
                     }
                 }
 
-                if notificationStore.notifications.isEmpty {
+                if visibleNotifications.isEmpty {
                     TFEmptyState(text: "Уведомлений пока нет").padding(.top, TFSpacing.xl)
                 } else {
                     TFCard(padding: 0) {
                         VStack(spacing: 0) {
-                            ForEach(Array(notificationStore.notifications.enumerated()), id: \.element.id) { idx, n in
+                            ForEach(Array(visibleNotifications.enumerated()), id: \.element.id) { idx, n in
                                 notificationRow(n)
-                                if idx < notificationStore.notifications.count - 1 { TFDivider() }
+                                if idx < visibleNotifications.count - 1 { TFDivider() }
                             }
                         }
                     }
@@ -121,6 +121,15 @@ struct NotificationsScreen: View {
     }
 
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }
+
+    /// Владелец 27.09.2026: «закрытие задачи» уже полноценно показывает
+    /// экран «Активность» (фильтры, «Вернуть в работу») — дублировать это
+    /// вторым списком в «Уведомлениях» не нужно, скрываем `type == "completed"`
+    /// из отображения. Чтение/бейдж непрочитанных на сервере не трогаем —
+    /// это только фильтр того, что рисуется на экране.
+    private var visibleNotifications: [ApiNotification] {
+        notificationStore.notifications.filter { $0.type != "completed" }
+    }
 
     // MARK: - Строка уведомления
 
@@ -203,7 +212,17 @@ struct NotificationsScreen: View {
                 rowErrors[n.id] = "Не удалось отметить прочитанным"
             }
         }
-        if let taskId = n.taskId { route = .taskDetail(taskID: taskId) }
+        guard let taskId = n.taskId else { return }
+        // Тап по уведомлению на уже удалённую задачу раньше вёл на мёртвый
+        // экран «Задача не найдена» — тупик, владелец 27.09.2026. Проверяем
+        // существование перед переходом; если задачи нет — остаёмся в списке
+        // и показываем это прямо в строке (там уже сохранено `taskTitle`).
+        do {
+            _ = try await apiClient.task(id: taskId)
+            route = .taskDetail(taskID: taskId)
+        } catch {
+            rowErrors[n.id] = "Задача удалена или недоступна"
+        }
     }
 
     private func delete(_ n: ApiNotification) async {
