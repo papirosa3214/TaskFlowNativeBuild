@@ -16,17 +16,18 @@ struct NotificationTicketCard: View {
                 metaRow
 
                 if let summaryText = detail?.summaryText, !summaryText.isEmpty {
-                    Text(summaryText).tfText(.meta).foregroundStyle(Color.tfSub)
+                    // `Text(LocalizedStringKey:)` рендерит `**жирный**`/`*курсив*` из
+                    // сырого markdown-блока сводки — обычный `Text(String)` этого не
+                    // делает и показывает звёздочки буквально.
+                    Text(LocalizedStringKey(summaryText)).tfText(.meta).foregroundStyle(Color.tfSub)
                 } else {
-                    Text(summary.snippet).tfText(.meta).foregroundStyle(Color.tfSub)
+                    Text(LocalizedStringKey(summary.snippet)).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
-
-                if let notWorking = detail?.notWorkingText {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Не отработали в штатном режиме").tfText(.meta).foregroundStyle(Color.tfRed)
-                        Text(notWorking).tfText(.meta).foregroundStyle(Color.tfSub)
-                    }
-                }
+                // `detail.notWorkingText` НЕ рендерится отдельным блоком — он уже
+                // часть `summaryText` выше (тот же фрагмент "## Сводка" целиком,
+                // включая "Не отработали в штатном режиме"); отдельная секция
+                // дублировала бы этот же текст дважды. Красная обводка карточки
+                // (ниже) — единственный визуальный сигнал тревоги поверх текста.
 
                 if let taskId = detail?.diagnosticTaskId {
                     Button { onOpenTask(taskId) } label: {
