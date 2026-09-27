@@ -147,9 +147,13 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// пузырём, а меткой посередине; сама история при сбросе сессии не
     /// удаляется, разделитель просто показывает границу.
     public let isSessionMarker: Bool
+    /// Шаги хода роли, которые привели к этому ответу (владелец 27.09.2026,
+    /// живой ход как в Claude Code) — рисуются свёрнутой строкой «N шагов ·
+    /// M с» над текстом. `nil` — ход без шагов или сообщение не от роли.
+    public let steps: RoleChatSteps?
 
     enum CodingKeys: String, CodingKey {
-        case id, text, attachments
+        case id, text, attachments, steps
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"
@@ -161,5 +165,105 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case taskTitle = "task_title"
         case quickReplies = "quick_replies"
         case isSessionMarker = "is_session_marker"
+    }
+}
+
+/// Шаги хода роли, сохранённые вместе с ответом (`chat_messages.steps`).
+public struct RoleChatSteps: Decodable, Sendable, Equatable {
+    public let durationMs: Int
+    public let items: [RoleChatLiveItem]
+
+    enum CodingKeys: String, CodingKey {
+        case items
+        case durationMs = "duration_ms"
+    }
+
+    public var stepCount: Int { items.filter(\.isStep).count }
+}
+
+/// Элемент хода роли — кусок текста или шаг (вызов инструмента). Сервер
+/// отдаёт голое имя инструмента и короткую подпись из аргументов (путь,
+/// команда); действие по-русски выбирает клиент (`RoleLiveStepKind`).
+public enum RoleChatLiveItem: Decodable, Sendable, Equatable, Identifiable {
+    case text(String)
+    case step(RoleChatLiveStep)
+
+    public var id: String {
+        switch self {
+        case .text(let text): return "text-\(text.hashValue)"
+        case .step(let step): return step.id
+        }
+    }
+
+    public var isStep: Bool {
+        if case .step = self { return true }
+        return false
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, text }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if try container.decode(String.self, forKey: .kind) == "text" {
+            self = .text(try container.decode(String.self, forKey: .text))
+        } else {
+            self = .step(try RoleChatLiveStep(from: decoder))
+        }
+    }
+}
+
+public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
+    public enum Status: String, Decodable, Sendable {
+        case running, done, error
+    }
+
+    public let id: String
+    public let tool: String
+    public let detail: String?
+    public let status: Status
+
+    public init(id: String, tool: String, detail: String?, status: Status) {
+        self.id = id
+        self.tool = tool
+        self.detail = detail
+        self.status = status
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, tool, detail, status }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        tool = try container.decode(String.self, forKey: .tool)
+        detail = try container.decodeIfPresent(String.self, forKey: .detail)
+        // Незнакомый статус (сервер новее клиента) — считаем шаг идущим,
+        // а не роняем весь снимок хода.
+        let raw = try container.decodeIfPresent(String.self, forKey: .status) ?? "running"
+        status = Status(rawValue: raw) ?? .running
+    }
+}
+
+/// Идущий сейчас ход роли в чате (`chats:live`, `GET /chats/:id/live`):
+/// текст ответа растёт по словам, между кусками текста — шаги.
+public struct RoleChatLiveTurn: Decodable, Sendable, Equatable {
+    public let chatID: String
+    public let userID: String
+    public let name: String
+    public let startedAt: String?
+    public let items: [RoleChatLiveItem]
+
+    enum CodingKeys: String, CodingKey {
+        case name, items
+        case chatID = "chat_id"
+        case userID = "user_id"
+        case startedAt = "started_at"
+    }
+
+    /// Когда ход начался — для счётчика «идёт 42 с».
+    public var startDate: Date? {
+        guard let startedAt else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: startedAt) ?? ISO8601DateFormatter().date(from: startedAt)
     }
 }

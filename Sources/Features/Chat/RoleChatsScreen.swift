@@ -687,6 +687,9 @@ private struct RoleChatRoomScreen: View {
     /// например "read"/"edit"/"bash") — только пока `active == true` и
     /// сервер прислал `tool`. Живёт ровно как `typists`: без истории.
     @State private var typistTools: [String: String] = [:]
+    /// Идущие ходы ролей (userId → снимок): текст по словам и шаги
+    /// (`chats:live`, 27.09.2026). Рисуются только в 1:1-чате.
+    @State private var liveTurns: [String: RoleChatLiveTurn] = [:]
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
@@ -884,6 +887,18 @@ private struct RoleChatRoomScreen: View {
                         typists[userID] = nil
                         typistTools[userID] = nil
                     }
+                case .roleChatLive(let id, let userID, let turn) where id == chatID:
+                    if let turn {
+                        liveTurns[userID] = turn
+                    } else {
+                        // Ход закончен: ответ уже лёг в ленту (сервер кладёт
+                        // его тем же ходом) — сначала перечитываем ленту, потом
+                        // убираем живой пузырь, чтобы он не мигнул пустотой.
+                        Task {
+                            await refresh()
+                            liveTurns[userID] = nil
+                        }
+                    }
                 default:
                     break
                 }
@@ -892,9 +907,14 @@ private struct RoleChatRoomScreen: View {
                 // За время разрыва сигнал «закончил» мог потеряться.
                 typists = [:]
                 typistTools = [:]
-                Task { await refresh() }
+                Task {
+                    await refresh()
+                    await loadLiveTurns()
+                }
             }
             realtime.connect()
+            // Чат открыт посреди ответа роли — подтягиваем, что уже сделано.
+            await loadLiveTurns()
         }
         .onDisappear { realtime.disconnect() }
         .task {
@@ -1001,16 +1021,27 @@ private struct RoleChatRoomScreen: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .id(message.id)
                     }
-                    if !typists.isEmpty {
-                        if chat.kind != "group", let onlyUserID = typists.keys.first,
+                    ForEach(visibleLiveTurns, id: \.userID) { turn in
+                        liveTurnRow(turn)
+                    }
+                    if !visibleTypists.isEmpty {
+                        if chat.kind != "group", let onlyUserID = visibleTypists.keys.first,
                            let tool = typistTools[onlyUserID] {
-                            RoleStepLine(name: typists[onlyUserID] ?? "Роль", tool: tool)
+                            RoleStepLine(name: visibleTypists[onlyUserID] ?? "Роль", tool: tool)
                                 .id("typing-line")
                         } else {
-                            RoleChatTypingLine(names: typists.values.sorted())
+                            RoleChatTypingLine(names: visibleTypists.values.sorted())
                                 .id("typing-line")
                         }
                     }
+                    // Постоянный якорь низа ленты (как в ChatScreen): строки
+                    // «печатает» и живого хода появляются и исчезают, и
+                    // scrollTo к только что вставленной строке ленивого стека
+                    // не срабатывал — живая проверка 27.09.2026 показала, что
+                    // и пузырь хода, и «печатает» оставались под полем ввода.
+                    Color.clear
+                        .frame(height: 1)
+                        .id("chat-bottom")
                 }
                 .padding(TFSpacing.lg)
             }
@@ -1018,12 +1049,72 @@ private struct RoleChatRoomScreen: View {
             .background(Color.tfBackground)
             .hideComposerScrollEdgeEffect()
             .onChange(of: messages.last?.id) { _, id in
-                if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
+                // К низу ленты, а не к низу сообщения: иначе всё, что под
+                // ним («печатает», живой ход, быстрые ответы), уезжало под
+                // поле ввода (живая проверка 27.09.2026).
+                if id != nil { withAnimation { proxy.scrollTo("chat-bottom", anchor: .bottom) } }
             }
             .onChange(of: typists.isEmpty) { _, isEmpty in
-                if !isEmpty { withAnimation { proxy.scrollTo("typing-line", anchor: .bottom) } }
+                if !isEmpty { withAnimation { proxy.scrollTo("chat-bottom", anchor: .bottom) } }
+            }
+            // Живой ход растёт — лента едет за ним, как за печатающим ответом.
+            .onChange(of: liveTurnsGrowth) { _, growth in
+                guard growth > 0 else { return }
+                proxy.scrollTo("chat-bottom", anchor: .bottom)
             }
         }
+    }
+
+    /// Живые ходы показываем только в 1:1-чате: в группе несколько лент
+    /// сразу владельцу не нужны (решение 26.09.2026), там — точки.
+    private var visibleLiveTurns: [RoleChatLiveTurn] {
+        guard chat.kind != "group" else { return [] }
+        return liveTurns.values
+            .filter { !$0.items.isEmpty }
+            .sorted { $0.userID < $1.userID }
+    }
+
+    /// «Печатает» — пока у роли нет ни текста, ни шагов; дальше вместо
+    /// точек растёт её живой пузырь.
+    private var visibleTypists: [String: String] {
+        let live = Set(visibleLiveTurns.map(\.userID))
+        return typists.filter { !live.contains($0.key) }
+    }
+
+    /// Сколько всего накопилось в живых ходах — сигнал «пузырь вырос».
+    private var liveTurnsGrowth: Int {
+        visibleLiveTurns.reduce(0) { total, turn in
+            turn.items.reduce(total) { sum, item in
+                switch item {
+                case .text(let text): return sum + text.count
+                case .step: return sum + 1
+                }
+            }
+        }
+    }
+
+    private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
+        HStack(alignment: .top, spacing: TFSpacing.sm) {
+            RoleLiveTurnBubble(turn: turn, header: AnyView(liveSenderLine(turn)))
+            Spacer(minLength: 48)
+        }
+    }
+
+    /// Шапка живого пузыря — та же, что у сообщения: иконка и имя роли.
+    private func liveSenderLine(_ turn: RoleChatLiveTurn) -> some View {
+        HStack(spacing: TFSpacing.sm) {
+            if let member = chat.members.first(where: { $0.id == turn.userID }) {
+                RoleMemberAvatar(member: member, size: .sm)
+            }
+            Text(turn.name)
+                .font(.caption)
+                .foregroundStyle(Color.tfSub)
+        }
+    }
+
+    private func loadLiveTurns() async {
+        guard let turns = try? await api.roleChatLive(id: chat.id) else { return }
+        liveTurns = Dictionary(turns.map { ($0.userID, $0) }, uniquingKeysWith: { _, last in last })
     }
 
     /// Полоса выбора вместо панели ввода: отметить всё или снять отметки.
@@ -1164,6 +1255,10 @@ private struct RoleChatRoomScreen: View {
                 // уезжает ВНУТРЬ пузыря, а не висит над ним отдельно.
                 if !hasAudio {
                     senderLine(message, color: Color.tfSub)
+                }
+                // Шаги хода, которые привели к ответу (27.09.2026) — свёрнуты.
+                if let steps = message.steps, steps.stepCount > 0 {
+                    RoleStepsDisclosure(steps: steps)
                 }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
                     RoleChatRemoteVoiceBubble(

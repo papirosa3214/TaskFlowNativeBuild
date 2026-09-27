@@ -4,6 +4,7 @@ private struct RoleChatsEnvelope: Decodable { let chats: [RoleChat] }
 private struct RoleChatEnvelope: Decodable { let chat: RoleChat }
 private struct RoleChatMessagesEnvelope: Decodable { let messages: [RoleChatMessage] }
 private struct RoleChatMessageEnvelope: Decodable { let message: RoleChatMessage }
+private struct RoleChatLiveEnvelope: Decodable { let turns: [RoleChatLiveTurn] }
 
 private struct CreateRoleChatBody: Encodable {
     let title: String?
@@ -35,6 +36,13 @@ public extension APIClient {
     func roleChatMessages(id: String) async throws -> [RoleChatMessage] {
         let response: RoleChatMessagesEnvelope = try await request(.get, "/chats/\(id)/messages")
         return response.messages
+    }
+
+    /// Идущие сейчас ходы ролей в чате — снимок для открывшего чат посреди
+    /// ответа или после переподключения; дальше обновления идут `chats:live`.
+    func roleChatLive(id: String) async throws -> [RoleChatLiveTurn] {
+        let response: RoleChatLiveEnvelope = try await request(.get, "/chats/\(id)/live")
+        return response.turns
     }
 
     func sendRoleChatMessage(chatID: String, text: String, attachmentIDs: [String] = []) async throws -> RoleChatMessage {

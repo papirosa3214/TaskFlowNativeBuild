@@ -31,6 +31,10 @@ public enum RealtimeEvent: Sendable {
     /// Роль готовит ответ в чате (`chats:typing`): `active` — начала/закончила.
     /// Сигнал даёт сервер ровно на время ответа роли (22.09.2026).
     case roleChatTyping(chatId: String, userId: String, name: String, active: Bool, tool: String?)
+    /// Живой ход роли в чате (`chats:live`, 27.09.2026): снимок целиком —
+    /// текст по словам и шаги. `turn == nil` — ход закончился, ответ придёт
+    /// обычным `chat:new`.
+    case roleChatLive(chatId: String, userId: String, turn: RoleChatLiveTurn?)
     case serverError(message: String?)
     case unknown(type: String, raw: JSONValue)
 
@@ -48,6 +52,11 @@ public enum RealtimeEvent: Sendable {
         let name: String?
         let active: Bool
         let tool: String?
+    }
+    private struct RoleLivePayload: Decodable {
+        let chat_id: String
+        let user_id: String
+        let turn: RoleChatLiveTurn?
     }
 
     public static func parse(_ data: Data) -> RealtimeEvent? {
@@ -100,6 +109,11 @@ public enum RealtimeEvent: Sendable {
                 return .unknown(type: envelope.type, raw: raw)
             }
             return .roleChatTyping(chatId: p.chat_id, userId: p.user_id, name: p.name ?? "", active: p.active, tool: p.tool)
+        case "chats:live":
+            guard let p = try? decoder.decode(RoleLivePayload.self, from: data) else {
+                return .unknown(type: envelope.type, raw: raw)
+            }
+            return .roleChatLive(chatId: p.chat_id, userId: p.user_id, turn: p.turn)
         case "error":
             let payload = try? decoder.decode(ErrorPayload.self, from: data)
             return .serverError(message: payload?.message ?? payload?.error)
