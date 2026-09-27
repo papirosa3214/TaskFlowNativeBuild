@@ -45,9 +45,6 @@ struct ProjectCard: View {
                 if hasMetadata {
                     metrics
                 }
-                if !project.agents.isEmpty {
-                    agentsLine
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -159,30 +156,9 @@ struct ProjectCard: View {
         overdue > 0 || docs > 0 || idleText != nil
     }
 
-    /// Кто сейчас в проекте работает — просьба владельца 08.09.2026. Строкой,
-    /// а не аватарами: аватары агентов на карточке проекта — это ещё один ряд
-    /// цветных кружков там, где список и так должен читаться спокойно.
-    /// Имя без числа задач, пока агент один; с числом — когда их несколько и
-    /// видно, кто тянет основную часть.
-    private var agentsLine: some View {
-        HStack(spacing: TFSpacing.xs) {
-            Image(systemName: "cpu")
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-            Text(agentsText)
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var agentsText: String {
-        let agents = project.agents
-        if agents.count == 1, let only = agents.first { return only.name }
-        return agents.map { "\($0.name) · \($0.tasks)" }.joined(separator: "   ")
-    }
+    // Строка ролей («Разработчик · 5   Дизайнер · 2…») убрана 27.09.2026 по
+    // просьбе владельца: ролей в проекте больше, чем влезает в строку, видны
+    // две — остальные не узнать, информация бесполезная.
 
     private var separator: some View {
         Text("·")

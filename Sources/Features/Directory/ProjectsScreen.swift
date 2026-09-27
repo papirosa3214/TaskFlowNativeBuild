@@ -152,6 +152,20 @@ struct ProjectsScreen: View {
                 }
                 .disabled(selectedProjectIDs.isEmpty)
 
+                // Владелец 27.09.2026: закреплять проекты пачкой из режима выбора.
+                // Все выбранные уже закреплены — пункт открепляет.
+                Button {
+                    Task { await pinSelected(!allSelectedPinned) }
+                } label: {
+                    Label(
+                        allSelectedPinned
+                            ? "Открепить выбранные (\(selectedProjectIDs.count))"
+                            : "Закрепить выбранные (\(selectedProjectIDs.count))",
+                        systemImage: allSelectedPinned ? "pin.slash" : "pin"
+                    )
+                }
+                .disabled(selectedProjectIDs.isEmpty)
+
                 Button {
                     endSelection()
                 } label: {
@@ -178,12 +192,6 @@ struct ProjectsScreen: View {
                     }
                 } label: {
                     Label("Изменить проект", systemImage: "pencil")
-                }
-
-                Button {
-                    searchPresented = true
-                } label: {
-                    Label("Поиск по проектам", systemImage: "magnifyingglass")
                 }
 
                 Button {
@@ -341,6 +349,25 @@ struct ProjectsScreen: View {
                 Task { await deleteSelectedProjects(selected.map(\.id)) }
             }
         )
+    }
+
+    private var allSelectedPinned: Bool {
+        let selected = projectStore.projects.filter { selectedProjectIDs.contains($0.id) }
+        return !selected.isEmpty && selected.allSatisfy(\.pinned)
+    }
+
+    private func pinSelected(_ pinned: Bool) async {
+        errorMessage = nil
+        for id in selectedProjectIDs {
+            do {
+                _ = try await apiClient.patchProject(id: id, fields: ["pinned": .bool(pinned)])
+            } catch {
+                errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
+                break
+            }
+        }
+        await projectStore.load()
+        endSelection()
     }
 
     private func deleteSelectedProjects(_ ids: [String]) async {
