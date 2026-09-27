@@ -122,13 +122,21 @@ struct NotificationsScreen: View {
 
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }
 
-    /// Владелец 27.09.2026: «закрытие задачи» уже полноценно показывает
-    /// экран «Активность» (фильтры, «Вернуть в работу») — дублировать это
-    /// вторым списком в «Уведомлениях» не нужно, скрываем `type == "completed"`
-    /// из отображения. Чтение/бейдж непрочитанных на сервере не трогаем —
-    /// это только фильтр того, что рисуется на экране.
+    /// Владелец 27.09.2026: скрываем системный шум, который дублирует то, что
+    /// уже видно в «Активности» или на самой доске задач — тут это только про
+    /// то, что рисуется на экране, чтение/бейдж непрочитанных на сервере не
+    /// трогаем:
+    /// - `auto_diagnostic_card` — авто-создание карточки диагностики
+    ///   (`inboxTriageWatcher.ts`), шум при любом сбое на .110;
+    /// - `agent_watch` — сторож «висит без проекта/исполнителя», не по делу
+    ///   в ленте уведомлений, видно и так на доске.
+    /// `completed` — владелец 27.09.2026 вернул обратно, показываем как есть.
+    private static let hiddenNotificationTypes: Set<String> = [
+        "auto_diagnostic_card", "agent_watch",
+    ]
+
     private var visibleNotifications: [ApiNotification] {
-        notificationStore.notifications.filter { $0.type != "completed" }
+        notificationStore.notifications.filter { !Self.hiddenNotificationTypes.contains($0.type) }
     }
 
     // MARK: - Строка уведомления
