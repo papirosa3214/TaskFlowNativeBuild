@@ -766,16 +766,15 @@ struct ServiceTicketResolutionSheet: View {
 
 ---
 
-### Task 7: Встраивание в NotificationsScreen (ждёт решения владельца по «Завершённым задачам»)
+### Task 7: Встраивание в NotificationsScreen
 
 **Files:** Modify: `Sources/Features/Directory/NotificationsScreen.swift`
 
-**Не начинать, пока не пришёл ответ на открытый вопрос в спеке.** Часть
-«Сторонние сервисы» ниже не зависит от ответа и может быть сделана сразу;
-часть «Завершённые задачи» — заглушка-решение по ответу, приведена как
-Вариант А (группировка `type == "completed"`) и Вариант Б (существующий UI
-`ActivityScreen`, встроенный отдельным навигационным блоком) — исполнитель
-не выбирает сам, ждёт разрешения от контроллера сессии.
+**Решено 27.09.2026 (владелец, вариант А):** «Завершённые задачи» — простая
+ссылка (навигационная строка) на уже существующий `ActivityScreen`
+(`route = .activity`, `AppRoute.swift:46`, `RouteDestinationView.swift:83`).
+Никакой новой выборки данных, никакой агрегации — не редактируем
+`ActivityScreen.swift`, только открываем его.
 
 **Interfaces:** Consumes: `NotificationTicketCard`, `ServiceTicketResolutionSheet` (Task 5/6),
 `ServiceNotificationsClient` (Task 4), `ServiceTicketMarkdownParser` (Task 3).
@@ -819,10 +818,32 @@ struct ServiceTicketResolutionSheet: View {
 
 - [ ] **Шаг 5:** `.sheet(item: $resolutionSheetItem)` презентует `ServiceTicketResolutionSheet`, аналогично v1.
 
-- [ ] **Шаг 6 (ЖДЁТ ОТВЕТА):** секция «Завершённые задачи» — Вариант А
-  (`notificationStore.notifications.filter { $0.type == "completed" }`) ИЛИ
-  Вариант Б (ссылка/встраивание `ActivityScreen`'s completed list) — контроллер
-  сессии подставляет решённый вариант в дочерний dispatch, не гадает.
+- [ ] **Шаг 6:** секция «Завершённые задачи» — одна навигационная строка,
+  визуально в стиле существующих строк экрана (например, переиспользовать
+  подход `notificationRow`/`TFListRow`), текст «Завершённые задачи», тап →
+  `route = .activity`. Никакой фильтрации/данных не подгружается для этой
+  строки — это чистая ссылка.
+
+```swift
+    Button {
+        route = .activity
+    } label: {
+        HStack {
+            Text("Завершённые задачи").tfText(.row).foregroundStyle(Color.tfText)
+            Spacer()
+            Image(systemName: "chevron.right").font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim)
+        }
+        .padding(.horizontal, TFSpacing.md)
+        .padding(.vertical, TFSpacing.sm + 2)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(TFTapRowStyle())
+```
+
+Разместить эту строку как отдельную секцию (свой `TFSectionHeader("Завершённые задачи")`
+не нужен — заголовок уже в самой строке; обернуть в `TFCard(padding: 0) { ... }`
+для визуального единства с другими списками экрана) между секцией «Сторонние
+сервисы» и остальными уведомлениями.
 
 - [ ] **Шаг 7:** собрать + кадр симулятора экрана «Уведомления» с секцией
   «Сторонние сервисы», реальными живыми тикетами с `.110` (сегодняшняя дата,
