@@ -289,6 +289,7 @@ enum DirectoryAgentStateTag {
         case .inProgress: return "в работе"
         case .blocked: return "заблокировано"
         case .review: return "на проверке"
+        case .todo: return "в очереди"
         }
     }
 
@@ -299,6 +300,7 @@ enum DirectoryAgentStateTag {
         case .inProgress: return .tfTeal
         case .blocked: return .tfOrange
         case .review: return .tfBlue
+        case .todo: return .tfSub
         }
     }
 }

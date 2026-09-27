@@ -12,6 +12,13 @@ public enum AgentState: String, Codable, Sendable, Hashable {
     case inProgress = "in_progress"
     case blocked
     case review
+    /// Ставит только `scheduler.py` (.110, systemd-таймер) — напрямую в БД,
+    /// в обход `POST /api/tasks/:id/state`: `blocked`→`todo` после истечения
+    /// ретрай-задержки или успешного переподбора роли. Значит «в очереди,
+    /// дальше подхватит диспетчер сам». Клиент это значение никогда не
+    /// выставляет — только показывает (27.09.2026, декодинг без него валил
+    /// весь `/api/tasks` разом).
+    case todo
 }
 
 /// `ApiTask` — spec/API.md §3.4. Приоритет — обычный `Int` 1...4 (сервер не

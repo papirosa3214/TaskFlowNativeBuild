@@ -114,6 +114,7 @@ struct NotificationTicketDetailSheet: View {
         case .review: return "на проверке"
         case .blocked: return "заблокирована"
         case .inProgress: return "в работе"
+        case .todo: return "в очереди"
         case nil: return task.status == .completed ? "выполнена" : "не в работе"
         }
     }

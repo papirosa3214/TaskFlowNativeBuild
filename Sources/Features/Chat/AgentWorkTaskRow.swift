@@ -66,6 +66,7 @@ enum AgentWorkStateTag {
         case .inProgress: base = stale ? "Агент пропал" : "в работе"
         case .blocked: base = "заблокировано"
         case .review: base = "на проверке"
+        case .todo: base = "в очереди"
         }
         // Веб печатает «· N мин назад» ТОЛЬКО для in_progress (обоих —
         // и обычного, и «пропал»), у blocked/review суффикса нет (UI.tsx
@@ -82,6 +83,7 @@ enum AgentWorkStateTag {
         case .inProgress: return .tfTeal
         case .blocked: return .tfOrange
         case .review: return .tfBlue
+        case .todo: return .tfSub
         }
     }
 }

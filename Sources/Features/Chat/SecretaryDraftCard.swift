@@ -205,6 +205,7 @@ struct SecretaryDraftCard: View {
         case .inProgress: return ("в работе", .tfBlue)
         case .review: return ("на проверке", .tfBlue)
         case .blocked: return ("заблокирована", .orange)
+        case .todo: return ("в очереди", .tfSub)
         case nil: break
         }
         if child.assigneeId == ownerID { return ("делаете вы", .tfSub) }

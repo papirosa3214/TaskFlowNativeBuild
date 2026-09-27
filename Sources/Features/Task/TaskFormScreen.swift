@@ -840,6 +840,8 @@ struct TaskFormScreen: View {
             return ("exclamationmark.triangle.fill", "Заблокирована", .orange)
         case .inProgress:
             return ("play.circle.fill", "В работе", .secondary)
+        case .todo:
+            return ("clock.arrow.circlepath", "В очереди", .secondary)
         case nil:
             return ("circle", "Открыта", .secondary)
         }
@@ -1234,6 +1236,7 @@ struct TaskFormScreen: View {
         case .inProgress: "В работе"
         case .blocked: "Заблокирована"
         case .review: "На проверке"
+        case .todo: "В очереди"
         }
     }
 
@@ -1264,6 +1267,8 @@ struct TaskFormScreen: View {
                 return .tfBlue
             }
             return .tfSub
+        case .todo:
+            return .tfSub
         }
     }
 
@@ -1272,6 +1277,7 @@ struct TaskFormScreen: View {
         case .inProgress: "play.circle.fill"
         case .blocked: "exclamationmark.triangle.fill"
         case .review: "eye.fill"
+        case .todo: "clock.arrow.circlepath"
         }
     }
 
@@ -1447,6 +1453,13 @@ struct TaskFormScreen: View {
             Button { Task { await viewModel.performOwnerAction(.returnToWorkFromInProgress, comment: nil, taskStore: taskStore) } } label: {
                 Label("Вернуть на доработку", systemImage: "arrow.uturn.backward")
             }
+            Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
+                Label("Принять и закрыть задачу", systemImage: "checkmark.circle")
+            }
+        case .todo:
+            // Ставит только планировщик, сам подхватит в ближайший обход —
+            // владельцу тут доступно только закрыть задачу вручную, если
+            // ждать не нужно.
             Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
                 Label("Принять и закрыть задачу", systemImage: "checkmark.circle")
             }

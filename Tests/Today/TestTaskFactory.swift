@@ -47,6 +47,7 @@ enum TestTaskFactory {
             case .inProgress: str = "in_progress"
             case .blocked: str = "blocked"
             case .review: str = "review"
+            case .todo: str = "todo"
             }
             json["agent_state"] = str
         }
