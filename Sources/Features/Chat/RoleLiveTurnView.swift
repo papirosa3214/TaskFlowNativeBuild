@@ -128,9 +128,7 @@ struct RoleLiveItemsList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 switch item {
                 case .text(let text):
-                    Text(text)
-                        .foregroundStyle(textColor)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    RoleReplyMarkdown(text: text, color: textColor)
                 case .step(let step):
                     RoleLiveStepRow(step: step)
                 }
@@ -139,15 +137,13 @@ struct RoleLiveItemsList: View {
     }
 }
 
-/// Пузырь идущего хода: шапка отправителя, шаги и растущий текст, внизу —
-/// сколько уже идёт.
+/// Идущий ход: шаги и растущий текст прямо по фону ленты, без карточки —
+/// как ответ роли в 1:1-чате (LOCK-230); внизу — сколько уже идёт.
 struct RoleLiveTurnBubble: View {
     let turn: RoleChatLiveTurn
-    let header: AnyView
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            header
             RoleLiveItemsList(items: turn.items)
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(footer(now: context.date))
@@ -155,9 +151,7 @@ struct RoleLiveTurnBubble: View {
                     .foregroundStyle(Color.tfDim)
             }
         }
-        .padding(TFSpacing.md)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func footer(now: Date) -> String {

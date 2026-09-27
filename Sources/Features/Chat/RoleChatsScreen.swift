@@ -1046,6 +1046,10 @@ private struct RoleChatRoomScreen: View {
                 .padding(TFSpacing.lg)
             }
             .scrollDismissesKeyboard(.interactively)
+            // Лента чата стоит у низа и держит его, пока растёт содержимое:
+            // ответы с разметкой разной высоты, и прокрутка ленивого стека
+            // по оценочным высотам не доставала до низа при открытии.
+            .defaultScrollAnchor(.bottom)
             .background(Color.tfBackground)
             .hideComposerScrollEdgeEffect()
             .onChange(of: messages.last?.id) { _, id in
@@ -1094,22 +1098,7 @@ private struct RoleChatRoomScreen: View {
     }
 
     private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
-        HStack(alignment: .top, spacing: TFSpacing.sm) {
-            RoleLiveTurnBubble(turn: turn, header: AnyView(liveSenderLine(turn)))
-            Spacer(minLength: 48)
-        }
-    }
-
-    /// Шапка живого пузыря — та же, что у сообщения: иконка и имя роли.
-    private func liveSenderLine(_ turn: RoleChatLiveTurn) -> some View {
-        HStack(spacing: TFSpacing.sm) {
-            if let member = chat.members.first(where: { $0.id == turn.userID }) {
-                RoleMemberAvatar(member: member, size: .sm)
-            }
-            Text(turn.name)
-                .font(.caption)
-                .foregroundStyle(Color.tfSub)
-        }
+        RoleLiveTurnBubble(turn: turn)
     }
 
     private func loadLiveTurns() async {
@@ -1210,8 +1199,51 @@ private struct RoleChatRoomScreen: View {
     private func messageRow(_ message: RoleChatMessage) -> some View {
         if message.isSessionMarker {
             sessionMarkerRow(message)
+        } else if isFlatReply(message) {
+            flatReplyRow(message)
         } else {
             messageBubbleRow(message)
+        }
+    }
+
+    /// Ответ роли в 1:1-чате — плоским текстом по фону, как в окне Claude
+    /// Code (владелец 27.09.2026, LOCK-230). Облачка остаются у сообщений
+    /// владельца, у голосовых и во всех групповых чатах.
+    private func isFlatReply(_ message: RoleChatMessage) -> Bool {
+        guard chat.kind != "group", message.fromUserID != session.currentUser?.id else { return false }
+        return !(message.attachments?.contains { $0.isVoiceRecording } ?? false)
+    }
+
+    private func flatReplyRow(_ message: RoleChatMessage) -> some View {
+        HStack(alignment: .top, spacing: TFSpacing.sm) {
+            if isSelecting {
+                Image(systemName: selectedMessageIDs.contains(message.id)
+                      ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(selectedMessageIDs.contains(message.id)
+                                     ? Color.tfRed : Color.tfDim)
+            }
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                if let steps = message.steps, steps.stepCount > 0 {
+                    RoleStepsDisclosure(steps: steps)
+                }
+                if let taskID = message.taskID {
+                    SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
+                } else if !message.text.isEmpty {
+                    RoleReplyMarkdown(text: message.text)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onLongPressGesture {
+            if !isSelecting { enterSelection(selecting: message.id) }
+        }
+        .overlay {
+            if isSelecting {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { toggleSelection(message.id) }
+            }
         }
     }
 
