@@ -29,6 +29,13 @@ struct NotificationsScreen: View {
     @State private var markAllErrorMessage: String?
     @State private var rowErrors: [String: String] = [:]
 
+    @State private var serviceTickets: [ServiceTicketSummary] = []
+    @State private var serviceTicketDetails: [String: ServiceTicketDetail] = [:]
+    @State private var serviceTicketsError: String?
+    @State private var resolutionSheetItem: ServiceTicketResolutionItem?
+    @State private var resolutionSheetTaskId: String?
+    private let serviceClient = ServiceNotificationsClient()
+
     private let apiClient = APIClient()
 
     var body: some View {
@@ -36,6 +43,42 @@ struct NotificationsScreen: View {
             LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
                 TFErrorBanner(notificationStore.errorMessage, variant: .inline)
                 TFErrorBanner(markAllErrorMessage, variant: .inline)
+                TFErrorBanner(serviceTicketsError, variant: .inline)
+
+                if !serviceTickets.isEmpty {
+                    TFSectionHeader("Сторонние сервисы")
+                    VStack(spacing: TFSpacing.sm) {
+                        ForEach(serviceTickets) { summary in
+                            NotificationTicketCard(
+                                summary: summary,
+                                detail: serviceTicketDetails[summary.id],
+                                onOpenTask: { route = .taskDetail(taskID: $0) },
+                                onTapResolutionItem: { item in
+                                    let fallbackTaskId = serviceTicketDetails[summary.id]?.diagnosticTaskId
+                                    guard let taskId = item.taskId ?? fallbackTaskId else { return }
+                                    resolutionSheetItem = item
+                                    resolutionSheetTaskId = taskId
+                                }
+                            )
+                        }
+                    }
+                }
+
+                TFCard(padding: 0) {
+                    Button {
+                        route = .activity
+                    } label: {
+                        HStack {
+                            Text("Завершённые задачи").tfText(.row).foregroundStyle(Color.tfText)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim)
+                        }
+                        .padding(.horizontal, TFSpacing.md)
+                        .padding(.vertical, TFSpacing.sm + 2)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(TFTapRowStyle())
+                }
 
                 if notificationStore.notifications.isEmpty {
                     TFEmptyState(text: "Уведомлений пока нет").padding(.top, TFSpacing.xl)
@@ -56,6 +99,17 @@ struct NotificationsScreen: View {
         }
         .refreshable {
             await notificationStore.load()
+            await loadServiceTickets()
+        }
+        .sheet(item: $resolutionSheetItem) { item in
+            ServiceTicketResolutionSheet(
+                item: item,
+                taskId: resolutionSheetTaskId ?? "",
+                onSubmitted: {
+                    resolutionSheetItem = nil
+                    resolutionSheetTaskId = nil
+                }
+            )
         }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
@@ -75,7 +129,10 @@ struct NotificationsScreen: View {
             }
         }
         .navigationDestination(item: $route) { routeDestination($0) }
-        .task { await notificationStore.load() }
+        .task {
+            await notificationStore.load()
+            await loadServiceTickets()
+        }
     }
 
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }
@@ -171,6 +228,23 @@ struct NotificationsScreen: View {
             await notificationStore.load()
         } catch {
             rowErrors[n.id] = "Не удалось удалить уведомление"
+        }
+    }
+
+    private func loadServiceTickets() async {
+        serviceTicketsError = nil
+        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        do {
+            let list = try await serviceClient.fetchInbox(date: String(today))
+            serviceTickets = list
+            for summary in list where serviceTicketDetails[summary.id] == nil {
+                let raw = try await serviceClient.fetchRaw(path: summary.path)
+                if let detail = ServiceTicketMarkdownParser.parse(raw) {
+                    serviceTicketDetails[summary.id] = detail
+                }
+            }
+        } catch {
+            serviceTicketsError = "Не удалось загрузить сводки сторонних сервисов"
         }
     }
 
