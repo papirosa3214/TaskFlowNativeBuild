@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// HTTP-клиент TaskFlow поверх `URLSession` (async/await) — spec/API.md §1-2.
 ///
@@ -20,6 +21,15 @@ public final class APIClient: Sendable {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
+
+    /// Диагностический логгер — виден в Console.app при подключении iPhone
+    /// к Mac (фильтр по subsystem `com.taskflow.apiclient`) и в Xcode console.
+    /// Уровень намеренно `.debug`: всё сетевое взаимодействие логируется без
+    /// участия прод-логов уровня `.info`/`.error`.
+    private let logger = Logger(
+        subsystem: "com.taskflow.apiclient",
+        category: "request"
+    )
 
     public init(session: URLSession = URLSession(configuration: .default)) {
         self.session = session
@@ -95,6 +105,10 @@ public final class APIClient: Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try encoder.encode(AnyEncodable(body))
         }
+
+        // Диагностика: логируем method/URL/заголовки (Authorization
+        // маскируется как `Bearer ***`, чтобы токен не утекал в логи).
+        logger.debug("→ \(method.rawValue, privacy: .public) \(url.absoluteString, privacy: .public) headers=\(Self.sanitizedHeaders(from: request), privacy: .public)")
         return request
     }
 
@@ -172,11 +186,19 @@ public final class APIClient: Sendable {
     }
 
     private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let started = Date()
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+            // Диагностика: статус, X-Request-ID (если сервер его выставил —
+            // по нему лог с iPhone сопоставляется с серверным), длительность.
+            let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
+            let reqId = http.value(forHTTPHeaderField: "X-Request-ID") ?? "-"
+            logger.debug("← \(http.statusCode) \(request.httpMethod ?? "?") \(request.url?.path ?? "", privacy: .public) reqId=\(reqId, privacy: .public) \(elapsedMs)ms")
             return (data, http)
         } catch let error as APIError {
+            let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
+            logger.error("⌀ transport error \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "", privacy: .public) после \(elapsedMs)ms: \(String(describing: error), privacy: .public)")
             throw error
         } catch is CancellationError {
             throw CancellationError()
@@ -188,14 +210,26 @@ public final class APIClient: Sendable {
             // месте (тот же класс бага уже чинили точечно в
             // TaskFormScreen.swift). Отдаём настоящую `CancellationError`,
             // чтобы вызывающий код мог её молча проигнорировать.
+            let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
+            logger.error("⌀ transport cancelled \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "", privacy: .public) после \(elapsedMs)ms")
             throw CancellationError()
         } catch {
+            let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
+            logger.error("⌀ transport throw \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "", privacy: .public) после \(elapsedMs)ms: \(error.localizedDescription, privacy: .public)")
             throw APIError.transport(error)
         }
     }
 
     private static func throwIfError(status: Int, data: Data, request: URLRequest? = nil) throws {
         guard !(200...299).contains(status) else { return }
+        // Диагностика: все не-2xx логируются с телом первого килобайта —
+        // этого хватает, чтобы увидеть JSON `{...}` или HTML-страницу сервера.
+        let preview = Self.bodyPreview(data, limit: 1024)
+        let what = describe(request)
+        Logger(
+            subsystem: "com.taskflow.apiclient",
+            category: "request"
+        ).error("✗ \(status) \(what.isEmpty ? "<n/a>" : what, privacy: .public) body=\(preview, privacy: .public)")
         let body = try? JSONDecoder().decode(APIErrorBody.self, from: data)
         let raw = body?.bestMessage ?? "Сервер ответил кодом \(status)"
         switch status {
@@ -241,6 +275,36 @@ public final class APIClient: Sendable {
         guard let request, let path = request.url?.path else { return "" }
         let method = request.httpMethod ?? "GET"
         return "\(method) \(path)"
+    }
+
+    // MARK: - Диагностика
+
+    /// Возвращает заголовки запроса в формате `[K=V, K=V]`,
+    /// c маскированием `Authorization`/`Cookie` и пр. секретных заголовков —
+    /// чтобы случайный общий лог не утащил токен в системный журнал iPhone.
+    private static func sanitizedHeaders(from request: URLRequest) -> String {
+        guard let headers = request.allHTTPHeaderFields, !headers.isEmpty else { return "[]" }
+        let redacted: Set<String> = ["authorization", "cookie", "x-api-key", "x-auth-token"]
+        let pairs = headers
+            .map { key, value -> String in
+                if redacted.contains(key.lowercased()) { return "\(key)=Bearer ***" }
+                return "\(key)=\(value)"
+            }
+            .sorted()
+            .joined(separator: ", ")
+        return "[\(pairs)]"
+    }
+
+    /// Возвращает первый `limit` байт тела ответа как UTF-8 строку
+    /// (с заменой нечитаемых символов), либо плейсхолдер для пустого тела.
+    /// Нужно для логов — большие ответы не помещаются в строку и нам тут не нужны.
+    private static func bodyPreview(_ data: Data, limit: Int) -> String {
+        guard !data.isEmpty else { return "<empty>" }
+        let slice = data.prefix(limit)
+        let preview = String(data: slice, encoding: .utf8)
+            ?? String(data: slice, encoding: .isoLatin1)
+            ?? "<\(data.count) bytes, не текст>"
+        return preview.replacingOccurrences(of: "\n", with: " ")
     }
 }
 
