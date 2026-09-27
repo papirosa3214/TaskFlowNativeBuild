@@ -12,12 +12,28 @@ public struct ServiceTicketSummary: Codable, Identifiable, Sendable, Hashable {
     public let hasTriage: Bool
     public let snippet: String
     public let links: [String]
+    public var revision: String? = nil
+    public var checks: [ServiceTicketCheck]? = nil
+    public var okCount: Int? = nil
+    public var errorCount: Int? = nil
+    public var warningCount: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, path, title, ts, source, level
+        case checks, revision
+        case okCount = "ok_count"
+        case errorCount = "error_count"
+        case warningCount = "warning_count"
         case hasTriage = "has_triage"
         case snippet, links
     }
+}
+
+public struct ServiceTicketCheck: Codable, Sendable, Hashable {
+    public let name: String
+    public let area: String
+    public let status: String
+    public let message: String
 }
 
 public struct ServiceTicketInboxResponse: Decodable, Sendable {

@@ -19,7 +19,7 @@ public struct ServiceNotificationsClient: Sendable {
     }
 
     public func fetchInbox(date: String) async throws -> [ServiceTicketSummary] {
-        var url = Self.baseURL.appendingPathComponent("notifications/inbox")
+        var url = Self.baseURL.appendingPathComponent("notifications/digest")
         url.append(queryItems: [URLQueryItem(name: "date", value: date)])
         let (data, response) = try await session.data(from: url)
         try Self.checkStatus(response)

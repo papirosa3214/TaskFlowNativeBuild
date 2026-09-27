@@ -13,30 +13,50 @@ struct NotificationTicketCard: View {
 
     @State private var showDetail = false
 
-    private var isAlarm: Bool { detail?.isAlarm ?? (summary.level == "error") }
+    @AppStorage private var isRead: Bool
+
+    init(summary: ServiceTicketSummary, detail: ServiceTicketDetail?,
+         onOpenTask: @escaping (String) -> Void,
+         onTapResolutionItem: @escaping (ServiceTicketResolutionItem) -> Void) {
+        self.summary = summary
+        self.detail = detail
+        self.onOpenTask = onOpenTask
+        self.onTapResolutionItem = onTapResolutionItem
+        // Версия по ts: новая сводка снова непрочитанная. Перезапуск не
+        // возвращает обводку уже открытым уведомлениям на этом устройстве.
+        _isRead = AppStorage(wrappedValue: false,
+            "taskflow.serviceNotification.read.\(summary.id).\(summary.revision ?? summary.ts)")
+    }
 
     var body: some View {
         Button {
             showDetail = true
+            isRead = true
         } label: {
-            TFCard(padding: TFSpacing.md) {
-                VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFCard {
+                VStack(alignment: .leading, spacing: TFSpacing.md) {
                     header
-                    metaRow
-                    if let snippet = detail?.notWorkingText {
-                        Text(snippet).tfText(.row).foregroundStyle(Color.tfSub).lineLimit(1)
+                    statusLine
+                    Text(presentation.preview)
+                        .tfText(.caption).foregroundStyle(Color.tfSub)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                    if let date = NotificationTicketStyle.parseTicketDate(summary.ts) {
+                        Text(DirectoryDate.relative(date))
+                            .tfText(.caption).foregroundStyle(Color.tfDim)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .overlay {
-                if isAlarm {
+                if !isRead {
                     RoundedRectangle(cornerRadius: TFRadius.xl, style: .continuous)
-                        .strokeBorder(Color.tfRed, lineWidth: 1.5)
+                        .strokeBorder(Color.tfRed.opacity(0.45), lineWidth: 0.5)
                 }
             }
         }
         .buttonStyle(TFTapScaleStyle())
-        .tfBottomSheet(isPresented: $showDetail, title: detail?.title ?? summary.title) {
+        .tfBottomSheet(isPresented: $showDetail, title: presentation.title) {
             NotificationTicketDetailSheet(
                 summary: summary,
                 detail: detail,
@@ -52,37 +72,48 @@ struct NotificationTicketCard: View {
         }
     }
 
+    private var presentation: ServiceTicketPresentation { ServiceTicketPresentation(summary: summary) }
+
     private var header: some View {
-        HStack(alignment: .top, spacing: TFSpacing.xs) {
-            if isAlarm {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Color.tfRed)
-                    .imageScale(.small)
-                    .accessibilityLabel("Тревога")
-            }
-            Text(detail?.title ?? summary.title)
+        HStack(alignment: .top, spacing: TFSpacing.sm) {
+            Circle().fill(Color.tfSub).frame(width: 8, height: 8).padding(.top, 7)
+            Text(presentation.title)
                 .tfText(.title).foregroundStyle(Color.tfText)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+                .lineLimit(2).multilineTextAlignment(.leading)
+            Spacer(minLength: TFSpacing.sm)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13)).foregroundStyle(Color.tfDim)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Компактная строка пилюль вместо 4 строк «ключ: значение» — источник
-    /// и уровень читаются мгновенно по цвету/тексту, время — относительное
-    /// («2 ч назад», как везде в приложении — `DirectoryDate.relative`),
-    /// абсолютную метку `ts` смотреть незачем на карточке-превью.
-    private var metaRow: some View {
-        let level = detail?.level ?? summary.level
-        return HStack(spacing: TFSpacing.xs) {
-            TFPill(detail?.from ?? summary.source, color: Color.tfDim)
-            TFPill(level, color: NotificationTicketStyle.levelColor(level))
-            Spacer(minLength: TFSpacing.xs)
-            if let date = NotificationTicketStyle.parseTicketDate(summary.ts) {
-                Text(DirectoryDate.relative(date)).tfText(.row).foregroundStyle(Color.tfDim)
-            }
+    private var statusLine: some View {
+        ServiceTicketStatusCounts(summary: summary)
+    }
+}
+
+struct ServiceTicketStatusCounts: View {
+    let summary: ServiceTicketSummary
+    private var presentation: ServiceTicketPresentation { ServiceTicketPresentation(summary: summary) }
+
+    var body: some View {
+        HStack(spacing: TFSpacing.lg) {
+            countLabel(presentation.okCount, icon: "checkmark.circle", title: "Штатно", color: .tfGreen)
+            countLabel(presentation.errorCount, icon: "xmark.circle", title: "Ошибок", color: .tfRed)
+            countLabel(presentation.warningCount, icon: "exclamationmark.circle", title: "Предупреждений", color: .tfOrange)
         }
     }
+
+    private func countLabel(_ count: Int, icon: String, title: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+            Text("\(count)")
+        }
+        .tfText(.row)
+        .foregroundStyle(count > 0 ? color : Color.tfDim)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title): \(count)")
+    }
+
 }
 
 /// Общее между компактной карточкой и полным разбором — цвет уровня и

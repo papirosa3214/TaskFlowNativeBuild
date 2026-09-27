@@ -44,30 +44,31 @@ struct NotificationsScreen: View {
             LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
                 TFErrorBanner(notificationStore.errorMessage, variant: .inline)
                 TFErrorBanner(markAllErrorMessage, variant: .inline)
-                TFErrorBanner(serviceTicketsError, variant: .inline)
-
-                if !serviceTickets.isEmpty {
-                    TFSectionHeader("Серверные уведомления")
-                    VStack(spacing: TFSpacing.sm) {
-                        ForEach(serviceTickets) { summary in
-                            NotificationTicketCard(
-                                summary: summary,
-                                detail: serviceTicketDetails[summary.id],
-                                onOpenTask: { route = .taskDetail(taskID: $0) },
-                                onTapResolutionItem: { item in
-                                    let fallbackTaskId = serviceTicketDetails[summary.id]?.diagnosticTaskId
-                                    guard let taskId = item.taskId ?? fallbackTaskId else { return }
-                                    resolutionSheetItem = item
-                                    resolutionSheetTaskId = taskId
-                                }
+                TFCard(padding: 0) {
+                    VStack(spacing: 0) {
+                        NavigationLink {
+                            serverNotificationsPage
+                        } label: {
+                            TFListRow(
+                                icon: "server.rack",
+                                iconStyle: .plain,
+                                title: "Серверные уведомления",
+                                subtitle: "Работа сервисов, сбои и результаты диагностики",
+                                trailing: AnyView(
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.tfDim)
+                                ),
+                                titleStyle: .body,
+                                verticalPadding: TFSpacing.md
                             )
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("notifications.server-section")
                     }
                 }
 
-                if visibleNotifications.isEmpty {
-                    TFEmptyState(text: "Уведомлений пока нет").padding(.top, TFSpacing.xl)
-                } else {
+                if !visibleNotifications.isEmpty {
                     TFCard(padding: 0) {
                         VStack(spacing: 0) {
                             ForEach(Array(visibleNotifications.enumerated()), id: \.element.id) { idx, n in
@@ -85,16 +86,6 @@ struct NotificationsScreen: View {
         .refreshable {
             await notificationStore.load()
             await loadServiceTickets()
-        }
-        .sheet(item: $resolutionSheetItem) { item in
-            ServiceTicketResolutionSheet(
-                item: item,
-                taskId: resolutionSheetTaskId ?? "",
-                onSubmitted: {
-                    resolutionSheetItem = nil
-                    resolutionSheetTaskId = nil
-                }
-            )
         }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
@@ -120,6 +111,50 @@ struct NotificationsScreen: View {
         }
     }
 
+    // Владелец 27.09: серверные сводки — самостоятельная страница.
+    private var serverNotificationsPage: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
+                TFErrorBanner(serviceTicketsError, variant: .inline)
+                if isLoadingServiceTickets && serviceTickets.isEmpty {
+                    ProgressView("Загрузка серверных уведомлений")
+                } else if serviceTickets.isEmpty && serviceTicketsError == nil {
+                    Text("Серверных уведомлений пока нет")
+                } else {
+                    ForEach(serviceTickets) { summary in
+                        NotificationTicketCard(
+                            summary: summary,
+                            detail: serviceTicketDetails[summary.id],
+                            onOpenTask: { route = .taskDetail(taskID: $0) },
+                            onTapResolutionItem: { item in
+                                let fallbackTaskId = serviceTicketDetails[summary.id]?.diagnosticTaskId
+                                guard let taskId = item.taskId ?? fallbackTaskId else { return }
+                                resolutionSheetItem = item
+                                resolutionSheetTaskId = taskId
+                            }
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.top, TFSpacing.md)
+            .padding(.bottom, TFSpacing.xl)
+        }
+        .background(Color.tfBackground)
+        .tfNativeHeader("Серверные уведомления")
+        .refreshable { await loadServiceTickets() }
+        .sheet(item: $resolutionSheetItem) { item in
+            ServiceTicketResolutionSheet(
+                item: item,
+                taskId: resolutionSheetTaskId ?? "",
+                onSubmitted: {
+                    resolutionSheetItem = nil
+                    resolutionSheetTaskId = nil
+                }
+            )
+        }
+    }
+
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }
 
     /// Владелец 27.09.2026: скрываем системный шум, который дублирует то, что
@@ -134,9 +169,10 @@ struct NotificationsScreen: View {
     ///   уже видно в живой ленте задачи;
     /// - `agent_state` — «Задача заблокирована/на проверке» и т.п. смена
     ///   статуса, тоже уже видно в живой ленте.
+    /// Вердикты и назначения также остаются в ленте активности.
     /// `completed` — владелец 27.09.2026 вернул обратно, показываем как есть.
     private static let hiddenNotificationTypes: Set<String> = [
-        "auto_diagnostic_card", "agent_watch", "commented", "agent_state",
+        "auto_diagnostic_card", "agent_watch", "commented", "agent_state", "reviewed", "assigned",
     ]
 
     private var visibleNotifications: [ApiNotification] {

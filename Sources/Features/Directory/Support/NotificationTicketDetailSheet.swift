@@ -13,18 +13,20 @@ struct NotificationTicketDetailSheet: View {
     let onOpenTask: (String) -> Void
     let onTapResolutionItem: (ServiceTicketResolutionItem) -> Void
 
-    @State private var diagnosticTask: ApiTask?
-    @State private var diagnosticTaskError: String?
+    @State private var diagnosticTasks: [String: ApiTask] = [:]
+    @State private var diagnosticTaskErrors: [String: String] = [:]
     private let apiClient = APIClient()
 
-    private var isAlarm: Bool { detail?.isAlarm ?? (summary.level == "error") }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TFSpacing.lg) {
-                metaSection
+                ServiceTicketStatusCounts(summary: summary)
 
-                if let summaryText = detail?.summaryText, !summaryText.isEmpty {
+                if let checks = summary.checks, !checks.isEmpty {
+                    checkSection("Не отработали в штатном режиме", checks: checks.filter { $0.status != "ok" })
+                    checkSection("Работают в штатном режиме", checks: checks.filter { $0.status == "ok" })
+                } else if let summaryText = detail?.summaryText, !summaryText.isEmpty {
                     NotificationTicketStyle.markdownText(summaryText)
                         .tfText(.body).foregroundStyle(Color.tfText)
                 } else {
@@ -32,7 +34,9 @@ struct NotificationTicketDetailSheet: View {
                         .tfText(.body).foregroundStyle(Color.tfText)
                 }
 
-                if let taskId = detail?.diagnosticTaskId {
+                metaSection
+
+                ForEach(diagnosticTaskIDs, id: \.self) { taskId in
                     diagnosticSection(taskId: taskId)
                 }
 
@@ -42,24 +46,51 @@ struct NotificationTicketDetailSheet: View {
             }
             .padding(TFSpacing.lg)
         }
-        .task(id: detail?.diagnosticTaskId) {
-            guard let taskId = detail?.diagnosticTaskId else { return }
-            do {
-                diagnosticTask = try await apiClient.task(id: taskId)
-            } catch {
-                diagnosticTaskError = "Не удалось загрузить карточку диагностики"
+        .task(id: diagnosticTaskIDs.joined(separator: ",")) {
+            for taskId in diagnosticTaskIDs {
+                do { diagnosticTasks[taskId] = try await apiClient.task(id: taskId) }
+                catch { diagnosticTaskErrors[taskId] = "Не удалось загрузить карточку диагностики" }
+            }
+        }
+    }
+
+    private var diagnosticTaskIDs: [String] {
+        var ids = summary.links.compactMap { link -> String? in
+            guard link.hasPrefix("tf://task/") else { return nil }
+            return String(link.dropFirst("tf://task/".count))
+        }
+        if let id = detail?.diagnosticTaskId, !ids.contains(id) { ids.append(id) }
+        return Array(NSOrderedSet(array: ids)) as? [String] ?? ids
+    }
+
+    private func checkSection(_ title: String, checks: [ServiceTicketCheck]) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            HStack {
+                Text(title).tfText(.title).foregroundStyle(Color.tfText)
+                Spacer()
+                Text("\(checks.count)").tfText(.row).foregroundStyle(Color.tfSub)
+            }
+            if checks.isEmpty {
+                Text("Нет").tfText(.row).foregroundStyle(Color.tfDim)
+            }
+            ForEach(Array(checks.enumerated()), id: \.offset) { _, check in
+                HStack(alignment: .top, spacing: TFSpacing.sm) {
+                    Image(systemName: check.status == "ok" ? "checkmark.circle" : check.status == "error" ? "xmark.circle" : "clock")
+                        .foregroundStyle(check.status == "ok" ? Color.tfGreen : check.status == "error" ? Color.tfRed : Color.tfOrange)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(check.name).tfText(.body).foregroundStyle(Color.tfText)
+                        Text(check.area).tfText(.caption).foregroundStyle(Color.tfDim)
+                        Text(check.message).tfText(.row).foregroundStyle(Color.tfSub)
+                    }
+                }
             }
         }
     }
 
     private var metaSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            if isAlarm {
-                Label("Тревога", systemImage: "exclamationmark.triangle.fill")
-                    .tfText(.body).foregroundStyle(Color.tfRed)
-            }
             metaLine("Когда", NotificationTicketStyle.parseTicketDate(summary.ts).map { DirectoryDate.absolute($0) } ?? (detail?.when ?? summary.ts))
-            metaLine("От кого", detail?.from ?? summary.source)
+            metaLine("От кого", "Сервисы и приложение")
             metaLine("Уровень", detail?.level ?? summary.level)
         }
     }
@@ -78,7 +109,7 @@ struct NotificationTicketDetailSheet: View {
             Label("Карточка диагностики", systemImage: "wrench.and.screwdriver")
                 .tfText(.title).foregroundStyle(Color.tfText)
 
-            if let task = diagnosticTask {
+            if let task = diagnosticTasks[taskId] {
                 metaLine("Исполнитель", task.assigneeName ?? "не назначен")
                 if let created = task.createdAtDate {
                     metaLine("Создана", DirectoryDate.absolute(created))
@@ -88,7 +119,7 @@ struct NotificationTicketDetailSheet: View {
                 } else {
                     metaLine("Статус", statusLabel(task))
                 }
-            } else if let error = diagnosticTaskError {
+            } else if let error = diagnosticTaskErrors[taskId] {
                 TFErrorBanner(error, variant: .inline)
             } else {
                 TFLoading(.inline)
