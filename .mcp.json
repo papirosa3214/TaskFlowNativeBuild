@@ -14,7 +14,7 @@
       "command": "ssh",
       "args": [
         "maksim",
-        "cd ~/Проекты/New-Todoist && graft mcp"
+        "cd ~/Проекты/New-Todoist && PATH=$HOME/.nvm/versions/node/v22.23.1/bin:$PATH exec $HOME/.npm-global/bin/graft mcp"
       ],
       "env": {}
     }

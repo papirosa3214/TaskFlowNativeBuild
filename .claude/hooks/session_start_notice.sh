@@ -29,3 +29,18 @@ cat <<'NOTICE'
 
 4. Правки интерфейса проверять кадром симулятора, а не на глаз (CLAUDE.md).
 NOTICE
+
+# Граф graft (LOCK-235, 27.09.2026): владелец — «чтобы подхватывались при
+# переходе в эту папку». Показываем итог последней пересборки описаний и
+# запускаем её в фоне, если граф устарел (карту чужой работы не трогает; хук
+# не ждёт — возвращается сразу).
+GRAFT_STATE="$HOME/.local/state/graft-refresh/ios.json"
+if [ -f "$GRAFT_STATE" ]; then
+    /usr/bin/python3 - "$GRAFT_STATE" <<'PY' 2>/dev/null
+import json, sys
+s = json.load(open(sys.argv[1]))
+word = {"ok": "пересобран", "fresh": "свежий", "skipped": "пересборка пропущена", "failed": "ПЕРЕСБОРКА УПАЛА"}.get(s.get("result"), s.get("result"))
+print(f"\n5. Граф graft (описания разделов): {word} — {s.get('finished_at', '?')[:16].replace('T', ' ')}; {s.get('detail', '')[:160]}")
+PY
+fi
+"$CLAUDE_PROJECT_DIR/Tools/graft-refresh.sh" --background 2>/dev/null
