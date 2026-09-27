@@ -129,10 +129,14 @@ struct NotificationsScreen: View {
     /// - `auto_diagnostic_card` — авто-создание карточки диагностики
     ///   (`inboxTriageWatcher.ts`), шум при любом сбое на .110;
     /// - `agent_watch` — сторож «висит без проекта/исполнителя», не по делу
-    ///   в ленте уведомлений, видно и так на доске.
+    ///   в ленте уведомлений, видно и так на доске;
+    /// - `commented` — «X прокомментировал: Y» (`subtasks.ts`/`agent-state.ts`),
+    ///   уже видно в живой ленте задачи;
+    /// - `agent_state` — «Задача заблокирована/на проверке» и т.п. смена
+    ///   статуса, тоже уже видно в живой ленте.
     /// `completed` — владелец 27.09.2026 вернул обратно, показываем как есть.
     private static let hiddenNotificationTypes: Set<String> = [
-        "auto_diagnostic_card", "agent_watch",
+        "auto_diagnostic_card", "agent_watch", "commented", "agent_state",
     ]
 
     private var visibleNotifications: [ApiNotification] {
