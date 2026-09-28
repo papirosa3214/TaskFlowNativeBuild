@@ -60,9 +60,27 @@
 - `DependencyContextEnricher`, versioning и dependency admission ещё не
   реализованы; это следующие этапы данного плана.
 
+#### Начат этап `DependencyContextEnricher`
+
+- Добавлен server-side builder, который читает существующие `parent_id`,
+  `task_dependencies` и последнюю `artifact_versions` зависимой карточки.
+  В `TaskContext v1` передаются корень ветки, его последние заметки, прямые
+  и транзитивные предшественники, их state/result и короткие ссылки на
+  evidence. Несвязанные siblings не включаются.
+- Builder вызывается прямо перед in-process prompt и передаёт snapshot в
+  уже существующий Python bridge; KB/Mnemosyne остаются отдельным слоем
+  того же пакета.
+- Unit-контракт использует реальную versioned SQLite schema и подтверждает:
+  root, порядок `direct -> transitive`, result/evidence и исключение
+  несвязанного соседа. Весь адресный набор: 14 TypeScript tests и 15 Python
+  tests passed; TypeScript build passed.
+- На живой базе на момент проверки нет строк `task_dependencies`, поэтому
+  production-проверка не меняла карточки и пока ожидает первую естественную
+  ветку с явными dependencies.
+
 ### Следующее действие
 
-На первом естественном рабочем запуске проверить в карточке системный
-комментарий с датой свежего KB-материала и в диагностике runtime факт
-`TaskContext v1`. Затем перейти к этапу 1: аудит dependency graph и модели
-результатов для `DependencyContextEnricher`.
+На первой естественной карточке с `task_dependencies` проверить в её prompt
+`dependency_context`, включая итог и evidence предшественника. Затем отдельно
+выполнить этап policy/versioning: хранение `task_context_version`, правило
+`review | completed` на edge и audit events admission.
