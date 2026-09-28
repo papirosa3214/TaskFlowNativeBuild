@@ -3,7 +3,10 @@
 Дата: 28 сентября 2026 года
 Статус: `TaskContext v1` и `DependencyContextEnricher` подключены к
 in-process runtime; персональные slots имеют изолированные Pi-сессии;
-спроектирован следующий слой -- версионируемый `collaboration plan`
+`collaboration plan` реализован до admission основной попытки (этап 9);
+policy `review`/`completed` на dependency edge и первые audit-события
+подключены (этап 3). Версионирование корня (`task_context_version`) и живая
+приёмка на карточке с реальными `task_dependencies` остаются для этапа 4.
 
 ## Проблема
 
@@ -247,6 +250,23 @@ record, без изменения исторических карточек.
 
 Критерий: задача с policy `review` допускается после review предшественника,
 с policy `completed` ждёт принятия; зависимость вне дерева и цикл отклоняются.
+
+Первый фундамент введён server-side migration `073_task_dependency_policy`:
+`task_dependencies.policy` (`review`/`completed`, по умолчанию `review` —
+на живой базе edges пока нет, поведение никого не меняет). `unmetDependencyIds`
+учитывает policy: `review` допускает уже на `agent_state='review'`,
+`completed` ждёт полного `status='completed'`; полностью завершённая
+зависимость закрывает любую policy. `PUT /api/tasks/:id/dependencies`
+принимает необязательный `policies` для отдельных edges, обратная
+совместимость с плоским `depends_on_task_ids` сохранена. Добавлены
+audit-события `dependency_context_updated` (запись edges),
+`dependency_context_blocked` (отказ `/claim`) и `dependency_context_used`
+(dependency_context реально подставлен в prompt роли). Отдельный
+структурированный валидатор результата не понадобился: `artifact_versions`
+уже хранит result и evidence, `dependencyContext.ts` читает их напрямую —
+старый строковый result проходит без изменений. 604 серверных теста и
+`tsc` зелёные, сервис перезапущен, health ok. Версионирование корня
+(`task_context_version`) остаётся для этапа 4.
 
 ### Этап 4. Admission и runtime
 

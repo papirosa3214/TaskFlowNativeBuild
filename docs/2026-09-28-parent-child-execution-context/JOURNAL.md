@@ -187,12 +187,45 @@
   отдельный переходник сдачи основной попытки в node плана, чтобы после неё
   автоматически открыть QA.
 
+#### Policy `review`/`completed` на dependency edge и audit-события
+
+- Server migration `073_task_dependency_policy` добавила `task_dependencies.policy`
+  (`review`/`completed`, по умолчанию `review`). На живой базе edges на момент
+  миграции не было — поведение существующих карточек не изменилось.
+- `unmetDependencyIds` (`server/src/enricher.ts`) стал policy-aware: `review`
+  допускает предшественника уже на `agent_state='review'`, `completed` ждёт
+  `status='completed'`. Первая версия условия молча ломалась через тройную
+  логику SQL (`t.agent_state = 'review'` при `NULL` даёт `NULL`, а не `false`,
+  и гасило весь `WHERE` через `NOT`) — поймано красными тестами, исправлено
+  через `COALESCE(t.agent_state, '')`.
+- `PUT /api/tasks/:id/dependencies` принимает необязательный `policies`
+  (`{taskId: policy}`) поверх прежнего `depends_on_task_ids`; неизвестное
+  значение отклоняется `400`. Обратная совместимость проверена: старые тесты
+  с плоским списком id прошли без изменений.
+- Audit-события через существующий `logEvent`/`task_events`:
+  `dependency_context_updated` при записи edges, `dependency_context_blocked`
+  при отказе `/claim` (с списком неудовлетворённых id), `dependency_context_used`
+  при фактической подстановке `dependency_context` в prompt роли
+  (`inProcessRun.ts`).
+- Отдельный «единый валидатор структурированного результата» не понадобился:
+  `artifact_versions` (result + evidence_json) уже структурирован и
+  `dependencyContext.ts` читает его напрямую; старый строковый result проходит
+  без изменений.
+- Проверено: 604 серверных теста (в т.ч. 4 новых адресных на policy и
+  audit-событие блокировки) и `tsc` — зелёные; `taskflow-server.service`
+  перезапущен, health ok, `PRAGMA table_info` подтвердил колонку `policy`.
+- Не сделано: монотонный `task_context_version` на корне ветки (нужен для
+  этапа 4, чтобы attempt мог зафиксировать использованную версию) и живая
+  приёмка на карточке с реальными `task_dependencies` — таких карточек на
+  проде пока нет.
+
 ### Следующее действие
 
-На первой естественной карточке с `task_dependencies` проверить в её prompt
-`dependency_context`, включая итог и evidence предшественника. Затем отдельно
-выполнить этап policy/versioning: хранение `task_context_version`, правило
-`review | completed` на edge и audit events admission. Следующий проход
-`collaboration plan`: живой оркестратор должен анализировать результаты
-завершённых slots и предлагать следующую revision. Нужны переходник основной
-попытки в node Разработчика и отображение графа в карточке.
+Версионирование корня для этапа 4: `task_context_version` на корневой задаче,
+инкремент при допуске очередной зависимости, сохранение использованной
+версии в attempt. На первой естественной карточке с `task_dependencies`
+проверить в её prompt `dependency_context`, включая итог и evidence
+предшественника. Следующий проход `collaboration plan`: живой оркестратор
+должен анализировать результаты завершённых slots и предлагать следующую
+revision. Нужны переходник основной попытки в node Разработчика и
+отображение графа в карточке.
