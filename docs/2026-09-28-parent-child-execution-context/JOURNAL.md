@@ -158,12 +158,29 @@
   смешанной UX/API-задачи; вместе с tests plan/slots: 3 tests passed,
   `tsc` passed. Сервис перезапущен, health endpoint ответил `ok`.
 
+#### Materialization и admission slots
+
+- Migration `072_collaboration_plan_slot_admission` связала runtime slot с
+  конкретными `collaboration_plan_id` и `plan_node_key`. Утверждение revision
+  создаёт отдельный slot для каждого node; ключ содержит номер revision, так
+  что новая версия не перезаписывает историю старой.
+- Корневые roles становятся `ready`, зависимые -- `waiting`. Плановый slot
+  запускается только из `ready`; ручной перевод waiting-slot в ready получает
+  `409`, пока не выполнены все входящие edges.
+- После `submitted` либо `accepted` сервер перепроверяет waiting-slots и
+  переводит в `ready` только действительно разблокированные. Проверенный
+  сценарий: Исследователь -> Архитектор; до принятия результатa Архитектор
+  не допускается, после -- автоматически готов к запуску.
+- 3 адресных tests plan/slots и `tsc` прошли; migration применена в рабочей
+  БД, сервис перезапущен, health endpoint ответил `ok`.
+
 ### Следующее действие
 
 На первой естественной карточке с `task_dependencies` проверить в её prompt
 `dependency_context`, включая итог и evidence предшественника. Затем отдельно
 выполнить этап policy/versioning: хранение `task_context_version`, правило
 `review | completed` на edge и audit events admission. Следующий проход
-`collaboration plan`: первичное предложение графа оркестратором, явный выбор
-профиля и materialization утверждённой revision в готовые slots; только после
-этого -- admission slots по её edges.
+`collaboration plan`: живой оркестратор должен анализировать результаты
+завершённых slots и предлагать следующую revision. Нужны также явная политика
+для основной `assignee_id`-попытки и отображение графа в карточке; текущий
+admission защищает только slots, созданные из plan.
