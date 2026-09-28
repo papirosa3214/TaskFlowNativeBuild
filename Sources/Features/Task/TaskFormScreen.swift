@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Два режима задачи во всём приложении: компактная панель
 /// `QuickAddTaskView` для создания и одна плоская системная шторка для
@@ -63,6 +64,22 @@ struct TaskFormScreen: View {
     @FocusState private var isNewSubtaskFocused: Bool
     @State private var isDueEditorExpanded = false
     @State private var hasCollaborationPlan = false
+    /// id черновика плана, ждущего утверждения владельцем — не nil включает
+    /// пункт «Утвердить план совместной работы» в меню «Ещё» (LOCK-249).
+    /// Заполняется `CollaborationPlanView.load()` через `@Binding`.
+    @State private var pendingPlanApprovalId: String?
+    /// Смена значения форсирует `CollaborationPlanView` пересоздаться
+    /// (`.id(...)`) и заново загрузиться после утверждения плана — у неё
+    /// свой `didStartLoad`, обычный `onAppear` второй раз не сработает.
+    @State private var collaborationPlanReloadToken = 0
+    @State private var isApprovingCollaborationPlan = false
+    /// Какие подзаголовки карточки сейчас раскрыты. По умолчанию — только
+    /// «Сведения» и «Лента активности», остальные свёрнуты: владелец
+    /// 28.09.2026 хотел видеть карточку компактной и разворачивать только
+    /// нужное (LOCK-248). Без `AppStorage` — состояние живёт в текущей
+    /// сессии экрана и сбрасывается к этому набору при каждом открытии
+    /// карточки.
+    @State private var expandedSections: Set<TaskDetailSection> = [.details, .journal]
     @State private var isEditorReady = false
     @State private var pendingSaveTask: Task<Void, Never>?
 
@@ -215,7 +232,7 @@ struct TaskFormScreen: View {
         // а форма с семантикой отмены/сохранения, обычный «‹ Назад» её не
         // заменяет. Штатный путь — `navigationBarBackButtonHidden` + свой
         // toolbar вместо самодельной шапки.
-        .tfNativeHeader(viewModel.isEditing ? "Задача" : (viewModel.title.isEmpty ? "Новая задача" : viewModel.title), displayMode: .inline)
+        .tfNativeHeader("", displayMode: .inline)
         // Мягкая кромка прокрутки под шапкой (iOS 26+).
         //
         // По умолчанию система гасит уезжающий контент жёстко: на кадре
@@ -238,11 +255,17 @@ struct TaskFormScreen: View {
                 Spacer()
                 taskKeyboardDictationButton
             }
-            if viewModel.isEditing, let taskID = viewModel.taskID {
+            if viewModel.agentState != nil || (viewModel.attemptLadder?.currentStep ?? 0) > 0 {
                 ToolbarItem(placement: .principal) {
-                    VStack(spacing: 0) {
-                        Text("Задача").font(.headline)
-                        Text(taskID.prefix(8)).font(.caption2).foregroundStyle(.tertiary)
+                    HStack(spacing: TFSpacing.sm) {
+                        if let state = viewModel.agentState {
+                            Label(agentStateText(state), systemImage: agentStateIcon(state))
+                                .tfText(.caption)
+                                .foregroundStyle(agentStateColor(state))
+                        }
+                        if let ladder = viewModel.attemptLadder, ladder.currentStep > 0 {
+                            AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
+                        }
                     }
                     .accessibilityElement(children: .combine)
                 }
@@ -370,44 +393,40 @@ struct TaskFormScreen: View {
     // прежние, поделены только границы.
     @ViewBuilder private var headerSection: some View {
             Section {
-                // Статус агента — владелец 28.09.2026: должен быть виден
-                // сразу, самым первым, а не после названия/описания.
-                if let ladder = viewModel.attemptLadder, ladder.currentStep > 0 {
-                    HStack(spacing: TFSpacing.sm) {
-                        if let state = viewModel.agentState {
-                            Label(agentStateText(state), systemImage: agentStateIcon(state))
-                                .tfText(.caption)
-                                .foregroundStyle(agentStateColor(state))
-                        }
-                        AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
+                VStack(spacing: 0) {
+                    titleBlockTopDivider
+                    HStack(alignment: .center, spacing: TFSpacing.sm) {
+                        TextField("Название задачи", text: $viewModel.title, axis: .vertical)
+                            .tfText(.title)
+                            .fontWeight(.regular)
+                            .foregroundStyle(Color.tfText)
+                            .lineLimit(1...6)
+                            .focused($isTitleFocused)
                     }
-                    .accessibilityElement(children: .contain)
-                    .listRowSeparator(.hidden)
+                    titleBlockBottomDivider
                 }
-
-                HStack(alignment: .center, spacing: TFSpacing.sm) {
-                    TextField("Название задачи", text: $viewModel.title, axis: .vertical)
-                        .font(.headline)
-                        .lineLimit(1...6)
-                        .focused($isTitleFocused)
-                }
-                .listRowSeparator(.hidden)
-
-                // Тот же редактор, что в заметке: те же строки блоков, та же
-                // лента над клавиатурой, тот же Enter/Backspace. Владелец
-                // 13.09.2026 — «один единый формат с заметками».
-                BlockDocumentEditor(
-                    blocks: $viewModel.taskDescriptionBlocks,
-                    focus: descriptionFocus,
-                    placeholder: "Описание",
-                    onEdit: { scheduleSave() }
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .listRowSeparator(.hidden)
             }
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
+    }
+
+    /// Границы блока названия: одна физическая точка, чуть заметнее
+    /// стандартного `Divider`, без добавления высоты или отступов строки.
+    private var titleBlockDivider: some View {
+        Color.tfDim
+            .opacity(0.45)
+            .frame(maxWidth: .infinity)
+            .frame(height: 1 / UIScreen.main.scale)
+    }
+
+    private var titleBlockTopDivider: some View {
+        titleBlockDivider.offset(y: -14)
+    }
+
+    private var titleBlockBottomDivider: some View {
+        titleBlockDivider.offset(y: 15)
     }
 
     /// Чип «Сведения» — владелец 28.09.2026: срок/проект/приоритет/метки
@@ -426,156 +445,152 @@ struct TaskFormScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
     }
 
-    @ViewBuilder private var detailsSection: some View {
-            Section {
-                FlowLayout(spacing: TFSpacing.sm) {
-                    Button {
-                        isDueEditorExpanded.toggle()
-                    } label: {
-                        detailChip(icon: "calendar", text: nativeDueText)
-                    }
-                    .buttonStyle(.plain)
-
-                    Menu {
-                        Button("Без проекта") { viewModel.projectId = nil }
-                        ForEach(projectStore.projects) { project in
-                            Button {
-                                viewModel.projectId = project.id
-                            } label: {
-                                if viewModel.projectId == project.id {
-                                    Label(project.name, systemImage: "checkmark")
-                                } else {
-                                    Text(project.name)
-                                }
-                            }
-                        }
-                    } label: {
-                        detailChip(icon: "folder", text: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Без проекта")
-                    }
-                    .buttonStyle(.plain)
-
-                    Menu {
-                        ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
-                            Button {
-                                viewModel.priority = priority
-                            } label: {
-                                if viewModel.priority == priority {
-                                    Label(priority.label, systemImage: "checkmark")
-                                } else {
-                                    Text(priority.label)
-                                }
-                            }
-                        }
-                    } label: {
-                        detailChip(icon: "flag", text: viewModel.priority.label)
-                    }
-                    .buttonStyle(.plain)
-
-                    Menu {
-                        if labelStore.labels.isEmpty {
-                            Text("Нет доступных меток")
-                        } else {
-                            ForEach(labelStore.labels) { label in
-                                Button {
-                                    let binding = labelBinding(label.id)
-                                    binding.wrappedValue.toggle()
-                                } label: {
-                                    if viewModel.selectedLabelIds.contains(label.id) {
-                                        Label(label.name, systemImage: "checkmark")
-                                    } else {
-                                        Text(label.name)
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        detailChip(icon: "tag", text: nativeLabelsText)
-                    }
-                    .buttonStyle(.plain)
+    /// Содержимое секции «Сведения»: ряд чипов (срок/проект/приоритет/метки),
+    /// редактор срока (`isDueEditorExpanded` — отдельный toggle по тапу на
+    /// чип «Срок»), исполнитель и создатель. Контент отделён от обёртки —
+    /// оборачивается `collapsibleSection` в `nativeTaskDetailBody`
+    /// (LOCK-248).
+    @ViewBuilder private var detailsContent: some View {
+            FlowLayout(spacing: TFSpacing.sm) {
+                Button {
+                    isDueEditorExpanded.toggle()
+                } label: {
+                    detailChip(icon: "calendar", text: nativeDueText)
                 }
-                .listRowSeparator(.hidden)
+                .buttonStyle(.plain)
 
-                // Тап по чипу «Срок» открывает тот же компактный редактор
-                // прямо под рядом чипов, не на весь экран.
-                if isDueEditorExpanded {
-                    ExistingTaskDueEditor(
-                        dueDate: $viewModel.dueDate,
-                        startMinutes: $viewModel.startMinutes,
-                        durationMin: $viewModel.durationMin,
-                        runRepeat: $viewModel.runRepeat,
-                        repeatUntil: $viewModel.repeatUntil
-                    )
-                }
-
-                // Исполнитель/создал — не чипы: как в чате, аватар + имя,
-                // стопкой (владелец 28.09.2026). Исполнитель остаётся
-                // редактируемым (то же меню ролей), создатель — нет.
-                VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                    // Исполнитель — роль (AgentProfile), не учётка (LOCK-178).
-                    // «Автоматически» = роли нет, диспетчер подберёт её сам.
-                    Menu {
-                        Button("Автоматически — оркестратор выберет агента") {
-                            viewModel.ownerSelectedRole = nil
-                            viewModel.assigneeId = nil
+                Menu {
+                    Button("Без проекта") { viewModel.projectId = nil }
+                    ForEach(projectStore.projects) { project in
+                        Button {
+                            viewModel.projectId = project.id
+                        } label: {
+                            if viewModel.projectId == project.id {
+                                Label(project.name, systemImage: "checkmark")
+                            } else {
+                                Text(project.name)
+                            }
                         }
-                        // Себя — тем же именем, что и в остальных местах: карточка
-                        // на владельце. Назначенную на человека задачу агенты не
-                        // берут и работник расписания не трогает; в истории видно
-                        // имя, а не «кого-то».
-                        if let me = session.currentUser {
+                    }
+                } label: {
+                    detailChip(icon: "folder", text: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Без проекта")
+                }
+                .buttonStyle(.plain)
+
+                Menu {
+                    ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
+                        Button {
+                            viewModel.priority = priority
+                        } label: {
+                            if viewModel.priority == priority {
+                                Label(priority.label, systemImage: "checkmark")
+                            } else {
+                                Text(priority.label)
+                            }
+                        }
+                    }
+                } label: {
+                    detailChip(icon: "flag", text: viewModel.priority.label)
+                }
+                .buttonStyle(.plain)
+
+                Menu {
+                    if labelStore.labels.isEmpty {
+                        Text("Нет доступных меток")
+                    } else {
+                        ForEach(labelStore.labels) { label in
                             Button {
-                                viewModel.assigneeId = me.id
-                                viewModel.ownerSelectedRole = nil
+                                let binding = labelBinding(label.id)
+                                binding.wrappedValue.toggle()
                             } label: {
-                                if viewModel.assigneeId == me.id {
-                                    Label(me.name, systemImage: "checkmark")
+                                if viewModel.selectedLabelIds.contains(label.id) {
+                                    Label(label.name, systemImage: "checkmark")
                                 } else {
-                                    Text(me.name)
+                                    Text(label.name)
                                 }
                             }
                         }
-                        ForEach(viewModel.roles) { role in
-                            Button {
-                                viewModel.ownerSelectedRole = role.role
-                                viewModel.assigneeId = nil
-                            } label: {
-                                if viewModel.ownerSelectedRole == role.role {
-                                    Label(role.title, systemImage: "checkmark")
-                                } else {
-                                    Text(role.title)
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: TFSpacing.sm) {
-                            TFAvatar(size: .sm, initials: Self.initials(selectedRoleTitle), tint: .tfSub, userID: viewModel.assigneeId)
-                            Text("Исполнитель: \(selectedRoleTitle)")
-                                .tfText(.action)
-                                .foregroundStyle(Color.tfSub)
-                        }
                     }
-                    .buttonStyle(.plain)
-
-                    // Кто завёл карточку. Владелец 14.09.2026: «почему я не вижу
-                    // в карточке, кто создаёт карточки». Строка не редактируется
-                    // — создателя не меняют, и она показывается лишь у
-                    // сохранённых задач: у новой создатель ещё не записан.
-                    if let creator = viewModel.creatorName, !creator.isEmpty {
-                        HStack(spacing: TFSpacing.sm) {
-                            TFAvatar(size: .sm, initials: Self.initials(creator), tint: .tfSub)
-                            Text("Создал: \(creator)")
-                                .tfText(.action)
-                                .foregroundStyle(Color.tfSub)
-                        }
-                    }
+                } label: {
+                    detailChip(icon: "tag", text: nativeLabelsText)
                 }
-                .listRowSeparator(.hidden)
-            } header: {
-                taskSectionHeader("Сведения")
+                .buttonStyle(.plain)
             }
-            .listRowBackground(Color.tfBackground)
-            .listRowSeparator(.hidden)
-            .listSectionSeparator(.hidden)
+
+            // Тап по чипу «Срок» открывает тот же компактный редактор
+            // прямо под рядом чипов, не на весь экран.
+            if isDueEditorExpanded {
+                ExistingTaskDueEditor(
+                    dueDate: $viewModel.dueDate,
+                    startMinutes: $viewModel.startMinutes,
+                    durationMin: $viewModel.durationMin,
+                    runRepeat: $viewModel.runRepeat,
+                    repeatUntil: $viewModel.repeatUntil
+                )
+            }
+
+            // Исполнитель/создал — не чипы: как в чате, аватар + имя,
+            // стопкой (владелец 28.09.2026). Исполнитель остаётся
+            // редактируемым (то же меню ролей), создатель — нет.
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                // Исполнитель — роль (AgentProfile), не учётка (LOCK-178).
+                // «Автоматически» = роли нет, диспетчер подберёт её сам.
+                Menu {
+                    Button("Автоматически — оркестратор выберет агента") {
+                        viewModel.ownerSelectedRole = nil
+                        viewModel.assigneeId = nil
+                    }
+                    // Себя — тем же именем, что и в остальных местах: карточка
+                    // на владельце. Назначенную на человека задачу агенты не
+                    // берут и работник расписания не трогает; в истории видно
+                    // имя, а не «кого-то».
+                    if let me = session.currentUser {
+                        Button {
+                            viewModel.assigneeId = me.id
+                            viewModel.ownerSelectedRole = nil
+                        } label: {
+                            if viewModel.assigneeId == me.id {
+                                Label(me.name, systemImage: "checkmark")
+                            } else {
+                                Text(me.name)
+                            }
+                        }
+                    }
+                    ForEach(viewModel.roles) { role in
+                        Button {
+                            viewModel.ownerSelectedRole = role.role
+                            viewModel.assigneeId = nil
+                        } label: {
+                            if viewModel.ownerSelectedRole == role.role {
+                                Label(role.title, systemImage: "checkmark")
+                            } else {
+                                Text(role.title)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: TFSpacing.sm) {
+                        TFAvatar(size: .sm, initials: Self.initials(selectedRoleTitle), tint: .tfSub, userID: assigneeAvatarUserID)
+                        Text("Исполнитель: \(selectedRoleTitle)")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                // Кто завёл карточку. Владелец 14.09.2026: «почему я не вижу
+                // в карточке, кто создаёт карточки». Строка не редактируется
+                // — создателя не меняют, и она показывается лишь у
+                // сохранённых задач: у новой создатель ещё не записан.
+                if let creator = viewModel.creatorName, !creator.isEmpty {
+                    HStack(spacing: TFSpacing.sm) {
+                        TFAvatar(size: .sm, initials: Self.initials(creator), tint: .tfSub, userID: viewModel.creatorId)
+                        Text("Создал: \(creator)")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+            }
     }
 
     private static func initials(_ name: String) -> String {
@@ -607,24 +622,36 @@ struct TaskFormScreen: View {
 
             headerSection
 
-            subtasksSection
+            collapsibleSection(.description, title: "Описание") {
+                // Тот же редактор, что в заметке: те же строки блоков, та же
+                // лента над клавиатурой, тот же Enter/Backspace. Владелец
+                // 13.09.2026 — «один единый формат с заметками».
+                BlockDocumentEditor(
+                    blocks: $viewModel.taskDescriptionBlocks,
+                    focus: descriptionFocus,
+                    placeholder: "Описание",
+                    baseFontOverride: UIFont.preferredFont(forTextStyle: .footnote),
+                    textColor: UIColor(Color.tfSub),
+                    onEdit: { scheduleSave() }
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .listRowSeparator(.hidden)
+            }
 
-            // План совместной работы — владелец 28.09.2026: сигналит, что у
-            // карточки особая структура, но не должен занимать верх экрана.
-            // Место рядом со связанными задачами, а не сразу под шапкой.
-            // Секция целиком скрыта, пока не подтверждено, что план есть —
-            // иначе на 99% карточек без плана оставалась бы пустая секция.
+            collapsibleSection(.details, title: "Сведения") { detailsContent }
+
+            // Секция целиком скрыта, пока не подтверждено, что approved-план
+            // есть — иначе на обычных карточках оставалась бы пустая строка.
             if let taskID = viewModel.taskID {
                 if hasCollaborationPlan {
-                    Section {
-                        CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan)
+                    collapsibleSection(.collaborationPlan, title: "План совместной работы") {
+                        CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
+                            .id(collaborationPlanReloadToken)
                             .listRowSeparator(.hidden)
                     }
-                    .listRowBackground(Color.tfBackground)
-                    .listRowSeparator(.hidden)
-                    .listSectionSeparator(.hidden)
                 } else {
-                    CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan)
+                    CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
+                        .id(collaborationPlanReloadToken)
                         .frame(width: 0, height: 0)
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
@@ -632,17 +659,58 @@ struct TaskFormScreen: View {
                 }
             }
 
+            collapsibleSection(.subtasks, title: "Подзадачи") { subtasksContent }
+
             // У несохранённой задачи связывать нечего — секция появляется
             // вместе с самой задачей. Исключение — создание дочерней:
             // родитель уже известен и должен быть виден до сохранения.
             if viewModel.isEditing || viewModel.parentTitle != nil {
-                linkedTasksSection
+                collapsibleSection(.linkedTasks, title: "Связанные задачи") {
+                    linkedTasksContent
+                }
             }
 
-            detailsSection
+            // Лента идёт сразу после связанных задач — это завершающий блок
+            // основного сценария карточки.
+            if viewModel.isEditing {
+                collapsibleSection(.journal, title: "Лента активности") {
+                    // Отправить можно и с клавиатуры, не целясь в
+                    // «Отправить»: у поля в строке списка это главный
+                    // способ (11.09.2026 — «хочу написать комментарий,
+                    // не работает»). Кнопке нужен `.borderless`, иначе
+                    // `List` отдаёт ей тап по всей строке, включая поле.
+                    HStack {
+                        TextField("Комментарий", text: $viewModel.commentText, axis: .vertical)
+                            .lineLimit(1...4)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .focused($isCommentFocused)
+                            .submitLabel(.send)
+                            .onSubmit { Task { await viewModel.sendComment() } }
+                        Button("Отправить") { Task { await viewModel.sendComment() } }
+                            .buttonStyle(.borderless)
+                            .disabled(viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    ForEach(viewModel.journalEntries) { entry in
+                        nativeJournalRow(entry)
+                            .listRowSeparator(.hidden)
+                    }
+                }
+            }
+
+            // Чаты, привязанные к задаче. Секция только ПЕРЕХОДИТ в переписку:
+            // свой чат внутри карточки не заводится и не рисуется — для этого есть
+            // отдельный экран (владелец 21.09.2026: «заводить прям чат прямо в
+            // карточке не надо, надо чтобы просто переходил»). Появляется только
+            // когда чат уже привязан — со стороны чата.
+            if !viewModel.taskChats.isEmpty {
+                collapsibleSection(.chatByTask, title: "Чат по задаче") {
+                    chatByTaskContent
+                }
+            }
 
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
-                Section {
+                collapsibleSection(.attachments, title: "Вложения") {
                     ForEach(viewModel.attachments.uploaded) { attachment in
                         Label(attachment.fileName, systemImage: "paperclip")
                             .tfText(.action)
@@ -680,18 +748,14 @@ struct TaskFormScreen: View {
                                 }
                             }
                     }
-                } header: {
-                    taskSectionHeader("Вложения")
                 }
-                .listRowSeparator(.hidden)
-                .listSectionSeparator(.hidden)
             }
 
             // Отчёты — «зеркало» документов из папки проекта: сам файл лежит
             // в документации, здесь название, автор и время; тап открывает
             // документ. Владелец 20.09.2026.
             if !viewModel.reports.isEmpty {
-                Section {
+                collapsibleSection(.reports, title: "Отчёты") {
                     ForEach(viewModel.reports) { report in
                         Button {
                             if let noteID = report.noteID { openedReportNoteID = noteID }
@@ -707,49 +771,9 @@ struct TaskFormScreen: View {
                         }
                         .buttonStyle(.plain)
                     }
-                } header: {
-                    taskSectionHeader("Отчёты")
                 }
-                .listRowSeparator(.hidden)
-                .listSectionSeparator(.hidden)
             }
 
-            // Владелец 07.09.2026: «комментарий не в самый низ, а в самый
-            // верх — если это долгая задача, мне что, километр листать» —
-            // поле ввода ПЕРЕД лентой (как было в старой `TaskJournalView`),
-            // новые записи сверху (`TaskJournalEntry.merged` уже сортирует
-            // «новые сверху»), скроллить до низа не нужно.
-            // Ленты у несохранённой задачи нет: комментировать нечего.
-            if viewModel.isEditing {
-                Section {
-                    HStack {
-                        // Отправить можно и с клавиатуры, не целясь в
-                        // «Отправить»: у поля в строке списка это главный
-                        // способ (11.09.2026 — «хочу написать комментарий,
-                        // не работает»). Кнопке нужен `.borderless`, иначе
-                        // `List` отдаёт ей тап по всей строке, включая поле.
-                        TextField("Комментарий", text: $viewModel.commentText, axis: .vertical)
-                            .lineLimit(1...4)
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
-                            .focused($isCommentFocused)
-                            .submitLabel(.send)
-                            .onSubmit { Task { await viewModel.sendComment() } }
-                        Button("Отправить") { Task { await viewModel.sendComment() } }
-                            .buttonStyle(.borderless)
-                            .disabled(viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                    ForEach(viewModel.journalEntries) { entry in
-                        nativeJournalRow(entry)
-                            .listRowSeparator(.hidden)
-                    }
-                } header: {
-                    taskSectionHeader("Лента активности")
-                }
-                .listRowBackground(Color.tfBackground)
-                .listRowSeparator(.hidden)
-                .listSectionSeparator(.hidden)
-            }
         }
         // Владелец 07.09.2026: «размести все элементы плоско, без лишних
         // подложек» — `Form` не всегда честно слушается `.listStyle(.plain)`
@@ -776,85 +800,71 @@ struct TaskFormScreen: View {
             else { return }
             commitSubtaskTitle(subtask)
         }
+        // Системный List сохраняет свою структуру, но между подряд идущими
+        // свёрнутыми заголовками оставляет примерно вдвое меньше воздуха.
+        .listSectionSpacing(TFSpacing.sm)
         .refreshable { await viewModel.refresh() }
     }
 
-    @ViewBuilder
-    private var linkedTasksSection: some View {
-        Section {
-            if let parent = viewModel.parentTask {
-                linkedTaskRow(parent, relation: "Родительская")
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            Task { await viewModel.unlinkFromParent() }
-                        } label: {
-                            Label("Отвязать", systemImage: "link.badge.minus")
-                        }
+    /// Контент секции «Связанные задачи» (LOCK-248). Обёртку `Section`
+    /// формирует `collapsibleSection` в `nativeTaskDetailBody` — здесь только
+    /// содержимое.
+    @ViewBuilder private var linkedTasksContent: some View {
+        if let parent = viewModel.parentTask {
+            linkedTaskRow(parent, relation: "Родительская")
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        Task { await viewModel.unlinkFromParent() }
+                    } label: {
+                        Label("Отвязать", systemImage: "link.badge.minus")
                     }
-            }
-
-            ForEach(viewModel.childTasks) { child in
-                linkedTaskRow(child, relation: "Дочерняя")
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            Task { await viewModel.unlinkChildTask(child) }
-                        } label: {
-                            Label("Отвязать", systemImage: "link.badge.minus")
-                        }
-                    }
-            }
-
-            if viewModel.parentTask == nil, viewModel.childTasks.isEmpty {
-                Button {
-                    startLinkedTaskQuickAdd()
-                } label: {
-                    Text("Добавить связанную задачу")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfDim)
                 }
-                .listRowSeparator(.hidden)
-            }
-
-        } header: {
-            taskSectionHeader("Связанные задачи")
         }
-        .listRowBackground(Color.tfBackground)
-        .listRowSeparator(.hidden)
-        .listSectionSeparator(.hidden)
 
-        // Чаты, привязанные к задаче. Секция только ПЕРЕХОДИТ в переписку:
-        // свой чат внутри карточки не заводится и не рисуется — для этого есть
-        // отдельный экран (владелец 21.09.2026: «заводить прям чат прямо в
-        // карточке не надо, надо чтобы просто переходил»). Появляется только
-        // когда чат уже привязан — со стороны чата.
-        if !viewModel.taskChats.isEmpty {
-            Section {
-                ForEach(viewModel.taskChats) { chat in
-                    NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
-                        HStack(spacing: TFSpacing.sm) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(chat.displayTitle)
-                                    .tfText(.action)
-                                    .foregroundStyle(Color.tfSub)
-                                    .lineLimit(2)
-                                if let members = chat.membersCount, members > 0 {
-                                    Text("Участников: \(members)")
-                                        .tfText(.meta)
-                                        .foregroundStyle(Color.tfDim)
-                                }
-                            }
-                            Spacer(minLength: TFSpacing.sm)
-                        }
-                        .contentShape(Rectangle())
+        ForEach(viewModel.childTasks) { child in
+            linkedTaskRow(child, relation: "Дочерняя")
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        Task { await viewModel.unlinkChildTask(child) }
+                    } label: {
+                        Label("Отвязать", systemImage: "link.badge.minus")
                     }
-                    .listRowSeparator(.hidden)
                 }
-            } header: {
-                taskSectionHeader("Чат по задаче")
+        }
+
+        if viewModel.parentTask == nil, viewModel.childTasks.isEmpty {
+            Button {
+                startLinkedTaskQuickAdd()
+            } label: {
+                Text("Добавить связанную задачу")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfDim)
             }
-            .listRowBackground(Color.tfBackground)
-            .listRowSeparator(.hidden)
-            .listSectionSeparator(.hidden)
+        }
+    }
+
+    /// Контент секции «Чат по задаче». Появляется только когда есть
+    /// привязанные чаты — условие снаружи (LOCK-248). Контент отделён от
+    /// обёртки.
+    @ViewBuilder private var chatByTaskContent: some View {
+        ForEach(viewModel.taskChats) { chat in
+            NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
+                HStack(spacing: TFSpacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(chat.displayTitle)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(2)
+                        if let members = chat.membersCount, members > 0 {
+                            Text("Участников: \(members)")
+                                .tfText(.meta)
+                                .foregroundStyle(Color.tfDim)
+                        }
+                    }
+                    Spacer(minLength: TFSpacing.sm)
+                }
+                .contentShape(Rectangle())
+            }
         }
     }
 
@@ -958,11 +968,63 @@ struct TaskFormScreen: View {
 
     private func taskSectionHeader(_ title: String) -> some View {
         Text(title)
-            .tfText(.title)
+            .tfText(.taskTitle)
             .fontWeight(.semibold)
             .foregroundStyle(Color.tfText)
             .textCase(nil)
-            .underline()
+            // Без `.underline()` (владелец 28.09.2026: «полоска другого цвета
+            // под подзаголовком» — это она и была). Акцент держим
+            // `fontWeight(.semibold)` + `tfText(.title)`; рамок и линий
+            // карточка задачи не рисует.
+    }
+
+    /// Тапабельный заголовок секции-«аккордеона»: тот же `taskSectionHeader`,
+    /// + справа шеврон (вверх/вниз) — единственный сигнал свёрнутости.
+    /// Тап переключает членство в `expandedSections` с пружинистой
+    /// анимацией; само содержимое секции оборачивается через
+    /// `collapsibleSection` (LOCK-248).
+    @ViewBuilder
+    private func collapsibleHeader(_ section: TaskDetailSection, _ title: String) -> some View {
+        let expanded = expandedSections.contains(section)
+        Button {
+            withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                if expanded { expandedSections.remove(section) }
+                else { expandedSections.insert(section) }
+            }
+        } label: {
+            HStack(spacing: TFSpacing.sm) {
+                taskSectionHeader(title)
+                Spacer(minLength: 0)
+                Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(expanded ? "Свернуть" : "Развернуть")
+    }
+
+    /// Обёртка секции списка под аккордеон: контент показывается только
+    /// когда ключ в `expandedSections`. Когда свёрнута — секция пустая,
+    /// остаётся только заголовок (LOCK-248).
+    @ViewBuilder
+    private func collapsibleSection<Content: View>(
+        _ section: TaskDetailSection,
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Section {
+            if expandedSections.contains(section) {
+                content()
+            }
+        } header: {
+            collapsibleHeader(section, title)
+        }
+        .listRowBackground(Color.tfBackground)
+        .listRowSeparator(.hidden)
+        .listSectionSeparator(.hidden)
     }
 
     private var linkedTaskExcludedIDs: Set<String> {
@@ -1251,9 +1313,21 @@ struct TaskFormScreen: View {
 
     private var nativeDueText: String {
         guard let dueDate = viewModel.dueDate else { return "Не установлен" }
-        let date = TaskDateText.dueLabel(dueDate)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TaskDateText.moscow
+        let dayDifference = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: Date()),
+            to: calendar.startOfDay(for: dueDate)
+        ).day ?? 0
+        let date = switch dayDifference {
+        case 0: "Сегодня"
+        case 1: "Завтра"
+        default: TaskDateText.dueLabel(dueDate)
+        }
         guard let minutes = viewModel.startMinutes else { return date }
-        return "\(date), \(String(format: "%02d:%02d", minutes / 60, minutes % 60))"
+        let start = String(format: "%02d:%02d", minutes / 60, minutes % 60)
+        return "\(date) · \(TaskDateText.timeRange(start: start, durationMin: viewModel.durationMin))"
     }
 
     private func labelBinding(_ labelID: String) -> Binding<Bool> {
@@ -1285,6 +1359,17 @@ struct TaskFormScreen: View {
             return "Автоматически"
         }
         return profile.title
+    }
+
+    /// `userID` для аватарки исполнителя. При выбранной роли `assigneeId`
+    /// пуст, поэтому передаём `role_<key>` — иначе `TFAvatar` показал бы
+    /// инициалы вместо рисунка (LOCK-248). При назначении на человека
+    /// возвращаем `assigneeId` (в т.ч. `u-secretary` → рисунок Секретаря).
+    private var assigneeAvatarUserID: String? {
+        if let role = viewModel.ownerSelectedRole, !role.isEmpty {
+            return "role_\(role)"
+        }
+        return viewModel.assigneeId
     }
 
     private func agentStateText(_ state: AgentState) -> String {
@@ -1346,6 +1431,7 @@ struct TaskFormScreen: View {
     private var editingToolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
+                // Группа: AI и исследование.
                 if viewModel.showAiButton {
                     Button {
                         Task { await viewModel.structureWithAI() }
@@ -1354,66 +1440,7 @@ struct TaskFormScreen: View {
                     }
                     .disabled(viewModel.aiStructureStatus.isProcessing)
                 }
-                if isOwner, let state = viewModel.agentState {
-                    ownerActionMenuItems(state)
-                }
                 if isOwner {
-                    // Ручной разовый запуск: поднять исполнителя или
-                    // верификатора на этой карточке, не включая будильник.
-                    Button {
-                        Task {
-                            if await viewModel.runAgent(mode: "executor") {
-                                toast = TaskToastMessage("Исполнитель поднят — возьмёт карточку")
-                            }
-                        }
-                    } label: {
-                        Label("Запустить исполнителя", systemImage: "play.circle")
-                    }
-                    .disabled((viewModel.assigneeId ?? "").isEmpty)
-                    if viewModel.agentState == .review {
-                        Button {
-                            Task {
-                                if await viewModel.runAgent(mode: "reviewer") {
-                                    toast = TaskToastMessage("Верификатор поднят — проверит карточку")
-                                }
-                            }
-                        } label: {
-                            Label("Отправить на проверку верификатору", systemImage: "checkmark.seal")
-                        }
-                    }
-                }
-                // Серия повтора завершилась на конце года — одним тапом
-                // продлеваем на следующий (владелец 20.09.2026).
-                if isOwner, viewModel.seriesEnded {
-                    Button {
-                        Task {
-                            if await viewModel.extendRepeat() {
-                                toast = TaskToastMessage("Серия продлена на следующий год")
-                            }
-                        }
-                    } label: {
-                        Label("Продлить на год", systemImage: "calendar.badge.plus")
-                    }
-                }
-                if isOwner {
-                    // «Запустить» / «Вернуть в черновик» (23.09.2026): флаг
-                    // готовности остался внутренним стопором сервера, а
-                    // владельцу видно только это. Вернуть в черновик можно,
-                    // пока за карточку никто не взялся.
-                    if !viewModel.readyForPickup {
-                        Button {
-                            Task { await viewModel.startTask(taskStore: taskStore) }
-                        } label: {
-                            Label("Запустить", systemImage: "play.fill")
-                        }
-                    } else if viewModel.agentState == nil {
-                        Button {
-                            Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
-                        } label: {
-                            Label("Вернуть в черновик", systemImage: "pause")
-                        }
-                    }
-
                     // Глубокое исследование (миграция 052 сервера
                     // New-Todoist). Тумблер-отметка и кнопка запуска
                     // серверного конвейера: он сам собирает источники,
@@ -1442,6 +1469,91 @@ struct TaskFormScreen: View {
                         }
                     }
                 }
+
+                if viewModel.showAiButton || isOwner {
+                    Divider()
+                }
+
+                // Группа: работа агента/роли над задачей.
+                if isOwner, let state = viewModel.agentState {
+                    ownerActionMenuItems(state)
+                }
+                if isOwner {
+                    // Ручной разовый запуск: поднять исполнителя или
+                    // верификатора на этой карточке, не включая будильник.
+                    Button {
+                        Task {
+                            if await viewModel.runAgent(mode: "executor") {
+                                toast = TaskToastMessage("Исполнитель поднят — возьмёт карточку")
+                            }
+                        }
+                    } label: {
+                        Label("Запустить исполнителя", systemImage: "play.circle")
+                    }
+                    .disabled((viewModel.assigneeId ?? "").isEmpty)
+                    if viewModel.agentState == .review {
+                        Button {
+                            Task {
+                                if await viewModel.runAgent(mode: "reviewer") {
+                                    toast = TaskToastMessage("Верификатор поднят — проверит карточку")
+                                }
+                            }
+                        } label: {
+                            Label("Отправить на проверку верификатору", systemImage: "checkmark.seal")
+                        }
+                    }
+                    // «Запустить» / «Вернуть в черновик» (23.09.2026): флаг
+                    // готовности остался внутренним стопором сервера, а
+                    // владельцу видно только это. Вернуть в черновик можно,
+                    // пока за карточку никто не взялся.
+                    if !viewModel.readyForPickup {
+                        Button {
+                            Task { await viewModel.startTask(taskStore: taskStore) }
+                        } label: {
+                            Label("Запустить", systemImage: "play.fill")
+                        }
+                    } else if viewModel.agentState == nil {
+                        Button {
+                            Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
+                        } label: {
+                            Label("Вернуть в черновик", systemImage: "pause")
+                        }
+                    }
+                    // Утверждение черновика плана совместной работы —
+                    // LOCK-249: сам граф ролей уже виден в карточке, здесь
+                    // только запуск, рядом с остальными действиями над
+                    // агентом/ролями. Пункт есть, только пока владелец
+                    // видит непринятый черновик (`pendingPlanApprovalId`
+                    // заполняет `CollaborationPlanView.load()`).
+                    if let taskID, let planId = pendingPlanApprovalId {
+                        Button {
+                            Task { await approveCollaborationPlan(taskId: taskID, planId: planId) }
+                        } label: {
+                            Label("Утвердить план совместной работы", systemImage: "checkmark.circle")
+                        }
+                        .disabled(isApprovingCollaborationPlan)
+                    }
+                }
+
+                // Группа: планирование повторов.
+                if isOwner, viewModel.seriesEnded {
+                    Divider()
+                    // Серия повтора завершилась на конце года — одним тапом
+                    // продлеваем на следующий (владелец 20.09.2026).
+                    Button {
+                        Task {
+                            if await viewModel.extendRepeat() {
+                                toast = TaskToastMessage("Серия продлена на следующий год")
+                            }
+                        }
+                    } label: {
+                        Label("Продлить на год", systemImage: "calendar.badge.plus")
+                    }
+                }
+
+                Divider()
+
+                // Группа: закрепление, вложения, организация карточки.
                 // Закрепление переехало сюда из строки списка проекта
                 // (владелец 11.09.2026): «закреплять я буду в самой карточке,
                 // через три точки, а не рисовать скрепки в каждой строке».
@@ -1474,7 +1586,10 @@ struct TaskFormScreen: View {
                         Label("Связать существующую задачу", systemImage: "link.badge.plus")
                     }
                 }
+
                 Divider()
+
+                // Группа: разрушительное действие.
                 Button("Удалить задачу", systemImage: "trash", role: .destructive) {
                     isDeleteConfirmationPresented = true
                 }
@@ -1520,6 +1635,22 @@ struct TaskFormScreen: View {
                 Label("Принять и закрыть задачу", systemImage: "checkmark.circle")
             }
         }
+    }
+
+    /// Утверждение черновика плана совместной работы — LOCK-249, кнопка в
+    /// меню «Ещё». Сервер сам материализует slots и стартует корневые узлы
+    /// графа; здесь только вызов и перезагрузка `CollaborationPlanView`.
+    private func approveCollaborationPlan(taskId: String, planId: String) async {
+        isApprovingCollaborationPlan = true
+        do {
+            _ = try await APIClient().approveCollaborationPlan(taskId: taskId, planId: planId)
+            pendingPlanApprovalId = nil
+            collaborationPlanReloadToken += 1
+            toast = TaskToastMessage("План утверждён — роли начинают работу")
+        } catch {
+            toast = TaskToastMessage("Не удалось утвердить план")
+        }
+        isApprovingCollaborationPlan = false
     }
 
     private func outputDynamicIsland() {
@@ -1639,13 +1770,12 @@ struct TaskFormScreen: View {
     /// «просто тапаю и редактирую, как саму задачу, как описание» — никаких
     /// кнопок «изменить», плюсов, галочек и крестиков. Разница только в
     /// источнике: у новой задачи это черновики в памяти, у существующей —
-    /// шаги с сервера.
-    private var subtasksSection: some View {
-        Section {
+    /// шаги с сервера. Контент отделён от обёртки — оборачивается
+    /// `collapsibleSection` в `nativeTaskDetailBody` (LOCK-248).
+    @ViewBuilder private var subtasksContent: some View {
             if viewModel.isEditing {
                 ForEach(viewModel.subtasks) { subtask in
                     nativeSubtaskRow(subtask)
-                        .listRowSeparator(.hidden)
                 }
             } else {
                 ForEach($viewModel.subtaskDrafts) { $draft in
@@ -1653,17 +1783,10 @@ struct TaskFormScreen: View {
                         .lineLimit(1...)
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
-                        .listRowSeparator(.hidden)
                 }
                 .onDelete { viewModel.subtaskDrafts.remove(atOffsets: $0) }
             }
             newSubtaskRow
-        } header: {
-            taskSectionHeader("Подзадачи")
-        }
-        .listRowBackground(Color.tfBackground)
-        .listRowSeparator(.hidden)
-        .listSectionSeparator(.hidden)
     }
 
     /// Последняя строка списка шагов — пустое поле вместо кнопки с диалогом.
@@ -1792,6 +1915,32 @@ struct TaskFormScreen: View {
     }
 }
 
+/// Сворачиваемые подзаголовки карточки (LOCK-248). Список не растёт
+/// «по ходу жизни» — это перечень секций, которые владелец просил
+/// видеть компактными по умолчанию. «Шапка» (имя + описание) и блок
+/// плана совместной работы — не сворачиваются: первая несёт суть карточки,
+/// второй показывается только когда он реально есть.
+enum TaskDetailSection: Hashable {
+    /// Блочный редактор описания задачи.
+    case description
+    /// Утверждённый план совместной работы.
+    case collaborationPlan
+    /// Шаги задачи.
+    case subtasks
+    /// Родительские и дочерние задачи.
+    case linkedTasks
+    /// Привязанные к задаче чаты (отдельная секция внутри `linkedTasksSection`).
+    case chatByTask
+    /// Срок/проект/приоритет/метки + исполнитель/создатель.
+    case details
+    /// Вложения (`if attachments`). По умолчанию свёрнуты — обычно пусто.
+    case attachments
+    /// Отчёты (`if reports`). По умолчанию свёрнуты — обычно пусто.
+    case reports
+    /// Лента активности + поле ввода комментария.
+    case journal
+}
+
 /// Раньше это была одна цепочка из 14 `.onChange` подряд прямо на `fullFormBody`
 /// — Swift 6.6 typecheck таймаутит на такой длине ("unable to type-check this
 /// expression in reasonable time"), Xcode 27 справлялся, 26.6 — нет. Разбито
@@ -1856,11 +2005,16 @@ private struct AutosaveFieldsModifierTail: ViewModifier {
 /// Тот же редактор срока, что в форме создания: быстрые даты,
 /// календарь, системный барабан времени и длительность.
 private struct ExistingTaskDueEditor: View {
+    private enum Field: Hashable {
+        case date, time, duration, repeatRule
+    }
+
     @Binding var dueDate: Date?
     @Binding var startMinutes: Int?
     @Binding var durationMin: Int?
     @Binding var runRepeat: String
     @Binding var repeatUntil: Date?
+    @State private var activeField: Field = .date
 
     private static let durationOptions: [(minutes: Int, label: String)] = [
         (15, "15м"), (30, "30м"), (45, "45м"), (60, "1ч"), (120, "2ч"), (180, "3ч"),
@@ -1868,73 +2022,74 @@ private struct ExistingTaskDueEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            // Владелец 28.09.2026: «покомпактнее, не расписывать» — Сегодня/
-            // Завтра как маленькие чипы в одной строке с датой и временем,
-            // вместо трёх отдельных рядов на всю ширину.
-            HStack(spacing: TFSpacing.sm) {
-                chip("Сегодня") { dueDate = moscowStartOfDay(offsetDays: 0) }
-                chip("Завтра") { dueDate = moscowStartOfDay(offsetDays: 1) }
+            ZStack {
+                switch activeField {
+            case .date:
                 DatePicker("", selection: dueDateBinding, displayedComponents: .date)
                     .labelsHidden()
+                    .datePickerStyle(.wheel)
+                .frame(width: 300, height: 180)
+                .clipped()
+                .padding(.top, TFSpacing.sm)
+            case .time:
                 DatePicker("", selection: startTimeBinding, displayedComponents: .hourAndMinute)
                     .labelsHidden()
-                if dueDate != nil {
-                    Button {
-                        dueDate = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: TFIconSize.sm))
-                            .foregroundStyle(Color.tfDim)
+                    .datePickerStyle(.wheel)
+                .frame(width: 300, height: 180)
+                .clipped()
+                .padding(.top, TFSpacing.sm)
+            case .duration:
+                Picker("", selection: $durationMin) {
+                    Text("Без длительности").tag(Int?.none)
+                    ForEach(Self.durationOptions, id: \.minutes) { option in
+                        Text(option.label).tag(Optional(option.minutes))
                     }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel(startMinutes != nil ? "Убрать дату и время" : "Убрать дату")
                 }
-                Spacer(minLength: 0)
-            }
+                .labelsHidden()
+                .pickerStyle(.wheel)
+                .frame(width: 300, height: 180)
+                .clipped()
+                .padding(.top, TFSpacing.sm)
+            case .repeatRule:
+                Picker("", selection: $runRepeat) {
+                    Text("Не повторять").tag("none")
+                    Text("Ежедневно").tag("daily")
+                    Text("По будням").tag("weekdays")
+                    Text("Еженедельно").tag("weekly")
+                    Text("Ежемесячно").tag("monthly")
+                }
+                .labelsHidden()
+                .pickerStyle(.wheel)
+                .frame(width: 300, height: 180)
+                .clipped()
+                .padding(.top, TFSpacing.sm)
+                }
 
-            // Время не задано — старт всё равно будет, в 09:00. Скажем прямо.
-            if dueDate != nil && startMinutes == nil {
-                Text("Старт по умолчанию — 9:00")
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
-            }
-
-            if dueDate != nil {
-                HStack(spacing: TFSpacing.sm) {
-                    Picker("", selection: $durationMin) {
-                        Text("Без длительности").tag(Int?.none)
-                        ForEach(Self.durationOptions, id: \.minutes) { option in
-                            Text(option.label).tag(Optional(option.minutes))
-                        }
+                HStack {
+                    pickerArrow(icon: "chevron.left", label: "Предыдущее поле срока") {
+                        stepField(by: -1)
                     }
-                    .labelsHidden()
-
-                    // Повтор: одна карточка за раз, следующая создаётся, когда
-                    // текущая закрыта. Работает до конца календарного года —
-                    // дальше назначается заново.
-                    Picker("", selection: $runRepeat) {
-                        Text("Не повторять").tag("none")
-                        Text("Ежедневно").tag("daily")
-                        Text("По будням").tag("weekdays")
-                        Text("Еженедельно").tag("weekly")
-                        Text("Ежемесячно").tag("monthly")
-                    }
-                    .labelsHidden()
                     Spacer(minLength: 0)
-                }
-                if runRepeat != "none" {
-                    HStack(spacing: TFSpacing.sm) {
-                        Text("До")
-                            .tfText(.caption)
-                            .foregroundStyle(Color.tfSub)
-                        DatePicker("", selection: untilBinding, displayedComponents: .date)
-                            .labelsHidden()
-                        Spacer(minLength: 0)
+                    pickerArrow(icon: "chevron.right", label: "Следующее поле срока") {
+                        stepField(by: 1)
                     }
                 }
+                .padding(.top, TFSpacing.sm)
             }
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        guard abs(value.translation.width) > abs(value.translation.height),
+                              abs(value.translation.width) >= 36 else { return }
+                        stepField(by: value.translation.width < 0 ? 1 : -1)
+                    }
+            )
         }
         .padding(.vertical, TFSpacing.xs)
+        .tint(Color.tfSub)
+        .environment(\.locale, Locale(identifier: "ru_RU"))
+        .onAppear { prepareField(activeField) }
         .onChange(of: dueDate == nil) { _, isNil in
             if isNil {
                 startMinutes = nil
@@ -1943,43 +2098,36 @@ private struct ExistingTaskDueEditor: View {
         }
     }
 
-    private func chip(_ title: String, action: @escaping () -> Void) -> some View {
+    private func pickerArrow(icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.sm)
-                .padding(.vertical, 6)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+            Image(systemName: icon)
+                .font(.caption.weight(.regular))
+                .foregroundStyle(Color.tfDim.opacity(0.35))
+                .frame(width: 44, height: 180)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
-    /// «Повторять до»: если не задано — показываем конец текущего года
-    /// (дальше серия всё равно не идёт, владелец 20.09.2026).
-    private var untilBinding: Binding<Date> {
-        Binding(
-            get: { repeatUntil ?? Self.yearEnd },
-            set: { repeatUntil = $0 }
-        )
+    private func stepField(by step: Int) {
+        let fields: [Field] = [.date, .time, .duration, .repeatRule]
+        guard let index = fields.firstIndex(of: activeField) else { return }
+        activeField = fields[(index + step + fields.count) % fields.count]
+        prepareField(activeField)
     }
 
-    private static var yearEnd: Date {
-        let cal = Calendar(identifier: .gregorian)
-        var comps = DateComponents()
-        comps.year = cal.component(.year, from: Date())
-        comps.month = 12
-        comps.day = 31
-        return cal.date(from: comps) ?? Date()
+    private func prepareField(_ field: Field) {
+        if dueDate == nil {
+            dueDate = moscowStartOfDay(offsetDays: 0)
+        }
+        if field == .time, startMinutes == nil {
+            startMinutes = 9 * 60
+        }
     }
 
-
-    /// Компактному `DatePicker` нужна непустая дата: пока срока нет,
-    /// показываем сегодня, а записываем только когда пользователь выбрал.
     private var dueDateBinding: Binding<Date> {
         Binding(
-            get: { dueDate ?? moscowStartOfDay(offsetDays: 0) ?? Date() },
+            get: { dueDate ?? moscowStartOfDay(offsetDays: 0) },
             set: { dueDate = $0 }
         )
     }
@@ -2000,23 +2148,6 @@ private struct ExistingTaskDueEditor: View {
                 startMinutes = (components.hour ?? 9) * 60 + (components.minute ?? 0)
             }
         )
-    }
-
-    private func durationButton(_ option: (minutes: Int, label: String)) -> some View {
-        let isSelected = durationMin == option.minutes
-        return Button {
-            durationMin = isSelected ? nil : option.minutes
-        } label: {
-            Text(option.label)
-                .tfText(.action)
-                .fontWeight(.medium)
-                .foregroundStyle(isSelected ? .white : Color.tfText)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, TFSpacing.sm)
-                .background(isSelected ? Color.tfRed : Color.tfCard2)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(TFTapScaleStyle())
     }
 
     private func moscowStartOfDay(offsetDays: Int) -> Date {
