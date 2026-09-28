@@ -219,13 +219,48 @@
   приёмка на карточке с реальными `task_dependencies` — таких карточек на
   проде пока нет.
 
+#### Версионирование корня и мост основной попытки в collaboration plan
+
+- Migration `074_task_context_version`: `tasks.context_version`, по
+  умолчанию 1. Новый модуль `server/src/runtime/taskContextVersion.ts`:
+  `rootTaskId` (обрывает на цикле, не вешает сервер), `bumpContextVersion`
+  (растит счётчик на КОРНЕ дерева, не на самой задаче) и `contextVersionOf`.
+- `dependencyContext.ts` больше не хардкодит `version: 1` — читает
+  `contextVersionOf(root)`. Решение сознательно не строго
+  последовательное: пропуски в счётчике не страшны, версия нужна только
+  чтобы runtime между admission и claim заметил, что дерево изменилось.
+- Использованная версия фиксируется не отдельной колонкой на `attempts`
+  (создание attempt разбросано по пяти файлам — `agent-state.ts`,
+  `retry.ts`, `subtasks.ts`, `PiRuntimeAdapter.ts` — трогать все ради
+  одного поля избыточно), а в payload уже существующего audit-события
+  `dependency_context_used`: `{version, dependencies}`.
+- Переходник основной попытки: `advancePrimaryPlanSlot`
+  (`server/src/lib/collaborationPlanAdmission.ts`) — обычный исполнитель
+  работает через `/claim`+`/state`, а не slot API, и без моста его узел
+  approved plan никогда бы не сдвинулся: находит slot по role_key
+  исполнителя, переводит его `submitted`/`accepted` (не откатывает уже
+  пройденное состояние назад), пишет `primary_plan_slot_advanced` и зовёт
+  `unlockReadySlots` (экспортирован из `routes/task-role-slots.ts`, раньше
+  был приватным).
+- Подключено в трёх точках `review` (`routes/agent-state.ts` — обычный
+  `/state`; `routes/tasks.ts` и `routes/subtasks.ts` — авто-review по
+  закрытию последнего своего шага) и в единственной точке
+  `status='completed'` (`routes/tasks.ts` PATCH — других мест, где
+  `status` становится `'completed'`, в кодовой базе нет).
+- E2E-тест `primaryPlanSlotBridge.test.ts`: approved план `builder → qa`
+  (edge `submitted`); builder сдаёт через `/claim`+`/state review` — его
+  slot уходит в `submitted`, qa-slot сам открывается в `ready`, событие
+  записано, версия контекста выросла; после `PATCH status=completed`
+  build-slot доходит до `accepted`. Отдельный тест: без approved plan мост
+  не пишет ничего.
+- Проверено: 606 серверных тестов и `tsc` — зелёные; `taskflow-server.service`
+  перезапущен, health ok, `PRAGMA table_info` подтвердил `context_version`.
+
 ### Следующее действие
 
-Версионирование корня для этапа 4: `task_context_version` на корневой задаче,
-инкремент при допуске очередной зависимости, сохранение использованной
-версии в attempt. На первой естественной карточке с `task_dependencies`
-проверить в её prompt `dependency_context`, включая итог и evidence
-предшественника. Следующий проход `collaboration plan`: живой оркестратор
-должен анализировать результаты завершённых slots и предлагать следующую
-revision. Нужны переходник основной попытки в node Разработчика и
-отображение графа в карточке.
+На первой естественной карточке с `task_dependencies` проверить в её prompt
+`dependency_context`, включая итог и evidence предшественника — таких
+карточек на проде пока нет. Живой оркестратор должен анализировать
+результаты завершённых slots (включая теперь и основной, благодаря мосту)
+и предлагать следующую revision `collaboration plan`. Отображение графа
+плана в карточке (этап 10) не начато.
