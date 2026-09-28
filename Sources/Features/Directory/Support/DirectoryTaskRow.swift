@@ -126,7 +126,11 @@ struct DirectoryTaskRow: View {
         Button {
             if settledOffset != 0 { close() } else { onOpen() }
         } label: {
-            HStack(alignment: .top, spacing: 0) {
+            HStack(alignment: .top, spacing: TFSpacing.md) {
+                if let initials = task.assigneeInitials, task.assigneeId != nil {
+                    TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.assigneeId)
+                        .padding(.top, index == nil ? 0 : 16)
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     if let index {
                         Text("#" + index)
@@ -134,9 +138,6 @@ struct DirectoryTaskRow: View {
                             .foregroundStyle(Color.tfSub)
                     }
                     HStack(spacing: TFSpacing.sm) {
-                        if let initials = task.assigneeInitials, task.assigneeId != nil {
-                            TFAvatar(size: .sm, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned))
-                        }
                         Text(task.title)
                             .tfText(.body)
                             .foregroundStyle(task.status == .completed ? Color.tfSub : Color.tfText)
@@ -182,6 +183,21 @@ struct DirectoryTaskRow: View {
                                 let done = task.subtasks.count { $0.done }
                                 TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
                             }
+                            if task.childrenCount > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "person.2")
+                                    Text("\(task.childrenCount)")
+                                }
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfSub)
+                                .padding(.horizontal, TFSpacing.sm)
+                                .padding(.vertical, 2)
+                                .background(Color.tfCard)
+                                .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                            }
+                            if task.hasCollaborationPlan {
+                                TFAccentTag("ПЛАН", color: .tfPurple)
+                            }
                             if let due = task.dueDate {
                                 HStack(spacing: 3) {
                                     Text(DirectoryDate.formatDuePlain(due))
@@ -223,7 +239,7 @@ struct DirectoryTaskRow: View {
 
     private var hasBadges: Bool {
         !task.subtasks.isEmpty || task.dueDate != nil || !task.labels.isEmpty
-            || task.needsResearch
+            || task.needsResearch || task.childrenCount > 0 || task.hasCollaborationPlan
     }
 
     private func close() {

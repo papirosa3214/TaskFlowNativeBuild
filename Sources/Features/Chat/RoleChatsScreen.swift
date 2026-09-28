@@ -3,6 +3,7 @@ import AVFoundation
 import UniformTypeIdentifiers
 import PhotosUI
 import UIKit
+import QuickLook
 
 /// Личные и групповые чаты живут отдельно от старого окна постановки задач.
 ///
@@ -125,7 +126,8 @@ struct RoleChatsScreen: View {
                     avatar: AnyView(TFAvatar(
                         size: .xl,
                         initials: secretaryInitials,
-                        tint: Color.tfTeal
+                        tint: Color.tfTeal,
+                        userID: "u-secretary"
                     )),
                     title: "Секретарь",
                     preview: secretaryPreview,
@@ -345,52 +347,8 @@ private struct ChatListRow: View {
     }
 }
 
-/// Раскладка переносом строк — сколько элементов влезает в ширину, столько
-/// и встаёт в ряд, остальное уходит на следующую строку (не горизонтальный
-/// скролл и не один элемент на строку). Используется квик-реплаями
-/// (владелец 26.09.2026).
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = TFSpacing.sm
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var totalHeight: CGFloat = 0
-        var maxRowWidth: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > maxWidth {
-                totalHeight += rowHeight + spacing
-                maxRowWidth = max(maxRowWidth, x - spacing)
-                x = 0
-                rowHeight = 0
-            }
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-        totalHeight += rowHeight
-        maxRowWidth = max(maxRowWidth, x - spacing)
-        return CGSize(width: maxWidth.isFinite ? maxWidth : maxRowWidth, height: totalHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX
-        var y = bounds.minY
-        var rowHeight: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > bounds.minX, x + size.width > bounds.maxX {
-                x = bounds.minX
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-    }
-}
+// FlowLayout переехал в Sources/DesignSystem/Components/FlowLayout.swift
+// (28.09.2026) — чипам «Сведения» на карточке задачи нужна та же раскладка.
 
 /// «Разработчик печатает…» с анимированными точками — показывается только
 /// по сигналу сервера, пока роль действительно готовит ответ (22.09.2026).
@@ -478,13 +436,13 @@ private struct RoleMemberAvatar: View {
            let url = URL(string: APIClient.baseURL.absoluteString + path) {
             AsyncImage(url: url) { phase in
                 if case .success(let image) = phase {
-                    TFAvatar(size: size, image: image, initials: initials, tint: tint)
+                    TFAvatar(size: size, image: image, initials: initials, tint: tint, userID: member.id)
                 } else {
-                    TFAvatar(size: size, initials: initials, tint: tint)
+                    TFAvatar(size: size, initials: initials, tint: tint, userID: member.id)
                 }
             }
         } else {
-            TFAvatar(size: size, initials: initials, tint: tint)
+            TFAvatar(size: size, initials: initials, tint: tint, userID: member.id)
         }
     }
 }
@@ -666,6 +624,8 @@ private struct RoleChatRoomScreen: View {
     @State private var isCameraPresented = false
     @State private var pendingAttachments: [ApiChatAttachment] = []
     @State private var isUploadingAttachment = false
+    @State private var openingAttachmentIDs: Set<String> = []
+    @State private var previewAttachmentURL: URL?
     @State private var player = VoicePlayer()
     @State private var pendingVoices: [VoiceMessage] = []
     @State private var uploadedVoiceIDs: [UUID: String] = [:]
@@ -688,8 +648,16 @@ private struct RoleChatRoomScreen: View {
     /// сервер прислал `tool`. Живёт ровно как `typists`: без истории.
     @State private var typistTools: [String: String] = [:]
     /// Идущие ходы ролей (userId → снимок): текст по словам и шаги
-    /// (`chats:live`, 27.09.2026). Рисуются только в 1:1-чате.
+    /// (`chats:live`, 27.09.2026). Рисуются и в группах.
     @State private var liveTurns: [String: RoleChatLiveTurn] = [:]
+    /// На переходе к сохранённому ответу оставляем живой ход на мгновение,
+    /// чтобы клиент успел выпустить остаток очереди без дублирования текста.
+    @State private var finishingLiveTurnMessageIDs: [String: Set<String>] = [:]
+    /// Автопрокрутка работает, пока владелец читает конец ленты. Ручной
+    /// скролл отключает её до возвращения к низу.
+    @State private var followsChatBottom = true
+    @State private var userIsScrollingChat = false
+    @State private var chatIsNearBottom = true
     private let api = APIClient()
 
     init(chat: RoleChat) { _chat = State(initialValue: chat) }
@@ -705,6 +673,12 @@ private struct RoleChatRoomScreen: View {
             // до этого места физически не достаёт.
             Color.tfBackground.ignoresSafeArea()
             composerRoom
+        }
+        .quickLookPreview($previewAttachmentURL)
+        .onChange(of: previewAttachmentURL) { oldURL, newURL in
+            if newURL == nil, let oldURL {
+                try? FileManager.default.removeItem(at: oldURL.deletingLastPathComponent())
+            }
         }
     }
 
@@ -889,14 +863,19 @@ private struct RoleChatRoomScreen: View {
                     }
                 case .roleChatLive(let id, let userID, let turn) where id == chatID:
                     if let turn {
+                        finishingLiveTurnMessageIDs[userID] = nil
                         liveTurns[userID] = turn
                     } else {
-                        // Ход закончен: ответ уже лёг в ленту (сервер кладёт
-                        // его тем же ходом) — сначала перечитываем ленту, потом
-                        // убираем живой пузырь, чтобы он не мигнул пустотой.
+                        let finishedStart = liveTurns[userID]?.startedAt
+                        finishingLiveTurnMessageIDs[userID] = Set(messages.map(\.id))
                         Task {
                             await refresh()
+                            // Последний пакет сервера может ещё лежать в
+                            // очереди; готовый ответ покажем после её дренажа.
+                            try? await Task.sleep(for: .milliseconds(700))
+                            guard liveTurns[userID]?.startedAt == finishedStart else { return }
                             liveTurns[userID] = nil
+                            finishingLiveTurnMessageIDs[userID] = nil
                         }
                     }
                 default:
@@ -984,12 +963,15 @@ private struct RoleChatRoomScreen: View {
     private var messageScroll: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+                // История здесь пока небольшая (на сервере максимум 58
+                // сообщений на 28.09). LazyVStack измерял длинные ответы
+                // только при прокрутке вверх и сдвигал уже видимую ленту.
+                VStack(alignment: .leading, spacing: TFSpacing.md) {
                     if messages.isEmpty {
                         ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
                                                description: Text("Напишите первое сообщение."))
                     }
-                    ForEach(messages) { message in
+                    ForEach(visibleMessages) { message in
                         messageRow(message)
                             .id(message.id)
                     }
@@ -1039,43 +1021,62 @@ private struct RoleChatRoomScreen: View {
                     // scrollTo к только что вставленной строке ленивого стека
                     // не срабатывал — живая проверка 27.09.2026 показала, что
                     // и пузырь хода, и «печатает» оставались под полем ввода.
+                    // Сам якорь занимает место: scrollTo выравнивает его
+                    // нижний край, поэтому отступ СНАРУЖИ LazyVStack не
+                    // создавал зазора над композером (проверено на телефоне).
                     Color.clear
-                        .frame(height: 1)
+                        .frame(height: TFSpacing.xl + TFSpacing.lg)
                         .id("chat-bottom")
                 }
                 .padding(TFSpacing.lg)
             }
             .scrollDismissesKeyboard(.interactively)
-            // Лента чата стоит у низа и держит его, пока растёт содержимое:
-            // ответы с разметкой разной высоты, и прокрутка ленивого стека
-            // по оценочным высотам не доставала до низа при открытии.
-            .defaultScrollAnchor(.bottom)
+            // Начальная позиция — конец истории. Дальше лентой управляет
+            // followsChatBottom: общий defaultScrollAnchor(.bottom) ещё и
+            // подстраивал её при каждом изменении высоты живого ответа.
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .alignment)
+            .defaultScrollAnchor(followsChatBottom ? .bottom : nil, for: .sizeChanges)
             .background(Color.tfBackground)
             .hideComposerScrollEdgeEffect()
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height - geometry.visibleRect.maxY <= 80
+            } action: { _, nearBottom in
+                chatIsNearBottom = nearBottom
+            }
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting {
+                    userIsScrollingChat = true
+                    followsChatBottom = false
+                } else if phase == .idle && userIsScrollingChat {
+                    userIsScrollingChat = false
+                    followsChatBottom = chatIsNearBottom
+                }
+            }
             .onChange(of: messages.last?.id) { _, id in
-                // К низу ленты, а не к низу сообщения: иначе всё, что под
-                // ним («печатает», живой ход, быстрые ответы), уезжало под
-                // поле ввода (живая проверка 27.09.2026).
-                if id != nil { withAnimation { proxy.scrollTo("chat-bottom", anchor: .bottom) } }
-            }
-            .onChange(of: typists.isEmpty) { _, isEmpty in
-                if !isEmpty { withAnimation { proxy.scrollTo("chat-bottom", anchor: .bottom) } }
-            }
-            // Живой ход растёт — лента едет за ним, как за печатающим ответом.
-            .onChange(of: liveTurnsGrowth) { _, growth in
-                guard growth > 0 else { return }
-                proxy.scrollTo("chat-bottom", anchor: .bottom)
+                if id != nil && messages.last?.fromUserID == session.currentUser?.id {
+                    followsChatBottom = true
+                    proxy.scrollTo("chat-bottom", anchor: .bottom)
+                }
             }
         }
     }
 
-    /// Живые ходы показываем только в 1:1-чате: в группе несколько лент
-    /// сразу владельцу не нужны (решение 26.09.2026), там — точки.
+    /// Живой ход виден и в группе: у каждого ответа своя подпись роли.
     private var visibleLiveTurns: [RoleChatLiveTurn] {
-        guard chat.kind != "group" else { return [] }
         return liveTurns.values
-            .filter { !$0.items.isEmpty }
+            .filter { !$0.items.isEmpty || $0.thinking != nil }
             .sorted { $0.userID < $1.userID }
+    }
+
+    private var visibleMessages: [RoleChatMessage] {
+        messages.filter { message in
+            guard let userID = message.fromUserID,
+                  let precedingIDs = finishingLiveTurnMessageIDs[userID] else {
+                return true
+            }
+            return precedingIDs.contains(message.id)
+        }
     }
 
     /// «Печатает» — пока у роли нет ни текста, ни шагов; дальше вместо
@@ -1085,20 +1086,9 @@ private struct RoleChatRoomScreen: View {
         return typists.filter { !live.contains($0.key) }
     }
 
-    /// Сколько всего накопилось в живых ходах — сигнал «пузырь вырос».
-    private var liveTurnsGrowth: Int {
-        visibleLiveTurns.reduce(0) { total, turn in
-            turn.items.reduce(total) { sum, item in
-                switch item {
-                case .text(let text): return sum + text.count
-                case .step: return sum + 1
-                }
-            }
-        }
-    }
-
     private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
-        RoleLiveTurnBubble(turn: turn)
+        RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group")
+            .id(turn.startedAt ?? turn.userID)
     }
 
     private func loadLiveTurns() async {
@@ -1232,6 +1222,7 @@ private struct RoleChatRoomScreen: View {
                 } else if !message.text.isEmpty {
                     RoleReplyMarkdown(text: message.text)
                 }
+                nonVoiceAttachments(message)
             }
         }
         .contentShape(Rectangle())
@@ -1302,6 +1293,7 @@ private struct RoleChatRoomScreen: View {
                         header: AnyView(senderLine(message, color: .white.opacity(0.85)))
                     )
                 }
+                nonVoiceAttachments(message)
                 // Карточка задачи (владелец 25.09.2026, этап 2 «Супер
                 // Секретаря») — раньше была только у Секретаря
                 // (ChatBubble.swift, message.fromUserId == secretaryID),
@@ -1341,6 +1333,50 @@ private struct RoleChatRoomScreen: View {
                     .contentShape(Rectangle())
                     .onTapGesture { toggleSelection(message.id) }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func nonVoiceAttachments(_ message: RoleChatMessage) -> some View {
+        ForEach(message.attachments?.filter { !$0.isVoiceRecording } ?? []) { attachment in
+            Button {
+                Task { await openAttachment(attachment) }
+            } label: {
+                if attachment.mime?.hasPrefix("image/") == true {
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        ChatAttachmentImage(attachmentId: attachment.id, fileName: attachment.fileName)
+                        Text(attachment.fileName)
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                    }
+                } else {
+                    ChatFileChip(fileName: attachment.fileName)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(openingAttachmentIDs.contains(attachment.id))
+            .overlay {
+                if openingAttachmentIDs.contains(attachment.id) { ProgressView() }
+            }
+            .accessibilityLabel("Открыть \(attachment.fileName)")
+        }
+    }
+
+    private func openAttachment(_ attachment: ApiChatAttachment) async {
+        guard openingAttachmentIDs.insert(attachment.id).inserted else { return }
+        defer { openingAttachmentIDs.remove(attachment.id) }
+        do {
+            let data = try await api.downloadAttachment(id: attachment.id)
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("taskflow-chat-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let safeName = URL(fileURLWithPath: attachment.fileName).lastPathComponent
+            let url = directory.appendingPathComponent(safeName.isEmpty ? "attachment" : safeName)
+            try data.write(to: url, options: .atomic)
+            previewAttachmentURL = url
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -1396,6 +1432,7 @@ private struct RoleChatRoomScreen: View {
     /// почти никогда не нужен и только загромождает ряд.
     private var lastQuickReplies: [String]? {
         guard let last = messages.last, last.fromUserID != session.currentUser?.id,
+              visibleMessages.last?.id == last.id,
               let replies = last.quickReplies, !replies.isEmpty else { return nil }
         return Array(replies.prefix(3))
     }
@@ -1888,6 +1925,7 @@ private struct RoleChatAvatar: View {
     let initials: String
     let tint: Color
     let avatarURL: String?
+    let userID: String?
     /// В строке сообщения иконка стоит рядом с именем — там нужен мелкий
     /// размер (`.sm`), а не полноразмерный аватар отдельным столбцом.
     var size: TFAvatar.Size = .md
@@ -1897,6 +1935,7 @@ private struct RoleChatAvatar: View {
         self.initials = message.fromUserInitials ?? String((message.fromUserName ?? "?").prefix(1))
         self.tint = Color(hex: message.fromUserColor ?? TFHexDefault.unassigned)
         self.avatarURL = message.fromUserAvatarURL
+        self.userID = message.fromUserID
         self.size = size
     }
 
@@ -1907,6 +1946,7 @@ private struct RoleChatAvatar: View {
         self.initials = user?.initials ?? String(name.prefix(1))
         self.tint = Color(hex: user?.avatarColor ?? TFHexDefault.unassigned)
         self.avatarURL = user?.avatarUrl
+        self.userID = user?.id
         self.size = size
     }
 
@@ -1915,13 +1955,13 @@ private struct RoleChatAvatar: View {
            let url = URL(string: APIClient.baseURL.absoluteString + path) {
             AsyncImage(url: url) { phase in
                 if case .success(let image) = phase {
-                    TFAvatar(size: size, image: image, initials: initials, tint: tint)
+                    TFAvatar(size: size, image: image, initials: initials, tint: tint, userID: userID)
                 } else {
-                    TFAvatar(size: size, initials: initials, tint: tint)
+                    TFAvatar(size: size, initials: initials, tint: tint, userID: userID)
                 }
             }
         } else {
-            TFAvatar(size: size, initials: initials, tint: tint)
+            TFAvatar(size: size, initials: initials, tint: tint, userID: userID)
         }
     }
 }

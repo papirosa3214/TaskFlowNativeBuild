@@ -62,6 +62,7 @@ struct TaskFormScreen: View {
     @State private var newSubtaskTitle = ""
     @FocusState private var isNewSubtaskFocused: Bool
     @State private var isDueEditorExpanded = false
+    @State private var hasCollaborationPlan = false
     @State private var isEditorReady = false
     @State private var pendingSaveTask: Task<Void, Never>?
 
@@ -369,14 +370,8 @@ struct TaskFormScreen: View {
     // прежние, поделены только границы.
     @ViewBuilder private var headerSection: some View {
             Section {
-                HStack(alignment: .center, spacing: TFSpacing.sm) {
-                    TextField("Название задачи", text: $viewModel.title, axis: .vertical)
-                        .font(.headline)
-                        .lineLimit(1...6)
-                        .focused($isTitleFocused)
-                }
-                .listRowSeparator(.hidden)
-
+                // Статус агента — владелец 28.09.2026: должен быть виден
+                // сразу, самым первым, а не после названия/описания.
                 if let ladder = viewModel.attemptLadder, ladder.currentStep > 0 {
                     HStack(spacing: TFSpacing.sm) {
                         if let state = viewModel.agentState {
@@ -390,10 +385,13 @@ struct TaskFormScreen: View {
                     .listRowSeparator(.hidden)
                 }
 
-                if let taskID = viewModel.taskID {
-                    CollaborationPlanView(taskId: taskID)
-                        .listRowSeparator(.hidden)
+                HStack(alignment: .center, spacing: TFSpacing.sm) {
+                    TextField("Название задачи", text: $viewModel.title, axis: .vertical)
+                        .font(.headline)
+                        .lineLimit(1...6)
+                        .focused($isTitleFocused)
                 }
+                .listRowSeparator(.hidden)
 
                 // Тот же редактор, что в заметке: те же строки блоков, та же
                 // лента над клавиатурой, тот же Enter/Backspace. Владелец
@@ -412,17 +410,93 @@ struct TaskFormScreen: View {
             .listSectionSeparator(.hidden)
     }
 
+    /// Чип «Сведения» — владелец 28.09.2026: срок/проект/приоритет/метки
+    /// сжаты в один ряд ярлычков вместо четырёх полноширинных строк.
+    @ViewBuilder
+    private func detailChip(icon: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+            Text(text)
+        }
+        .tfText(.action)
+        .foregroundStyle(Color.tfSub)
+        .padding(.horizontal, TFSpacing.sm)
+        .padding(.vertical, 6)
+        .background(Color.tfCard)
+        .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+    }
+
     @ViewBuilder private var detailsSection: some View {
             Section {
-                Button {
-                    isDueEditorExpanded.toggle()
-                } label: {
-                    LabeledContent("Срок", value: nativeDueText)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                }
-                .buttonStyle(.plain)
+                FlowLayout(spacing: TFSpacing.sm) {
+                    Button {
+                        isDueEditorExpanded.toggle()
+                    } label: {
+                        detailChip(icon: "calendar", text: nativeDueText)
+                    }
+                    .buttonStyle(.plain)
 
+                    Menu {
+                        Button("Без проекта") { viewModel.projectId = nil }
+                        ForEach(projectStore.projects) { project in
+                            Button {
+                                viewModel.projectId = project.id
+                            } label: {
+                                if viewModel.projectId == project.id {
+                                    Label(project.name, systemImage: "checkmark")
+                                } else {
+                                    Text(project.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        detailChip(icon: "folder", text: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Без проекта")
+                    }
+                    .buttonStyle(.plain)
+
+                    Menu {
+                        ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
+                            Button {
+                                viewModel.priority = priority
+                            } label: {
+                                if viewModel.priority == priority {
+                                    Label(priority.label, systemImage: "checkmark")
+                                } else {
+                                    Text(priority.label)
+                                }
+                            }
+                        }
+                    } label: {
+                        detailChip(icon: "flag", text: viewModel.priority.label)
+                    }
+                    .buttonStyle(.plain)
+
+                    Menu {
+                        if labelStore.labels.isEmpty {
+                            Text("Нет доступных меток")
+                        } else {
+                            ForEach(labelStore.labels) { label in
+                                Button {
+                                    let binding = labelBinding(label.id)
+                                    binding.wrappedValue.toggle()
+                                } label: {
+                                    if viewModel.selectedLabelIds.contains(label.id) {
+                                        Label(label.name, systemImage: "checkmark")
+                                    } else {
+                                        Text(label.name)
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        detailChip(icon: "tag", text: nativeLabelsText)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listRowSeparator(.hidden)
+
+                // Тап по чипу «Срок» открывает тот же компактный редактор
+                // прямо под рядом чипов, не на весь экран.
                 if isDueEditorExpanded {
                     ExistingTaskDueEditor(
                         dueDate: $viewModel.dueDate,
@@ -433,127 +507,81 @@ struct TaskFormScreen: View {
                     )
                 }
 
-                Menu {
-                    Button("Без проекта") { viewModel.projectId = nil }
-                    ForEach(projectStore.projects) { project in
-                        Button {
-                            viewModel.projectId = project.id
-                        } label: {
-                            if viewModel.projectId == project.id {
-                                Label(project.name, systemImage: "checkmark")
-                            } else {
-                                Text(project.name)
-                            }
+                // Исполнитель/создал — не чипы: как в чате, аватар + имя,
+                // стопкой (владелец 28.09.2026). Исполнитель остаётся
+                // редактируемым (то же меню ролей), создатель — нет.
+                VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                    // Исполнитель — роль (AgentProfile), не учётка (LOCK-178).
+                    // «Автоматически» = роли нет, диспетчер подберёт её сам.
+                    Menu {
+                        Button("Автоматически — оркестратор выберет агента") {
+                            viewModel.ownerSelectedRole = nil
+                            viewModel.assigneeId = nil
                         }
-                    }
-                } label: {
-                    LabeledContent("Проект", value: projectStore.projects.first { $0.id == viewModel.projectId }?.name ?? "Не выбран")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                }
-                .buttonStyle(.plain)
-
-                Menu {
-                    ForEach(TaskPriority.allCases, id: \.rawValue) { priority in
-                        Button {
-                            viewModel.priority = priority
-                        } label: {
-                            if viewModel.priority == priority {
-                                Label(priority.label, systemImage: "checkmark")
-                            } else {
-                                Text(priority.label)
-                            }
-                        }
-                    }
-                } label: {
-                    LabeledContent("Приоритет", value: viewModel.priority.label)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                }
-                .buttonStyle(.plain)
-
-                Menu {
-                    if labelStore.labels.isEmpty {
-                        Text("Нет доступных меток")
-                    } else {
-                        ForEach(labelStore.labels) { label in
+                        // Себя — тем же именем, что и в остальных местах: карточка
+                        // на владельце. Назначенную на человека задачу агенты не
+                        // берут и работник расписания не трогает; в истории видно
+                        // имя, а не «кого-то».
+                        if let me = session.currentUser {
                             Button {
-                                let binding = labelBinding(label.id)
-                                binding.wrappedValue.toggle()
+                                viewModel.assigneeId = me.id
+                                viewModel.ownerSelectedRole = nil
                             } label: {
-                                if viewModel.selectedLabelIds.contains(label.id) {
-                                    Label(label.name, systemImage: "checkmark")
+                                if viewModel.assigneeId == me.id {
+                                    Label(me.name, systemImage: "checkmark")
                                 } else {
-                                    Text(label.name)
+                                    Text(me.name)
                                 }
                             }
                         }
-                    }
-                } label: {
-                    LabeledContent("Метки", value: nativeLabelsText)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                }
-                .buttonStyle(.plain)
-
-                // Исполнитель — роль (AgentProfile), не учётка (LOCK-178).
-                // «Автоматически» = роли нет, диспетчер подберёт её сам.
-                Menu {
-                    Button("Автоматически — оркестратор выберет агента") {
-                        viewModel.ownerSelectedRole = nil
-                        viewModel.assigneeId = nil
-                    }
-                    // Себя — тем же именем, что и в остальных местах: карточка
-                    // на владельце. Назначенную на человека задачу агенты не
-                    // берут и работник расписания не трогает; в истории видно
-                    // имя, а не «кого-то».
-                    if let me = session.currentUser {
-                        Button {
-                            viewModel.assigneeId = me.id
-                            viewModel.ownerSelectedRole = nil
-                        } label: {
-                            if viewModel.assigneeId == me.id {
-                                Label(me.name, systemImage: "checkmark")
-                            } else {
-                                Text(me.name)
+                        ForEach(viewModel.roles) { role in
+                            Button {
+                                viewModel.ownerSelectedRole = role.role
+                                viewModel.assigneeId = nil
+                            } label: {
+                                if viewModel.ownerSelectedRole == role.role {
+                                    Label(role.title, systemImage: "checkmark")
+                                } else {
+                                    Text(role.title)
+                                }
                             }
                         }
-                    }
-                    ForEach(viewModel.roles) { role in
-                        Button {
-                            viewModel.ownerSelectedRole = role.role
-                            viewModel.assigneeId = nil
-                        } label: {
-                            if viewModel.ownerSelectedRole == role.role {
-                                Label(role.title, systemImage: "checkmark")
-                            } else {
-                                Text(role.title)
-                            }
+                    } label: {
+                        HStack(spacing: TFSpacing.sm) {
+                            TFAvatar(size: .sm, initials: Self.initials(selectedRoleTitle), tint: .tfSub, userID: viewModel.assigneeId)
+                            Text("Исполнитель: \(selectedRoleTitle)")
+                                .tfText(.action)
+                                .foregroundStyle(Color.tfSub)
                         }
                     }
-                } label: {
-                    LabeledContent("Исполнитель", value: selectedRoleTitle)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                }
-                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
 
-                // Кто завёл карточку. Владелец 14.09.2026: «почему я не вижу
-                // в карточке, кто создаёт карточки». Раньше это знал только
-                // сервер. Строка не редактируется — создателя не меняют, и
-                // она показывается лишь у сохранённых задач: у новой
-                // создатель ещё не записан.
-                if let creator = viewModel.creatorName, !creator.isEmpty {
-                    LabeledContent("Создал", value: creator)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
+                    // Кто завёл карточку. Владелец 14.09.2026: «почему я не вижу
+                    // в карточке, кто создаёт карточки». Строка не редактируется
+                    // — создателя не меняют, и она показывается лишь у
+                    // сохранённых задач: у новой создатель ещё не записан.
+                    if let creator = viewModel.creatorName, !creator.isEmpty {
+                        HStack(spacing: TFSpacing.sm) {
+                            TFAvatar(size: .sm, initials: Self.initials(creator), tint: .tfSub)
+                            Text("Создал: \(creator)")
+                                .tfText(.action)
+                                .foregroundStyle(Color.tfSub)
+                        }
+                    }
                 }
+                .listRowSeparator(.hidden)
             } header: {
                 taskSectionHeader("Сведения")
             }
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
+    }
+
+    private static func initials(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return "?" }
+        return String(first).uppercased()
     }
 
     // 15.09.2026: тип экрана стирается здесь намеренно. Цепочка
@@ -580,6 +608,29 @@ struct TaskFormScreen: View {
             headerSection
 
             subtasksSection
+
+            // План совместной работы — владелец 28.09.2026: сигналит, что у
+            // карточки особая структура, но не должен занимать верх экрана.
+            // Место рядом со связанными задачами, а не сразу под шапкой.
+            // Секция целиком скрыта, пока не подтверждено, что план есть —
+            // иначе на 99% карточек без плана оставалась бы пустая секция.
+            if let taskID = viewModel.taskID {
+                if hasCollaborationPlan {
+                    Section {
+                        CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan)
+                            .listRowSeparator(.hidden)
+                    }
+                    .listRowBackground(Color.tfBackground)
+                    .listRowSeparator(.hidden)
+                    .listSectionSeparator(.hidden)
+                } else {
+                    CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan)
+                        .frame(width: 0, height: 0)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listSectionSeparator(.hidden)
+                }
+            }
 
             // У несохранённой задачи связывать нечего — секция появляется
             // вместе с самой задачей. Исключение — создание дочерней:

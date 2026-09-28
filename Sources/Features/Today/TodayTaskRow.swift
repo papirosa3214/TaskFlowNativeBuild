@@ -160,7 +160,11 @@ struct TodayTaskRow: View {
                 onOpen()
             }
         } label: {
-            HStack(alignment: .center, spacing: TFSpacing.sm) {
+            HStack(alignment: .top, spacing: TFSpacing.md) {
+            if let initials = task.assigneeInitials, task.assigneeId != nil {
+                TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.assigneeId)
+                    .padding(.top, task.projectName == nil ? 0 : 16)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 if let projectName = task.projectName {
                     HStack(spacing: 3) {
@@ -174,9 +178,6 @@ struct TodayTaskRow: View {
                 }
 
                 HStack(spacing: TFSpacing.sm) {
-                    if let initials = task.assigneeInitials, task.assigneeId != nil {
-                        TFAvatar(size: .sm, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned))
-                    }
                     Text(task.title)
                         .tfText(.body)
                         .foregroundStyle(task.status == .completed ? Color.tfSub : Color.tfText)
@@ -202,6 +203,21 @@ struct TodayTaskRow: View {
                         if !task.subtasks.isEmpty {
                             let done = task.subtasks.count { $0.done }
                             TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
+                        }
+                        if task.childrenCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "person.2")
+                                Text("\(task.childrenCount)")
+                            }
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, 2)
+                            .background(Color.tfCard)
+                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                        }
+                        if task.hasCollaborationPlan {
+                            TFAccentTag("ПЛАН", color: .tfPurple)
                         }
                         if overdue, let due = task.dueDate {
                             TFPill("Просрочено, \(TodayDate.formatDueLabel(due))", color: .tfRed, backgroundOpacity: 0.15)
@@ -255,6 +271,7 @@ struct TodayTaskRow: View {
     private var hasBadges: Bool {
         !task.subtasks.isEmpty || TaskPriority(rawValue: task.priority) != nil
             || overdue || task.dueDate != nil || !task.labels.isEmpty
+            || task.childrenCount > 0 || task.hasCollaborationPlan
     }
 
     /// Короткое имя для VoiceOver: название задачи, опционально проект.

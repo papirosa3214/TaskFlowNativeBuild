@@ -107,6 +107,7 @@ struct UpcomingTaskRow: View {
             projectColor: task.projectColor.map { Color(hex: $0) },
             assigneeInitials: task.assigneeId != nil ? task.assigneeInitials : nil,
             assigneeColor: task.assigneeColor.map { Color(hex: $0) },
+            assigneeID: task.assigneeId,
             title: task.title,
             isDone: task.status == .completed,
             description: (task.description?.isEmpty == false) ? task.description : nil,
@@ -114,6 +115,8 @@ struct UpcomingTaskRow: View {
             agentStatusColor: UpcomingAgentStateTag.color(task),
             subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done },
             subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count,
+            childrenCount: task.childrenCount,
+            hasCollaborationPlan: task.hasCollaborationPlan,
             priority: TaskPriority(rawValue: task.priority),
             isOverdue: false, // «Планирование» никогда не показывает просроченное (спека §5.2)
             dueText: nil,     // showDueBadge=false (спека §5.2)

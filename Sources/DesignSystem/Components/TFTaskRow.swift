@@ -17,6 +17,7 @@ public struct TFTaskRowModel {
     public var projectColor: Color?
     public var assigneeInitials: String?
     public var assigneeColor: Color?
+    public var assigneeID: String?
     public var title: String
     public var isDone: Bool
     public var description: String?
@@ -24,6 +25,12 @@ public struct TFTaskRowModel {
     public var agentStatusColor: Color?
     public var subtasksDone: Int?
     public var subtasksTotal: Int?
+    /// Есть дочерние задачи (владелец 28.09.2026: нужен отдельный ярлык от
+    /// подзадач — разные режимы структуры карточки).
+    public var childrenCount: Int?
+    /// Есть УТВЕРЖДЁННЫЙ collaboration plan — сигналит, что у карточки
+    /// (или нескольких) есть особая структура совместной работы.
+    public var hasCollaborationPlan: Bool
     public var priority: TaskPriority?
     public var isOverdue: Bool
     public var dueText: String?
@@ -34,6 +41,7 @@ public struct TFTaskRowModel {
         projectColor: Color? = nil,
         assigneeInitials: String? = nil,
         assigneeColor: Color? = nil,
+        assigneeID: String? = nil,
         title: String,
         isDone: Bool = false,
         description: String? = nil,
@@ -41,6 +49,8 @@ public struct TFTaskRowModel {
         agentStatusColor: Color? = nil,
         subtasksDone: Int? = nil,
         subtasksTotal: Int? = nil,
+        childrenCount: Int? = nil,
+        hasCollaborationPlan: Bool = false,
         priority: TaskPriority? = nil,
         isOverdue: Bool = false,
         dueText: String? = nil,
@@ -50,6 +60,7 @@ public struct TFTaskRowModel {
         self.projectColor = projectColor
         self.assigneeInitials = assigneeInitials
         self.assigneeColor = assigneeColor
+        self.assigneeID = assigneeID
         self.title = title
         self.isDone = isDone
         self.description = description
@@ -57,6 +68,8 @@ public struct TFTaskRowModel {
         self.agentStatusColor = agentStatusColor
         self.subtasksDone = subtasksDone
         self.subtasksTotal = subtasksTotal
+        self.childrenCount = childrenCount
+        self.hasCollaborationPlan = hasCollaborationPlan
         self.priority = priority
         self.isOverdue = isOverdue
         self.dueText = dueText
@@ -77,7 +90,11 @@ public struct TFTaskRow: View {
         Button(action: action) {
             // Асимметричный паддинг 9 сверху / 12 снизу (не 16/16) — намеренно
             // (спека): визуальный воздух над/под текстом иначе не совпадает.
-            HStack(alignment: .center, spacing: TFSpacing.sm) {
+            HStack(alignment: .top, spacing: TFSpacing.md) {
+            if let initials = model.assigneeInitials {
+                TFAvatar(size: .taskList, initials: initials, tint: model.assigneeColor ?? Color(hex: TFHexDefault.unassigned), userID: model.assigneeID)
+                    .padding(.top, model.projectName == nil ? 0 : 16)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 if let projectName = model.projectName {
                     Text("#\(projectName)")
@@ -86,9 +103,6 @@ public struct TFTaskRow: View {
                 }
 
                 HStack(spacing: TFSpacing.sm) {
-                    if let initials = model.assigneeInitials {
-                        TFAvatar(size: .sm, initials: initials, tint: model.assigneeColor ?? Color(hex: TFHexDefault.unassigned))
-                    }
                     Text(model.title)
                         .tfText(.body)
                         .foregroundStyle(model.isDone ? Color.tfSub : Color.tfText)
@@ -113,6 +127,21 @@ public struct TFTaskRow: View {
                     HStack(spacing: TFSpacing.xs) {
                         if let done = model.subtasksDone, let total = model.subtasksTotal {
                             TFPill("\(done)/\(total)", color: .tfSub, solidBackground: .tfCard)
+                        }
+                        if let children = model.childrenCount, children > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "person.2")
+                                Text("\(children)")
+                            }
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, 2)
+                            .background(Color.tfCard)
+                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                        }
+                        if model.hasCollaborationPlan {
+                            TFAccentTag("ПЛАН", color: .tfPurple)
                         }
                         if model.isOverdue {
                             TFOverduePill()
@@ -146,6 +175,7 @@ public struct TFTaskRow: View {
     private var hasBadges: Bool {
         model.subtasksTotal != nil || model.priority != nil
             || model.isOverdue || model.dueText != nil || !model.labels.isEmpty
+            || (model.childrenCount ?? 0) > 0 || model.hasCollaborationPlan
     }
 }
 

@@ -66,6 +66,15 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let runRepeat: String?
     /// До какой даты повторять (ISO-дата); nil — постоянно.
     public let repeatUntil: String?
+    /// Сколько дочерних задач у этой (`parent_id = t.id`), независимо от их
+    /// статуса — для ярлыка «есть дочерние» в строке списка (владелец
+    /// 28.09.2026). Дешёвый коррелированный подзапрос на сервере
+    /// (TASK_COLUMNS), не отдельный вызов.
+    public let childrenCount: Int
+    /// Есть ли у задачи УТВЕРЖДЁННЫЙ collaboration plan (LOCK-246/247) —
+    /// для ярлыка «есть план» в строке списка. Тот же приём, что и
+    /// childrenCount.
+    public let hasCollaborationPlan: Bool
     /// 1 — серия повтора уже завершена (следующее вхождение не создавать),
     /// 0 — ещё идёт. Признак воркера, владельцу виден для «Продлить на год».
     public let recurrenceSpawned: Int?
@@ -164,6 +173,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case runRepeat = "run_repeat"
         case repeatUntil = "repeat_until"
         case recurrenceSpawned = "recurrence_spawned"
+        case childrenCount = "children_count"
+        case hasCollaborationPlan = "has_collaboration_plan"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -218,6 +229,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         runRepeat = try c.decodeIfPresent(String.self, forKey: .runRepeat)
         repeatUntil = try c.decodeIfPresent(String.self, forKey: .repeatUntil)
         recurrenceSpawned = try c.decodeIfPresent(Int.self, forKey: .recurrenceSpawned)
+        childrenCount = try c.decodeIfPresent(Int.self, forKey: .childrenCount) ?? 0
+        hasCollaborationPlan = try c.decodeIntBool(forKey: .hasCollaborationPlan)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -279,6 +292,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(runRepeat, forKey: .runRepeat)
         try c.encodeIfPresent(repeatUntil, forKey: .repeatUntil)
         try c.encodeIfPresent(recurrenceSpawned, forKey: .recurrenceSpawned)
+        try c.encode(childrenCount, forKey: .childrenCount)
+        try c.encode(hasCollaborationPlan ? 1 : 0, forKey: .hasCollaborationPlan)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)

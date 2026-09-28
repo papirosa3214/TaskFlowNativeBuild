@@ -11,6 +11,10 @@ import SwiftUI
 /// `AttemptLadderView`/`AgentOwnerActions`.
 public struct CollaborationPlanView: View {
     let taskId: String
+    /// Родитель прячет весь `Section` целиком, пока плана нет — иначе на
+    /// 99% карточек без плана оставалась бы пустая секция с системными
+    /// отступами. Обновляется по факту загрузки, не заранее.
+    @Binding var hasApprovedPlan: Bool
 
     @State private var plan: ApiCollaborationPlan?
     @State private var slots: [ApiRoleSlot] = []
@@ -18,17 +22,30 @@ public struct CollaborationPlanView: View {
 
     private let api = APIClient()
 
-    public init(taskId: String) {
+    public init(taskId: String, hasApprovedPlan: Binding<Bool>) {
         self.taskId = taskId
+        self._hasApprovedPlan = hasApprovedPlan
     }
 
+    @State private var didStartLoad = false
+
     public var body: some View {
-        Group {
+        // Пока plan == nil, тело ниже пустое — List не шлёт onAppear
+        // пустой ячейке вовсе (проверено на устройстве 28.09.2026). Якорь
+        // нулевого размера всегда присутствует в дереве, поэтому lifecycle
+        // гарантированно срабатывает.
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear
+                .frame(width: 0, height: 0)
+                .onAppear {
+                    guard !didStartLoad else { return }
+                    didStartLoad = true
+                    Task { await load() }
+                }
             if let plan {
                 content(for: plan)
             }
         }
-        .task(id: taskId) { await load() }
     }
 
     @ViewBuilder
@@ -93,6 +110,7 @@ public struct CollaborationPlanView: View {
             roleTitles = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, $0.title) })
         }
         plan = plans.first { $0.status == "approved" }
+        hasApprovedPlan = plan != nil
     }
 
     private static func profileLabel(_ profile: String) -> String {
