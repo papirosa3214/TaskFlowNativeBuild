@@ -134,8 +134,11 @@ struct LabelTasksScreen: View {
             .padding(.top, 2)
 
             Button { pendingTaskID = task.id } label: {
-                HStack(alignment: .top, spacing: TFSpacing.md) {
-                    VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: TFSpacing.md) {
+                if let initials = task.assigneeInitials, task.assigneeId != nil {
+                    TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.assigneeId)
+                }
+                VStack(alignment: .leading, spacing: 4) {
                         Text(task.title)
                             .tfText(.body)
                             .foregroundStyle(isDone ? Color.tfSub : Color.tfText)
@@ -172,11 +175,22 @@ struct LabelTasksScreen: View {
                                 let done = task.subtasks.count { $0.done }
                                 TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
                             }
+                            if task.childrenCount > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "person.2")
+                                    Text("\(task.childrenCount)")
+                                }
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfSub)
+                                .padding(.horizontal, TFSpacing.sm)
+                                .padding(.vertical, 2)
+                                .background(Color.tfCard)
+                                .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                            }
+                            if task.hasCollaborationPlan {
+                                TFAccentTag("ПЛАН", color: .tfPurple)
+                            }
                         }
-                    }
-                    Spacer(minLength: 0)
-                    if let initials = task.assigneeInitials, task.assigneeId != nil {
-                        TFAvatar(size: .md, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned))
                     }
                 }
             }

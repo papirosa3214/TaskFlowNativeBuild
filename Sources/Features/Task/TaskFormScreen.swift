@@ -1867,22 +1867,17 @@ private struct ExistingTaskDueEditor: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.lg) {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            // Владелец 28.09.2026: «покомпактнее, не расписывать» — Сегодня/
+            // Завтра как маленькие чипы в одной строке с датой и временем,
+            // вместо трёх отдельных рядов на всю ширину.
             HStack(spacing: TFSpacing.sm) {
-                quickButton("Сегодня") { dueDate = moscowStartOfDay(offsetDays: 0) }
-                quickButton("Завтра") { dueDate = moscowStartOfDay(offsetDays: 1) }
-            }
-
-            // Владелец 09.09.2026: «барабан на полстраницы, как календарь».
-            // Был самописный календарь-сетка плюс `.wheel` во всю высоту —
-            // теперь системные компактные пикеры: в строке видно значение,
-            // по тапу всплывает маленькая панелька, как в Напоминаниях.
-            // Заодно ушёл перекос барабана влево — он брался от `.wheel`
-            // с `labelsHidden` в колонке с выравниванием по левому краю.
-            HStack(spacing: TFSpacing.sm) {
-                DatePicker("Дата", selection: dueDateBinding, displayedComponents: .date)
-                // Убрать срок — маленький крестик у даты, как очистка в поле
-                // ввода (владелец 26.09.2026: вместо красной кнопки на всю ширину).
+                chip("Сегодня") { dueDate = moscowStartOfDay(offsetDays: 0) }
+                chip("Завтра") { dueDate = moscowStartOfDay(offsetDays: 1) }
+                DatePicker("", selection: dueDateBinding, displayedComponents: .date)
+                    .labelsHidden()
+                DatePicker("", selection: startTimeBinding, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
                 if dueDate != nil {
                     Button {
                         dueDate = nil
@@ -1890,55 +1885,75 @@ private struct ExistingTaskDueEditor: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: TFIconSize.sm))
                             .foregroundStyle(Color.tfDim)
-                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel(startMinutes != nil ? "Убрать дату и время" : "Убрать дату")
                 }
+                Spacer(minLength: 0)
             }
-            DatePicker("Время", selection: startTimeBinding, displayedComponents: .hourAndMinute)
 
             // Время не задано — старт всё равно будет, в 09:00. Скажем прямо.
             if dueDate != nil && startMinutes == nil {
-                Text("Старт по умолчанию — 9:00. Измените время, если нужно.")
+                Text("Старт по умолчанию — 9:00")
                     .tfText(.caption)
                     .foregroundStyle(Color.tfSub)
             }
 
             if dueDate != nil {
-                Picker("Продолжительность", selection: $durationMin) {
-                    Text("Не указана").tag(Int?.none)
-                    ForEach(Self.durationOptions, id: \.minutes) { option in
-                        Text(option.label).tag(Optional(option.minutes))
+                HStack(spacing: TFSpacing.sm) {
+                    Picker("", selection: $durationMin) {
+                        Text("Без длительности").tag(Int?.none)
+                        ForEach(Self.durationOptions, id: \.minutes) { option in
+                            Text(option.label).tag(Optional(option.minutes))
+                        }
                     }
-                }
+                    .labelsHidden()
 
-                // Повтор: одна карточка за раз, следующая создаётся, когда
-                // текущая закрыта. Работает до конца календарного года —
-                // дальше назначается заново.
-                Picker("Повтор", selection: $runRepeat) {
-                    Text("Не повторять").tag("none")
-                    Text("Ежедневно").tag("daily")
-                    Text("По будням").tag("weekdays")
-                    Text("Еженедельно").tag("weekly")
-                    Text("Ежемесячно").tag("monthly")
+                    // Повтор: одна карточка за раз, следующая создаётся, когда
+                    // текущая закрыта. Работает до конца календарного года —
+                    // дальше назначается заново.
+                    Picker("", selection: $runRepeat) {
+                        Text("Не повторять").tag("none")
+                        Text("Ежедневно").tag("daily")
+                        Text("По будням").tag("weekdays")
+                        Text("Еженедельно").tag("weekly")
+                        Text("Ежемесячно").tag("monthly")
+                    }
+                    .labelsHidden()
+                    Spacer(minLength: 0)
                 }
                 if runRepeat != "none" {
-                    DatePicker("Повторять до", selection: untilBinding, displayedComponents: .date)
-                    Text("Повтор идёт до конца года, дальше назначьте заново.")
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfSub)
+                    HStack(spacing: TFSpacing.sm) {
+                        Text("До")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                        DatePicker("", selection: untilBinding, displayedComponents: .date)
+                            .labelsHidden()
+                        Spacer(minLength: 0)
+                    }
                 }
             }
         }
-        .padding(.vertical, TFSpacing.sm)
+        .padding(.vertical, TFSpacing.xs)
         .onChange(of: dueDate == nil) { _, isNil in
             if isNil {
                 startMinutes = nil
                 durationMin = nil
             }
         }
+    }
+
+    private func chip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.sm)
+                .padding(.vertical, 6)
+                .background(Color.tfCard2)
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+        }
+        .buttonStyle(.plain)
     }
 
     /// «Повторять до»: если не задано — показываем конец текущего года
@@ -1959,19 +1974,6 @@ private struct ExistingTaskDueEditor: View {
         return cal.date(from: comps) ?? Date()
     }
 
-    private func quickButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .tfText(.body)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.tfText)
-                .frame(maxWidth: .infinity)
-                .frame(height: TFHitTarget.min)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-        }
-        .buttonStyle(TFTapScaleStyle())
-    }
 
     /// Компактному `DatePicker` нужна непустая дата: пока срока нет,
     /// показываем сегодня, а записываем только когда пользователь выбрал.

@@ -20,11 +20,18 @@ private struct AgentWorkAvatarView: View {
     let initials: String
     let tint: Color
     let size: CGFloat
+    let userID: String?
 
     // `AnimatedImage` вместо `AsyncImage` — см. комментарий у AgentAvatarView
     // (AgentRow.swift), просьба владельца 03.09.2026, тот же приём.
     var body: some View {
-        if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
+        if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
+            Image(asset)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
             AnimatedImage(url: url, placeholder: { initialsCircle })
                 .resizable()
                 .aspectRatio(contentMode: .fit)
@@ -179,7 +186,17 @@ struct AgentWorkTaskRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .center, spacing: TFSpacing.sm) {
+            HStack(alignment: .top, spacing: TFSpacing.md) {
+            if task.assigneeId != nil {
+                AgentWorkAvatarView(
+                    urlPath: task.assigneeAvatarUrl,
+                    initials: task.assigneeInitials ?? "?",
+                    tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned),
+                    size: TFAvatar.Size.taskList.rawValue,
+                    userID: task.assigneeId
+                )
+                .padding(.top, task.projectName == nil ? 0 : 16)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 if let projectName = task.projectName {
                     Text("#\(projectName)")
@@ -189,14 +206,6 @@ struct AgentWorkTaskRow: View {
                 }
 
                 HStack(spacing: TFSpacing.sm) {
-                    if task.assigneeId != nil {
-                        AgentWorkAvatarView(
-                            urlPath: task.assigneeAvatarUrl,
-                            initials: task.assigneeInitials ?? "?",
-                            tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned),
-                            size: 20
-                        )
-                    }
                     Text(task.title)
                         .tfText(.body)
                         .foregroundStyle(task.status == .completed ? Color.tfSub : Color.tfText)
@@ -228,6 +237,21 @@ struct AgentWorkTaskRow: View {
                         if !task.subtasks.isEmpty {
                             let done = task.subtasks.count { $0.done }
                             TFPill("\(done)/\(task.subtasks.count)", color: .tfSub, solidBackground: .tfCard)
+                        }
+                        if task.childrenCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "person.2")
+                                Text("\(task.childrenCount)")
+                            }
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, 2)
+                            .background(Color.tfCard)
+                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                        }
+                        if task.hasCollaborationPlan {
+                            TFAccentTag("ПЛАН", color: .tfPurple)
                         }
                         if isOverdue, let due = task.dueDate {
                             TFPill("Просрочено, \(AgentWorkDate.formatDueLabel(due))", color: .tfRed, backgroundOpacity: 0.15)
@@ -272,5 +296,6 @@ struct AgentWorkTaskRow: View {
 
     private var hasBadges: Bool {
         !task.subtasks.isEmpty || task.priority <= 3 || task.dueDate != nil || !task.labels.isEmpty
+            || task.childrenCount > 0 || task.hasCollaborationPlan
     }
 }
