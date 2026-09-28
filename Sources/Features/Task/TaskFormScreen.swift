@@ -390,6 +390,11 @@ struct TaskFormScreen: View {
                     .listRowSeparator(.hidden)
                 }
 
+                if let taskID = viewModel.taskID {
+                    CollaborationPlanView(taskId: taskID)
+                        .listRowSeparator(.hidden)
+                }
+
                 // Тот же редактор, что в заметке: те же строки блоков, та же
                 // лента над клавиатурой, тот же Enter/Backspace. Владелец
                 // 13.09.2026 — «один единый формат с заметками».
