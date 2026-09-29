@@ -99,22 +99,33 @@ successor. Существующий endpoint slot result сохраняет об
 
 ### Gate-ы T03
 
+**Обновлено 29.09.2026 (владелец):** участие владельца в T03 — только
+`approve` плана (старт). Дальше вся цепочка идёт по `artifact_ready`: смысл
+автоматизации теряется, если владелец должен подтверждать каждый внутренний
+переход. `accepted` как явное действие владельца сохранился только как
+доступный, но не обязательный инструмент — `reject`/`revision-request`
+работают в любой момент, просто не являются условием для старта successor-а.
+
 ```mermaid
 flowchart LR
-    A["A1 Аналитик\nfeature_spec"] -->|accepted| H["H1 Архитектор\narchitecture_decision"]
-    A -->|accepted| D["D1 Дизайнер\nfeature_ux_spec"]
-    A -->|accepted| V["V1 Разработчик\nimplementation_pack"]
-    H -->|accepted| V
-    D -->|accepted| V
+    A["A1 Аналитик\nfeature_spec"] -->|artifact_ready| H["H1 Архитектор\narchitecture_decision"]
+    A -->|artifact_ready| D["D1 Дизайнер\nfeature_ux_spec"]
+    A -->|artifact_ready| V["V1 Разработчик\nimplementation_pack"]
+    H -->|artifact_ready| V
+    D -->|artifact_ready| V
     V -->|artifact_ready| Q["Q1 QA\nfeature_test_report"]
 ```
 
-- A1 → H1/D1/V1: `accepted`.
-- H1/D1 → V1: `accepted` только если node включён в конкретную revision.
+- A1 → H1/D1/V1: `artifact_ready` — submitted `feature_spec` с evidence
+  сам открывает включённые узлы, без действия владельца.
+- H1/D1 → V1: `artifact_ready` только если node включён в конкретную revision.
 - V1 → Q1: `artifact_ready`; валидный `implementation_pack` с evidence
   достаточно, отдельное принятие владельцем не требуется.
-- `revision_requested` и `rejected` не открывают successor. Тайм-аут либо
-  лимит итераций создаёт наблюдаемую эскалацию владельцу, но не меняет DAG.
+- `revision_requested` и `rejected` по-прежнему доступны владельцу в любой
+  момент и заменяют последнюю версию артефакта, но не открывают successor и
+  не являются условием для его старта — тот уже мог открыться по
+  предыдущей `artifact_ready`-версии. Тайм-аут либо лимит итераций создаёт
+  наблюдаемую эскалацию владельцу, но не меняет DAG.
 
 ### Контекст запуска
 

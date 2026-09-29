@@ -43,13 +43,15 @@
   - `python3 scripts/test_task_context.py` — 16/16 (включает
     `test_collaboration_context_is_serialized`).
   - Изолированный E2E на Vitest-БД (`task-collaboration-plans.test.ts`,
-    коммит `53778c2`): approve T03 A1/H1/D1/V1/Q1 (все флаги включены) →
-    accept A1 → H1 и D1 стартуют сами → accept H1 и D1 → V1 стартует сам,
-    `buildCollaborationPlanContext(V1)` возвращает ровно три предшественника
-    (`analysis`/`architecture`/`design`, ключи `feature_spec`/
-    `architecture_decision`/`feature_ux_spec`) — ни одного лишнего или
-    пропущенного → V1 сдаёт `implementation_pack` с evidence, **без**
-    какого-либо owner acceptance → Q1 стартует сам по одному `artifact_ready`.
+    коммит `53778c2`, переписан под `artifact_ready` в `a9d6558`): approve
+    T03 A1/H1/D1/V1/Q1 (все флаги включены) → A1 сдаёт `feature_spec` с
+    evidence → H1 и D1 стартуют сами (без единого `/accept`) → сдают свои
+    артефакты → V1 стартует сам, `buildCollaborationPlanContext(V1)`
+    возвращает ровно три предшественника (`analysis`/`architecture`/`design`,
+    ключи `feature_spec`/`architecture_decision`/`feature_ux_spec`) — ни
+    одного лишнего или пропущенного → V1 сдаёт `implementation_pack` с
+    evidence → Q1 стартует сам. За весь путь владелец не вызвал ни одного
+    `/artifact/accept` — только `approve` плана в начале.
   - `git diff --check` чисто в обоих репозиториях (сервер и этот, iOS).
   - Real-model и iOS-проверка **не выполнялись** — везде, где раньше был
     реальный `runRoleInProcess`, тесты подменяют его мгновенно резолвящейся
@@ -131,13 +133,17 @@
 
 ### Рёбра и gate-ы
 
+**Обновлено 29.09.2026:** владелец участвует только в approve плана
+(старт); все остальные переходы — `artifact_ready`, не `accepted`. Подробно
+и с обоснованием — [дизайн T03](t03-product-feature/T03-ARTIFACT-CONTRACT-DESIGN.md#gate-ы-t03).
+
 | От → к | Артефакт | Gate |
 | --- | --- | --- |
-| A1 → H1, если H1 включён | `feature_spec` | `accepted` |
-| A1 → D1, если D1 включён | `feature_spec` | `accepted` |
-| A1 → V1 | `feature_spec` | `accepted` |
-| H1 → V1, если H1 включён | `architecture_decision` | `accepted` |
-| D1 → V1, если D1 включён | `feature_ux_spec` | `accepted` |
+| A1 → H1, если H1 включён | `feature_spec` | `artifact_ready` |
+| A1 → D1, если D1 включён | `feature_spec` | `artifact_ready` |
+| A1 → V1 | `feature_spec` | `artifact_ready` |
+| H1 → V1, если H1 включён | `architecture_decision` | `artifact_ready` |
+| D1 → V1, если D1 включён | `feature_ux_spec` | `artifact_ready` |
 | V1 → Q1, если Q1 включён | `implementation_pack` | `artifact_ready` |
 
 ### Триггеры условных узлов
