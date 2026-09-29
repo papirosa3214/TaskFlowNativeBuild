@@ -3,7 +3,7 @@ import Foundation
 /// Derived-состояние подзадачи (`withSubtaskState()`, вычисляется при КАЖДОЙ
 /// отдаче, не хранится) — spec/API.md §3.5.
 public enum SubtaskState: String, Codable, Sendable, Hashable {
-    case done, running, pending, blocked
+    case done, running, pending, blocked, review
 }
 
 /// `ApiSubtask` — spec/API.md §3.5. `done` — SQLite 0/1, приведено к Bool.
@@ -21,6 +21,11 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
     public let agentSessionId: String?
     /// Derived, см. заголовок файла.
     public let state: SubtaskState?
+    /// Узел графа совместной работы — есть только у подзадач, materialize-
+    /// нных из утверждённого collaboration plan (29.09.2026, «роли плана —
+    /// это подзадачи»); у обычных шагов оба поля nil.
+    public let collaborationPlanId: String?
+    public let planNodeKey: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -32,6 +37,8 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         case result
         case agentSessionId = "agent_session_id"
         case state
+        case collaborationPlanId = "collaboration_plan_id"
+        case planNodeKey = "plan_node_key"
     }
 
     public init(from decoder: Decoder) throws {
@@ -47,17 +54,21 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         result = try c.decodeIfPresent(String.self, forKey: .result)
         agentSessionId = try c.decodeIfPresent(String.self, forKey: .agentSessionId)
         state = try c.decodeIfPresent(SubtaskState.self, forKey: .state)
+        collaborationPlanId = try c.decodeIfPresent(String.self, forKey: .collaborationPlanId)
+        planNodeKey = try c.decodeIfPresent(String.self, forKey: .planNodeKey)
     }
 
     public init(
         id: String, taskId: String?, title: String, done: Bool, position: Int?,
         agentState: AgentState?, agentId: String?, agentHeartbeatAt: String?,
-        result: String?, agentSessionId: String?, state: SubtaskState?
+        result: String?, agentSessionId: String?, state: SubtaskState?,
+        collaborationPlanId: String? = nil, planNodeKey: String? = nil
     ) {
         self.id = id; self.taskId = taskId; self.title = title; self.done = done
         self.position = position; self.agentState = agentState; self.agentId = agentId
         self.agentHeartbeatAt = agentHeartbeatAt; self.result = result
         self.agentSessionId = agentSessionId; self.state = state
+        self.collaborationPlanId = collaborationPlanId; self.planNodeKey = planNodeKey
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -73,5 +84,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(result, forKey: .result)
         try c.encodeIfPresent(agentSessionId, forKey: .agentSessionId)
         try c.encodeIfPresent(state, forKey: .state)
+        try c.encodeIfPresent(collaborationPlanId, forKey: .collaborationPlanId)
+        try c.encodeIfPresent(planNodeKey, forKey: .planNodeKey)
     }
 }

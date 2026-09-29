@@ -7,6 +7,12 @@ import Foundation
 /// утверждение плана делает оркестратор/владелец через API напрямую,
 /// графового редактора на телефоне нет и не планируется (docs/
 /// 2026-09-28-parent-child-execution-context, этап 10, «вне первого этапа»).
+///
+/// Runtime-состояние узлов (кто в работе, кто закрыт) — с 29.09.2026 НЕ
+/// отдельная сущность (`task_role_slots` выведена из употребления, см.
+/// docs/2026-09-29-role-slot-execution-integration/DESIGN.md), а обычные
+/// `ApiSubtask` с `collaborationPlanId`/`planNodeKey` — читай их напрямую
+/// вместо `ApiRoleSlot` (убран).
 public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiable {
     public let slotKey: String
     public let roleKey: String
@@ -52,23 +58,3 @@ public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
-/// Персональный slot роли на задаче — `task_role_slots`, состояние
-/// `waiting → ready → active → submitted → accepted`. `planNodeKey` есть
-/// только у slots, materialize-нных из утверждённого плана; вручную
-/// созданные slots его не имеют.
-public struct ApiRoleSlot: Codable, Sendable, Hashable, Identifiable {
-    public let id: String
-    public let slotKey: String
-    public let roleKey: String
-    public let state: String
-    public let required: Bool
-    public let planNodeKey: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case slotKey = "slot_key"
-        case roleKey = "role_key"
-        case state, required
-        case planNodeKey = "plan_node_key"
-    }
-}

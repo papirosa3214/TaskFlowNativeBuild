@@ -38,6 +38,7 @@ struct SubtaskFeedView: View {
         case .done: .done
         case .running: .running
         case .blocked: .blocked
+        case .review: .review
         case .pending, .none: .pending
         }
     }

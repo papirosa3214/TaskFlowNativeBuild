@@ -9,6 +9,14 @@ import SwiftUI
 /// ничего не запускают и путали бы владельца. У большинства задач approved
 /// плана нет вовсе: тогда `body` — `EmptyView()`, как и у соседних
 /// `AttemptLadderView`/`AgentOwnerActions`.
+///
+/// Runtime-состояние узлов — с 29.09.2026 обычные подзадачи
+/// (`collaborationPlanId`/`planNodeKey`), не отдельная сущность
+/// (docs/2026-09-29-role-slot-execution-integration/DESIGN.md, владелец:
+/// «роли плана — это подзадачи»). У subtasks нет отдельного персистентного
+/// состояния «готов к старту» (сервер стартует узел сам, как только это
+/// становится верным) — «ready» здесь вычисляется на клиенте из entries
+/// и edges: waiting-узел, у которого все предшественники уже done.
 public struct CollaborationPlanView: View {
     let taskId: String
     /// Родитель прячет весь `Section` целиком, пока плана нет — иначе на
@@ -25,7 +33,7 @@ public struct CollaborationPlanView: View {
     /// пробрасывается наружу через `pendingApprovalPlanId`, родитель зовёт
     /// API и форсирует перезагрузку этой вьюхи через `.id(...)`.
     @State private var draftPlan: ApiCollaborationPlan?
-    @State private var slots: [ApiRoleSlot] = []
+    @State private var planSubtasks: [ApiSubtask] = []
     @State private var roleTitles: [String: String] = [:]
 
     @Binding var pendingApprovalPlanId: String?
@@ -95,14 +103,28 @@ public struct CollaborationPlanView: View {
         .accessibilityElement(children: .contain)
     }
 
+    /// Базовое состояние узла из его подзадачи — без «ready»: та считается
+    /// отдельно в `CollaborationPlanGraph` из entries+edges (нужен полный
+    /// список узлов, а не один).
+    private func baseState(for subtask: ApiSubtask?) -> String {
+        guard let subtask else { return "waiting" }
+        if subtask.done { return "accepted" }
+        switch subtask.agentState {
+        case .inProgress: return "active"
+        case .blocked: return "blocked"
+        case .review: return "review"
+        case .todo, .none: return "waiting"
+        }
+    }
+
     private func graphEntries(for plan: ApiCollaborationPlan) -> [CollaborationPlanGraph.Entry] {
         plan.nodes.map { node in
-            let state = slots.first { $0.planNodeKey == node.slotKey }?.state ?? "waiting"
+            let subtask = planSubtasks.first { $0.planNodeKey == node.slotKey }
             return .init(
                 slotKey: node.slotKey,
                 roleKey: node.roleKey,
                 title: graphTitle(for: node.roleKey),
-                state: state
+                state: baseState(for: subtask)
             )
         }
     }
@@ -121,10 +143,10 @@ public struct CollaborationPlanView: View {
 
     private func load() async {
         async let plansTask = api.collaborationPlans(taskId: taskId)
-        async let slotsTask = api.roleSlots(taskId: taskId)
+        async let subtasksTask = api.subtasks(taskId: taskId)
         async let rolesTask = api.roles()
         guard let plans = try? await plansTask else { return }
-        slots = (try? await slotsTask) ?? []
+        planSubtasks = ((try? await subtasksTask) ?? []).filter { $0.collaborationPlanId != nil }
         if let roles = try? await rolesTask {
             roleTitles = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, $0.title) })
         }
@@ -147,27 +169,6 @@ public struct CollaborationPlanView: View {
         default: profile
         }
     }
-
-    private static func stateLabel(_ state: String) -> String {
-        switch state {
-        case "waiting": "Ждёт"
-        case "ready": "Готов к старту"
-        case "active": "В работе"
-        case "submitted": "Сдано"
-        case "accepted": "Принято"
-        default: state
-        }
-    }
-
-    private static func stateColor(_ state: String) -> Color {
-        switch state {
-        case "ready": .tfBlue
-        case "active": .tfOrange
-        case "submitted": .tfPurple
-        case "accepted": .tfGreen
-        default: .tfSub
-        }
-    }
 }
 
 /// Компактная схема зависимостей approved-плана. Подписываем только состояние
@@ -178,6 +179,9 @@ private struct CollaborationPlanGraph: View {
         let slotKey: String
         let roleKey: String
         let title: String
+        /// waiting | ready | active | blocked | review | accepted. `ready`
+        /// сюда не приходит напрямую (см. `CollaborationPlanView.baseState`)
+        /// — считается ниже, в `readyState(for:)`, из entries+edges.
         let state: String
 
         var id: String { slotKey }
@@ -191,18 +195,43 @@ private struct CollaborationPlanGraph: View {
         "researcher", "analyst", "architect", "designer", "builder", "qa", "critic_verifier"
     ]
 
+    /// waiting-узел, у которого предшественники (если есть) все уже done
+    /// ("accepted") — сервер такой узел стартует сам почти мгновенно,
+    /// «ready» здесь наблюдается только в окне до автостарта или если
+    /// автостарт сорвался (тогда есть ручной POST /api/subtasks/:id/run —
+    /// см. planSubtaskAdmission.ts). Артефактные edges с явным
+    /// start_condition="accepted" клиент отличить от «сдано, но не
+    /// принято» не может (нет статуса версии артефакта) — упрощение,
+    /// сознательно принятое ради того, чтобы не тащить сюда ещё один
+    /// запрос ради редкого случая.
+    private func readyStates() -> Set<String> {
+        let byKey = Dictionary(uniqueKeysWithValues: entries.map { ($0.slotKey, $0) })
+        var ready: Set<String> = []
+        for entry in entries where entry.state == "waiting" {
+            let incoming = edges.filter { $0.toSlotKey == entry.slotKey }
+            let satisfied = incoming.isEmpty || incoming.allSatisfy { byKey[$0.fromSlotKey]?.state == "accepted" }
+            if satisfied { ready.insert(entry.slotKey) }
+        }
+        return ready
+    }
+
+    private func displayState(_ entry: Entry, ready: Set<String>) -> String {
+        ready.contains(entry.slotKey) ? "ready" : entry.state
+    }
+
     var body: some View {
+        let ready = readyStates()
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             HStack(spacing: TFSpacing.xs) {
-                Text("\(entries.filter { $0.state == "ready" }.count) готов к старту")
+                Text("\(ready.count) готов к старту")
                     .tfText(.action)
                     .foregroundStyle(Color.tfGreen)
                 Text("•")
                     .tfText(.action)
                     .foregroundStyle(Color.tfDim)
-                Text("\(entries.filter { $0.state == "waiting" }.count) ожидают входы")
+                Text("\(entries.filter { $0.state == "active" }.count) в работе")
                     .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
+                    .foregroundStyle(Color.tfOrange)
             }
 
             GeometryReader { proxy in
@@ -223,7 +252,7 @@ private struct CollaborationPlanGraph: View {
                                 path.addLine(to: CGPoint(x: to.x, y: middleY))
                                 path.addLine(to: to)
                             }
-                            let isReadyPath = entries.first { $0.slotKey == edge.fromSlotKey }?.state == "ready"
+                            let isReadyPath = ready.contains(edge.fromSlotKey)
                             context.stroke(
                                 path,
                                 with: .color(isReadyPath ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.65)),
@@ -234,7 +263,7 @@ private struct CollaborationPlanGraph: View {
 
                     ForEach(entries) { entry in
                         if let center = centers[entry.slotKey] {
-                            node(entry)
+                            node(entry, state: displayState(entry, ready: ready))
                                 .frame(width: nodeWidth, height: nodeHeight)
                                 .position(center)
                         }
@@ -248,7 +277,7 @@ private struct CollaborationPlanGraph: View {
     }
 
     @ViewBuilder
-    private func node(_ entry: Entry) -> some View {
+    private func node(_ entry: Entry, state: String) -> some View {
         HStack(spacing: TFSpacing.sm) {
             TFAvatar(
                 size: .lg,
@@ -264,9 +293,9 @@ private struct CollaborationPlanGraph: View {
                     .foregroundStyle(Color.tfText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Text(stateLabel(entry.state))
+                Text(stateLabel(state))
                     .tfText(.caption)
-                    .foregroundStyle(stateColor(entry.state))
+                    .foregroundStyle(stateColor(state))
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -275,14 +304,14 @@ private struct CollaborationPlanGraph: View {
         .background {
             RoundedRectangle(cornerRadius: TFRadius.lg)
                 .fill(Color.tfCard2)
-            if entry.state == "ready" {
+            if state == "ready" {
                 RoundedRectangle(cornerRadius: TFRadius.lg)
                     .fill(Color.tfGreen.opacity(0.07))
             }
         }
         .overlay {
             RoundedRectangle(cornerRadius: TFRadius.lg)
-                .stroke(entry.state == "ready" ? Color.tfGreen.opacity(0.55) : Color.tfDim.opacity(0.3), lineWidth: 1)
+                .stroke(state == "ready" ? Color.tfGreen.opacity(0.55) : Color.tfDim.opacity(0.3), lineWidth: 1)
         }
     }
 
@@ -328,7 +357,8 @@ private struct CollaborationPlanGraph: View {
         case "waiting": "Ждёт"
         case "ready": "Готов к старту"
         case "active": "В работе"
-        case "submitted": "Сдано"
+        case "blocked": "Заблокирован"
+        case "review": "На проверке"
         case "accepted": "Принято"
         default: state
         }
@@ -338,7 +368,8 @@ private struct CollaborationPlanGraph: View {
         switch state {
         case "ready": .tfGreen
         case "active": .tfOrange
-        case "submitted": .tfPurple
+        case "blocked": .tfOrange
+        case "review": .tfBlue
         case "accepted": .tfGreen
         default: .tfSub
         }
