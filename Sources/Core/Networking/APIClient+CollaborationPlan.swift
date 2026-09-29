@@ -9,6 +9,23 @@ import Foundation
 private struct CollaborationPlansEnvelope: Decodable { let plans: [ApiCollaborationPlan] }
 private struct CollaborationPlanEnvelope: Decodable { let plan: ApiCollaborationPlan }
 
+/// `POST .../collaboration-plans/suggest-from-subtasks` — два разных тела
+/// по одному и тому же `suggested`: `{suggested:false, reason}`, когда
+/// параллелить нечего (меньше двух открытых подзадач или все совпали с
+/// текущим исполнителем), либо `{plan:{...}, suggested:true}`. Одна
+/// структура с обоими полями опциональными проще, чем городить свой
+/// декодер под два разных JSON-тела.
+private struct FanoutSuggestionEnvelope: Decodable {
+    let suggested: Bool
+    let reason: String?
+    let plan: ApiCollaborationPlan?
+}
+
+public enum CollaborationPlanFanoutResult: Sendable {
+    case suggested(ApiCollaborationPlan)
+    case notSuggested(reason: String)
+}
+
 public extension APIClient {
 
     /// `GET /api/tasks/:id/collaboration-plans` — все revisions, новые
@@ -26,5 +43,16 @@ public extension APIClient {
     func approveCollaborationPlan(taskId: String, planId: String) async throws -> ApiCollaborationPlan {
         let envelope: CollaborationPlanEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/\(planId)/approve")
         return envelope.plan
+    }
+
+    /// `POST .../collaboration-plans/suggest-from-subtasks` — умная
+    /// параллелизация (30.09.2026): подобрать план ИЗ уже написанных
+    /// открытых подзадач карточки локальным классификатором, а не из
+    /// шаблона по ключевым словам самой карточки. Draft, как и `/propose` —
+    /// ничего не запускает, дальше тот же граф и та же кнопка «Утвердить».
+    func suggestCollaborationPlanFromSubtasks(taskId: String) async throws -> CollaborationPlanFanoutResult {
+        let envelope: FanoutSuggestionEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/suggest-from-subtasks")
+        if let plan = envelope.plan { return .suggested(plan) }
+        return .notSuggested(reason: envelope.reason ?? "Параллелить нечего.")
     }
 }

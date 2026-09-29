@@ -78,6 +78,7 @@ struct TaskFormScreen: View {
     /// свой `didStartLoad`, обычный `onAppear` второй раз не сработает.
     @State private var collaborationPlanReloadToken = 0
     @State private var isApprovingCollaborationPlan = false
+    @State private var isSuggestingCollaborationPlan = false
     /// Какие подзаголовки карточки сейчас раскрыты. По умолчанию — только
     /// «Сведения» и «Лента активности», остальные свёрнуты: владелец
     /// 28.09.2026 хотел видеть карточку компактной и разворачивать только
@@ -1547,6 +1548,18 @@ struct TaskFormScreen: View {
                             Label("Утвердить план совместной работы", systemImage: "checkmark.circle")
                         }
                         .disabled(isApprovingCollaborationPlan)
+                    } else if let taskID {
+                        // Умная параллелизация (30.09.2026): подобрать план
+                        // ИЗ уже написанных открытых подзадач локальным
+                        // классификатором, не из шаблона по словам карточки.
+                        // Только когда нет уже висящего черновика — второй
+                        // сверху не нужен, сервер и так бы его погасил.
+                        Button {
+                            Task { await suggestCollaborationPlanFromSubtasks(taskId: taskID) }
+                        } label: {
+                            Label("Предложить план из подзадач", systemImage: "wand.and.stars")
+                        }
+                        .disabled(isSuggestingCollaborationPlan)
                     }
                 }
 
@@ -1666,6 +1679,29 @@ struct TaskFormScreen: View {
             toast = TaskToastMessage("Не удалось утвердить план")
         }
         isApprovingCollaborationPlan = false
+    }
+
+    /// Умная параллелизация (30.09.2026) — тот же паттерн, что у
+    /// `approveCollaborationPlan`: вызов и перезагрузка `CollaborationPlanView`,
+    /// которая сама заберёт свежий draft и заполнит `pendingPlanApprovalId`.
+    /// Сервер может ответить «параллелить нечего» (меньше двух открытых
+    /// подзадач или все совпали с текущим исполнителем) — это не ошибка,
+    /// сообщаем причину тем же тостом, план при этом не создаётся.
+    private func suggestCollaborationPlanFromSubtasks(taskId: String) async {
+        isSuggestingCollaborationPlan = true
+        do {
+            let result = try await APIClient().suggestCollaborationPlanFromSubtasks(taskId: taskId)
+            switch result {
+            case .suggested:
+                collaborationPlanReloadToken += 1
+                toast = TaskToastMessage("План предложен — проверьте и утвердите")
+            case .notSuggested(let reason):
+                toast = TaskToastMessage(reason)
+            }
+        } catch {
+            toast = TaskToastMessage("Не удалось предложить план")
+        }
+        isSuggestingCollaborationPlan = false
     }
 
     private func outputDynamicIsland() {
