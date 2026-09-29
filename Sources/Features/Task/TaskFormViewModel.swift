@@ -63,6 +63,10 @@ final class TaskFormViewModel {
     }()
     /// Имя того, кто завёл карточку — только для показа, менять его нельзя.
     var creatorName: String?
+    /// ID создателя — пробрасываем в `TFAvatar`, чтобы для роли-агента
+    /// показывать рисунок роли вместо инициалов (LOCK-248). Только чтение,
+    /// на редактирование не идёт: `creatorId` ставит сервер.
+    var creatorId: String?
     var attachments: TaskAttachmentsController
 
     // Полноценные связанные задачи (`tasks.parent_id`) — отдельная модель от
@@ -209,6 +213,7 @@ final class TaskFormViewModel {
             ownerSelectedRole = task.effectiveRole
             originalRole = task.effectiveRole
             creatorName = task.creatorName
+            creatorId = task.creatorId
             attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID, existing: task.attachments ?? [])
         } catch let error as APIError {
             if case .notFound = error { notFound = true } else { loadErrorMessage = Self.message(error) }
