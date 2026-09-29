@@ -444,6 +444,10 @@ struct BlockDocumentEditor: View {
     /// Текст-подсказка в первом блоке пустого документа.
     var placeholder: String?
     var supportsDictation: Bool = true
+    /// Переопределение тела применяется только там, где вызывающий явно
+    /// просит компактную типографику (описание задачи); заметки её не задают.
+    var baseFontOverride: UIFont? = nil
+    var textColor: UIColor = UIColor(Color.tfText)
     /// Документ изменился — вызывающий ставит сюда своё сохранение.
     var onEdit: () -> Void = {}
 
@@ -547,6 +551,8 @@ struct BlockDocumentEditor: View {
                 placeholder: placeholderText(for: block),
                 controller: controllerStore.controller(for: block.id),
                 accessoryView: accessoryHost?.view,
+                baseFontOverride: baseFontOverride,
+                textColor: textColor,
                 onChange: updateRuns,
                 onFocus: focusCell,
                 onBlur: blurCell,
@@ -648,6 +654,8 @@ struct NoteBlockRow: View {
     /// `inputAccessoryView` (лента форматирования + микрофон), один и тот же
     /// объект на все блоки редактора — см. `BlockDocumentEditor.accessoryHost`.
     let accessoryView: UIView?
+    let baseFontOverride: UIFont?
+    let textColor: UIColor
 
     let onChange: (UUID, [RichRun]) -> Void
     let onFocus: (UUID, NoteBlockTextController) -> Void
@@ -675,7 +683,7 @@ struct NoteBlockRow: View {
                     }
                     NoteBlockTextView(
                         blockID: block.id, runs: block.runs, blockKind: block.kind, controller: controller,
-                        accessoryView: accessoryView,
+                        accessoryView: accessoryView, baseFontOverride: baseFontOverride, textColor: textColor,
                         onChange: onChange, onFocus: onFocus, onBlur: onBlur, onMarksChange: onMarksChange,
                         onSplit: onSplit, onBackspaceAtStart: onBackspaceAtStart
                     )

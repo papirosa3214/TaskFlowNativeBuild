@@ -56,26 +56,35 @@ enum MarkdownText {
     /// нужен тот же `paragraph`, но шапка рисуется полужирной, а марки
     /// `bold` в её прогонах нет (в markdown-таблице шапка выделяется самой
     /// позицией, не разметкой — веб делает то же самое стилем `th`).
-    static func attributedString(runs: [RichRun], blockKind: BlockKind, base: UIFont? = nil) -> NSAttributedString {
+    static func attributedString(
+        runs: [RichRun],
+        blockKind: BlockKind,
+        base: UIFont? = nil,
+        textColor: UIColor = UIColor(Color.tfText)
+    ) -> NSAttributedString {
         let base = base ?? baseFont(for: blockKind)
         let out = NSMutableAttributedString()
         for run in runs {
             guard !run.text.isEmpty else { continue }
-            out.append(NSAttributedString(string: run.text, attributes: attributes(for: run, base: base)))
+            out.append(NSAttributedString(string: run.text, attributes: attributes(for: run, base: base, textColor: textColor)))
         }
         if out.length == 0 {
             // Пустой блок всё равно должен нести шрифт — иначе UITextView
             // печатает первый символ системным дефолтом (17pt), и кегль
             // «прыгает» после первого нажатия клавиши.
-            out.append(NSAttributedString(string: "", attributes: [.font: base, .foregroundColor: UIColor(Color.tfText)]))
+            out.append(NSAttributedString(string: "", attributes: [.font: base, .foregroundColor: textColor]))
         }
         return out
     }
 
-    static func attributes(for run: RichRun, base: UIFont) -> [NSAttributedString.Key: Any] {
+    static func attributes(
+        for run: RichRun,
+        base: UIFont,
+        textColor: UIColor = UIColor(Color.tfText)
+    ) -> [NSAttributedString.Key: Any] {
         var attrs: [NSAttributedString.Key: Any] = [:]
         attrs[.font] = font(base: base, bold: run.bold, italic: run.italic, code: run.code)
-        attrs[.foregroundColor] = (run.linkHref?.isEmpty == false) ? UIColor(Color.tfRed) : UIColor(Color.tfText)
+        attrs[.foregroundColor] = (run.linkHref?.isEmpty == false) ? UIColor(Color.tfRed) : textColor
         if run.underline { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
         if run.strike { attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
         if run.code {

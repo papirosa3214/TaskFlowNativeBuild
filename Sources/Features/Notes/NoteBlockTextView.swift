@@ -339,6 +339,9 @@ struct NoteBlockTextView: UIViewRepresentable {
     let accessoryView: UIView?
     /// Кегль в обход типа блока — нужен ячейке таблицы (шапка полужирная).
     var baseFontOverride: UIFont?
+    /// Цвет текста всего блока. Описание задачи передаёт вторичный цвет,
+    /// заметки оставляют обычный первичный.
+    var textColor: UIColor = UIColor(Color.tfText)
     /// `true` — Enter вставляет перенос прямо в это поле, а не разбивает
     /// блок надвое: у ячейки таблицы «следующего блока» не существует, и
     /// вторая строка внутри неё уедет на сервер как `hardBreak`, ровно как
@@ -364,7 +367,7 @@ struct NoteBlockTextView: UIViewRepresentable {
         tv.font = baseFontOverride ?? MarkdownText.baseFont(for: blockKind)
         tv.tintColor = UIColor(Color.tfRed)
         tv.dataDetectorTypes = []
-        tv.attributedText = MarkdownText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
+        tv.attributedText = MarkdownText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride, textColor: textColor)
         tv.inputAccessoryView = accessoryView
         tv.onBackspaceAtStart = { [weak coordinator = context.coordinator] in
             guard let coordinator else { return }
@@ -390,7 +393,7 @@ struct NoteBlockTextView: UIViewRepresentable {
         }
         let kindChanged = context.coordinator.lastBlockKind != blockKind
         context.coordinator.lastBlockKind = blockKind
-        let expected = MarkdownText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride)
+        let expected = MarkdownText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride, textColor: textColor)
 
         if kindChanged {
             // Смена типа блока (параграф → заголовок и т.п.) обязана
@@ -400,7 +403,7 @@ struct NoteBlockTextView: UIViewRepresentable {
             uiView.attributedText = expected
             uiView.selectedRange = NSRange(location: min(saved.location, expected.length), length: 0)
             if uiView.isFirstResponder {
-                uiView.typingAttributes = MarkdownText.attributes(for: RichRun(text: ""), base: controller.baseFont)
+                uiView.typingAttributes = MarkdownText.attributes(for: RichRun(text: ""), base: controller.baseFont, textColor: textColor)
             }
         } else if !uiView.isFirstResponder, uiView.attributedText.string != expected.string {
             // Блок сейчас НЕ редактируется — внешняя правка (АИ вставил

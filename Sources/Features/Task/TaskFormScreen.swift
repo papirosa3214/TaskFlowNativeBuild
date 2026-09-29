@@ -441,6 +441,8 @@ struct TaskFormScreen: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
             Text(text)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .tfText(.action)
         .foregroundStyle(Color.tfSub)
