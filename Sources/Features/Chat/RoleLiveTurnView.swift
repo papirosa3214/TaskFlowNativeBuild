@@ -120,6 +120,7 @@ struct RoleLiveStepRow: View {
 struct RoleLiveItemsList: View {
     let items: [RoleChatLiveItem]
     var textColor: Color = .tfText
+    var animatesText = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
@@ -128,7 +129,13 @@ struct RoleLiveItemsList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 switch item {
                 case .text(let text):
-                    RoleReplyMarkdown(text: text, color: textColor)
+                    if animatesText {
+                        RoleReplyMarkdown(text: text, color: textColor)
+                            .contentTransition(.opacity)
+                            .animation(.easeOut(duration: 0.18), value: text)
+                    } else {
+                        RoleReplyMarkdown(text: text, color: textColor)
+                    }
                 case .step(let step):
                     RoleLiveStepRow(step: step)
                 }
@@ -141,10 +148,22 @@ struct RoleLiveItemsList: View {
 /// как ответ роли в 1:1-чате (LOCK-230); внизу — сколько уже идёт.
 struct RoleLiveTurnBubble: View {
     let turn: RoleChatLiveTurn
+    let showsName: Bool
+    @State private var pacer = RoleLiveTextPacer()
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            RoleLiveItemsList(items: turn.items)
+            if showsName {
+                Text(turn.name)
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
+            }
+            if !pacer.visibleItems.isEmpty {
+                RoleLiveItemsList(items: pacer.visibleItems, animatesText: true)
+            }
+            if let thinking = turn.thinking {
+                RoleThinkingRow(phrase: thinking)
+            }
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(footer(now: context.date))
                     .tfText(.caption)
@@ -152,6 +171,14 @@ struct RoleLiveTurnBubble: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { pacer.ingest(turn.items) }
+        .onChange(of: turn.items) { _, items in pacer.ingest(items) }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(45))
+                if pacer.hasPendingText { pacer.advance() }
+            }
+        }
     }
 
     private func footer(now: Date) -> String {
@@ -162,6 +189,38 @@ struct RoleLiveTurnBubble: View {
         }
         if steps > 0 { parts.append(RoleLiveFormat.steps(steps)) }
         return parts.joined(separator: " · ")
+    }
+}
+
+/// Роль думает (28.09.2026): как в Claude Code — «Думает…» и последняя
+/// законченная фраза её размышлений, приглушённо и в одну-две строки.
+struct RoleThinkingRow: View {
+    let phrase: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+            Image(systemName: "brain")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.tfSub)
+                .symbolEffect(.pulse, options: .repeating)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Думает…")
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
+                if !phrase.isEmpty {
+                    Text(phrase)
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                        .italic()
+                        .lineLimit(2)
+                        .contentTransition(.opacity)
+                        .animation(.easeInOut(duration: 0.2), value: phrase)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(phrase.isEmpty ? "Думает" : "Думает: \(phrase)")
     }
 }
 

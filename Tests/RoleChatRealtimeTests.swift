@@ -70,4 +70,30 @@ final class RoleChatRealtimeTests: XCTestCase {
         }
         XCTAssertNil(noTool)
     }
+
+    func testLiveTurnCarriesThinkingPhrase() {
+        let thinking = parse(#"""
+        {"type":"chats:live","chat_id":"chat-qa","user_id":"role_qa",
+         "turn":{"chat_id":"chat-qa","user_id":"role_qa","name":"QA",
+                 "started_at":"2026-09-28T10:00:00.000Z","items":[],
+                 "thinking":"Сначала посмотрю доску."}}
+        """#)
+        guard case .roleChatLive(let chatID, let userID, let turn?) = thinking else {
+            return XCTFail("ожидали roleChatLive со снимком")
+        }
+        XCTAssertEqual(chatID, "chat-qa")
+        XCTAssertEqual(userID, "role_qa")
+        XCTAssertEqual(turn.thinking, "Сначала посмотрю доску.")
+
+        // Старый сервер без поля — не думает, снимок разбирается как раньше.
+        let old = parse(#"""
+        {"type":"chats:live","chat_id":"c","user_id":"r",
+         "turn":{"chat_id":"c","user_id":"r","name":"QA","items":[{"kind":"text","text":"Привет"}]}}
+        """#)
+        guard case .roleChatLive(_, _, let oldTurn?) = old else {
+            return XCTFail("ожидали roleChatLive со снимком")
+        }
+        XCTAssertNil(oldTurn.thinking)
+        XCTAssertEqual(oldTurn.items.count, 1)
+    }
 }

@@ -1443,7 +1443,7 @@ private struct RoleChatRoomScreen: View {
     /// дыра; нужна была именно системная капсула, а не то и не другое.
     private func quickReplyPillStyle<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
-            .tfText(.meta)
+            .font(.body)
             .foregroundStyle(Color.tfText)
             .padding(.horizontal, TFSpacing.md)
             .padding(.vertical, TFSpacing.sm)

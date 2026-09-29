@@ -212,6 +212,63 @@ public enum RoleChatLiveItem: Decodable, Sendable, Equatable, Identifiable {
     }
 }
 
+/// Локальная очередь показа ответа. Сервер присылает накопленные снимки,
+/// а экран выпускает добавленный текст небольшими порциями между кадрами.
+struct RoleLiveTextPacer {
+    private(set) var target: [RoleChatLiveItem] = []
+    private(set) var visibleCharacters: [Int] = []
+
+    mutating func ingest(_ items: [RoleChatLiveItem]) {
+        var next = Array(repeating: 0, count: items.count)
+        for index in items.indices where index < target.count {
+            guard case .text(let old) = target[index],
+                  case .text(let new) = items[index], new.hasPrefix(old) else { continue }
+            next[index] = min(visibleCharacters[index], new.count)
+        }
+        target = items
+        visibleCharacters = next
+    }
+
+    /// Возвращает true, пока в очереди остаются символы.
+    @discardableResult mutating func advance() -> Bool {
+        for index in target.indices {
+            guard case .text(let text) = target[index] else { continue }
+            let remaining = text.count - visibleCharacters[index]
+            guard remaining > 0 else { continue }
+            // Обычная порция видна постепенно; при накоплении очереди
+            // ускоряемся, чтобы ответ не отставал от сервера на секунды.
+            let amount = min(remaining, max(2, min(16, (remaining + 5) / 6)))
+            visibleCharacters[index] += amount
+            break
+        }
+        return hasPendingText
+    }
+
+    var hasPendingText: Bool {
+        target.indices.contains { index in
+            if case .text(let text) = target[index] {
+                return visibleCharacters[index] < text.count
+            }
+            return false
+        }
+    }
+
+    var visibleItems: [RoleChatLiveItem] {
+        var result: [RoleChatLiveItem] = []
+        for index in target.indices {
+            switch target[index] {
+            case .text(let text):
+                let count = visibleCharacters[index]
+                if count > 0 { result.append(.text(String(text.prefix(count)))) }
+                if count < text.count { return result }
+            case .step(let step):
+                result.append(.step(step))
+            }
+        }
+        return result
+    }
+}
+
 public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
     public enum Status: String, Decodable, Sendable {
         case running, done, error
@@ -251,9 +308,12 @@ public struct RoleChatLiveTurn: Decodable, Sendable, Equatable {
     public let name: String
     public let startedAt: String?
     public let items: [RoleChatLiveItem]
+    /// Роль сейчас думает (28.09.2026): последняя законченная фраза её
+    /// размышлений; "" — думает, фразы ещё нет; nil — не думает.
+    public let thinking: String?
 
     enum CodingKeys: String, CodingKey {
-        case name, items
+        case name, items, thinking
         case chatID = "chat_id"
         case userID = "user_id"
         case startedAt = "started_at"

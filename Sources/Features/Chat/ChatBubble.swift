@@ -77,24 +77,25 @@ private struct ChatUserAvatar: View {
     let avatarUrlPath: String?
     let initials: String
     let tint: Color
+    let userID: String?
 
     var body: some View {
         if let avatarUrlPath, let url = URL(string: APIClient.baseURL.absoluteString + avatarUrlPath) {
             AsyncImage(url: url) { phase in
                 if case .success(let image) = phase {
-                    TFAvatar(size: .md, image: image, initials: initials, tint: tint)
+                    TFAvatar(size: .md, image: image, initials: initials, tint: tint, userID: userID)
                 } else {
-                    TFAvatar(size: .md, initials: initials, tint: tint)
+                    TFAvatar(size: .md, initials: initials, tint: tint, userID: userID)
                 }
             }
         } else {
-            TFAvatar(size: .md, initials: initials, tint: tint)
+            TFAvatar(size: .md, initials: initials, tint: tint, userID: userID)
         }
     }
 }
 
 /// Файл-не-картинка — чип со скрепкой и именем (веб: `bg-card2 h-9 px-3`).
-private struct ChatFileChip: View {
+struct ChatFileChip: View {
     let fileName: String
     var body: some View {
         HStack(spacing: TFSpacing.sm) {
@@ -148,7 +149,8 @@ struct ChatBubble: View {
                 ChatUserAvatar(
                     avatarUrlPath: message.fromUserAvatarUrl,
                     initials: message.fromUserInitials ?? "?",
-                    tint: Color(hex: message.fromUserColor ?? TFHexDefault.unassigned)
+                    tint: Color(hex: message.fromUserColor ?? TFHexDefault.unassigned),
+                    userID: message.fromUserId
                 )
             }
 
@@ -221,7 +223,8 @@ struct ChatBubble: View {
                 ChatUserAvatar(
                     avatarUrlPath: message.fromUserAvatarUrl,
                     initials: message.fromUserInitials ?? "?",
-                    tint: Color(hex: message.fromUserColor ?? TFHexDefault.unassigned)
+                    tint: Color(hex: message.fromUserColor ?? TFHexDefault.unassigned),
+                    userID: message.fromUserId
                 )
             } else {
                 Spacer(minLength: 40)

@@ -159,7 +159,9 @@ public final class RealtimeClient {
                         // поверх уже переоткрытого сокета. См. guard в failure-ветке выше.
                         let staleTask = self.task
                         self.task = nil
-                        staleTask?.cancel(with: .abnormalClosure, reason: nil)
+                        // 1006 (`abnormalClosure`) по протоколу в кадре закрытия
+                        // слать нельзя — сервер отвечал ошибкой WS_ERR_INVALID_CLOSE_CODE.
+                        staleTask?.cancel(with: .goingAway, reason: nil)
                         self.handleDisconnect()
                     }
                 }

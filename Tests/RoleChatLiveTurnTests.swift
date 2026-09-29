@@ -9,6 +9,29 @@ final class RoleChatLiveTurnTests: XCTestCase {
         RealtimeEvent.parse(Data(json.utf8))
     }
 
+    func testPacerPreservesProgressAcrossCumulativeSnapshots() {
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text("Привет")])
+        pacer.advance()
+        XCTAssertEqual(pacer.visibleItems, [.text("Пр")])
+        pacer.ingest([.text("Привет, мир")])
+        XCTAssertEqual(pacer.visibleItems, [.text("Пр")])
+        while pacer.hasPendingText { pacer.advance() }
+        XCTAssertEqual(pacer.visibleItems, [.text("Привет, мир")])
+    }
+
+    func testPacerShowsStepsAfterPreviousTextAndResetsChangedText() {
+        let step = RoleChatLiveStep(id: "s", tool: "read", detail: nil, status: .running)
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text("Проверяю"), .step(step), .text("Готово")])
+        pacer.advance()
+        XCTAssertEqual(pacer.visibleItems, [.text("Пр")])
+        while pacer.hasPendingText { pacer.advance() }
+        XCTAssertEqual(pacer.visibleItems, [.text("Проверяю"), .step(step), .text("Готово")])
+        pacer.ingest([.text("Новый ответ")])
+        XCTAssertTrue(pacer.visibleItems.isEmpty)
+    }
+
     func testLiveEventCarriesTextAndSteps() {
         let event = parse(#"""
         {"type":"chats:live","chat_id":"chat-secretary","user_id":"u-secretary",
