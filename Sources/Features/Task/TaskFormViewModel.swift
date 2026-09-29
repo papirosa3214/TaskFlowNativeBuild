@@ -670,11 +670,16 @@ final class TaskFormViewModel {
     /// отклонённое добавление выглядело как «нажал — ничего не произошло»:
     /// 11.09.2026 сервер отвечал на этот вызов 404 (чужая карточка), а
     /// экран молчал, и владелец решил, что кнопка не реализована.
-    func addSubtask(_ title: String) async {
+    /// `afterId` — вставить новую подзадачу сразу после этой, а не в конец.
+    func addSubtask(_ title: String, afterId: String? = nil) async {
         guard let taskID else { return }
         do {
-            let created = try await apiClient.createSubtask(taskId: taskID, title: title)
-            subtasks.append(created)
+            let created = try await apiClient.createSubtask(taskId: taskID, title: title, afterId: afterId)
+            if let afterId, let index = subtasks.firstIndex(where: { $0.id == afterId }) {
+                subtasks.insert(created, at: index + 1)
+            } else {
+                subtasks.append(created)
+            }
         } catch {
             saveErrorMessage = Self.message(error)
         }

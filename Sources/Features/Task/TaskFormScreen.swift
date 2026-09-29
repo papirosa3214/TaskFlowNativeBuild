@@ -62,6 +62,11 @@ struct TaskFormScreen: View {
     @FocusState private var focusedSubtaskID: String?
     @State private var newSubtaskTitle = ""
     @FocusState private var isNewSubtaskFocused: Bool
+    /// Долгое нажатие на строку → «Добавить подзадачу после» ставит сюда
+    /// id той строки, вставка появляется сразу под ней (LOCK-250).
+    @State private var insertAfterSubtaskID: String?
+    @State private var insertSubtaskTitle = ""
+    @FocusState private var isInsertSubtaskFocused: Bool
     @State private var isDueEditorExpanded = false
     @State private var hasCollaborationPlan = false
     /// id черновика плана, ждущего утверждения владельцем — не nil включает
@@ -1101,6 +1106,14 @@ struct TaskFormScreen: View {
             }
         }
         .listRowSeparator(.hidden)
+        .contextMenu {
+            Button {
+                insertAfterSubtaskID = subtask.id
+                isInsertSubtaskFocused = true
+            } label: {
+                Label("Добавить подзадачу после", systemImage: "text.insert")
+            }
+        }
     }
 
     /// Пока строку правят, текст живёт здесь, а не в модели: поллинг задачи
@@ -1776,6 +1789,9 @@ struct TaskFormScreen: View {
             if viewModel.isEditing {
                 ForEach(viewModel.subtasks) { subtask in
                     nativeSubtaskRow(subtask)
+                    if insertAfterSubtaskID == subtask.id {
+                        insertSubtaskRow(after: subtask.id)
+                    }
                 }
             } else {
                 ForEach($viewModel.subtaskDrafts) { $draft in
@@ -1804,6 +1820,26 @@ struct TaskFormScreen: View {
             .submitLabel(.return)
             .onSubmit(addSubtaskInline)
             .listRowSeparator(.hidden)
+    }
+
+    /// Инлайн-поле вставки после конкретной подзадачи — тот же паттерн, что
+    /// `newSubtaskRow`, но не в конце списка, а сразу под указанной строкой.
+    private func insertSubtaskRow(after subtaskID: String) -> some View {
+        TextField("Добавить подзадачу", text: $insertSubtaskTitle)
+            .focused($isInsertSubtaskFocused)
+            .tfText(.action)
+            .foregroundStyle(Color.tfDim)
+            .submitLabel(.return)
+            .onSubmit { addSubtaskInline(after: subtaskID) }
+            .listRowSeparator(.hidden)
+    }
+
+    private func addSubtaskInline(after subtaskID: String) {
+        let title = insertSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        insertSubtaskTitle = ""
+        insertAfterSubtaskID = nil
+        guard !title.isEmpty else { return }
+        Task { await viewModel.addSubtask(title, afterId: subtaskID) }
     }
 
     private func addSubtaskInline() {

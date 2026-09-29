@@ -7,8 +7,12 @@ public extension APIClient {
         try await request(.get, "/tasks/\(taskId)/subtasks")
     }
 
-    func createSubtask(taskId: String, title: String) async throws -> ApiSubtask {
-        try await request(.post, "/tasks/\(taskId)/subtasks", body: ["title": title] as [String: String])
+    /// `afterId` — вставить сразу после этой подзадачи вместо конца списка;
+    /// сервер сдвигает позиции остальных транзакционно (spec §5.3).
+    func createSubtask(taskId: String, title: String, afterId: String? = nil) async throws -> ApiSubtask {
+        var body: [String: JSONValue] = ["title": .string(title)]
+        if let afterId { body["after_id"] = .string(afterId) }
+        return try await request(.post, "/tasks/\(taskId)/subtasks", body: body)
     }
 
     /// `result` — до 400 символов (`RESULT_MAX`, spec §7). Партиальное тело —
