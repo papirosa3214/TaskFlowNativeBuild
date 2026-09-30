@@ -9,27 +9,102 @@ final class RoleChatLiveTurnTests: XCTestCase {
         RealtimeEvent.parse(Data(json.utf8))
     }
 
-    func testPacerPreservesProgressAcrossCumulativeSnapshots() {
+    /// Прокрутить часы очереди, пока текст не выйдет весь.
+    private func drain(_ pacer: inout RoleLiveTextPacer, step: TimeInterval = 0.016) {
+        var guardTicks = 10_000
+        while pacer.hasPendingText && guardTicks > 0 {
+            pacer.advance(elapsed: step)
+            guardTicks -= 1
+        }
+    }
+
+    func testPacerRevealsWholeWordsAndPreservesProgressAcrossSnapshots() {
         var pacer = RoleLiveTextPacer()
-        pacer.ingest([.text("Привет")])
-        pacer.advance()
-        XCTAssertEqual(pacer.visibleItems, [.text("Пр")])
-        pacer.ingest([.text("Привет, мир")])
-        XCTAssertEqual(pacer.visibleItems, [.text("Пр")])
-        while pacer.hasPendingText { pacer.advance() }
-        XCTAssertEqual(pacer.visibleItems, [.text("Привет, мир")])
+        pacer.ingest([.text("Привет, как дела")])
+        pacer.advance(elapsed: 0.2)
+        guard case .text(let first)? = pacer.visibleItems.first else {
+            return XCTFail("ожидали начало текста")
+        }
+        // Слово целиком, без обрывков: «Привет,» или «Привет, как».
+        XCTAssertTrue(["Привет,", "Привет, как"].contains(first), "показано: \(first)")
+        pacer.ingest([.text("Привет, как дела? Всё хорошо.")])
+        XCTAssertEqual(pacer.visibleItems, [.text(first)])
+        drain(&pacer)
+        XCTAssertEqual(pacer.visibleItems, [.text("Привет, как дела? Всё хорошо.")])
+    }
+
+    func testPacerWaitsForCutWordThenShowsIt() {
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text("Смотрю доск")])
+        // Первое слово успевает выйти, а хвост «доск» может дописаться — ждём.
+        for _ in 0..<18 { pacer.advance(elapsed: 0.016) }
+        XCTAssertEqual(pacer.visibleItems, [.text("Смотрю")])
+        pacer.ingest([.text("Смотрю доску")])
+        drain(&pacer)
+        XCTAssertEqual(pacer.visibleItems, [.text("Смотрю доску")])
+    }
+
+    func testPacerSpeedsUpWithBacklog() {
+        var slow = RoleLiveTextPacer()
+        slow.ingest([.text(String(repeating: "слово ", count: 5))])
+        var fast = RoleLiveTextPacer()
+        fast.ingest([.text(String(repeating: "слово ", count: 300))])
+        for _ in 0..<20 {
+            slow.advance(elapsed: 0.016)
+            fast.advance(elapsed: 0.016)
+        }
+        XCTAssertGreaterThan(fast.rate, slow.rate * 3)
     }
 
     func testPacerShowsStepsAfterPreviousTextAndResetsChangedText() {
         let step = RoleChatLiveStep(id: "s", tool: "read", detail: nil, status: .running)
+        let thinking = RoleChatThinking(id: "t", text: "Думаю", isRunning: true)
         var pacer = RoleLiveTextPacer()
-        pacer.ingest([.text("Проверяю"), .step(step), .text("Готово")])
-        pacer.advance()
-        XCTAssertEqual(pacer.visibleItems, [.text("Пр")])
-        while pacer.hasPendingText { pacer.advance() }
-        XCTAssertEqual(pacer.visibleItems, [.text("Проверяю"), .step(step), .text("Готово")])
+        pacer.ingest([.text("Проверяю файл"), .step(step), .thinking(thinking), .text("Готово")])
+        pacer.advance(elapsed: 0.05)
+        XCTAssertFalse(pacer.visibleItems.contains(.step(step)), "шаг не обгоняет текст перед ним")
+        drain(&pacer)
+        XCTAssertEqual(pacer.visibleItems, [.text("Проверяю файл"), .step(step), .thinking(thinking), .text("Готово")])
         pacer.ingest([.text("Новый ответ")])
         XCTAssertTrue(pacer.visibleItems.isEmpty)
+    }
+
+    func testRevealFadeGrowsWithDistanceAndTime() {
+        let now = Date()
+        let fade = RoleTextFade(rate: 100, lastRevealAt: now, isAnimating: true)
+        XCTAssertEqual(fade.opacity(distance: 0, now: now), 0, accuracy: 0.001)
+        XCTAssertGreaterThan(fade.opacity(distance: 20, now: now), fade.opacity(distance: 5, now: now))
+        XCTAssertEqual(fade.opacity(distance: 0, now: now.addingTimeInterval(1)), 1, accuracy: 0.001)
+        XCTAssertEqual(fade.shifted(by: 100).opacity(distance: 0, now: now), 1, accuracy: 0.001)
+    }
+
+    func testLiveEventCarriesThinkingItem() {
+        let event = parse(#"""
+        {"type":"chats:live","chat_id":"c","user_id":"r",
+         "turn":{"chat_id":"c","user_id":"r","name":"QA","thinking":"Смотрю.",
+                 "items":[{"kind":"thinking","id":"thinking-0","tool":"thinking",
+                           "text":"Смотрю. Потом сравню","status":"running",
+                           "started_at":"2026-09-30T09:00:00.000Z"}]}}
+        """#)
+        guard case .roleChatLive(_, _, let turn) = event, let turn else {
+            return XCTFail("ожидали снимок")
+        }
+        XCTAssertEqual(turn.runningThinking?.text, "Смотрю. Потом сравню")
+        XCTAssertEqual(turn.items.filter(\.isStep).count, 0)
+    }
+
+    func testSavedThinkingHasDuration() throws {
+        let json = #"""
+        {"duration_ms":15000,"items":[
+          {"kind":"thinking","id":"thinking-0","tool":"thinking","text":"План.","status":"done",
+           "started_at":"2026-09-30T09:00:00.000Z","ended_at":"2026-09-30T09:00:12.400Z"}]}
+        """#
+        let steps = try JSONDecoder().decode(RoleChatSteps.self, from: Data(json.utf8))
+        XCTAssertTrue(steps.hasDetails)
+        XCTAssertEqual(steps.stepCount, 0)
+        guard case .thinking(let thinking)? = steps.items.first else { return XCTFail("ожидали размышление") }
+        XCTAssertFalse(thinking.isRunning)
+        XCTAssertEqual(thinking.durationSeconds, 12)
     }
 
     func testLiveEventCarriesTextAndSteps() {
@@ -50,7 +125,8 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertNotNil(turn.startDate)
         XCTAssertEqual(turn.items, [
             .text("Смотрю."),
-            .step(RoleChatLiveStep(id: "c1", tool: "read", detail: "~/a.txt", status: .running)),
+            .step(RoleChatLiveStep(id: "c1", tool: "read", detail: "~/a.txt", status: .running,
+                                   startedAt: "2026-09-27T09:00:01.000Z")),
         ])
     }
 

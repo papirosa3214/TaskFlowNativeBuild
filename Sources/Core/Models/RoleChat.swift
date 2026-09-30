@@ -179,19 +179,24 @@ public struct RoleChatSteps: Decodable, Sendable, Equatable {
     }
 
     public var stepCount: Int { items.filter(\.isStep).count }
+    /// Есть что показать свёрнутой строкой: шаги или размышления.
+    public var hasDetails: Bool { items.contains { !$0.isText } }
 }
 
-/// Элемент хода роли — кусок текста или шаг (вызов инструмента). Сервер
-/// отдаёт голое имя инструмента и короткую подпись из аргументов (путь,
-/// команда); действие по-русски выбирает клиент (`RoleLiveStepKind`).
+/// Элемент хода роли — кусок текста, шаг (вызов инструмента) или
+/// размышление. Сервер отдаёт голое имя инструмента и короткую подпись из
+/// аргументов (путь, команда); действие по-русски выбирает клиент
+/// (`RoleLiveStepKind`).
 public enum RoleChatLiveItem: Decodable, Sendable, Equatable, Identifiable {
     case text(String)
     case step(RoleChatLiveStep)
+    case thinking(RoleChatThinking)
 
     public var id: String {
         switch self {
         case .text(let text): return "text-\(text.hashValue)"
         case .step(let step): return step.id
+        case .thinking(let thinking): return thinking.id
         }
     }
 
@@ -200,69 +205,204 @@ public enum RoleChatLiveItem: Decodable, Sendable, Equatable, Identifiable {
         return false
     }
 
+    public var isText: Bool {
+        if case .text = self { return true }
+        return false
+    }
+
     private enum CodingKeys: String, CodingKey { case kind, text }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if try container.decode(String.self, forKey: .kind) == "text" {
+        switch try container.decode(String.self, forKey: .kind) {
+        case "text":
             self = .text(try container.decode(String.self, forKey: .text))
-        } else {
+        case "thinking":
+            self = .thinking(try RoleChatThinking(from: decoder))
+        default:
             self = .step(try RoleChatLiveStep(from: decoder))
         }
     }
 }
 
-/// Локальная очередь показа ответа. Сервер присылает накопленные снимки,
-/// а экран выпускает добавленный текст небольшими порциями между кадрами.
+/// Размышление роли (владелец 30.09.2026): полный текст, пока идёт — растёт.
+/// В чате свёрнуто в строку «Думает…»/«Размышления · 12 с»; текст виден в
+/// раскрытом окошке или в шторке по тапу.
+public struct RoleChatThinking: Decodable, Sendable, Equatable {
+    public let id: String
+    public let text: String
+    public let isRunning: Bool
+    public let startedAt: String?
+    public let endedAt: String?
+
+    public init(id: String, text: String, isRunning: Bool, startedAt: String? = nil, endedAt: String? = nil) {
+        self.id = id
+        self.text = text
+        self.isRunning = isRunning
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, text, status
+        case startedAt = "started_at"
+        case endedAt = "ended_at"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        isRunning = (try container.decodeIfPresent(String.self, forKey: .status) ?? "running") == "running"
+        startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
+        endedAt = try container.decodeIfPresent(String.self, forKey: .endedAt)
+    }
+
+    /// Сколько роль думала — для «Размышления · 12 с»; идёт — nil.
+    public var durationSeconds: Int? {
+        RoleChatTime.seconds(from: startedAt, to: endedAt)
+    }
+}
+
+enum RoleChatTime {
+    static func date(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    static func seconds(from start: String?, to end: String?) -> Int? {
+        guard let start = date(start), let end = date(end) else { return nil }
+        return max(0, Int(end.timeIntervalSince(start).rounded()))
+    }
+}
+
+/// Локальная очередь показа ответа. Сервер присылает накопленные снимки
+/// раз в 150 мс, а экран выпускает текст с ровной скоростью по словам:
+/// скорость плавно подстраивается под очередь, поэтому поток не идёт
+/// рывками «пачка — пауза — пачка» (владелец 30.09.2026). Шаги и
+/// размышления видны сразу, как только до них дошёл текст.
 struct RoleLiveTextPacer {
     private(set) var target: [RoleChatLiveItem] = []
     private(set) var visibleCharacters: [Int] = []
+    /// Текущая скорость, символов в секунду — ей же рендер проявляет хвост.
+    private(set) var rate: Double = Self.minRate
+    /// Когда видимый текст последний раз вырос.
+    private(set) var lastRevealAt: Date = .distantPast
+    private var texts: [[Character]] = []
+    private var budget: Double = 0
+    /// Сколько очередь стоит без новых слов — недописанное сервером слово
+    /// показываем, только если продолжения долго нет.
+    private var stall: TimeInterval = 0
+
+    static let minRate: Double = 40
+    static let maxRate: Double = 900
+    /// На сколько секунд экран в среднем отстаёт от сервера.
+    static let targetLag: TimeInterval = 0.4
+    /// Сколько ждать продолжения оборванного слова в конце снимка.
+    static let tailWait: TimeInterval = 0.35
 
     mutating func ingest(_ items: [RoleChatLiveItem]) {
         var next = Array(repeating: 0, count: items.count)
-        for index in items.indices where index < target.count {
-            guard case .text(let old) = target[index],
-                  case .text(let new) = items[index], new.hasPrefix(old) else { continue }
-            next[index] = min(visibleCharacters[index], new.count)
+        var nextTexts: [[Character]] = Array(repeating: [], count: items.count)
+        for index in items.indices {
+            guard case .text(let new) = items[index] else { continue }
+            let chars = Array(new)
+            nextTexts[index] = chars
+            guard index < target.count, case .text = target[index] else { continue }
+            let old = texts[index]
+            let shown = visibleCharacters[index]
+            if chars.count >= shown, old.count >= shown, chars[0..<shown] == old[0..<shown] {
+                next[index] = shown
+            }
         }
         target = items
+        texts = nextTexts
         visibleCharacters = next
     }
 
-    /// Возвращает true, пока в очереди остаются символы.
-    @discardableResult mutating func advance() -> Bool {
-        for index in target.indices {
-            guard case .text(let text) = target[index] else { continue }
-            let remaining = text.count - visibleCharacters[index]
-            guard remaining > 0 else { continue }
-            // Обычная порция видна постепенно; при накоплении очереди
-            // ускоряемся, чтобы ответ не отставал от сервера на секунды.
-            let amount = min(remaining, max(2, min(16, (remaining + 5) / 6)))
-            visibleCharacters[index] += amount
-            break
+    var pendingCharacters: Int {
+        texts.indices.reduce(0) { $0 + max(0, texts[$1].count - visibleCharacters[$1]) }
+    }
+
+    var hasPendingText: Bool { pendingCharacters > 0 }
+
+    /// Шаг часов на `elapsed` секунд. Возвращает true, пока в очереди
+    /// остаются символы.
+    @discardableResult
+    mutating func advance(elapsed: TimeInterval, now: Date = .now) -> Bool {
+        let pending = pendingCharacters
+        guard pending > 0 else {
+            budget = 0
+            stall = 0
+            return false
+        }
+        // Скорость тянется к «очередь уйдёт за targetLag», но плавно — без
+        // скачков, из-за которых поток то бежит, то встаёт.
+        let desired = min(Self.maxRate, max(Self.minRate, Double(pending) / Self.targetLag))
+        let blend = min(1, elapsed / 0.3)
+        rate += (desired - rate) * blend
+        budget += rate * elapsed
+        stall += elapsed
+
+        guard let index = texts.indices.first(where: { visibleCharacters[$0] < texts[$0].count }) else {
+            return false
+        }
+        let chars = texts[index]
+        // Текст, за которым уже идёт шаг, дописан; у последнего куска
+        // хвостовое слово может быть оборвано снимком посередине.
+        let mayGrow = index == texts.count - 1
+        var shown = visibleCharacters[index]
+        let before = shown
+        while shown < chars.count {
+            // Конец следующего слова: пробелы перед ним и само слово.
+            var stop = shown
+            while stop < chars.count, chars[stop].isWhitespace { stop += 1 }
+            while stop < chars.count, !chars[stop].isWhitespace { stop += 1 }
+            let cost = Double(stop - shown)
+            if mayGrow && stop == chars.count {
+                // Продолжение слова ещё может прийти. Ждём его, не копя
+                // бюджет впрок (иначе после ожидания вышел бы рывок); долго
+                // не приходит — показываем как есть.
+                if stall < Self.tailWait {
+                    budget = min(budget, cost)
+                    break
+                }
+                budget = 0
+                shown = stop
+                break
+            }
+            if cost > budget { break }
+            budget -= cost
+            shown = stop
+        }
+        if shown > before {
+            visibleCharacters[index] = shown
+            lastRevealAt = now
+            stall = 0
         }
         return hasPendingText
     }
 
-    var hasPendingText: Bool {
-        target.indices.contains { index in
-            if case .text(let text) = target[index] {
-                return visibleCharacters[index] < text.count
-            }
-            return false
-        }
+    /// Выпустить всё сразу (тесты и конец хода).
+    mutating func flush(now: Date = .now) {
+        for index in texts.indices { visibleCharacters[index] = texts[index].count }
+        lastRevealAt = now
+        budget = 0
     }
 
     var visibleItems: [RoleChatLiveItem] {
         var result: [RoleChatLiveItem] = []
         for index in target.indices {
             switch target[index] {
-            case .text(let text):
+            case .text:
                 let count = visibleCharacters[index]
-                if count > 0 { result.append(.text(String(text.prefix(count)))) }
-                if count < text.count { return result }
-            case .step(let step):
-                result.append(.step(step))
+                let chars = texts[index]
+                if count > 0 { result.append(.text(String(chars[0..<count]))) }
+                if count < chars.count { return result }
+            case .step, .thinking:
+                result.append(target[index])
             }
         }
         return result
@@ -278,15 +418,29 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
     public let tool: String
     public let detail: String?
     public let status: Status
+    public let startedAt: String?
+    public let endedAt: String?
 
-    public init(id: String, tool: String, detail: String?, status: Status) {
+    public init(id: String, tool: String, detail: String?, status: Status,
+                startedAt: String? = nil, endedAt: String? = nil) {
         self.id = id
         self.tool = tool
         self.detail = detail
         self.status = status
+        self.startedAt = startedAt
+        self.endedAt = endedAt
     }
 
-    private enum CodingKeys: String, CodingKey { case id, tool, detail, status }
+    private enum CodingKeys: String, CodingKey {
+        case id, tool, detail, status
+        case startedAt = "started_at"
+        case endedAt = "ended_at"
+    }
+
+    /// Сколько шёл шаг — для шторки с подробностями; идёт — nil.
+    public var durationSeconds: Int? {
+        RoleChatTime.seconds(from: startedAt, to: endedAt)
+    }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -297,6 +451,8 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
         // а не роняем весь снимок хода.
         let raw = try container.decodeIfPresent(String.self, forKey: .status) ?? "running"
         status = Status(rawValue: raw) ?? .running
+        startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
+        endedAt = try container.decodeIfPresent(String.self, forKey: .endedAt)
     }
 }
 
@@ -320,10 +476,14 @@ public struct RoleChatLiveTurn: Decodable, Sendable, Equatable {
     }
 
     /// Когда ход начался — для счётчика «идёт 42 с».
-    public var startDate: Date? {
-        guard let startedAt else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: startedAt) ?? ISO8601DateFormatter().date(from: startedAt)
+    public var startDate: Date? { RoleChatTime.date(startedAt) }
+
+    /// Идущее размышление из элементов хода; у сервера до 30.09.2026 его
+    /// нет — тогда «думает» видно только по полю `thinking`.
+    public var runningThinking: RoleChatThinking? {
+        for item in items.reversed() {
+            if case .thinking(let thinking) = item, thinking.isRunning { return thinking }
+        }
+        return nil
     }
 }

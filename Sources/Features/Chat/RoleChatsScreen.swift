@@ -1214,7 +1214,7 @@ private struct RoleChatRoomScreen: View {
                                      ? Color.tfRed : Color.tfDim)
             }
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                if let steps = message.steps, steps.stepCount > 0 {
+                if let steps = message.steps, steps.hasDetails {
                     RoleStepsDisclosure(steps: steps)
                 }
                 if let taskID = message.taskID {
@@ -1280,7 +1280,7 @@ private struct RoleChatRoomScreen: View {
                     senderLine(message, color: Color.tfSub)
                 }
                 // Шаги хода, которые привели к ответу (27.09.2026) — свёрнуты.
-                if let steps = message.steps, steps.stepCount > 0 {
+                if let steps = message.steps, steps.hasDetails {
                     RoleStepsDisclosure(steps: steps)
                 }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in

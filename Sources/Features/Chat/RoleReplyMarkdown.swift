@@ -7,16 +7,32 @@ import SwiftUI
 struct RoleReplyMarkdown: View {
     let text: String
     var color: Color = .tfText
+    /// Проявление хвоста у идущего ответа (30.09.2026); nil — готовый текст.
+    var fade: RoleTextFade?
 
     var body: some View {
+        let blocks = Self.numbered(MarkdownParser.parse(text))
+        let after = fade == nil ? [] : Self.charactersAfter(blocks.map(\.block))
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не id блока: парсер раздаёт новые UUID на каждый
             // разбор, а живой текст разбирается заново каждые 150 мс.
-            ForEach(Array(Self.numbered(MarkdownParser.parse(text)).enumerated()), id: \.offset) { _, item in
-                blockView(item.block, number: item.number)
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, item in
+                blockView(item.block, number: item.number, fade: fade?.shifted(by: after[index]))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Сколько символов идёт после каждого блока — хвост проявляется по
+    /// всему тексту, а не у каждого абзаца отдельно.
+    static func charactersAfter(_ blocks: [NoteBlock]) -> [Int] {
+        var result = Array(repeating: 0, count: blocks.count)
+        var sum = 0
+        for index in blocks.indices.reversed() {
+            result[index] = sum
+            sum += blocks[index].runs.reduce(0) { $0 + $1.text.count } + 1
+        }
+        return result
     }
 
     /// Номер у пунктов нумерованного списка: подряд идущие на одном уровне.
@@ -38,26 +54,26 @@ struct RoleReplyMarkdown: View {
     }
 
     @ViewBuilder
-    private func blockView(_ block: NoteBlock, number: Int) -> some View {
+    private func blockView(_ block: NoteBlock, number: Int, fade: RoleTextFade?) -> some View {
         switch block.kind {
         case .paragraph:
-            inline(block.runs)
+            inline(block.runs, fade: fade)
         case .heading(let level):
-            inline(block.runs)
+            inline(block.runs, fade: fade)
                 .font(level <= 1 ? .title3.weight(.semibold) : .headline)
                 .padding(.top, TFSpacing.xs)
         case .bulletItem:
-            listRow(marker: Text("•"), block: block)
+            listRow(marker: Text("•"), block: block, fade: fade)
         case .orderedItem:
-            listRow(marker: Text("\(number)."), block: block)
+            listRow(marker: Text("\(number)."), block: block, fade: fade)
         case .taskItem(let checked):
-            listRow(marker: Text(Image(systemName: checked ? "checkmark.square" : "square")), block: block)
+            listRow(marker: Text(Image(systemName: checked ? "checkmark.square" : "square")), block: block, fade: fade)
         case .blockquote:
             HStack(alignment: .top, spacing: TFSpacing.sm) {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(Color.tfStroke)
                     .frame(width: 3)
-                inline(block.runs)
+                inline(block.runs, fade: fade)
                     .foregroundStyle(Color.tfSub)
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -66,6 +82,7 @@ struct RoleReplyMarkdown: View {
                 Text(block.runs.map(\.text).joined())
                     .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(color)
+                    .roleReveal(fade)
                     .padding(TFSpacing.md)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,19 +98,20 @@ struct RoleReplyMarkdown: View {
         }
     }
 
-    private func listRow(marker: Text, block: NoteBlock) -> some View {
+    private func listRow(marker: Text, block: NoteBlock, fade: RoleTextFade?) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             marker
                 .foregroundStyle(Color.tfSub)
                 .frame(minWidth: 14, alignment: .trailing)
-            inline(block.runs)
+            inline(block.runs, fade: fade)
         }
         .padding(.leading, CGFloat(block.level) * TFSpacing.lg)
     }
 
-    private func inline(_ runs: [RichRun]) -> some View {
+    private func inline(_ runs: [RichRun], fade: RoleTextFade?) -> some View {
         Text(Self.attributed(runs))
             .foregroundStyle(color)
+            .roleReveal(fade)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }
