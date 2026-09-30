@@ -27,6 +27,25 @@ public extension APIClient {
         try await request(.get, "/roles/\(id)")
     }
 
+    /// `GET /api/roles/:role/runtime-context` — постоянные правила запуска
+    /// роли с серверным происхождением каждого слоя. Карточки, история чатов,
+    /// сессии и секреты этим маршрутом намеренно не выдаются.
+    func roleRuntimeContext(role: String) async throws -> RoleRuntimeContext {
+        try await request(.get, "/roles/\(role)/runtime-context")
+    }
+
+    func roleInstructionHistory(role: String, block: String, team: Bool) async throws -> [RoleInstructionHistory] {
+        let result: RoleInstructionHistoryEnvelope = try await request(.get, "/runtime/context/\(role)/\(block)", query: [URLQueryItem(name: "scope", value: team ? "command" : "role")])
+        return result.history
+    }
+
+    func mutateRoleInstruction(role: String, block: String, team: Bool, version: Int, text: String, action: String = "set", historyVersion: Int? = nil) async throws {
+        var body: [String: JSONValue] = ["scope": .string(team ? "command" : "role"), "if_match": .number(Double(version)), "text": .string(text)]
+        if let historyVersion { body["version"] = .number(Double(historyVersion)) }
+        let suffix = action == "set" ? "" : "/\(action)"
+        try await requestVoid(action == "set" ? .patch : .post, "/runtime/context/\(role)/\(block)\(suffix)", body: body)
+    }
+
     // MARK: - LOCK-205: создание и правка роли из экрана «Команда»
 
     /// `POST /api/roles` — только владелец. Сервер сам заводит учётку

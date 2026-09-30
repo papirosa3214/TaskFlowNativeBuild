@@ -45,9 +45,12 @@ struct RoleEditorSheet: View {
     @State private var title: String = ""
     @State private var summary: String = ""
     @State private var prompt: String = ""
+    @State private var promptBaseline: String = ""
+    @State private var promptConflict = false
     @State private var isSaving = false
     @State private var isTogglingEnabled = false
     @State private var errorText: String?
+    @State private var showsRuntimeContext = false
 
     init(mode: Mode, viewModel: AgentsViewModel) {
         self.mode = mode
@@ -58,25 +61,63 @@ struct RoleEditorSheet: View {
             _title = State(initialValue: profile.title)
             _summary = State(initialValue: profile.summary ?? "")
             _prompt = State(initialValue: profile.prompt)
+            _promptBaseline = State(initialValue: profile.prompt)
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.lg) {
-            fields
-            if let errorText {
-                Text(errorText)
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfRed)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges.
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                fields
+                if let errorText {
+                    Text(errorText)
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfRed)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if promptConflict, let profile = mode.profile {
+                    Button("Принять новую версию, оставить мою правку") {
+                        Task {
+                            if let fresh = try? await APIClient().role(id: profile.role) {
+                                promptBaseline = fresh.prompt
+                                promptConflict = false
+                                errorText = nil
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                Spacer(minLength: 0)
+                actions
             }
-            Spacer(minLength: 0)
-            actions
+            .padding(.horizontal, TFSpacing.lg)
+            .padding(.vertical, TFSpacing.lg)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.tfBackground)
+        .sheet(isPresented: $showsRuntimeContext, onDismiss: {
+            if let profile = mode.profile {
+                Task {
+                    if let fresh = try? await APIClient().role(id: profile.role) {
+                        if prompt == promptBaseline {
+                            prompt = fresh.prompt
+                            promptBaseline = fresh.prompt
+                            promptConflict = false
+                        } else if fresh.prompt != promptBaseline {
+                            promptConflict = true
+                            errorText = "Инструкция роли изменилась. Ваша правка сохранена в поле; сравните её с текущей версией на сервере."
+                        }
+                    }
+                }
+            }
+        }) {
+            if let profile = mode.profile {
+                RoleRuntimeContextSheet(role: profile)
+            }
+        }
     }
 
     private var fields: some View {
@@ -131,6 +172,13 @@ struct RoleEditorSheet: View {
 
     private var actions: some View {
         VStack(spacing: TFSpacing.sm) {
+            if mode.isEdit, let profile = mode.profile {
+                Button("Как запускается роль") {
+                    showsRuntimeContext = true
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint("Открывает постоянные правила и источники запуска \(profile.title)")
+            }
             TFButton(saveButtonTitle, icon: "checkmark", variant: .primary,
                      isEnabled: canSave && !isSaving && !isTogglingEnabled) {
                 Task { await save() }
@@ -182,8 +230,7 @@ struct RoleEditorSheet: View {
     }
 
     private var promptChanged: Bool {
-        guard let profile = mode.profile else { return false }
-        return prompt != profile.prompt
+        return prompt != promptBaseline
     }
 
     private var keyError: String? {
@@ -212,6 +259,20 @@ struct RoleEditorSheet: View {
     // MARK: - Действия
 
     private func save() async {
+        if promptConflict { return }
+        if promptChanged, let profile = mode.profile {
+            do {
+                let fresh = try await APIClient().role(id: profile.role)
+                if fresh.prompt != promptBaseline {
+                    promptConflict = true
+                    errorText = "Инструкция роли изменилась. Ваша правка сохранена в поле; сравните её с текущей версией на сервере."
+                    return
+                }
+            } catch {
+                errorText = error.localizedDescription
+                return
+            }
+        }
         isSaving = true
         errorText = nil
         defer { isSaving = false }
