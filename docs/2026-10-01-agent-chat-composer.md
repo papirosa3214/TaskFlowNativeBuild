@@ -16,7 +16,7 @@ POST /api/chats/:id/messages принимает work_mode: work | plan | deep_re
 - Кадры сняты этим же XCUITest и просмотрены: [остановка и режим](2026-10-01-agent-chat-composer/composer-deep-research-stop.png), [после остановки](2026-10-01-agent-chat-composer/composer-draft-after-stop.png), [планирование](2026-10-01-agent-chat-composer/composer-planning.png).
 - XCTest UI работает с production-компонентами на локальном debug-экране TASKFLOW_CHAT_COMPOSER_PREVIEW, без входа на живой сервер. Реальный поток от внешней модели не проверялся. Debug-экран не входит в Release.
 - xcresult UI: /tmp/taskflow-chat-polish-verified.xcresult. После обработки потерянного chat:new и фикса режима голосового сообщения повторная сборка и 15/15 соответствующих unit-тестов PASS (/tmp/taskflow-chat-polish-final-unit.xcresult).
-- Server TypeScript build PASS; полный набор и live-выкладка фиксируются в серверном отчёте.
+- Server TypeScript build PASS, 729/729 тестов; серверный 80ea140 выложен на .110, миграция 083 применена, health ok=true и integrity_check=ok. Проверка UI остаётся локальной, без запуска внешней модели.
 
 ## Найденные особенности SwiftUI
 .task без id удерживал старое isComplete=false: callback завершения не срабатывал. .task(id: isComplete) перезапускает цикл, сохраняя очередь в State.
