@@ -498,7 +498,7 @@ public enum RoleChatWorkMode: String, CaseIterable, Codable {
         switch self { case .work: "Работа"; case .plan: "Планирование"; case .deepResearch: "Глубокое исследование" }
     }
     var symbol: String {
-        switch self { case .work: "bolt"; case .plan: "list.bullet.clipboard"; case .deepResearch: "sparkle.magnifyingglass" }
+        switch self { case .work: "bolt"; case .plan: "list.bullet.clipboard"; case .deepResearch: "magnifyingglass" }
     }
     static func available(in chat: RoleChat) -> [Self] {
         chat.members.contains { $0.roleKey == "researcher" || $0.id == "role_researcher" }

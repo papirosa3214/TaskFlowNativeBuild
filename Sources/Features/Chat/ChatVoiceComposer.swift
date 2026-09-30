@@ -126,7 +126,7 @@ struct ChatVoiceComposer: View {
                             }
                         }
                     } label: {
-                        Image(systemName: "magnifyingglass")
+                        Image(systemName: workMode.wrappedValue.symbol)
                             .font(.system(size: 20, weight: .medium))
                             .foregroundStyle(.secondary)
                             .frame(width: 36, height: 36)
