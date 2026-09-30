@@ -19,6 +19,11 @@ import SwiftUI
 /// и edges: waiting-узел, у которого все предшественники уже done.
 public struct CollaborationPlanView: View {
     let taskId: String
+    /// Подзадачи карточки — она обновляет их опросом. Состояния узлов берём
+    /// отсюда: своя загрузка ниже идёт один раз, и граф замирал в том виде,
+    /// в каком был при открытии (владелец 01.10.2026, T05: «исследователь в
+    /// работе» всю дорогу, хотя пятеро уже сдали).
+    var subtasks: [ApiSubtask] = []
     /// Родитель прячет весь `Section` целиком, пока плана нет — иначе на
     /// 99% карточек без плана оставалась бы пустая секция с системными
     /// отступами. Обновляется по факту загрузки, не заранее.
@@ -43,8 +48,9 @@ public struct CollaborationPlanView: View {
 
     private let api = APIClient()
 
-    public init(taskId: String, hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>) {
+    public init(taskId: String, subtasks: [ApiSubtask] = [], hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>) {
         self.taskId = taskId
+        self.subtasks = subtasks
         self._hasApprovedPlan = hasApprovedPlan
         self._pendingApprovalPlanId = pendingApprovalPlanId
     }
@@ -118,8 +124,10 @@ public struct CollaborationPlanView: View {
     }
 
     private func graphEntries(for plan: ApiCollaborationPlan) -> [CollaborationPlanGraph.Entry] {
-        plan.nodes.map { node in
-            let subtask = planSubtasks.first { $0.planNodeKey == node.slotKey }
+        let fresh = subtasks.filter { $0.collaborationPlanId == plan.id }
+        let source = fresh.isEmpty ? planSubtasks : fresh
+        return plan.nodes.map { node in
+            let subtask = source.first { $0.planNodeKey == node.slotKey }
             return .init(
                 slotKey: node.slotKey,
                 roleKey: node.roleKey,

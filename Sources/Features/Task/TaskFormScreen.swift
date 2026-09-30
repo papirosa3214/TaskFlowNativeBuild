@@ -653,12 +653,12 @@ struct TaskFormScreen: View {
             if let taskID = viewModel.taskID {
                 if hasCollaborationPlan {
                     collapsibleSection(.collaborationPlan, title: "План совместной работы") {
-                        CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
+                        CollaborationPlanView(taskId: taskID, subtasks: viewModel.subtasks, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
                             .id(collaborationPlanReloadToken)
                             .listRowSeparator(.hidden)
                     }
                 } else {
-                    CollaborationPlanView(taskId: taskID, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
+                    CollaborationPlanView(taskId: taskID, subtasks: viewModel.subtasks, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
                         .id(collaborationPlanReloadToken)
                         .frame(width: 0, height: 0)
                         .listRowInsets(EdgeInsets())
