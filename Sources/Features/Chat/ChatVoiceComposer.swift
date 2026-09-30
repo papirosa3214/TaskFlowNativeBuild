@@ -71,90 +71,87 @@ struct ChatVoiceComposer: View {
 
     private var idleComposer: some View {
         HStack(spacing: 12) {
-            Menu {
-                Button { onAttachmentSource(.photo) } label: {
-                    Label("Фото", systemImage: "photo.on.rectangle")
+            Group {
+                if isResponding, let onStop {
+                    Button(action: onStop) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: composerHeight, height: composerHeight)
+                            .voiceCircleSurface()
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isStopping)
+                    .accessibilityLabel("Остановить ответ роли")
+                    .accessibilityIdentifier("chat.stop")
+                } else {
+                    Menu {
+                        Button { onAttachmentSource(.photo) } label: {
+                            Label("Фото", systemImage: "photo.on.rectangle")
+                        }
+                        Button { onAttachmentSource(.file) } label: {
+                            Label("Файл", systemImage: "doc")
+                        }
+                        Button { onAttachmentSource(.camera) } label: {
+                            Label("Камера", systemImage: "camera")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: composerHeight, height: composerHeight)
+                            .voiceCircleSurface()
+                    }
+                    .tint(.primary)
+                    .accessibilityLabel("Добавить вложение")
+                    .accessibilityIdentifier("chat.attachment")
                 }
-                Button { onAttachmentSource(.file) } label: {
-                    Label("Файл", systemImage: "doc")
-                }
-                Button { onAttachmentSource(.camera) } label: {
-                    Label("Камера", systemImage: "camera")
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(width: composerHeight, height: composerHeight)
-                    .voiceCircleSurface()
             }
-            .tint(.primary)
             .opacity(isRecording || preview != nil ? 0 : 1)
-            .accessibilityLabel("Добавить вложение")
-            VStack(alignment: .leading, spacing: 0) {
-              HStack(spacing: 8) {
+            HStack(spacing: 8) {
                 TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
                     .lineLimit(1...4)
-                    // Вся свободная левая часть капсулы принадлежит полю:
-                    // можно поставить курсор даже тапом по пустому месту.
                     .frame(maxWidth: .infinity, minHeight: composerHeight, alignment: .leading)
                     .contentShape(Rectangle())
                     .textInputAutocapitalization(.sentences)
-                    // Без `.submitLabel(.send)`: системная клавиатура должна
-                    // рисовать обычную клавишу Return, а не синюю кнопку
-                    // «отправить» (владелец 21.09.2026). Return всё равно
-                    // отправляет — через `onSubmit`.
                     .focused($isTextFieldFocused)
                     .onSubmit(onSendText)
                     .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.primary)
                     .accessibilityIdentifier("chat.message")
-                if isResponding, let onStop {
-                    actionButton("stop.fill", label: "Остановить ответ роли", identifier: "chat.stop", action: onStop)
-                        .disabled(isStopping)
-                } else if canSendText {
+                if let workMode {
+                    Menu {
+                        Picker("Режим работы", selection: workMode) {
+                            ForEach(availableModes, id: \.self) { mode in
+                                Label(mode.title, systemImage: mode.symbol).tag(mode)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("chat.mode")
+                    .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
+                }
+                if canSendText {
                     actionButton("arrow.up", label: "Отправить", identifier: "chat.send", tint: .accentColor, action: onSendText)
-                        .opacity(isRecording || preview != nil ? 0 : 1)
                 } else {
                     Image(systemName: "waveform")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 36, height: 36)
-                        .frame(width: composerHeight * 2, height: composerHeight, alignment: .trailing)
+                        .frame(width: workMode == nil ? composerHeight * 2 : 36, height: composerHeight, alignment: .trailing)
                         .contentShape(Rectangle())
                         .onLongPressGesture(minimumDuration: 0.18, perform: startVoiceRecording)
                         .accessibilityLabel("Удерживайте для начала записи")
-                        .opacity(isRecording || preview != nil ? 0 : 1)
+                        .accessibilityIdentifier("chat.voice")
                 }
-            }
-              if let workMode {
-                Menu {
-                    Picker("Режим работы", selection: workMode) {
-                        ForEach(availableModes, id: \.self) { mode in
-                            Label(mode.title, systemImage: mode.symbol).tag(mode)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Label(workMode.wrappedValue.title, systemImage: workMode.wrappedValue.symbol)
-                        Image(systemName: "chevron.down").font(.caption2)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 7)
-                    .frame(minHeight: 32)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("chat.mode")
-                .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
-              }
             }
             .padding(.horizontal, 12)
             .frame(minHeight: composerHeight)
             .voiceCapsuleSurface()
-            // Пока идёт запись или открыто превью, капсулу покоя прячем ЦЕЛИКОМ
-            // (вместе с её стеклом), иначе её подложка просвечивает под капсулой
-            // записи/превью — «задвоение» (владелец 21.09.2026).
             .opacity(isRecording || preview != nil ? 0 : 1)
             .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         }
