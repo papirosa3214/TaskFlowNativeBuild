@@ -3,8 +3,9 @@ import SwiftUI
 // Живой ход роли в чате (владелец 27.09.2026, LOCK-229): пока роль отвечает,
 // окно чата показывает то же, что окно сессии Claude Code, — текст ответа
 // растёт по словам, между кусками текста идут шаги (что читает, что
-// выполняет, что ищет). После ответа шаги остаются под сообщением свёрнутой
-// строкой «7 шагов · 42 с».
+// выполняет, что ищет). После ответа ход остаётся в ленте таким же, каким
+// шёл вживую (владелец 01.10.2026: свёрнутая строка «7 шагов · 42 с»
+// выглядела так, будто всё удалили).
 //
 // 30.09.2026: текст идёт ровной скоростью и проявляется из пустоты,
 // размышления — строкой «Думает…» с раскрываемым окошком вместо мелькающих
@@ -16,6 +17,9 @@ import SwiftUI
 /// сделанного, и не зависит от рода роли.
 enum RoleLiveStepKind {
     static func label(forTool tool: String) -> String {
+        // Инструменты трекера (`taskflow_taskflow_agents` и т.п.): что именно
+        // сделано, сервер пишет подписью — «кто на связи», «задачи проекта».
+        if tool.hasPrefix("taskflow_") { return "Трекер" }
         switch tool {
         case "read": return "Чтение"
         case "edit", "write": return "Правка"
@@ -27,6 +31,7 @@ enum RoleLiveStepKind {
     }
 
     static func symbol(forTool tool: String) -> String {
+        if tool.hasPrefix("taskflow_") { return "checklist" }
         switch tool {
         case "read": return "doc.text"
         case "edit", "write": return "pencil.line"
@@ -624,29 +629,5 @@ extension View {
         } else {
             self
         }
-    }
-}
-
-/// Шаги под готовым ответом — свёрнуты в «7 шагов · 42 с», тап раскрывает.
-struct RoleStepsDisclosure: View {
-    let steps: RoleChatSteps
-    @State private var isExpanded = false
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            RoleLiveItemsList(items: steps.items, textColor: .tfSub)
-                .padding(.top, TFSpacing.xs)
-        } label: {
-            Text(summary)
-                .tfText(.meta)
-                .foregroundStyle(Color.tfSub)
-        }
-    }
-
-    /// «7 шагов · 42 с»; ход без шагов, только с размышлением, —
-    /// «Размышления · 12 с».
-    private var summary: String {
-        let head = steps.stepCount > 0 ? RoleLiveFormat.steps(steps.stepCount) : "Размышления"
-        return "\(head) · " + RoleLiveFormat.duration(seconds: steps.durationMs / 1000)
     }
 }

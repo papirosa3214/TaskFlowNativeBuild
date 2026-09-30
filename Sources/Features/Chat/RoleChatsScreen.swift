@@ -1215,7 +1215,7 @@ private struct RoleChatRoomScreen: View {
             }
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 if let steps = message.steps, steps.hasDetails {
-                    RoleStepsDisclosure(steps: steps)
+                    RoleLiveItemsList(items: steps.items)
                 }
                 if let taskID = message.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
@@ -1279,9 +1279,9 @@ private struct RoleChatRoomScreen: View {
                 if !hasAudio {
                     senderLine(message, color: Color.tfSub)
                 }
-                // Шаги хода, которые привели к ответу (27.09.2026) — свёрнуты.
+                // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
                 if let steps = message.steps, steps.hasDetails {
-                    RoleStepsDisclosure(steps: steps)
+                    RoleLiveItemsList(items: steps.items)
                 }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
                     RoleChatRemoteVoiceBubble(

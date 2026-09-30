@@ -186,6 +186,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertEqual(RoleLiveFormat.duration(seconds: 185), "3 мин 5 с")
         XCTAssertEqual(RoleLiveFormat.duration(seconds: 720), "12 мин")
         XCTAssertEqual(RoleLiveStepKind.label(forTool: "bash"), "Команда")
-        XCTAssertEqual(RoleLiveStepKind.label(forTool: "taskflow_create_task"), "Действие")
+        XCTAssertEqual(RoleLiveStepKind.label(forTool: "taskflow_taskflow_agents"), "Трекер")
+        XCTAssertEqual(RoleLiveStepKind.label(forTool: "web_search"), "Действие")
     }
 }
