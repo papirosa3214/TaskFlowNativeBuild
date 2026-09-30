@@ -24,6 +24,11 @@ struct ChatVoiceComposer: View {
     let onSendText: () -> Void
     let onSendVoice: (VoiceMessage) async -> Bool
     let onDiscardVoice: (VoiceMessage) -> Void
+    var workMode: Binding<RoleChatWorkMode>? = nil
+    var availableModes: [RoleChatWorkMode] = [.work, .plan]
+    var isResponding = false
+    var isStopping = false
+    var onStop: (() -> Void)? = nil
 
     @State private var player = VoicePlayer()
     @State private var isRecording = false
@@ -86,7 +91,8 @@ struct ChatVoiceComposer: View {
             .tint(.primary)
             .opacity(isRecording || preview != nil ? 0 : 1)
             .accessibilityLabel("Добавить вложение")
-            HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+              HStack(spacing: 8) {
                 TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
                     .lineLimit(1...4)
                     // Вся свободная левая часть капсулы принадлежит полю:
@@ -102,7 +108,10 @@ struct ChatVoiceComposer: View {
                     .onSubmit(onSendText)
                     .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.primary)
                     .accessibilityIdentifier("chat.message")
-                if canSendText {
+                if isResponding, let onStop {
+                    actionButton("stop.fill", label: "Остановить ответ роли", identifier: "chat.stop", action: onStop)
+                        .disabled(isStopping)
+                } else if canSendText {
                     actionButton("arrow.up", label: "Отправить", identifier: "chat.send", tint: .accentColor, action: onSendText)
                         .opacity(isRecording || preview != nil ? 0 : 1)
                 } else {
@@ -116,6 +125,29 @@ struct ChatVoiceComposer: View {
                         .accessibilityLabel("Удерживайте для начала записи")
                         .opacity(isRecording || preview != nil ? 0 : 1)
                 }
+            }
+              if let workMode {
+                Menu {
+                    Picker("Режим работы", selection: workMode) {
+                        ForEach(availableModes, id: \.self) { mode in
+                            Label(mode.title, systemImage: mode.symbol).tag(mode)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Label(workMode.wrappedValue.title, systemImage: workMode.wrappedValue.symbol)
+                        Image(systemName: "chevron.down").font(.caption2)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 7)
+                    .frame(minHeight: 32)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chat.mode")
+                .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
+              }
             }
             .padding(.horizontal, 12)
             .frame(minHeight: composerHeight)
@@ -324,3 +356,48 @@ extension View {
         else { self }
     }
 }
+
+#if DEBUG
+/// Exercises the production composer and renderer without a server session.
+struct AgentChatComposerPreview: View {
+    @State private var text = ""
+    @State private var mode: RoleChatWorkMode = .work
+    @State private var voice = RoleChatVoiceController()
+    @State private var responding = true
+    @State private var stream = ""
+    @State private var complete = false
+    @State private var playbackComplete = false
+    private let response = "Сначала изучу исходные данные и сравню независимые источники. Затем проверю противоречия, составлю план и отмечу критерии приёмки. Текст появляется постепенно и спокойно, а готовый ответ сохраняет своё место в ленте."
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView {
+                    RoleLiveTurnBubble(
+                        turn: RoleChatLiveTurn(chatID: "preview", userID: "role_researcher", name: "Исследователь", startedAt: nil,
+                                               items: [.text(stream)], thinking: nil),
+                        showsName: false, isComplete: complete,
+                        onPlaybackComplete: { playbackComplete = true }
+                    )
+                    .padding()
+                    if playbackComplete { Text("Ответ показан").accessibilityIdentifier("chat.preview.complete") }
+                }
+                ChatVoiceComposer(text: $text, placeholder: "Сообщение", canSendText: !text.isEmpty,
+                                  voice: voice, onAttachmentSource: { _ in }, onSendText: { text = "" },
+                                  onSendVoice: { _ in false }, onDiscardVoice: { _ in },
+                                  workMode: $mode, availableModes: RoleChatWorkMode.allCases,
+                                  isResponding: responding, onStop: { responding = false })
+            }
+            .background(Color.tfBackground.ignoresSafeArea())
+            .navigationTitle("Исследователь")
+            .task {
+                let words = response.split(separator: " ").map(String.init)
+                for word in words {
+                    do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
+                    stream += (stream.isEmpty ? "" : " ") + word
+                }
+                complete = true
+            }
+        }
+    }
+}
+#endif
