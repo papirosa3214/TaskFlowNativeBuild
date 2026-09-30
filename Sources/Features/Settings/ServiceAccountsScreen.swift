@@ -167,30 +167,35 @@ struct ServiceAccountsScreen: View {
     @State private var expandedInfo: ClientInfoRow?
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
-                TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить сервисные учётки" })
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges.
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
+                    TFErrorBanner(viewModel.listErrorMessage.map { _ in "Не удалось загрузить сервисные учётки" })
 
-                Text("Подключение сторонних ИИ-агентов и программ к TaskFlow по протоколу MCP (Model Context Protocol): Гермес, Claude Code, DSH и любой другой MCP-клиент. Подключившийся получает инструкцию и инструменты ниже и работает под своей учёткой с отдельным ключом. Роли TaskFlow сюда не относятся — их запускает сам сервер, и набор у них шире.")
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
+                    Text("Подключение сторонних ИИ-агентов и программ к TaskFlow по протоколу MCP (Model Context Protocol): Гермес, Claude Code, DSH и любой другой MCP-клиент. Подключившийся получает инструкцию и инструменты ниже и работает под своей учёткой с отдельным ключом. Роли TaskFlow сюда не относятся — их запускает сам сервер, и набор у них шире.")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
 
-                clientInfoSection
+                    clientInfoSection
 
-                if let issued = viewModel.issuedToken {
-                    issuedTokenCard(issued)
-                } else if isCreateFormOpen {
-                    createForm
-                } else {
-                    createButton
+                    if let issued = viewModel.issuedToken {
+                        issuedTokenCard(issued)
+                    } else if isCreateFormOpen {
+                        createForm
+                    } else {
+                        createButton
+                    }
+
+                    accountsSection
                 }
-
-                accountsSection
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.vertical, TFSpacing.lg)
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
         .tfNativeHeader("Сервер MCP")
         .task {
             viewModel.configure(currentUser: session.currentUser)

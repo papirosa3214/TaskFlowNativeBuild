@@ -41,6 +41,13 @@ struct ProjectsScreen: View {
     }
 
     var body: some View {
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges — тут в этом же списке
+        // прямо на месте открывается `ProjectCreateForm`/`ProjectEditForm`
+        // с текстовым полем, и до фикса под клавиатурой были те же уголки.
+        ZStack {
+        Color.tfBackground.ignoresSafeArea()
         ScrollView {
             // Интервал 8pt, а не 2pt: карточки (`ProjectCard`) — отдельные
             // объекты со скруглением, слипшийся ряд из них читается как
@@ -98,7 +105,7 @@ struct ProjectsScreen: View {
         // Штатный pull-to-refresh (iOS 15+). Прокрути вниз и потяни — вызовет
         // projectStore.load(). Сегодня не трогаю по требованию владельца.
         .refreshable { await projectStore.load() }
-        .background(Color.tfBackground)
+        }
         // Штатная SwiftUI-шапка. Системная стрелка назад добавляется стеком
         // навигации; пару кнопок группирует сам toolbar iOS.
         .tfNativeHeader("Проекты")

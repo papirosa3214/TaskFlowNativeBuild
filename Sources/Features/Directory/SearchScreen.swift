@@ -31,13 +31,16 @@ struct SearchScreen: View {
     private var totalCount: Int { (result?.tasks.count ?? 0) + (result?.projects.count ?? 0) + (result?.labels.count ?? 0) }
 
     var body: some View {
-        ScrollView {
-            content
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-                .padding(.top, TFSpacing.md)
-                .padding(.bottom, TFSpacing.xl)
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+
+            ScrollView {
+                content
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.top, TFSpacing.md)
+                    .padding(.bottom, TFSpacing.xl)
+            }
         }
-        .background(Color.tfBackground)
         // Штатный .searchable — iOS 15+. Заменяет самодельную searchBar
         // в safeAreaInset: поле поиска и кнопка «Отмена» рисуются
         // системным навбаром (поведение Cancel при dismiss).

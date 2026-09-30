@@ -67,20 +67,25 @@ struct VoiceModelsScreen: View {
     @State private var taskIntakeSaveState: PromptSaveState = .saved
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.lg) {
-                    onDeviceSection
-                    onServerSection
-                    dictationLogSection
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges.
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                        onDeviceSection
+                        onServerSection
+                        dictationLogSection
+                    }
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.top, TFSpacing.sm)
+                    .padding(.bottom, TFSpacing.xl * 2)
                 }
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-                .padding(.top, TFSpacing.sm)
-                .padding(.bottom, TFSpacing.xl * 2)
             }
         }
         .tfNativeHeader("Модели и голоса")
-        .background(Color.tfBackground)
         .task {
             dictation.refreshModelState()
             await loadServerStatus()

@@ -1,6 +1,6 @@
 # Things 3 Manual Sync Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Исполнять по задачам: сначала красный тест, затем минимальная правка, затем проверка и отдельный коммит.
 
 **Goal:** Добавить ручную двустороннюю синхронизацию области `TaskFlow` в Things 3 по кнопке.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** SwiftUI, XCTest, AppleScript/osascript, Python 3 stdlib, TaskFlow HTTP API.
 
-**Spec:** `docs/superpowers/specs/2026-09-15-things-sync-design.md`
+**Дизайн:** [DESIGN.md](DESIGN.md)
 
 ## Global Constraints
 

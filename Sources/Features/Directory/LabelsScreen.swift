@@ -16,6 +16,13 @@ struct LabelsScreen: View {
     @State private var deleteRequest: DirectoryConfirmRequest?
 
     var body: some View {
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges — тут в этом же списке
+        // прямо на месте открывается `LabelCreateForm`/`LabelEditForm` с
+        // текстовым полем, и до фикса под клавиатурой были те же уголки.
+        ZStack {
+        Color.tfBackground.ignoresSafeArea()
         ScrollView {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 if showCreate {
@@ -70,7 +77,7 @@ struct LabelsScreen: View {
         .refreshable {
             await taskStore.load(silent: true)
         }
-        .background(Color.tfBackground)
+        }
         // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
         // 03.09.2026 — «нативные кнопки везде одним элементом»). Была ручная
         // `DirectoryBackButton()` в toolbar ПОВЕРХ уже автоматической

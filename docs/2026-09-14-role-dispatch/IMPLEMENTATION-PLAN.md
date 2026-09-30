@@ -1,6 +1,6 @@
 # Role Dispatch End-to-End Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkboxes so each red/green/refactor checkpoint is explicit.
+> Исполнять по задачам: сначала красный тест, затем минимальная правка, затем проверка и отдельный коммит.
 
 **Goal:** Соединить существующие iOS, TaskFlow Server и Pi Harness в один детерминированный поток: надиктовка владельца превращается в одну карточку либо дерево, восемь ролей автоматически занимают подходящие позиции, ручной режим ждёт проверки и флага владельца, автоматический режим без участия владельца валидирует дерево, поднимает флаг и ставит работу в очередь, а Pi перед стартом получает отдельный справочный контекст.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Swift 6 / SwiftUI / XCTest; Node.js 22 / TypeScript / Fastify / SQLite / Vitest; Python 3 / unittest; Pi Agent; RAGFlow KB и Mnemosyne на `.110`; systemd.
 
-**Spec:** [`docs/superpowers/specs/2026-09-14-role-dispatch-end-to-end-design.md`](../specs/2026-09-14-role-dispatch-end-to-end-design.md)
+**Дизайн:** [DESIGN.md](DESIGN.md)
 
 ## Global Constraints
 

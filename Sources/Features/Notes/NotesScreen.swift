@@ -47,7 +47,10 @@ public struct NotesScreen: View {
     }
 
     public var body: some View {
-        ScrollViewReader { proxy in
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+
+            ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     TFErrorBanner(viewModel.foldersErrorMessage)
@@ -97,8 +100,8 @@ public struct NotesScreen: View {
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 withAnimation { proxy.scrollTo("f:\(focusFolderID)", anchor: .top) }
             }
+            }
         }
-        .background(Color.tfBackground)
         .tfNativeHeader("База знаний", displayMode: .inline)
         .searchable(
             text: $knowledgeQuery,

@@ -343,6 +343,8 @@ final class BlockDocumentKeyboardHost: MarkdownKeyboardHost {
         return false
     }
 
+    var dictationLevel: Double { dictation.currentLevel }
+
     // MARK: Действия
 
     func toggleMark(_ mark: InlineMark) {

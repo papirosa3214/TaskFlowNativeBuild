@@ -266,24 +266,29 @@ struct IntegrationsScreen: View {
     @State private var isGoogleCalOpen = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.lg) {
-                    TFErrorBanner(viewModel.errorMessage, variant: .block)
-                    if let successMessage = viewModel.successMessage {
-                        successBanner(successMessage)
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges.
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                        TFErrorBanner(viewModel.errorMessage, variant: .block)
+                        if let successMessage = viewModel.successMessage {
+                            successBanner(successMessage)
+                        }
+                        appleSection
+                        thingsSection
+                        googleSection
                     }
-                    appleSection
-                    thingsSection
-                    googleSection
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.top, TFSpacing.sm)
+                    .padding(.bottom, TFSpacing.xl * 2)
                 }
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-                .padding(.top, TFSpacing.sm)
-                .padding(.bottom, TFSpacing.xl * 2)
             }
         }
         .tfNativeHeader("Интеграции")
-        .background(Color.tfBackground)
         .task {
             viewModel.loadAppleState()
             await viewModel.loadThingsBridge()

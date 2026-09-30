@@ -168,24 +168,29 @@ struct ProviderDetailScreen: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
-                TFErrorBanner(viewModel.errorMessage)
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges.
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
+                    TFErrorBanner(viewModel.errorMessage)
 
-                if let provider = viewModel.provider {
-                    statusSection(provider)
-                    if provider.supportsAPIKey { apiKeySection }
-                    if provider.supportsOAuth { oauthSection }
-                    if viewModel.session != nil { sessionSection }
-                    modelsSection
-                } else if viewModel.isLoading {
-                    TFLoading(.block)
+                    if let provider = viewModel.provider {
+                        statusSection(provider)
+                        if provider.supportsAPIKey { apiKeySection }
+                        if provider.supportsOAuth { oauthSection }
+                        if viewModel.session != nil { sessionSection }
+                        modelsSection
+                    } else if viewModel.isLoading {
+                        TFLoading(.block)
+                    }
                 }
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.vertical, TFSpacing.lg)
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
         .tfNativeHeader(viewModel.provider?.name ?? "Провайдер")
         .task { await viewModel.load() }
         .onDisappear { viewModel.stopPolling() }

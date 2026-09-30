@@ -28,8 +28,8 @@ Pi остаётся runtime под агентом и в обычном UI не �
 Спека перечисляет DTO `AgentProfile` (эндпоинт `/api/runtime/profiles`).
 Но этот эндпоинт отдаёт профиль **без текущей задачи**: `current_task`
 считается только в `/api/roles` (`server/src/routes/roles.ts`). Спека
-фасада Pi (`docs/superpowers/specs/2026-09-18-pi-runtime-facade.md` в
-репозитории сервера) прямо закрепила контракт `/api/roles` за UI.
+фасада Pi в каноническом репозитории сервера прямо закрепила контракт
+`/api/roles` за UI.
 
 Поэтому экран «Команда» работает на `RoleProfile` из `/api/roles`, а
 `AgentProfile`/`/api/runtime/profiles` оставлены как DTO рантайма и

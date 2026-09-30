@@ -181,7 +181,6 @@ struct TodayScreen: View {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible) // родной хендл шторки, свой больше не рисуем
-            .presentationCornerRadius(TFRadius.sheet)
             // Промежуточный тон между tfBackground (#171717) и tfCard (#242424,
             // цвет внутренних карточек) — контраст карточек к фону шторки был
             // слишком жёсткий. Общие токены не трогаю — они на весь интерфейс.

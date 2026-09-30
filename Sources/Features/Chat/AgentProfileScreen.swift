@@ -67,7 +67,7 @@ struct AgentProfileScreen: View {
     private func header(_ profile: RoleProfile) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             HStack(spacing: TFSpacing.md) {
-                RoleAvatarView(initials: initials(profile.title), tint: roleAccentColor(profile.role), size: 48)
+                RoleAvatarView(initials: initials(profile.title), tint: roleAccentColor(profile.role), size: 48, role: profile.role)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(profile.title)
                         .tfText(.title)

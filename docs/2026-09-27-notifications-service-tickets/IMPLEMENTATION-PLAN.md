@@ -1,6 +1,6 @@
 # Тикеты сторонних сервисов в «Уведомлениях» — план реализации (v2)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Исполнять по задачам: сначала красный тест, затем минимальная правка, затем проверка и отдельный коммит.
 
 **Goal:** Расширить существующий экран «Уведомления» (`NotificationsScreen`)
 подразделом «Сторонние сервисы» — карточки-тикеты из живого HTTP API на
@@ -22,7 +22,7 @@ DesignSystem (`TFCard`, `TFSectionHeader`, `TFBottomSheet`/`.sheet`),
 `APIClient.createComment` (`APIClient+Subtasks.swift:36`) для отправки
 решения комментарием, XCTest, кадр симулятора.
 
-**Spec:** [docs/2026-09-27-notifications-service-tickets-spec.md](../../2026-09-27-notifications-service-tickets-spec.md) (v2 — читать целиком, там живой контракт backend и открытый вопрос)
+**Спецификация:** [DESIGN.md](DESIGN.md) (v2 — читать целиком: там живой контракт backend и открытый вопрос).
 
 ## Global Constraints
 
@@ -108,7 +108,7 @@ final class ServiceNotificationTicketTests: XCTestCase {
 // Sources/Core/Models/ServiceNotificationTicket.swift
 import Foundation
 
-/// Контракт живого API `.110` — docs/2026-09-27-notifications-service-tickets-spec.md.
+/// Контракт живого API `.110` — DESIGN.md.
 /// Base URL `http://192.168.1.110:5198`, без авторизации (LAN).
 public struct ServiceTicketSummary: Codable, Identifiable, Sendable, Hashable {
     public let id: String
@@ -308,7 +308,7 @@ final class ServiceTicketMarkdownParserTests: XCTestCase {
 // Sources/Core/Networking/ServiceTicketMarkdownParser.swift
 import Foundation
 
-/// Разбирает markdown-сводку `.110` — docs/2026-09-27-notifications-service-tickets-spec.md.
+/// Разбирает markdown-сводку `.110` — DESIGN.md.
 /// Метаданные и блок «Сводка» — живой, проверенный формат. Блок
 /// «## Итог по устранению» — Phase 4 backend, на 27.09.2026 сервер его
 /// ещё не пишет; парсинг best-effort по эталонному шаблону, перепроверить
@@ -465,7 +465,7 @@ import Foundation
 /// HTTP-клиент отдельного сервиса `notifications-api.service` на `.110`
 /// (`http://192.168.1.110:5198`) — НЕ тот же сервер, что основной
 /// `APIClient` (порт 3001, с Bearer-токеном). Без авторизации, LAN.
-/// docs/2026-09-27-notifications-service-tickets-spec.md.
+/// DESIGN.md.
 public struct ServiceNotificationsClient: Sendable {
     public static let baseURL = URL(string: "http://192.168.1.110:5198")!
 

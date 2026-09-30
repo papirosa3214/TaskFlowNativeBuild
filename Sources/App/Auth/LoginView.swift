@@ -14,6 +14,17 @@ struct LoginView: View {
     @State private var isSubmitting = false
 
     var body: some View {
+        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
+        // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
+        // `.ignoresSafeArea()` без ограничения edges — не `.background(...)`
+        // на внутреннем контейнере, до угла клавиатуры он не достаёт.
+        ZStack {
+            Color.tfBackground.ignoresSafeArea()
+            loginForm
+        }
+    }
+
+    private var loginForm: some View {
         VStack(spacing: TFSpacing.xl) {
             Spacer()
 
@@ -60,7 +71,6 @@ struct LoginView: View {
         }
         .padding(.horizontal, TFSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.tfBackground)
     }
 }
 

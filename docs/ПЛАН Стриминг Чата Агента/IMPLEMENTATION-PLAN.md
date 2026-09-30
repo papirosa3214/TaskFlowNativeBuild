@@ -1,6 +1,6 @@
 # Живая лента шагов роли в чате — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Исполнять по задачам: сначала красный тест, затем минимальная правка, затем проверка и отдельный коммит.
 
 **Goal:** Пока роль отвечает в 1:1-чате, вместо статичных точек «печатает» владелец видит короткую живую подпись с тем, что роль делает прямо сейчас (читает файл, правит код, выполняет команду, ищет).
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Сервер — TypeScript/Fastify/vitest (`~/Проекты/New-Todoist/server`, доступен только по `ssh maksim`). Клиент — Swift/SwiftUI, XCTest, SnapshotTesting (этот репозиторий, `TaskFlowNativeBuild`).
 
-**Spec:** `docs/superpowers/specs/2026-09-26-agent-chat-streaming-design.md`
+**Дизайн:** [DESIGN.md](DESIGN.md)
 
 ## Global Constraints
 
@@ -72,7 +72,7 @@
 
 - [ ] **Step 1: Прочитать спеку перед правкой**
 
-Открыть `docs/superpowers/specs/2026-09-26-agent-chat-streaming-design.md`
+Открыть [DESIGN.md](DESIGN.md)
 в этом репозитории (TaskFlowNativeBuild) — там разобраны все edge cases,
 которые должны остаться верными после правки (реконнект, неизвестный
 инструмент, оборванный ход).

@@ -20,7 +20,7 @@ outputs/
 uploads/
 /*-after-login.png
 /tf_after_login.png
-docs/
+# Документация — часть проекта: инициативы и их решения должны сохраняться в Git.
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
