@@ -99,6 +99,7 @@ struct LabelTasksScreen: View {
             NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(Color.tfSheetBackground)
         }
     }
 

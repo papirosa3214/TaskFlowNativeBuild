@@ -20,10 +20,23 @@ enum TaskAIStructureStatus: Equatable {
 @MainActor
 @Observable
 final class TaskFormViewModel {
-    let taskID: String?
+    var taskID: String?
     private let apiClient: APIClient
 
-    var title = ""
+    /// AST-форма названия для `BlockDocumentEditor` — ровно тот же редактор
+    /// и тот же приём, что уже у описания ниже (владелец 30.09.2026:
+    /// «вся карточка как описание»). `title` — проекция в строку: get
+    /// кодирует блоки в markdown, set парсит входящий markdown (с сервера,
+    /// от AI-структуризатора) в блоки. Старый код, читающий `title` как
+    /// String, продолжает работать без правок.
+    var titleBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)]
+    var title: String {
+        get { MarkdownEncoder.encode(titleBlocks) }
+        set {
+            let parsed = MarkdownParser.parse(newValue)
+            titleBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+        }
+    }
     /// AST-форма описания для `BlockDocumentEditor` — того же редактора, что
     /// в заметке (LOCK-142). Строка
     /// `taskDescription` ниже — проекция: get кодирует блоки в markdown,
@@ -97,7 +110,18 @@ final class TaskFormViewModel {
     /// потерялась при переезде на эту форму (LOCK-089). Логика (сортировка,
     /// склейка комментариев+событий) — оттуда буквально, вёрстка — своя,
     /// плоская, без аватарок и цветных плашек.
-    var commentText = ""
+    /// Тот же приём, что у `title`/`taskDescription` выше — блочный Markdown
+    /// вместо простой строки (владелец 30.09.2026: «вся карточка как
+    /// описание»). `sendComment()` сбрасывает `commentText = ""` после
+    /// отправки — сеттер парсит пустую строку обратно в один пустой абзац.
+    var commentBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)]
+    var commentText: String {
+        get { MarkdownEncoder.encode(commentBlocks) }
+        set {
+            let parsed = MarkdownParser.parse(newValue)
+            commentBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+        }
+    }
 
     private var originalTask: ApiTask?
     /// Роль на момент загрузки карточки — чтобы не отправлять
@@ -748,7 +772,15 @@ final class TaskFormViewModel {
     }
 
     func linkExistingTask(_ task: ApiTask) async -> Bool {
-        guard let taskID else { return false }
+        guard let taskID else {
+            // У новой карточки связь не надо откладывать отдельным запросом:
+            // её будущий родитель уже известен и уйдёт первым POST /tasks как
+            // `parent_id`. Так черновик сразу показывает выбранную связь.
+            parentId = task.id
+            parentTitle = task.title
+            parentTask = task
+            return true
+        }
         do {
             _ = try await apiClient.patchTask(
                 id: task.id,
@@ -772,7 +804,13 @@ final class TaskFormViewModel {
     }
 
     func unlinkFromParent() async {
-        guard let taskID, parentId != nil else { return }
+        guard parentId != nil else { return }
+        guard let taskID else {
+            parentId = nil
+            parentTitle = nil
+            parentTask = nil
+            return
+        }
         do {
             _ = try await apiClient.patchTask(id: taskID, fields: ["parent_id": .null])
             await loadIfNeeded()
@@ -796,6 +834,9 @@ final class TaskFormViewModel {
                 try await saveEdit(taskID: taskID, trimmedTitle: trimmedTitle, taskStore: taskStore)
             } else {
                 try await saveCreate(trimmedTitle: trimmedTitle, taskStore: taskStore)
+            }
+            if let taskID {
+                try await flushDeferredComment(taskID: taskID)
             }
             return true
         } catch {
@@ -867,9 +908,18 @@ final class TaskFormViewModel {
         guard let created = await taskStore.create(payload) else {
             throw APIError.server(status: 0, message: "Не удалось сохранить задачу")
         }
+        taskID = created.id
+        originalTask = created
         // Файлы, накопленные локально до создания задачи — заливаем теперь,
         // когда id наконец известен (см. `AttachmentsFieldView.swift`).
         await attachments.flushPending(taskId: created.id)
+    }
+
+    private func flushDeferredComment(taskID: String) async throws {
+        let text = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        _ = try await apiClient.createComment(taskId: taskID, text: text, attachmentIds: [])
+        commentText = ""
     }
 
     private static func message(_ error: Error) -> String {

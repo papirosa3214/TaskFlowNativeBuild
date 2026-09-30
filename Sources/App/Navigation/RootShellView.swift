@@ -121,7 +121,6 @@ struct RootShellView: View {
                     }
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
-                    .presentationCornerRadius(TFRadius.sheet)
                     .presentationBackground(Color.tfSheetBackground)
                 }
             }
@@ -215,10 +214,21 @@ struct RootShellView: View {
             )
             .presentationBackground(.clear)
         }
-        .fullScreenCover(item: $expandedDraft) { draft in
+        // LOCK-253: развёрнутая форма должна открываться и вести себя ровно
+        // как обычная задача — та же системная шторка (detents/хендл/
+        // скругление/фон), что у `.sheet` в TodayScreen.swift при открытии
+        // существующей карточки, а не `fullScreenCover`. Тот же
+        // `presentationBackground(Color.tfSheetBackground)` заодно чинит
+        // чёрный фон в скруглённых углах системной клавиатуры (iOS 26) —
+        // fullScreenCover такого фона не задавал вовсе, отсюда были видны
+        // чёрные уголки на новой карточке, которых нет на обычной.
+        .sheet(item: $expandedDraft) { draft in
             NavigationStack {
                 TaskFormScreen(expandingFrom: draft.viewModel)
             }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color.tfSheetBackground)
         }
         #if DEBUG
         // Отладочный автопереход: снять экран в симуляторе иначе нечем —
@@ -252,6 +262,7 @@ struct RootShellView: View {
             case "today": selectedTab = .upcoming
             case "upcoming": selectedTab = .upcoming
             case "chat": selectedTab = .chat
+            case "agents": paths[selectedTab, default: NavigationPath()].append(AppRoute.agents)
             default: break
             }
         }

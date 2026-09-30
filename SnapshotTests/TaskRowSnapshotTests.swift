@@ -26,6 +26,7 @@ final class TaskRowSnapshotTests: XCTestCase {
         assigneeId: String? = nil,
         assigneeName: String? = nil,
         assigneeInitials: String? = nil,
+        description: String? = nil,
         priority: Int = 1,
         status: TaskStatus = .active
     ) -> ApiTask {
@@ -43,6 +44,7 @@ final class TaskRowSnapshotTests: XCTestCase {
         if let assigneeId { json["assignee_id"] = assigneeId }
         if let assigneeName { json["assignee_name"] = assigneeName }
         if let assigneeInitials { json["assignee_initials"] = assigneeInitials }
+        if let description { json["description"] = description }
         let data = try! JSONSerialization.data(withJSONObject: json)
         return try! JSONDecoder().decode(ApiTask.self, from: data)
     }
@@ -70,6 +72,22 @@ final class TaskRowSnapshotTests: XCTestCase {
         )
         let row = TodayTaskRow(
             task: задача, overdue: true,
+            onOpen: {}, onDelete: {}, swipeAction: .complete, onSwipeAction: {}
+        )
+        .frame(width: 420)
+        .padding()
+        assertSnapshot(of: row, as: .image(layout: .device(config: deviceConfig)), record: record)
+    }
+
+    func testTaskRowRoleAvatarColumn() {
+        let задача = make(
+            id: "t-role", title: "Собрать и проверить новую строку задачи",
+            projectId: "p-role", projectName: "TaskFlow",
+            assigneeId: "role_builder", assigneeName: "Разработчик", assigneeInitials: "Р",
+            description: "Аватар роли должен быть заметен рядом со всем текстовым блоком."
+        )
+        let row = TodayTaskRow(
+            task: задача, overdue: false,
             onOpen: {}, onDelete: {}, swipeAction: .complete, onSwipeAction: {}
         )
         .frame(width: 420)

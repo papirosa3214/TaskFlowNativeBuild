@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 /// Быстрое создание задачи. На iOS 26 вся компактная форма находится в
@@ -60,19 +61,29 @@ struct QuickAddTaskView: View {
     /// только ряд команд, а целая форма переменной высоты.
     @available(iOS 26.0, *)
     private var systemQuickAdd: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .onTapGesture {
-                guard !isDueDatePopoverPresented, !isAttachmentsPopoverPresented else { return }
-                closePanel()
-            }
-            .safeAreaBar(edge: .bottom) {
-                card(systemAppearance: true)
-                    .glassEffect(.regular, in: .rect(cornerRadius: 26))
-                    .tint(Color.primary)
-                    .padding(.horizontal, TFSpacing.md)
-                    .padding(.bottom, TFSpacing.sm)
-            }
+        ZStack {
+            // Прозрачный cover обязан оставить исходный экран видимым. Цвет
+            // нужен лишь в зоне, которую открывают скругления клавиатуры;
+            // отдельный UIKit-view рисует там полосу высотой 28 pt.
+            KeyboardCornerBackdrop()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !isDueDatePopoverPresented, !isAttachmentsPopoverPresented else { return }
+                    closePanel()
+                }
+                .safeAreaBar(edge: .bottom) {
+                    card(systemAppearance: true)
+                        .glassEffect(.regular, in: .rect(cornerRadius: 26))
+                        .tint(Color.primary)
+                        .padding(.horizontal, TFSpacing.md)
+                        .padding(.bottom, TFSpacing.sm)
+                }
+        }
     }
 
     /// Совместимость для минимальной версии приложения (iOS 18).
@@ -122,8 +133,6 @@ struct QuickAddTaskView: View {
                 .foregroundStyle(Color.tfText)
                 .lineLimit(1...4)
                 .focused($isTitleFocused)
-                .submitLabel(.done)
-                .onSubmit { save() }
 
             if isDescriptionExpanded || !viewModel.taskDescription.isEmpty {
                 TextField("Описание", text: $viewModel.taskDescription, axis: .vertical)
@@ -434,6 +443,9 @@ struct QuickAddTaskView: View {
             }
             .accessibilityLabel("Открыть полную форму")
         }
+        // То же короткое физическое сжатие, что у кнопок Markdown-панели над
+        // клавиатурой. Внешность ряда не меняется: это только реакция на палец.
+        .buttonStyle(TFTapScaleStyle())
         .padding(.horizontal, systemAppearance ? 0 : TFSpacing.xs)
         // Владелец 07.09.2026: «сделай, как будто она впечаталась туда, в
         // глубину» — капсула темнее карточки плюс внутренняя тень сверху и
@@ -485,6 +497,10 @@ struct QuickAddTaskView: View {
             Image(systemName: systemImage)
                 .symbolVariant(isSet ? .fill : .none)
                 .font(.system(size: TFIconSize.sm))
+                // Заполненная форма сама по себе почти не читается на стекле:
+                // выбранный инструмент должен явно оставаться красным, как
+                // активные переключатели форматирования в Markdown-панели.
+                .foregroundStyle(isSet ? Color.tfRed : Color.tfSub)
                 .frame(width: slot, height: slot)
         } else {
             Image(systemName: systemImage)
@@ -721,5 +737,68 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
                 candidate = current.superview
             }
         }
+    }
+}
+
+/// Прозрачный `fullScreenCover` короткого создания должен показывать экран,
+/// из которого он был открыт. Но верхние скругления системной клавиатуры
+/// открывают крошечные участки окна этого cover. Рисуем цвет фона только под
+/// этой кромкой: клавиатура закрывает всю полосу, кроме собственных уголков.
+private struct KeyboardCornerBackdrop: UIViewRepresentable {
+    func makeUIView(context: Context) -> KeyboardCornerBackdropView {
+        KeyboardCornerBackdropView()
+    }
+
+    func updateUIView(_ uiView: KeyboardCornerBackdropView, context: Context) {}
+}
+
+private final class KeyboardCornerBackdropView: UIView {
+    private let cornerStrip = UIView()
+    private var keyboardFrameInScreen: CGRect?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        cornerStrip.backgroundColor = UIColor(Color.tfBackground)
+        addSubview(cornerStrip)
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardFrameDidChange(_:)),
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil
+        )
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        updateCornerStrip()
+    }
+
+    @objc private func keyboardFrameDidChange(_ notification: Notification) {
+        keyboardFrameInScreen = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+        updateCornerStrip()
+    }
+
+    private func updateCornerStrip() {
+        guard let keyboardFrameInScreen, let window else {
+            cornerStrip.isHidden = true
+            return
+        }
+
+        let keyboardFrameInWindow = window.convert(keyboardFrameInScreen, from: nil)
+        let keyboardFrame = convert(keyboardFrameInWindow, from: window)
+        let y = min(max(keyboardFrame.minY, bounds.minY), bounds.maxY)
+        let height = min(28, bounds.maxY - y)
+
+        cornerStrip.frame = CGRect(x: bounds.minX, y: y, width: bounds.width, height: max(0, height))
+        cornerStrip.isHidden = height <= 0
     }
 }

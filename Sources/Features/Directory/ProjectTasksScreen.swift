@@ -160,6 +160,7 @@ struct ProjectTasksScreen: View {
             NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(Color.tfSheetBackground)
         }
         .onChange(of: pendingDetail) { previous, current in
             if previous != nil, current == nil {

@@ -96,7 +96,8 @@ struct ChatComposer: View {
                     TFAvatar(
                         size: .md,
                         initials: counterpart.initials ?? "?",
-                        tint: Color(hex: counterpart.avatarColor ?? TFHexDefault.unassigned)
+                        tint: Color(hex: counterpart.avatarColor ?? TFHexDefault.unassigned),
+                        userID: counterpart.id
                     )
                 }
             }

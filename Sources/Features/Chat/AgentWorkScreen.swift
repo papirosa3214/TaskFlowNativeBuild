@@ -111,6 +111,7 @@ struct AgentWorkScreen: View {
                 // состояния у неё не было вовсе.
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(Color.tfSheetBackground)
         }
     }
 

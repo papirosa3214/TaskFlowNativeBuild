@@ -101,6 +101,11 @@ enum LiveActivityService {
         )
     }
 
+    /// Выведена ли задача в островок сейчас.
+    static func isShown(taskID: String) -> Bool {
+        activity(for: taskID) != nil
+    }
+
     static func end(taskID: String, api: APIClient? = nil) async {
         guard let activity = activity(for: taskID) else { return }
         refreshTasks[taskID]?.cancel()

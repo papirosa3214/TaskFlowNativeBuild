@@ -8,6 +8,7 @@ import Foundation
 
 private struct CollaborationPlansEnvelope: Decodable { let plans: [ApiCollaborationPlan] }
 private struct CollaborationPlanEnvelope: Decodable { let plan: ApiCollaborationPlan }
+private struct ProposeCollaborationPlanBody: Encodable { let profile: String }
 
 /// `POST .../collaboration-plans/suggest-from-subtasks` — два разных тела
 /// по одному и тому же `suggested`: `{suggested:false, reason}`, когда
@@ -42,6 +43,26 @@ public extension APIClient {
     @discardableResult
     func approveCollaborationPlan(taskId: String, planId: String) async throws -> ApiCollaborationPlan {
         let envelope: CollaborationPlanEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/\(planId)/approve")
+        return envelope.plan
+    }
+
+    /// `POST /api/tasks/:id/collaboration-plans/propose` — LOCK-252: явный
+    /// выбор шаблона владельцем, вместо того чтобы полагаться на серверный
+    /// автоподбор по ключевым словам карточки (`autoProposeCollaborationPlanIfNeeded`
+    /// при создании задачи) — тот угадывает профиль не всегда надёжно.
+    /// `profile` — один из шаблонов сервера: "single_executor" | "research" |
+    /// "delivery" | "full_cycle" (см. PROFILES в task-collaboration-plans.ts;
+    /// "product_feature" сюда не включён — ему нужны отдельные булевы флаги
+    /// include_architecture/include_design/include_qa, это вне LOCK-252).
+    /// Как и /suggest-from-subtasks — создаёт черновик, ничего не запускает;
+    /// дальше тот же граф в карточке и та же кнопка «Утвердить».
+    @discardableResult
+    func proposeCollaborationPlan(taskId: String, profile: String) async throws -> ApiCollaborationPlan {
+        let envelope: CollaborationPlanEnvelope = try await request(
+            .post,
+            "/tasks/\(taskId)/collaboration-plans/propose",
+            body: ProposeCollaborationPlanBody(profile: profile)
+        )
         return envelope.plan
     }
 

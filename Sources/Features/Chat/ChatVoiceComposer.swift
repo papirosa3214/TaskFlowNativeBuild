@@ -298,21 +298,9 @@ struct ChatVoiceComposer: View {
     }
 }
 
-/// На iOS 26 стекло рисует система; для iOS 18–25 остаётся материал.
-/// Не `private` — тем же стеклом владелец 26.09.2026 попросил одеть пилюлю
-/// квик-реплаев в `RoleChatsScreen`, чтобы она выглядела так же, как
-/// капсула поля ввода, а не плоской заливкой и не голым контуром.
-extension View {
-    @ViewBuilder func voiceCircleSurface() -> some View {
-        if #available(iOS 26.0, *) { glassEffect(.regular, in: .circle) }
-        else { background(.thinMaterial, in: Circle()) }
-    }
-
-    @ViewBuilder func voiceCapsuleSurface() -> some View {
-        if #available(iOS 26.0, *) { glassEffect(.regular, in: .capsule) }
-        else { background(.thinMaterial, in: Capsule()) }
-    }
-}
+// `voiceCircleSurface()`/`voiceCapsuleSurface()` переехали в
+// `Sources/DesignSystem/Components/TFKeyboardPill.swift` (LOCK-254) — теперь
+// нужны не только чату, но и панели форматирования Markdown.
 
 /// Системная нижняя safe area следует за клавиатурой, как в QuickAddTaskView.
 extension View {

@@ -16,11 +16,16 @@ public struct TFAvatar: View {
         /// Строка списка чатов (`RoleChatsScreen`) — 21.09.2026, LOCK-195:
         /// там аватар ведущий элемент строки, а не спутник текста.
         case xl = 44
+        /// Списки задач: роль читается отдельной колонкой рядом с тремя
+        /// строками содержания, а не теряется в одной строке заголовка.
+        case taskList = 52
     }
 
     let size: Size
     /// nil — показываем инициалы-заглушку.
     let image: Image?
+    /// Stable account ID for bundled agent artwork (e.g. `role_qa`, `u-secretary`).
+    let userID: String?
     let initials: String
     let tint: Color
     /// Подпись для VoiceOver. `nil` — собирается из инициалов.
@@ -66,10 +71,12 @@ public struct TFAvatar: View {
         image: Image? = nil,
         initials: String,
         tint: Color = Color(hex: TFHexDefault.unassigned),
-        accessibilityLabel: String? = nil
+        accessibilityLabel: String? = nil,
+        userID: String? = nil
     ) {
         self.size = size
         self.image = image
+        self.userID = userID
         self.initials = initials
         self.tint = tint
         self.accessibilityLabel = accessibilityLabel
@@ -77,7 +84,13 @@ public struct TFAvatar: View {
 
     public var body: some View {
         Group {
-            if let image {
+            if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
+                Image(asset)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: side, height: side)
+                    .clipShape(Circle())
+            } else if let image {
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fit) // object-fit: contain

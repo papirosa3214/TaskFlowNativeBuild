@@ -89,6 +89,14 @@ public final class DictationEngine {
 
     public private(set) var modelState: ModelState = .unknown
     public private(set) var recordingState: RecordingState = .idle
+    /// Живой уровень громкости записи (0…1) — для анимации амплитуды у
+    /// микрофона (LOCK-254, владелец 30.09.2026: «посмотри, как в чате
+    /// работает голосовое, вырежи оттуда кусок, вставь сюда»). Тот же
+    /// `VoiceWaveform.recordingLevel` с тем же асимметричным сглаживанием,
+    /// что и запись голосового сообщения в чате — просто источник децибел
+    /// другой (сырые PCM-сэмплы tap-колбэка вместо `AVAudioRecorder.meters`,
+    /// у `DictationEngine` иной способ захвата микрофона).
+    public private(set) var currentLevel: Double = 0
 
     /// Короткое сообщение о результате действия («Модель актуальна»,
     /// «Модель удалена»). Нужно потому, что кнопка без отклика выглядит
@@ -231,6 +239,17 @@ public final class DictationEngine {
             guard asrManager != nil else { return }
         }
         do {
+            currentLevel = 0
+            recorder.onLevel = { [weak self] averageDecibels, peakDecibels in
+                Task { @MainActor in
+                    guard let self, self.recordingState == .recording else { return }
+                    self.currentLevel = VoiceWaveform.recordingLevel(
+                        previous: self.currentLevel,
+                        averageDecibels: averageDecibels,
+                        peakDecibels: peakDecibels
+                    )
+                }
+            }
             try recorder.start()
             recordingState = .recording
         } catch {
@@ -246,6 +265,7 @@ public final class DictationEngine {
     public func stopRecordingAndTranscribe() async -> String? {
         guard recordingState == .recording else { return nil }
         let buffer = recorder.stop()
+        currentLevel = 0
         guard let buffer, buffer.frameLength > 0, let asrManager, decoderState != nil else {
             recordingState = .idle
             return nil
@@ -267,6 +287,7 @@ public final class DictationEngine {
     public func cancelRecording() {
         guard recordingState == .recording else { return }
         _ = recorder.stop()
+        currentLevel = 0
         recordingState = .idle
     }
 
@@ -285,6 +306,9 @@ private final class MicRecorder {
     private let engine = AVAudioEngine()
     private var buffer: AVAudioPCMBuffer?
     private var writeOffset: AVAudioFrameCount = 0
+    /// (averageDecibels, peakDecibels) по последнему tap-колбэку — вызывается
+    /// на аудио-потоке, не на MainActor (см. `append` ниже).
+    var onLevel: ((Float, Float) -> Void)?
 
     /// 90с с запасом — диктовка задачи или абзаца заметки короче на порядок;
     /// хвост, который не влез, тихо не пишется (не роняем запись целиком).
@@ -333,6 +357,26 @@ private final class MicRecorder {
             (dst[channel] + Int(writeOffset)).update(from: src[channel], count: Int(toCopy))
         }
         writeOffset += toCopy
+        reportLevel(src[0], frameCount: Int(tapBuffer.frameLength))
+    }
+
+    /// Децибелы из сырых сэмплов — тот же смысл, что `AVAudioRecorder`
+    /// отдаёт готовым через `averagePower`/`peakPower`, но у `AVAudioEngine`
+    /// tap такого нет, считаем сами: RMS → средняя громкость, максимум
+    /// модуля сэмпла → пиковая.
+    private func reportLevel(_ samples: UnsafeMutablePointer<Float>, frameCount: Int) {
+        guard frameCount > 0, let onLevel else { return }
+        var sumSquares: Float = 0
+        var peakAmplitude: Float = 0
+        for i in 0..<frameCount {
+            let sample = samples[i]
+            sumSquares += sample * sample
+            peakAmplitude = max(peakAmplitude, abs(sample))
+        }
+        let rms = sqrt(sumSquares / Float(frameCount))
+        let averageDecibels = 20 * log10(max(rms, 1e-7))
+        let peakDecibels = 20 * log10(max(peakAmplitude, 1e-7))
+        onLevel(averageDecibels, peakDecibels)
     }
 
     func stop() -> AVAudioPCMBuffer? {

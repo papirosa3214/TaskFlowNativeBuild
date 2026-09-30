@@ -59,16 +59,30 @@ struct RoleAvatarView: View {
     let initials: String
     let tint: Color
     let size: CGFloat
+    /// Роль из `RoleProfile.role` — если для неё есть присланный владельцем
+    /// аватар в `Resources/Assets.xcassets`, рисуем его. Неизвестные роли
+    /// (owner, orchestrator) идут на прежний цветной круг с инициалами —
+    /// ассета под них нет, рисовать заглушку из чужих рук неуместно.
+    var role: String? = nil
 
     var body: some View {
-        Circle()
-            .fill(tint)
-            .frame(width: size, height: size)
-            .overlay {
-                Text(initials)
-                    .font(.system(size: size * 0.4, weight: .semibold))
-                    .foregroundStyle(.white)
+        Group {
+            if let asset = RoleAvatarAsset.imageName(for: role) {
+                Image(asset)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Circle()
+                    .fill(tint)
+                    .overlay {
+                        Text(initials)
+                            .font(.system(size: size * 0.4, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
             }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
     }
 }
 
@@ -94,7 +108,7 @@ struct AgentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: TFSpacing.md) {
-            RoleAvatarView(initials: initials, tint: roleAccentColor(profile.role), size: 36)
+            RoleAvatarView(initials: initials, tint: roleAccentColor(profile.role), size: 36, role: profile.role)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(profile.title)

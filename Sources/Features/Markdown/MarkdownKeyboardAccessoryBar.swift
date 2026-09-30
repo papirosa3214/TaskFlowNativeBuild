@@ -45,12 +45,17 @@ protocol MarkdownKeyboardHost: AnyObject {
     /// (`supportsDictation == false`), кнопка не рисуется.
     var supportsDictation: Bool { get }
     var isRecordingDictation: Bool { get }
+    /// Живой уровень громкости записи (0…1) — для анимации амплитуды
+    /// (`VoiceBarsView`) в кнопке микрофона, LOCK-254. `0`, если хост
+    /// диктовку не поддерживает или запись не идёт.
+    var dictationLevel: Double { get }
     func toggleDictation() async
 }
 
 extension MarkdownKeyboardHost {
     var supportsDictation: Bool { false }
     var isRecordingDictation: Bool { false }
+    var dictationLevel: Double { 0 }
     func toggleDictation() async {}
     func insertHorizontalRule() {}
 }
@@ -64,21 +69,28 @@ struct MarkdownKeyboardAccessoryBar: View {
     let host: MarkdownKeyboardHost
 
     var body: some View {
+        // LOCK-254: единая стеклянная капсула вместо плоского фона НА КНОПКАХ
+        // + ручной линии-разделителя сверху (`Color.tfStroke`, владелец
+        // воспринял её как непонятную «полосу»). Кнопки внутри капсулы —
+        // плоские, без собственного `.ultraThinMaterial`/`Circle()`: стекло
+        // теперь только у внешней капсулы (владелец: «не кругляшок в
+        // кругляшке»).
+        //
         HStack(spacing: TFSpacing.sm) {
             dismissKeyboardButton
             toolbar
             if host.supportsDictation { micButton }
         }
+        .padding(.horizontal, TFSpacing.sm)
+        .padding(.vertical, TFSpacing.xs)
+        .voiceCapsuleSurface()
+        // Отделяем стеклянную Capsule от верхней кромки клавиатуры, не меняя
+        // высоту аксессуара и тап-зоны её кнопок.
+        .offset(y: -4)
         .padding(.horizontal, TFSpacing.screenHorizontal)
         .padding(.vertical, TFSpacing.sm)
         .frame(height: MarkdownKeyboardAccessoryHost.height)
-        // Плоский фон, тот же токен, что у самого экрана — на тёмной
-        // теме `regularMaterial` ложится тёмным полупрозрачным пятном под
-        // последней строкой текста (LOCK-067, замечание владельца).
-        .background(Color.tfBackground)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
-        }
+        .frame(maxWidth: .infinity)
     }
 
     private var toolbar: some View {
@@ -156,7 +168,6 @@ struct MarkdownKeyboardAccessoryBar: View {
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(active ? Color.tfRed : Color.tfSub)
                 .frame(width: 36, height: 36)
-                .background(active ? Color.tfRed.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: TFRadius.md))
         }
         .buttonStyle(TFTapScaleStyle())
     }
@@ -172,7 +183,6 @@ struct MarkdownKeyboardAccessoryBar: View {
                 .fontWeight(.bold)
                 .foregroundStyle(active ? Color.tfRed : Color.tfSub)
                 .frame(width: 36, height: 36)
-                .background(active ? Color.tfRed.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: TFRadius.md))
         }
         .buttonStyle(TFTapScaleStyle())
     }
@@ -195,23 +205,35 @@ struct MarkdownKeyboardAccessoryBar: View {
                 .font(.system(size: 18))
                 .foregroundStyle(Color.tfText)
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                .background(.ultraThinMaterial, in: Circle())
         }
         .buttonStyle(TFTapScaleStyle())
         .accessibilityLabel("Скрыть клавиатуру")
     }
 
+    /// Во время записи — та же `VoiceBarsView`, что и запись голосового
+    /// сообщения в чате (`ChatVoiceComposer.swift`), с тем же набором
+    /// величин (LOCK-254, владелец 30.09.2026: «посмотри, как в чате...
+    /// вырежи оттуда кусок, вставь сюда»). `host.dictationLevel` — реальный
+    /// уровень громкости из `DictationEngine.currentLevel`, не декоративная
+    /// анимация.
     private var micButton: some View {
         Button {
             tapHaptic()
             Task { await host.toggleDictation() }
         } label: {
-            Image(systemName: host.isRecordingDictation ? "waveform" : "mic.fill")
-                .symbolEffect(.variableColor.iterative, isActive: host.isRecordingDictation)
-                .font(.system(size: 18))
-                .foregroundStyle(host.isRecordingDictation ? Color.tfRed : Color.tfText)
+            if host.isRecordingDictation {
+                VoiceBarsView(
+                    level: host.dictationLevel,
+                    color: Color.tfRed.mix(with: .black, by: 0.55), peakColor: Color.tfRed,
+                    barWidth: 3, spacing: 2, maxHeight: 20, isSmooth: true
+                )
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                .background(.ultraThinMaterial, in: Circle())
+            } else {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color.tfText)
+                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+            }
         }
         .buttonStyle(TFTapScaleStyle())
     }
