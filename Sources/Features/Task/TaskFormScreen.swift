@@ -101,6 +101,8 @@ struct TaskFormScreen: View {
     /// «Сведения» и «Лента активности». Без `AppStorage` — состояние живёт в
     /// текущей сессии экрана и сбрасывается при каждом открытии карточки.
     @State private var expandedSections: Set<TaskDetailSection> = []
+    /// Итог карточки — секция «Итог» (LOCK-273). nil — не загружен или пуст.
+    @State private var outcome: ApiTaskOutcome?
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
     /// «Убрать», а не второй раз «Вывести».
     @State private var isInDynamicIsland = false
@@ -441,6 +443,13 @@ struct TaskFormScreen: View {
     // прежние, поделены только границы.
     @ViewBuilder private var headerSection: some View {
             Section {
+                // Итог перечитывается, когда меняется состояние карточки
+                // (например, проверяющий вынес вердикт) — LOCK-273.
+                Color.clear
+                    .frame(height: 0)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .task(id: outcomeReloadKey) { await loadOutcome() }
                 VStack(spacing: 0) {
                     titleBlockTopDivider
                     // Владелец 30.09.2026: «вся карточка как описание» —
@@ -655,6 +664,17 @@ struct TaskFormScreen: View {
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .listSectionSeparator(.hidden)
+                }
+            }
+
+            // Итог: вердикт, что сдала каждая роль, документы, код (LOCK-273).
+            if let outcome, !outcome.isEmpty {
+                collapsibleSection(.outcome, title: "Итог") {
+                    TaskOutcomeContent(
+                        outcome: outcome,
+                        roleTitle: { key in viewModel.roles.first { $0.role == key }?.title ?? key },
+                        onToast: { toast = TaskToastMessage($0) }
+                    )
                 }
             }
 
@@ -1932,6 +1952,15 @@ struct TaskFormScreen: View {
         isProposingCollaborationPlan = false
     }
 
+    private var outcomeReloadKey: String {
+        "\(viewModel.taskID ?? "")|\(viewModel.agentState.map { "\($0)" } ?? "-")|\(viewModel.subtasks.filter(\.done).count)"
+    }
+
+    private func loadOutcome() async {
+        guard let taskID = viewModel.taskID else { outcome = nil; return }
+        outcome = try? await APIClient().taskOutcome(taskId: taskID)
+    }
+
     private func removeFromDynamicIsland() {
         guard #available(iOS 16.2, *), let taskID else { return }
         Task {
@@ -2311,6 +2340,8 @@ enum TaskDetailSection: Hashable {
     case description
     /// Утверждённый план совместной работы.
     case collaborationPlan
+    /// Итог: вердикт, что сдала каждая роль, документы, код (LOCK-273).
+    case outcome
     /// Шаги задачи.
     case subtasks
     /// Родительские и дочерние задачи.
