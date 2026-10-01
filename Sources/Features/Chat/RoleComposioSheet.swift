@@ -14,54 +14,84 @@ struct RoleComposioSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let settings {
-                    Section(role.title) {
-                        Toggle("Инструменты Composio", isOn: $enabled)
-                        Toggle("Весь каталог", isOn: $wholeCatalog)
-                            .disabled(!enabled)
-                        Text(settings.available ? "Composio доступен" : (settings.error ?? "Composio недоступен"))
-                        Text("В планировании доступны только инструменты чтения. Подключённые аккаунты общие для ваших ролей.")
-                        if !wholeCatalog { Text("Выбрано: \(selected.count)") }
-                    }
-                    Section("Сервисы") {
-                        ForEach(settings.catalog) { toolkit in
-                            VStack(alignment: .leading) {
-                                if wholeCatalog {
-                                    Text(toolkit.name)
-                                } else {
-                                    Toggle(toolkit.name, isOn: Binding(
-                                        get: { selected.contains(toolkit.slug) },
-                                        set: { if $0 { selected.insert(toolkit.slug) } else { selected.remove(toolkit.slug) } }
-                                    ))
-                                }
-                                if toolkit.connected || toolkit.noAuth {
-                                    Text(toolkit.noAuth ? "Без авторизации" : "Аккаунт подключён")
-                                        .font(.caption)
-                                } else {
-                                    Button("Подключить аккаунт") { Task { await connect(toolkit.slug) } }
+            ZStack {
+                Color.tfBackground.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                        Text(role.title).tfText(.action).foregroundStyle(Color.tfSub)
+                        TFTextField("Найти сервис", text: $search, icon: "magnifyingglass")
+                            .accessibilityIdentifier("composio.search")
+                            .onSubmit { Task { await load(initial: false) } }
+                        if let settings {
+                            TFCard {
+                                VStack(alignment: .leading, spacing: TFSpacing.md) {
+                                    settingToggle("Инструменты Composio", value: $enabled)
+                                    TFDivider()
+                                    settingToggle("Весь каталог", value: $wholeCatalog).disabled(!enabled)
+                                    Text(settings.available ? "Composio доступен" : (settings.error ?? "Composio недоступен"))
+                                        .tfText(.caption).foregroundStyle(Color.tfSub)
+                                    Text("В планировании доступны только инструменты чтения. Аккаунты общие для ваших ролей.")
+                                        .tfText(.caption).foregroundStyle(Color.tfDim)
+                                    if !wholeCatalog { Text("Выбрано: \(selected.count)").tfText(.caption) }
                                 }
                             }
+                            TFSectionHeader("Сервисы")
+                            LazyVStack(spacing: TFSpacing.sm) {
+                                ForEach(settings.catalog) { toolkit in toolkitCard(toolkit) }
+                            }
+                            if settings.catalog.isEmpty {
+                                Text("Ничего не найдено. Попробуйте другое название сервиса.")
+                                    .tfText(.action).foregroundStyle(Color.tfSub)
+                            }
+                        } else if busy { TFLoading(.block) }
+                        TFErrorBanner(error, variant: .block)
+                        TFCard(padding: 0) {
+                            TFListRow(icon: "arrow.clockwise", iconStyle: .plain,
+                                      title: "Обновить подключение", action: { Task { await load(initial: settings == nil) } })
                         }
-                        if settings.catalog.isEmpty { Text("Ничего не найдено. Попробуйте другое название сервиса.") }
                     }
-                } else if busy {
-                    ProgressView("Загрузка Composio…")
+                    .padding(TFSpacing.lg)
                 }
-                if let error { Section { Text(error) } }
-                Button("Обновить подключение") { Task { await load(initial: settings == nil) } }
+                .disabled(busy)
             }
-            .disabled(busy)
-            .searchable(text: $search, prompt: "Найти сервис")
-            .onSubmit(of: .search) { Task { await load(initial: false) } }
-            .navigationTitle("Composio")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Сохранить") { Task { await save() } }.disabled(busy || settings == nil)
+            .tfNativeHeader("Composio", displayMode: .inline)
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: TFSpacing.md) {
+                    TFButton("Отмена", variant: .secondary) { dismiss() }
+                        .accessibilityIdentifier("composio.cancel")
+                    TFButton("Сохранить", icon: "checkmark", isEnabled: !busy && settings != nil) {
+                        Task { await save() }
+                    }
                 }
+                .padding(.horizontal, TFSpacing.lg)
+                .padding(.vertical, TFSpacing.md)
+                .background(Color.tfBackground)
             }
             .task { await load(initial: true) }
+        }
+    }
+
+    private func settingToggle(_ title: String, value: Binding<Bool>) -> some View {
+        HStack {
+            Text(title).tfText(.body).foregroundStyle(Color.tfText)
+            Spacer()
+            TFToggle(isOn: value).accessibilityLabel(title)
+        }
+    }
+
+    private func toolkitCard(_ toolkit: ComposioToolkit) -> some View {
+        TFCard(padding: 0) {
+            VStack(spacing: 0) {
+                TFListRow(icon: "puzzlepiece.extension", iconStyle: .plain,
+                          title: toolkit.name,
+                          subtitle: toolkit.noAuth ? "Без авторизации" : toolkit.connected ? "Аккаунт подключён" : "Аккаунт не подключён",
+                          trailing: wholeCatalog ? nil : AnyView(Image(systemName: selected.contains(toolkit.slug) ? "checkmark.square.fill" : "square").foregroundStyle(Color.tfSub)),
+                          action: wholeCatalog ? nil : { if selected.contains(toolkit.slug) { selected.remove(toolkit.slug) } else { selected.insert(toolkit.slug) } })
+                if !toolkit.connected && !toolkit.noAuth {
+                    TFDivider(inset: TFSpacing.lg)
+                    TFListRow(icon: "link", iconStyle: .plain, title: "Подключить аккаунт", action: { Task { await connect(toolkit.slug) } })
+                }
+            }
         }
     }
 

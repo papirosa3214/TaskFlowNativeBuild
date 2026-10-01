@@ -21,7 +21,7 @@ final class RoleComposioUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
         // Opening the screen must never enable integrations or authorize accounts.
-        app.buttons["Закрыть"].tap()
+        app.buttons["composio.cancel"].tap()
         XCTAssertTrue(tools.waitForExistence(timeout: 10))
     }
 }
