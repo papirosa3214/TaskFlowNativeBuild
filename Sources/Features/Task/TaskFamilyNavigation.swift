@@ -9,6 +9,7 @@ struct TaskFormScreen: View {
     @State private var family: [ApiTask] = []
     @State private var incoming: TaskFormViewModel?
     @State private var pull: CGFloat = 0
+    @State private var pullingCardID: String?
     @State private var expandedSheet = false
     @State private var settling = false
     @State private var requestSwitch: ((String) -> Void)?
@@ -38,6 +39,14 @@ struct TaskFormScreen: View {
                     onSelectionFailed: resetPull)
                     .id(selectedCardID ?? "new")
                     .offset(x: reduceMotion ? 0 : -pull * 0.16)
+                    .brightness(reduceMotion ? 0 : -0.16 * pullProgress(width: geometry.size.width))
+                    .saturation(reduceMotion ? 1 : 1 - 0.18 * pullProgress(width: geometry.size.width))
+                    .overlay {
+                        if pull > 0 {
+                            Color.black.opacity(reduceMotion ? 0.08 : 0.2 * pullProgress(width: geometry.size.width))
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .overlay {
                         if pull > 0 || settling {
                             Color.clear.contentShape(Rectangle()).onTapGesture {}.accessibilityHidden(true)
@@ -47,6 +56,19 @@ struct TaskFormScreen: View {
                     TaskCardContent(model: incoming, expanding: false, family: [],
                         onFamilyLoaded: { _ in }, onFamilySelected: { _ in }, preview: true)
                         .background(Color.tfBackground.ignoresSafeArea())
+                        .overlay(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.08))
+                                .frame(width: 0.5)
+                            LinearGradient(
+                                colors: [Color.black.opacity(0.3), .clear],
+                                startPoint: .trailing,
+                                endPoint: .leading
+                            )
+                            .frame(width: 28)
+                            .offset(x: -28)
+                            attachedPullHandle(height: geometry.size.height)
+                        }
                         .offset(x: reduceMotion ? 0 : geometry.size.width - pull)
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
                         .allowsHitTesting(false)
@@ -58,7 +80,7 @@ struct TaskFormScreen: View {
                 if expandedSheet && family.count > 1 {
                     TaskFamilyEdgeTabs(members: family, selectedID: selectedCardID,
                         height: geometry.size.height, width: geometry.size.width,
-                        pull: $pull, busy: settling,
+                        pull: $pull, pullingCardID: $pullingCardID, busy: settling,
                         prepare: prepare, select: select, cancel: resetPull)
                 }
             }
@@ -154,6 +176,7 @@ struct TaskFormScreen: View {
                     selectedCardID = id
                     incoming = nil
                     pull = 0
+                    pullingCardID = nil
                     settling = false
                 }
             }
@@ -161,9 +184,51 @@ struct TaskFormScreen: View {
     }
 
     private func resetPull() {
-        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.3, bounce: 0.08)) {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.3, bounce: 0.08), completionCriteria: .logicallyComplete) {
             pull = 0
             settling = false
+        } completion: {
+            pullingCardID = nil
+        }
+    }
+
+    private func pullProgress(width: CGFloat) -> CGFloat {
+        guard width > 0 else { return 0 }
+        return min(1, max(0, pull / width))
+    }
+
+    @ViewBuilder
+    private func attachedPullHandle(height: CGFloat) -> some View {
+        if let pullingCardID {
+            let remaining = Array(family.enumerated()).filter { $0.element.id != selectedCardID }
+            let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: remaining.count)
+            VStack(spacing: 8) {
+                ForEach(remaining, id: \.element.id) { index, member in
+                    if member.id == pullingCardID {
+                        UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10)
+                            .fill(Color.tfCard2)
+                            .frame(width: 24, height: slotHeight)
+                            .overlay {
+                                if index == 0 {
+                                    Image(systemName: "square.stack")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.tfSub)
+                                } else {
+                                    Text("\(index)")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.tfSub)
+                                }
+                            }
+                            .shadow(color: Color.black.opacity(0.24), radius: 8, x: -4)
+                    } else {
+                        Color.clear.frame(width: 24, height: slotHeight)
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .offset(x: -18)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 }
@@ -178,6 +243,7 @@ struct TaskFamilyEdgeTabs: View {
     let height: CGFloat
     let width: CGFloat
     @Binding var pull: CGFloat
+    @Binding var pullingCardID: String?
     let busy: Bool
     let prepare: (String) -> Void
     let select: (String) -> Void
@@ -187,7 +253,11 @@ struct TaskFamilyEdgeTabs: View {
     @State private var captured: String?
     @State private var suppressTap = false
 
-    private var slotHeight: CGFloat { min(116, max(64, height * 0.65 / CGFloat(max(1, remaining.count)) - 8)) }
+    static func slotHeight(height: CGFloat, count: Int) -> CGFloat {
+        min(116, max(64, height * 0.65 / CGFloat(max(1, count)) - 8))
+    }
+
+    private var slotHeight: CGFloat { Self.slotHeight(height: height, count: remaining.count) }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -209,6 +279,7 @@ struct TaskFamilyEdgeTabs: View {
                         .frame(width: 32, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
+                .opacity(pullingCardID == member.id ? 0 : 1)
                 .buttonStyle(.plain)
                 .accessibilityLabel(member.title)
                 .accessibilityIdentifier("task.family.\(member.id)")
@@ -227,7 +298,10 @@ struct TaskFamilyEdgeTabs: View {
                     let index = min(remaining.count - 1, max(0, Int(value.location.y / (slotHeight + 8))))
                     let id = remaining[index].element.id
                     if hovered != id { hovered = id; prepare(id) }
-                    if distance > 18 { captured = id }
+                    if distance > 18 {
+                        captured = id
+                        pullingCardID = id
+                    }
                 }
                 if captured != nil { pull = min(width, distance) }
             }
