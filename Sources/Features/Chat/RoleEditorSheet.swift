@@ -51,7 +51,6 @@ struct RoleEditorSheet: View {
     @State private var isTogglingEnabled = false
     @State private var errorText: String?
     @State private var showsRuntimeContext = false
-    @State private var showsComposio = false
 
     init(mode: Mode, viewModel: AgentsViewModel) {
         self.mode = mode
@@ -104,9 +103,6 @@ struct RoleEditorSheet: View {
               }
         }
         .safeAreaInset(edge: .bottom) { actions }
-        .sheet(isPresented: $showsComposio) {
-            if let profile = mode.profile { RoleComposioSheet(role: profile) }
-        }
         .sheet(isPresented: $showsRuntimeContext, onDismiss: {
             if let profile = mode.profile {
                 Task {
@@ -184,10 +180,6 @@ struct RoleEditorSheet: View {
         if mode.isEdit, let profile = mode.profile {
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
-                    TFListRow(icon: "puzzlepiece.extension", iconStyle: .plain,
-                              title: "Инструменты Composio", action: { showsComposio = true })
-                        .accessibilityIdentifier("role.composio")
-                    TFDivider(inset: TFSpacing.lg)
                     TFListRow(icon: "text.alignleft", iconStyle: .plain,
                               title: "Как запускается роль", action: { showsRuntimeContext = true })
                         .accessibilityHint("Открывает постоянные правила и источники запуска \(profile.title)")
