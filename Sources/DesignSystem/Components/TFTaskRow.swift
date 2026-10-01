@@ -156,7 +156,7 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
     }
 }
 
-/// Структурные показатели плоские и однотонные; только дочерние в ярлычке.
+/// Три типа структуры — в отдельных однотонных прямоугольных плашках.
 struct TFTaskStructureIndicators: View {
     let priority: TaskPriority?
     let subtasksDone: Int?
@@ -172,28 +172,42 @@ struct TFTaskStructureIndicators: View {
                     .accessibilityLabel("Приоритет: \(priority.label)")
             }
             if let done = subtasksDone, let total = subtasksTotal {
-                Label("\(done)/\(total)", systemImage: "checklist")
-                    .accessibilityLabel("Подзадачи: \(done) из \(total)")
+                badge {
+                    HStack(spacing: 3) {
+                        Image(systemName: "checklist")
+                        Text("\(done)/\(total)")
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Подзадачи: \(done) из \(total)")
             }
             if hasCollaborationPlan {
-                Image(systemName: "person.2")
-                    .accessibilityLabel("План совместной работы")
+                badge {
+                    Image(systemName: "person.2")
+                }
+                .accessibilityLabel("План совместной работы")
             }
             if childrenCount > 0 {
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.triangle.branch")
-                    Text("\(childrenCount)")
+                badge {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.triangle.branch")
+                        Text("\(childrenCount)")
+                    }
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.tfCard)
-                .clipShape(Capsule())
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Дочерние задачи: \(childrenCount)")
             }
         }
         .fixedSize(horizontal: true, vertical: false)
         .layoutPriority(1)
+    }
+
+    private func badge<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, TFSpacing.sm)
+            .padding(.vertical, 2)
+            .background(Color.tfCard)
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
     }
 }
 
