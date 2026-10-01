@@ -51,6 +51,7 @@ struct RoleEditorSheet: View {
     @State private var isTogglingEnabled = false
     @State private var errorText: String?
     @State private var showsRuntimeContext = false
+    @State private var showsComposio = false
 
     init(mode: Mode, viewModel: AgentsViewModel) {
         self.mode = mode
@@ -173,6 +174,10 @@ struct RoleEditorSheet: View {
     private var actions: some View {
         VStack(spacing: TFSpacing.sm) {
             if mode.isEdit, let profile = mode.profile {
+                Button("Инструменты Composio") { showsComposio = true }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("role.composio")
+                    .sheet(isPresented: $showsComposio) { RoleComposioSheet(role: profile) }
                 Button("Как запускается роль") {
                     showsRuntimeContext = true
                 }
