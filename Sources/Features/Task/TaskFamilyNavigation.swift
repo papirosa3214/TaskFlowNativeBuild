@@ -38,15 +38,8 @@ struct TaskFormScreen: View {
                     onSwitchAvailable: { requestSwitch = $0 },
                     onSelectionFailed: resetPull)
                     .id(selectedCardID ?? "new")
-                    .offset(x: reduceMotion ? 0 : -pull * 0.16)
-                    .brightness(reduceMotion ? 0 : -0.16 * pullProgress(width: geometry.size.width))
-                    .saturation(reduceMotion ? 1 : 1 - 0.18 * pullProgress(width: geometry.size.width))
-                    .overlay {
-                        if pull > 0 {
-                            Color.black.opacity(reduceMotion ? 0.08 : 0.2 * pullProgress(width: geometry.size.width))
-                                .allowsHitTesting(false)
-                        }
-                    }
+                    .blur(radius: reduceMotion ? 0 : 2.4 * pullProgress(width: geometry.size.width))
+                    .opacity(reduceMotion ? 1 : 1 - 0.14 * latePullProgress(width: geometry.size.width))
                     .overlay {
                         if pull > 0 || settling {
                             Color.clear.contentShape(Rectangle()).onTapGesture {}.accessibilityHidden(true)
@@ -56,17 +49,9 @@ struct TaskFormScreen: View {
                     TaskCardContent(model: incoming, expanding: false, family: [],
                         onFamilyLoaded: { _ in }, onFamilySelected: { _ in }, preview: true)
                         .background(Color.tfBackground.ignoresSafeArea())
+                        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14))
+                        .shadow(color: Color.black.opacity(0.32), radius: 22, x: -10)
                         .overlay(alignment: .leading) {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.08))
-                                .frame(width: 0.5)
-                            LinearGradient(
-                                colors: [Color.black.opacity(0.3), .clear],
-                                startPoint: .trailing,
-                                endPoint: .leading
-                            )
-                            .frame(width: 28)
-                            .offset(x: -28)
                             attachedPullHandle(height: geometry.size.height)
                         }
                         .offset(x: reduceMotion ? 0 : geometry.size.width - pull)
@@ -197,6 +182,10 @@ struct TaskFormScreen: View {
         return min(1, max(0, pull / width))
     }
 
+    private func latePullProgress(width: CGFloat) -> CGFloat {
+        max(0, (pullProgress(width: width) - 0.55) / 0.45)
+    }
+
     @ViewBuilder
     private func attachedPullHandle(height: CGFloat) -> some View {
         if let pullingCardID {
@@ -206,8 +195,8 @@ struct TaskFormScreen: View {
                 ForEach(remaining, id: \.element.id) { index, member in
                     if member.id == pullingCardID {
                         UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10)
-                            .fill(Color.tfCard2)
-                            .frame(width: 24, height: slotHeight)
+                            .fill(Color.tfBackground)
+                            .frame(width: 26, height: slotHeight)
                             .overlay {
                                 if index == 0 {
                                     Image(systemName: "square.stack")
@@ -219,9 +208,8 @@ struct TaskFormScreen: View {
                                         .foregroundStyle(Color.tfSub)
                                 }
                             }
-                            .shadow(color: Color.black.opacity(0.24), radius: 8, x: -4)
                     } else {
-                        Color.clear.frame(width: 24, height: slotHeight)
+                        Color.clear.frame(width: 26, height: slotHeight)
                     }
                 }
             }
