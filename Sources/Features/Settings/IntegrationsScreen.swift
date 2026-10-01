@@ -290,6 +290,17 @@ struct IntegrationsScreen: View {
                         }
                         .buttonStyle(TFTapRowStyle())
                         .accessibilityIdentifier("integrations.composio")
+                        NavigationLink {
+                            LinearImportScreen()
+                        } label: {
+                            TFCard(padding: 0) {
+                                TFListRow(icon: "arrow.down.doc", title: "Linear",
+                                          subtitle: "Выбор задач и перенос структуры",
+                                          trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                            }
+                        }
+                        .buttonStyle(TFTapRowStyle())
+                        .accessibilityIdentifier("integrations.linear")
                         appleSection
                         thingsSection
                         googleSection
