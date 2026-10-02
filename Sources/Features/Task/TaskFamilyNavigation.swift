@@ -10,6 +10,8 @@ struct TaskFormScreen: View {
     @State private var incoming: TaskFormViewModel?
     @State private var pull: CGFloat = 0
     @State private var pullingCardID: String?
+    /// Насколько выехал хлястик под пальцем: 0 — узкий край, 1 — целиком.
+    @State private var tabOut: CGFloat = 0
     @State private var expandedSectionsByCard: [String: Set<TaskDetailSection>] = [:]
     @State private var expandedSheet = false
     @State private var settling = false
@@ -89,7 +91,8 @@ struct TaskFormScreen: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                         .zIndex(0)
-                } else if let incoming, pull > 0 {
+                } else if let incoming, !backToParent,
+                          pull > 0 || (pullingCardID != nil && pullingCardID == incoming.taskID) {
                     TaskCardContent(model: incoming, expanding: false, family: [],
                         onFamilyLoaded: { _ in }, onFamilySelected: { _ in },
                         initialExpandedSections: expandedSections(for: incoming),
@@ -103,6 +106,14 @@ struct TaskFormScreen: View {
                             UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14)
                                 .fill(Color.tfBackground)
                                 .ignoresSafeArea()
+                        }
+                        // Один тон с хлястиком (владелец 02.10.2026): вместе
+                        // чуть светлее у края, к концу пути — цвет листа.
+                        .overlay {
+                            UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14)
+                                .fill(TaskFamilyEdgeTabs.fillColor.opacity(1 - pullProgress(width: geometry.size.width)))
+                                .ignoresSafeArea()
+                                .allowsHitTesting(false)
                         }
                         .shadow(color: Color.black.opacity(0.52), radius: 10, x: -7)
                         .shadow(color: Color.black.opacity(0.3), radius: 30, x: -18)
@@ -161,6 +172,11 @@ struct TaskFormScreen: View {
             })
         }
         .background(Color.tfBackground.ignoresSafeArea())
+        .onChange(of: pullingCardID) { _, new in
+            guard let new, new != family.first?.id else { return }
+            tabOut = 0
+            withAnimation(reduceMotion ? nil : .spring(duration: 0.22, bounce: 0.05)) { tabOut = 1 }
+        }
         // Отклик (02.10.2026): лёгкий удар, когда карточка приземлилась.
         .sensoryFeedback(.impact(weight: .light), trigger: selectedCardID)
     }
@@ -233,6 +249,7 @@ struct TaskFormScreen: View {
                     incoming = nil
                     pull = 0
                     pullingCardID = nil
+                    tabOut = 0
                     settling = false
                 }
             }
@@ -249,6 +266,7 @@ struct TaskFormScreen: View {
     private func resetPull() {
         withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.3, bounce: 0.08), completionCriteria: .logicallyComplete) {
             pull = 0
+            tabOut = 0
             settling = false
         } completion: {
             pullingCardID = nil
@@ -287,7 +305,7 @@ struct TaskFormScreen: View {
                         // цветом листа; выделяют её только контур и тень.
                         TaskFamilyEdgeTabs.tabShape
                             .fill(TaskFamilyEdgeTabs.fillColor
-                                .opacity(1 - min(1, pull / max(1, width * 0.5))))
+                                .opacity(1 - min(1, pull / max(1, width))))
                             .background(Color.tfBackground, in: TaskFamilyEdgeTabs.tabShape)
                             .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                             .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
@@ -312,8 +330,9 @@ struct TaskFormScreen: View {
             .shadow(color: Color.black.opacity(0.3), radius: 30, x: -18)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             // Правый край хлястика — кромка листа: лист стоит на width − pull.
-            .offset(x: (reduceMotion ? width : width - pull) - TaskFamilyEdgeTabs.expandedWidth)
-            .opacity(reduceMotion ? min(1, pull / max(1, width)) : 1)
+            // При касании хлястик выезжает из узкого края на всю ширину.
+            .offset(x: (reduceMotion ? width : width - pull) - TaskFamilyEdgeTabs.expandedWidth
+                + (1 - tabOut) * (TaskFamilyEdgeTabs.expandedWidth - TaskFamilyEdgeTabs.restingWidth))
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
@@ -395,7 +414,7 @@ struct TaskFamilyEdgeTabs: View {
                         .frame(width: 32, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
-                .opacity(pullingCardID == member.id && pull > 0 ? 0 : 1)
+                .opacity(pullingCardID == member.id ? 0 : 1)
                 .offset(x: pullingCardID == nil || pullingCardID == member.id ? 0 : min(40, pull * 0.45))
                 .buttonStyle(.plain)
                 .accessibilityLabel(member.title)
@@ -418,8 +437,7 @@ struct TaskFamilyEdgeTabs: View {
                 if captured == nil {
                     let index = min(remaining.count - 1, max(0, Int(value.location.y / (slotHeight + 8))))
                     let id = remaining[index].element.id
-                    if hovered != id { hovered = id; prepare(id) }
-                    if distance > Self.followDistance { pullingCardID = id }
+                    if hovered != id { hovered = id; prepare(id); pullingCardID = id }
                     if distance > Self.captureDistance { captured = id }
                 }
                 if pullingCardID != nil { pull = min(width, distance) }
@@ -427,12 +445,13 @@ struct TaskFamilyEdgeTabs: View {
             .onEnded { value in
                 defer { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { suppressTap = false } }
                 let target = captured
+                let moved = suppressTap
                 hovered = nil
                 captured = nil
-                // Не дотянули до захвата — лист возвращается; касание на
-                // месте достаётся кнопке (тап).
+                // Касание на месте — тап, его открывает кнопка; повели и не
+                // дотянули до захвата — хлястик и лист уходят обратно.
                 guard let target else {
-                    if pull > 0 { cancel() }
+                    if moved { cancel() }
                     return
                 }
                 if pull > width * 0.28 || -value.predictedEndTranslation.width > width * 0.55 {
