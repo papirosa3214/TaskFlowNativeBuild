@@ -464,8 +464,15 @@ struct TaskCardContent: View {
                 // наверху только две кнопки; статус уезжает вместе с листом).
                 // Словами, без значка; «n/3 модель» — только когда попытки
                 // исчерпаны, тогда понятно, почему стоим.
-                if viewModel.agentState != nil || attemptsExhausted {
+                // Владелец 02.10.2026: подзаголовок «Создана …» и статус —
+                // одной строкой.
+                if createdText != nil || viewModel.agentState != nil || attemptsExhausted {
                     HStack(spacing: TFSpacing.sm) {
+                        if let createdText {
+                            Text(createdText)
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfSub)
+                        }
                         if let state = viewModel.agentState {
                             Text(state == .blocked ? "Заблокировано" : agentStateText(state))
                                 .tfText(.caption)
@@ -872,6 +879,8 @@ struct TaskCardContent: View {
         // строк, оставляя один фон на весь экран.
         .listRowBackground(Color.tfBackground)
         .scrollContentBackground(.hidden)
+        // Без полосы прокрутки справа (владелец 02.10.2026).
+        .scrollIndicators(.hidden)
         .background(Color.tfBackground)
         // Невидимый загрузчик плана, пока не известно, утверждён ли он.
         // Раньше он стоял строкой в списке: строка нулевого размера всё
@@ -1642,6 +1651,11 @@ struct TaskCardContent: View {
             return "Автоматически"
         }
         return profile.title
+    }
+
+    private var createdText: String? {
+        guard let date = viewModel.loadedTask?.createdAtDate else { return nil }
+        return "Создана \(TaskDateText.absoluteTime(date))"
     }
 
     private var attemptsExhausted: Bool {

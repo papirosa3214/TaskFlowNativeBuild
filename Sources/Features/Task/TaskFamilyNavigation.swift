@@ -90,8 +90,11 @@ struct TaskFormScreen: View {
                         .zIndex(1.5)
                     parentPullHandle(height: geometry.size.height, shadow: false)
                         .zIndex(3)
-                } else if let incoming, !backToParent,
-                          pull > 0 || (pullingCardID != nil && pullingCardID == incoming.taskID) {
+                } else if let incoming, !backToParent {
+                    // Лист собирается заранее и ждёт за краем экрана: раньше
+                    // он строился в момент касания, и первые пункты тяги
+                    // подвисали до «присоединения» (владелец 02.10.2026).
+                    let engaged = pull > 0 || (pullingCardID != nil && pullingCardID == incoming.taskID)
                     TaskCardContent(model: incoming, expanding: false, family: [],
                         onFamilyLoaded: { _ in }, onFamilySelected: { _ in },
                         initialExpandedSections: expandedSections(for: incoming),
@@ -114,7 +117,7 @@ struct TaskFormScreen: View {
                                 .ignoresSafeArea()
                         }
                         .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
-                        .offset(x: reduceMotion ? 0 : geometry.size.width - pull)
+                        .offset(x: reduceMotion ? 0 : (engaged ? geometry.size.width - pull : geometry.size.width + 40))
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -179,6 +182,15 @@ struct TaskFormScreen: View {
             models[member.id] = candidate
             Task { await candidate.loadIfNeeded(); await candidate.loadRoles() }
         }
+        preloadIncoming()
+    }
+
+    /// Первый из детей справа — заранее как въезжающий лист.
+    private func preloadIncoming() {
+        guard incoming == nil,
+              let next = TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID).first
+        else { return }
+        prepare(next.element.id)
     }
 
     private func prepare(_ id: String) {
@@ -241,6 +253,7 @@ struct TaskFormScreen: View {
                     tabOut = 0
                     settling = false
                 }
+                preloadIncoming()
             }
         }
     }
@@ -349,9 +362,9 @@ struct TaskFormScreen: View {
 
 /// A transparent edge hit area; only a few points of each bookmark remain visible.
 struct TaskFamilyEdgeTabs: View {
-    /// Хлястик торчит сразу на полную ширину и при тяге не растёт
-    /// (владелец 02.10.2026).
-    static let restingWidth: CGFloat = 26
+    /// В покое — узкий край (владелец 02.10.2026: на полную ширину
+    /// закладки задевали текст страницы); под пальцем выезжают целиком.
+    static let restingWidth: CGFloat = 10
     static let expandedWidth: CGFloat = 26
     static let cornerRadius: CGFloat = 10
     /// Ровно цвет листа (владелец 02.10.2026): выделяют закладку только
@@ -361,7 +374,8 @@ struct TaskFamilyEdgeTabs: View {
     /// при движении вдоль края.
     static let captureDistance: CGFloat = 18
     /// Тонкая окантовка акцентным красным вместо теней (владелец 02.10.2026).
-    static let outlineColor = Color.tfRed
+    /// Приглушённый акцентный красный — граница видна, но не кричит.
+    static let outlineColor = Color.tfRed.opacity(0.55)
     static let outlineWidth: CGFloat = 0.75
     /// Хлястик заходит под кромку листа на эту величину — без шва на стыке.
     static let seamOverlap: CGFloat = 1
