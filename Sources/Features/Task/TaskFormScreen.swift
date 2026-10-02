@@ -416,24 +416,6 @@ struct TaskCardContent: View {
                 taskKeyboardDismissButton
                 taskKeyboardDictationButton
             }
-            // Владелец 02.10.2026: в шапке словами, без значка в кружке;
-            // «1/3 → модель» — техническое, число попыток показываем, только
-            // когда все исчерпаны: тогда понятно, почему стоим.
-            if viewModel.agentState != nil || attemptsExhausted {
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: TFSpacing.sm) {
-                        if let state = viewModel.agentState {
-                            Text(state == .blocked ? "Заблокировано" : agentStateText(state))
-                                .tfText(.caption)
-                                .foregroundStyle(agentStateColor(state))
-                        }
-                        if attemptsExhausted, let ladder = viewModel.attemptLadder {
-                            AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
-                        }
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-            }
             ToolbarItem(placement: .topBarLeading) {
                 Button {
                     Task {
@@ -478,6 +460,24 @@ struct TaskCardContent: View {
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     .task(id: outcomeReloadKey) { await loadOutcome() }
+                // Состояние — часть карточки, а не шапки (владелец 02.10.2026:
+                // наверху только две кнопки; статус уезжает вместе с листом).
+                // Словами, без значка; «n/3 модель» — только когда попытки
+                // исчерпаны, тогда понятно, почему стоим.
+                if viewModel.agentState != nil || attemptsExhausted {
+                    HStack(spacing: TFSpacing.sm) {
+                        if let state = viewModel.agentState {
+                            Text(state == .blocked ? "Заблокировано" : agentStateText(state))
+                                .tfText(.caption)
+                                .foregroundStyle(agentStateColor(state))
+                        }
+                        if attemptsExhausted, let ladder = viewModel.attemptLadder {
+                            AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .listRowSeparator(.hidden)
+                }
                 VStack(spacing: 0) {
                     titleBlockTopDivider
                     // Владелец 30.09.2026: «вся карточка как описание» —

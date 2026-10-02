@@ -282,9 +282,14 @@ struct TaskFormScreen: View {
             VStack(spacing: 8) {
                 ForEach(remaining, id: \.element.id) { index, member in
                     if member.id == pullingCardID {
+                        // Владелец 02.10.2026: закладка одного цвета с листом —
+                        // светлая у края, к середине пути становится ровно
+                        // цветом листа; выделяют её только контур и тень.
                         TaskFamilyEdgeTabs.tabShape
-                            .fill(TaskFamilyEdgeTabs.fillColor)
+                            .fill(TaskFamilyEdgeTabs.fillColor
+                                .opacity(1 - min(1, pull / max(1, width * 0.5))))
                             .background(Color.tfBackground, in: TaskFamilyEdgeTabs.tabShape)
+                            .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                             .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
                             .overlay {
                                 if index == 0 {
@@ -323,6 +328,9 @@ struct TaskFamilyEdgeTabs: View {
     static let fillColor = Color.tfCard2.opacity(0.48)
     /// Захват — после этого пути пальца; до него закладка идёт за пальцем.
     static let captureDistance: CGFloat = 18
+    /// Тонкий чёрный контур — чёткая граница закладки (владелец 02.10.2026).
+    static let outlineColor = Color.black.opacity(0.85)
+    static let outlineWidth: CGFloat = 0.75
     static let tabShape = UnevenRoundedRectangle(topLeadingRadius: cornerRadius,
         bottomLeadingRadius: cornerRadius)
 
@@ -370,6 +378,7 @@ struct TaskFamilyEdgeTabs: View {
                     Self.tabShape
                         .fill(Self.fillColor)
                         .background(Color.tfBackground, in: Self.tabShape)
+                        .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(Self.outlineColor, lineWidth: Self.outlineWidth) }
                         .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
                             height: slotHeight)
                         .offset(x: hovered == member.id ? -lead : 0)
@@ -431,6 +440,34 @@ struct TaskFamilyEdgeTabs: View {
     }
 }
 
+/// Контур закладки без стороны, которой она прилегает к краю или к листу:
+/// граница видна, а шва с листом нет.
+struct TaskFamilyTabOutline: Shape {
+    let openEdge: HorizontalEdge
+    var radius: CGFloat = TaskFamilyEdgeTabs.cornerRadius
+
+    func path(in rect: CGRect) -> Path {
+        let r = min(radius, rect.width, rect.height / 2)
+        var path = Path()
+        if openEdge == .trailing {
+            path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.minX + r, y: rect.minY))
+            path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY), tangent2End: CGPoint(x: rect.minX, y: rect.minY + r), radius: r)
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - r))
+            path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX + r, y: rect.maxY), radius: r)
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        } else {
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+            path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY), tangent2End: CGPoint(x: rect.maxX, y: rect.minY + r), radius: r)
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+            path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY), tangent2End: CGPoint(x: rect.maxX - r, y: rect.maxY), radius: r)
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        }
+        return path
+    }
+}
+
 /// Полоса у края во всю высоту — территория закладок (владелец 02.10.2026:
 /// «подраздел открывать посерединке, а края — закладкам»). Тап по краю
 /// больше не открывает строку карточки под ним; сами закладки лежат сверху.
@@ -479,6 +516,7 @@ struct TaskFamilyParentTab: View {
             Self.shape
                 .fill(TaskFamilyEdgeTabs.fillColor)
                 .background(Color.tfBackground, in: Self.shape)
+                .overlay { TaskFamilyTabOutline(openEdge: .leading).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                 .frame(width: hovered ? TaskFamilyEdgeTabs.expandedWidth : TaskFamilyEdgeTabs.restingWidth,
                     height: slotHeight)
                 .overlay {
