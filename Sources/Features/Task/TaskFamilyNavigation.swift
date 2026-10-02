@@ -73,8 +73,11 @@ struct TaskFormScreen: View {
                                 .fill(Color.tfBackground)
                                 .ignoresSafeArea()
                         }
-                        .shadow(color: TaskFamilyEdgeTabs.shadowNear, radius: 10, x: 7)
-                        .shadow(color: TaskFamilyEdgeTabs.shadowFar, radius: 30, x: 18)
+                        .overlay(alignment: .trailing) {
+                            TaskFamilyEdgeTabs.outlineColor
+                                .frame(width: TaskFamilyEdgeTabs.outlineWidth)
+                                .ignoresSafeArea()
+                        }
                         .offset(x: reduceMotion ? 0 : pull - geometry.size.width)
                         .opacity(reduceMotion ? pullProgress(width: geometry.size.width) : 1)
                         .allowsHitTesting(false)
@@ -98,8 +101,13 @@ struct TaskFormScreen: View {
                                 .fill(Color.tfBackground)
                                 .ignoresSafeArea()
                         }
-                        .shadow(color: TaskFamilyEdgeTabs.shadowNear, radius: 10, x: -7)
-                        .shadow(color: TaskFamilyEdgeTabs.shadowFar, radius: 30, x: -18)
+                        // Вместо тени — тонкая красная кромка листа; контур
+                        // хлястика её продолжает (владелец 02.10.2026).
+                        .overlay(alignment: .leading) {
+                            TaskFamilyEdgeTabs.outlineColor
+                                .frame(width: TaskFamilyEdgeTabs.outlineWidth)
+                                .ignoresSafeArea()
+                        }
                         .offset(x: reduceMotion ? 0 : geometry.size.width - pull)
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
                         .allowsHitTesting(false)
@@ -275,12 +283,10 @@ struct TaskFormScreen: View {
                 .overlay {
                     Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
                 }
-                .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
-                .shadow(color: TaskFamilyEdgeTabs.shadowNear, radius: 10, x: 7)
-                .shadow(color: TaskFamilyEdgeTabs.shadowFar, radius: 30, x: 18)
+                .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 // Левый край хлястика — правая кромка листа: лист стоит на pull − width.
-                .offset(x: (reduceMotion ? 0 : pull)
+                .offset(x: (reduceMotion ? 0 : pull) - TaskFamilyEdgeTabs.seamOverlap
                     - (1 - tabOut) * (TaskFamilyEdgeTabs.expandedWidth - TaskFamilyEdgeTabs.restingWidth))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -302,7 +308,7 @@ struct TaskFormScreen: View {
                             .fill(TaskFamilyEdgeTabs.fillColor)
                             .background(Color.tfBackground, in: TaskFamilyEdgeTabs.tabShape)
                             .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
-                            .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
+                            .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
                             .overlay {
                                 if index == 0 {
                                     Image(systemName: "square.stack")
@@ -315,13 +321,11 @@ struct TaskFormScreen: View {
                                 }
                             }
                     } else {
-                        Color.clear.frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
+                        Color.clear.frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
                     }
                 }
             }
-            .frame(width: TaskFamilyEdgeTabs.expandedWidth)
-            .shadow(color: TaskFamilyEdgeTabs.shadowNear, radius: 10, x: -7)
-            .shadow(color: TaskFamilyEdgeTabs.shadowFar, radius: 30, x: -18)
+            .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             // Правый край хлястика — кромка листа: лист стоит на width − pull.
             // При касании хлястик выезжает из узкого края на всю ширину.
@@ -335,20 +339,22 @@ struct TaskFormScreen: View {
 
 /// A transparent edge hit area; only a few points of each bookmark remain visible.
 struct TaskFamilyEdgeTabs: View {
-    static let restingWidth: CGFloat = 10
+    /// Хлястик торчит сразу на полную ширину и при тяге не растёт
+    /// (владелец 02.10.2026).
+    static let restingWidth: CGFloat = 26
     static let expandedWidth: CGFloat = 26
     static let cornerRadius: CGFloat = 10
     /// Ровно цвет листа (владелец 02.10.2026): выделяют закладку только
     /// контур и тень — одна и та же в покое и при тяге.
     static let fillColor = Color.tfBackground
-    static let shadowNear = Color.black.opacity(0.52)
-    static let shadowFar = Color.black.opacity(0.3)
     /// Захват — после этого пути пальца: дальше закладка уже не меняется
     /// при движении вдоль края.
     static let captureDistance: CGFloat = 18
-    /// Тонкий чёрный контур — чёткая граница закладки (владелец 02.10.2026).
-    static let outlineColor = Color.black.opacity(0.85)
+    /// Тонкая окантовка акцентным красным вместо теней (владелец 02.10.2026).
+    static let outlineColor = Color.tfRed
     static let outlineWidth: CGFloat = 0.75
+    /// Хлястик заходит под кромку листа на эту величину — без шва на стыке.
+    static let seamOverlap: CGFloat = 1
     static let tabShape = UnevenRoundedRectangle(topLeadingRadius: cornerRadius,
         bottomLeadingRadius: cornerRadius)
 
@@ -398,8 +404,6 @@ struct TaskFamilyEdgeTabs: View {
                         .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(Self.outlineColor, lineWidth: Self.outlineWidth) }
                         .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
                             height: slotHeight)
-                        .shadow(color: TaskFamilyEdgeTabs.shadowNear, radius: 10, x: -7)
-                        .shadow(color: TaskFamilyEdgeTabs.shadowFar, radius: 30, x: -18)
                         .overlay {
                             if hovered == member.id {
                                 if index == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
@@ -539,8 +543,6 @@ struct TaskFamilyParentTab: View {
                         Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
                     }
                 }
-                .shadow(color: TaskFamilyEdgeTabs.shadowNear, radius: 10, x: 7)
-                .shadow(color: TaskFamilyEdgeTabs.shadowFar, radius: 30, x: 18)
                 .frame(width: 32, alignment: .leading)
                 .contentShape(Rectangle())
         }
