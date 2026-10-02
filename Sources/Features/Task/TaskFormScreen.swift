@@ -707,13 +707,6 @@ struct TaskCardContent: View {
                             planNodeInWorkRow(subtask)
                         }
                     }
-                } else {
-                    CollaborationPlanView(taskId: taskID, subtasks: viewModel.subtasks, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
-                        .id(collaborationPlanReloadToken)
-                        .frame(width: 0, height: 0)
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                        .listSectionSeparator(.hidden)
                 }
             }
 
@@ -880,6 +873,21 @@ struct TaskCardContent: View {
         .listRowBackground(Color.tfBackground)
         .scrollContentBackground(.hidden)
         .background(Color.tfBackground)
+        // Невидимый загрузчик плана, пока не известно, утверждён ли он.
+        // Раньше он стоял строкой в списке: строка нулевого размера всё
+        // равно получала системную высоту и системный фон — светлая полоса
+        // между «Сведения» и «Итог» на всех карточках без плана (владелец
+        // 02.10.2026, кадр). Теперь он вне списка.
+        .background {
+            if let taskID = viewModel.taskID, !hasCollaborationPlan {
+                CollaborationPlanView(taskId: taskID, subtasks: viewModel.subtasks, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
+                    .id(collaborationPlanReloadToken)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
         .scrollDismissesKeyboard(.interactively)
         // Ушли из строки шага — сохранили её название. Тот же принцип, что
         // у названия задачи выше: отдельной кнопки «сохранить» нет.
