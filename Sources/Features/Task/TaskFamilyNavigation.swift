@@ -150,7 +150,9 @@ struct TaskFormScreen: View {
                     ZStack(alignment: .leading) {
                         TaskFamilyEdgeZone()
                         TaskFamilyParentTab(parent: parent,
-                            height: geometry.size.height, width: geometry.size.width,
+                            slotHeight: parentSlot(height: geometry.size.height).height,
+                            slotOffset: parentSlot(height: geometry.size.height).offset,
+                            width: geometry.size.width,
                             pull: $pull, pullingCardID: $pullingCardID, busy: settling,
                             prepare: prepare, select: select, cancel: resetPull)
                     }
@@ -294,10 +296,19 @@ struct TaskFormScreen: View {
         expandedSectionsByCard[id] = sections
     }
 
+    /// Слот закладки родителя: высота и место — как у слота открытого
+    /// ребёнка в правой колонке.
+    private func parentSlot(height: CGFloat) -> (height: CGFloat, offset: CGFloat) {
+        let kids = TaskFamilyEdgeTabs.allChildren(of: family)
+        let index = kids.firstIndex { $0.element.id == selectedCardID } ?? 0
+        return (TaskFamilyEdgeTabs.slotHeight(height: height, count: max(1, kids.count)),
+                TaskFamilyEdgeTabs.slotCenterOffset(index: index, count: max(1, kids.count), height: height))
+    }
+
     @ViewBuilder
     private func parentPullHandle(height: CGFloat, shadow: Bool) -> some View {
         if let parentID = family.first?.id, pullingCardID == parentID {
-            let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: 1)
+            let slotHeight = parentSlot(height: height).height
             TaskFamilyParentTab.shape
                 .fill(TaskFamilyEdgeTabs.fillColor)
                 .overlay { TaskFamilyTabOutline(openEdge: .leading).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
@@ -309,7 +320,8 @@ struct TaskFormScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 // Левый край хлястика — правая кромка листа: лист стоит на pull − width.
                 .offset(x: (reduceMotion ? 0 : pull) - TaskFamilyEdgeTabs.seamOverlap
-                    - (1 - tabOut) * (TaskFamilyEdgeTabs.expandedWidth - TaskFamilyEdgeTabs.restingWidth))
+                    - (1 - tabOut) * (TaskFamilyEdgeTabs.expandedWidth - TaskFamilyEdgeTabs.restingWidth),
+                    y: parentSlot(height: height).offset)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
@@ -318,7 +330,7 @@ struct TaskFormScreen: View {
     @ViewBuilder
     private func attachedPullHandle(height: CGFloat, width: CGFloat, shadow: Bool) -> some View {
         if let pullingCardID, pullingCardID != family.first?.id {
-            let remaining = TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID)
+            let remaining = TaskFamilyEdgeTabs.allChildren(of: family)
             let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: remaining.count)
             VStack(spacing: 8) {
                 ForEach(remaining, id: \.element.id) { index, member in
@@ -395,6 +407,18 @@ struct TaskFamilyEdgeTabs: View {
 
     /// Дети семьи, кроме открытой карточки. Родитель — первый в семье —
     /// справа не лежит: его закладка слева. Номер — номер ребёнка в семье.
+    /// Все дети семьи — постоянные слоты колонки. Слот открытого ребёнка
+    /// пустой, а закладка родителя слева стоит на его высоте: доведённая
+    /// до края закладка остаётся на той же высоте (владелец 02.10.2026).
+    static func allChildren(of members: [ApiTask]) -> [(offset: Int, element: ApiTask)] {
+        Array(members.enumerated()).filter { $0.offset > 0 }
+    }
+
+    /// Центр слота относительно центра колонки.
+    static func slotCenterOffset(index: Int, count: Int, height: CGFloat) -> CGFloat {
+        (CGFloat(index) - CGFloat(count - 1) / 2) * (slotHeight(height: height, count: count) + 8)
+    }
+
     static func children(of members: [ApiTask], selectedID: String?) -> [(offset: Int, element: ApiTask)] {
         Array(members.enumerated()).filter { $0.offset > 0 && $0.element.id != selectedID }
     }
@@ -415,11 +439,15 @@ struct TaskFamilyEdgeTabs: View {
         min(116, max(64, height * 0.65 / CGFloat(max(1, count)) - 8))
     }
 
-    private var slotHeight: CGFloat { Self.slotHeight(height: height, count: remaining.count) }
+    private var slots: [(offset: Int, element: ApiTask)] { Self.allChildren(of: members) }
+    private var slotHeight: CGFloat { Self.slotHeight(height: height, count: slots.count) }
 
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(remaining, id: \.element.id) { index, member in
+            ForEach(slots, id: \.element.id) { index, member in
+                if member.id == selectedID {
+                    Color.clear.frame(width: 32, height: slotHeight)
+                } else {
                 Button {
                     guard !suppressTap else { return }
                     prepare(member.id)
@@ -443,14 +471,15 @@ struct TaskFamilyEdgeTabs: View {
                         .frame(width: 32, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
-                // Остальные закладки стоят на своих местах (владелец
-                // 02.10.2026: «уезжают непонятно куда»). Пока выезжает
-                // родитель слева, правые тают, чтобы не резать его лист.
+                // Пока выезжает родитель слева, правые тают, чтобы не резать
+                // его лист; при тяге ребёнка остальные отъезжают за край.
                 .opacity(pullingCardID == member.id ? 0
                     : (pullingCardID != nil && pullingCardID == members.first?.id ? max(0, 1 - pull / 60) : 1))
+                .offset(x: pullingCardID == nil || pullingCardID == member.id || pullingCardID == members.first?.id ? 0 : min(40, pull * 0.45))
                 .buttonStyle(.plain)
                 .accessibilityLabel(member.title)
                 .accessibilityIdentifier("task.family.\(member.id)")
+                }
             }
         }
         .frame(width: 32)
@@ -467,10 +496,11 @@ struct TaskFamilyEdgeTabs: View {
                 let distance = max(0, -value.translation.width)
                 if abs(value.translation.width) + abs(value.translation.height) > 8 { suppressTap = true }
                 if captured == nil {
-                    let index = min(remaining.count - 1, max(0, Int(value.location.y / (slotHeight + 8))))
-                    let id = remaining[index].element.id
-                    if hovered != id { hovered = id; prepare(id); pullingCardID = id }
-                    if distance > Self.captureDistance { captured = id }
+                    let index = min(slots.count - 1, max(0, Int(value.location.y / (slotHeight + 8))))
+                    let id = slots[index].element.id
+                    // Пустой слот открытого ребёнка — не закладка.
+                    if id != selectedID, hovered != id { hovered = id; prepare(id); pullingCardID = id }
+                    if let hovered, distance > Self.captureDistance { captured = hovered }
                 }
                 if pullingCardID != nil { pull = min(width, distance) }
             }
@@ -541,7 +571,8 @@ struct TaskFamilyEdgeZone: View {
 /// Тянется вправо — открытый лист уходит вправо, родитель выходит из-под него.
 struct TaskFamilyParentTab: View {
     let parent: ApiTask
-    let height: CGFloat
+    let slotHeight: CGFloat
+    let slotOffset: CGFloat
     let width: CGFloat
     @Binding var pull: CGFloat
     @Binding var pullingCardID: String?
@@ -557,7 +588,6 @@ struct TaskFamilyParentTab: View {
     static let shape = UnevenRoundedRectangle(bottomTrailingRadius: TaskFamilyEdgeTabs.cornerRadius,
         topTrailingRadius: TaskFamilyEdgeTabs.cornerRadius)
 
-    private var slotHeight: CGFloat { TaskFamilyEdgeTabs.slotHeight(height: height, count: 1) }
 
     var body: some View {
         Button {
@@ -580,6 +610,7 @@ struct TaskFamilyParentTab: View {
                 .frame(width: 32, alignment: .leading)
                 .contentShape(Rectangle())
         }
+        .offset(y: slotOffset)
         .buttonStyle(.plain)
         // Закладка тает в первые пункты пути — дальше едет сам лист.
         // Под пальцем вместо неё — хлястик листа родителя.
