@@ -63,9 +63,14 @@ struct TaskFormScreen: View {
                         preview: true)
                         .background(Color.tfBackground.ignoresSafeArea())
                         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14))
+                        // Хлястик — часть листа: тень ниже ложится от карточки
+                        // и хлястика вместе, одной формой.
+                        .overlay(alignment: .leading) {
+                            attachedPullHandle(height: geometry.size.height)
+                        }
                         .shadow(color: Color.black.opacity(0.52), radius: 10, x: -7)
                         .shadow(color: Color.black.opacity(0.3), radius: 30, x: -18)
-                        .overlay(alignment: .leading) {
+                        .background(alignment: .leading) {
                             LinearGradient(
                                 colors: [.clear, Color.black.opacity(0.18), Color.black.opacity(0.46)],
                                 startPoint: .leading,
@@ -73,7 +78,6 @@ struct TaskFormScreen: View {
                             )
                             .frame(width: 58)
                             .offset(x: -58)
-                            attachedPullHandle(height: geometry.size.height)
                         }
                         .offset(x: reduceMotion ? 0 : geometry.size.width - pull)
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
@@ -233,11 +237,10 @@ struct TaskFormScreen: View {
             VStack(spacing: 8) {
                 ForEach(remaining, id: \.element.id) { index, member in
                     if member.id == pullingCardID {
-                        UnevenRoundedRectangle(topLeadingRadius: TaskFamilyEdgeTabs.cornerRadius,
-                            bottomLeadingRadius: TaskFamilyEdgeTabs.cornerRadius)
+                        TaskFamilyEdgeTabs.tabShape
                             .fill(TaskFamilyEdgeTabs.fillColor)
+                            .background(Color.tfBackground, in: TaskFamilyEdgeTabs.tabShape)
                             .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
-                            .shadow(color: Color.black.opacity(0.3), radius: 8, x: -5)
                             .overlay {
                                 if index == 0 {
                                     Image(systemName: "square.stack")
@@ -255,7 +258,9 @@ struct TaskFormScreen: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            .offset(x: -18)
+            // Ровно ширина хлястика: он стоит вплотную к кромке, как стоял
+            // у края экрана, а не заходит на лист.
+            .offset(x: -TaskFamilyEdgeTabs.expandedWidth)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
@@ -268,6 +273,10 @@ struct TaskFamilyEdgeTabs: View {
     static let expandedWidth: CGFloat = 26
     static let cornerRadius: CGFloat = 10
     static let fillColor = Color.tfCard2.opacity(0.48)
+    /// Захват — после этого пути пальца; до него закладка идёт за пальцем.
+    static let captureDistance: CGFloat = 18
+    static let tabShape = UnevenRoundedRectangle(topLeadingRadius: cornerRadius,
+        bottomLeadingRadius: cornerRadius)
 
     let members: [ApiTask]
     let selectedID: String?
@@ -286,6 +295,7 @@ struct TaskFamilyEdgeTabs: View {
     @State private var hovered: String?
     @State private var captured: String?
     @State private var suppressTap = false
+    @State private var lead: CGFloat = 0
 
     static func slotHeight(height: CGFloat, count: Int) -> CGFloat {
         min(116, max(64, height * 0.65 / CGFloat(max(1, count)) - 8))
@@ -301,12 +311,16 @@ struct TaskFamilyEdgeTabs: View {
                     prepare(member.id)
                     select(member.id)
                 } label: {
-                    UnevenRoundedRectangle(topLeadingRadius: Self.cornerRadius,
-                        bottomLeadingRadius: Self.cornerRadius)
+                    // Заливка поверх фона листа: полупрозрачная форма давала
+                    // тень вполсилы, и спрятанные закладки её почти не отдавали.
+                    Self.tabShape
                         .fill(Self.fillColor)
+                        .background(Color.tfBackground, in: Self.tabShape)
                         .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
                             height: slotHeight)
-                        .shadow(color: Color.black.opacity(0.3), radius: 8, x: -5)
+                        .offset(x: hovered == member.id ? -lead : 0)
+                        .shadow(color: Color.black.opacity(0.52), radius: 10, x: -7)
+                        .shadow(color: Color.black.opacity(0.3), radius: 30, x: -18)
                         .overlay {
                             if hovered == member.id {
                                 if index == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
@@ -340,7 +354,8 @@ struct TaskFamilyEdgeTabs: View {
                     let index = min(remaining.count - 1, max(0, Int(value.location.y / (slotHeight + 8))))
                     let id = remaining[index].element.id
                     if hovered != id { hovered = id; prepare(id) }
-                    if distance > 18 {
+                    lead = min(Self.captureDistance, distance)
+                    if distance > Self.captureDistance {
                         captured = id
                         pullingCardID = id
                     }
@@ -350,6 +365,7 @@ struct TaskFamilyEdgeTabs: View {
             .onEnded { value in
                 defer { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { suppressTap = false } }
                 let target = captured
+                lead = 0
                 hovered = nil
                 captured = nil
                 // A stationary touch belongs to the accessibility/tap button.
