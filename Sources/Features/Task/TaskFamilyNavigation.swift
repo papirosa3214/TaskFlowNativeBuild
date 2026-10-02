@@ -41,10 +41,12 @@ struct TaskFormScreen: View {
                     initialExpandedSections: expandedSections(for: model),
                     onExpandedSectionsChanged: { storeExpandedSections($0, for: model) })
                     .id(selectedCardID ?? "new")
-                    .blur(radius: reduceMotion ? 0 : 3.2 * pullProgress(width: geometry.size.width))
-                    .opacity(reduceMotion ? 1 : 1 - 0.14 * latePullProgress(width: geometry.size.width))
+                    .blur(radius: reduceMotion || backToParent ? 0 : 3.2 * pullProgress(width: geometry.size.width))
+                    .opacity(backToParent
+                        ? (reduceMotion ? 1 - pullProgress(width: geometry.size.width) : 1)
+                        : (reduceMotion ? 1 : 1 - 0.14 * latePullProgress(width: geometry.size.width)))
                     .overlay {
-                        if pull > 0 {
+                        if pull > 0 && !backToParent {
                             Color.tfCard2
                                 .opacity((reduceMotion ? 0.06 : 0.16) * pullProgress(width: geometry.size.width))
                                 .allowsHitTesting(false)
@@ -55,7 +57,39 @@ struct TaskFormScreen: View {
                             Color.clear.contentShape(Rectangle()).onTapGesture {}.accessibilityHidden(true)
                         }
                     }
-                if let incoming, pull > 0 {
+                    // Возврат к родителю: лист уходит вправо, у его левой
+                    // кромки — та же градиентная тень, что у въезжающего листа.
+                    .overlay(alignment: .leading) {
+                        if backToParent && pull > 0 {
+                            LinearGradient(
+                                colors: [.clear, Color.black.opacity(0.18), Color.black.opacity(0.46)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: 58)
+                            .offset(x: -58)
+                            .allowsHitTesting(false)
+                        }
+                    }
+                    .offset(x: backToParent && !reduceMotion ? pull : 0)
+                    .zIndex(1)
+                if let incoming, pull > 0, backToParent {
+                    // Родитель лежит под уходящим листом и выходит из глубины.
+                    TaskCardContent(model: incoming, expanding: false, family: [],
+                        onFamilyLoaded: { _ in }, onFamilySelected: { _ in },
+                        initialExpandedSections: expandedSections(for: incoming),
+                        onExpandedSectionsChanged: { storeExpandedSections($0, for: incoming) },
+                        preview: true)
+                        .background(Color.tfBackground.ignoresSafeArea())
+                        .blur(radius: reduceMotion ? 0 : 3.2 * (1 - pullProgress(width: geometry.size.width)))
+                        .overlay {
+                            Color.tfCard2
+                                .opacity((reduceMotion ? 0.06 : 0.16) * (1 - pullProgress(width: geometry.size.width)))
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .zIndex(0)
+                } else if let incoming, pull > 0 {
                     TaskCardContent(model: incoming, expanding: false, family: [],
                         onFamilyLoaded: { _ in }, onFamilySelected: { _ in },
                         initialExpandedSections: expandedSections(for: incoming),
@@ -83,11 +117,12 @@ struct TaskFormScreen: View {
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
+                        .zIndex(2)
                 }
             }
             .clipped()
             .overlay(alignment: .trailing) {
-                if expandedSheet && family.count > 1 {
+                if expandedSheet && family.count > 1 && TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID).count > 0 {
                     TaskFamilyEdgeTabs(members: family, selectedID: selectedCardID,
                         height: geometry.size.height, width: geometry.size.width,
                         pull: $pull, pullingCardID: $pullingCardID, busy: settling,
@@ -95,24 +130,14 @@ struct TaskFormScreen: View {
                 }
             }
             .overlay(alignment: .leading) {
-                if expandedSheet, family.count > 1,
-                   let active = family.first(where: { $0.id == selectedCardID }) {
-                    let activeHeight = TaskFamilyEdgeTabs.slotHeight(
-                        height: geometry.size.height,
-                        count: max(1, family.count - 1)
-                    )
-                    Color.clear.frame(width: 32, height: activeHeight)
-                        .overlay(alignment: .leading) {
-                            UnevenRoundedRectangle(bottomTrailingRadius: TaskFamilyEdgeTabs.cornerRadius,
-                                topTrailingRadius: TaskFamilyEdgeTabs.cornerRadius)
-                                .fill(TaskFamilyEdgeTabs.fillColor)
-                                .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: activeHeight)
-                                .shadow(color: Color.black.opacity(0.3), radius: 8, x: 5)
-                                .offset(x: -18)
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Открытая карточка: \(active.title)")
-                        .accessibilityIdentifier("task.family.active.\(active.id)")
+                // Владелец 02.10.2026: «закладки — это дети, а к родителю —
+                // слева». Тянется вправо: текущий лист уходит, родитель под ним.
+                if expandedSheet, family.count > 1, let parent = family.first,
+                   selectedCardID != nil, selectedCardID != parent.id {
+                    TaskFamilyParentTab(parent: parent,
+                        height: geometry.size.height, width: geometry.size.width,
+                        pull: $pull, pullingCardID: $pullingCardID, busy: settling,
+                        prepare: prepare, select: select, cancel: resetPull)
                 }
             }
             .background(TaskSheetExpansionProbe { expanded in
@@ -201,6 +226,13 @@ struct TaskFormScreen: View {
         }
     }
 
+    /// Переход идёт назад, к родителю: родитель — первый в семье.
+    private var backToParent: Bool {
+        guard let parentID = family.first?.id, selectedCardID != parentID,
+              let incomingID = incoming?.taskID else { return false }
+        return incomingID == parentID
+    }
+
     private func resetPull() {
         withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.3, bounce: 0.08), completionCriteria: .logicallyComplete) {
             pull = 0
@@ -231,8 +263,8 @@ struct TaskFormScreen: View {
 
     @ViewBuilder
     private func attachedPullHandle(height: CGFloat) -> some View {
-        if let pullingCardID {
-            let remaining = Array(family.enumerated()).filter { $0.element.id != selectedCardID }
+        if let pullingCardID, pullingCardID != family.first?.id {
+            let remaining = TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID)
             let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: remaining.count)
             VStack(spacing: 8) {
                 ForEach(remaining, id: \.element.id) { index, member in
@@ -281,7 +313,13 @@ struct TaskFamilyEdgeTabs: View {
     let members: [ApiTask]
     let selectedID: String?
     private var remaining: [(offset: Int, element: ApiTask)] {
-        Array(members.enumerated()).filter { $0.element.id != selectedID }
+        Self.children(of: members, selectedID: selectedID)
+    }
+
+    /// Дети семьи, кроме открытой карточки. Родитель — первый в семье —
+    /// справа не лежит: его закладка слева. Номер — номер ребёнка в семье.
+    static func children(of members: [ApiTask], selectedID: String?) -> [(offset: Int, element: ApiTask)] {
+        Array(members.enumerated()).filter { $0.offset > 0 && $0.element.id != selectedID }
     }
     let height: CGFloat
     let width: CGFloat
@@ -372,6 +410,95 @@ struct TaskFamilyEdgeTabs: View {
                 if target == nil && abs(value.translation.width) < 4 && abs(value.translation.height) < 4 { return }
                 if let target, pull > width * 0.28 || -value.predictedEndTranslation.width > width * 0.55 {
                     select(target)
+                } else { cancel() }
+            })
+    }
+}
+
+/// Закладка родителя у левой кромки: зеркало правых закладок, тот же жест.
+/// Тянется вправо — открытый лист уходит вправо, родитель выходит из-под него.
+struct TaskFamilyParentTab: View {
+    let parent: ApiTask
+    let height: CGFloat
+    let width: CGFloat
+    @Binding var pull: CGFloat
+    @Binding var pullingCardID: String?
+    let busy: Bool
+    let prepare: (String) -> Void
+    let select: (String) -> Void
+    let cancel: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hovered = false
+    @State private var captured = false
+    @State private var suppressTap = false
+    @State private var lead: CGFloat = 0
+
+    private static let shape = UnevenRoundedRectangle(bottomTrailingRadius: TaskFamilyEdgeTabs.cornerRadius,
+        topTrailingRadius: TaskFamilyEdgeTabs.cornerRadius)
+
+    private var slotHeight: CGFloat { TaskFamilyEdgeTabs.slotHeight(height: height, count: 1) }
+
+    var body: some View {
+        Button {
+            guard !suppressTap else { return }
+            prepare(parent.id)
+            select(parent.id)
+        } label: {
+            Self.shape
+                .fill(TaskFamilyEdgeTabs.fillColor)
+                .background(Color.tfBackground, in: Self.shape)
+                .frame(width: hovered ? TaskFamilyEdgeTabs.expandedWidth : TaskFamilyEdgeTabs.restingWidth,
+                    height: slotHeight)
+                .overlay {
+                    if hovered {
+                        Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
+                    }
+                }
+                .offset(x: hovered ? lead : 0)
+                .shadow(color: Color.black.opacity(0.52), radius: 10, x: 7)
+                .shadow(color: Color.black.opacity(0.3), radius: 30, x: 18)
+                .frame(width: 32, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // Закладка тает в первые пункты пути — дальше едет сам лист.
+        .opacity(pullingCardID == parent.id ? max(0, 1 - pull / 40) : 1)
+        .frame(width: 32)
+        .disabled(busy)
+        .animation(reduceMotion ? nil : .spring(duration: 0.22, bounce: 0.05), value: hovered)
+        .sensoryFeedback(.selection, trigger: hovered) { _, new in new }
+        .sensoryFeedback(.impact(weight: .light), trigger: captured) { old, new in !old && new }
+        .accessibilityLabel("Родительская: \(parent.title)")
+        .accessibilityIdentifier("task.family.parent.\(parent.id)")
+        .simultaneousGesture(DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                guard !busy else { return }
+                let distance = max(0, value.translation.width)
+                if abs(value.translation.width) + abs(value.translation.height) > 8 { suppressTap = true }
+                if !captured {
+                    if !hovered { hovered = true; prepare(parent.id) }
+                    lead = min(TaskFamilyEdgeTabs.captureDistance, distance)
+                    if distance > TaskFamilyEdgeTabs.captureDistance {
+                        captured = true
+                        pullingCardID = parent.id
+                        // Лист догоняет палец короткой пружиной, а не прыгает.
+                        withAnimation(reduceMotion ? nil : .interactiveSpring(duration: 0.16)) {
+                            pull = min(width, distance)
+                        }
+                        return
+                    }
+                }
+                if captured { pull = min(width, distance) }
+            }
+            .onEnded { value in
+                defer { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { suppressTap = false } }
+                let wasCaptured = captured
+                lead = 0
+                hovered = false
+                captured = false
+                if !wasCaptured && abs(value.translation.width) < 4 && abs(value.translation.height) < 4 { return }
+                if wasCaptured, pull > width * 0.28 || value.predictedEndTranslation.width > width * 0.55 {
+                    select(parent.id)
                 } else { cancel() }
             })
     }
