@@ -130,10 +130,13 @@ struct TaskFormScreen: View {
             }
             .overlay(alignment: .trailing) {
                 if expandedSheet && family.count > 1 && TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID).count > 0 {
-                    TaskFamilyEdgeTabs(members: family, selectedID: selectedCardID,
-                        height: geometry.size.height, width: geometry.size.width,
-                        pull: $pull, pullingCardID: $pullingCardID, busy: settling,
-                        prepare: prepare, select: select, cancel: resetPull)
+                    ZStack(alignment: .trailing) {
+                        TaskFamilyEdgeZone()
+                        TaskFamilyEdgeTabs(members: family, selectedID: selectedCardID,
+                            height: geometry.size.height, width: geometry.size.width,
+                            pull: $pull, pullingCardID: $pullingCardID, busy: settling,
+                            prepare: prepare, select: select, cancel: resetPull)
+                    }
                 }
             }
             .overlay(alignment: .leading) {
@@ -141,10 +144,13 @@ struct TaskFormScreen: View {
                 // слева». Тянется вправо: текущий лист уходит, родитель под ним.
                 if expandedSheet, family.count > 1, let parent = family.first,
                    selectedCardID != nil, selectedCardID != parent.id {
-                    TaskFamilyParentTab(parent: parent,
-                        height: geometry.size.height, width: geometry.size.width,
-                        pull: $pull, pullingCardID: $pullingCardID, busy: settling,
-                        prepare: prepare, select: select, cancel: resetPull)
+                    ZStack(alignment: .leading) {
+                        TaskFamilyEdgeZone()
+                        TaskFamilyParentTab(parent: parent,
+                            height: geometry.size.height, width: geometry.size.width,
+                            pull: $pull, pullingCardID: $pullingCardID, busy: settling,
+                            prepare: prepare, select: select, cancel: resetPull)
+                    }
                 }
             }
             .background(TaskSheetExpansionProbe { expanded in
@@ -422,6 +428,22 @@ struct TaskFamilyEdgeTabs: View {
                     select(target)
                 } else { cancel() }
             })
+    }
+}
+
+/// Полоса у края во всю высоту — территория закладок (владелец 02.10.2026:
+/// «подраздел открывать посерединке, а края — закладкам»). Тап по краю
+/// больше не открывает строку карточки под ним; сами закладки лежат сверху.
+struct TaskFamilyEdgeZone: View {
+    static let width: CGFloat = 32
+
+    var body: some View {
+        Color.clear
+            .frame(width: Self.width)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {}
+            .accessibilityHidden(true)
     }
 }
 
