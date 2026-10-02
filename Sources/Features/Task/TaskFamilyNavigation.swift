@@ -326,8 +326,12 @@ struct TaskFamilyEdgeTabs: View {
     static let expandedWidth: CGFloat = 26
     static let cornerRadius: CGFloat = 10
     static let fillColor = Color.tfCard2.opacity(0.48)
-    /// Захват — после этого пути пальца; до него закладка идёт за пальцем.
+    /// Захват — после этого пути пальца: дальше закладка уже не меняется
+    /// при движении вдоль края.
     static let captureDistance: CGFloat = 18
+    /// С этого пути лист выходит вместе с закладкой — с первых пунктов, а не
+    /// рывком в момент захвата (владелец 02.10.2026). Меньше — это тап.
+    static let followDistance: CGFloat = 3
     /// Тонкий чёрный контур — чёткая граница закладки (владелец 02.10.2026).
     static let outlineColor = Color.black.opacity(0.85)
     static let outlineWidth: CGFloat = 0.75
@@ -357,7 +361,6 @@ struct TaskFamilyEdgeTabs: View {
     @State private var hovered: String?
     @State private var captured: String?
     @State private var suppressTap = false
-    @State private var lead: CGFloat = 0
 
     static func slotHeight(height: CGFloat, count: Int) -> CGFloat {
         min(116, max(64, height * 0.65 / CGFloat(max(1, count)) - 8))
@@ -381,7 +384,6 @@ struct TaskFamilyEdgeTabs: View {
                         .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(Self.outlineColor, lineWidth: Self.outlineWidth) }
                         .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
                             height: slotHeight)
-                        .offset(x: hovered == member.id ? -lead : 0)
                         .shadow(color: Color.black.opacity(0.52), radius: 10, x: -7)
                         .shadow(color: Color.black.opacity(0.3), radius: 30, x: -18)
                         .overlay {
@@ -393,7 +395,7 @@ struct TaskFamilyEdgeTabs: View {
                         .frame(width: 32, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
-                .opacity(pullingCardID == member.id ? 0 : 1)
+                .opacity(pullingCardID == member.id && pull > 0 ? 0 : 1)
                 .offset(x: pullingCardID == nil || pullingCardID == member.id ? 0 : min(40, pull * 0.45))
                 .buttonStyle(.plain)
                 .accessibilityLabel(member.title)
@@ -417,23 +419,23 @@ struct TaskFamilyEdgeTabs: View {
                     let index = min(remaining.count - 1, max(0, Int(value.location.y / (slotHeight + 8))))
                     let id = remaining[index].element.id
                     if hovered != id { hovered = id; prepare(id) }
-                    lead = min(Self.captureDistance, distance)
-                    if distance > Self.captureDistance {
-                        captured = id
-                        pullingCardID = id
-                    }
+                    if distance > Self.followDistance { pullingCardID = id }
+                    if distance > Self.captureDistance { captured = id }
                 }
-                if captured != nil { pull = min(width, distance) }
+                if pullingCardID != nil { pull = min(width, distance) }
             }
             .onEnded { value in
                 defer { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { suppressTap = false } }
                 let target = captured
-                lead = 0
                 hovered = nil
                 captured = nil
-                // A stationary touch belongs to the accessibility/tap button.
-                if target == nil && abs(value.translation.width) < 4 && abs(value.translation.height) < 4 { return }
-                if let target, pull > width * 0.28 || -value.predictedEndTranslation.width > width * 0.55 {
+                // Не дотянули до захвата — лист возвращается; касание на
+                // месте достаётся кнопке (тап).
+                guard let target else {
+                    if pull > 0 { cancel() }
+                    return
+                }
+                if pull > width * 0.28 || -value.predictedEndTranslation.width > width * 0.55 {
                     select(target)
                 } else { cancel() }
             })
@@ -500,7 +502,6 @@ struct TaskFamilyParentTab: View {
     @State private var hovered = false
     @State private var captured = false
     @State private var suppressTap = false
-    @State private var lead: CGFloat = 0
 
     private static let shape = UnevenRoundedRectangle(bottomTrailingRadius: TaskFamilyEdgeTabs.cornerRadius,
         topTrailingRadius: TaskFamilyEdgeTabs.cornerRadius)
@@ -524,7 +525,6 @@ struct TaskFamilyParentTab: View {
                         Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
                     }
                 }
-                .offset(x: hovered ? lead : 0)
                 .shadow(color: Color.black.opacity(0.52), radius: 10, x: 7)
                 .shadow(color: Color.black.opacity(0.3), radius: 30, x: 18)
                 .frame(width: 32, alignment: .leading)
@@ -545,29 +545,21 @@ struct TaskFamilyParentTab: View {
                 guard !busy else { return }
                 let distance = max(0, value.translation.width)
                 if abs(value.translation.width) + abs(value.translation.height) > 8 { suppressTap = true }
-                if !captured {
-                    if !hovered { hovered = true; prepare(parent.id) }
-                    lead = min(TaskFamilyEdgeTabs.captureDistance, distance)
-                    if distance > TaskFamilyEdgeTabs.captureDistance {
-                        captured = true
-                        pullingCardID = parent.id
-                        // Лист догоняет палец короткой пружиной, а не прыгает.
-                        withAnimation(reduceMotion ? nil : .interactiveSpring(duration: 0.16)) {
-                            pull = min(width, distance)
-                        }
-                        return
-                    }
-                }
-                if captured { pull = min(width, distance) }
+                if !hovered { hovered = true; prepare(parent.id) }
+                if distance > TaskFamilyEdgeTabs.followDistance { pullingCardID = parent.id }
+                if distance > TaskFamilyEdgeTabs.captureDistance { captured = true }
+                if pullingCardID == parent.id { pull = min(width, distance) }
             }
             .onEnded { value in
                 defer { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { suppressTap = false } }
                 let wasCaptured = captured
-                lead = 0
                 hovered = false
                 captured = false
-                if !wasCaptured && abs(value.translation.width) < 4 && abs(value.translation.height) < 4 { return }
-                if wasCaptured, pull > width * 0.28 || value.predictedEndTranslation.width > width * 0.55 {
+                guard wasCaptured else {
+                    if pull > 0 { cancel() }
+                    return
+                }
+                if pull > width * 0.28 || value.predictedEndTranslation.width > width * 0.55 {
                     select(parent.id)
                 } else { cancel() }
             })
