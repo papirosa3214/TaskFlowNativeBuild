@@ -311,9 +311,10 @@ struct TaskFormScreen: View {
             let slotHeight = parentSlot(height: height).height
             TaskFamilyParentTab.shape
                 .fill(TaskFamilyEdgeTabs.fillColor)
-                .overlay { TaskFamilyTabOutline(openEdge: .leading).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
+                .overlay { TaskFamilyTabOutline(openEdge: .leading, openInset: TaskFamilyEdgeTabs.seamOverlap).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                 .overlay {
                     Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
+                        .padding(.leading, TaskFamilyEdgeTabs.seamOverlap)
                 }
                 .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
                 .shadow(color: shadow ? TaskFamilyEdgeTabs.shadowColor : .clear, radius: TaskFamilyEdgeTabs.shadowRadius)
@@ -341,16 +342,19 @@ struct TaskFormScreen: View {
                         TaskFamilyEdgeTabs.tabShape
                             .fill(TaskFamilyEdgeTabs.fillColor)
                             .background(Color.tfBackground, in: TaskFamilyEdgeTabs.tabShape)
-                            .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
+                            .overlay { TaskFamilyTabOutline(openEdge: .trailing, openInset: TaskFamilyEdgeTabs.seamOverlap).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                             .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
                             .overlay {
-                                if index == 0 {
-                                    Image(systemName: "square.stack")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.tfSub)
-                                } else {
-                                    TaskFamilyChildMark(number: index)
+                                Group {
+                                    if index == 0 {
+                                        Image(systemName: "square.stack")
+                                            .font(.caption)
+                                            .foregroundStyle(Color.tfSub)
+                                    } else {
+                                        TaskFamilyChildMark(number: index)
+                                    }
                                 }
+                                .padding(.trailing, TaskFamilyEdgeTabs.seamOverlap)
                             }
                     } else {
                         Color.clear.frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
@@ -385,10 +389,12 @@ struct TaskFamilyEdgeTabs: View {
     static let captureDistance: CGFloat = 18
     /// Тонкая окантовка акцентным красным вместо теней (владелец 02.10.2026).
     /// Приглушённый акцентный красный — граница видна, но не кричит.
-    static let outlineColor = Color.tfRed.opacity(0.55)
+    static let outlineColor = Color.tfRed.opacity(0.35)
     static let outlineWidth: CGFloat = 0.75
-    /// Хлястик заходит под кромку листа на эту величину — без шва на стыке.
-    static let seamOverlap: CGFloat = 1
+    /// Хлястик заходит на лист на эту величину: даже если в каком-то кадре
+    /// они разойдутся, разрыва не видно (владелец 02.10.2026: «удлини,
+    /// чтобы не мог оторваться»). Текст листа начинается дальше от края.
+    static let seamOverlap: CGFloat = 12
     /// Лёгкая тень по периметру — одна и та же у закладок в покое, у
     /// хлястика и у листа при тяге (владелец 02.10.2026): показывает
     /// верхний слой, не перетягивая внимание.
@@ -541,9 +547,15 @@ struct TaskFamilyChildMark: View {
 /// граница видна, а шва с листом нет.
 struct TaskFamilyTabOutline: Shape {
     let openEdge: HorizontalEdge
+    /// На сколько хлястик заходит на лист с открытой стороны — контур
+    /// обрывается на кромке листа и на лист не ложится.
+    var openInset: CGFloat = 0
     var radius: CGFloat = TaskFamilyEdgeTabs.cornerRadius
 
-    func path(in rect: CGRect) -> Path {
+    func path(in base: CGRect) -> Path {
+        var rect = base
+        if openEdge == .trailing { rect.size.width -= openInset }
+        else { rect.origin.x += openInset; rect.size.width -= openInset }
         let r = min(radius, rect.width, rect.height / 2)
         var path = Path()
         if openEdge == .trailing {
