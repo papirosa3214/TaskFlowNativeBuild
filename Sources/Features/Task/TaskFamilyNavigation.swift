@@ -443,8 +443,11 @@ struct TaskFamilyEdgeTabs: View {
                         .frame(width: 32, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
-                .opacity(pullingCardID == member.id ? 0 : 1)
-                .offset(x: pullingCardID == nil || pullingCardID == member.id ? 0 : min(40, pull * 0.45))
+                // Остальные закладки стоят на своих местах (владелец
+                // 02.10.2026: «уезжают непонятно куда»). Пока выезжает
+                // родитель слева, правые тают, чтобы не резать его лист.
+                .opacity(pullingCardID == member.id ? 0
+                    : (pullingCardID != nil && pullingCardID == members.first?.id ? max(0, 1 - pull / 60) : 1))
                 .buttonStyle(.plain)
                 .accessibilityLabel(member.title)
                 .accessibilityIdentifier("task.family.\(member.id)")
@@ -580,7 +583,11 @@ struct TaskFamilyParentTab: View {
         .buttonStyle(.plain)
         // Закладка тает в первые пункты пути — дальше едет сам лист.
         // Под пальцем вместо неё — хлястик листа родителя.
-        .opacity(pullingCardID == parent.id ? 0 : 1)
+        // Пока справа выезжает ребёнок, закладка родителя тает: иначе у
+        // левого края она ложилась поверх хлястика и резала его своей
+        // окантовкой (владелец 02.10.2026).
+        .opacity(pullingCardID == parent.id ? 0
+            : (pullingCardID != nil && pull > 0 ? max(0, 1 - pull / 60) : 1))
         .frame(width: 32)
         .disabled(busy)
         .animation(reduceMotion ? nil : .spring(duration: 0.22, bounce: 0.05), value: hovered)
