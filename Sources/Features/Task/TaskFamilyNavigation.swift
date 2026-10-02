@@ -78,12 +78,17 @@ struct TaskFormScreen: View {
                                 .frame(width: TaskFamilyEdgeTabs.outlineWidth)
                                 .ignoresSafeArea()
                         }
+                        .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                         .offset(x: reduceMotion ? 0 : pull - geometry.size.width)
                         .opacity(reduceMotion ? pullProgress(width: geometry.size.width) : 1)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                         .zIndex(2)
-                    parentPullHandle(height: geometry.size.height)
+                    // Тень хлястика — копией под листом: на лист она не падает,
+                    // стык остаётся бесшовным.
+                    parentPullHandle(height: geometry.size.height, shadow: true)
+                        .zIndex(1.5)
+                    parentPullHandle(height: geometry.size.height, shadow: false)
                         .zIndex(3)
                 } else if let incoming, !backToParent,
                           pull > 0 || (pullingCardID != nil && pullingCardID == incoming.taskID) {
@@ -108,6 +113,7 @@ struct TaskFormScreen: View {
                                 .frame(width: TaskFamilyEdgeTabs.outlineWidth)
                                 .ignoresSafeArea()
                         }
+                        .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                         .offset(x: reduceMotion ? 0 : geometry.size.width - pull)
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
                         .allowsHitTesting(false)
@@ -116,7 +122,9 @@ struct TaskFormScreen: View {
                     // Хлястик — отдельным слоем поверх листа и его тени, в
                     // координатах экрана: ровно слева от кромки листа, на
                     // высоте своего слота — там же, где стоял у края.
-                    attachedPullHandle(height: geometry.size.height, width: geometry.size.width)
+                    attachedPullHandle(height: geometry.size.height, width: geometry.size.width, shadow: true)
+                        .zIndex(1.5)
+                    attachedPullHandle(height: geometry.size.height, width: geometry.size.width, shadow: false)
                         .zIndex(3)
                 }
             }
@@ -274,7 +282,7 @@ struct TaskFormScreen: View {
     }
 
     @ViewBuilder
-    private func parentPullHandle(height: CGFloat) -> some View {
+    private func parentPullHandle(height: CGFloat, shadow: Bool) -> some View {
         if let parentID = family.first?.id, pullingCardID == parentID {
             let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: 1)
             TaskFamilyParentTab.shape
@@ -284,6 +292,7 @@ struct TaskFormScreen: View {
                     Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
                 }
                 .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
+                .shadow(color: shadow ? TaskFamilyEdgeTabs.shadowColor : .clear, radius: TaskFamilyEdgeTabs.shadowRadius)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 // Левый край хлястика — правая кромка листа: лист стоит на pull − width.
                 .offset(x: (reduceMotion ? 0 : pull) - TaskFamilyEdgeTabs.seamOverlap
@@ -294,7 +303,7 @@ struct TaskFormScreen: View {
     }
 
     @ViewBuilder
-    private func attachedPullHandle(height: CGFloat, width: CGFloat) -> some View {
+    private func attachedPullHandle(height: CGFloat, width: CGFloat, shadow: Bool) -> some View {
         if let pullingCardID, pullingCardID != family.first?.id {
             let remaining = TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID)
             let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: remaining.count)
@@ -326,6 +335,7 @@ struct TaskFormScreen: View {
                 }
             }
             .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap)
+            .shadow(color: shadow ? TaskFamilyEdgeTabs.shadowColor : .clear, radius: TaskFamilyEdgeTabs.shadowRadius)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             // Правый край хлястика — кромка листа: лист стоит на width − pull.
             // При касании хлястик выезжает из узкого края на всю ширину.
@@ -355,6 +365,11 @@ struct TaskFamilyEdgeTabs: View {
     static let outlineWidth: CGFloat = 0.75
     /// Хлястик заходит под кромку листа на эту величину — без шва на стыке.
     static let seamOverlap: CGFloat = 1
+    /// Лёгкая тень по периметру — одна и та же у закладок в покое, у
+    /// хлястика и у листа при тяге (владелец 02.10.2026): показывает
+    /// верхний слой, не перетягивая внимание.
+    static let shadowColor = Color.black.opacity(0.3)
+    static let shadowRadius: CGFloat = 6
     static let tabShape = UnevenRoundedRectangle(topLeadingRadius: cornerRadius,
         bottomLeadingRadius: cornerRadius)
 
@@ -404,6 +419,7 @@ struct TaskFamilyEdgeTabs: View {
                         .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(Self.outlineColor, lineWidth: Self.outlineWidth) }
                         .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
                             height: slotHeight)
+                        .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                         .overlay {
                             if hovered == member.id {
                                 if index == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
@@ -538,6 +554,7 @@ struct TaskFamilyParentTab: View {
                 .overlay { TaskFamilyTabOutline(openEdge: .leading).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                 .frame(width: hovered ? TaskFamilyEdgeTabs.expandedWidth : TaskFamilyEdgeTabs.restingWidth,
                     height: slotHeight)
+                .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                 .overlay {
                     if hovered {
                         Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
