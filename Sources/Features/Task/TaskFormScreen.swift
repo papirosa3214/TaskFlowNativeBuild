@@ -496,15 +496,6 @@ struct TaskCardContent: View {
                     // урезаны, раз просили «точно как описание, без
                     // ограничений».
                     HStack(alignment: .top, spacing: TFSpacing.sm) {
-                        // Владелец 02.10.2026: дочерняя видна сразу — тот же
-                        // значок ветвления, что у дочерних в списке.
-                        if viewModel.parentTask != nil {
-                            Image(systemName: "arrow.triangle.branch")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.tfSub)
-                                .padding(.top, 2)
-                                .accessibilityLabel("Дочерняя задача")
-                        }
                         BlockDocumentEditor(
                             blocks: $viewModel.titleBlocks,
                             focus: titleFocus,

@@ -349,9 +349,7 @@ struct TaskFormScreen: View {
                                         .font(.caption)
                                         .foregroundStyle(Color.tfSub)
                                 } else {
-                                    Text("\(index)")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.tfSub)
+                                    TaskFamilyChildMark(number: index)
                                 }
                             }
                     } else {
@@ -465,7 +463,7 @@ struct TaskFamilyEdgeTabs: View {
                         .overlay {
                             if hovered == member.id {
                                 if index == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
-                                else { Text("\(index)").font(.caption).foregroundStyle(Color.tfSub) }
+                                else { TaskFamilyChildMark(number: index) }
                             }
                         }
                         .frame(width: 32, alignment: .trailing)
@@ -520,6 +518,22 @@ struct TaskFamilyEdgeTabs: View {
                     select(target)
                 } else { cancel() }
             })
+    }
+}
+
+/// Отметка дочерней на закладке (владелец 02.10.2026: «отметку не в
+/// названии, а на вкладках»): значок ветвления и номер ребёнка.
+/// Закладка родителя — значок стопки.
+struct TaskFamilyChildMark: View {
+    let number: Int
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Image(systemName: "arrow.triangle.branch")
+            Text("\(number)")
+        }
+        .font(.caption2)
+        .foregroundStyle(Color.tfSub)
     }
 }
 
