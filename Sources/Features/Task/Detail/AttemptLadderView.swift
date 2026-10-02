@@ -25,12 +25,10 @@ public struct AttemptLadderView: View {
     public var body: some View {
         HStack(spacing: 4) {
             Text("\(ladder.currentStep)/\(ladder.totalSteps)")
-            Image(systemName: "arrow.right")
-                .accessibilityHidden(true)
             Text(modelLabel)
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(escalated ? Color.tfOrange : Color.tfSub)
+        .foregroundStyle(escalated ? Color.tfOrange.opacity(0.8) : Color.tfSub)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }

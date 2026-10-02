@@ -416,15 +416,18 @@ struct TaskCardContent: View {
                 taskKeyboardDismissButton
                 taskKeyboardDictationButton
             }
-            if viewModel.agentState != nil || (viewModel.attemptLadder?.currentStep ?? 0) > 0 {
+            // Владелец 02.10.2026: в шапке словами, без значка в кружке;
+            // «1/3 → модель» — техническое, число попыток показываем, только
+            // когда все исчерпаны: тогда понятно, почему стоим.
+            if viewModel.agentState != nil || attemptsExhausted {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: TFSpacing.sm) {
                         if let state = viewModel.agentState {
-                            Label(agentStateText(state), systemImage: agentStateIcon(state))
+                            Text(state == .blocked ? "Заблокировано" : agentStateText(state))
                                 .tfText(.caption)
                                 .foregroundStyle(agentStateColor(state))
                         }
-                        if let ladder = viewModel.attemptLadder, ladder.currentStep > 0 {
+                        if attemptsExhausted, let ladder = viewModel.attemptLadder {
                             AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
                         }
                     }
@@ -486,6 +489,15 @@ struct TaskCardContent: View {
                     // урезаны, раз просили «точно как описание, без
                     // ограничений».
                     HStack(alignment: .top, spacing: TFSpacing.sm) {
+                        // Владелец 02.10.2026: дочерняя видна сразу — тот же
+                        // значок ветвления, что у дочерних в списке.
+                        if viewModel.parentTask != nil {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.tfSub)
+                                .padding(.top, 2)
+                                .accessibilityLabel("Дочерняя задача")
+                        }
                         BlockDocumentEditor(
                             blocks: $viewModel.titleBlocks,
                             focus: titleFocus,
@@ -1024,13 +1036,13 @@ struct TaskCardContent: View {
 
     private func linkedTaskStatus(_ task: ApiTask) -> (icon: String, text: String, color: Color) {
         if task.status == .completed {
-            return ("checkmark.circle.fill", "Выполнена", .green)
+            return ("checkmark.circle.fill", "Выполнена", .tfGreen)
         }
         switch task.agentState {
         case .review:
-            return ("eye.fill", "На ревью", .blue)
+            return ("eye.fill", "На ревью", .tfBlue)
         case .blocked:
-            return ("exclamationmark.triangle.fill", "Заблокирована", .orange)
+            return ("exclamationmark.triangle.fill", "Заблокирована", Color.tfOrange.opacity(0.8))
         case .inProgress:
             return ("play.circle.fill", "В работе", .secondary)
         case .todo:
@@ -1624,6 +1636,11 @@ struct TaskCardContent: View {
         return profile.title
     }
 
+    private var attemptsExhausted: Bool {
+        guard let ladder = viewModel.attemptLadder, ladder.totalSteps > 0 else { return false }
+        return ladder.currentStep >= ladder.totalSteps
+    }
+
     private func agentStateText(_ state: AgentState) -> String {
         switch state {
         case .inProgress: "В работе"
@@ -1640,7 +1657,8 @@ struct TaskCardContent: View {
     private func agentStateColor(_ state: AgentState) -> Color {
         switch state {
         case .blocked:
-            return .orange
+            // Тёмный оттенок утверждённого оранжевого, не системный.
+            return Color.tfOrange.opacity(0.8)
         case .inProgress:
             return .tfSub
         case .review:

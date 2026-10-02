@@ -95,12 +95,14 @@ struct TaskFormScreen: View {
                         initialExpandedSections: expandedSections(for: incoming),
                         onExpandedSectionsChanged: { storeExpandedSections($0, for: incoming) },
                         preview: true)
-                        .background(Color.tfBackground.ignoresSafeArea())
-                        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14))
-                        // Хлястик — часть листа: тень ниже ложится от карточки
-                        // и хлястика вместе, одной формой.
-                        .overlay(alignment: .leading) {
-                            attachedPullHandle(height: geometry.size.height)
+                        // Лист во всю высоту — под кнопками шапки и до низа,
+                        // как у открытой карточки, без обрубка сверху и
+                        // «подбородка» снизу (владелец 02.10.2026). Кнопки
+                        // шапки остаются верхним слоем и не двигаются.
+                        .background {
+                            UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14)
+                                .fill(Color.tfBackground)
+                                .ignoresSafeArea()
                         }
                         .shadow(color: Color.black.opacity(0.52), radius: 10, x: -7)
                         .shadow(color: Color.black.opacity(0.3), radius: 30, x: -18)
@@ -112,15 +114,20 @@ struct TaskFormScreen: View {
                             )
                             .frame(width: 58)
                             .offset(x: -58)
+                            .ignoresSafeArea()
                         }
                         .offset(x: reduceMotion ? 0 : geometry.size.width - pull)
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                         .zIndex(2)
+                    // Хлястик — отдельным слоем поверх листа и его тени, в
+                    // координатах экрана: ровно слева от кромки листа, на
+                    // высоте своего слота — там же, где стоял у края.
+                    attachedPullHandle(height: geometry.size.height, width: geometry.size.width)
+                        .zIndex(3)
                 }
             }
-            .clipped()
             .overlay(alignment: .trailing) {
                 if expandedSheet && family.count > 1 && TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID).count > 0 {
                     TaskFamilyEdgeTabs(members: family, selectedID: selectedCardID,
@@ -262,7 +269,7 @@ struct TaskFormScreen: View {
     }
 
     @ViewBuilder
-    private func attachedPullHandle(height: CGFloat) -> some View {
+    private func attachedPullHandle(height: CGFloat, width: CGFloat) -> some View {
         if let pullingCardID, pullingCardID != family.first?.id {
             let remaining = TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID)
             let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: remaining.count)
@@ -289,10 +296,13 @@ struct TaskFormScreen: View {
                     }
                 }
             }
-            .frame(maxHeight: .infinity)
-            // Ровно ширина хлястика: он стоит вплотную к кромке, как стоял
-            // у края экрана, а не заходит на лист.
-            .offset(x: -TaskFamilyEdgeTabs.expandedWidth)
+            .frame(width: TaskFamilyEdgeTabs.expandedWidth)
+            .shadow(color: Color.black.opacity(0.52), radius: 10, x: -7)
+            .shadow(color: Color.black.opacity(0.3), radius: 30, x: -18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            // Правый край хлястика — кромка листа: лист стоит на width − pull.
+            .offset(x: (reduceMotion ? width : width - pull) - TaskFamilyEdgeTabs.expandedWidth)
+            .opacity(reduceMotion ? min(1, pull / max(1, width)) : 1)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
