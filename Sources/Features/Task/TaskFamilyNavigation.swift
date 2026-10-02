@@ -10,6 +10,7 @@ struct TaskFormScreen: View {
     @State private var incoming: TaskFormViewModel?
     @State private var pull: CGFloat = 0
     @State private var pullingCardID: String?
+    @State private var expandedSectionsByCard: [String: Set<TaskDetailSection>] = [:]
     @State private var expandedSheet = false
     @State private var settling = false
     @State private var requestSwitch: ((String) -> Void)?
@@ -36,7 +37,9 @@ struct TaskFormScreen: View {
                     onFamilyLoaded: receiveFamily,
                     onFamilySelected: { finishSelection($0, width: geometry.size.width) },
                     onSwitchAvailable: { requestSwitch = $0 },
-                    onSelectionFailed: resetPull)
+                    onSelectionFailed: resetPull,
+                    initialExpandedSections: expandedSections(for: model),
+                    onExpandedSectionsChanged: { storeExpandedSections($0, for: model) })
                     .id(selectedCardID ?? "new")
                     .blur(radius: reduceMotion ? 0 : 2.4 * pullProgress(width: geometry.size.width))
                     .opacity(reduceMotion ? 1 : 1 - 0.14 * latePullProgress(width: geometry.size.width))
@@ -47,7 +50,10 @@ struct TaskFormScreen: View {
                     }
                 if let incoming, pull > 0 {
                     TaskCardContent(model: incoming, expanding: false, family: [],
-                        onFamilyLoaded: { _ in }, onFamilySelected: { _ in }, preview: true)
+                        onFamilyLoaded: { _ in }, onFamilySelected: { _ in },
+                        initialExpandedSections: expandedSections(for: incoming),
+                        onExpandedSectionsChanged: { storeExpandedSections($0, for: incoming) },
+                        preview: true)
                         .background(Color.tfBackground.ignoresSafeArea())
                         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14))
                         .shadow(color: Color.black.opacity(0.32), radius: 22, x: -10)
@@ -72,12 +78,18 @@ struct TaskFormScreen: View {
             .overlay(alignment: .leading) {
                 if expandedSheet, family.count > 1,
                    let active = family.first(where: { $0.id == selectedCardID }) {
-                    Color.clear.frame(width: 32, height: 100)
+                    let activeHeight = TaskFamilyEdgeTabs.slotHeight(
+                        height: geometry.size.height,
+                        count: max(1, family.count - 1)
+                    )
+                    Color.clear.frame(width: 32, height: activeHeight)
                         .overlay(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 9)
-                                .fill(Color.tfCard2)
-                                .frame(width: 14, height: 100)
-                                .offset(x: -8)
+                            UnevenRoundedRectangle(bottomTrailingRadius: TaskFamilyEdgeTabs.cornerRadius,
+                                topTrailingRadius: TaskFamilyEdgeTabs.cornerRadius)
+                                .fill(TaskFamilyEdgeTabs.fillColor)
+                                .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: activeHeight)
+                                .shadow(color: Color.black.opacity(0.3), radius: 8, x: 5)
+                                .offset(x: -18)
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Открытая карточка: \(active.title)")
@@ -186,6 +198,16 @@ struct TaskFormScreen: View {
         max(0, (pullProgress(width: width) - 0.55) / 0.45)
     }
 
+    private func expandedSections(for model: TaskFormViewModel) -> Set<TaskDetailSection> {
+        guard let id = model.taskID else { return [] }
+        return expandedSectionsByCard[id] ?? []
+    }
+
+    private func storeExpandedSections(_ sections: Set<TaskDetailSection>, for model: TaskFormViewModel) {
+        guard let id = model.taskID else { return }
+        expandedSectionsByCard[id] = sections
+    }
+
     @ViewBuilder
     private func attachedPullHandle(height: CGFloat) -> some View {
         if let pullingCardID {
@@ -194,9 +216,11 @@ struct TaskFormScreen: View {
             VStack(spacing: 8) {
                 ForEach(remaining, id: \.element.id) { index, member in
                     if member.id == pullingCardID {
-                        UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10)
-                            .fill(Color.tfBackground)
-                            .frame(width: 26, height: slotHeight)
+                        UnevenRoundedRectangle(topLeadingRadius: TaskFamilyEdgeTabs.cornerRadius,
+                            bottomLeadingRadius: TaskFamilyEdgeTabs.cornerRadius)
+                            .fill(TaskFamilyEdgeTabs.fillColor)
+                            .frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
+                            .shadow(color: Color.black.opacity(0.3), radius: 8, x: -5)
                             .overlay {
                                 if index == 0 {
                                     Image(systemName: "square.stack")
@@ -209,7 +233,7 @@ struct TaskFormScreen: View {
                                 }
                             }
                     } else {
-                        Color.clear.frame(width: 26, height: slotHeight)
+                        Color.clear.frame(width: TaskFamilyEdgeTabs.expandedWidth, height: slotHeight)
                     }
                 }
             }
@@ -223,6 +247,11 @@ struct TaskFormScreen: View {
 
 /// A transparent edge hit area; only a few points of each bookmark remain visible.
 struct TaskFamilyEdgeTabs: View {
+    static let restingWidth: CGFloat = 10
+    static let expandedWidth: CGFloat = 26
+    static let cornerRadius: CGFloat = 10
+    static let fillColor = Color.tfCard2.opacity(0.48)
+
     let members: [ApiTask]
     let selectedID: String?
     private var remaining: [(offset: Int, element: ApiTask)] {
@@ -255,9 +284,12 @@ struct TaskFamilyEdgeTabs: View {
                     prepare(member.id)
                     select(member.id)
                 } label: {
-                    UnevenRoundedRectangle(topLeadingRadius: 9, bottomLeadingRadius: 9)
-                        .fill(Color.tfCard2)
-                        .frame(width: hovered == member.id ? 36 : 5, height: slotHeight)
+                    UnevenRoundedRectangle(topLeadingRadius: Self.cornerRadius,
+                        bottomLeadingRadius: Self.cornerRadius)
+                        .fill(Self.fillColor)
+                        .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
+                            height: slotHeight)
+                        .shadow(color: Color.black.opacity(0.3), radius: 8, x: -5)
                         .overlay {
                             if hovered == member.id {
                                 if index == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
@@ -268,6 +300,7 @@ struct TaskFamilyEdgeTabs: View {
                         .contentShape(Rectangle())
                 }
                 .opacity(pullingCardID == member.id ? 0 : 1)
+                .offset(x: pullingCardID == nil || pullingCardID == member.id ? 0 : min(40, pull * 0.45))
                 .buttonStyle(.plain)
                 .accessibilityLabel(member.title)
                 .accessibilityIdentifier("task.family.\(member.id)")

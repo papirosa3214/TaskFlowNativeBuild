@@ -100,7 +100,7 @@ struct TaskCardContent: View {
     /// что сейчас в работе. Раньше (LOCK-248) по умолчанию были раскрыты
     /// «Сведения» и «Лента активности». Без `AppStorage` — состояние живёт в
     /// текущей сессии экрана и сбрасывается при каждом открытии карточки.
-    @State private var expandedSections: Set<TaskDetailSection> = []
+    @State private var expandedSections: Set<TaskDetailSection>
     /// Итог карточки — секция «Итог» (LOCK-273). nil — не загружен или пуст.
     @State private var outcome: ApiTaskOutcome?
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
@@ -130,6 +130,7 @@ struct TaskCardContent: View {
     let onFamilySelected: (String) -> Void
     let onSwitchAvailable: (((String) -> Void)?) -> Void
     let onSelectionFailed: () -> Void
+    let onExpandedSectionsChanged: (Set<TaskDetailSection>) -> Void
     let preview: Bool
     @State private var switchingFamily = false
     @State private var leavingFamily = false
@@ -141,7 +142,10 @@ struct TaskCardContent: View {
          onFamilyLoaded: @escaping ([ApiTask]) -> Void,
          onFamilySelected: @escaping (String) -> Void,
          onSwitchAvailable: @escaping (((String) -> Void)?) -> Void = { _ in },
-         onSelectionFailed: @escaping () -> Void = {}, preview: Bool = false) {
+         onSelectionFailed: @escaping () -> Void = {},
+         initialExpandedSections: Set<TaskDetailSection> = [],
+         onExpandedSectionsChanged: @escaping (Set<TaskDetailSection>) -> Void = { _ in },
+         preview: Bool = false) {
         taskID = model.taskID
         _viewModel = State(initialValue: model)
         _showQuickAdd = State(initialValue: model.taskID == nil && !expanding)
@@ -151,7 +155,9 @@ struct TaskCardContent: View {
         self.onFamilySelected = onFamilySelected
         self.onSwitchAvailable = onSwitchAvailable
         self.onSelectionFailed = onSelectionFailed
+        self.onExpandedSectionsChanged = onExpandedSectionsChanged
         self.preview = preview
+        _expandedSections = State(initialValue: initialExpandedSections)
         _newSubtaskBlocks = State(initialValue: model.pendingNewStepBlocks ?? [NoteBlock(kind: .paragraph)])
         _insertSubtaskBlocks = State(initialValue: model.pendingInsertedStepBlocks ?? [NoteBlock(kind: .paragraph)])
         _insertAfterSubtaskID = State(initialValue: model.pendingInsertAfterStepID)
@@ -1099,8 +1105,8 @@ struct TaskCardContent: View {
             // карточка задачи не рисует.
     }
 
-    /// Тапабельный заголовок секции-«аккордеона»: тот же `taskSectionHeader`,
-    /// + справа шеврон (вверх/вниз) — единственный сигнал свёрнутости.
+    /// Тапабельный заголовок секции-«аккордеона»: вся строка переключает
+    /// состояние; отдельный шеврон не рисуем, чтобы не создавать визуальный шум.
     /// Тап переключает членство в `expandedSections` с пружинистой
     /// анимацией; само содержимое секции оборачивается через
     /// `collapsibleSection` (LOCK-248).
@@ -1110,15 +1116,16 @@ struct TaskCardContent: View {
         return HStack(spacing: TFSpacing.sm) {
             Button {
                 withAnimation(.easeInOut(duration: TFDuration.fast)) {
-                    if expanded { expandedSections.remove(section) }
-                    else { expandedSections.insert(section) }
+                    var next = expandedSections
+                    if expanded { next.remove(section) }
+                    else { next.insert(section) }
+                    expandedSections = next
+                    onExpandedSectionsChanged(next)
                 }
             } label: {
                 HStack {
                     taskSectionHeader(title)
                     Spacer(minLength: 0)
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
                 }.contentShape(Rectangle())
             }
             .buttonStyle(.plain)
