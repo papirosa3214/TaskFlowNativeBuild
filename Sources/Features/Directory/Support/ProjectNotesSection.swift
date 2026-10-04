@@ -48,6 +48,11 @@ struct ProjectNotesSection: View {
     @State private var pendingNoteID: String?
     @State private var errorMessage: String?
     @State private var dateFilter: NotesDateFilter = .all
+    /// Папка документации свёрнута/развёрнута. По умолчанию развёрнута — как
+    /// было видно до этой правки; тап по строкке папки сворачивает документы
+    /// в неё, а не уводит на экран папки (владелец 05.10.2026: «я просто
+    /// должен сворачивать папку, никуда я не провалюсь»).
+    @State private var docsExpanded = true
 
     private let apiClient = APIClient()
 
@@ -95,7 +100,27 @@ struct ProjectNotesSection: View {
 
     private func folderSection(_ folder: APIClient.DirectoryProjectDocs.FolderRef) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            NavigationLink(value: AppRoute.noteFolder(folderID: folder.id)) {
+            // Фильтр по дате правки — НАД папкой (владелец 05.10.2026:
+            // «не под папкой, а над папкой»). Он относится к списку
+            // документов, поэтому показывается вместе с ним — в свёрнутой
+            // папке остаётся одна строка с названием и числом.
+            if docsExpanded && !(docs?.notes ?? []).isEmpty {
+                Picker("Обновлены", selection: $dateFilter) {
+                    ForEach(NotesDateFilter.allCases) { f in
+                        Text(f.label).tag(f)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, TFSpacing.xs)
+            }
+
+            // Строка папки — раскрывашка, а не переход: тап сворачивает
+            // документы в папку и обратно (владелец 05.10.2026). Шеврон
+            // поворачивается вниз, когда документы открыты; системный вид, без
+            // своих подложек и рамок.
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { docsExpanded.toggle() }
+            } label: {
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: "folder")
                         .tfText(.title)
@@ -111,26 +136,28 @@ struct ProjectNotesSection: View {
                     Image(systemName: "chevron.right")
                         .tfText(.action)
                         .foregroundStyle(Color.tfDim)
+                        .rotationEffect(.degrees(docsExpanded ? 90 : 0))
                 }
                 .frame(minHeight: 42)
             }
             .buttonStyle(TFTapRowStyle())
+            .accessibilityIdentifier("projectDocsFolder")
+            .accessibilityLabel(folder.name)
+            .accessibilityValue(docsExpanded ? "развёрнуто" : "свёрнуто")
+            .accessibilityHint("Свернуть или развернуть документы")
 
-            // Фильтр по дате правки — день / неделя / месяц / всё.
-            // Локальный, не дёргает сервер: список заметок уже загружен,
-            // `updated_at` есть в каждой записи. На самом деле это и не могло
-            // бы быть серверным — папка одна, заметок мало, фильтр тут же.
-            if !(docs?.notes ?? []).isEmpty {
-                Picker("Обновлены", selection: $dateFilter) {
-                    ForEach(NotesDateFilter.allCases) { f in
-                        Text(f.label).tag(f)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.leading, TFSpacing.lg)
-                .padding(.top, TFSpacing.xs)
+            if docsExpanded {
+                folderDocuments
             }
+        }
+    }
 
+    /// Документы папки: список заметок и «Открепить папку». Живут только в
+    /// развёрнутом виде — свёрнутая папка показывает одну строку с названием
+    /// и числом документов.
+    @ViewBuilder
+    private var folderDocuments: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
             if filteredNotes.isEmpty {
                 Text(filteredNotesHint)
                     .tfText(.action)
