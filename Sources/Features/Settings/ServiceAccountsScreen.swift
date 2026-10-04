@@ -165,6 +165,11 @@ struct ServiceAccountsScreen: View {
     @State private var pendingDelete: ApiUser?
     @State private var isKeyCopied = false
     @State private var expandedInfo: ClientInfoRow?
+    @State private var isComposioExpanded: Bool
+
+    init(composioExpanded: Bool = false) {
+        _isComposioExpanded = State(initialValue: composioExpanded)
+    }
 
     var body: some View {
         // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
@@ -179,6 +184,8 @@ struct ServiceAccountsScreen: View {
                     Text("Подключение сторонних ИИ-агентов и программ к TaskFlow по протоколу MCP (Model Context Protocol): Гермес, Claude Code, DSH и любой другой MCP-клиент. Подключившийся получает инструкцию и инструменты ниже и работает под своей учёткой с отдельным ключом. Роли TaskFlow сюда не относятся — их запускает сам сервер, и набор у них шире.")
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
+
+                    composioSection
 
                     clientInfoSection
 
@@ -229,6 +236,31 @@ struct ServiceAccountsScreen: View {
             Button("Отмена", role: .cancel) { renameTarget = nil }
         } message: {
             Text(viewModel.renameErrorMessage ?? "")
+        }
+    }
+
+    private var composioSection: some View {
+        TFCard(padding: 0) {
+            VStack(spacing: 0) {
+                Button {
+                    withAnimation(.easeInOut(duration: TFDuration.fast)) { isComposioExpanded.toggle() }
+                } label: {
+                    TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"),
+                        title: "Composio", subtitle: "Аккаунты сервисов и доступ ролей",
+                        trailing: AnyView(Image(systemName: "chevron.right")
+                            .font(.system(size: 13)).foregroundStyle(Color.tfDim)
+                            .rotationEffect(.degrees(isComposioExpanded ? 90 : 0))),
+                        titleStyle: .action, verticalPadding: TFSpacing.xs)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("mcp.composio")
+                .accessibilityValue(isComposioExpanded ? "Развернут" : "Свернут")
+                if isComposioExpanded {
+                    ComposioIntegrationsScreen(embedded: true)
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.bottom, TFSpacing.md)
+                }
+            }
         }
     }
 

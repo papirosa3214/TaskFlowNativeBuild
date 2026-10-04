@@ -41,8 +41,12 @@ public extension APIClient {
     /// кнопку владельцу. Утверждение сразу материализует узлы плана как
     /// подзадачи и стартует корневые узлы графа.
     @discardableResult
-    func approveCollaborationPlan(taskId: String, planId: String) async throws -> ApiCollaborationPlan {
-        let envelope: CollaborationPlanEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/\(planId)/approve")
+    func approveCollaborationPlan(taskId: String, planId: String, branchSnapshot: String? = nil) async throws -> ApiCollaborationPlan {
+        struct Body: Encodable {
+            let branchSnapshot: String?
+            enum CodingKeys: String, CodingKey { case branchSnapshot = "branch_snapshot" }
+        }
+        let envelope: CollaborationPlanEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/\(planId)/approve", body: Body(branchSnapshot: branchSnapshot))
         return envelope.plan
     }
 
@@ -82,12 +86,12 @@ public extension APIClient {
     /// отвечает 409, и экран перечитывает план, не теряя введённого.
     @discardableResult
     func applyCollaborationPlanOps(taskId: String, planId: String, baseVersion: Int?, ops: [ApiPlanOp],
-                                   reason: String? = nil) async throws -> ApiCollaborationPlan {
-        struct Body: Encodable { let base_version: Int?; let ops: [ApiPlanOp]; let reason: String? }
+                                   reason: String? = nil, branchSnapshot: String? = nil) async throws -> ApiCollaborationPlan {
+        struct Body: Encodable { let base_version: Int?; let ops: [ApiPlanOp]; let reason: String?; let branch_snapshot: String? }
         let envelope: CollaborationPlanEnvelope = try await request(
             .post,
             "/tasks/\(taskId)/collaboration-plans/\(planId)/ops",
-            body: Body(base_version: baseVersion, ops: ops, reason: reason)
+            body: Body(base_version: baseVersion, ops: ops, reason: reason, branch_snapshot: branchSnapshot)
         )
         return envelope.plan
     }

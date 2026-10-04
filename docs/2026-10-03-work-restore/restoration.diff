@@ -1,0 +1,165 @@
+--- before/Sources/Features/Task/TaskFormScreen.swift
++++ after/Sources/Features/Task/TaskFormScreen.swift
+@@ -1307,7 +1307,7 @@
+     /// один жест значил бы две разные вещи.
+     @ViewBuilder
+     private func nativeSubtaskRow(_ subtask: ApiSubtask) -> some View {
+-        let isRunning = subtask.state == .running
++        let isRunning = !subtask.done && (subtask.state == .running || subtask.agentState == .inProgress)
+         let hasDetails = subtask.result?.isEmpty == false
+             || subtask.agentState == .blocked
+             || subtask.agentState == .review
+@@ -1424,6 +1424,10 @@
+     private func subtaskMark(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
+         if isRunning {
+             TFSubtaskStatusRing(.running)
++        } else if subtask.agentState == .blocked || subtask.state == .blocked {
++            TFSubtaskStatusRing(.blocked)
++        } else if subtask.agentState == .review || subtask.state == .review {
++            TFSubtaskStatusRing(.review)
+         } else {
+             Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
+                 .font(.system(size: 20))
+--- before/Sources/Features/Task/TaskFormViewModel.swift
++++ after/Sources/Features/Task/TaskFormViewModel.swift
+@@ -416,12 +416,7 @@
+             NSLog("[TFACT] taskID пуст")
+             return
+         }
+-        guard originalTask?.agentState == .inProgress,
+-              originalTask?.agentStale != true else {
+-            activity = .idle
+-            NSLog("[TFACT] пропуск: state=\(String(describing: originalTask?.agentState)) stale=\(String(describing: originalTask?.agentStale)) original=\(originalTask == nil ? "nil" : "есть")")
+-            return
+-        }
++        // Сервер проверяет актуальную аренду; клиент не скрывает поток по устаревшему снимку карточки.
+         do {
+             let fresh = try await apiClient.taskActivity(taskId: taskID)
+             activity = fresh
+--- before/Sources/Features/Task/Detail/CollaborationPlanView.swift
++++ after/Sources/Features/Task/Detail/CollaborationPlanView.swift
+@@ -46,18 +46,17 @@
+     private var roleOptions: [PlanRoleOption] { state.roleTitles.keys.sorted().map { PlanRoleOption(key: $0, title: graphTitle(for: $0)) } }
+     /// Живой план (01.10.2026): открытый лист шага / редактора.
+     @State private var sheet: PlanSheet?
++    @State private var detailSubtasks: [String: [ApiSubtask]] = [:]
+     @State private var isApplying = false
+     @State private var errorMessage: String?
+
+     private enum PlanSheet: Identifiable {
+         case detail(planID: String, slot: String)
+-        case participant(planID: String, role: String)
+         case add(planID: String)
+         case edit(planID: String, slot: String)
+
+         var id: String {
+             switch self {
+-            case .participant(let plan, let role): "participant-\(plan)-\(role)"
+             case .detail(let plan, let slot): "detail-\(plan)-\(slot)"
+             case .add(let plan): "add-\(plan)"
+             case .edit(let plan, let slot): "edit-\(plan)-\(slot)"
+@@ -129,34 +128,13 @@
+     @ViewBuilder
+     private func sheetView(_ sheet: PlanSheet) -> some View {
+         switch sheet {
+-        case .participant(let planID, let role):
+-            if let plan = planWith(planID) {
+-                NavigationStack {
+-                    List {
+-                        ForEach(plan.nodes.filter { $0.roleKey == role && !$0.isSkipped }) { node in
+-                            Button {
+-                                self.sheet = .detail(planID: planID, slot: node.slotKey)
+-                            } label: {
+-                                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+-                                    let number = plan.branchCards?.first { $0.id == node.taskId }?.tabNumber
+-                                    Text("\(number.map { $0 == 0 ? "Главная" : "№\($0)" } ?? "Задача") · \(node.taskTitle ?? "")")
+-                                        .tfText(.action).foregroundStyle(Color.tfText)
+-                                    Text(node.expectedResult).tfText(.caption).foregroundStyle(Color.tfSub)
+-                                }
+-                            }
+-                            .accessibilityIdentifier("participant-slot-\(node.slotKey)")
+-                        }
+-                    }
+-                    .navigationTitle(graphTitle(for: role))
+-                    .tint(Color.tfText)
+-                }
+-                .presentationDetents([.medium, .large])
+-            }
+         case .detail(let planID, let slot):
+             if let plan = planWith(planID), let node = plan.nodes.first(where: { $0.slotKey == slot }) {
+                 let subtask = subtaskFor(plan: plan, slot: slot)
+                 PlanStepDetailSheet(
+                     node: node,
++                    assignments: plan.branchTeam == nil ? [] : plan.nodes.filter { $0.roleKey == node.roleKey && !$0.isSkipped },
++                    onSelectAssignment: { self.sheet = .detail(planID: planID, slot: $0) },
+                     plan: plan,
+                     subtask: subtask,
+                     roleTitle: graphTitle(for:),
+@@ -173,6 +151,11 @@
+                     }
+                 )
+                 .presentationDetents([.medium, .large])
++                .task(id: node.slotKey) {
++                    if let cardID = node.taskId, let steps = try? await api.subtasks(taskId: cardID) {
++                        if detailSubtasks[cardID] != steps { detailSubtasks[cardID] = steps }
++                    }
++                }
+             }
+         case .add(let planID):
+             if let plan = planWith(planID) {
+@@ -215,9 +198,11 @@
+     }
+
+     private func subtaskFor(plan: ApiCollaborationPlan, slot: String) -> ApiSubtask? {
+-        let fresh = subtasks.filter { $0.collaborationPlanId == plan.id }
+-        let source = fresh.isEmpty ? planSubtasks : fresh
+-        return source.first { $0.planNodeKey == slot }
++        let node = plan.nodes.first { $0.slotKey == slot }
++        let sourcePlan = node?.sourcePlanId ?? plan.id
++        let sourceSlot = node?.sourceSlotKey ?? slot
++        let source = node?.taskId.flatMap { detailSubtasks[$0] } ?? (subtasks + planSubtasks)
++        return source.first { $0.collaborationPlanId == sourcePlan && $0.planNodeKey == sourceSlot }
+     }
+
+     /// Менять можно только неначатый шаг и только владельцу: у черновика —
+@@ -377,8 +362,12 @@
+                 entries: graphEntries(for: plan),
+                 edges: graphEdges(for: plan),
+                 onTap: { slot in
+-                    if plan.branchTeam != nil { sheet = .participant(planID: plan.id, role: slot) }
+-                    else { sheet = .detail(planID: plan.id, slot: slot) }
++                    let assignments = plan.nodes.filter { $0.roleKey == slot && !$0.isSkipped }
++                    let node = assignments.first { $0.executionState == "active" }
++                        ?? assignments.first { ["blocked", "returned", "review"].contains($0.executionState ?? "") }
++                        ?? assignments.first { $0.executionState != "accepted" }
++                        ?? assignments.first
++                    sheet = .detail(planID: plan.id, slot: plan.branchTeam == nil ? slot : (node?.slotKey ?? slot))
+                 }
+             )
+             ownerControls(for: plan)
+@@ -396,7 +385,7 @@
+         case .inProgress: return "active"
+         case .blocked: return "blocked"
+         case .review: return "review"
+-        case .todo, .none: return "waiting"
++        case .todo, .none: return subtask.state == .running ? "active" : "waiting"
+         }
+     }
+
+@@ -495,6 +484,7 @@
+ /// роли: источник ожидания считывается по входящим линиям, поэтому текст не
+ /// дублирует сам граф.
+ private struct CollaborationPlanGraph: View {
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+     struct Entry: Identifiable {
+         let slotKey: String
+         let roleKey: String
+@@ -660,7 +650,7 @@
+                 case "waiting":
+                     Text("zz").tfText(.caption).fontWeight(.semibold)
+                 case "active":
+-                    ProgressView().controlSize(.mini).tint(Color.tfSub)
++                    Image(systemName: "hammer.fill").symbolEffect(.wiggle, options: .repeating, isActive: !reduceMotion)
+                 case "accepted":
+                     Image(systemName: "checkmark")
+                 case "blocked", "returned":

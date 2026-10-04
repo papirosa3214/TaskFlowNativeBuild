@@ -47,6 +47,7 @@ final class LinearImportTests: XCTestCase {
         let ok = await model.commit(); XCTAssertTrue(ok)
         let calls = await api.calls(); XCTAssertEqual(calls, ["preview-1"])
         XCTAssertNil(model.preview); XCTAssertEqual(model.result?.created, 2)
+        XCTAssertEqual(model.importedPreview?.items.count, 2)
     }
     @MainActor func testFailedConfirmationKeepsSamePreviewForIdempotentRetry() async {
         let api = FixtureLinearAPI(), model = LinearImportViewModel(api: api)

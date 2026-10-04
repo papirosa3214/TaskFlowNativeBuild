@@ -11,6 +11,9 @@ struct ChatScreen: View {
     @Environment(\.chatBackAction) private var chatBack
     @State private var viewModel = ChatViewModel()
     @State private var isClearConfirmOpen = false
+    /// Лента прокручена не вниз — тогда над ней висит кнопка «вниз»
+    /// (владелец 03.10.2026).
+    @State private var isNearBottom = true
     /// Пушем экран открывает системная кнопка «назад» — тогда своя не нужна.
     var hidesOwnBackButton = false
 
@@ -132,7 +135,12 @@ struct ChatScreen: View {
                             .padding(.top, TFSpacing.md)
                     }
 
-                    ForEach(viewModel.messages) { message in
+                    // Перед первым сообщением нового дня — плашка даты
+                    // («когда заканчивается день», владелец 03.10.2026).
+                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                        if dayStarts.contains(index) {
+                            ChatFeedDivider(title: ChatDayLabel.label(raw: message.createdAt) ?? "")
+                        }
                         ChatBubble(
                             message: message,
                             mine: message.fromUserId == viewModel.currentUserId,
@@ -143,6 +151,14 @@ struct ChatScreen: View {
                         .id(message.id)
                     }
 
+                    // Плашка даты последнего сообщения — «сессия закрыта»
+                    // (владелец 03.10.2026): сразу видно, когда переписка
+                    // закончилась. Выше «печатает…»: та строка то появляется,
+                    // то уходит, а плашка должна висеть на месте.
+                    if let feedEndLabel {
+                        ChatFeedDivider(title: feedEndLabel, identifier: "chat.day.end")
+                    }
+
                     TypingLine(typists: viewModel.visibleTypists)
                         .id("typing-line")
                 }
@@ -150,9 +166,40 @@ struct ChatScreen: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .hideComposerScrollEdgeEffect()
+            // Уехал вверх — над лентой всплывает кнопка «вниз» (владелец
+            // 03.10.2026: «чтобы не скролил, а кнопочку нажал»).
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height - geometry.visibleRect.maxY <= 80
+            } action: { _, nearBottom in
+                isNearBottom = nearBottom
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if !isNearBottom {
+                    ChatScrollToBottomButton {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            proxy.scrollTo("typing-line", anchor: .bottom)
+                        }
+                    }
+                    .padding(.trailing, TFSpacing.lg)
+                    .padding(.bottom, TFSpacing.md)
+                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                }
+            }
+            .animation(.easeOut(duration: TFDuration.base), value: isNearBottom)
             .onChange(of: viewModel.messages.count) { _, _ in scrollToBottom(proxy) }
             .onChange(of: viewModel.visibleTypists) { _, _ in scrollToBottom(proxy) }
         }
+    }
+
+    /// Индексы сообщений, перед которыми лента ставит плашку даты: первый и
+    /// каждый, где день сменился (владелец 03.10.2026).
+    private var dayStarts: Set<Int> {
+        ChatDayMarker.dayStarts(in: viewModel.messages, createdAt: \.createdAt)
+    }
+
+    /// Подпись закрывающей плашки внизу ленты — дата последнего сообщения.
+    private var feedEndLabel: String? {
+        ChatDayLabel.label(raw: viewModel.messages.last?.createdAt)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {

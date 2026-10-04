@@ -9,6 +9,8 @@ import SwiftUI
 /// `ScreenHeader.tsx` 27.08.2026), а нативный `TFScreenHeader.large` стрелку
 /// не рисует вовсе — гэп, не мой файл чинить.
 struct SettingsScreen: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(AppAppearance.storageKey) private var appearanceRaw = AppAppearance.dark.rawValue
     @State private var appIconSheetOpen = false
     @State private var appIcon: AppIconOption = .current
     @Environment(SessionStore.self) private var session
@@ -95,10 +97,31 @@ struct SettingsScreen: View {
         )
     }
 
+    private var darkThemeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                let appearance = AppAppearance(rawValue: appearanceRaw) ?? .dark
+                return (appearance.colorScheme ?? colorScheme) == .dark
+            },
+            set: { isDark in
+                appearanceRaw = (isDark ? AppAppearance.dark : .light).rawValue
+            }
+        )
+    }
+
     @ViewBuilder
     private var userSettingsSection: some View {
         section(title: "Пользовательские настройки", isExpanded: $userSettingsExpanded) {
-            toggleRow(icon: "moon", title: "Тема", isOn: $viewModel.isDarkTheme)
+            TFListRow(
+                icon: "moon", iconStyle: .plain, title: "Тема",
+                trailing: AnyView(
+                    TFToggle(isOn: darkThemeBinding)
+                        .accessibilityLabel("Тёмная тема")
+                        .accessibilityIdentifier("settings.appearance")
+                ),
+                titleStyle: .action,
+                verticalPadding: TFSpacing.xs
+            )
             if viewModel.isBiometryAvailable {
                 TFDivider(inset: rowDividerInset)
                 toggleRow(icon: viewModel.biometryKind == .faceID ? "faceid" : "touchid", title: viewModel.biometryLabel, isOn: $viewModel.isBiometryEnabled)

@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "AA1DE3E4-044A-433E-9AC5-39317406B71D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "dark-overview_0_CE0718AC-D77C-46ED-B5ED-D76855164948.png",
+        "timestamp" : 1791044449.097
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "DA9C3ACD-8269-4626-AD91-F58FAABDB530.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-planning_0_2E0CB85B-1B55-4065-AEBE-C7F0D92ECBBC.png",
+        "timestamp" : 1791044443.07
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "332F9D8F-E2D8-461C-B4CC-3DF35D163FA7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-overview_0_50CB21A4-68E7-418E-B018-D22DEF1F4E9B.png",
+        "timestamp" : 1791044441.452
+      }
+    ],
+    "testIdentifier" : "LightThemePreviewUITests/testActualScreensInLightTheme()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/LightThemePreviewUITests/testActualScreensInLightTheme"
+  }
+]

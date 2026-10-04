@@ -29,6 +29,13 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
     public let reworkOfKey: String?
     public let skippedAt: String?
     public let skipReason: String?
+    public let taskId: String?
+    public let taskTitle: String?
+    public let executionState: String?
+    public let sourcePlanStatus: String?
+    public let sourcePlanId: String?
+    public let sourceSlotKey: String?
+    public let responsible: Bool?
 
     public var id: String { slotKey }
     public var isSkipped: Bool { skippedAt != nil }
@@ -44,6 +51,9 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
         case reworkOfKey = "rework_of_key"
         case skippedAt = "skipped_at"
         case skipReason = "skip_reason"
+        case taskId = "task_id", taskTitle = "task_title", executionState = "execution_state"
+        case sourcePlanStatus = "source_plan_status"
+        case sourcePlanId = "source_plan_id", sourceSlotKey = "source_slot_key", responsible
     }
 }
 
@@ -111,6 +121,21 @@ public struct ApiCollaborationPlanEdge: Codable, Sendable, Hashable {
     }
 }
 
+public struct ApiBranchTeamMember: Codable, Sendable, Hashable {
+    public let roleKey: String
+    public let slotKeys: [String]
+    public let taskNumbers: [Int]
+    public let executionState: String
+    enum CodingKeys: String, CodingKey {
+        case roleKey = "role_key", slotKeys = "slot_keys", taskNumbers = "task_numbers", executionState = "execution_state"
+    }
+}
+public struct ApiBranchCard: Codable, Sendable, Hashable {
+    public let id: String
+    public let tabNumber: Int
+    enum CodingKeys: String, CodingKey { case id, tabNumber = "tab_number" }
+}
+
 public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let taskId: String
@@ -123,12 +148,18 @@ public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {
     /// Версия живого плана — для проверки конкурентных правок.
     public let version: Int?
     public let pendingProposals: [ApiPlanProposal]?
+    public let branchSnapshot: String?
+    public let branchRootTaskId: String?
+    public var branchTeam: [ApiBranchTeamMember]? = nil
+    public var branchCards: [ApiBranchCard]? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
         case taskId = "task_id"
         case revision, status, profile, rationale, nodes, edges, version
         case pendingProposals = "pending_proposals"
+        case branchSnapshot = "branch_snapshot", branchRootTaskId = "branch_root_task_id"
+        case branchTeam = "branch_team", branchCards = "branch_cards"
     }
 }
 

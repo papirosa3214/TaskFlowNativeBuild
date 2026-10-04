@@ -17,7 +17,7 @@ public struct ApiTaskActivity: Codable, Sendable, Hashable {
 
     public static let idle = ApiTaskActivity(text: nil, actions: [])
 
-    public var isActive: Bool { text?.isEmpty == false }
+    public var isActive: Bool { text?.isEmpty == false || !actions.isEmpty }
 }
 
 public struct ApiTaskActivityAction: Codable, Sendable, Hashable, Identifiable {

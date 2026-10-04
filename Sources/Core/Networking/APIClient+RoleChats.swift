@@ -13,6 +13,19 @@ private struct CreateRoleChatBody: Encodable {
 }
 
 public extension APIClient {
+    func projectChat(projectID: String) async throws -> RoleChat {
+        let response: RoleChatEnvelope = try await request(.post, "/projects/\(projectID)/chat", body: [String: String]())
+        return response.chat
+    }
+    func taskTopic(taskID: String) async throws -> RoleChat {
+        let response: RoleChatEnvelope = try await request(.post, "/tasks/\(taskID)/topic", body: [String: String]())
+        return response.chat
+    }
+    func chatTopics(chatID: String) async throws -> [RoleChat] {
+        let response: RoleChatsEnvelope = try await request(.get, "/chats/\(chatID)/topics")
+        return response.chats
+    }
+
     func roleChats() async throws -> [RoleChat] {
         let response: RoleChatsEnvelope = try await request(.get, "/chats")
         return response.chats
@@ -40,6 +53,20 @@ public extension APIClient {
 
     /// Идущие сейчас ходы ролей в чате — снимок для открывшего чат посреди
     /// ответа или после переподключения; дальше обновления идут `chats:live`.
+    func reactToRoleChatMessage(chatID: String, messageID: String, emoji: String?) async throws -> RoleChatMessage {
+        struct Body: Encodable {
+            let emoji: String?
+            enum CodingKeys: String, CodingKey { case emoji }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                if let emoji { try container.encode(emoji, forKey: .emoji) }
+                else { try container.encodeNil(forKey: .emoji) }
+            }
+        }
+        let response: RoleChatMessageEnvelope = try await request(.post, "/chats/\(chatID)/messages/\(messageID)/reaction", body: Body(emoji: emoji))
+        return response.message
+    }
+
     func roleChatLive(id: String) async throws -> [RoleChatLiveTurn] {
         let response: RoleChatLiveEnvelope = try await request(.get, "/chats/\(id)/live")
         return response.turns

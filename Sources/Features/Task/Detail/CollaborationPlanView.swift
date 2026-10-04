@@ -24,12 +24,15 @@ public struct CollaborationPlanView: View {
     /// в каком был при открытии (владелец 01.10.2026, T05: «исследователь в
     /// работе» всю дорогу, хотя пятеро уже сдали).
     var subtasks: [ApiSubtask] = []
+    var allowsPlanChanges = true
     /// Родитель прячет весь `Section` целиком, пока плана нет — иначе на
     /// 99% карточек без плана оставалась бы пустая секция с системными
     /// отступами. Обновляется по факту загрузки, не заранее.
     @Binding var hasApprovedPlan: Bool
 
-    @State private var plan: ApiCollaborationPlan?
+    private let state: CollaborationPlanState
+    private let reloadToken: Int
+    private var plan: ApiCollaborationPlan? { state.plan }
     /// Черновик, ещё не утверждённый — LOCK-249. Показывается владельцу
     /// вместе с той же графовой раскладкой, что и approved — чтобы было
     /// видно, что именно утверждаешь. Сама кнопка «Утвердить» живёт не
@@ -37,12 +40,13 @@ public struct CollaborationPlanView: View {
     /// задачей, отдельная кнопка в теле карточки — лишняя); `id` черновика
     /// пробрасывается наружу через `pendingApprovalPlanId`, родитель зовёт
     /// API и форсирует перезагрузку этой вьюхи через `.id(...)`.
-    @State private var draftPlan: ApiCollaborationPlan?
-    @State private var planSubtasks: [ApiSubtask] = []
-    @State private var roleTitles: [String: String] = [:]
-    @State private var roleOptions: [PlanRoleOption] = []
+    private var draftPlan: ApiCollaborationPlan? { state.draftPlan }
+    private var planSubtasks: [ApiSubtask] { state.subtasks }
+    private var roleTitles: [String: String] { state.roleTitles }
+    private var roleOptions: [PlanRoleOption] { state.roleTitles.keys.sorted().map { PlanRoleOption(key: $0, title: graphTitle(for: $0)) } }
     /// Живой план (01.10.2026): открытый лист шага / редактора.
     @State private var sheet: PlanSheet?
+    @State private var detailSubtasks: [String: [ApiSubtask]] = [:]
     @State private var isApplying = false
     @State private var errorMessage: String?
 
@@ -61,20 +65,24 @@ public struct CollaborationPlanView: View {
     }
 
     @Binding var pendingApprovalPlanId: String?
+    @Binding var pendingBranchSnapshot: String?
 
     @Environment(SessionStore.self) private var session
     private var isOwner: Bool { session.currentUser?.role == .owner }
 
     private let api = APIClient()
 
-    public init(taskId: String, subtasks: [ApiSubtask] = [], hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>) {
+    public init(taskId: String, state: CollaborationPlanState? = nil, reloadToken: Int = 0, subtasks: [ApiSubtask] = [], allowsPlanChanges: Bool = true, hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>, pendingBranchSnapshot: Binding<String?> = .constant(nil)) {
         self.taskId = taskId
+        self.state = state ?? CollaborationPlanState()
+        self.reloadToken = reloadToken
         self.subtasks = subtasks
+        self.allowsPlanChanges = allowsPlanChanges
         self._hasApprovedPlan = hasApprovedPlan
         self._pendingApprovalPlanId = pendingApprovalPlanId
+        self._pendingBranchSnapshot = pendingBranchSnapshot
     }
 
-    @State private var didStartLoad = false
 
     public var body: some View {
         // Пока plan == nil, тело ниже пустое — List не шлёт onAppear
@@ -84,17 +92,23 @@ public struct CollaborationPlanView: View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear
                 .frame(width: 0, height: 0)
-                .onAppear {
-                    guard !didStartLoad else { return }
-                    didStartLoad = true
-                    Task { await load() }
-                }
             if let draftPlan, isOwner {
                 draftSection(draftPlan)
             }
             if let plan {
                 content(for: plan)
             }
+        }
+        .task(id: taskId) {
+            await load(force: false)
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                guard !isApplying else { continue }
+                await load()
+            }
+        }
+        .onChange(of: subtasks.map { "\($0.id):\($0.done):\($0.agentState?.rawValue ?? "")" }.joined(separator: "|")) { _, _ in
+            Task { await load() }
         }
         .sheet(item: $sheet) { sheet in
             sheetView(sheet)
@@ -119,10 +133,12 @@ public struct CollaborationPlanView: View {
                 let subtask = subtaskFor(plan: plan, slot: slot)
                 PlanStepDetailSheet(
                     node: node,
+                    assignments: plan.branchTeam == nil ? [] : plan.nodes.filter { $0.roleKey == node.roleKey && !$0.isSkipped },
+                    onSelectAssignment: { self.sheet = .detail(planID: planID, slot: $0) },
                     plan: plan,
                     subtask: subtask,
                     roleTitle: graphTitle(for:),
-                    stateLabel: Self.stateLabel(node.isSkipped ? "skipped" : baseState(for: subtask, plan: plan)),
+                    stateLabel: Self.stateLabel(node.isSkipped ? "skipped" : node.executionState ?? baseState(for: subtask, plan: plan)),
                     isEditable: isEditable(node, in: plan),
                     onEdit: { self.sheet = .edit(planID: planID, slot: slot) },
                     onSkip: { reason in
@@ -135,6 +151,11 @@ public struct CollaborationPlanView: View {
                     }
                 )
                 .presentationDetents([.medium, .large])
+                .task(id: node.slotKey) {
+                    if let cardID = node.taskId, let steps = try? await api.subtasks(taskId: cardID) {
+                        if detailSubtasks[cardID] != steps { detailSubtasks[cardID] = steps }
+                    }
+                }
             }
         case .add(let planID):
             if let plan = planWith(planID) {
@@ -148,9 +169,19 @@ public struct CollaborationPlanView: View {
     }
 
     private func editor(_ mode: PlanStepEditorSheet.Mode, plan: ApiCollaborationPlan) -> some View {
-        PlanStepEditorSheet(
+        let editorPlan: ApiCollaborationPlan
+        if case .edit(let node) = mode, plan.branchSnapshot != nil {
+            let local = plan.nodes.filter { $0.sourcePlanId == node.sourcePlanId }
+            let keys = Set(local.map(\.slotKey))
+            editorPlan = ApiCollaborationPlan(id: plan.id, taskId: plan.taskId, revision: plan.revision,
+                status: plan.status, profile: plan.profile, rationale: plan.rationale, nodes: local,
+                edges: plan.edges.filter { keys.contains($0.fromSlotKey) && keys.contains($0.toSlotKey) },
+                version: plan.version, pendingProposals: plan.pendingProposals,
+                branchSnapshot: plan.branchSnapshot, branchRootTaskId: plan.branchRootTaskId)
+        } else { editorPlan = plan }
+        return PlanStepEditorSheet(
             mode: mode,
-            plan: plan,
+            plan: editorPlan,
             roles: roleOptions.isEmpty
                 ? Array(Set(plan.nodes.map(\.roleKey))).sorted().map { PlanRoleOption(key: $0, title: graphTitle(for: $0)) }
                 : roleOptions,
@@ -167,27 +198,29 @@ public struct CollaborationPlanView: View {
     }
 
     private func subtaskFor(plan: ApiCollaborationPlan, slot: String) -> ApiSubtask? {
-        let fresh = subtasks.filter { $0.collaborationPlanId == plan.id }
-        let source = fresh.isEmpty ? planSubtasks : fresh
-        return source.first { $0.planNodeKey == slot }
+        let node = plan.nodes.first { $0.slotKey == slot }
+        let sourcePlan = node?.sourcePlanId ?? plan.id
+        let sourceSlot = node?.sourceSlotKey ?? slot
+        let source = node?.taskId.flatMap { detailSubtasks[$0] } ?? (subtasks + planSubtasks)
+        return source.first { $0.collaborationPlanId == sourcePlan && $0.planNodeKey == sourceSlot }
     }
 
     /// Менять можно только неначатый шаг и только владельцу: у черновика —
     /// любой, у запущенного — без галочки и без состояния работы.
     private func isEditable(_ node: ApiCollaborationPlanNode, in plan: ApiCollaborationPlan) -> Bool {
-        guard isOwner, !node.isSkipped else { return false }
+        guard isOwner, allowsPlanChanges, !node.isSkipped else { return false }
+        if plan.branchSnapshot != nil {
+            return plan.status == "draft" && node.sourcePlanStatus == "draft"
+        }
         if plan.status != "approved" { return true }
         guard let subtask = subtaskFor(plan: plan, slot: node.slotKey) else { return true }
         return !subtask.done && subtask.agentState == nil
     }
 
     private func canAddSteps(to plan: ApiCollaborationPlan) -> Bool {
-        guard isOwner else { return false }
+        guard plan.branchSnapshot == nil, isOwner, allowsPlanChanges else { return false }
         if plan.status != "approved" { return true }
-        // Сданный целиком план не растёт: новую работу — отдельной задачей.
-        return plan.nodes.contains { node in
-            !node.isSkipped && !(subtaskFor(plan: plan, slot: node.slotKey)?.done ?? false)
-        }
+        return false
     }
 
     private func apply(_ op: ApiPlanOp, to plan: ApiCollaborationPlan) async {
@@ -196,7 +229,7 @@ public struct CollaborationPlanView: View {
         defer { isApplying = false }
         do {
             let updated = try await api.applyCollaborationPlanOps(taskId: taskId, planId: plan.id,
-                                                                  baseVersion: plan.version, ops: [op])
+                                                                  baseVersion: plan.version, ops: [op], branchSnapshot: plan.branchSnapshot)
             replace(updated)
             await reloadSubtasks()
         } catch {
@@ -222,14 +255,15 @@ public struct CollaborationPlanView: View {
 
     private func replace(_ updated: ApiCollaborationPlan) {
         withAnimation(.snappy(duration: 0.25)) {
-            if plan?.id == updated.id { plan = updated }
-            if draftPlan?.id == updated.id { draftPlan = updated }
+            state.replace(updated)
+            if draftPlan?.id == updated.id { pendingBranchSnapshot = updated.branchSnapshot }
         }
     }
 
     private func reloadSubtasks() async {
         if let fresh = try? await api.subtasks(taskId: taskId) {
-            planSubtasks = fresh.filter { $0.collaborationPlanId != nil }
+            let steps = fresh.filter { $0.collaborationPlanId != nil }
+            if state.subtasks != steps { state.subtasks = steps }
         }
     }
 
@@ -250,6 +284,7 @@ public struct CollaborationPlanView: View {
                             .tfText(.action)
                     }
                     .buttonStyle(.borderless)
+                    .foregroundStyle(Color.tfDim)
                     .disabled(isApplying)
                     .accessibilityIdentifier("plan-add-step")
                 }
@@ -319,14 +354,21 @@ public struct CollaborationPlanView: View {
     @ViewBuilder
     private func content(for plan: ApiCollaborationPlan) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Text(Self.profileLabel(plan.profile))
+            Text(plan.branchSnapshot == nil ? Self.profileLabel(plan.profile) : "Общий план ветки")
                 .tfText(.title)
                 .fontWeight(.regular)
                 .foregroundStyle(Color.tfText)
             CollaborationPlanGraph(
                 entries: graphEntries(for: plan),
-                edges: plan.edges,
-                onTap: { slot in sheet = .detail(planID: plan.id, slot: slot) }
+                edges: graphEdges(for: plan),
+                onTap: { slot in
+                    let assignments = plan.nodes.filter { $0.roleKey == slot && !$0.isSkipped }
+                    let node = assignments.first { $0.executionState == "active" }
+                        ?? assignments.first { ["blocked", "returned", "review"].contains($0.executionState ?? "") }
+                        ?? assignments.first { $0.executionState != "accepted" }
+                        ?? assignments.first
+                    sheet = .detail(planID: plan.id, slot: plan.branchTeam == nil ? slot : (node?.slotKey ?? slot))
+                }
             )
             ownerControls(for: plan)
         }
@@ -338,24 +380,33 @@ public struct CollaborationPlanView: View {
     /// список узлов, а не один).
     private func baseState(for subtask: ApiSubtask?, plan: ApiCollaborationPlan) -> String {
         guard plan.status == "approved", let subtask else { return "waiting" }
-        if subtask.done { return "accepted" }
+        if subtask.done { return subtask.result?.hasPrefix("changes_requested:") == true ? "returned" : "accepted" }
         switch subtask.agentState {
         case .inProgress: return "active"
         case .blocked: return "blocked"
         case .review: return "review"
-        case .todo, .none: return "waiting"
+        case .todo, .none: return subtask.state == .running ? "active" : "waiting"
         }
     }
 
     private func graphEntries(for plan: ApiCollaborationPlan) -> [CollaborationPlanGraph.Entry] {
-        plan.nodes.map { node in
+        if let team = plan.branchTeam {
+            return team.map { member in
+                .init(slotKey: member.roleKey, roleKey: member.roleKey,
+                      title: graphTitle(for: member.roleKey), taskTitle: "team",
+                      state: member.executionState, badge: nil,
+                      taskNumbers: member.taskNumbers, isParticipant: true)
+            }
+        }
+        return plan.nodes.map { node in
             let subtask = subtaskFor(plan: plan, slot: node.slotKey)
             return .init(
                 slotKey: node.slotKey,
                 roleKey: node.roleKey,
                 title: graphTitle(for: node.roleKey),
-                state: node.isSkipped ? "skipped" : baseState(for: subtask, plan: plan),
-                badge: Self.badge(for: node)
+                taskTitle: node.taskTitle,
+                state: node.isSkipped ? "skipped" : node.executionState ?? baseState(for: subtask, plan: plan),
+                badge: node.responsible == true ? "ответственный" : Self.badge(for: node)
             )
         }
     }
@@ -363,14 +414,26 @@ public struct CollaborationPlanView: View {
     /// Пометка шага, который не из исходного шаблона.
     private static func badge(for node: ApiCollaborationPlanNode) -> String? {
         switch node.origin {
-        case "role": return "добавлен ролью"
-        case "rework": return "доработка \(node.iteration ?? 1)"
+        case "role": return node.roleKey == "critic_verifier" && (node.instructions?.hasPrefix("[taskflow:final-review]") ?? false) ? "присоединился" : "добавлен ролью"
+        case "rework": return node.roleKey == "critic_verifier" ? "повторная проверка \(node.iteration ?? 1)" : "доработка \(node.iteration ?? 1)"
         default: return nil
+        }
+    }
+
+    private func graphEdges(for plan: ApiCollaborationPlan) -> [ApiCollaborationPlanEdge] {
+        guard plan.branchTeam != nil else { return plan.edges }
+        let roles = Dictionary(uniqueKeysWithValues: plan.nodes.map { ($0.slotKey, $0.roleKey) })
+        var seen = Set<String>()
+        return plan.edges.compactMap { edge in
+            guard let from = roles[edge.fromSlotKey], let to = roles[edge.toSlotKey], from != to,
+                  seen.insert("\(from):\(to)").inserted else { return nil }
+            return ApiCollaborationPlanEdge(fromSlotKey: from, toSlotKey: to, startCondition: edge.startCondition)
         }
     }
 
     static func stateLabel(_ state: String) -> String {
         switch state {
+        case "returned": "Вернул на доработку"
         case "waiting": "Ждёт"
         case "ready": "Готов к старту"
         case "active": "В работе"
@@ -394,23 +457,13 @@ public struct CollaborationPlanView: View {
         roleTitles[roleKey] ?? roleKey
     }
 
-    private func load() async {
-        async let plansTask = api.collaborationPlans(taskId: taskId)
-        async let subtasksTask = api.subtasks(taskId: taskId)
-        async let rolesTask = api.roles()
-        guard let plans = try? await plansTask else { return }
-        planSubtasks = ((try? await subtasksTask) ?? []).filter { $0.collaborationPlanId != nil }
-        if let roles = try? await rolesTask {
-            roleTitles = Dictionary(roles.map { ($0.role, $0.title) }, uniquingKeysWith: { first, _ in first })
-            roleOptions = roles.map { PlanRoleOption(key: $0.role, title: graphTitle(for: $0.role)) }
-        }
-        plan = plans.first { $0.status == "approved" }
-        draftPlan = plans.first { $0.status == "draft" }
-        // Название биндинга осталось прежним (LOCK-247), но с LOCK-249 он
-        // также открывает секцию под черновик, ожидающий утверждения
-        // владельцем — не только под уже approved план.
-        hasApprovedPlan = plan != nil || (draftPlan != nil && isOwner)
-        pendingApprovalPlanId = isOwner ? draftPlan?.id : nil
+    private func load(force: Bool = true) async {
+        await state.load(taskID: taskId, reloadToken: reloadToken, force: force, isOwner: isOwner)
+        if hasApprovedPlan != state.isVisible { hasApprovedPlan = state.isVisible }
+        let approvalID = isOwner ? draftPlan?.id : nil
+        if pendingApprovalPlanId != approvalID { pendingApprovalPlanId = approvalID }
+        let snapshot = isOwner ? draftPlan?.branchSnapshot : nil
+        if pendingBranchSnapshot != snapshot { pendingBranchSnapshot = snapshot }
     }
 
     private static func profileLabel(_ profile: String) -> String {
@@ -431,16 +484,20 @@ public struct CollaborationPlanView: View {
 /// роли: источник ожидания считывается по входящим линиям, поэтому текст не
 /// дублирует сам граф.
 private struct CollaborationPlanGraph: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     struct Entry: Identifiable {
         let slotKey: String
         let roleKey: String
         let title: String
+        var taskTitle: String? = nil
         /// waiting | ready | active | blocked | review | accepted. `ready`
         /// сюда не приходит напрямую (см. `CollaborationPlanView.baseState`)
         /// — считается ниже, в `readyState(for:)`, из entries+edges.
         let state: String
         /// «добавлен ролью», «доработка 1» — шаг не из исходного шаблона.
         var badge: String?
+        var taskNumbers: [Int] = []
+        var isParticipant = false
 
         var id: String { slotKey }
     }
@@ -450,8 +507,9 @@ private struct CollaborationPlanGraph: View {
     /// Тап по шагу — подробности и правка (живой план, 01.10.2026).
     var onTap: (String) -> Void = { _ in }
 
-    private let nodeHeight: CGFloat = 64
-    private let rowStep: CGFloat = 88
+    private let nodeHeight: CGFloat = 56
+    private let nodeWidth: CGFloat = 56
+    private var rowStep: CGFloat { nodeHeight + 20 }
 
     /// waiting-узел, у которого предшественники (если есть) все уже done
     /// ("accepted") — сервер такой узел стартует сам почти мгновенно,
@@ -463,11 +521,14 @@ private struct CollaborationPlanGraph: View {
     /// сознательно принятое ради того, чтобы не тащить сюда ещё один
     /// запрос ради редкого случая.
     private func readyStates() -> Set<String> {
+        if entries.contains(where: { $0.taskTitle != nil }) {
+            return Set(entries.filter { $0.state == "ready" }.map(\.slotKey))
+        }
         let byKey = Dictionary(uniqueKeysWithValues: entries.map { ($0.slotKey, $0) })
         var ready: Set<String> = []
         for entry in entries where entry.state == "waiting" {
             let incoming = edges.filter { $0.toSlotKey == entry.slotKey }
-            let satisfied = incoming.isEmpty || incoming.allSatisfy { byKey[$0.fromSlotKey]?.state == "accepted" }
+            let satisfied = incoming.isEmpty || incoming.allSatisfy { ["accepted", "returned"].contains(byKey[$0.fromSlotKey]?.state ?? "") }
             if satisfied { ready.insert(entry.slotKey) }
         }
         return ready
@@ -493,22 +554,55 @@ private struct CollaborationPlanGraph: View {
             }
 
             GeometryReader { proxy in
-                let places = layout(width: proxy.size.width)
+                let maxColumns = Dictionary(grouping: entries, by: { levels[$0.slotKey] ?? 0 }).values.map(\.count).max() ?? 1
+                let canvasWidth = max(proxy.size.width, CGFloat(maxColumns) * nodeWidth + CGFloat(maxColumns - 1) * TFSpacing.sm)
+                let places = layout(width: canvasWidth)
                 let centers = places.mapValues { $0.center }
 
+                ScrollView(.horizontal) {
                 ZStack(alignment: .topLeading) {
                     Canvas { context, _ in
                         for edge in edges {
-                            guard let from = centers[edge.fromSlotKey], let to = centers[edge.toSlotKey] else { continue }
+                            guard let fromCenter = centers[edge.fromSlotKey], let toCenter = centers[edge.toSlotKey] else { continue }
+                            if entries.contains(where: \.isParticipant) {
+                                let path = participantConnection(from: fromCenter, to: toCenter)
+                                context.stroke(path, with: .color(ready.contains(edge.fromSlotKey) ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.75)), lineWidth: 1.2)
+                                continue
+                            }
+                            let horizontal = false
+                            let upward = toCenter.y < fromCenter.y
+                            let direction: CGFloat = toCenter.x > fromCenter.x ? 1 : -1
+                            let from = horizontal
+                                ? CGPoint(x: fromCenter.x + direction * nodeWidth / 2, y: fromCenter.y)
+                                : CGPoint(x: fromCenter.x, y: fromCenter.y + (upward ? -nodeHeight / 2 : nodeHeight / 2))
+                            let to = horizontal
+                                ? CGPoint(x: toCenter.x - direction * nodeWidth / 2, y: toCenter.y)
+                                : CGPoint(x: toCenter.x, y: toCenter.y + (upward ? nodeHeight / 2 : -nodeHeight / 2))
                             var path = Path()
                             path.move(to: from)
-                            if abs(from.y - to.y) < 1 {
+                            if horizontal {
+                                path.addLine(to: to)
+                            } else if to.y < from.y {
+                                // Return links run beside the avatars, not through their faces.
+                                let sideX = max(8, min(from.x, to.x) - nodeWidth)
+                                path.addLine(to: CGPoint(x: sideX, y: from.y - 8))
+                                path.addLine(to: CGPoint(x: sideX, y: to.y + 8))
+                                path.addLine(to: CGPoint(x: to.x, y: to.y + 8))
                                 path.addLine(to: to)
                             } else {
                                 let middleY = (from.y + to.y) / 2
                                 path.addLine(to: CGPoint(x: from.x, y: middleY))
                                 path.addLine(to: CGPoint(x: to.x, y: middleY))
                                 path.addLine(to: to)
+                            }
+                            if horizontal {
+                                path.move(to: CGPoint(x: to.x - direction * 5, y: to.y - 4))
+                                path.addLine(to: to)
+                                path.addLine(to: CGPoint(x: to.x - direction * 5, y: to.y + 4))
+                            } else {
+                                path.move(to: CGPoint(x: to.x - 4, y: to.y + (upward ? 5 : -5)))
+                                path.addLine(to: to)
+                                path.addLine(to: CGPoint(x: to.x + 4, y: to.y + (upward ? 5 : -5)))
                             }
                             let isReadyPath = ready.contains(edge.fromSlotKey)
                             context.stroke(
@@ -531,6 +625,8 @@ private struct CollaborationPlanGraph: View {
                         }
                     }
                 }
+                .frame(width: canvasWidth, height: graphHeight)
+                }
             }
             .frame(height: graphHeight)
             .accessibilityElement(children: .contain)
@@ -540,7 +636,7 @@ private struct CollaborationPlanGraph: View {
 
     @ViewBuilder
     private func node(_ entry: Entry, state: String) -> some View {
-        HStack(spacing: TFSpacing.sm) {
+        ZStack(alignment: .topTrailing) {
             TFAvatar(
                 size: .lg,
                 initials: initials(for: entry.title),
@@ -548,34 +644,43 @@ private struct CollaborationPlanGraph: View {
                 accessibilityLabel: "Аватар: \(entry.title)",
                 userID: "role_\(entry.roleKey)"
             )
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
-                    .tfText(.action)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text(entry.badge.map { "\(stateLabel(state)) · \($0)" } ?? stateLabel(state))
-                    .tfText(.caption)
-                    .foregroundStyle(stateColor(state))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+            .frame(width: nodeWidth, height: nodeHeight)
+            Group {
+                switch state {
+                case "waiting":
+                    Text("zz").tfText(.caption).fontWeight(.semibold)
+                case "active":
+                    Image(systemName: "hammer.fill").symbolEffect(.wiggle, options: .repeating, isActive: !reduceMotion)
+                case "accepted":
+                    Image(systemName: "checkmark")
+                case "blocked", "returned":
+                    Image(systemName: "exclamationmark")
+                case "review":
+                    Image(systemName: "eye")
+                case "skipped":
+                    Image(systemName: "minus")
+                case "ready":
+                    Circle().fill(Color.tfGreen).frame(width: 6, height: 6)
+                default:
+                    EmptyView()
+                }
             }
-            Spacer(minLength: 0)
+            .foregroundStyle(stateColor(state))
+            .font(.caption2)
+            .padding(3)
         }
-        .padding(.horizontal, TFSpacing.sm)
-        .background {
-            RoundedRectangle(cornerRadius: TFRadius.lg)
-                .fill(Color.tfCard2)
-            if state == "ready" {
-                RoundedRectangle(cornerRadius: TFRadius.lg)
-                    .fill(Color.tfGreen.opacity(0.07))
+        .frame(width: nodeWidth, height: nodeHeight)
+        .overlay(alignment: .bottom) {
+            if !entry.taskNumbers.isEmpty {
+                Text(entry.taskNumbers.map { $0 == 0 ? "⌂" : String($0) }.joined(separator: ","))
+                    .tfText(.caption).foregroundStyle(Color.tfSub)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: TFRadius.lg)
-                .stroke(state == "ready" ? Color.tfGreen.opacity(0.55) : Color.tfDim.opacity(0.3), lineWidth: 1)
-        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(entry.title), \(stateLabel(state)), задачи \(entry.taskNumbers.map(String.init).joined(separator: ", "))")
+        .accessibilityHint("Открыть задание и действия")
     }
 
     /// Уровень шага — самый длинный путь от корня: шаги одного уровня идут
@@ -583,6 +688,9 @@ private struct CollaborationPlanGraph: View {
     /// в том числе достроенного по ходу (раньше — только для full_cycle,
     /// остальное вытягивалось в колонку).
     private var levels: [String: Int] {
+        if entries.contains(where: \.isParticipant) {
+            return Dictionary(uniqueKeysWithValues: entries.enumerated().map { ($0.element.slotKey, $0.offset / 3) })
+        }
         var memo: [String: Int] = [:]
         let incoming = Dictionary(grouping: edges, by: \.toSlotKey)
         func level(_ slot: String, _ path: Set<String>) -> Int {
@@ -597,18 +705,26 @@ private struct CollaborationPlanGraph: View {
     }
 
     private var graphHeight: CGFloat {
+        if entries.contains(where: \.isParticipant) { return 280 }
         let rows = (levels.values.max() ?? 0) + 1
         return nodeHeight + CGFloat(rows - 1) * rowStep
     }
 
     private func layout(width: CGFloat) -> [String: (center: CGPoint, width: CGFloat)] {
+        if entries.contains(where: \.isParticipant) {
+            let radius = min(104, max(60, width / 2 - 36))
+            return Dictionary(uniqueKeysWithValues: entries.enumerated().map { index, entry in
+                let angle = -CGFloat.pi / 2 + CGFloat(index) * 2 * .pi / CGFloat(max(entries.count, 1))
+                return (entry.slotKey, (center: CGPoint(x: width / 2 + radius * cos(angle), y: 140 + radius * sin(angle)), width: nodeWidth))
+            })
+        }
         let levelOf = levels
         let rows = Dictionary(grouping: entries, by: { levelOf[$0.slotKey] ?? 0 })
         var result: [String: (center: CGPoint, width: CGFloat)] = [:]
         for (row, items) in rows {
             let count = CGFloat(items.count)
             let gap = TFSpacing.sm
-            let nodeWidth = max(96, min(164, (width - gap * (count - 1)) / count))
+            let nodeWidth = self.nodeWidth
             let total = nodeWidth * count + gap * (count - 1)
             var x = (width - total) / 2 + nodeWidth / 2
             let y = nodeHeight / 2 + CGFloat(row) * rowStep
@@ -618,6 +734,31 @@ private struct CollaborationPlanGraph: View {
             }
         }
         return result
+    }
+
+    /// Directed curves use opposite sides for reciprocal edges. Their end
+    /// points follow the tangents, so arrowheads remain outside the avatars.
+    private func participantConnection(from source: CGPoint, to target: CGPoint) -> Path {
+        let dx = target.x - source.x, dy = target.y - source.y
+        let distance = max(1, hypot(dx, dy))
+        let bend = min(44, distance * 0.28)
+        let control = CGPoint(x: (source.x + target.x) / 2 - dy / distance * bend,
+                              y: (source.y + target.y) / 2 + dx / distance * bend)
+        func port(_ center: CGPoint, toward point: CGPoint) -> CGPoint {
+            let length = max(1, hypot(point.x - center.x, point.y - center.y))
+            return CGPoint(x: center.x + (point.x - center.x) / length * 40,
+                           y: center.y + (point.y - center.y) / length * 40)
+        }
+        let start = port(source, toward: control), end = port(target, toward: control)
+        let tangentLength = max(1, hypot(end.x - control.x, end.y - control.y))
+        let ux = (end.x - control.x) / tangentLength, uy = (end.y - control.y) / tangentLength
+        var path = Path()
+        path.move(to: start)
+        path.addQuadCurve(to: end, control: control)
+        path.move(to: CGPoint(x: end.x - ux * 6 - uy * 3, y: end.y - uy * 6 + ux * 3))
+        path.addLine(to: end)
+        path.addLine(to: CGPoint(x: end.x - ux * 6 + uy * 3, y: end.y - uy * 6 - ux * 3))
+        return path
     }
 
     private func initials(for title: String) -> String {
@@ -633,8 +774,8 @@ private struct CollaborationPlanGraph: View {
         switch state {
         case "ready": .tfGreen
         case "active": .tfOrange
-        case "blocked": .tfOrange
-        case "review": .tfBlue
+        case "blocked", "returned": .tfOrange
+        case "review": .tfSub
         case "accepted": .tfGreen
         case "skipped": .tfDim
         default: .tfSub

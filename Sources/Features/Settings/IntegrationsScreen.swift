@@ -257,12 +257,13 @@ struct IntegrationsScreen: View {
     @Environment(ProjectStore.self) private var projectStore
 
     @State private var viewModel = IntegrationsViewModel()
+    @State private var isLinearOpen = false
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
     /// Адрес моста Things — тот же ключ читает `ThingsBridgeAPI`.
     @AppStorage(ThingsBridgeAPI.addressKey) private var thingsBridgeAddress = ""
-    @State private var isGoogleTasksOpen = true // веб-дефолт: этот аккордеон открыт сразу
+    @State private var isGoogleTasksOpen = false // веб-дефолт: этот аккордеон открыт сразу
     @State private var isGoogleCalOpen = false
 
     var body: some View {
@@ -273,34 +274,16 @@ struct IntegrationsScreen: View {
             Color.tfBackground.ignoresSafeArea()
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                    VStack(alignment: .leading, spacing: TFSpacing.xl) {
                         TFErrorBanner(viewModel.errorMessage, variant: .block)
                         if let successMessage = viewModel.successMessage {
                             successBanner(successMessage)
                         }
-                        TFSectionHeader("Подключения TaskFlow")
-                        NavigationLink {
-                            ComposioIntegrationsScreen()
-                        } label: {
-                            TFCard(padding: 0) {
-                                TFListRow(icon: "puzzlepiece.extension", title: "Composio",
-                                          subtitle: "Аккаунты сервисов и доступ ролей",
-                                          trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                        integrationGroup("Подключения TaskFlow") {
+                            IntegrationAccordionCard(icon: "arrow.down.doc", asset: "IntegrationLinear", title: "Linear", subtitle: "Выбор задач и перенос структуры", badge: nil, isExpanded: $isLinearOpen, identifier: "integrations.linear") {
+                                LinearImportScreen(embedded: true)
                             }
                         }
-                        .buttonStyle(TFTapRowStyle())
-                        .accessibilityIdentifier("integrations.composio")
-                        NavigationLink {
-                            LinearImportScreen()
-                        } label: {
-                            TFCard(padding: 0) {
-                                TFListRow(icon: "arrow.down.doc", title: "Linear",
-                                          subtitle: "Выбор задач и перенос структуры",
-                                          trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
-                            }
-                        }
-                        .buttonStyle(TFTapRowStyle())
-                        .accessibilityIdentifier("integrations.linear")
                         appleSection
                         thingsSection
                         googleSection
@@ -319,33 +302,42 @@ struct IntegrationsScreen: View {
         }
     }
 
+    private var dividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
+
+    private func integrationGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            Text(title).tfText(.body).foregroundStyle(Color.tfSub)
+            TFCard(padding: 0) { VStack(spacing: 0) { content() } }
+        }
+    }
+
     private func successBanner(_ text: String) -> some View {
         HStack(spacing: TFSpacing.sm) {
-            Image(systemName: "checkmark").font(.system(size: 16)).foregroundStyle(Color.tfTeal)
-            Text(text).tfText(.action).foregroundStyle(Color.tfTeal)
+            Image(systemName: "checkmark").font(.system(size: 16)).foregroundStyle(Color.tfSub)
+            Text(text).tfText(.action).foregroundStyle(Color.tfSub)
         }
         .padding(TFSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tfCard)
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfTeal.opacity(0.3), lineWidth: TFBorder.width))
+        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfSub.opacity(0.3), lineWidth: TFBorder.width))
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 
     // MARK: - Apple Экосистема (iOS)
 
     private var appleSection: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Apple Экосистема (iOS)")
+        integrationGroup("Apple Экосистема (iOS)") {
             appleCalendarAccordion
+            TFDivider(inset: dividerInset)
             appleRemindersAccordion
         }
     }
 
     private var appleCalendarAccordion: some View {
         IntegrationAccordionCard(
-            icon: "calendar", iconTint: .tfRed, title: "Apple Календарь",
+            icon: "calendar", title: "Apple Календарь",
             subtitle: appleCalendarSubtitle,
-            badge: viewModel.calPermGranted ? "Включён" : nil,
+            badge: viewModel.calPermGranted ? "В сети" : nil,
             isExpanded: $isAppleCalOpen
         ) {
             if !viewModel.calPermGranted {
@@ -382,9 +374,9 @@ struct IntegrationsScreen: View {
 
     private var appleRemindersAccordion: some View {
         IntegrationAccordionCard(
-            icon: "checklist", iconTint: .tfOrange, title: "Apple Напоминания",
+            icon: "list.bullet.rectangle.portrait", title: "Apple Напоминания",
             subtitle: viewModel.remPermGranted ? "Двусторонняя синхронизация задач" : "Требуется разрешение",
-            badge: viewModel.remPermGranted ? "Включён" : nil,
+            badge: viewModel.remPermGranted ? "В сети" : nil,
             isExpanded: $isAppleRemOpen
         ) {
             if !viewModel.remPermGranted {
@@ -413,10 +405,9 @@ struct IntegrationsScreen: View {
     // MARK: - Things 3 на MacBook
 
     private var thingsSection: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("MacBook")
+        integrationGroup("MacBook") {
             IntegrationAccordionCard(
-                icon: "checkmark.square", iconTint: .tfPurple, title: "Things 3",
+                icon: "checkmark.square", asset: "IntegrationThings", title: "Things 3",
                 subtitle: viewModel.thingsBridgeAvailable ? "Область TaskFlow · ручная синхронизация" : "Мост MacBook не найден",
                 badge: viewModel.thingsBridgeAvailable ? "В сети" : nil,
                 isExpanded: $isThingsOpen
@@ -450,16 +441,16 @@ struct IntegrationsScreen: View {
     // MARK: - Google Сервисы
 
     private var googleSection: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Google Сервисы")
+        integrationGroup("Google Сервисы") {
             googleTasksAccordion
+            TFDivider(inset: dividerInset)
             googleCalendarAccordion
         }
     }
 
     private var googleTasksAccordion: some View {
         IntegrationAccordionCard(
-            icon: "tag", iconTint: .tfBlue, title: "Google Задачи",
+            icon: "tag", title: "Google Задачи",
             subtitle: googleTasksSubtitle,
             badge: viewModel.googleConnected ? "В сети" : nil,
             isExpanded: $isGoogleTasksOpen
@@ -516,7 +507,7 @@ struct IntegrationsScreen: View {
 
     private var googleCalendarAccordion: some View {
         IntegrationAccordionCard(
-            icon: "calendar", iconTint: .tfBlue, title: "Google Календарь",
+            icon: "calendar", title: "Google Календарь",
             subtitle: googleCalendarSubtitle,
             badge: viewModel.googleConnected ? "В сети" : nil,
             isExpanded: $isGoogleCalOpen
@@ -593,11 +584,12 @@ struct IntegrationsScreen: View {
 
 private struct IntegrationAccordionCard<Content: View>: View {
     let icon: String
-    let iconTint: Color
+    var asset: String? = nil
     let title: String
     let subtitle: String
     let badge: String?
     @Binding var isExpanded: Bool
+    var identifier: String = ""
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -605,40 +597,23 @@ private struct IntegrationAccordionCard<Content: View>: View {
             Button {
                 withAnimation(.easeInOut(duration: TFDuration.fast)) { isExpanded.toggle() }
             } label: {
-                HStack(spacing: TFSpacing.md) {
-                    RoundedRectangle(cornerRadius: TFRadius.md)
-                        .fill(iconTint.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                        .overlay { Image(systemName: icon).font(.system(size: 15)).foregroundStyle(iconTint) }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title).tfText(.body).fontWeight(.medium).foregroundStyle(Color.tfText)
-                        Text(subtitle).tfText(.action).foregroundStyle(Color.tfSub).lineLimit(1)
-                    }
-                    Spacer()
-                    if let badge {
-                        Text(badge).tfText(.caption).fontWeight(.medium).foregroundStyle(Color.tfTeal)
-                            .padding(.horizontal, TFSpacing.sm).padding(.vertical, 2)
-                            .background(Color.tfTeal.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-                    }
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 13)).foregroundStyle(Color.tfSub)
-                }
-                .padding(TFSpacing.md)
-                .contentShape(Rectangle())
+                TFListRow(icon: icon, iconStyle: asset.map { .asset($0) } ?? .plain, title: title, subtitle: subtitle,
+                    trailing: AnyView(HStack(spacing: TFSpacing.sm) {
+                        if let badge { Text(badge).tfText(.caption).foregroundStyle(Color.tfTeal) }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13)).foregroundStyle(Color.tfDim)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }), titleStyle: .action, verticalPadding: TFSpacing.xs)
             }
-            .buttonStyle(TFTapRowStyle())
-
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(identifier.isEmpty ? "integrations.\(icon).\(title)" : identifier)
+            .accessibilityValue(isExpanded ? "Развернут" : "Свернут")
             if isExpanded {
-                TFDivider(dimmed: true)
                 VStack(alignment: .leading, spacing: TFSpacing.sm) { content() }
-                    .padding(TFSpacing.md)
-                    .background(Color.tfCard2.opacity(0.3))
+                    .padding(.horizontal, TFSpacing.lg)
+                    .padding(.bottom, TFSpacing.md)
             }
         }
-        .background(Color.tfCard)
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 }
 
@@ -653,11 +628,11 @@ private struct CalendarCheckRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: TFSpacing.sm) {
-                Circle().fill(color).frame(width: 10, height: 10)
+                Image(systemName: "calendar").foregroundStyle(color).frame(width: 16)
                 Text(title).tfText(.action).foregroundStyle(Color.tfText).lineLimit(1)
                 Spacer()
                 if isChecked {
-                    Image(systemName: "checkmark").font(.system(size: 12)).foregroundStyle(Color.tfRed)
+                    Image(systemName: "checkmark").font(.system(size: 12)).foregroundStyle(Color.tfText)
                 }
             }
             .padding(.horizontal, TFSpacing.sm)

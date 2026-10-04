@@ -60,6 +60,7 @@ public struct TFListRow: View {
     public enum IconStyle {
         case tinted
         case plain
+        case asset(String)
     }
 
     let icon: String
@@ -142,6 +143,14 @@ public struct TFListRow: View {
                         .font(.system(size: TFIconSize.sm))
                         .foregroundStyle(iconTint)
                 }
+        case .asset(let name):
+            Image(name)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: TFIconSize.sm, height: TFIconSize.sm)
+                .foregroundStyle(Color.tfDim)
+                .frame(width: 40, height: 40)
         case .plain:
             Image(systemName: icon)
                 .font(.system(size: TFIconSize.sm))

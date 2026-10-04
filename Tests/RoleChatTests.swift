@@ -113,3 +113,80 @@ final class RoleChatTests: XCTestCase {
         XCTAssertNil(message.createdAt)
     }
 }
+
+/// Разделители дней в ленте переписки (владелец 03.10.2026): где начинается
+/// новый день и как он называется. Даты — по календарю устройства, поэтому
+/// тесты строят моменты календарём, а не константами.
+final class ChatDayLabelTests: XCTestCase {
+    private let calendar = Calendar.autoupdatingCurrent
+
+    private func moment(daysAgo: Int, hour: Int = 12) -> Date {
+        let start = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .day, value: -daysAgo, to: start)!
+            .addingTimeInterval(TimeInterval(hour * 3600))
+    }
+
+    /// `created_at` в том же sqlite-UTC формате, что присылает сервер.
+    private func raw(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter.string(from: date)
+    }
+
+    func testLabelsTodayYesterdayAndWeekday() {
+        XCTAssertEqual(ChatDayLabel.label(moment(daysAgo: 0)), "Сегодня")
+        XCTAssertEqual(ChatDayLabel.label(moment(daysAgo: 1)), "Вчера")
+        let threeDaysAgo = ChatDayLabel.label(moment(daysAgo: 3))
+        XCTAssertFalse(threeDaysAgo.isEmpty)
+        XCTAssertNotEqual(threeDaysAgo, "Сегодня")
+        XCTAssertNotEqual(threeDaysAgo, "Вчера")
+        // Слова не содержат цифр — это название дня недели, а не дата.
+        XCTAssertFalse(threeDaysAgo.contains(where: { $0.isNumber }))
+    }
+
+    func testLabelOlderThanWeekHasDayAndMonth() {
+        let label = ChatDayLabel.label(moment(daysAgo: 20))
+        let parts = label.split(separator: " ")
+        XCTAssertGreaterThanOrEqual(parts.count, 2)
+        XCTAssertTrue(parts[0].allSatisfy(\.isNumber), "первым идёт число дня: \(label)")
+    }
+
+    func testLabelParsesServerTimestampAndRejectsGarbage() {
+        let today = moment(daysAgo: 0, hour: 13)
+        // Формат сервера — sqlite UTC; разбор возвращает тот же момент, поэтому
+        // ключ дня совпадает независимо от таймзоны устройства.
+        XCTAssertEqual(ChatDayLabel.label(raw: raw(today)), "Сегодня")
+        XCTAssertEqual(ChatDayLabel.dayKey(raw: raw(today)), ChatDayLabel.dayKey(today))
+        XCTAssertNil(ChatDayLabel.label(raw: nil))
+        XCTAssertNil(ChatDayLabel.label(raw: ""))
+        XCTAssertNil(ChatDayLabel.label(raw: "не дата"))
+        XCTAssertNil(ChatDayLabel.dayKey(raw: "не дата"))
+    }
+
+    func testDayStartsMarksFirstMessageAndEachNewDay() {
+        let messages = [
+            raw(moment(daysAgo: 2)),  // 0 — первый день
+            raw(moment(daysAgo: 2)),
+            raw(moment(daysAgo: 1)),  // 2 — смена дня
+            raw(moment(daysAgo: 0)),  // 3 — смена дня
+            raw(moment(daysAgo: 0)),
+        ]
+        XCTAssertEqual(ChatDayMarker.dayStarts(in: messages, createdAt: \.self), [0, 2, 3])
+    }
+
+    /// Сообщение без даты (метка сессии, локальное «в пути») не открывает новый
+    /// день и не обрывает текущий.
+    func testDayStartsIgnoresMessagesWithoutDate() {
+        let today = raw(moment(daysAgo: 0))
+        let messages: [String?] = [nil, today, nil, today]
+        XCTAssertEqual(ChatDayMarker.dayStarts(in: messages, createdAt: \.self), [1])
+    }
+
+    func testDayStartsEmptyWhenHistoryHasNoDates() {
+        let messages: [String?] = [nil, nil]
+        XCTAssertTrue(ChatDayMarker.dayStarts(in: messages, createdAt: \.self).isEmpty)
+    }
+}

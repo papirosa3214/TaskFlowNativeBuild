@@ -137,60 +137,68 @@ struct ComposioIntegrationsScreen: View {
     @State private var model = ComposioIntegrationsViewModel()
     @Environment(\.scenePhase) private var scenePhase
 
+    let embedded: Bool
+    init(embedded: Bool = false) { self.embedded = embedded }
+
     var body: some View {
-        ZStack {
-            Color.tfBackground.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.lg) {
-                    TFCard(padding: 0) {
-                        TFListRow(icon: "puzzlepiece.extension", title: "Composio",
-                                  subtitle: model.loading ? "Проверяем подключение…" : model.available ? "Подключён к TaskFlow" : "Подключение недоступно",
-                                  trailing: AnyView(Image(systemName: model.available ? "checkmark.circle" : "exclamationmark.circle").foregroundStyle(model.available ? Color.tfTeal : Color.tfSub)))
-                    }
-                    Text("Подключайте аккаунты один раз и выбирайте, какие роли смогут ими пользоваться.")
-                        .tfText(.action).foregroundStyle(Color.tfSub)
-                    TFErrorBanner(model.error, variant: .block)
-                    if model.loaded {
-                        TFSectionHeader("Доступ к каталогу")
-                        NavigationLink {
-                            ComposioServiceScreen(model: model, toolkit: nil)
-                        } label: {
-                            TFCard(padding: 0) {
-                                TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Весь каталог",
-                                          subtitle: accessSummary(nil), trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
-                            }
-                        }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.catalog")
-                        TFSectionHeader("Сервисы")
-                        TFTextField("Найти сервис", text: $model.search, icon: "magnifyingglass")
-                            .onSubmit { Task { await model.searchCatalog() } }
-                            .accessibilityIdentifier("composio.search")
-                        TFCard(padding: 0) {
-                            VStack(spacing: 0) {
-                                ForEach(Array(displayCatalog.enumerated()), id: \.element.id) { index, toolkit in
-                                    if index > 0 { TFDivider(inset: TFSpacing.lg) }
-                                    NavigationLink {
-                                        ComposioServiceScreen(model: model, toolkit: toolkit)
-                                    } label: {
-                                        TFListRow(icon: "link", iconStyle: .plain, title: toolkit.name,
-                                                  subtitle: "\(toolkit.noAuth ? "Без авторизации" : toolkit.connected ? "Подключён" : "Не подключён") · \(model.selectedRoles(for: toolkit.slug).count) ролей",
-                                                  trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
-                                    }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.service.\(toolkit.slug)")
-                                }
-                            }
-                        }
-                        if displayCatalog.isEmpty { TFEmptyState(text: "Сервисы не найдены", description: "Попробуйте другое название.") }
-                    } else if model.loading { TFLoading(.block) }
-                    TFButton("Обновить", icon: "arrow.clockwise", variant: .secondary, isEnabled: !model.loading && !model.saving) {
-                        Task { await model.load() }
-                    }
-                }.padding(TFSpacing.lg)
+        Group {
+            if embedded { content }
+            else {
+                ScrollView { content.padding(TFSpacing.lg) }
+                    .background(Color.tfBackground)
+                    .tfNativeHeader("Composio", displayMode: .inline)
             }
         }
-        .tfNativeHeader("Composio", displayMode: .inline)
         .task { if !model.loaded { await model.load() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active && model.awaitingAuthorization {
                 model.awaitingAuthorization = false
+                Task { await model.load() }
+            }
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.lg) {
+            TFCard(padding: 0) {
+                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio",
+                          subtitle: model.loading ? "Проверяем подключение…" : model.available ? "В сети" : "Подключение недоступно",
+                          trailing: AnyView(Image(systemName: model.available ? "checkmark.circle" : "exclamationmark.circle").foregroundStyle(model.available ? Color.tfTeal : Color.tfSub)))
+            }
+            Text("Подключайте аккаунты один раз и выбирайте, какие роли смогут ими пользоваться.")
+                .tfText(.action).foregroundStyle(Color.tfSub)
+            TFErrorBanner(model.error, variant: .block)
+            if model.loaded {
+                TFSectionHeader("Доступ к каталогу")
+                NavigationLink {
+                    ComposioServiceScreen(model: model, toolkit: nil)
+                } label: {
+                    TFCard(padding: 0) {
+                        TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Весь каталог",
+                                  subtitle: accessSummary(nil), trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                    }
+                }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.catalog")
+                TFSectionHeader("Сервисы")
+                TFTextField("Найти сервис", text: $model.search, icon: "magnifyingglass")
+                    .onSubmit { Task { await model.searchCatalog() } }
+                    .accessibilityIdentifier("composio.search")
+                TFCard(padding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(displayCatalog.enumerated()), id: \.element.id) { index, toolkit in
+                            if index > 0 { TFDivider(inset: TFSpacing.lg) }
+                            NavigationLink {
+                                ComposioServiceScreen(model: model, toolkit: toolkit)
+                            } label: {
+                                TFListRow(icon: "link", iconStyle: .plain, title: toolkit.name,
+                                          subtitle: "\(toolkit.noAuth ? "Без авторизации" : toolkit.connected ? "Подключён" : "Не подключён") · \(model.selectedRoles(for: toolkit.slug).count) ролей",
+                                          trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                            }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.service.\(toolkit.slug)")
+                        }
+                    }
+                }
+                if displayCatalog.isEmpty { TFEmptyState(text: "Сервисы не найдены", description: "Попробуйте другое название.") }
+            } else if model.loading { TFLoading(.block) }
+            TFButton("Обновить", icon: "arrow.clockwise", variant: .secondary, isEnabled: !model.loading && !model.saving) {
                 Task { await model.load() }
             }
         }
@@ -231,7 +239,7 @@ private struct ComposioServiceScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     if let toolkit = currentToolkit {
                         TFCard(padding: 0) {
-                            TFListRow(icon: "link", title: toolkit.name,
+                            TFListRow(icon: "link", iconStyle: .plain, title: toolkit.name,
                                       subtitle: toolkit.noAuth ? "Авторизация не требуется" : toolkit.connected ? "Общий аккаунт TaskFlow подключён" : "Подключите общий аккаунт TaskFlow")
                         }
                         if !toolkit.connected && !toolkit.noAuth {
@@ -262,7 +270,7 @@ private struct ComposioServiceScreen: View {
                                 if index > 0 { TFDivider(inset: TFSpacing.lg) }
                                 TFListRow(icon: "person", iconStyle: .plain, title: role.title,
                                           subtitle: lockedRoles.contains(role.id) ? "Доступ через весь каталог" : role.active ? nil : "Роль отключена",
-                                          trailing: AnyView(Image(systemName: selected.contains(role.id) ? "checkmark.square.fill" : "square").foregroundStyle(selected.contains(role.id) ? Color.tfRed : Color.tfDim)),
+                                          trailing: AnyView(Image(systemName: selected.contains(role.id) ? "checkmark.square.fill" : "square").foregroundStyle(selected.contains(role.id) ? Color.tfText : Color.tfDim)),
                                           action: {
                                               if selected.contains(role.id) { selected.remove(role.id) } else { selected.insert(role.id) }
                                               saved = false
@@ -280,7 +288,7 @@ private struct ComposioServiceScreen: View {
                     Text("В планировании роли могут только читать. Аккаунт и выбор ролей сохраняются отдельно.")
                         .tfText(.caption).foregroundStyle(Color.tfDim)
                     TFErrorBanner(model.error, variant: .block)
-                    if saved { Text("Выбор ролей сохранён").tfText(.action).foregroundStyle(Color.tfTeal).accessibilityIdentifier("composio.saved") }
+                    if saved { Text("Выбор ролей сохранён").tfText(.action).foregroundStyle(Color.tfSub).accessibilityIdentifier("composio.saved") }
                 }.padding(TFSpacing.lg)
             }
         }
@@ -299,7 +307,7 @@ private struct ComposioServiceScreen: View {
 
     private func selectionRow(_ title: String, checked: Bool, action: @escaping () -> Void) -> some View {
         TFListRow(icon: title == "Все роли" ? "person.2" : "person.crop.rectangle", iconStyle: .plain,
-                  title: title, trailing: AnyView(Image(systemName: checked ? "largecircle.fill.circle" : "circle").foregroundStyle(checked ? Color.tfRed : Color.tfDim)), action: action)
+                  title: title, trailing: AnyView(Image(systemName: checked ? "largecircle.fill.circle" : "circle").foregroundStyle(checked ? Color.tfText : Color.tfDim)), action: action)
             .disabled(model.saving || model.loading)
     }
 }

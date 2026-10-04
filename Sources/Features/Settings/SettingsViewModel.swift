@@ -15,16 +15,6 @@ import LocalAuthentication
 final class SettingsViewModel {
     private let apiClient: APIClient
 
-    /// Тема — spec §6 п.2: тумблер со значением «Тёмная»/«Светлая». Реально
-    /// ничего не переключает: `project.yml` сейчас форсит
-    /// `UIUserInterfaceStyle: Dark` на весь таргет (правка вне этой папки,
-    /// см. комментарий в `Color+Palette.swift`) — тумблер стоит и
-    /// сохраняется, но светлая тема недостижима, пока каркасный исполнитель
-    /// не снимет форс. Отмечено в отчёте.
-    var isDarkTheme: Bool {
-        didSet { UserDefaults.standard.set(isDarkTheme, forKey: Self.themeKey) }
-    }
-
     /// Биометрия — spec §6: строка видна только если физически доступна.
     var biometryKind: LABiometryType = .none
     var isBiometryAvailable: Bool { biometryKind != .none }
@@ -48,12 +38,10 @@ final class SettingsViewModel {
     var errorMessage: String?
 
     static let customKeyboardKey = "taskflow_custom_keyboard_enabled"
-    private static let themeKey = "taskflow_settings_dark_theme"
     private static let biometryKey = "taskflow_settings_biometry_enabled"
 
     init(apiClient: APIClient = APIClient()) {
         self.apiClient = apiClient
-        isDarkTheme = UserDefaults.standard.object(forKey: Self.themeKey) as? Bool ?? true
         isBiometryEnabled = UserDefaults.standard.bool(forKey: Self.biometryKey)
         // Своя клавиатура по умолчанию выключена: пока она не проверена на
         // живом телефоне, системная остаётся основной.

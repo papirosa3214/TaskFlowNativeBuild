@@ -7,6 +7,7 @@ import SDWebImageWebPCoder
 /// (свои и заглушки) читают их через `@Environment(Type.self)`.
 @main
 struct TaskFlowApp: App {
+    @AppStorage(AppAppearance.storageKey) private var appearanceRaw = AppAppearance.dark.rawValue
     @State private var apiClient: APIClient
     @State private var session: SessionStore
     @State private var realtimeClient = RealtimeClient()
@@ -16,6 +17,8 @@ struct TaskFlowApp: App {
     @State private var notificationStore: NotificationStore
 
     init() {
+        AppAppearance.migratePreference()
+
         // Анимированные аватарки агентов (просьба владельца 03.09.2026:
         // «раньше были анимированными») — голый WebP-декодер в SDWebImage
         // из коробки не идёт, регистрируется явно один раз на старте,
@@ -59,7 +62,7 @@ struct TaskFlowApp: App {
                 .environment(labelStore)
                 .environment(notificationStore)
                 .environment(realtimeClient)
-                .preferredColorScheme(.dark) // project.yml сейчас держит UIUserInterfaceStyle: Dark
+                .preferredColorScheme((AppAppearance(rawValue: appearanceRaw) ?? .dark).colorScheme)
                 // 14.09.2026, Dynamic Type. Верхняя граница системного размера
                 // текста — `xxxLarge`.
                 //

@@ -12,6 +12,8 @@ struct PlanRoleOption: Identifiable, Hashable {
 /// пропуск, удаление. Сданный и идущий шаг только читается: это история.
 struct PlanStepDetailSheet: View {
     let node: ApiCollaborationPlanNode
+    var assignments: [ApiCollaborationPlanNode] = []
+    var onSelectAssignment: (String) -> Void = { _ in }
     let plan: ApiCollaborationPlan
     let subtask: ApiSubtask?
     let roleTitle: (String) -> String
@@ -33,6 +35,18 @@ struct PlanStepDetailSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                if !assignments.isEmpty {
+                    Section("Задача") {
+                        Text(node.taskTitle ?? node.expectedResult)
+                        if assignments.count > 1 {
+                            Picker("Поручение", selection: Binding(get: { node.slotKey }, set: onSelectAssignment)) {
+                                ForEach(assignments) { item in
+                                    Text(item.taskTitle ?? item.expectedResult).tag(item.slotKey)
+                                }
+                            }
+                        }
+                    }
+                }
                 Section {
                     LabeledContent("Роль", value: roleTitle(node.roleKey))
                     LabeledContent("Состояние", value: stateLabel)
@@ -71,7 +85,7 @@ struct PlanStepDetailSheet: View {
                     Section {
                         Button { onEdit() } label: { Label("Изменить шаг", systemImage: "pencil") }
                             .accessibilityIdentifier("plan-step-edit")
-                        if plan.status == "approved" {
+                        if plan.status == "approved" || plan.branchSnapshot != nil {
                             Button { isSkipPromptOpen = true } label: { Label("Пропустить", systemImage: "forward") }
                                 .accessibilityIdentifier("plan-step-skip")
                         }
@@ -86,6 +100,7 @@ struct PlanStepDetailSheet: View {
             }
             .navigationTitle(roleTitle(node.roleKey))
             .navigationBarTitleDisplayMode(.inline)
+            .tint(Color.tfText)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
@@ -207,6 +222,7 @@ struct PlanStepEditorSheet: View {
             }
             .navigationTitle(mode == .add ? "Новый шаг" : "Шаг плана")
             .navigationBarTitleDisplayMode(.inline)
+            .tint(Color.tfText)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

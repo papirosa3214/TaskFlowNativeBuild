@@ -208,3 +208,7 @@ DESIGN.md про разные наборы статус-иконок по экр
 - `VoiceMessageLab/Presentation/VoiceMessageBubble.swift` — пузырь голосового
   сообщения, общий между прототипом VoiceMessageLab и чатом (см. LOCK-195 в
   `AGENT-WORK-SCOPES.md`).
+
+## Аватар группы — `Components/TFGroupAvatar.swift`
+
+`TFGroupAvatar(identity:size:)` использует штатный `TFAvatar` и одну из восьми групповых иллюстраций. `identity` — постоянный ID проекта либо чата; фиксированный хеш сохраняет выбор между обновлениями и запусками приложения. Все размеры — `TFAvatar.Size`.

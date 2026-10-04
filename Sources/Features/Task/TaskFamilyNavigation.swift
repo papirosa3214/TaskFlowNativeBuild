@@ -7,6 +7,7 @@ struct TaskFormScreen: View {
     @State private var selectedCardID: String?
     @State private var models: [String: TaskFormViewModel] = [:]
     @State private var family: [ApiTask] = []
+    @State private var familyNumbers: [String: Int] = [:]
     @State private var incoming: TaskFormViewModel?
     @State private var pull: CGFloat = 0
     @State private var pullingCardID: String?
@@ -78,6 +79,7 @@ struct TaskFormScreen: View {
                                 .frame(width: TaskFamilyEdgeTabs.outlineWidth)
                                 .ignoresSafeArea()
                         }
+                        .compositingGroup()
                         .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                         .offset(x: reduceMotion ? 0 : pull - geometry.size.width)
                         .opacity(reduceMotion ? pullProgress(width: geometry.size.width) : 1)
@@ -116,6 +118,7 @@ struct TaskFormScreen: View {
                                 .frame(width: TaskFamilyEdgeTabs.outlineWidth)
                                 .ignoresSafeArea()
                         }
+                        .compositingGroup()
                         .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                         .offset(x: reduceMotion ? 0 : (engaged ? geometry.size.width - pull : geometry.size.width + 40))
                         .opacity(reduceMotion ? min(1, pull / geometry.size.width) : 1)
@@ -145,8 +148,7 @@ struct TaskFormScreen: View {
             .overlay(alignment: .leading) {
                 // Владелец 02.10.2026: «закладки — это дети, а к родителю —
                 // слева». Тянется вправо: текущий лист уходит, родитель под ним.
-                if expandedSheet, family.count > 1, let parent = family.first,
-                   selectedCardID != nil, selectedCardID != parent.id {
+                if expandedSheet, family.count > 1, let parent = currentParent {
                     ZStack(alignment: .leading) {
                         TaskFamilyEdgeZone()
                         TaskFamilyParentTab(parent: parent,
@@ -160,7 +162,11 @@ struct TaskFormScreen: View {
             }
             .background(TaskSheetExpansionProbe { expanded in
                 if expandedSheet != expanded {
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { expandedSheet = expanded }
+                    // UIKit already animates the detent. Do not start another
+                    // animation transaction across the card's open List sections.
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { expandedSheet = expanded }
                 }
                 if !expanded && !settling && pull > 0 { resetPull() }
             })
@@ -173,10 +179,28 @@ struct TaskFormScreen: View {
         }
         // Отклик (02.10.2026): лёгкий удар, когда карточка приземлилась.
         .sensoryFeedback(.impact(weight: .light), trigger: selectedCardID)
+        .environment(\.taskFamilyNumbers, familyNumbers)
+        .task(id: model.taskID) {
+            guard let id = model.taskID else { return }
+            do {
+                let api = APIClient()
+                var card = try await api.task(id: id)
+                var seen = Set<String>()
+                while let parent = card.parentId, seen.insert(parent).inserted {
+                    card = try await api.task(id: parent)
+                }
+                let plans = try await api.collaborationPlans(taskId: card.id)
+                if let cards = plans.first(where: { $0.branchCards != nil })?.branchCards {
+                    let numbers = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0.tabNumber) })
+                    if familyNumbers != numbers { familyNumbers = numbers }
+                }
+            } catch { /* Older servers keep the existing bookmark numbering. */ }
+        }
     }
 
     private func receiveFamily(_ members: [ApiTask]) {
-        family = members
+        let incomingIDs = Set(members.map(\.id))
+        family = family.filter { !incomingIDs.contains($0.id) } + members
         if let id = model.taskID { models[id] = model }
         for member in members where member.id != model.taskID && models[member.id] == nil {
             let candidate = TaskFormViewModel(taskID: member.id)
@@ -260,9 +284,14 @@ struct TaskFormScreen: View {
         }
     }
 
-    /// Переход идёт назад, к родителю: родитель — первый в семье.
+    private var currentParent: ApiTask? {
+        guard let parentID = model.loadedTask?.parentId else { return nil }
+        return family.first { $0.id == parentID }
+    }
+
+    /// Переход назад идёт к непосредственному родителю текущей карточки.
     private var backToParent: Bool {
-        guard let parentID = family.first?.id, selectedCardID != parentID,
+        guard let parentID = currentParent?.id, selectedCardID != parentID,
               let incomingID = incoming?.taskID else { return false }
         return incomingID == parentID
     }
@@ -299,7 +328,7 @@ struct TaskFormScreen: View {
     /// Слот закладки родителя: высота и место — как у слота открытого
     /// ребёнка в правой колонке.
     private func parentSlot(height: CGFloat) -> (height: CGFloat, offset: CGFloat) {
-        let kids = TaskFamilyEdgeTabs.allChildren(of: family)
+        let kids = TaskFamilyEdgeTabs.children(of: family, selectedID: currentParent?.id)
         let index = kids.firstIndex { $0.element.id == selectedCardID } ?? 0
         return (TaskFamilyEdgeTabs.slotHeight(height: height, count: max(1, kids.count)),
                 TaskFamilyEdgeTabs.slotCenterOffset(index: index, count: max(1, kids.count), height: height))
@@ -307,7 +336,7 @@ struct TaskFormScreen: View {
 
     @ViewBuilder
     private func parentPullHandle(height: CGFloat, shadow: Bool) -> some View {
-        if let parentID = family.first?.id, pullingCardID == parentID {
+        if let parentID = currentParent?.id, pullingCardID == parentID {
             let slotHeight = parentSlot(height: height).height
             TaskFamilyParentTab.shape
                 .fill(TaskFamilyEdgeTabs.fillColor)
@@ -317,6 +346,7 @@ struct TaskFormScreen: View {
                         .padding(.leading, TaskFamilyEdgeTabs.seamOverlap)
                 }
                 .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
+                .compositingGroup()
                 .shadow(color: shadow ? TaskFamilyEdgeTabs.shadowColor : .clear, radius: TaskFamilyEdgeTabs.shadowRadius)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 // Левый край хлястика — правая кромка листа: лист стоит на pull − width.
@@ -330,8 +360,8 @@ struct TaskFormScreen: View {
 
     @ViewBuilder
     private func attachedPullHandle(height: CGFloat, width: CGFloat, shadow: Bool) -> some View {
-        if let pullingCardID, pullingCardID != family.first?.id {
-            let remaining = TaskFamilyEdgeTabs.allChildren(of: family)
+        if let pullingCardID, pullingCardID != currentParent?.id {
+            let remaining = TaskFamilyEdgeTabs.children(of: family, selectedID: selectedCardID)
             let slotHeight = TaskFamilyEdgeTabs.slotHeight(height: height, count: remaining.count)
             VStack(spacing: 8) {
                 ForEach(remaining, id: \.element.id) { index, member in
@@ -346,12 +376,12 @@ struct TaskFormScreen: View {
                             .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
                             .overlay {
                                 Group {
-                                    if index == 0 {
+                                    if (familyNumbers[member.id] ?? index) == 0 {
                                         Image(systemName: "square.stack")
                                             .font(.caption)
                                             .foregroundStyle(Color.tfSub)
                                     } else {
-                                        TaskFamilyChildMark(number: index)
+                                        TaskFamilyChildMark(number: familyNumbers[member.id] ?? index)
                                     }
                                 }
                                 .padding(.trailing, TaskFamilyEdgeTabs.seamOverlap)
@@ -362,7 +392,8 @@ struct TaskFormScreen: View {
                 }
             }
             .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap)
-            .shadow(color: shadow ? TaskFamilyEdgeTabs.shadowColor : .clear, radius: TaskFamilyEdgeTabs.shadowRadius)
+            .compositingGroup()
+                .shadow(color: shadow ? TaskFamilyEdgeTabs.shadowColor : .clear, radius: TaskFamilyEdgeTabs.shadowRadius)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             // Правый край хлястика — кромка листа: лист стоит на width − pull.
             // При касании хлястик выезжает из узкого края на всю ширину.
@@ -376,6 +407,7 @@ struct TaskFormScreen: View {
 
 /// A transparent edge hit area; only a few points of each bookmark remain visible.
 struct TaskFamilyEdgeTabs: View {
+    @Environment(\.taskFamilyNumbers) private var familyNumbers
     /// В покое — узкий край (владелец 02.10.2026: на полную ширину
     /// закладки задевали текст страницы); под пальцем выезжают целиком.
     static let restingWidth: CGFloat = 10
@@ -424,7 +456,7 @@ struct TaskFamilyEdgeTabs: View {
     }
 
     static func children(of members: [ApiTask], selectedID: String?) -> [(offset: Int, element: ApiTask)] {
-        Array(members.enumerated()).filter { $0.offset > 0 && $0.element.id != selectedID }
+        Array(members.enumerated()).filter { $0.element.parentId == (selectedID ?? members.first?.id) }
     }
     let height: CGFloat
     let width: CGFloat
@@ -443,7 +475,11 @@ struct TaskFamilyEdgeTabs: View {
         min(116, max(64, height * 0.65 / CGFloat(max(1, count)) - 8))
     }
 
-    private var slots: [(offset: Int, element: ApiTask)] { Self.allChildren(of: members) }
+    private var selectedParentID: String? {
+        members.first { $0.id == selectedID }?.parentId
+    }
+
+    private var slots: [(offset: Int, element: ApiTask)] { Self.children(of: members, selectedID: selectedID) }
     private var slotHeight: CGFloat { Self.slotHeight(height: height, count: slots.count) }
 
     var body: some View {
@@ -453,9 +489,7 @@ struct TaskFamilyEdgeTabs: View {
                     Color.clear.frame(width: 32, height: slotHeight)
                 } else {
                 Button {
-                    guard !suppressTap else { return }
-                    prepare(member.id)
-                    select(member.id)
+                    // Тап ничего не переключает: закладку только вытягивают свайпом.
                 } label: {
                     // Заливка поверх фона листа: полупрозрачная форма давала
                     // тень вполсилы, и спрятанные закладки её почти не отдавали.
@@ -465,11 +499,12 @@ struct TaskFamilyEdgeTabs: View {
                         .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(Self.outlineColor, lineWidth: Self.outlineWidth) }
                         .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
                             height: slotHeight)
+                        .compositingGroup()
                         .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                         .overlay {
                             if hovered == member.id {
-                                if index == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
-                                else { TaskFamilyChildMark(number: index) }
+                                if (familyNumbers[member.id] ?? index) == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
+                                else { TaskFamilyChildMark(number: familyNumbers[member.id] ?? index) }
                             }
                         }
                         .frame(width: 32, alignment: .trailing)
@@ -478,8 +513,8 @@ struct TaskFamilyEdgeTabs: View {
                 // Пока выезжает родитель слева, правые тают, чтобы не резать
                 // его лист; при тяге ребёнка остальные отъезжают за край.
                 .opacity(pullingCardID == member.id ? 0
-                    : (pullingCardID != nil && pullingCardID == members.first?.id ? max(0, 1 - pull / 60) : 1))
-                .offset(x: pullingCardID == nil || pullingCardID == member.id || pullingCardID == members.first?.id ? 0 : min(40, pull * 0.45))
+                    : (pullingCardID != nil && pullingCardID == selectedParentID ? max(0, 1 - pull / 60) : 1))
+                .offset(x: pullingCardID == nil || pullingCardID == member.id || pullingCardID == selectedParentID ? 0 : min(40, pull * 0.45))
                 .buttonStyle(.plain)
                 .accessibilityLabel(member.title)
                 .accessibilityIdentifier("task.family.\(member.id)")
@@ -617,9 +652,7 @@ struct TaskFamilyParentTab: View {
 
     var body: some View {
         Button {
-            guard !suppressTap else { return }
-            prepare(parent.id)
-            select(parent.id)
+            // Тап ничего не переключает: закладку только вытягивают свайпом.
         } label: {
             Self.shape
                 .fill(TaskFamilyEdgeTabs.fillColor)
@@ -627,7 +660,8 @@ struct TaskFamilyParentTab: View {
                 .overlay { TaskFamilyTabOutline(openEdge: .leading).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                 .frame(width: hovered ? TaskFamilyEdgeTabs.expandedWidth : TaskFamilyEdgeTabs.restingWidth,
                     height: slotHeight)
-                .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
+                .compositingGroup()
+                        .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                 .overlay {
                     if hovered {
                         Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
@@ -739,5 +773,15 @@ struct CardTextEditGate: ViewModifier {
                         .accessibilityIdentifier("task.arm.\(identifier)")
                 }
             }
+    }
+}
+
+private struct TaskFamilyNumbersKey: EnvironmentKey {
+    static let defaultValue: [String: Int] = [:]
+}
+private extension EnvironmentValues {
+    var taskFamilyNumbers: [String: Int] {
+        get { self[TaskFamilyNumbersKey.self] }
+        set { self[TaskFamilyNumbersKey.self] = newValue }
     }
 }

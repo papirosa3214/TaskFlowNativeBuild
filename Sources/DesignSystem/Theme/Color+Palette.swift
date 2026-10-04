@@ -2,15 +2,10 @@ import SwiftUI
 
 // Палитра TaskFlow — числа 1:1 из spec/DESIGN-TOKENS.md §1, не подбирались на глаз.
 //
-// Токены поверхности (bg/card/card2/stroke/text/sub/dim) — единственные 7,
-// которые меняются между тёмной и светлой темой (спека §7). Акцентные цвета
-// одинаковы в обеих темах намеренно — это цвета приоритетов/меток/статусов,
-// не оформления поверхности, поэтому у них нет dark/light-варианта.
-//
-// project.yml сейчас принудительно ставит UIUserInterfaceStyle: Dark (правка
-// вне этой папки), поэтому светлая тема на живом приложении пока недостижима —
-// но токены заведены оба, как того требует спека, и видны через
-// `.environment(\.colorScheme, .light)` в превью.
+// Поверхности и смысловые акценты адаптируются к выбранной теме.
+// Светлые акценты темнее для читаемых подписей на белых/серых поверхностях.
+// Выбор задаётся AppAppearance на уровне сцены; системные компоненты
+// получают ту же тему без собственных подложек и имитаций.
 public extension Color {
 
     /// Строит динамический цвет: разные hex для тёмной/светлой темы, как в web `:root[data-theme]`.
@@ -33,7 +28,7 @@ public extension Color {
     /// Вторичный текст (подписи, второй уровень важности).
     static let tfSub = dynamic(dark: "#a6a6a6", light: "#5c5c5c")
     /// Третий уровень: подписи "можно не читать", неактивная иконка таббара.
-    static let tfDim = dynamic(dark: "#949494", light: "#9a9a9a")
+    static let tfDim = dynamic(dark: "#949494", light: "#6b6b6b")
 
     /// Единственная граница/разделитель — полупрозрачная белая (тёмная) / чёрная (светлая), не сплошной цвет.
     static let tfStroke = Color(uiColor: UIColor { trait in
@@ -42,29 +37,29 @@ public extension Color {
             : UIColor.black.withAlphaComponent(0.09)
     })
 
-    // MARK: Акценты (одинаковы в обеих темах)
+    // MARK: Акценты (тот же смысл и тон, адаптивная контрастность)
 
     /// Единственный акцент приложения — активная вкладка/пункт, «сегодня», просрочка, удаление.
     /// Как заливку под белый текст НЕ использовать — контраст 4.08:1, ниже нормы 4.5. См. `tfRedSolid`.
-    static let tfRed = Color(hex: "#e44332")
+    static let tfRed = dynamic(dark: "#e44332", light: "#c53426")
     /// Заливка ИМЕННО под белый текст 15px/600 (`Button variant="primary"`) — контраст 4.67:1.
     static let tfRedSolid = Color(hex: "#d63a28")
     /// Приоритет P2, предупреждения.
-    static let tfOrange = Color(hex: "#ff9a14")
+    static let tfOrange = dynamic(dark: "#ff9a14", light: "#945200")
     /// Прикладной цвет меток/категорий.
-    static let tfPink = Color(hex: "#ff7a8a")
+    static let tfPink = dynamic(dark: "#ff7a8a", light: "#b32a55")
     /// Приоритет P3, статус «на проверке».
-    static let tfBlue = Color(hex: "#4a9fd8")
+    static let tfBlue = dynamic(dark: "#4a9fd8", light: "#246da3")
     /// Прикладной цвет меток/категорий.
-    static let tfPurple = Color(hex: "#a78bfa")
+    static let tfPurple = dynamic(dark: "#a78bfa", light: "#7353b6")
     /// Прикладной цвет; маркер-выделитель в заметках.
-    static let tfYellow = Color(hex: "#f7d038")
+    static let tfYellow = dynamic(dark: "#f7d038", light: "#7b6500")
     /// Ошибки, «агент пропал» — тревожное состояние, не путать с `tfRed`-акцентом.
-    static let tfCoral = Color(hex: "#ff6b6b")
+    static let tfCoral = dynamic(dark: "#ff6b6b", light: "#bc3342")
     /// Статус «в работе» (агент), единый зелёный/бирюзовый акцент состояния.
-    static let tfTeal = Color(hex: "#35b8a3")
+    static let tfTeal = dynamic(dark: "#35b8a3", light: "#147466")
     /// Тот же смысловой ряд, что teal — темнее и насыщеннее.
-    static let tfGreen = Color(hex: "#15937e")
+    static let tfGreen = dynamic(dark: "#15937e", light: "#14745f")
 
     /// 30.09.2026, владелец: промежуточный тон (#1D1D1D) между `tfBackground`
     /// и `tfCard` давал видимую полосу там, где фон списка внутри шторки не

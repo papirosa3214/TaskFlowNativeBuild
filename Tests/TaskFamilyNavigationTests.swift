@@ -79,6 +79,15 @@ final class TaskFamilyNavigationTests: XCTestCase {
         XCTAssertEqual(model.loadedTask?.labels.map(\.id), ["label-1"])
     }
 
+    func testNestedTabsContainOnlyDirectChildren() throws {
+        let data = Data(#"[{"id":"root","title":"Root","status":"active","labels":[],"subtasks":[]},{"id":"child","title":"Child","status":"active","parent_id":"root","labels":[],"subtasks":[]},{"id":"grand","title":"Grand","status":"active","parent_id":"child","labels":[],"subtasks":[]},{"id":"leaf","title":"Leaf","status":"active","parent_id":"grand","labels":[],"subtasks":[]}]"#.utf8)
+        let cards = try JSONDecoder().decode([ApiTask].self, from: data)
+        XCTAssertEqual(TaskFamilyEdgeTabs.children(of: cards, selectedID: "root").map(\.element.id), ["child"])
+        XCTAssertEqual(TaskFamilyEdgeTabs.children(of: cards, selectedID: "child").map(\.element.id), ["grand"])
+        XCTAssertEqual(TaskFamilyEdgeTabs.children(of: cards, selectedID: "grand").map(\.element.id), ["leaf"])
+        XCTAssertTrue(TaskFamilyEdgeTabs.children(of: cards, selectedID: "leaf").isEmpty)
+    }
+
     private func makeAPI() -> APIClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [CardSaveURLProtocol.self]

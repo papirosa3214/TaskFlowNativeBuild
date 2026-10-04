@@ -26,6 +26,7 @@ struct VoiceBubbleStyle {
     /// Треугольник воспроизведения.
     var playTint: Color = .accentColor
     var playDisc: VoicePlayDisc = .white
+    var contentColor: Color = .white
     /// Внутренний отступ пузыря и радиус скругления. По умолчанию — прежние
     /// числа прототипа (14 и 22). Чат передаёт СВОИ — те же, что у текстового
     /// сообщения (`TFSpacing.md` и `TFRadius.lg`): иначе иконка отправителя и
@@ -54,14 +55,14 @@ struct VoiceMessageBubble: View {
                     playGlyph
                 }
                 .accessibilityLabel(player.playingURL == message.audioURL ? "Пауза" : "Воспроизвести")
-                WaveformView(levels: message.waveform, color: .white).frame(height: 30)
+                WaveformView(levels: message.waveform, color: style.contentColor).frame(height: 30)
                 Text(String(format: "%d:%02d", Int(message.duration) / 60, Int(message.duration) % 60))
                     .monospacedDigit().font(.subheadline)
             }
             transcript
         }
         .padding(style.padding)
-        .foregroundStyle(.white)
+        .foregroundStyle(style.contentColor)
         .background(style.fill, in: RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous))
         .overlay {
             if let stroke = style.stroke {
@@ -115,10 +116,10 @@ struct VoiceMessageBubble: View {
         switch message.transcript {
         case .pending:
             Label("Расшифровка…", systemImage: "waveform.badge.magnifyingglass")
-                .font(.subheadline).foregroundStyle(.white.opacity(0.78))
+                .font(.subheadline).foregroundStyle(style.contentColor.opacity(0.78))
         case .failed:
             Text("Расшифровка недоступна")
-                .font(.subheadline).foregroundStyle(.white.opacity(0.78))
+                .font(.subheadline).foregroundStyle(style.contentColor.opacity(0.78))
         case .ready(let text):
             VStack(alignment: .leading, spacing: 5) {
                 Text(text)
@@ -127,7 +128,7 @@ struct VoiceMessageBubble: View {
                     .textSelection(.enabled)
                 if text.count > 120 {
                     Button(showsTranscript ? "Скрыть" : "Показать ещё") { showsTranscript.toggle() }
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(style.contentColor)
                 }
             }
         }

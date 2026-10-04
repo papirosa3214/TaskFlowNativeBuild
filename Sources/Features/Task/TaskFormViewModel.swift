@@ -20,6 +20,7 @@ enum TaskAIStructureStatus: Equatable {
 @MainActor
 @Observable
 final class TaskFormViewModel {
+    let collaborationPlanState: CollaborationPlanState
     var taskID: String?
     private let apiClient: APIClient
 
@@ -155,6 +156,25 @@ final class TaskFormViewModel {
     var isEditing: Bool { taskID != nil }
     /// Для меню «…» (перенесено из `TaskDetailScreen` — открытие задачи
     /// больше не ведёт на отдельный экран-просмотр, она сама и есть форма).
+    var executionStatus: TaskExecutionStatus?
+    var isLaunchingExecutor = false
+    var executionStatusUnavailable = true
+    var canLaunchExecutor: Bool {
+        !isLaunchingExecutor && !executionStatusUnavailable && (executionStatus?.canLaunch ?? false)
+    }
+    var canChangeExecutor: Bool { !isLaunchingExecutor && (taskID == nil || (!executionStatusUnavailable && (executionStatus?.canChangeExecutor ?? false))) }
+    var canUsePlan: Bool { !isLaunchingExecutor && !executionStatusUnavailable && (executionStatus?.canUsePlan ?? false) }
+
+    func loadExecutionStatus() async {
+        guard let taskID else { return }
+        do {
+            executionStatus = try await apiClient.taskExecutionStatus(id: taskID)
+            executionStatusUnavailable = false
+        } catch {
+            executionStatusUnavailable = true
+        }
+    }
+
     var agentState: AgentState? { originalTask?.agentState }
     /// Спек 1.2, 1.2.10 — лесенка модели. На старых задачах (созданных до
     /// спек 1.2) поле отсутствует в ответе — `nil`, UI не рисует индикатор.
@@ -190,6 +210,7 @@ final class TaskFormViewModel {
     ) {
         self.taskID = taskID
         self.apiClient = apiClient
+        self.collaborationPlanState = CollaborationPlanState(api: apiClient)
         self.startDictation = startDictation
         self.parentId = parentTaskID
         self.parentTitle = parentTaskTitle
@@ -209,6 +230,7 @@ final class TaskFormViewModel {
         do {
             let task = try await apiClient.task(id: taskID)
             originalTask = task
+            await loadExecutionStatus()
             title = task.title
             taskDescription = task.description ?? ""
             subtasks = task.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
@@ -352,6 +374,7 @@ final class TaskFormViewModel {
         guard let taskID else { return }
         guard let fresh = try? await apiClient.task(id: taskID) else { return }
         originalTask = fresh
+        await loadExecutionStatus()
         subtasks = fresh.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
         childTasks = fresh.children ?? []
         await syncLiveActivity(with: fresh)
@@ -393,12 +416,7 @@ final class TaskFormViewModel {
             NSLog("[TFACT] taskID пуст")
             return
         }
-        guard originalTask?.agentState == .inProgress,
-              originalTask?.agentStale != true else {
-            activity = .idle
-            NSLog("[TFACT] пропуск: state=\(String(describing: originalTask?.agentState)) stale=\(String(describing: originalTask?.agentStale)) original=\(originalTask == nil ? "nil" : "есть")")
-            return
-        }
+        // Сервер проверяет актуальную аренду; клиент не скрывает поток по устаревшему снимку карточки.
         do {
             let fresh = try await apiClient.taskActivity(taskId: taskID)
             activity = fresh
@@ -550,11 +568,20 @@ final class TaskFormViewModel {
     /// `true` — сервер принял запуск.
     func runAgent(mode: String) async -> Bool {
         guard let taskID else { return false }
+        if mode == "executor" {
+            guard canLaunchExecutor else { return false }
+            isLaunchingExecutor = true
+        }
+        defer { if mode == "executor" { isLaunchingExecutor = false } }
         do {
             try await apiClient.runTask(id: taskID, mode: mode)
+            await loadExecutionStatus()
+            await reloadTaskQuietly()
+            assigneeId = originalTask?.assigneeId
             return true
         } catch {
             saveErrorMessage = Self.ownerActionErrorMessage(error)
+            await loadExecutionStatus()
             return false
         }
     }
@@ -583,7 +610,7 @@ final class TaskFormViewModel {
     func startTask(taskStore: TaskStore) async {
         guard let task = originalTask else { return }
         do {
-            if task.parentId == nil {
+            if task.parentId == nil || !childTasks.isEmpty {
                 try await apiClient.startDraft(taskID: task.id)
             } else {
                 _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])

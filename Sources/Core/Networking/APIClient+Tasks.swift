@@ -209,3 +209,37 @@ public extension APIClient {
         return response.rules
     }
 }
+
+struct TaskExecutionStatus: Decodable, Equatable {
+    let status: String
+    let busy: Bool
+    let scheme: String?
+    let canLaunch: Bool
+    let canChangeExecutor: Bool
+    let canUsePlan: Bool
+    let branchRootTaskId: String?
+    let error: String?
+    enum CodingKeys: String, CodingKey {
+        case status, busy, scheme, error
+        case branchRootTaskId = "branch_root_task_id"
+        case canLaunch = "can_launch", canChangeExecutor = "can_change_executor", canUsePlan = "can_use_plan"
+    }
+    var title: String {
+        switch status {
+        case "queued": "Исполнитель в очереди"
+        case "running", "in_progress": "Исполнитель работает"
+        case "retry_wait": "Ожидание повторного запуска"
+        case "failed": "Не удалось запустить исполнителя"
+        case "review": "Результат на проверке"
+        case "blocked": "Исполнитель ждёт ответа"
+        case "finished": "Заход исполнителя завершён"
+        default: "Готово к запуску"
+        }
+    }
+}
+
+extension APIClient {
+    func taskExecutionStatus(id: String) async throws -> TaskExecutionStatus {
+        try await request(.get, "/tasks/\(id)/execution")
+    }
+}

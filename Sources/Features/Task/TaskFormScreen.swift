@@ -87,6 +87,7 @@ struct TaskCardContent: View {
     /// пункт «Утвердить план совместной работы» в меню «Ещё» (LOCK-249).
     /// Заполняется `CollaborationPlanView.load()` через `@Binding`.
     @State private var pendingPlanApprovalId: String?
+    @State private var pendingBranchPlanSnapshot: String?
     /// Смена значения форсирует `CollaborationPlanView` пересоздаться
     /// (`.id(...)`) и заново загрузиться после утверждения плана — у неё
     /// свой `didStartLoad`, обычный `onAppear` второй раз не сработает.
@@ -101,6 +102,7 @@ struct TaskCardContent: View {
     /// «Сведения» и «Лента активности». Без `AppStorage` — состояние живёт в
     /// текущей сессии экрана и сбрасывается при каждом открытии карточки.
     @State private var expandedSections: Set<TaskDetailSection>
+    @State private var isTaskTitleExpanded = true
     /// Итог карточки — секция «Итог» (LOCK-273). nil — не загружен или пуст.
     @State private var outcome: ApiTaskOutcome?
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
@@ -158,6 +160,9 @@ struct TaskCardContent: View {
         self.onExpandedSectionsChanged = onExpandedSectionsChanged
         self.preview = preview
         _expandedSections = State(initialValue: initialExpandedSections)
+        _hasCollaborationPlan = State(initialValue: model.collaborationPlanState.isVisible)
+        _pendingPlanApprovalId = State(initialValue: model.collaborationPlanState.draftPlan?.id)
+        _pendingBranchPlanSnapshot = State(initialValue: model.collaborationPlanState.draftPlan?.branchSnapshot)
         _newSubtaskBlocks = State(initialValue: model.pendingNewStepBlocks ?? [NoteBlock(kind: .paragraph)])
         _insertSubtaskBlocks = State(initialValue: model.pendingInsertedStepBlocks ?? [NoteBlock(kind: .paragraph)])
         _insertAfterSubtaskID = State(initialValue: model.pendingInsertAfterStepID)
@@ -453,70 +458,68 @@ struct TaskCardContent: View {
 
     @ViewBuilder private var headerSection: some View {
             Section {
-                // Итог перечитывается, когда меняется состояние карточки
-                // (например, проверяющий вынес вердикт) — LOCK-273.
-                Color.clear
-                    .frame(height: 0)
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .task(id: outcomeReloadKey) { await loadOutcome() }
-                // Состояние — часть карточки, а не шапки (владелец 02.10.2026:
-                // наверху только две кнопки; статус уезжает вместе с листом).
-                // Словами, без значка; «n/3 модель» — только когда попытки
-                // исчерпаны, тогда понятно, почему стоим.
-                // Владелец 02.10.2026: подзаголовок «Создана …» и статус —
-                // одной строкой.
-                if createdText != nil || viewModel.agentState != nil || attemptsExhausted {
-                    HStack(spacing: TFSpacing.sm) {
-                        if let createdText {
-                            Text(createdText)
-                                .tfText(.caption)
-                                .foregroundStyle(Color.tfSub)
+                if isTaskTitleExpanded {
+                    VStack(spacing: 0) {
+                        titleBlockTopDivider
+                        // Владелец 30.09.2026: «вся карточка как описание» —
+                        // тот же `BlockDocumentEditor`, что у описания и у
+                        // заметки (13.09.2026), просто своим шрифтом/цветом.
+                        // Инлайн-разметка (жирный/курсив/…) теперь доступна и
+                        // в названии; заголовки/списки/код-блок технически
+                        // тоже доступны через ту же ленту — отдельно не
+                        // урезаны, раз просили «точно как описание, без
+                        // ограничений».
+                        HStack(alignment: .top, spacing: TFSpacing.sm) {
+                            BlockDocumentEditor(
+                                blocks: $viewModel.titleBlocks,
+                                focus: titleFocus,
+                                placeholder: "Название задачи",
+                                baseFontOverride: UIFontMetrics(forTextStyle: .headline)
+                                    .scaledFont(for: .systemFont(ofSize: 17, weight: .regular)),
+                                textColor: UIColor(Color.tfText),
+                                requestsFocus: activeEditors.contains("title"),
+                                onEdit: { scheduleSave() }
+                            )
+                            .id(activeEditors.contains("title"))
+                            .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("title"), identifier: "title", text: viewModel.title, arm: { armedEditors.insert("title") }))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .listRowSeparator(.hidden)
+                            if armedEditors.contains("title") || activeEditors.contains("title") {
+                                editorButton("title")
+                            }
                         }
-                        if let state = viewModel.agentState {
-                            Text(state == .blocked ? "Заблокировано" : agentStateText(state))
-                                .tfText(.caption)
-                                .foregroundStyle(agentStateColor(state))
-                        }
-                        if attemptsExhausted, let ladder = viewModel.attemptLadder {
-                            AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
-                        }
+                        titleBlockBottomDivider
                     }
-                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("task.title.content")
                     .listRowSeparator(.hidden)
                 }
-                VStack(spacing: 0) {
-                    titleBlockTopDivider
-                    // Владелец 30.09.2026: «вся карточка как описание» —
-                    // тот же `BlockDocumentEditor`, что у описания и у
-                    // заметки (13.09.2026), просто своим шрифтом/цветом.
-                    // Инлайн-разметка (жирный/курсив/…) теперь доступна и
-                    // в названии; заголовки/списки/код-блок технически
-                    // тоже доступны через ту же ленту — отдельно не
-                    // урезаны, раз просили «точно как описание, без
-                    // ограничений».
-                    HStack(alignment: .top, spacing: TFSpacing.sm) {
-                        BlockDocumentEditor(
-                            blocks: $viewModel.titleBlocks,
-                            focus: titleFocus,
-                            placeholder: "Название задачи",
-                            baseFontOverride: UIFontMetrics(forTextStyle: .headline)
-                                .scaledFont(for: .systemFont(ofSize: 17, weight: .regular)),
-                            textColor: UIColor(Color.tfText),
-                            requestsFocus: activeEditors.contains("title"),
-                            onEdit: { scheduleSave() }
-                        )
-                        .id(activeEditors.contains("title"))
-                        .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("title"), identifier: "title", text: viewModel.title, arm: { armedEditors.insert("title") }))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .listRowSeparator(.hidden)
-                        if armedEditors.contains("title") || activeEditors.contains("title") {
-                            editorButton("title")
+            } header: {
+                HStack(spacing: TFSpacing.sm) {
+                    Button {
+                        withAnimation(.easeInOut(duration: TFDuration.fast)) {
+                            isTaskTitleExpanded.toggle()
                         }
+                    } label: {
+                        taskSectionHeader("Задача")
                     }
-                    titleBlockBottomDivider
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("task.title.toggle")
+                    .accessibilityHint(isTaskTitleExpanded ? "Свернуть" : "Развернуть")
+                    if let createdText {
+                        Text(createdText)
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                    if let state = viewModel.agentState {
+                        Text(state == .blocked ? "Заблокировано" : agentStateText(state))
+                            .tfText(.caption)
+                            .foregroundStyle(agentStateColor(state))
+                    }
+                    if attemptsExhausted, let ladder = viewModel.attemptLadder {
+                        AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
+                    }
+                    Spacer(minLength: 0)
                 }
-                .listRowSeparator(.hidden)
             }
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
@@ -692,12 +695,25 @@ struct TaskCardContent: View {
                 detailsContent.modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("details"), identifier: "details", text: "\(nativeDueText), \(viewModel.priority.label), метки: \(nativeLabelsText), исполнитель: \(selectedRoleTitle)", arm: { armedEditors.insert("details") }))
             }
 
+            if viewModel.executionStatus?.branchRootTaskId != nil {
+                Text("Общий план и запуск — в корневой задаче")
+                    .tfText(.action).foregroundStyle(Color.tfDim)
+                    .accessibilityIdentifier("branch-plan.childNotice")
+                    .listRowBackground(Color.tfBackground)
+            }
+            if let taskID = viewModel.taskID {
+                TaskPreparationView(taskID: taskID, allowsExecution: viewModel.canUsePlan) {
+                    await viewModel.refresh()
+                    collaborationPlanReloadToken += 1
+                }
+            }
+
             // Секция целиком скрыта, пока не подтверждено, что approved-план
             // есть — иначе на обычных карточках оставалась бы пустая строка.
             if let taskID = viewModel.taskID {
                 if hasCollaborationPlan {
                     collapsibleSection(.collaborationPlan, title: "План совместной работы") {
-                        CollaborationPlanView(taskId: taskID, subtasks: viewModel.subtasks, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
+                        CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
                             .id(collaborationPlanReloadToken)
                             .listRowSeparator(.hidden)
                     } preview: {
@@ -880,7 +896,7 @@ struct TaskCardContent: View {
         // 02.10.2026, кадр). Теперь он вне списка.
         .background {
             if let taskID = viewModel.taskID, !hasCollaborationPlan {
-                CollaborationPlanView(taskId: taskID, subtasks: viewModel.subtasks, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId)
+                CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
                     .id(collaborationPlanReloadToken)
                     .frame(width: 0, height: 0)
                     .opacity(0)
@@ -888,6 +904,8 @@ struct TaskCardContent: View {
                     .accessibilityHidden(true)
             }
         }
+        .contentMargins(.top, TFSpacing.sm, for: .scrollContent)
+        .task(id: outcomeReloadKey) { await loadOutcome() }
         .scrollDismissesKeyboard(.interactively)
         // Ушли из строки шага — сохранили её название. Тот же принцип, что
         // у названия задачи выше: отдельной кнопки «сохранить» нет.
@@ -1031,10 +1049,6 @@ struct TaskCardContent: View {
                         .foregroundStyle(status.color)
                 }
                 Spacer(minLength: TFSpacing.sm)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }
@@ -1293,7 +1307,7 @@ struct TaskCardContent: View {
     /// один жест значил бы две разные вещи.
     @ViewBuilder
     private func nativeSubtaskRow(_ subtask: ApiSubtask) -> some View {
-        let isRunning = subtask.state == .running
+        let isRunning = !subtask.done && (subtask.state == .running || subtask.agentState == .inProgress)
         let hasDetails = subtask.result?.isEmpty == false
             || subtask.agentState == .blocked
             || subtask.agentState == .review
@@ -1410,6 +1424,10 @@ struct TaskCardContent: View {
     private func subtaskMark(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
         if isRunning {
             TFSubtaskStatusRing(.running)
+        } else if subtask.agentState == .blocked || subtask.state == .blocked {
+            TFSubtaskStatusRing(.blocked)
+        } else if subtask.agentState == .review || subtask.state == .review {
+            TFSubtaskStatusRing(.review)
         } else {
             Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 20))
@@ -1637,7 +1655,8 @@ struct TaskCardContent: View {
         if let me = session.currentUser, viewModel.assigneeId == me.id {
             return me.name
         }
-        guard let role = viewModel.ownerSelectedRole,
+        let assignedRole = viewModel.assigneeId.flatMap { $0.hasPrefix("role_") ? String($0.dropFirst(5)) : nil }
+        guard let role = viewModel.loadedTask?.dispatchedRole ?? viewModel.ownerSelectedRole ?? assignedRole ?? viewModel.loadedTask?.machineSelectedRole,
               let profile = viewModel.roles.first(where: { $0.role == role }) else {
             return "Автоматически"
         }
@@ -1737,42 +1756,55 @@ struct TaskCardContent: View {
     /// «Работа»: кто исполняет и что с ним делать.
     @ViewBuilder
     private var workMenuItems: some View {
+        if viewModel.isLaunchingExecutor {
+            Text("Запуск исполнителя…")
+        } else if let execution = viewModel.executionStatus, execution.status != "idle" {
+            Text(execution.title)
+            if let error = execution.error { Text(error) }
+        } else if viewModel.executionStatusUnavailable {
+            Text("Состояние запуска недоступно — обновите карточку")
+        }
         // Исполнитель — роль (AgentProfile), не учётка (LOCK-178). Раньше —
         // строка в «Сведениях»; выбор роли теперь сразу её и запускает
         // (владелец 01.10.2026: «назначить исполнителя — тем самым и
         // запустить»). «Автоматически» — роли нет, диспетчер подберёт сам.
-        Menu {
-            Button("Автоматически — оркестратор выберет агента") {
-                assignExecutor(role: nil)
-            }
-            // Себя — тем же именем, что и в остальных местах: карточка
-            // на владельце. Назначенную на человека задачу агенты не
-            // берут и работник расписания не трогает.
-            if let me = session.currentUser {
-                Button {
-                    viewModel.assigneeId = me.id
-                    viewModel.ownerSelectedRole = nil
-                } label: {
-                    if viewModel.assigneeId == me.id {
-                        Label(me.name, systemImage: "checkmark")
-                    } else {
-                        Text(me.name)
+        if viewModel.canChangeExecutor {
+            Menu {
+                Button("Автоматически — оркестратор выберет агента") {
+                    assignExecutor(role: nil)
+                }
+                // Себя — тем же именем, что и в остальных местах: карточка
+                // на владельце. Назначенную на человека задачу агенты не
+                // берут и работник расписания не трогает.
+                if let me = session.currentUser {
+                    Button {
+                        viewModel.assigneeId = me.id
+                        viewModel.ownerSelectedRole = nil
+                    } label: {
+                        if viewModel.assigneeId == me.id {
+                            Label(me.name, systemImage: "checkmark")
+                        } else {
+                            Text(me.name)
+                        }
                     }
                 }
-            }
-            ForEach(viewModel.roles) { role in
-                Button {
-                    assignExecutor(role: role.role)
-                } label: {
-                    if viewModel.ownerSelectedRole == role.role {
-                        Label(role.title, systemImage: "checkmark")
-                    } else {
-                        Text(role.title)
+                ForEach(viewModel.roles) { role in
+                    Button {
+                        assignExecutor(role: role.role)
+                    } label: {
+                        if viewModel.ownerSelectedRole == role.role {
+                            Label(role.title, systemImage: "checkmark")
+                        } else {
+                            Text(role.title)
+                        }
                     }
                 }
+            } label: {
+                Label("Исполнитель: \(selectedRoleTitle)", systemImage: "person.crop.circle")
             }
-        } label: {
-            Label("Исполнитель: \(selectedRoleTitle)", systemImage: "person.crop.circle")
+            .disabled(!viewModel.canChangeExecutor)
+        } else {
+            Text("Исполнитель: \(selectedRoleTitle)")
         }
 
         if isOwner {
@@ -1782,11 +1814,11 @@ struct TaskCardContent: View {
             Button {
                 Task { await launchExecutor() }
             } label: {
-                Label("Запустить исполнителя", systemImage: "play.circle")
+                Label(viewModel.executionStatus?.status == "failed" ? "Повторить запуск исполнителя" : "Запустить исполнителя", systemImage: "play.circle")
             }
-            .disabled((viewModel.assigneeId ?? "").isEmpty && viewModel.ownerSelectedRole == nil)
+            .disabled(!viewModel.canLaunchExecutor || ((viewModel.assigneeId ?? "").isEmpty && viewModel.ownerSelectedRole == nil))
             // Вернуть в черновик можно, пока за карточку никто не взялся.
-            if viewModel.readyForPickup, viewModel.agentState == nil {
+            if viewModel.readyForPickup, viewModel.agentState == nil, viewModel.canChangeExecutor {
                 Button {
                     Task { await viewModel.toggleReadyFlag(taskStore: taskStore) }
                 } label: {
@@ -1824,7 +1856,7 @@ struct TaskCardContent: View {
                             } label: {
                                 Label("Утвердить план совместной работы", systemImage: "checkmark.circle")
                             }
-                            .disabled(isApprovingCollaborationPlan)
+                            .disabled(isApprovingCollaborationPlan || !viewModel.canUsePlan)
                         }
                         // Явный выбор шаблона — LOCK-252: серверный автоподбор
                         // по ключевым словам карточки (при создании задачи)
@@ -1839,18 +1871,20 @@ struct TaskCardContent: View {
                         // отдельного «отклонить черновик» — правка 30.09.2026,
                         // раньше пункт был спрятан за уже существующим
                         // черновиком и не открывался вовсе.
-                        Menu {
-                            ForEach(Self.collaborationPlanTemplates, id: \.profile) { template in
-                                Button {
-                                    Task { await proposeCollaborationPlan(taskId: taskID, profile: template.profile) }
-                                } label: {
-                                    Label(template.title, systemImage: template.icon)
+                        if viewModel.canUsePlan {
+                            Menu {
+                                ForEach(Self.collaborationPlanTemplates, id: \.profile) { template in
+                                    Button {
+                                        Task { await proposeCollaborationPlan(taskId: taskID, profile: template.profile) }
+                                    } label: {
+                                        Label(template.title, systemImage: template.icon)
+                                    }
                                 }
+                            } label: {
+                                Label("Предложить план по шаблону", systemImage: "list.bullet.rectangle")
                             }
-                        } label: {
-                            Label("Предложить план по шаблону", systemImage: "list.bullet.rectangle")
+                            .disabled(isProposingCollaborationPlan || !viewModel.canUsePlan)
                         }
-                        .disabled(isProposingCollaborationPlan)
                         // Умная параллелизация (30.09.2026): подобрать план
                         // ИЗ уже написанных открытых подзадач локальным
                         // классификатором, не из шаблона по словам карточки.
@@ -1861,7 +1895,7 @@ struct TaskCardContent: View {
                         } label: {
                             Label("Предложить план из подзадач", systemImage: "wand.and.stars")
                         }
-                        .disabled(isSuggestingCollaborationPlan)
+                        .disabled(isSuggestingCollaborationPlan || !viewModel.canUsePlan)
                     }
             Divider()
                     // Глубокое исследование (миграция 052 сервера
@@ -1973,6 +2007,7 @@ struct TaskCardContent: View {
 
     /// Назначить исполнителя и сразу запустить (владелец 01.10.2026).
     private func assignExecutor(role: String?) {
+        guard viewModel.canChangeExecutor else { return }
         viewModel.ownerSelectedRole = role
         viewModel.assigneeId = nil
         pendingSaveTask?.cancel()
@@ -1991,15 +2026,9 @@ struct TaskCardContent: View {
     /// Разрешить ролям взять карточку (если она ещё черновик) и поднять
     /// исполнителя, если он сам уже не взялся.
     private func launchExecutor() async {
-        if !viewModel.readyForPickup {
-            await viewModel.startTask(taskStore: taskStore)
-        }
-        guard viewModel.agentState != .inProgress else {
-            toast = TaskToastMessage("Исполнитель уже работает")
-            return
-        }
+        guard viewModel.canLaunchExecutor else { return }
         if await viewModel.runAgent(mode: "executor") {
-            toast = TaskToastMessage("Исполнитель запущен")
+            toast = TaskToastMessage("Запуск принят — исполнитель в очереди")
         }
     }
 
@@ -2045,12 +2074,12 @@ struct TaskCardContent: View {
     private func approveCollaborationPlan(taskId: String, planId: String) async {
         isApprovingCollaborationPlan = true
         do {
-            _ = try await APIClient().approveCollaborationPlan(taskId: taskId, planId: planId)
+            _ = try await APIClient().approveCollaborationPlan(taskId: taskId, planId: planId, branchSnapshot: pendingBranchPlanSnapshot)
             pendingPlanApprovalId = nil
             collaborationPlanReloadToken += 1
             toast = TaskToastMessage("План утверждён — роли начинают работу")
         } catch {
-            toast = TaskToastMessage("Не удалось утвердить план")
+            toast = TaskToastMessage((error as? APIError)?.errorDescription ?? "Не удалось утвердить план")
         }
         isApprovingCollaborationPlan = false
     }
@@ -2478,11 +2507,10 @@ struct TaskCardContent: View {
         if taskID != nil {
             let current = viewModel.loadedTask
             if let current {
-                let parent = viewModel.parentTask ?? current
-                let children = viewModel.parentTask == nil ? viewModel.childTasks : (parent.children ?? [])
                 var seen = Set<String>()
-                let members = ([parent] + children).filter { seen.insert($0.id).inserted }
-                if members.count > 1 { onFamilyLoaded(members) }
+                let members = ((viewModel.parentTask.map { [$0] } ?? []) + [current] + viewModel.childTasks)
+                    .filter { seen.insert($0.id).inserted }
+                onFamilyLoaded(members)
             }
         }
     }
@@ -2751,7 +2779,7 @@ private struct LinkedTaskPicker: View {
     private var candidates: [ApiTask] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         return tasks
-            .filter { $0.parentId == nil && !excludedIDs.contains($0.id) }
+            .filter { !excludedIDs.contains($0.id) }
             .filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
             .sorted {
                 if $0.status != $1.status { return $0.status == .active }

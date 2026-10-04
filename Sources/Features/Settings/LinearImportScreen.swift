@@ -14,6 +14,7 @@ final class LinearImportViewModel {
     var error: String?
     var preview: LinearImportPreview?
     var result: LinearImportResult?
+    var importedPreview: LinearImportPreview?
     private let api: any LinearImportServing
     init(api: any LinearImportServing = APIClient()) { self.api = api }
 
@@ -56,7 +57,7 @@ final class LinearImportViewModel {
         guard !loading, let preview else { return false }
         loading = true; error = nil
         defer { loading = false }
-        do { result = try await api.importLinear(previewID: preview.previewID); self.preview = nil; return true }
+        do { result = try await api.importLinear(previewID: preview.previewID); importedPreview = preview; self.preview = nil; return true }
         catch { self.error = error.localizedDescription; return false }
     }
 }
@@ -77,27 +78,25 @@ struct LinearImportScreen: View {
     @Environment(ProjectStore.self) private var projectStore
     @State private var detail: LinearPreviewItem?
     @State private var showsDetail = false
-    init(api: any LinearImportServing = APIClient()) { _model = State(initialValue: LinearImportViewModel(api: api)) }
+    let embedded: Bool
+    let onOpenConnection: (() -> Void)?
+    init(api: any LinearImportServing = APIClient(), embedded: Bool = false, onOpenConnection: (() -> Void)? = nil) {
+        self.onOpenConnection = onOpenConnection
+        self.embedded = embedded
+        _model = State(initialValue: LinearImportViewModel(api: api))
+    }
 
     var body: some View {
-        ZStack {
-            Color.tfBackground.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.lg) {
-                    TFCard(padding: 0) {
-                        TFListRow(icon: "arrow.down.doc", title: "Linear → TaskFlow",
-                                  subtitle: model.workspace?.name ?? "Выборочный перенос задач и структуры")
-                    }
-                    TFErrorBanner(model.error, variant: .block)
-                    if let result = model.result { resultSection(result) }
-                    else if let preview = model.preview { previewSection(preview) }
-                    else { selectionSection }
-                    if model.loading { TFLoading(.inline) }
-                }.padding(TFSpacing.lg)
-            }.id(model.result != nil ? "result" : model.preview != nil ? "preview" : "selection")
+        Group {
+            if embedded {
+                VStack(alignment: .leading, spacing: TFSpacing.md) { content; actions }
+            } else {
+                ScrollView { content.padding(TFSpacing.lg) }
+                    .background(Color.tfBackground)
+                    .tfNativeHeader("Linear", displayMode: .inline)
+                    .safeAreaInset(edge: .bottom) { actions.padding(TFSpacing.lg).background(Color.tfBackground) }
+            }
         }
-        .tfNativeHeader("Linear", displayMode: .inline)
-        .safeAreaInset(edge: .bottom) { actions.padding(TFSpacing.lg).background(Color.tfBackground) }
         .tfBottomSheet(isPresented: $showsDetail, title: detail?.identifier) {
             if let detail {
                 ScrollView {
@@ -112,6 +111,25 @@ struct LinearImportScreen: View {
         }
     }
 
+    private var content: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            Text(model.workspace?.name ?? "Выборочный перенос задач и структуры")
+                .tfText(.caption).foregroundStyle(Color.tfSub)
+            TFErrorBanner(model.error, variant: .block)
+            if let result = model.result { resultSection(result) }
+            else if let preview = model.preview { previewSection(preview) }
+            else { selectionSection }
+            if model.loading { TFLoading(.inline) }
+        }
+    }
+
+    private var connectionRow: some View {
+        TFListRow(icon: "link", iconStyle: .plain, title: "Подключение аккаунта Linear",
+            subtitle: "Сервер MCP → Composio",
+            trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)),
+            titleStyle: .action, verticalPadding: TFSpacing.xs)
+    }
+
     @ViewBuilder private var selectionSection: some View {
         Text("Выберите задачи для переноса. Родители и дочерние карточки будут показаны перед импортом.")
             .tfText(.action).foregroundStyle(Color.tfSub)
@@ -119,9 +137,13 @@ struct LinearImportScreen: View {
             Task { await model.load() }
         }.accessibilityIdentifier("linear.load")
         if model.workspace == nil {
-            NavigationLink { ComposioIntegrationsScreen() } label: {
-                TFCard(padding: 0) { TFListRow(icon: "link", iconStyle: .plain, title: "Подключение аккаунта Linear", subtitle: "Общий аккаунт в Composio", trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim))) }
-            }.buttonStyle(TFTapRowStyle())
+            if let onOpenConnection {
+                Button(action: onOpenConnection) { connectionRow }
+                    .buttonStyle(.plain)
+            } else {
+                NavigationLink { ServiceAccountsScreen(composioExpanded: true) } label: { connectionRow }
+                    .buttonStyle(.plain)
+            }
         } else {
             Menu {
                 Button("Без проекта") { model.projectID = nil }
@@ -141,7 +163,7 @@ struct LinearImportScreen: View {
                         HStack(spacing: 0) {
                             Button { model.toggle(issue.id) } label: {
                                 Image(systemName: model.selected.contains(issue.id) ? "checkmark.square.fill" : "square")
-                                    .foregroundStyle(model.selected.contains(issue.id) ? Color.tfRed : Color.tfDim)
+                                    .foregroundStyle(model.selected.contains(issue.id) ? Color.tfText : Color.tfDim)
                                     .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                             }.buttonStyle(TFTapRowStyle()).accessibilityLabel("Выбрать \(issue.identifier)")
                                 .accessibilityIdentifier("linear.select.\(issue.id)")
@@ -166,10 +188,10 @@ struct LinearImportScreen: View {
         VStack(alignment: .leading, spacing: TFSpacing.lg) {
             TFSectionHeader("Предварительный просмотр")
             TFCard {
-                Text("Новых карточек: \(preview.createCount)\nОбновлений: \(preview.updateCount)\nДобавлено для структуры: \(preview.items.filter { $0.reason == "hierarchy" }.count)")
+                Text("Новых карточек: \(preview.createCount)\nУже в TaskFlow: \(preview.updateCount)\nВключено для структуры: \(preview.items.filter { $0.reason == "hierarchy" }.count)")
                     .tfText(.body).accessibilityIdentifier("linear.preview.summary")
             }
-            Text("Подзадачи Linear станут дочерними карточками TaskFlow. Роли не запускаются. Локальные правки сохраняются.")
+            Text("Уже перенесённые задачи будут обновлены в существующих карточках — копии не создаются. Дочерние задачи находятся внутри родительской. Локальные правки сохраняются.")
                 .tfText(.action).foregroundStyle(Color.tfSub)
             ForEach(preview.warnings, id: \.self) { Text($0).tfText(.caption).foregroundStyle(Color.tfSub) }
             TFCard(padding: 0) {
@@ -178,15 +200,28 @@ struct LinearImportScreen: View {
                         VStack(alignment: .leading, spacing: TFSpacing.xs) {
                             TFTaskRow(TFTaskRowModel(title: "\(row.item.identifier) · \(row.item.title)",
                                                     description: row.item.description,
-                                                    agentStatus: "\(row.item.action == "create" ? "Новая" : "Обновление")\(row.item.reason == "hierarchy" ? " · По структуре" : "")",
+                                                    agentStatus: "\(row.item.action == "create" ? "Новая карточка" : "Уже в TaskFlow")\(row.item.reason == "hierarchy" ? " · Для структуры" : "")",
                                                     agentStatusColor: .tfSub,
                                                     childrenCount: preview.items.filter { $0.parentID == row.id }.count)) {
                                 detail = row.item; showsDetail = true
                             }.accessibilityIdentifier("linear.preview.\(row.id)")
                                 .padding(.leading, CGFloat(min(row.depth, 5)) * TFSpacing.md)
+                            Text(previewRelation(row.item, in: preview))
+                                .tfText(.caption).foregroundStyle(Color.tfSub)
+                                .padding(.horizontal, TFSpacing.lg)
+                                .accessibilityIdentifier("linear.preview.relation.\(row.id)")
+                            if row.item.action == "update", let taskID = row.item.taskID {
+                                NavigationLink(value: AppRoute.taskDetail(taskID: taskID)) {
+                                    Label("Открыть в TaskFlow", systemImage: "doc.text")
+                                        .tfText(.action).foregroundStyle(Color.tfSub)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal, TFSpacing.lg)
+                                .accessibilityIdentifier("linear.preview.existing.\(row.id)")
+                            }
                             if !row.item.conflicts.isEmpty {
                                 Text("Сохранятся локальные правки: \(row.item.conflicts.map(fieldName).joined(separator: ", "))")
-                                    .tfText(.caption).foregroundStyle(Color.tfRed).padding(.horizontal, TFSpacing.lg)
+                                    .tfText(.caption).foregroundStyle(Color.tfText).padding(.horizontal, TFSpacing.lg)
                             }
                             TFDivider(inset: TFSpacing.lg)
                         }
@@ -205,9 +240,16 @@ struct LinearImportScreen: View {
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
                     ForEach(result.taskIDs) { task in
+                        let source = model.importedPreview?.items.first { $0.id == task.sourceID }
                         NavigationLink(value: AppRoute.taskDetail(taskID: task.taskID)) {
-                            TFListRow(icon: "doc.text", iconStyle: .plain, title: task.title, trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
-                        }.buttonStyle(TFTapRowStyle())
+                            TFListRow(icon: "doc.text", iconStyle: .plain,
+                                      title: source.map { "\($0.identifier) · \(task.title)" } ?? task.title,
+                                      subtitle: source.map { item in
+                                          let action = item.action == "create" ? "Создана" : "Обновлена существующая"
+                                          let relation = model.importedPreview.map { previewRelation(item, in: $0) } ?? ""
+                                          return "\(action) · \(relation)"
+                                      })
+                        }.buttonStyle(.plain)
                         TFDivider(inset: TFSpacing.lg)
                     }
                 }
@@ -221,16 +263,29 @@ struct LinearImportScreen: View {
         } else if let preview = model.preview {
             HStack(spacing: TFSpacing.md) {
                 TFButton("Назад", variant: .secondary, isEnabled: !model.loading) { model.preview = nil }
-                TFButton("Перенести (\(preview.items.count))", icon: "arrow.down", isEnabled: !model.loading) {
+                TFButton(preview.createCount == 0 ? "Обновить существующие (\(preview.updateCount))" : preview.updateCount == 0 ? "Создать карточки (\(preview.createCount))" : "Создать \(preview.createCount) · обновить \(preview.updateCount)", icon: "arrow.down", variant: .secondary, isEnabled: !model.loading) {
                     Task { if await model.commit() { await taskStore.load(silent: true); await projectStore.load() } }
                 }.accessibilityIdentifier("linear.import.confirm")
             }
         } else {
-            TFButton("Посмотреть структуру (\(model.selected.count))", icon: "list.bullet.indent", isEnabled: !model.loading && !model.selected.isEmpty) {
+            TFButton("Предварительный просмотр (\(model.selected.count))", icon: "list.bullet.indent", variant: .secondary, isEnabled: !model.loading && !model.selected.isEmpty) {
                 Task { await model.prepare() }
             }.accessibilityIdentifier("linear.preview")
+            Text("Покажет выбранные задачи, их родителей и подзадачи, связи и изменения перед переносом в TaskFlow. На этом этапе ничего не переносится.")
+                .tfText(.caption).foregroundStyle(Color.tfSub)
+                .accessibilityIdentifier("linear.preview.explanation")
         }
     }
+    private func previewRelation(_ item: LinearPreviewItem, in preview: LinearImportPreview) -> String {
+        if let parentID = item.parentID {
+            if let parent = preview.items.first(where: { $0.id == parentID }) {
+                return "В Linear дочерняя: \(parent.identifier) · \(parent.title)"
+            }
+            return "В Linear дочерняя задача"
+        }
+        return preview.items.contains(where: { $0.parentID == item.id }) ? "Родительская задача" : "Самостоятельная задача"
+    }
+
     private func fieldName(_ value: String) -> String {
         ["title":"название", "description":"описание", "priority":"приоритет", "due_date":"срок", "status":"статус", "parent_id":"родитель" ][value] ?? (value.hasPrefix("comment:") ? "комментарий" : value.hasPrefix("history:") ? "история" : value)
     }

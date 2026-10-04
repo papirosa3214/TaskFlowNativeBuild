@@ -14,6 +14,8 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     public let kind: String
     public let createdBy: String
     public let taskID: String?
+    public let projectID: String?
+    public let parentChatID: String?
     public let members: [RoleChatMember]
     public let lastMessage: RoleChatPreview?
     /// Непрочитанных у ТЕКУЩЕГО пользователя (миграция 055, отметка на
@@ -28,6 +30,8 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case id, title, kind, members
         case createdBy = "created_by"
         case taskID = "task_id"
+        case projectID = "project_id"
+        case parentChatID = "parent_chat_id"
         case lastMessage = "last_message"
         case unreadCount = "unread_count"
         case taskTitle = "task_title"
@@ -125,6 +129,12 @@ public struct ApiTaskChat: Decodable, Identifiable, Sendable, Hashable {
 }
 
 /// `/chats/:id/messages` возвращает те же поля, что общий чат, но channel=chat.
+public struct RoleChatReaction: Decodable, Sendable, Equatable {
+    public let userID: String
+    public let emoji: String
+    enum CodingKeys: String, CodingKey { case userID = "user_id"; case emoji }
+}
+
 public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let id: String
     public let chatID: String?
@@ -153,9 +163,10 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// живой ход как в Claude Code) — рисуются свёрнутой строкой «N шагов ·
     /// M с» над текстом. `nil` — ход без шагов или сообщение не от роли.
     public let steps: RoleChatSteps?
+    public let reactions: [RoleChatReaction]?
 
     enum CodingKeys: String, CodingKey {
-        case id, text, attachments, steps
+        case id, text, attachments, steps, reactions
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"

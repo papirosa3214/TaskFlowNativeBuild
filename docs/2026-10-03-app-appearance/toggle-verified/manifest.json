@@ -1,0 +1,44 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "C8AB69D0-F025-4B53-BEB9-DCCB10893713.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "dark-overview-toggle_0_14C85E64-E4A2-4956-9A0D-EC1F10F073DA.png",
+        "timestamp" : 1791048807.419
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "90EC7B04-96ED-4366-90FF-75C427069F11.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "dark-settings-toggle_0_487D4695-E0D5-4A14-844A-077A3608AB6B.png",
+        "timestamp" : 1791048806.705
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "0B5A1642-A216-4A32-8E13-41BADF548C71.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-settings-toggle-after-relaunch_0_31CA7500-C300-43A8-8DFC-9223F9E00DE6.png",
+        "timestamp" : 1791048804.134
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "4C20E155-7298-484A-8EFF-B7B899C4A91C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-settings-toggle_0_ECF52797-8418-4646-B6E2-19A5A40C14FD.png",
+        "timestamp" : 1791048795.279
+      }
+    ],
+    "testIdentifier" : "AppAppearanceUITests/testOriginalSwitchChangesThemeAndPersists()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/AppAppearanceUITests/testOriginalSwitchChangesThemeAndPersists"
+  }
+]
