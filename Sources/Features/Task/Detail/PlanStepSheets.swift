@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Роль в выборе исполнителя шага.
 struct PlanRoleOption: Identifiable, Hashable {
@@ -23,10 +24,29 @@ struct PlanStepDetailSheet: View {
     let onSkip: (String) -> Void
     let onRemove: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var isSkipPromptOpen = false
     @State private var skipReason = ""
+    @State private var isLiveExpanded = false
     @State private var isRemoveConfirmOpen = false
+    @State private var copiedResult = false
+    @State private var isPreviousResultExpanded = false
+
+    private var disclosureKey: String { "task.slot.\(node.taskId ?? plan.taskId).\(node.sourceSlotKey ?? node.slotKey)" }
+
+    init(node: ApiCollaborationPlanNode, assignments: [ApiCollaborationPlanNode] = [],
+         onSelectAssignment: @escaping (String) -> Void = { _ in }, plan: ApiCollaborationPlan,
+         subtask: ApiSubtask?, roleTitle: @escaping (String) -> String, stateLabel: String,
+         isEditable: Bool, onEdit: @escaping () -> Void, onSkip: @escaping (String) -> Void,
+         onRemove: @escaping () -> Void) {
+        self.node = node; self.assignments = assignments; self.onSelectAssignment = onSelectAssignment
+        self.plan = plan; self.subtask = subtask; self.roleTitle = roleTitle; self.stateLabel = stateLabel
+        self.isEditable = isEditable; self.onEdit = onEdit; self.onSkip = onSkip; self.onRemove = onRemove
+        let key = "task.slot.\(node.taskId ?? plan.taskId).\(node.sourceSlotKey ?? node.slotKey)"
+        _isLiveExpanded = State(initialValue: TaskCardDisclosureState.flag(key + ".live", default: false))
+        _isPreviousResultExpanded = State(initialValue: TaskCardDisclosureState.flag(key + ".previous", default: false))
+    }
 
     private var predecessors: [String] {
         plan.edges.filter { $0.toSlotKey == node.slotKey }.map(\.fromSlotKey)
@@ -35,51 +55,87 @@ struct PlanStepDetailSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if !assignments.isEmpty {
-                    Section("Задача") {
-                        Text(node.taskTitle ?? node.expectedResult)
-                        if assignments.count > 1 {
-                            Picker("Поручение", selection: Binding(get: { node.slotKey }, set: onSelectAssignment)) {
-                                ForEach(assignments) { item in
-                                    Text(item.taskTitle ?? item.expectedResult).tag(item.slotKey)
-                                }
+                Section {
+                    LabeledContent("Роль") {
+                        Text(roleTitle(node.roleKey)).foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                    }
+                    if stateLabel == "В работе" {
+                        DisclosureGroup(isExpanded: Binding(get: { isLiveExpanded }, set: { value in
+                            isLiveExpanded = value
+                            TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".live")
+                        })) {
+                            if isLiveExpanded {
+                                TaskLiveActivityView(taskID: node.taskId ?? plan.taskId)
+                            }
+                        } label: {
+                            LabeledContent("Состояние") {
+                                Text(stateLabel).foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("plan-state-live")
+                    } else {
+                        LabeledContent("Состояние") {
+                            Text(stateLabel).foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                        }
+                    }
+                    if let iteration = node.iteration, iteration > 0 {
+                        LabeledContent("Круг доработки") {
+                            Text("\(iteration)").foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                        }
+                    }
+                    if assignments.count > 1 {
+                        Picker("Поручение", selection: Binding(get: { node.slotKey }, set: onSelectAssignment)) {
+                            ForEach(assignments) { item in
+                                Text(item.taskTitle ?? item.expectedResult).tag(item.slotKey)
                             }
                         }
                     }
                 }
                 Section {
-                    LabeledContent("Роль", value: roleTitle(node.roleKey))
-                    LabeledContent("Состояние", value: stateLabel)
-                    if let iteration = node.iteration, iteration > 0 {
-                        LabeledContent("Круг доработки", value: "\(iteration)")
+                    if !assignmentLines.isEmpty {
+                        detailRow("Задание", lines: assignmentLines)
                     }
-                }
-                Section("Что сдать") {
-                    Text(node.expectedResult)
-                }
-                if let instructions = node.instructions, !instructions.isEmpty {
-                    Section("Задание") { Text(instructions) }
-                }
-                if !predecessors.isEmpty {
-                    Section("Начнётся после") {
-                        ForEach(predecessors, id: \.self) { slot in
-                            Text(title(of: slot))
-                        }
+                    if let expected = cleaned(node.expectedResult) {
+                        detailRow("Ожидаемый результат", lines: [expected])
                     }
-                }
-                if let origin = originLine {
-                    Section("Откуда шаг") {
-                        Text(origin)
-                        if let reason = node.addedReason, !reason.isEmpty {
-                            Text(reason).foregroundStyle(Color.tfSub)
-                        }
+                    if !predecessors.isEmpty {
+                        detailRow("Начнётся после", lines: predecessors.map { title(of: $0) })
                     }
-                }
-                if let reason = node.skipReason {
-                    Section("Пропущен") { Text(reason) }
+                    if let origin = originLine {
+                        detailRow("Откуда шаг", lines: [origin] + (cleaned(node.addedReason).map { [$0] } ?? []))
+                    }
+                    if let reason = cleaned(node.skipReason) {
+                        detailRow("Пропущен", lines: [reason])
+                    }
                 }
                 if let result = subtask?.result, !result.isEmpty, !node.isSkipped {
-                    Section("Результат") { Text(result) }
+                    Section {
+                        HStack {
+                            Text(stateLabel == "В работе" ? "Предыдущий результат" : "Результат")
+                                .tfText(.meta).foregroundStyle(Color.tfSub)
+                            Spacer()
+                            Button {
+                                UIPasteboard.general.string = result
+                                copiedResult = true
+                            } label: {
+                                Image(systemName: copiedResult ? "checkmark" : "doc.on.doc")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(copiedResult ? "Скопировано" : "Скопировать результат")
+                            .accessibilityIdentifier("plan-result-copy")
+                        }
+                        if stateLabel == "В работе" {
+                            DisclosureGroup("Показать предыдущий результат", isExpanded: Binding(get: { isPreviousResultExpanded }, set: { value in
+                                isPreviousResultExpanded = value
+                                TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".previous")
+                            })) {
+                                Text(result).textSelection(.enabled)
+                            }
+                        } else {
+                            Text(result).textSelection(.enabled)
+                        }
+                    }
+                    .onChange(of: result) { copiedResult = false }
                 }
                 if isEditable {
                     Section {
@@ -95,6 +151,7 @@ struct PlanStepDetailSheet: View {
                         .accessibilityIdentifier("plan-step-remove")
                     } footer: {
                         Text("Шаг ещё не начат — его можно менять. Порядок сохранится: те, кто ждал этот шаг, будут ждать его предшественников.")
+                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
                     }
                 }
             }
@@ -116,6 +173,32 @@ struct PlanStepDetailSheet: View {
                 Button("Удалить", role: .destructive) { onRemove() }
             }
         }
+    }
+
+    /// Смысловые поля сохраняются, одинаковый текст не печатается повторно.
+    private var assignmentLines: [String] {
+        let expected = cleaned(node.expectedResult)
+        var lines: [String] = []
+        for text in [node.taskTitle, node.instructions].compactMap({ cleaned($0) }) {
+            if text != expected && !lines.contains(text) { lines.append(text) }
+        }
+        return lines
+    }
+
+    private func cleaned(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    private func detailRow(_ label: String, lines: [String]) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            Text(label).tfText(.meta).foregroundStyle(Color.tfSub)
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                Text(line).tfText(.action).foregroundStyle(Color.tfText).textSelection(.enabled)
+            }
+        }
+        .padding(.vertical, TFSpacing.xs)
     }
 
     private var originLine: String? {
@@ -154,6 +237,7 @@ struct PlanStepEditorSheet: View {
     let roleTitle: (String) -> String
     let onSave: (ApiPlanOp) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var roleKey = ""
     @State private var expectedResult = ""
@@ -201,6 +285,7 @@ struct PlanStepEditorSheet: View {
                         Text("Начать после")
                     } footer: {
                         Text("Ничего не выбрано — шаг начнётся сразу, параллельно остальным.")
+                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
                     }
                 }
                 if mode == .add {
@@ -216,6 +301,7 @@ struct PlanStepEditorSheet: View {
                             Text("Раньше шагов")
                         } footer: {
                             Text("Эти шаги дождутся нового. Например, дизайнер между аналитиком и разработчиком.")
+                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
                         }
                     }
                 }

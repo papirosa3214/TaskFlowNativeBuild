@@ -128,7 +128,7 @@ struct ChatVoiceComposer: View {
                     } label: {
                         Image(systemName: workMode.wrappedValue.symbol)
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.tfReadableSecondary)
                             .frame(width: 36, height: 36)
                     }
                     .buttonStyle(.plain)
@@ -140,7 +140,7 @@ struct ChatVoiceComposer: View {
                 } else {
                     Image(systemName: "waveform")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.tfReadableSecondary)
                         .frame(width: 36, height: 36)
                         .frame(width: workMode == nil ? composerHeight * 2 : 36, height: composerHeight, alignment: .trailing)
                         .contentShape(Rectangle())
@@ -206,7 +206,7 @@ struct ChatVoiceComposer: View {
                 WaveformView(levels: message.waveform, color: .secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 38)
-                Text(durationText(message.duration)).font(.body.monospacedDigit()).foregroundStyle(.secondary)
+                Text(durationText(message.duration)).font(.body.monospacedDigit()).foregroundStyle(Color.tfReadableSecondary)
                 if isSendingVoice {
                     ProgressView().frame(width: 36, height: 36)
                 } else {

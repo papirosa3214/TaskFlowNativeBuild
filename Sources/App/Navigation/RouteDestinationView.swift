@@ -30,7 +30,7 @@ import SwiftUI
 func routeDestination(_ route: AppRoute, reservesTabBarSpace: Bool = false) -> some View {
     routeContent(route)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if reservesTabBarSpace && route != .chat {
+            if reservesTabBarSpace {
                 Color.clear.frame(height: TFTabBarMetrics.heightCompact + TFSpacing.sm)
             }
         }

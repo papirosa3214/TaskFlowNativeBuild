@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Палитра TaskFlow — числа 1:1 из spec/DESIGN-TOKENS.md §1, не подбирались на глаз.
+// Палитра TaskFlow: тёмная ветка из spec/DESIGN-TOKENS.md §1, светлая — с проверкой контраста.
 //
 // Поверхности и смысловые акценты адаптируются к выбранной теме.
 // Светлые акценты темнее для читаемых подписей на белых/серых поверхностях.
@@ -26,9 +26,9 @@ public extension Color {
     /// Основной текст, активная иконка таббара.
     static let tfText = dynamic(dark: "#ffffff", light: "#171717")
     /// Вторичный текст (подписи, второй уровень важности).
-    static let tfSub = dynamic(dark: "#a6a6a6", light: "#5c5c5c")
-    /// Третий уровень: подписи "можно не читать", неактивная иконка таббара.
-    static let tfDim = dynamic(dark: "#949494", light: "#6b6b6b")
+    static let tfSub = dynamic(dark: "#a6a6a6", light: "#424242")
+    /// Приглушённые подписи и неактивные иконки; текст остаётся читаемым.
+    static let tfDim = dynamic(dark: "#949494", light: "#4e4e4e")
 
     /// Единственная граница/разделитель — полупрозрачная белая (тёмная) / чёрная (светлая), не сплошной цвет.
     static let tfStroke = Color(uiColor: UIColor { trait in
@@ -36,6 +36,64 @@ public extension Color {
             ? UIColor.white.withAlphaComponent(0.09)
             : UIColor.black.withAlphaComponent(0.09)
     })
+
+    /// Системный вторичный/третичный тон в тёмной теме; читаемая подпись в светлой.
+    static let tfReadableSecondary = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor.secondaryLabel.resolvedColor(with: trait)
+            : UIColor(Color.tfSub).resolvedColor(with: trait)
+    })
+    static let tfReadableTertiary = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor.tertiaryLabel.resolvedColor(with: trait)
+            : UIColor(Color.tfDim).resolvedColor(with: trait)
+    })
+    /// Маленькие предупреждения: сохраняем прежнюю прозрачность только в тёмной теме.
+    static let tfWarningText = Color(uiColor: UIColor { trait in
+        UIColor(Color.tfOrange).resolvedColor(with: trait)
+            .withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.8 : 1)
+    })
+    static let tfPickerArrow = Color(uiColor: UIColor { trait in
+        UIColor(Color.tfDim).resolvedColor(with: trait)
+            .withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.35 : 1)
+    })
+    /// Вне текущего периода календаря: приглушаем только в тёмной теме.
+    static func tfMutedText(darkOpacity: Double) -> Color {
+        Color(uiColor: UIColor { trait in
+            UIColor(Color.tfDim).resolvedColor(with: trait)
+                .withAlphaComponent(trait.userInterfaceStyle == .dark ? darkOpacity : 1)
+        })
+    }
+
+    /// Пользовательские цвета проектов/меток: сохраняем оттенок, затемняем только текст в светлой теме.
+    /// Цвет API и заливки/аватары остаются исходными; целевой контраст текста ≥7:1 на tfCard2.
+    static func tfReadableText(_ color: Color) -> Color {
+        Color(uiColor: UIColor { trait in
+            let resolved = UIColor(color).resolvedColor(with: trait)
+            guard trait.userInterfaceStyle != .dark else { return resolved }
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, alpha: CGFloat = 0
+            guard resolved.getRed(&r, green: &g, blue: &b, alpha: &alpha) else { return UIColor(Color.tfText).resolvedColor(with: trait) }
+            func luminance(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> Double {
+                func linear(_ v: CGFloat) -> Double {
+                    let x = Double(v)
+                    return x <= 0.04045 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4)
+                }
+                return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+            }
+            var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0
+            UIColor(Color.tfCard2).resolvedColor(with: trait).getRed(&br, green: &bg, blue: &bb, alpha: nil)
+            let maximum = (luminance(br, bg, bb) + 0.05) / 7 - 0.05
+            var low: CGFloat = 0, high: CGFloat = 1
+            if luminance(r, g, b) > maximum {
+                for _ in 0..<16 {
+                    let middle = (low + high) / 2
+                    if luminance(r * middle, g * middle, b * middle) <= maximum { low = middle }
+                    else { high = middle }
+                }
+            } else { low = 1 }
+            return UIColor(red: r * low, green: g * low, blue: b * low, alpha: 1)
+        })
+    }
 
     // MARK: Акценты (тот же смысл и тон, адаптивная контрастность)
 
@@ -85,8 +143,7 @@ public extension Color {
     static let tfSwipeDelete = Color(hex: "#FF3B30")
 }
 
-/// Приоритеты задач — отдельная константа (`lib/priority.ts` в вебе), не завязана на токены темы:
-/// буквальные hex для API/иконки, одинаковы в обеих темах.
+/// Приоритеты: прежние оттенки в тёмной теме, читаемые акценты в светлой.
 public enum TaskPriority: Int, CaseIterable, Sendable {
     case urgent = 1   // P1 «Срочный»
     case high = 2     // P2 «Высокий»
@@ -95,10 +152,10 @@ public enum TaskPriority: Int, CaseIterable, Sendable {
 
     public var color: Color {
         switch self {
-        case .urgent: Color(hex: "#E44332")
-        case .high: Color(hex: "#FF9A14")
-        case .medium: Color(hex: "#4A9FD8")
-        case .low: Color(hex: "#A6A6A6")
+        case .urgent: .tfRed
+        case .high: .tfOrange
+        case .medium: .tfBlue
+        case .low: .tfSub
         }
     }
 

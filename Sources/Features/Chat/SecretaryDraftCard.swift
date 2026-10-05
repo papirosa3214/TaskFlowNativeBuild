@@ -188,13 +188,13 @@ struct SecretaryDraftCard: View {
 
     /// Решать есть что, пока хоть одна исполняемая карточка ещё не запущена.
     private var canDecide: Bool {
-        isOwner && executable.contains { !$0.readyForPickup }
+        isOwner && executable.contains { !$0.readyForPickup && !$0.hasCollaborationPlan && $0.agentState == nil }
     }
 
     private var overallState: (text: String, color: Color) {
         let all = children.isEmpty ? (parent.map { [$0] } ?? []) : children
         if !all.isEmpty && all.allSatisfy({ $0.status == .completed }) { return ("Готово", .tfGreen) }
-        if executable.contains(where: { !$0.readyForPickup }) { return ("Черновик", .tfSub) }
+        if executable.contains(where: { !$0.readyForPickup && !$0.hasCollaborationPlan && $0.agentState == nil }) { return ("Черновик", .tfSub) }
         if executable.isEmpty { return ("Ваше дело", .tfSub) }
         return ("Запущено", .tfBlue)
     }

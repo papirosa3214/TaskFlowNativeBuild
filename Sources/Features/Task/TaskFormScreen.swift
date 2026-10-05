@@ -22,6 +22,7 @@ struct TaskCardContent: View {
     }
 
     @State private var viewModel: TaskFormViewModel
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
@@ -95,15 +96,11 @@ struct TaskCardContent: View {
     @State private var isApprovingCollaborationPlan = false
     @State private var isSuggestingCollaborationPlan = false
     @State private var isProposingCollaborationPlan = false
-    /// Какие подзаголовки карточки сейчас раскрыты. При открытии — ни
-    /// одного (владелец 01.10.2026, LOCK-272: «чтобы карточка не пугала»):
-    /// под свёрнутыми «Подзадачи»/«План»/«Связанные» сразу видно только то,
-    /// что сейчас в работе. Раньше (LOCK-248) по умолчанию были раскрыты
-    /// «Сведения» и «Лента активности». Без `AppStorage` — состояние живёт в
-    /// текущей сессии экрана и сбрасывается при каждом открытии карточки.
+    /// Раскрытие хранится отдельно для каждой карточки между открытиями.
     @State private var expandedSections: Set<TaskDetailSection>
     @State private var isTaskTitleExpanded = true
     /// Итог карточки — секция «Итог» (LOCK-273). nil — не загружен или пуст.
+    @State private var showTaskDocuments = false
     @State private var outcome: ApiTaskOutcome?
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
     /// «Убрать», а не второй раз «Вывести».
@@ -159,7 +156,8 @@ struct TaskCardContent: View {
         self.onSelectionFailed = onSelectionFailed
         self.onExpandedSectionsChanged = onExpandedSectionsChanged
         self.preview = preview
-        _expandedSections = State(initialValue: initialExpandedSections)
+        _expandedSections = State(initialValue: TaskCardDisclosureState.sections(model.taskID) ?? initialExpandedSections)
+        _isTaskTitleExpanded = State(initialValue: TaskCardDisclosureState.flag("task.card.title.\(model.taskID ?? "new")", default: true))
         _hasCollaborationPlan = State(initialValue: model.collaborationPlanState.isVisible)
         _pendingPlanApprovalId = State(initialValue: model.collaborationPlanState.draftPlan?.id)
         _pendingBranchPlanSnapshot = State(initialValue: model.collaborationPlanState.draftPlan?.branchSnapshot)
@@ -498,6 +496,7 @@ struct TaskCardContent: View {
                     Button {
                         withAnimation(.easeInOut(duration: TFDuration.fast)) {
                             isTaskTitleExpanded.toggle()
+                            if let taskID { TaskCardDisclosureState.saveFlag(isTaskTitleExpanded, key: "task.card.title.\(taskID)") }
                         }
                     } label: {
                         taskSectionHeader("Задача")
@@ -681,7 +680,7 @@ struct TaskCardContent: View {
                     focus: descriptionFocus,
                     placeholder: "Описание",
                     baseFontOverride: UIFont.preferredFont(forTextStyle: .footnote),
-                    textColor: UIColor(Color.tfSub),
+                    textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub),
                     requestsFocus: activeEditors.contains("description"),
                     onEdit: { scheduleSave() }
                 )
@@ -695,12 +694,6 @@ struct TaskCardContent: View {
                 detailsContent.modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("details"), identifier: "details", text: "\(nativeDueText), \(viewModel.priority.label), метки: \(nativeLabelsText), исполнитель: \(selectedRoleTitle)", arm: { armedEditors.insert("details") }))
             }
 
-            if viewModel.executionStatus?.branchRootTaskId != nil {
-                Text("Общий план и запуск — в корневой задаче")
-                    .tfText(.action).foregroundStyle(Color.tfDim)
-                    .accessibilityIdentifier("branch-plan.childNotice")
-                    .listRowBackground(Color.tfBackground)
-            }
             if let taskID = viewModel.taskID {
                 TaskPreparationView(taskID: taskID, allowsExecution: viewModel.canUsePlan) {
                     await viewModel.refresh()
@@ -710,7 +703,13 @@ struct TaskCardContent: View {
 
             // Секция целиком скрыта, пока не подтверждено, что approved-план
             // есть — иначе на обычных карточках оставалась бы пустая строка.
-            if let taskID = viewModel.taskID {
+            if let parentID = viewModel.executionStatus?.branchRootTaskId, parentID != taskID {
+                collapsibleSection(.collaborationPlan, title: "План совместной работы") {
+                    parentPlanNotice(parentID)
+                } preview: {
+                    parentPlanNotice(parentID)
+                }
+            } else if let taskID = viewModel.taskID {
                 if hasCollaborationPlan {
                     collapsibleSection(.collaborationPlan, title: "План совместной работы") {
                         CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
@@ -721,6 +720,17 @@ struct TaskCardContent: View {
                             planNodeInWorkRow(subtask)
                         }
                     }
+                }
+            }
+
+            if let folderID = viewModel.loadedTask?.artifactFolderId {
+                Section {
+                    Button("Документы задачи") { showTaskDocuments = true }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("task-documents")
+                }
+                .sheet(isPresented: $showTaskDocuments) {
+                    NavigationStack { NotesScreen(focusFolderID: folderID) }
                 }
             }
 
@@ -779,7 +789,7 @@ struct TaskCardContent: View {
                             blocks: $viewModel.commentBlocks,
                             focus: commentFocus,
                             placeholder: "Комментарий",
-                            textColor: UIColor(Color.tfSub)
+                            textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub)
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
                         Button("Отправить") { Task { await viewModel.sendComment() } }
@@ -1004,7 +1014,7 @@ struct TaskCardContent: View {
     /// Шаги, над которыми сейчас работают, — видны и под свёрнутым
     /// заголовком (LOCK-272).
     private var runningSubtasks: [ApiSubtask] {
-        viewModel.subtasks.filter { !$0.done && ($0.state == .running || $0.agentState == .inProgress) }
+        viewModel.subtasks.filter { $0.isActivelyRunning }
     }
 
     private static func isInWork(_ task: ApiTask) -> Bool {
@@ -1018,7 +1028,7 @@ struct TaskCardContent: View {
         return HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             Image(systemName: "play.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.tfReadableSecondary)
                 .symbolEffect(.pulse, options: .repeating)
             Text(role)
                 .tfText(.action)
@@ -1064,13 +1074,13 @@ struct TaskCardContent: View {
         case .review:
             return ("eye.fill", "На ревью", .tfBlue)
         case .blocked:
-            return ("exclamationmark.triangle.fill", "Заблокирована", Color.tfOrange.opacity(0.8))
+            return ("exclamationmark.triangle.fill", "Заблокирована", Color.tfWarningText)
         case .inProgress:
-            return ("play.circle.fill", "В работе", .secondary)
+            return ("play.circle.fill", "В работе", .tfReadableSecondary)
         case .todo:
-            return ("clock.arrow.circlepath", "В очереди", .secondary)
+            return ("clock.arrow.circlepath", "В очереди", .tfReadableSecondary)
         case nil:
-            return ("circle", "Открыта", .secondary)
+            return ("circle", "Открыта", .tfReadableSecondary)
         }
     }
 
@@ -1106,6 +1116,22 @@ struct TaskCardContent: View {
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
+        }
+    }
+
+    private func parentPlanNotice(_ id: String) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            Text("Общий план и запуск в родительской задаче")
+                .tfText(.action).foregroundStyle(Color.tfDim)
+                .accessibilityIdentifier("branch-plan.childNotice")
+            Button {
+                if family.contains(where: { $0.id == id }) { switchFamily(id) }
+                else { linkedTaskNavigation = .detail(id) }
+            } label: {
+                Text(family.first(where: { $0.id == id })?.title ?? "Родительская задача")
+                    .tfText(.action).foregroundStyle(Color.tfText)
+            }
+            .accessibilityIdentifier("branch-plan.parentLink")
         }
     }
 
@@ -1154,6 +1180,7 @@ struct TaskCardContent: View {
                     if expanded { next.remove(section) }
                     else { next.insert(section) }
                     expandedSections = next
+                    TaskCardDisclosureState.saveSections(next, taskID: taskID)
                     onExpandedSectionsChanged(next)
                 }
             } label: {
@@ -1163,6 +1190,7 @@ struct TaskCardContent: View {
                 }.contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("task-card.\(taskID ?? "new").section.\(section.rawValue)")
             .accessibilityHint(expanded ? "Свернуть" : "Развернуть")
             if let key = sectionEditKey(section), armedEditors.contains(key) || activeEditors.contains(key) {
                 editorButton(key)
@@ -1307,7 +1335,7 @@ struct TaskCardContent: View {
     /// один жест значил бы две разные вещи.
     @ViewBuilder
     private func nativeSubtaskRow(_ subtask: ApiSubtask) -> some View {
-        let isRunning = !subtask.done && (subtask.state == .running || subtask.agentState == .inProgress)
+        let isRunning = subtask.isActivelyRunning
         let hasDetails = subtask.result?.isEmpty == false
             || subtask.agentState == .blocked
             || subtask.agentState == .review
@@ -1349,7 +1377,7 @@ struct TaskCardContent: View {
                     blocks: subtaskTitleBinding(subtask),
                     focus: subtaskFocus(for: subtask),
                     placeholder: "Шаг",
-                    textColor: UIColor(Color.tfSub),
+                    textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub),
                     onEdit: { scheduleSubtaskCommit(subtask) }
                 )
                 .id(activeEditors.contains("subtasks"))
@@ -1431,7 +1459,7 @@ struct TaskCardContent: View {
         } else {
             Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 20))
-                .foregroundStyle(subtask.done ? Color.tfTeal : .secondary)
+                .foregroundStyle(subtask.done ? Color.tfTeal : .tfReadableSecondary)
                 .frame(width: 21, height: 21)
         }
     }
@@ -1466,7 +1494,13 @@ struct TaskCardContent: View {
                 // Итог шага — главное, ради чего эту карточку открывают:
                 // виден целиком и всегда, без сворачивания и усечения
                 // (владелец 11.09.2026).
-                Text(result).tfText(.action).foregroundStyle(Color.tfSub)
+                if isRunning {
+                    DisclosureGroup("Предыдущий результат") {
+                        Text(result).tfText(.action).foregroundStyle(Color.tfSub)
+                    }
+                } else {
+                    Text(result).tfText(.action).foregroundStyle(Color.tfSub)
+                }
             }
             if isOwner, subtask.agentState == .review {
                 Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }
@@ -1690,7 +1724,7 @@ struct TaskCardContent: View {
         switch state {
         case .blocked:
             // Тёмный оттенок утверждённого оранжевого, не системный.
-            return Color.tfOrange.opacity(0.8)
+            return Color.tfWarningText
         case .inProgress:
             return .tfSub
         case .review:
@@ -1764,10 +1798,8 @@ struct TaskCardContent: View {
         } else if viewModel.executionStatusUnavailable {
             Text("Состояние запуска недоступно — обновите карточку")
         }
-        // Исполнитель — роль (AgentProfile), не учётка (LOCK-178). Раньше —
-        // строка в «Сведениях»; выбор роли теперь сразу её и запускает
-        // (владелец 01.10.2026: «назначить исполнителя — тем самым и
-        // запустить»). «Автоматически» — роли нет, диспетчер подберёт сам.
+        // Выбор исполнителя только сохраняет назначение.
+        // Запуск выполняется отдельной кнопкой «Запустить исполнителя».
         if viewModel.canChangeExecutor {
             Menu {
                 Button("Автоматически — оркестратор выберет агента") {
@@ -1856,7 +1888,7 @@ struct TaskCardContent: View {
                             } label: {
                                 Label("Утвердить план совместной работы", systemImage: "checkmark.circle")
                             }
-                            .disabled(isApprovingCollaborationPlan || !viewModel.canUsePlan)
+                            .disabled(isApprovingCollaborationPlan || !viewModel.canUsePlan || viewModel.collaborationPlanState.draftPlan?.nodes.contains(where: { $0.requiresChoice == true && $0.workChoice == nil }) == true)
                         }
                         // Явный выбор шаблона — LOCK-252: серверный автоподбор
                         // по ключевым словам карточки (при создании задачи)
@@ -2005,21 +2037,14 @@ struct TaskCardContent: View {
         }
     }
 
-    /// Назначить исполнителя и сразу запустить (владелец 01.10.2026).
+    /// Сохранить назначение без запуска агента или разрешения автоподбора.
     private func assignExecutor(role: String?) {
         guard viewModel.canChangeExecutor else { return }
         viewModel.ownerSelectedRole = role
-        viewModel.assigneeId = nil
+        viewModel.assigneeId = role.map { "role_" + $0 }
         pendingSaveTask?.cancel()
         Task {
-            guard await viewModel.save(taskStore: taskStore) else { return }
-            if role != nil, isOwner {
-                await launchExecutor()
-            } else if isOwner, !viewModel.readyForPickup {
-                // «Автоматически»: роль подберёт диспетчер — только
-                // разрешаем ролям взять карточку.
-                await viewModel.startTask(taskStore: taskStore)
-            }
+            _ = await viewModel.save(taskStore: taskStore)
         }
     }
 
@@ -2074,7 +2099,7 @@ struct TaskCardContent: View {
     private func approveCollaborationPlan(taskId: String, planId: String) async {
         isApprovingCollaborationPlan = true
         do {
-            _ = try await APIClient().approveCollaborationPlan(taskId: taskId, planId: planId, branchSnapshot: pendingBranchPlanSnapshot)
+            _ = try await APIClient().approveCollaborationPlan(taskId: taskId, planId: planId, branchSnapshot: pendingBranchPlanSnapshot, baseVersion: viewModel.collaborationPlanState.draftPlan?.version)
             pendingPlanApprovalId = nil
             collaborationPlanReloadToken += 1
             toast = TaskToastMessage("План утверждён — роли начинают работу")
@@ -2302,7 +2327,17 @@ struct TaskCardContent: View {
     /// шаги с сервера. Контент отделён от обёртки — оборачивается
     /// `collapsibleSection` в `nativeTaskDetailBody` (LOCK-248).
     @ViewBuilder private var subtasksContent: some View {
-            if viewModel.isEditing {
+            if let plan = viewModel.collaborationPlanState.draftPlan {
+                PlanWorkSelectionView(plan: plan, subtasks: viewModel.subtasks,
+                    roleTitles: viewModel.collaborationPlanState.roleTitles,
+                    onUpdated: { updated in
+                        viewModel.collaborationPlanState.replace(updated)
+                        Task { @MainActor in
+                            await viewModel.collaborationPlanState.load(taskID: plan.taskId, reloadToken: collaborationPlanReloadToken, force: true, isOwner: isOwner)
+                            pendingBranchPlanSnapshot = viewModel.collaborationPlanState.draftPlan?.branchSnapshot
+                        }
+                    })
+            } else if viewModel.isEditing {
                 ForEach(viewModel.subtasks) { subtask in
                     nativeSubtaskRow(subtask)
                     if insertAfterSubtaskID == subtask.id {
@@ -2315,7 +2350,7 @@ struct TaskCardContent: View {
                         blocks: blocksBinding($draft.title),
                         focus: subtaskDraftFocus(for: draft.id),
                         placeholder: "Шаг",
-                        textColor: UIColor(Color.tfSub)
+                        textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub)
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -2527,7 +2562,7 @@ struct TaskCardContent: View {
 /// видеть компактными по умолчанию. «Шапка» (имя + описание) и блок
 /// плана совместной работы — не сворачиваются: первая несёт суть карточки,
 /// второй показывается только когда он реально есть.
-enum TaskDetailSection: Hashable {
+enum TaskDetailSection: String, Hashable {
     /// Блочный редактор описания задачи.
     case description
     /// Утверждённый план совместной работы.
@@ -2707,7 +2742,7 @@ private struct ExistingTaskDueEditor: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.caption.weight(.regular))
-                .foregroundStyle(Color.tfDim.opacity(0.35))
+                .foregroundStyle(Color.tfPickerArrow)
                 .frame(width: 44, height: 180)
         }
         .buttonStyle(.plain)
@@ -2817,14 +2852,14 @@ private struct LinkedTaskPicker: View {
                                         .lineLimit(2)
                                     Text(task.status == .completed ? "Выполнена" : "Открыта")
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.tfReadableSecondary)
                                 }
                                 Spacer(minLength: TFSpacing.sm)
                                 if linkingID == task.id {
                                     ProgressView()
                                 } else {
                                     Image(systemName: "link.badge.plus")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.tfReadableSecondary)
                                 }
                             }
                             .contentShape(Rectangle())

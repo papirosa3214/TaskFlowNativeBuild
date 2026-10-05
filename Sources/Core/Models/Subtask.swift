@@ -16,6 +16,8 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
     public let agentState: AgentState?
     public let agentId: String?
     public let agentHeartbeatAt: String?
+    public let agentStale: Bool?
+    public var isActivelyRunning: Bool { !done && agentStale != true && (state == .running || agentState == .inProgress) }
     /// Отчёт агента — максимум 400 символов (`RESULT_MAX`).
     public let result: String?
     public let agentSessionId: String?
@@ -34,6 +36,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         case agentState = "agent_state"
         case agentId = "agent_id"
         case agentHeartbeatAt = "agent_heartbeat_at"
+        case agentStale = "agent_stale"
         case result
         case agentSessionId = "agent_session_id"
         case state
@@ -51,6 +54,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         agentState = try c.decodeIfPresent(AgentState.self, forKey: .agentState)
         agentId = try c.decodeIfPresent(String.self, forKey: .agentId)
         agentHeartbeatAt = try c.decodeIfPresent(String.self, forKey: .agentHeartbeatAt)
+        agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         result = try c.decodeIfPresent(String.self, forKey: .result)
         agentSessionId = try c.decodeIfPresent(String.self, forKey: .agentSessionId)
         state = try c.decodeIfPresent(SubtaskState.self, forKey: .state)
@@ -62,10 +66,11 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         id: String, taskId: String?, title: String, done: Bool, position: Int?,
         agentState: AgentState?, agentId: String?, agentHeartbeatAt: String?,
         result: String?, agentSessionId: String?, state: SubtaskState?,
-        collaborationPlanId: String? = nil, planNodeKey: String? = nil
+        collaborationPlanId: String? = nil, planNodeKey: String? = nil, agentStale: Bool? = nil
     ) {
         self.id = id; self.taskId = taskId; self.title = title; self.done = done
         self.position = position; self.agentState = agentState; self.agentId = agentId
+        self.agentStale = agentStale
         self.agentHeartbeatAt = agentHeartbeatAt; self.result = result
         self.agentSessionId = agentSessionId; self.state = state
         self.collaborationPlanId = collaborationPlanId; self.planNodeKey = planNodeKey
@@ -80,6 +85,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(position, forKey: .position)
         try c.encodeIfPresent(agentState, forKey: .agentState)
         try c.encodeIfPresent(agentId, forKey: .agentId)
+        try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentHeartbeatAt, forKey: .agentHeartbeatAt)
         try c.encodeIfPresent(result, forKey: .result)
         try c.encodeIfPresent(agentSessionId, forKey: .agentSessionId)

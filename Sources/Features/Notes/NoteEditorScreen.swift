@@ -398,7 +398,7 @@ struct NoteTableBlock: View {
         VStack(spacing: 0) {
             Image(systemName: "tablecells")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.tfReadableTertiary)
                 .frame(width: Self.handleRailSize, height: Self.handleRailSize)
                 .accessibilityHidden(true)
 

@@ -185,7 +185,7 @@ struct TodayTaskRow: View {
                     Text(status).foregroundStyle(TodayAgentStateTag.color(task)).layoutPriority(-1)
                 }
                 if let project = task.projectName {
-                    Text("#\(project)").foregroundStyle(Color(hex: task.projectColor ?? TFHexDefault.unassigned)).layoutPriority(-1)
+                    Text("#\(project)").foregroundStyle(Color.tfReadableText(Color(hex: task.projectColor ?? TFHexDefault.unassigned))).layoutPriority(-1)
                 }
                 ForEach(task.labels, id: \.id) { label in
                     TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned)).layoutPriority(-1)

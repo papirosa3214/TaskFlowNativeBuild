@@ -34,7 +34,7 @@ struct TaskOutcomeContent: View {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.tfReadableTertiary)
                 }
             }
         }

@@ -444,7 +444,7 @@ struct ActivityChart: View {
             }
         } else if (period == .month && drillDown == nil) || drillDown?.type == .month {
             HStack {
-                Text(pts.first?.shortLabel ?? "").tfText(.meta).foregroundStyle(Color.tfDim.opacity(0.8))
+                Text(pts.first?.shortLabel ?? "").tfText(.meta).foregroundStyle(Color.tfMutedText(darkOpacity: 0.8))
                 Spacer()
                 Text(drillDown?.title ?? monthsNominativeRU[Calendar.current.component(.month, from: Date()) - 1])
                     .tfText(.meta).foregroundStyle(Color.tfText)
@@ -612,7 +612,7 @@ struct ActivityChart: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
                 Circle().fill(color).frame(width: 8, height: 8)
-                Text(title).tfText(.caption).foregroundStyle(color)
+                Text(title).tfText(.caption).foregroundStyle(Color.tfReadableText(color))
             }
             (Text("\(value) ").tfStyle(TFFont.input, tracking: TFFont.inputTracking).fontWeight(.bold).foregroundColor(Color.tfText)
                 + Text("(\(pct)%)").tfStyle(TFFont.caption, tracking: TFFont.captionTracking).foregroundColor(Color.tfDim))
@@ -627,11 +627,11 @@ struct ActivityChart: View {
         HStack {
             HStack(spacing: 4) {
                 Circle().fill(color).frame(width: 8, height: 8)
-                Text(title).tfText(.caption).foregroundStyle(color)
+                Text(title).tfText(.caption).foregroundStyle(Color.tfReadableText(color))
             }
             Spacer()
-            (Text("\(value) ").tfStyle(TFFont.row).fontWeight(.bold).foregroundColor(color)
-                + Text("(\(pct)%)").tfStyle(TFFont.caption, tracking: TFFont.captionTracking).foregroundColor(color.opacity(0.8)))
+            (Text("\(value) ").tfStyle(TFFont.row).fontWeight(.bold).foregroundColor(Color.tfReadableText(color))
+                + Text("(\(pct)%)").tfStyle(TFFont.caption, tracking: TFFont.captionTracking).foregroundColor(Color.tfReadableText(color.opacity(0.8))))
         }
         .padding(TFSpacing.sm)
         .background(Color.tfCard2.opacity(0.5))

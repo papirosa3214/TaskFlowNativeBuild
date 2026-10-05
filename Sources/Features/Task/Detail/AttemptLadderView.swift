@@ -28,7 +28,7 @@ public struct AttemptLadderView: View {
             Text(modelLabel)
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(escalated ? Color.tfOrange.opacity(0.8) : Color.tfSub)
+        .foregroundStyle(escalated ? Color.tfWarningText : Color.tfSub)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }

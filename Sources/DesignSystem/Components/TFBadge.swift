@@ -4,6 +4,7 @@ import SwiftUI
 // Пилюля: px-2 py-0.5 (8px/2px), радиус `rounded` (4px, служебный — вне
 // основной шкалы, самый мелкий элемент интерфейса), текст 11px (caption).
 public struct TFPill: View {
+    @Environment(\.colorScheme) private var colorScheme
     let text: String
     let color: Color
     /// Доля альфы фона под текстом — приоритет/просрочка используют разные значения (15% против 26≈15%).
@@ -21,7 +22,7 @@ public struct TFPill: View {
     public var body: some View {
         Text(text)
             .tfText(.caption)
-            .foregroundStyle(solidBackground == nil ? color : Color.tfText)
+            .foregroundStyle(colorScheme == .light || solidBackground != nil ? Color.tfText : color)
             .padding(.horizontal, TFSpacing.sm)
             .padding(.vertical, 2)
             .background(solidBackground ?? color.opacity(backgroundOpacity))
@@ -110,6 +111,7 @@ public struct TFDuePill: View {
 /// (`overview.png` — «SECOND BRAIN» на карточке «Сводка недели») — та же
 /// геометрия пилюли, но фон/текст берутся снаружи, а не выводятся из токена.
 public struct TFAccentTag: View {
+    @Environment(\.colorScheme) private var colorScheme
     let text: String
     let color: Color
 
@@ -122,7 +124,7 @@ public struct TFAccentTag: View {
         Text(text)
             .tfText(.caption)
             .fontWeight(.semibold)
-            .foregroundStyle(color)
+            .foregroundStyle(colorScheme == .light ? Color.tfText : color)
             .padding(.horizontal, TFSpacing.sm)
             .padding(.vertical, 2)
             .background(color.opacity(0.18))

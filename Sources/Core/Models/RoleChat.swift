@@ -143,6 +143,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let fromUserColor: String?
     public let fromUserAvatarURL: String?
     public let fromUserInitials: String?
+    public let kind: String?
+    public let replyToMessageID: String?
+    public let replyToSenderName: String?
     public let text: String
     public let createdAt: String?
     public let attachments: [ApiChatAttachment]?
@@ -166,7 +169,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let reactions: [RoleChatReaction]?
 
     enum CodingKeys: String, CodingKey {
-        case id, text, attachments, steps, reactions
+        case replyToMessageID = "reply_to_message_id"
+        case replyToSenderName = "reply_to_sender_name"
+        case id, text, kind, attachments, steps, reactions
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"

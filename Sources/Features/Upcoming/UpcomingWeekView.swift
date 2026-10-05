@@ -143,7 +143,7 @@ struct UpcomingMiniMonth: View {
                                 .monospacedDigit()
                                 .foregroundStyle(
                                     ds == today ? Color.tfRed
-                                        : dim ? Color.tfDim.opacity(0.6) : Color.tfSub
+                                        : dim ? Color.tfMutedText(darkOpacity: 0.6) : Color.tfSub
                                 )
                                 .fontWeight(ds == today ? .semibold : .regular)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)

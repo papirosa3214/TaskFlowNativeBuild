@@ -35,6 +35,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let assigneeId: String?
     public let creatorId: String?
     public let status: TaskStatus
+    public let artifactFolderId: Int?
     public let createdAt: String?
     public let updatedAt: String?
     public let completedAt: String?
@@ -154,6 +155,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case assigneeId = "assignee_id"
         case creatorId = "creator_id"
         case status
+        case artifactFolderId = "artifact_folder_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case completedAt = "completed_at"
@@ -207,6 +209,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         assigneeId = try c.decodeIfPresent(String.self, forKey: .assigneeId)
         creatorId = try c.decodeIfPresent(String.self, forKey: .creatorId)
         status = try c.decode(TaskStatus.self, forKey: .status)
+        artifactFolderId = try c.decodeIfPresent(Int.self, forKey: .artifactFolderId)
         createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
         updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
         completedAt = try c.decodeIfPresent(String.self, forKey: .completedAt)
@@ -273,6 +276,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(assigneeId, forKey: .assigneeId)
         try c.encodeIfPresent(creatorId, forKey: .creatorId)
         try c.encode(status, forKey: .status)
+        try c.encodeIfPresent(artifactFolderId, forKey: .artifactFolderId)
         try c.encodeIfPresent(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(completedAt, forKey: .completedAt)

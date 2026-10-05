@@ -105,7 +105,7 @@ struct LabelsScreen: View {
                         .overlay {
                             Image(systemName: "tag")
                                 .font(.system(size: 16))
-                                .foregroundStyle(Color(hex: label.color ?? TFHexDefault.unassigned))
+                                .foregroundStyle(Color.tfReadableText(Color(hex: label.color ?? TFHexDefault.unassigned)))
                         }
                     VStack(alignment: .leading, spacing: 1) {
                         Text(label.name)

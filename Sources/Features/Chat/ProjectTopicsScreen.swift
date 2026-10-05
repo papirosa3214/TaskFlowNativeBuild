@@ -17,13 +17,13 @@ struct ProjectTopicsScreen: View {
             }
             .accessibilityIdentifier("projectChat.general")
             Section("Задачи") {
-                if topics.isEmpty { Text("Тем пока нет").foregroundStyle(.secondary) }
+                if topics.isEmpty { Text("Тем пока нет").foregroundStyle(Color.tfReadableSecondary) }
                 ForEach(topics) { topic in
                     NavigationLink(value: AppRoute.roleChat(id: topic.id)) {
                         HStack {
                             Label { Text(topic.title ?? "Задача").foregroundStyle(Color.tfText) } icon: { Image(systemName: "number").foregroundStyle(Color.tfRed) }
                             Spacer()
-                            if topic.unread > 0 { Text("\(topic.unread)").foregroundStyle(.secondary) }
+                            if topic.unread > 0 { Text("\(topic.unread)").foregroundStyle(Color.tfReadableSecondary) }
                         }
                     }
                     .accessibilityIdentifier("projectChat.topic.\(topic.id)")

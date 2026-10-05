@@ -127,7 +127,7 @@ struct ProjectCard: View {
                 .monospacedDigit()
         }
         .tfText(.caption)
-        .foregroundStyle(color)
+        .foregroundStyle(Color.tfReadableText(color))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue("\(value)")
@@ -169,7 +169,7 @@ struct ProjectCard: View {
     private func metric(_ text: String, color: Color) -> some View {
         Text(text)
             .tfText(.caption)
-            .foregroundStyle(color)
+            .foregroundStyle(Color.tfReadableText(color))
             .lineLimit(1)
     }
 

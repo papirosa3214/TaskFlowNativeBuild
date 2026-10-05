@@ -135,20 +135,12 @@ public struct TFTabBar: View {
                 // Кружка-подложки под активной вкладкой нет (владелец,
                 // 01.09.2026: «не надо никаких кружков»). Выделение несёт
                 // только цвет значка: серый → белый.
-                Group {
-                    if item.showsTodayDate {
-                        TFTodayDateIcon(size: TFTabBarMetrics.tabIconSize)
-                    } else {
-                        Image(item.icon)
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(
-                                width: TFTabBarMetrics.tabIconSize,
-                                height: TFTabBarMetrics.tabIconSize
-                            )
-                    }
-                }
+                TFTabDrawIcon(
+                    name: item.icon,
+                    showsTodayDate: item.showsTodayDate,
+                    isActive: isActive,
+                    size: TFTabBarMetrics.tabIconSize
+                )
                 .frame(
                     width: TFTabBarMetrics.tabIconSize,
                     height: TFTabBarMetrics.tabIconSize

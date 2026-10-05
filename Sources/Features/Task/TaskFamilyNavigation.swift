@@ -317,12 +317,13 @@ struct TaskFormScreen: View {
 
     private func expandedSections(for model: TaskFormViewModel) -> Set<TaskDetailSection> {
         guard let id = model.taskID else { return [] }
-        return expandedSectionsByCard[id] ?? []
+        return TaskCardDisclosureState.sections(id) ?? expandedSectionsByCard[id] ?? []
     }
 
     private func storeExpandedSections(_ sections: Set<TaskDetailSection>, for model: TaskFormViewModel) {
         guard let id = model.taskID else { return }
         expandedSectionsByCard[id] = sections
+        TaskCardDisclosureState.saveSections(sections, taskID: id)
     }
 
     /// Слот закладки родителя: высота и место — как у слота открытого

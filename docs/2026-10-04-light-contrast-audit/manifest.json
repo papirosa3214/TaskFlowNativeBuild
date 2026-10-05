@@ -1,0 +1,113 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "8CDEC918-7184-4CB9-9796-1CDE8CA795AA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-description_0_4F843690-71BE-4368-A1C8-666A0FC6FCCA.png",
+        "timestamp" : 1791097792.51
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "A93FFAB9-EC44-48BB-B681-2D393D60ECFB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-journal_0_44B92B2A-9D2F-4770-804F-A4240A2F084D.png",
+        "timestamp" : 1791097784.983
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "69D5CC9C-E714-4616-ABC3-D6C4D5C2D78F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-subtasks_0_818ED095-C73A-435F-8D26-0D45FCD579EB.png",
+        "timestamp" : 1791097782.285
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "3F22D2ED-A813-4FBC-81DB-415BE6F61C96.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-link-picker_0_16F544D9-84EF-4AD9-8BDF-EA0E12809C1D.png",
+        "timestamp" : 1791097778.491
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "1A6EFEA1-F0C9-4934-80BE-5095F392B556.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-outcome-sheet_0_A9466AA8-C731-4FEE-8403-BAA265DBE56A.png",
+        "timestamp" : 1791097772.162
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "C56F785D-1E3F-436D-BF4E-77EC1B1BC467.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-details_0_24C88A6A-7BF5-4FE0-9281-3BBAE7B38A97.png",
+        "timestamp" : 1791097770.089
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "257CD537-7CB2-4877-8D1B-351F3C469EB7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-medium_0_20B2E5D6-A7D8-4AEA-AB07-58C670FE04FE.png",
+        "timestamp" : 1791097762.382
+      }
+    ],
+    "testIdentifier" : "TaskLightContrastUITests/testLiveTaskCardLightWindows()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TaskLightContrastUITests/testLiveTaskCardLightWindows"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "5032FCDB-8E33-485B-ADCA-829D401419C0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-plan-step-result-fixture_0_26AB7025-CC99-48D4-A10A-A939BD63A3D8.png",
+        "timestamp" : 1791097810.92
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "9FDCAE88-C469-4727-8DB5-146ED0226A24.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-plan-step-activity-fixture_0_9916C42A-9487-468B-8B46-2D9C90854A45.png",
+        "timestamp" : 1791097809.642
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "06404B52-9E9C-49FB-9A04-CDB3A51279A7.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-plan-step-fixture_0_84EFBCC7-E3CC-43C9-9278-F80CBF08AAB9.png",
+        "timestamp" : 1791097807.239
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "EB4E604F-E4C5-4F3A-8AC6-72B02D92EE97.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-task-date-editor-fixture_0_4F02184E-14B5-4478-AB90-B647CE37DE30.png",
+        "timestamp" : 1791097802.476
+      }
+    ],
+    "testIdentifier" : "TaskLightContrastUITests/testPlanStepSheetWithLocalFixture()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TaskLightContrastUITests/testPlanStepSheetWithLocalFixture"
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "C117897D-E9B3-41B0-B415-1DF8EB12DCCD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "dark-overview-toggle_0_3746855A-F094-41C9-97FF-DAC6D83CC939.png",
+        "timestamp" : 1791093909.567
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "FA607DD1-E283-4584-BB7B-0BE2E0D3E334.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "dark-settings-toggle_0_3ED13631-A18C-4195-BBE0-F7EC2A4722C0.png",
+        "timestamp" : 1791093908.848
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "DE830CC6-19F2-426A-BA30-C41C88873488.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-settings-toggle-after-relaunch_0_83E3D4C4-BEE1-4BEE-81A6-67BA0BE841C3.png",
+        "timestamp" : 1791093906.331
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "5CF83BFA-FAF4-4298-89EA-4665429E6F3D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-chats-contrast_0_642E93F7-EF4F-4ABE-8D86-E1D03A259DF4.png",
+        "timestamp" : 1791093897.312
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "4A31BBC6-6F1D-430B-93E3-9A01127FCD39.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-overview-contrast_0_64AD3A8B-AC33-4B98-AAE8-AE9956BA0667.png",
+        "timestamp" : 1791093895.822
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "EE4C3D8E-B5BF-40BD-A310-880AC10DF3DA",
+        "deviceName" : "iPhone 18 Pro",
+        "exportedFileName" : "660C466C-ED87-4454-8B8C-A8E7301E11A9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "light-settings-toggle_0_762AFEE3-B815-42E5-AF69-9B251645F9EA.png",
+        "timestamp" : 1791093895.113
+      }
+    ],
+    "testIdentifier" : "AppAppearanceUITests/testOriginalSwitchChangesThemeAndPersists()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/AppAppearanceUITests/testOriginalSwitchChangesThemeAndPersists"
+  }
+]

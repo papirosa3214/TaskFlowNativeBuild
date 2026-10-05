@@ -33,8 +33,14 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
     public let taskTitle: String?
     public let executionState: String?
     public let sourcePlanStatus: String?
+    public let sourcePlanVersion: Int?
     public let sourcePlanId: String?
     public let sourceSlotKey: String?
+    public let sourceSubtaskId: String?
+    public let workChoice: String?
+    public let originalTitle: String?
+    public let plannedWork: String?
+    public let requiresChoice: Bool?
     public let responsible: Bool?
 
     public var id: String { slotKey }
@@ -53,6 +59,8 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
         case skipReason = "skip_reason"
         case taskId = "task_id", taskTitle = "task_title", executionState = "execution_state"
         case sourcePlanStatus = "source_plan_status"
+        case sourceSubtaskId = "source_subtask_id", workChoice = "work_choice", originalTitle = "original_title", plannedWork = "planned_work", requiresChoice = "requires_choice"
+        case sourcePlanVersion = "source_plan_version"
         case sourcePlanId = "source_plan_id", sourceSlotKey = "source_slot_key", responsible
     }
 }

@@ -103,7 +103,7 @@ struct NoteExtractedTasksSheetContent: View {
         } label: {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "number")
-                    .foregroundStyle(project.color.map { Color(hex: $0) } ?? Color.tfSub)
+                    .foregroundStyle(Color.tfReadableText(project.color.map { Color(hex: $0) } ?? Color.tfSub))
                 Text(project.name)
                     .tfText(.body)
                     .foregroundStyle(Color.tfText)

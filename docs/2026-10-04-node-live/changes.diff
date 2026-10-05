@@ -1,0 +1,222 @@
+diff --git a/Sources/Core/Models/Subtask.swift b/Sources/Core/Models/Subtask.swift
+index 0eec06ca..16351b56 100644
+--- a/Sources/Core/Models/Subtask.swift
++++ b/Sources/Core/Models/Subtask.swift
+@@ -16,6 +16,8 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
+     public let agentState: AgentState?
+     public let agentId: String?
+     public let agentHeartbeatAt: String?
++    public let agentStale: Bool?
++    public var isActivelyRunning: Bool { !done && agentStale != true && (state == .running || agentState == .inProgress) }
+     /// Отчёт агента — максимум 400 символов (`RESULT_MAX`).
+     public let result: String?
+     public let agentSessionId: String?
+@@ -34,6 +36,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
+         case agentState = "agent_state"
+         case agentId = "agent_id"
+         case agentHeartbeatAt = "agent_heartbeat_at"
++        case agentStale = "agent_stale"
+         case result
+         case agentSessionId = "agent_session_id"
+         case state
+@@ -51,6 +54,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
+         agentState = try c.decodeIfPresent(AgentState.self, forKey: .agentState)
+         agentId = try c.decodeIfPresent(String.self, forKey: .agentId)
+         agentHeartbeatAt = try c.decodeIfPresent(String.self, forKey: .agentHeartbeatAt)
++        agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
+         result = try c.decodeIfPresent(String.self, forKey: .result)
+         agentSessionId = try c.decodeIfPresent(String.self, forKey: .agentSessionId)
+         state = try c.decodeIfPresent(SubtaskState.self, forKey: .state)
+@@ -62,10 +66,11 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
+         id: String, taskId: String?, title: String, done: Bool, position: Int?,
+         agentState: AgentState?, agentId: String?, agentHeartbeatAt: String?,
+         result: String?, agentSessionId: String?, state: SubtaskState?,
+-        collaborationPlanId: String? = nil, planNodeKey: String? = nil
++        collaborationPlanId: String? = nil, planNodeKey: String? = nil, agentStale: Bool? = nil
+     ) {
+         self.id = id; self.taskId = taskId; self.title = title; self.done = done
+         self.position = position; self.agentState = agentState; self.agentId = agentId
++        self.agentStale = agentStale
+         self.agentHeartbeatAt = agentHeartbeatAt; self.result = result
+         self.agentSessionId = agentSessionId; self.state = state
+         self.collaborationPlanId = collaborationPlanId; self.planNodeKey = planNodeKey
+@@ -80,6 +85,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
+         try c.encodeIfPresent(position, forKey: .position)
+         try c.encodeIfPresent(agentState, forKey: .agentState)
+         try c.encodeIfPresent(agentId, forKey: .agentId)
++        try c.encodeIfPresent(agentStale, forKey: .agentStale)
+         try c.encodeIfPresent(agentHeartbeatAt, forKey: .agentHeartbeatAt)
+         try c.encodeIfPresent(result, forKey: .result)
+         try c.encodeIfPresent(agentSessionId, forKey: .agentSessionId)
+diff --git a/Sources/Features/Task/Detail/PlanStepSheets.swift b/Sources/Features/Task/Detail/PlanStepSheets.swift
+index 8598bba8..1f5268bd 100644
+--- a/Sources/Features/Task/Detail/PlanStepSheets.swift
++++ b/Sources/Features/Task/Detail/PlanStepSheets.swift
+@@ -26,6 +26,7 @@ struct PlanStepDetailSheet: View {
+     @Environment(\.dismiss) private var dismiss
+     @State private var isSkipPromptOpen = false
+     @State private var skipReason = ""
++    @State private var isLiveExpanded = false
+     @State private var isRemoveConfirmOpen = false
+ 
+     private var predecessors: [String] {
+@@ -35,51 +36,56 @@ struct PlanStepDetailSheet: View {
+     var body: some View {
+         NavigationStack {
+             List {
+-                if !assignments.isEmpty {
+-                    Section("Задача") {
+-                        Text(node.taskTitle ?? node.expectedResult)
+-                        if assignments.count > 1 {
+-                            Picker("Поручение", selection: Binding(get: { node.slotKey }, set: onSelectAssignment)) {
+-                                ForEach(assignments) { item in
+-                                    Text(item.taskTitle ?? item.expectedResult).tag(item.slotKey)
+-                                }
++                Section {
++                    LabeledContent("Роль", value: roleTitle(node.roleKey))
++                    if stateLabel == "В работе" {
++                        DisclosureGroup(isExpanded: $isLiveExpanded) {
++                            if isLiveExpanded {
++                                TaskLiveActivityView(taskID: node.taskId ?? plan.taskId)
+                             }
++                        } label: {
++                            LabeledContent("Состояние", value: stateLabel)
+                         }
++                        .accessibilityIdentifier("plan-state-live")
++                    } else {
++                        LabeledContent("Состояние", value: stateLabel)
+                     }
+-                }
+-                Section {
+-                    LabeledContent("Роль", value: roleTitle(node.roleKey))
+-                    LabeledContent("Состояние", value: stateLabel)
+                     if let iteration = node.iteration, iteration > 0 {
+                         LabeledContent("Круг доработки", value: "\(iteration)")
+                     }
+-                }
+-                Section("Что сдать") {
+-                    Text(node.expectedResult)
+-                }
+-                if let instructions = node.instructions, !instructions.isEmpty {
+-                    Section("Задание") { Text(instructions) }
+-                }
+-                if !predecessors.isEmpty {
+-                    Section("Начнётся после") {
+-                        ForEach(predecessors, id: \.self) { slot in
+-                            Text(title(of: slot))
++                    if assignments.count > 1 {
++                        Picker("Поручение", selection: Binding(get: { node.slotKey }, set: onSelectAssignment)) {
++                            ForEach(assignments) { item in
++                                Text(item.taskTitle ?? item.expectedResult).tag(item.slotKey)
++                            }
+                         }
+                     }
+                 }
+-                if let origin = originLine {
+-                    Section("Откуда шаг") {
+-                        Text(origin)
+-                        if let reason = node.addedReason, !reason.isEmpty {
+-                            Text(reason).foregroundStyle(Color.tfSub)
+-                        }
++                Section {
++                    if !assignmentLines.isEmpty {
++                        detailRow("Задание", lines: assignmentLines)
++                    }
++                    if let expected = cleaned(node.expectedResult) {
++                        detailRow("Ожидаемый результат", lines: [expected])
++                    }
++                    if !predecessors.isEmpty {
++                        detailRow("Начнётся после", lines: predecessors.map { title(of: $0) })
++                    }
++                    if let origin = originLine {
++                        detailRow("Откуда шаг", lines: [origin] + (cleaned(node.addedReason).map { [$0] } ?? []))
++                    }
++                    if let reason = cleaned(node.skipReason) {
++                        detailRow("Пропущен", lines: [reason])
+                     }
+-                }
+-                if let reason = node.skipReason {
+-                    Section("Пропущен") { Text(reason) }
+                 }
+                 if let result = subtask?.result, !result.isEmpty, !node.isSkipped {
+-                    Section("Результат") { Text(result) }
++                    Section {
++                        if stateLabel == "В работе" {
++                            DisclosureGroup("Предыдущий результат") { Text(result) }
++                        } else {
++                            Text(result)
++                        }
++                    } header: { Text(stateLabel == "В работе" ? "История" : "Результат") }
+                 }
+                 if isEditable {
+                     Section {
+@@ -118,6 +124,32 @@ struct PlanStepDetailSheet: View {
+         }
+     }
+ 
++    /// Смысловые поля сохраняются, одинаковый текст не печатается повторно.
++    private var assignmentLines: [String] {
++        let expected = cleaned(node.expectedResult)
++        var lines: [String] = []
++        for text in [node.taskTitle, node.instructions].compactMap({ cleaned($0) }) {
++            if text != expected && !lines.contains(text) { lines.append(text) }
++        }
++        return lines
++    }
++
++    private func cleaned(_ text: String?) -> String? {
++        guard let text else { return nil }
++        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
++        return value.isEmpty ? nil : value
++    }
++
++    private func detailRow(_ label: String, lines: [String]) -> some View {
++        VStack(alignment: .leading, spacing: TFSpacing.sm) {
++            Text(label).tfText(.meta).foregroundStyle(Color.tfSub)
++            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
++                Text(line).tfText(.action).foregroundStyle(Color.tfText)
++            }
++        }
++        .padding(.vertical, TFSpacing.xs)
++    }
++
+     private var originLine: String? {
+         switch node.origin {
+         case "role": return "Добавила роль: \(addedByTitle)"
+diff --git a/Sources/Features/Task/TaskFormScreen.swift b/Sources/Features/Task/TaskFormScreen.swift
+index 96352373..8902b2ee 100644
+--- a/Sources/Features/Task/TaskFormScreen.swift
++++ b/Sources/Features/Task/TaskFormScreen.swift
+@@ -1004,7 +1004,7 @@ struct TaskCardContent: View {
+     /// Шаги, над которыми сейчас работают, — видны и под свёрнутым
+     /// заголовком (LOCK-272).
+     private var runningSubtasks: [ApiSubtask] {
+-        viewModel.subtasks.filter { !$0.done && ($0.state == .running || $0.agentState == .inProgress) }
++        viewModel.subtasks.filter { $0.isActivelyRunning }
+     }
+ 
+     private static func isInWork(_ task: ApiTask) -> Bool {
+@@ -1307,7 +1307,7 @@ struct TaskCardContent: View {
+     /// один жест значил бы две разные вещи.
+     @ViewBuilder
+     private func nativeSubtaskRow(_ subtask: ApiSubtask) -> some View {
+-        let isRunning = !subtask.done && (subtask.state == .running || subtask.agentState == .inProgress)
++        let isRunning = subtask.isActivelyRunning
+         let hasDetails = subtask.result?.isEmpty == false
+             || subtask.agentState == .blocked
+             || subtask.agentState == .review
+@@ -1466,7 +1466,13 @@ struct TaskCardContent: View {
+                 // Итог шага — главное, ради чего эту карточку открывают:
+                 // виден целиком и всегда, без сворачивания и усечения
+                 // (владелец 11.09.2026).
+-                Text(result).tfText(.action).foregroundStyle(Color.tfSub)
++                if isRunning {
++                    DisclosureGroup("Предыдущий результат") {
++                        Text(result).tfText(.action).foregroundStyle(Color.tfSub)
++                    }
++                } else {
++                    Text(result).tfText(.action).foregroundStyle(Color.tfSub)
++                }
+             }
+             if isOwner, subtask.agentState == .review {
+                 Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }

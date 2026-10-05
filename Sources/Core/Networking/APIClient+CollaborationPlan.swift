@@ -41,12 +41,25 @@ public extension APIClient {
     /// кнопку владельцу. Утверждение сразу материализует узлы плана как
     /// подзадачи и стартует корневые узлы графа.
     @discardableResult
-    func approveCollaborationPlan(taskId: String, planId: String, branchSnapshot: String? = nil) async throws -> ApiCollaborationPlan {
+    func approveCollaborationPlan(taskId: String, planId: String, branchSnapshot: String? = nil, baseVersion: Int? = nil) async throws -> ApiCollaborationPlan {
         struct Body: Encodable {
             let branchSnapshot: String?
-            enum CodingKeys: String, CodingKey { case branchSnapshot = "branch_snapshot" }
+            let base_version: Int?
+            enum CodingKeys: String, CodingKey { case branchSnapshot = "branch_snapshot"; case base_version }
         }
-        let envelope: CollaborationPlanEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/\(planId)/approve", body: Body(branchSnapshot: branchSnapshot))
+        let envelope: CollaborationPlanEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/\(planId)/approve", body: Body(branchSnapshot: branchSnapshot, base_version: baseVersion))
+        return envelope.plan
+    }
+
+    func choosePlanWork(taskId: String, planId: String, slot: String, choice: String?, version: Int) async throws -> ApiCollaborationPlan {
+        struct Body: Encodable { let slot_key: String; let choice: String?; let base_version: Int
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(slot_key, forKey: .slot_key); try c.encode(choice, forKey: .choice); try c.encode(base_version, forKey: .base_version)
+            }
+            enum CodingKeys: String, CodingKey { case slot_key, choice, base_version }
+        }
+        let envelope: CollaborationPlanEnvelope = try await request(.post, "/tasks/\(taskId)/collaboration-plans/\(planId)/work-choice", body: Body(slot_key: slot, choice: choice, base_version: version))
         return envelope.plan
     }
 

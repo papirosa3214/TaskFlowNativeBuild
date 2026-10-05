@@ -195,7 +195,7 @@ struct UpcomingListView: View {
                     // не такой же круг, а мягкий бейдж: просьба владельца
                     // 03.09.2026, два разных состояния не должны выглядеть
                     // одинаково.
-                    .foregroundStyle(isToday ? Color.tfRed : (isSelected ? Color.tfRed : (dim ? Color.tfDim.opacity(0.5) : Color.tfText)))
+                    .foregroundStyle(isToday ? Color.tfRed : (isSelected ? Color.tfRed : (dim ? Color.tfMutedText(darkOpacity: 0.5) : Color.tfText)))
                     .frame(width: 30, height: 30)
                     .background {
                         if isToday {

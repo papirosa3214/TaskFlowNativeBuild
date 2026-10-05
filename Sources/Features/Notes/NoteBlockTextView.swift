@@ -409,12 +409,21 @@ struct NoteBlockTextView: UIViewRepresentable {
             if uiView.isFirstResponder {
                 uiView.typingAttributes = MarkdownText.attributes(for: RichRun(text: ""), base: controller.baseFont, textColor: textColor)
             }
-        } else if !uiView.isFirstResponder, uiView.attributedText.string != expected.string {
-            // Блок сейчас НЕ редактируется — внешняя правка (АИ вставил
+        } else if !uiView.isFirstResponder, !uiView.attributedText.isEqual(to: expected) {
+            // Блок сейчас НЕ редактируется — синхронизируем также цвет/стиль
+            // (смена темы не меняет string, но должна обновить атрибуты).
+            // Внешняя правка (АИ вставил
             // текст, загрузка документа) синкается свободно. Пока человек
             // печатает в этом же textView, содержимое не трогаем — иначе
             // курсор скачет на каждый ре-рендер SwiftUI.
+            // Программная смена оформления не должна уведомлять SwiftUI
+            // о пользовательском выборе текста внутри updateUIView.
+            let delegate = uiView.delegate
+            let selection = uiView.selectedRange
+            uiView.delegate = nil
             uiView.attributedText = expected
+            uiView.selectedRange = NSRange(location: min(selection.location, expected.length), length: 0)
+            uiView.delegate = delegate
         }
     }
 
