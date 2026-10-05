@@ -1,5 +1,9 @@
 # Нативный клиент TaskFlow (iOS, SwiftUI)
 
+> **Весь цикл задачи — `AGENT-CYCLE.md`:** где что лежит, как работать с
+> мака и с .110 по ssh, сборка, симулятор, проверка, коммит, установка на
+> iPhone. Читать до первой правки.
+
 > **Перед первой правкой кода — `AGENT-WORK-SCOPES.md` в корне.** По умолчанию
 > весь исходный код заморожен: менять можно только файлы, перечисленные в
 > строке со статусом `IN_PROGRESS`. Взялся за работу — заведи строку (что
@@ -21,7 +25,8 @@
 > (`~/Проекты/New-Todoist/native`) удалён 08.09.2026 вместе с
 > `scripts/sync-build.sh`: тот делал `rsync --delete` с .110 сюда и стирал
 > работу, сделанную на маке. Ничего сюда извне не заливать — код переносится
-> только через git (`origin` — Gitea `maksim/taskflow-native-ios`).
+> только через git (remotes: `origin`/`github` — GitHub
+> `papirosa3214/TaskFlowNativeBuild`, `gitea` — Gitea `maksim/taskflow-native-ios`).
 >
 > Запрет держит хук `.claude/hooks/guard-no-remote-sync.sh`: `sync-build`
 > и `rsync`/`scp` в этот каталог отклоняются до выполнения.
