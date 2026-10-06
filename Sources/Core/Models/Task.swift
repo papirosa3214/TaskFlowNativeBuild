@@ -81,6 +81,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let planResponsibleId: String?
     /// Вся бригада плана (id учёток ролей по порядку шагов) — только когда все шаги сданы.
     public let planTeam: [String]
+    public let planResponsibleAvatarUrl: String?
+    public let planTeamAvatarUrls: [String]
+    /// `ai` / `human` — портрет-круг рисуем только агентам.
+    public let assigneeType: String?
     /// 1 — серия повтора уже завершена (следующее вхождение не создавать),
     /// 0 — ещё идёт. Признак воркера, владельцу виден для «Продлить на год».
     public let recurrenceSpawned: Int?
@@ -184,6 +188,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case hasCollaborationPlan = "has_collaboration_plan"
         case planResponsibleId = "plan_responsible_id"
         case planTeam = "plan_team"
+        case planResponsibleAvatarUrl = "plan_responsible_avatar_url"
+        case planTeamAvatarUrls = "plan_team_avatar_urls"
+        case assigneeType = "assignee_type"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -243,6 +250,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         hasCollaborationPlan = try c.decodeIntBool(forKey: .hasCollaborationPlan)
         planResponsibleId = try c.decodeIfPresent(String.self, forKey: .planResponsibleId)
         planTeam = (try c.decodeIfPresent(String.self, forKey: .planTeam))?.split(separator: ",").map(String.init) ?? []
+        planResponsibleAvatarUrl = try c.decodeIfPresent(String.self, forKey: .planResponsibleAvatarUrl)
+        planTeamAvatarUrls = (try c.decodeIfPresent(String.self, forKey: .planTeamAvatarUrls))?.split(separator: ",", omittingEmptySubsequences: false).map(String.init) ?? []
+        assigneeType = try c.decodeIfPresent(String.self, forKey: .assigneeType)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -309,6 +319,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encode(hasCollaborationPlan ? 1 : 0, forKey: .hasCollaborationPlan)
         try c.encodeIfPresent(planResponsibleId, forKey: .planResponsibleId)
         if !planTeam.isEmpty { try c.encode(planTeam.joined(separator: ","), forKey: .planTeam) }
+        try c.encodeIfPresent(planResponsibleAvatarUrl, forKey: .planResponsibleAvatarUrl)
+        if !planTeamAvatarUrls.isEmpty { try c.encode(planTeamAvatarUrls.joined(separator: ","), forKey: .planTeamAvatarUrls) }
+        try c.encodeIfPresent(assigneeType, forKey: .assigneeType)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)
@@ -347,6 +360,11 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
 extension ApiTask {
     /// Кого показывать аватаркой в строке списка: настоящего исполнителя,
     /// а если его нет — одного ответственного по плану (см. `planResponsibleId`).
+    /// Картинка аватара с сервера (`avatar_url`): исполнителя, а если его нет — ответственного по плану.
+    var rowAvatarURL: String? { assigneeId != nil ? assigneeAvatarUrl : planResponsibleAvatarUrl }
+    var rowAvatarTeamURLs: [String] { rowAvatarTeam.isEmpty ? [] : planTeamAvatarUrls }
+    /// Агенту — круглый портрет; человеку — фото как раньше (вписанное, скруглённый квадрат).
+    var rowAvatarPortrait: Bool { assigneeId == nil || assigneeType == "ai" }
     var rowAvatarID: String? { assigneeId ?? planResponsibleId ?? planTeam.first }
     /// Больше одного — аватар листает бригаду по очереди (все шаги сданы).
     var rowAvatarTeam: [String] { assigneeId == nil && planResponsibleId == nil ? planTeam : [] }

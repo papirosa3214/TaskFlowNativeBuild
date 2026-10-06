@@ -25,19 +25,22 @@ private struct AgentWorkAvatarView: View {
     // `AnimatedImage` вместо `AsyncImage` — см. комментарий у AgentAvatarView
     // (AgentRow.swift), просьба владельца 03.09.2026, тот же приём.
     var body: some View {
-        if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
-            Image(asset)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: size, height: size)
-                .clipShape(Circle())
-        } else if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
-            AnimatedImage(url: url, placeholder: { initialsCircle })
+        if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
+            AnimatedImage(url: url, placeholder: { bundledOrInitials })
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: size, height: size)
                 .background(Color.tfCard2)
                 .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+        } else {
+            initialsCircle
+        }
+    }
+
+    @ViewBuilder private var bundledOrInitials: some View {
+        if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
+            Image(asset).resizable().aspectRatio(contentMode: .fill)
+                .frame(width: size, height: size).clipShape(Circle())
         } else {
             initialsCircle
         }

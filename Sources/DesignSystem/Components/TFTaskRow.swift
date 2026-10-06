@@ -10,6 +10,9 @@ public struct TFTaskRowModel {
     public var assigneeColor: Color?
     public var assigneeID: String?
     public var assigneeTeam: [String]
+    public var assigneeAvatarURL: String?
+    public var assigneeTeamURLs: [String]
+    public var assigneePortrait: Bool
     public var title: String
     public var isDone: Bool
     public var description: String?
@@ -35,6 +38,9 @@ public struct TFTaskRowModel {
         assigneeColor: Color? = nil,
         assigneeID: String? = nil,
         assigneeTeam: [String] = [],
+        assigneeAvatarURL: String? = nil,
+        assigneeTeamURLs: [String] = [],
+        assigneePortrait: Bool = false,
         title: String,
         isDone: Bool = false,
         description: String? = nil,
@@ -55,6 +61,9 @@ public struct TFTaskRowModel {
         self.assigneeColor = assigneeColor
         self.assigneeID = assigneeID
         self.assigneeTeam = assigneeTeam
+        self.assigneeAvatarURL = assigneeAvatarURL
+        self.assigneeTeamURLs = assigneeTeamURLs
+        self.assigneePortrait = assigneePortrait
         self.title = title
         self.isDone = isDone
         self.description = description
@@ -84,7 +93,7 @@ public struct TFTaskRow: View {
         Button(action: action) {
             TFTaskRowContent(title: model.title, description: model.description, isDone: model.isDone) {
                 if let initials = model.assigneeInitials {
-                    TFAvatar(size: .taskList, initials: initials, tint: model.assigneeColor ?? Color(hex: TFHexDefault.unassigned), userID: model.assigneeID, teamIDs: model.assigneeTeam)
+                    TFAvatar(size: .taskList, initials: initials, tint: model.assigneeColor ?? Color(hex: TFHexDefault.unassigned), userID: model.assigneeID, teamIDs: model.assigneeTeam, urlPath: model.assigneeAvatarURL, teamURLs: model.assigneeTeamURLs, portrait: model.assigneePortrait)
                 }
             } metadata: {
                 TFTaskStructureIndicators(priority: model.priority, subtasksDone: model.subtasksDone, subtasksTotal: model.subtasksTotal, childrenCount: model.childrenCount ?? 0, hasCollaborationPlan: model.hasCollaborationPlan)

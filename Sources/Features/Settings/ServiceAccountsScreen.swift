@@ -485,14 +485,9 @@ struct ServiceAccountsScreen: View {
     private func accountRow(_ account: ApiUser) -> some View {
         VStack(spacing: 0) {
             let content = HStack(spacing: TFSpacing.md) {
-                Circle()
-                    .fill(Color(hex: account.avatarColor ?? TFHexDefault.unassigned))
-                    .frame(width: 36, height: 36)
-                    .overlay {
-                        Text(account.initials ?? "?")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
+                TFAvatar(size: .md, initials: account.initials ?? "?",
+                         tint: Color(hex: account.avatarColor ?? TFHexDefault.unassigned),
+                         userID: account.id, urlPath: account.avatarUrl, portrait: account.type == .ai)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(account.name).tfText(.body).foregroundStyle(Color.tfText).lineLimit(1)
                     Text(account.id)

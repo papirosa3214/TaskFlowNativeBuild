@@ -1,4 +1,5 @@
 import SwiftUI
+import SDWebImageSwiftUI
 
 // Аватар (`Avatar`, UI.tsx) — spec/DESIGN-TOKENS.md §4.
 // Два принципиально разных вида в зависимости от наличия фото:
@@ -28,6 +29,11 @@ public struct TFAvatar: View {
     let userID: String?
     /// Бригада плана: если больше одного — наверх по очереди выходит каждый.
     let teamIDs: [String]
+    /// Картинка с сервера (`avatar_url`) — главный источник; вшитый портрет и инициалы — запасной вариант.
+    let urlPath: String?
+    let teamURLs: [String]
+    /// Круглый портрет агента (fill) вместо фото человека (fit в скруглённом квадрате).
+    let portrait: Bool
     let initials: String
     let tint: Color
     /// Подпись для VoiceOver. `nil` — собирается из инициалов.
@@ -75,21 +81,57 @@ public struct TFAvatar: View {
         tint: Color = Color(hex: TFHexDefault.unassigned),
         accessibilityLabel: String? = nil,
         userID: String? = nil,
-        teamIDs: [String] = []
+        teamIDs: [String] = [],
+        urlPath: String? = nil,
+        teamURLs: [String] = [],
+        portrait: Bool = false
     ) {
         self.size = size
         self.image = image
         self.userID = userID
         self.teamIDs = teamIDs
+        self.urlPath = urlPath
+        self.teamURLs = teamURLs
+        self.portrait = portrait
         self.initials = initials
         self.tint = tint
         self.accessibilityLabel = accessibilityLabel
     }
 
+    static func fullURL(_ path: String) -> URL? {
+        URL(string: APIClient.baseURL.absoluteString + path)
+    }
+
+    /// Пока картинка грузится (или недоступна): вшитый портрет роли, иначе инициалы.
+    @ViewBuilder private var placeholderCircle: some View {
+        if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
+            Image(asset).resizable().aspectRatio(contentMode: .fill)
+                .frame(width: side, height: side).clipShape(Circle())
+        } else {
+            Circle().fill(tint).frame(width: side, height: side)
+                .overlay { Text(initials).font(.system(size: side * 0.43, weight: .semibold)).foregroundStyle(.white) }
+        }
+    }
+
     public var body: some View {
         Group {
             if teamIDs.count > 1 {
-                TFTeamAvatarStack(ids: teamIDs, side: side)
+                TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side)
+            } else if let urlPath, let url = TFAvatar.fullURL(urlPath) {
+                if portrait {
+                    AnimatedImage(url: url, placeholder: { placeholderCircle })
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: side, height: side)
+                        .clipShape(Circle())
+                } else {
+                    AnimatedImage(url: url, placeholder: { placeholderCircle })
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: side, height: side)
+                        .background(Color.tfCard2)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                }
             } else if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
                 Image(asset)
                     .resizable()
