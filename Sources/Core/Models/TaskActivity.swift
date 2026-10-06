@@ -14,6 +14,8 @@ public struct ApiTaskActivity: Codable, Sendable, Hashable {
     /// Одна фраза о происходящем. `nil` — агент задачу не держит.
     public let text: String?
     public let actions: [ApiTaskActivityAction]
+    /// Сколько всего действий было с начала работы (сервер считает без лимита). `nil` — старый сервер.
+    public var total: Int? = nil
 
     public static let idle = ApiTaskActivity(text: nil, actions: [])
 

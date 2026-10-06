@@ -12,7 +12,7 @@ struct TaskLiveActivityView: View {
             if let text = activity.text, !text.isEmpty { Text(text).textSelection(.enabled).accessibilityIdentifier("plan-slot-live-text") }
             if !activity.actions.isEmpty {
                 HStack(spacing: TFSpacing.sm) {
-                    Text("Действий: \(activity.actions.count)")
+                    Text("Действий: \(activity.total ?? activity.actions.count)")
                     ForEach(Array(activity.actions.suffix(5))) { action in
                         Image(systemName: icon(action.kind))
                             .accessibilityLabel(action.text ?? action.kind)

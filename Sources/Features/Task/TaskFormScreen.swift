@@ -1487,7 +1487,7 @@ struct TaskCardContent: View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if isRunning, viewModel.activity.isActive {
                 if !viewModel.activity.actions.isEmpty {
-                    activityChips(viewModel.activity.actions)
+                    activityChips(viewModel.activity.actions, total: viewModel.activity.total)
                 }
                 if let text = viewModel.activity.text {
                     Text(text)
@@ -1533,9 +1533,10 @@ struct TaskCardContent: View {
     /// уникальные виды иконок, потом счётчик; владелец это забраковал.
     /// Никакой истории: живая картинка на момент просмотра.
     @ViewBuilder
-    private func activityChips(_ actions: [ApiTaskActivityAction]) -> some View {
-        HStack(spacing: TFSpacing.xs) {
-            Text("\(actions.count) \(pluralActions(actions.count))")
+    private func activityChips(_ actions: [ApiTaskActivityAction], total: Int? = nil) -> some View {
+        let count = total ?? actions.count
+        return HStack(spacing: TFSpacing.xs) {
+            Text("\(count) \(pluralActions(count))")
                 .tfText(.micro)
                 .foregroundStyle(Color.tfSub)
                 .padding(.horizontal, TFSpacing.sm)
