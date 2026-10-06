@@ -48,8 +48,8 @@ struct RoleChatsScreen: View {
     private var projectsUnread: Int {
         chats.filter { $0.parentChatID == nil && $0.projectID != nil }.reduce(0) { $0 + $1.unread }
     }
-    /// Иконки в списке — как в списках задач (60 pt).
-    private let listAvatar: TFAvatar.Size = .taskList
+    /// Иконки в списке чатов — 68 pt.
+    private let listAvatar: TFAvatar.Size = .chatList
 
     var body: some View {
         ScrollView {
