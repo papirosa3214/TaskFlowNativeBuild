@@ -22,6 +22,8 @@ public struct TFAvatar: View {
         case taskList = 60
         /// Узел графа плана: раньше аватар был 32pt в коробке 56pt и тонул в ней.
         case node = 56
+        /// Увеличенный просмотр по долгому нажатию.
+        case zoom = 300
     }
 
     let size: Size
@@ -36,6 +38,9 @@ public struct TFAvatar: View {
     let teamURLs: [String]
     /// Круглый портрет агента (fill) вместо фото человека (fit в скруглённом квадрате).
     let portrait: Bool
+    /// Долгое нажатие увеличивает аватар (владелец 06.10.2026). Выключено у самого увеличенного вида.
+    let zoomable: Bool
+    @State private var showZoom = false
     let initials: String
     let tint: Color
     /// Подпись для VoiceOver. `nil` — собирается из инициалов.
@@ -86,7 +91,8 @@ public struct TFAvatar: View {
         teamIDs: [String] = [],
         urlPath: String? = nil,
         teamURLs: [String] = [],
-        portrait: Bool = false
+        portrait: Bool = false,
+        zoomable: Bool = true
     ) {
         self.size = size
         self.image = image
@@ -95,6 +101,7 @@ public struct TFAvatar: View {
         self.urlPath = urlPath
         self.teamURLs = teamURLs
         self.portrait = portrait
+        self.zoomable = zoomable
         self.initials = initials
         self.tint = tint
         self.accessibilityLabel = accessibilityLabel
@@ -171,6 +178,24 @@ public struct TFAvatar: View {
         // глушит внутренние тексты, дальше читается только наша метка.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(resolvedAccessibilityLabel)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                guard zoomable, teamIDs.count <= 1 else { return }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                showZoom = true
+            }
+        )
+        .fullScreenCover(isPresented: $showZoom) {
+            ZStack {
+                Color.black.opacity(0.88).ignoresSafeArea()
+                TFAvatar(size: .zoom, image: image, initials: initials, tint: tint,
+                         accessibilityLabel: accessibilityLabel, userID: userID,
+                         urlPath: urlPath, portrait: portrait, zoomable: false)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { showZoom = false }
+            .presentationBackground(.clear)
+        }
     }
 }
 
