@@ -136,7 +136,7 @@ struct ChatVoiceComposer: View {
                     .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
                 }
                 if canSendText {
-                    actionButton("arrow.up", label: "Отправить", identifier: "chat.send", tint: .accentColor, action: onSendText)
+                    actionButton("paperplane.fill", label: "Отправить", identifier: "chat.send", tint: Color.tfRed, action: onSendText)
                 } else {
                     Image(systemName: "waveform")
                         .font(.system(size: 20, weight: .medium))
