@@ -117,7 +117,6 @@ struct ProjectsScreen: View {
         )
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                projectFilterMenu
                 projectActionsMenu
             }
         }
@@ -129,24 +128,6 @@ struct ProjectsScreen: View {
             if projectStore.projects.isEmpty { await projectStore.load() }
         }
         .directoryConfirm($deleteRequest)
-    }
-
-    private var projectFilterMenu: some View {
-        Menu {
-            ForEach(ProjectFilter.allCases) { option in
-                Button {
-                    filter = option
-                } label: {
-                    Label(option.title, systemImage: filter == option ? "checkmark.circle.fill" : option.icon)
-                }
-            }
-        } label: {
-            TFPlannerToolbarIcon(
-                systemName: filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill",
-                tint: filter == .all ? .tfSub : .tfRed
-            )
-        }
-        .accessibilityLabel("Фильтр проектов")
     }
 
     private var projectActionsMenu: some View {
