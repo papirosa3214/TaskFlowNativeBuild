@@ -107,6 +107,61 @@ public struct TFDuePill: View {
     }
 }
 
+/// Срок в строке задачи. Сегодня — зелёная пилюля со значком календаря,
+/// просрочено — красная со значком календаря, остальное — прежний серый бейдж.
+public struct TFDueChip: View {
+    let plain: String
+    let relative: String
+    let days: Int
+    let overdueText: String
+    let highlight: Bool
+    let forceOverdue: Bool
+
+    public init(plain: String, relative: String, days: Int, overdueText: String,
+                highlight: Bool = true, forceOverdue: Bool = false) {
+        self.plain = plain
+        self.relative = relative
+        self.days = days
+        self.overdueText = overdueText
+        self.highlight = highlight
+        self.forceOverdue = forceOverdue
+    }
+
+    private var tone: Color? {
+        guard highlight else { return nil }
+        if forceOverdue || days < 0 { return .tfRed }
+        if days == 0 { return .tfGreen }
+        return nil
+    }
+
+    public var body: some View {
+        if let tone {
+            HStack(spacing: 3) {
+                Image(systemName: "calendar").imageScale(.small)
+                Text(tone == .tfRed ? overdueText : "\(plain) · \(relative)")
+            }
+            .tfText(.caption)
+            .foregroundStyle(tone)
+            .padding(.horizontal, TFSpacing.sm)
+            .padding(.vertical, 2)
+            .background(tone.opacity(0.15))
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+        } else {
+            HStack(spacing: 3) {
+                Text(plain)
+                Text("· \(relative)")
+                    .foregroundStyle(days <= 3 ? Color.tfOrange : Color.tfDim)
+            }
+            .tfText(.caption)
+            .foregroundStyle(Color.tfSub)
+            .padding(.horizontal, TFSpacing.sm)
+            .padding(.vertical, 2)
+            .background(Color.tfCard)
+            .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+        }
+    }
+}
+
 /// Тег раздела «Second Brain» и подобные акцентные плашки на карточках
 /// (`overview.png` — «SECOND BRAIN» на карточке «Сводка недели») — та же
 /// геометрия пилюли, но фон/текст берутся снаружи, а не выводятся из токена.

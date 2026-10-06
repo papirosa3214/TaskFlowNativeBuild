@@ -193,20 +193,8 @@ struct AgentWorkTaskRow: View {
                 }
             } metadata: {
                 TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
-                if isOverdue, let due = task.dueDate {
-                    TFPill("Просрочено, \(AgentWorkDate.formatDueLabel(due))", color: .tfRed, backgroundOpacity: 0.15)
-                } else if let due = task.dueDate {
-                    HStack(spacing: 3) {
-                        Text(AgentWorkDate.formatDueLabel(due))
-                        Text("· \(AgentWorkDate.formatDaysLeft(due))")
-                        .foregroundStyle(AgentWorkDate.daysUntil(due) <= 3 ? Color.tfOrange : Color.tfDim)
-                    }
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
-                    .padding(.horizontal, TFSpacing.sm)
-                    .padding(.vertical, 2)
-                    .background(Color.tfCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                if let due = task.dueDate {
+                    TFDueChip(plain: AgentWorkDate.formatDueLabel(due), relative: AgentWorkDate.formatDaysLeft(due), days: AgentWorkDate.daysUntil(due), overdueText: "Просрочено, \(AgentWorkDate.formatDueLabel(due))", highlight: task.status == .active, forceOverdue: isOverdue)
                 }
                 if let status = AgentWorkStateTag.text(task) {
                     HStack(spacing: 3) {
