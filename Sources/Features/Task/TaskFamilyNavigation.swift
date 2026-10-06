@@ -43,6 +43,7 @@ struct TaskFormScreen: View {
                     onSelectionFailed: resetPull,
                     initialExpandedSections: expandedSections(for: model),
                     onExpandedSectionsChanged: { storeExpandedSections($0, for: model) })
+                    .equatable()
                     .id(selectedCardID ?? "new")
                     .blur(radius: reduceMotion ? 0 : 3.2 * pullProgress(width: geometry.size.width))
                     .opacity(reduceMotion ? 1 : 1 - 0.14 * latePullProgress(width: geometry.size.width))
@@ -69,6 +70,7 @@ struct TaskFormScreen: View {
                         initialExpandedSections: expandedSections(for: incoming),
                         onExpandedSectionsChanged: { storeExpandedSections($0, for: incoming) },
                         preview: true)
+                        .equatable()
                         .background {
                             UnevenRoundedRectangle(bottomTrailingRadius: 14, topTrailingRadius: 14)
                                 .fill(Color.tfBackground)
@@ -102,6 +104,7 @@ struct TaskFormScreen: View {
                         initialExpandedSections: expandedSections(for: incoming),
                         onExpandedSectionsChanged: { storeExpandedSections($0, for: incoming) },
                         preview: true)
+                        .equatable()
                         // Лист во всю высоту — под кнопками шапки и до низа,
                         // как у открытой карточки, без обрубка сверху и
                         // «подбородка» снизу (владелец 02.10.2026). Кнопки
