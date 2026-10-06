@@ -57,6 +57,9 @@ struct RootShellView: View {
     }
 
     @Environment(TaskStore.self) private var taskStore
+    @Environment(SessionStore.self) private var session
+    /// Итог «Возобновить зависшие шаги» из меню «+» (только владелец).
+    @State private var resumeStuckMessage: String?
 
     // spec/SCREENS-1.md §1.1: стартовый экран — «Обзор» (было «Сегодня» —
     // расходилось со спекой и заодно ломало бейдж «Сегодня» ниже: initial-
@@ -222,6 +225,14 @@ struct RootShellView: View {
         // чёрный фон в скруглённых углах системной клавиатуры (iOS 26) —
         // fullScreenCover такого фона не задавал вовсе, отсюда были видны
         // чёрные уголки на новой карточке, которых нет на обычной.
+        .alert("Зависшие шаги", isPresented: Binding(
+            get: { resumeStuckMessage != nil },
+            set: { if !$0 { resumeStuckMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { resumeStuckMessage = nil }
+        } message: {
+            Text(resumeStuckMessage ?? "")
+        }
         .sheet(item: $expandedDraft) { draft in
             NavigationStack {
                 TaskFormScreen(expandingFrom: draft.viewModel)
@@ -289,7 +300,7 @@ struct RootShellView: View {
     /// Центральный «+» — один вход в создание трёх сущностей. Каждый пункт
     /// открывает форму сразу, а не соответствующий раздел приложения.
     private var createMenuItems: [TFCreateMenuItem] {
-        [
+        var items: [TFCreateMenuItem] = [
             TFCreateMenuItem(icon: "checkmark", title: "Задача") {
                 // Задача заводится компактной панелью над клавиатурой, а не
                 // полноэкранным бланком: владелец так и просил — нажал «плюс»,
@@ -305,6 +316,25 @@ struct RootShellView: View {
                 openCreateMenuTarget(.projectCreate)
             },
         ]
+        // Только владельцу: остальным сервер всё равно ответил бы 403.
+        if session.currentUser?.role == .owner {
+            items.append(TFCreateMenuItem(icon: "arrow.clockwise", title: "Возобновить шаги") {
+                isCreateMenuOpen = false
+                Task { await resumeStuckSteps() }
+            })
+        }
+        return items
+    }
+
+    private func resumeStuckSteps() async {
+        do {
+            let result = try await APIClient().resumeStuckSteps()
+            resumeStuckMessage = result.found == 0
+                ? "Зависших шагов нет."
+                : "Возобновлено: \(result.resumed) из \(result.found)."
+        } catch {
+            resumeStuckMessage = "Не удалось: нет связи с сервером или нет прав."
+        }
     }
 
     /// Активные задачи со сроком «сегодня» — то же условие, что у веба

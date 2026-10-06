@@ -191,6 +191,8 @@ struct SettingsScreen: View {
             if session.currentUser?.role == .owner {
                 SystemControlSection()
                 TFDivider(inset: rowDividerInset)
+                ServerRestartRow()
+                TFDivider(inset: rowDividerInset)
             }
             ServerStatusSection()
             TFDivider(inset: rowDividerInset)
