@@ -193,12 +193,9 @@ struct TFTaskStructureIndicators: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Подзадачи: \(done) из \(total)")
             }
-            if hasCollaborationPlan {
-                badge {
-                    Image(systemName: "person.2")
-                }
-                .accessibilityLabel("План совместной работы")
-            }
+            // Значок «план совместной работы» убран (владелец 06.10.2026): работа
+            // идёт через план даже у одиночного исполнителя, значок стоял на всех
+            // карточках и ничего не различал. Параметр оставлен, чтобы не трогать вызовы.
             if childrenCount > 0 {
                 badge {
                     HStack(spacing: 3) {
