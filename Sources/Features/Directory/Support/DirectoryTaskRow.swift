@@ -40,6 +40,10 @@ struct DirectoryTaskRow: View {
     /// меняет. `var` с дефолтом, чтобы не трогать существующие вызовы.
     var agentLine: String? = nil
 
+    /// Тап по аватару родительской задачи — раскрыть/свернуть дочерние. `nil` —
+    /// у задачи нет дочерних, аватар не ловит нажатие, строка открывается как раньше.
+    var onAvatarTap: (() -> Void)? = nil
+
     /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
     @State private var rowID = UUID()
     @State private var settledOffset: CGFloat = 0
@@ -129,6 +133,8 @@ struct DirectoryTaskRow: View {
             TFTaskRowContent(title: task.title, description: task.description, isDone: task.status == .completed) {
                 if let initials = task.rowAvatarInitials {
                     TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.rowAvatarID, teamIDs: task.rowAvatarTeam, urlPath: task.rowAvatarURL, teamURLs: task.rowAvatarTeamURLs, portrait: task.rowAvatarPortrait)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(TapGesture().onEnded { onAvatarTap?() }, including: onAvatarTap == nil ? .none : .all)
                 }
             } metadata: {
                 TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)

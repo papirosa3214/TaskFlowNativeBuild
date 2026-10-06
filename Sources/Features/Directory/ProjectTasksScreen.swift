@@ -101,6 +101,7 @@ struct ProjectTasksScreen: View {
                     } else {
                         VStack(spacing: 2) {
                             ForEach(tasks.indices, id: \.self) { rowIndex in
+                                if rowIndex > 0 { TFDivider() }
                                 rowWithIndex(rowIndex)
                             }
                         }
@@ -187,9 +188,9 @@ struct ProjectTasksScreen: View {
         return all.filter { $0.status != .completed } + all.filter { $0.status == .completed }
     }
 
-    /// Строка задачи + (если раскрыта) её потомки со сдвигом. Шеврон слева у
-    /// каждой задачи с потомками (владелец 06.10.2026: потомков нигде не видно,
-    /// а запускать работу нужно по конкретной дочерней).
+    /// Строка задачи + (если раскрыта) её дочерние. Ни шеврона, ни сдвига:
+    /// раскрывается тапом по аватару родителя (владелец 06.10.2026), дочерние
+    /// идут подряд без разделителей, разделители — между группами.
     private func treeRow(_ task: ApiTask, depth: Int) -> AnyView {
         let shortId = String(task.id.prefix(8))
         let swipeAction = ProjectTaskSwipeAction.action(
@@ -199,39 +200,23 @@ struct ProjectTasksScreen: View {
         let isOpen = expandedIDs.contains(task.id)
         return AnyView(
             VStack(spacing: 2) {
-                HStack(spacing: 0) {
-                    if kids.isEmpty {
-                        Color.clear.frame(width: 44, height: 44)
-                    } else {
-                        Button {
-                            withAnimation(.snappy) {
-                                if isOpen { expandedIDs.remove(task.id) } else { expandedIDs.insert(task.id) }
-                            }
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(Color.tfSub)
-                                .rotationEffect(.degrees(isOpen ? 90 : 0))
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
+                DirectoryTaskRow(
+                    index: shortId,
+                    task: task,
+                    isOwner: isTaskOwner,
+                    onOpen: { pendingDetail = task.id },
+                    onDelete: { Task { await deleteTask(task) } },
+                    swipeAction: swipeAction,
+                    onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } },
+                    onAvatarTap: kids.isEmpty ? nil : {
+                        withAnimation(.snappy) {
+                            if isOpen { expandedIDs.remove(task.id) } else { expandedIDs.insert(task.id) }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isOpen ? "Свернуть дочерние задачи" : "Развернуть дочерние задачи: \(kids.count)")
                     }
-                    DirectoryTaskRow(
-                        index: shortId,
-                        task: task,
-                        isOwner: isTaskOwner,
-                        onOpen: { pendingDetail = task.id },
-                        onDelete: { Task { await deleteTask(task) } },
-                        swipeAction: swipeAction,
-                        onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
-                    )
-                }
+                )
                 if isOpen {
                     ForEach(kids, id: \.id) { kid in
                         treeRow(kid, depth: depth + 1)
-                            .padding(.leading, 16)
                     }
                 }
             }
