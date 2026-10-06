@@ -52,7 +52,17 @@ struct ProjectNotesSection: View {
     /// было видно до этой правки; тап по строкке папки сворачивает документы
     /// в неё, а не уводит на экран папки (владелец 05.10.2026: «я просто
     /// должен сворачивать папку, никуда я не провалюсь»).
-    @State private var docsExpanded = true
+    @State private var docsExpanded: Bool
+
+    /// Свёрнутость документации помнится по проекту (владелец 06.10.2026:
+    /// «сворачиваю, выхожу, захожу — опять развёрнута»).
+    private var docsExpandedKey: String { "project.docs.expanded.\(project.id)" }
+
+    init(project: ApiProject, onProjectPatched: @escaping (ApiProject) -> Void) {
+        self.project = project
+        self.onProjectPatched = onProjectPatched
+        _docsExpanded = State(initialValue: TaskCardDisclosureState.flag("project.docs.expanded.\(project.id)", default: true))
+    }
 
     private let apiClient = APIClient()
 
@@ -120,6 +130,7 @@ struct ProjectNotesSection: View {
             // своих подложек и рамок.
             Button {
                 withAnimation(.snappy(duration: 0.2)) { docsExpanded.toggle() }
+                TaskCardDisclosureState.saveFlag(docsExpanded, key: docsExpandedKey)
             } label: {
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: "folder")
