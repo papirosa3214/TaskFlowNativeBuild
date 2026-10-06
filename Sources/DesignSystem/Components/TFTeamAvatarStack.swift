@@ -14,13 +14,13 @@ struct TFTeamAvatarStack: View {
 
     var body: some View {
         let front = self.front % shown.count
-        let step = side * 0.16
+        let step = side * 0.08
         ZStack {
             ForEach(0..<shown.count, id: \.self) { depth in
                 // depth 0 — передний; дальше уходят назад и вправо
                 let idx = (front + depth) % shown.count
                 avatar(shown[idx], url: (idx < urls.count && !urls[idx].isEmpty) ? urls[idx] : (AvatarDirectory.shared.urls[shown[idx]] ?? ""))
-                    .frame(width: side * 0.8, height: side * 0.8)
+                    .frame(width: side * 0.92, height: side * 0.92)
                     .offset(x: CGFloat(depth) * step - CGFloat(shown.count - 1) * step / 2,
                             y: 0)
                     .zIndex(Double(shown.count - depth))
