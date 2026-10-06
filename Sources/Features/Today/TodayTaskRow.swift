@@ -161,8 +161,8 @@ struct TodayTaskRow: View {
             }
         } label: {
             TFTaskRowContent(title: task.title, description: task.description, isDone: task.status == .completed) {
-                if let initials = task.assigneeInitials, task.assigneeId != nil {
-                    TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.assigneeId)
+                if let initials = task.rowAvatarInitials {
+                    TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.rowAvatarID, teamIDs: task.rowAvatarTeam)
                 }
             } metadata: {
                 TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)

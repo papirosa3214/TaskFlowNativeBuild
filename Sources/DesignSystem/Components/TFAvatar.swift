@@ -26,6 +26,8 @@ public struct TFAvatar: View {
     let image: Image?
     /// Stable account ID for bundled agent artwork (e.g. `role_qa`, `u-secretary`).
     let userID: String?
+    /// Бригада плана: если больше одного — наверх по очереди выходит каждый.
+    let teamIDs: [String]
     let initials: String
     let tint: Color
     /// Подпись для VoiceOver. `nil` — собирается из инициалов.
@@ -72,11 +74,13 @@ public struct TFAvatar: View {
         initials: String,
         tint: Color = Color(hex: TFHexDefault.unassigned),
         accessibilityLabel: String? = nil,
-        userID: String? = nil
+        userID: String? = nil,
+        teamIDs: [String] = []
     ) {
         self.size = size
         self.image = image
         self.userID = userID
+        self.teamIDs = teamIDs
         self.initials = initials
         self.tint = tint
         self.accessibilityLabel = accessibilityLabel
@@ -84,7 +88,9 @@ public struct TFAvatar: View {
 
     public var body: some View {
         Group {
-            if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
+            if teamIDs.count > 1 {
+                TFTeamAvatarStack(ids: teamIDs, side: side)
+            } else if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
                 Image(asset)
                     .resizable()
                     .aspectRatio(contentMode: .fill)

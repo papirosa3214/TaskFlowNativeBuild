@@ -121,9 +121,10 @@ struct SearchScreen: View {
                     TFTaskRow(TFTaskRowModel(
                         projectName: task.projectName,
                         projectColor: task.projectColor.map { Color(hex: $0) },
-                        assigneeInitials: task.assigneeId != nil ? task.assigneeInitials : nil,
+                        assigneeInitials: task.rowAvatarInitials,
                         assigneeColor: task.assigneeColor.map { Color(hex: $0) },
-                        assigneeID: task.assigneeId,
+                        assigneeID: task.rowAvatarID,
+            assigneeTeam: task.rowAvatarTeam,
                         title: task.title,
                         isDone: task.status == .completed,
                         description: task.description,

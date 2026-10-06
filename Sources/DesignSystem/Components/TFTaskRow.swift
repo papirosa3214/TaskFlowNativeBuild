@@ -9,6 +9,7 @@ public struct TFTaskRowModel {
     public var assigneeInitials: String?
     public var assigneeColor: Color?
     public var assigneeID: String?
+    public var assigneeTeam: [String]
     public var title: String
     public var isDone: Bool
     public var description: String?
@@ -33,6 +34,7 @@ public struct TFTaskRowModel {
         assigneeInitials: String? = nil,
         assigneeColor: Color? = nil,
         assigneeID: String? = nil,
+        assigneeTeam: [String] = [],
         title: String,
         isDone: Bool = false,
         description: String? = nil,
@@ -52,6 +54,7 @@ public struct TFTaskRowModel {
         self.assigneeInitials = assigneeInitials
         self.assigneeColor = assigneeColor
         self.assigneeID = assigneeID
+        self.assigneeTeam = assigneeTeam
         self.title = title
         self.isDone = isDone
         self.description = description
@@ -81,7 +84,7 @@ public struct TFTaskRow: View {
         Button(action: action) {
             TFTaskRowContent(title: model.title, description: model.description, isDone: model.isDone) {
                 if let initials = model.assigneeInitials {
-                    TFAvatar(size: .taskList, initials: initials, tint: model.assigneeColor ?? Color(hex: TFHexDefault.unassigned), userID: model.assigneeID)
+                    TFAvatar(size: .taskList, initials: initials, tint: model.assigneeColor ?? Color(hex: TFHexDefault.unassigned), userID: model.assigneeID, teamIDs: model.assigneeTeam)
                 }
             } metadata: {
                 TFTaskStructureIndicators(priority: model.priority, subtasksDone: model.subtasksDone, subtasksTotal: model.subtasksTotal, childrenCount: model.childrenCount ?? 0, hasCollaborationPlan: model.hasCollaborationPlan)

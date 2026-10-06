@@ -76,6 +76,11 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// для ярлыка «есть план» в строке списка. Тот же приём, что и
     /// childrenCount.
     public let hasCollaborationPlan: Bool
+    /// Один ответственный по плану (id учётки роли): кто сейчас в работе, иначе
+    /// ближайший несданный шаг, иначе последний. Считает сервер (TASK_COLUMNS).
+    public let planResponsibleId: String?
+    /// Вся бригада плана (id учёток ролей по порядку шагов) — только когда все шаги сданы.
+    public let planTeam: [String]
     /// 1 — серия повтора уже завершена (следующее вхождение не создавать),
     /// 0 — ещё идёт. Признак воркера, владельцу виден для «Продлить на год».
     public let recurrenceSpawned: Int?
@@ -177,6 +182,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case recurrenceSpawned = "recurrence_spawned"
         case childrenCount = "children_count"
         case hasCollaborationPlan = "has_collaboration_plan"
+        case planResponsibleId = "plan_responsible_id"
+        case planTeam = "plan_team"
         case agentStale = "agent_stale"
         case agentStartedAt = "agent_started_at"
         case mine
@@ -234,6 +241,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         recurrenceSpawned = try c.decodeIfPresent(Int.self, forKey: .recurrenceSpawned)
         childrenCount = try c.decodeIfPresent(Int.self, forKey: .childrenCount) ?? 0
         hasCollaborationPlan = try c.decodeIntBool(forKey: .hasCollaborationPlan)
+        planResponsibleId = try c.decodeIfPresent(String.self, forKey: .planResponsibleId)
+        planTeam = (try c.decodeIfPresent(String.self, forKey: .planTeam))?.split(separator: ",").map(String.init) ?? []
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
@@ -298,6 +307,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(recurrenceSpawned, forKey: .recurrenceSpawned)
         try c.encode(childrenCount, forKey: .childrenCount)
         try c.encode(hasCollaborationPlan ? 1 : 0, forKey: .hasCollaborationPlan)
+        try c.encodeIfPresent(planResponsibleId, forKey: .planResponsibleId)
+        if !planTeam.isEmpty { try c.encode(planTeam.joined(separator: ","), forKey: .planTeam) }
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)
@@ -331,4 +342,16 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public var completedAtDate: Date? { DateFormats.sqliteUTC(completedAt) }
     public var dueDateAsDate: Date? { DateFormats.calendarDate(dueDate) }
     public var isDueToday: Bool { dueDate == DateFormats.todayString() }
+}
+
+extension ApiTask {
+    /// Кого показывать аватаркой в строке списка: настоящего исполнителя,
+    /// а если его нет — одного ответственного по плану (см. `planResponsibleId`).
+    var rowAvatarID: String? { assigneeId ?? planResponsibleId ?? planTeam.first }
+    /// Больше одного — аватар листает бригаду по очереди (все шаги сданы).
+    var rowAvatarTeam: [String] { assigneeId == nil && planResponsibleId == nil ? planTeam : [] }
+    var rowAvatarInitials: String? {
+        if assigneeId != nil { return assigneeInitials }
+        return rowAvatarID != nil ? "Р" : nil
+    }
 }
