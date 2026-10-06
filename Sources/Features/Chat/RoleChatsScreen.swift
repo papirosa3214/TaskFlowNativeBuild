@@ -89,7 +89,7 @@ struct RoleChatsScreen: View {
                                 // Разделитель отбит до начала текста, а не под
                                 // аватар — так строка читается как строка
                                 // списка, а не как карточка.
-                                TFDivider(inset: TFSpacing.screenHorizontal + listAvatar.rawValue + TFSpacing.md)
+                                TFDivider(inset: TFSpacing.screenHorizontal + listAvatar.rawValue + TFSpacing.sm)
                             }
                         }
                     }
@@ -317,7 +317,7 @@ private struct ChatListRow: View {
     var taskTitle: String?
 
     var body: some View {
-        HStack(spacing: TFSpacing.md) {
+        HStack(spacing: TFSpacing.sm) {
             // Аватар — украшение: имя стоит рядом текстом, и VoiceOver не
             // должен читать «Аватар: Q» перед ним. Без этого строка
             // «Секретарь» озвучивалась дважды («Секретарь, Секретарь»).

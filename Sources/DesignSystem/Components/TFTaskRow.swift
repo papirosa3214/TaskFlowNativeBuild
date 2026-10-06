@@ -136,7 +136,7 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: TFSpacing.md) {
+        HStack(alignment: .center, spacing: TFSpacing.sm) {
             avatar
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
