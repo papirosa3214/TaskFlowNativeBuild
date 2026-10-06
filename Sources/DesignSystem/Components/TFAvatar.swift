@@ -24,6 +24,8 @@ public struct TFAvatar: View {
         case node = 56
         /// Увеличенный просмотр по долгому нажатию.
         case zoom = 300
+        /// Один участник бригады в увеличенном просмотре (до 5 штук разом).
+        case team = 150
     }
 
     let size: Size
@@ -41,6 +43,8 @@ public struct TFAvatar: View {
     /// Долгое нажатие увеличивает аватар (владелец 06.10.2026). Выключено у самого увеличенного вида.
     let zoomable: Bool
     @State private var showZoom = false
+    /// Кто в стопке бригады спереди; сдвигается после просмотра всех.
+    @State private var teamFront = 0
     let initials: String
     let tint: Color
     /// Подпись для VoiceOver. `nil` — собирается из инициалов.
@@ -132,7 +136,7 @@ public struct TFAvatar: View {
     public var body: some View {
         Group {
             if teamIDs.count > 1 {
-                TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side)
+                TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side, front: teamFront)
             } else if let urlPath = resolvedURLPath, let url = TFAvatar.fullURL(urlPath) {
                 if portrait || self.urlPath == nil {
                     AnimatedImage(url: url, placeholder: { placeholderCircle })
@@ -180,7 +184,7 @@ public struct TFAvatar: View {
         .accessibilityLabel(resolvedAccessibilityLabel)
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.45).onEnded { _ in
-                guard zoomable, teamIDs.count <= 1 else { return }
+                guard zoomable else { return }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 showZoom = true
             }
@@ -188,13 +192,29 @@ public struct TFAvatar: View {
         .fullScreenCover(isPresented: $showZoom) {
             ZStack {
                 Color.black.opacity(0.88).ignoresSafeArea()
-                TFAvatar(size: .zoom, image: image, initials: initials, tint: tint,
-                         accessibilityLabel: accessibilityLabel, userID: userID,
-                         urlPath: urlPath, portrait: portrait, zoomable: false)
+                if teamIDs.count > 1 {
+                    // Бригада: все портреты разом, до пяти.
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                        ForEach(Array(teamIDs.prefix(5).enumerated()), id: \.offset) { i, id in
+                            TFAvatar(size: .team, initials: initials, tint: tint,
+                                     userID: id,
+                                     urlPath: i < teamURLs.count && !teamURLs[i].isEmpty ? teamURLs[i] : nil,
+                                     portrait: true, zoomable: false)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                } else {
+                    TFAvatar(size: .zoom, image: image, initials: initials, tint: tint,
+                             accessibilityLabel: accessibilityLabel, userID: userID,
+                             urlPath: urlPath, portrait: portrait, zoomable: false)
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture { showZoom = false }
             .presentationBackground(.clear)
+        }
+        .onChange(of: showZoom) { _, open in
+            if !open, teamIDs.count > 1 { teamFront += 1 }
         }
     }
 }
