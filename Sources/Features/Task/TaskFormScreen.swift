@@ -1610,6 +1610,23 @@ struct TaskCardContent: View {
     /// привязанного чата (у второго только добавляется пометка).
     @ViewBuilder
     private func journalCommentBody(_ comment: ApiComment) -> some View {
+        HStack(alignment: .top, spacing: TFSpacing.sm) {
+            // Аватар автора комментария (владелец 06.10.2026: у комментариев агентов
+            // его не было). Картинка с сервера; человеку — фото как раньше, агенту — круг.
+            TFAvatar(
+                size: .md,
+                initials: comment.userInitials ?? String((comment.userName ?? "С").prefix(1)),
+                tint: Color(hex: comment.userColor ?? TFHexDefault.unassigned),
+                userID: comment.userId,
+                urlPath: comment.userAvatarUrl,
+                portrait: comment.userId != session.currentUser?.id
+            )
+            journalCommentContent(comment)
+        }
+    }
+
+    @ViewBuilder
+    private func journalCommentContent(_ comment: ApiComment) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
