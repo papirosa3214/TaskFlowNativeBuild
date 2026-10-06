@@ -17,6 +17,43 @@ import os
 // («переносит не туда, куда надо»). Заведён `AppRoute.noteFolder(folderID:)`
 // сверх контракта (`.notes` без параметра не тронут) — `NotesScreen` теперь
 // умеет открыться сразу на нужной папке.
+/// Чем отфильтрован список задач проекта (меню «⋯» в шапке, владелец 06.10.2026).
+enum ProjectTaskFilter: String, CaseIterable, Identifiable {
+    case open, all, working, review, stuck, done
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .open: "Не выполненные"
+        case .all: "Все, включая выполненные"
+        case .working: "В работе"
+        case .review: "На проверке"
+        case .stuck: "Застряли или ждут"
+        case .done: "Выполненные"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .open: "circle.dashed"
+        case .all: "list.bullet"
+        case .working: "hammer"
+        case .review: "eye"
+        case .stuck: "exclamationmark.triangle"
+        case .done: "checkmark.circle"
+        }
+    }
+    /// Сама задача подходит под фильтр.
+    func matches(_ task: ApiTask) -> Bool {
+        switch self {
+        case .open: task.status != .completed
+        case .all: true
+        case .working: task.status != .completed && task.agentState == .inProgress
+        case .review: task.status != .completed && task.agentState == .review
+        case .stuck: task.status != .completed && (task.agentState == .blocked || task.agentState == .todo)
+        case .done: task.status == .completed
+        }
+    }
+}
+
 struct ProjectTasksScreen: View {
     /// `nil` — раздел «Без проекта»: все задачи без проекта, тем же списком.
     let projectID: String?
@@ -33,6 +70,9 @@ struct ProjectTasksScreen: View {
     /// Раскрытые родительские задачи (шеврон слева у строки). Дочерние берутся
     /// из `relationshipTasks` — там лежит весь список с потомками.
     @State private var expandedIDs: Set<String> = []
+    /// Фильтр списка; помнится по проекту.
+    @State private var filter: ProjectTaskFilter = .open
+    private var filterKey: String { "project.filter.\(projectID ?? "none")" }
 
     private struct TaskRef: Identifiable {
         let id: String
@@ -54,6 +94,15 @@ struct ProjectTasksScreen: View {
     /// гарантированно стабилен, а спека и веб-код требуют стабильность).
     private var tasks: [ApiTask] {
         let source = relationshipTasks.isEmpty ? taskStore.tasks : relationshipTasks
+        if filter != .open {
+            // Фильтр по состоянию: корень остаётся, если подходит он сам или кто-то из потомков.
+            let byParent = Dictionary(grouping: source, by: \.parentId)
+            func hit(_ t: ApiTask) -> Bool {
+                filter.matches(t) || (byParent[t.id] ?? []).contains(where: hit)
+            }
+            let scoped = source.filter { $0.projectId == projectID && $0.parentId == nil && hit($0) }
+            return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
+        }
         var openTreeIDs = Set(source.lazy.filter { task in
             task.status == .active || task.subtasks.contains { !$0.done }
         }.map(\.id))
@@ -145,12 +194,32 @@ struct ProjectTasksScreen: View {
             }
             if project != nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showNewTask = true } label: {
-                        Image(systemName: "plus")
+                    Menu {
+                        ForEach(ProjectTaskFilter.allCases) { f in
+                            Button {
+                                filter = f
+                                UserDefaults.standard.set(f.rawValue, forKey: filterKey)
+                            } label: {
+                                if filter == f {
+                                    Label(f.title, systemImage: "checkmark")
+                                } else {
+                                    Label(f.title, systemImage: f.icon)
+                                }
+                            }
+                        }
+                        Divider()
+                        Button { showNewTask = true } label: {
+                            Label("Добавить задачу", systemImage: "plus")
+                        }
+                    } label: {
+                        Image(systemName: filter == .open ? "ellipsis.circle" : "ellipsis.circle.fill")
                     }
-                    .accessibilityLabel("Добавить")
+                    .accessibilityLabel("Фильтр и действия")
                 }
             }
+        }
+        .onAppear {
+            if let raw = UserDefaults.standard.string(forKey: filterKey), let f = ProjectTaskFilter(rawValue: raw) { filter = f }
         }
         .task {
             if projectStore.projects.isEmpty { await projectStore.load() }
@@ -184,7 +253,11 @@ struct ProjectTasksScreen: View {
 
     /// Прямые потомки задачи; незакрытые впереди, порядок внутри групп стабильный.
     private func children(of task: ApiTask) -> [ApiTask] {
-        let all = relationshipTasks.filter { $0.parentId == task.id }
+        let byParent = Dictionary(grouping: relationshipTasks, by: \.parentId)
+        func hit(_ t: ApiTask) -> Bool {
+            filter.matches(t) || (byParent[t.id] ?? []).contains(where: hit)
+        }
+        let all = (byParent[task.id] ?? []).filter(hit)
         return all.filter { $0.status != .completed } + all.filter { $0.status == .completed }
     }
 
@@ -197,7 +270,7 @@ struct ProjectTasksScreen: View {
             for: task, isOwner: isTaskOwner, currentUserID: session.currentUser?.id
         )
         let kids = children(of: task)
-        let isOpen = expandedIDs.contains(task.id)
+        let isOpen = expandedIDs.contains(task.id) || (filter != .open && filter != .all && !kids.isEmpty)
         return AnyView(
             VStack(spacing: 2) {
                 DirectoryTaskRow(
