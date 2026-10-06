@@ -11,6 +11,7 @@ enum RoleAvatarAsset {
         case "critic_verifier": "RoleAvatarCriticVerifier"
         case "designer": "RoleAvatarDesigner"
         case "secretary": "RoleAvatarSecretary"
+        case "orchestrator": "RoleAvatarOrchestrator"
         default: nil
         }
     }
@@ -18,6 +19,8 @@ enum RoleAvatarAsset {
     static func imageName(forUserID userID: String?) -> String? {
         guard let userID else { return nil }
         if userID == "u-secretary" { return imageName(for: "secretary") }
+        // Учётка «Оркестратор Claude» — не role_*, у неё свой постоянный id.
+        if userID == "6848a89b-04fe-4015-bb1c-61b03782c378" { return imageName(for: "orchestrator") }
         guard userID.hasPrefix("role_") else { return nil }
         return imageName(for: String(userID.dropFirst("role_".count)))
     }
