@@ -37,7 +37,19 @@ struct RoleChatsScreen: View {
         var unread: Int
     }
 
-    private var visibleChats: [RoleChat] { chats.filter { $0.parentChatID == nil } }
+    private enum ChatTab { case personal, projects }
+    @State private var tab: ChatTab = .personal
+
+    /// Чаты по проектам живут в своей вкладке и в общем списке не светятся
+    /// (владелец 06.10.2026).
+    private var visibleChats: [RoleChat] {
+        chats.filter { $0.parentChatID == nil && (tab == .projects) == ($0.projectID != nil) }
+    }
+    private var projectsUnread: Int {
+        chats.filter { $0.parentChatID == nil && $0.projectID != nil }.reduce(0) { $0 + $1.unread }
+    }
+    /// Иконки в списке — как в списках задач (60 pt).
+    private let listAvatar: TFAvatar.Size = .taskList
 
     var body: some View {
         ScrollView {
@@ -47,12 +59,21 @@ struct RoleChatsScreen: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, TFSpacing.xl)
                 } else {
-                    secretaryBlock
-                    // Граница блока: «Секретарь» стоит особняком, а не первым
-                    // в общем списке (владелец 21.09.2026).
-                    TFDivider()
+                    Picker("Раздел", selection: $tab) {
+                        Text("Личные").tag(ChatTab.personal)
+                        Text(projectsUnread > 0 ? "Проекты · \(projectsUnread)" : "Проекты").tag(ChatTab.projects)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.vertical, TFSpacing.sm)
+                    if tab == .personal {
+                        secretaryBlock
+                        // Граница блока: «Секретарь» стоит особняком, а не первым
+                        // в общем списке (владелец 21.09.2026).
+                        TFDivider()
+                    }
                     if visibleChats.isEmpty {
-                        Text("Пока нет чатов. Создайте чат с одной или несколькими ролями.")
+                        Text(tab == .projects ? "Пока нет чатов по проектам." : "Пока нет чатов. Создайте чат с одной или несколькими ролями.")
                             .tfText(.action)
                             .foregroundStyle(Color.tfDim)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -68,7 +89,7 @@ struct RoleChatsScreen: View {
                                 // Разделитель отбит до начала текста, а не под
                                 // аватар — так строка читается как строка
                                 // списка, а не как карточка.
-                                TFDivider(inset: TFSpacing.screenHorizontal + TFAvatar.Size.xl.rawValue + TFSpacing.md)
+                                TFDivider(inset: TFSpacing.screenHorizontal + listAvatar.rawValue + TFSpacing.md)
                             }
                         }
                     }
@@ -135,7 +156,7 @@ struct RoleChatsScreen: View {
             NavigationLink(value: AppRoute.roleChat(id: "chat-secretary")) {
                 ChatListRow(
                     avatar: AnyView(TFAvatar(
-                        size: .xl,
+                        size: listAvatar,
                         initials: secretaryInitials,
                         tint: Color.tfTeal,
                         userID: "u-secretary"
@@ -176,11 +197,11 @@ struct RoleChatsScreen: View {
     private func chatAvatar(_ chat: RoleChat) -> some View {
         let others = chat.others(excluding: session.currentUser?.id)
         if chat.kind == "group" {
-            TFGroupAvatar(identity: chat.projectID ?? chat.id)
+            TFGroupAvatar(identity: chat.projectID ?? chat.id, size: listAvatar)
         } else if let member = others.first {
-            RoleMemberAvatar(member: member)
+            RoleMemberAvatar(member: member, size: listAvatar)
         } else {
-            TFAvatar(size: .xl, initials: "?", tint: Color(hex: TFHexDefault.unassigned))
+            TFAvatar(size: listAvatar, initials: "?", tint: Color(hex: TFHexDefault.unassigned))
         }
     }
 
