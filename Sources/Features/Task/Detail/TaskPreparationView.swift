@@ -20,7 +20,11 @@ struct TaskPreparationView: View {
 
     var body: some View {
         Group {
-            if let preparation, !["skipped", "superseded"].contains(preparation.status) {
+            // Секция «Подготовка» больше не показывает статус «готова» и не дублирует
+            // согласование плана (оно в меню «Ещё»): владелец 06.10.2026. Остаётся только то,
+            // где нужно действие или что-то сломалось. Опрос состояния ниже работает по-прежнему —
+            // по нему обновляется план на карточке.
+            if let preparation, ["failed", "needs_clarification", "structure_review"].contains(preparation.status) {
                 preparationSection {
                     Group {
                         if preparation.isPending {
@@ -64,15 +68,6 @@ struct TaskPreparationView: View {
                             Text(preparation.error ?? "Подготовка не завершена").tfText(.action)
                             if isOwner { Button("Повторить подготовку") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } } }
                         }
-                        if isOwner, allowsExecution, preparation.canApprovePlan {
-                            Button("Согласовать и запустить план") {
-                                confirmationPlanID = preparation.planID
-                                confirmationBranchSnapshot = preparation.branchSnapshot
-                                confirmingPlan = true
-                            }
-                                .foregroundStyle(Color.tfDim)
-                                .accessibilityIdentifier("preparation.approvePlan")
-                        }
                         if isOwner, allowsExecution, preparation.canApproveStructure {
                             Button("Согласовать дочерние задачи") {
                                 confirmationInputVersion = preparation.inputVersion
@@ -93,8 +88,6 @@ struct TaskPreparationView: View {
                     .foregroundStyle(Color.tfSub)
                     .buttonStyle(.borderless)
                     .disabled(isApplying)
-                    Button("Обновить подготовку") { Task { await load() } }
-                        .foregroundStyle(Color.tfDim)
                 }
             } else if isLoading {
                 preparationSection { ProgressView("Проверяем подготовку…") }

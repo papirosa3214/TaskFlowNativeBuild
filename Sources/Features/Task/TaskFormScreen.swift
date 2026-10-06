@@ -1961,6 +1961,13 @@ struct TaskCardContent: View {
                             Label("Предложить план из подзадач", systemImage: "wand.and.stars")
                         }
                         .disabled(isSuggestingCollaborationPlan || !viewModel.canUsePlan)
+                        // Вместо «Обновить подготовку» (владелец 06.10.2026): перечитать план.
+                        Button {
+                            collaborationPlanReloadToken += 1
+                            Task { await viewModel.refresh() }
+                        } label: {
+                            Label("Обновить план совместной работы", systemImage: "arrow.clockwise")
+                        }
                     }
             Divider()
                     // Глубокое исследование (миграция 052 сервера
