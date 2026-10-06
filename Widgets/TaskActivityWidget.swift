@@ -129,7 +129,7 @@ struct TaskActivityWidget: Widget {
             slug: context.state.assigneeSlug,
             initials: context.state.assigneeInitials,
             color: context.state.assigneeColor,
-            size: 34
+            size: 56
           )
           .padding(.leading, 6)
         }
@@ -240,7 +240,7 @@ struct TaskActivityWidget: Widget {
           color: context.state.assigneeColor,
           progress: context.state.progress,
           accent: tfAccent(for: context.state.status),
-          size: 14
+          size: 20
         )
       } compactTrailing: {
         // 3. КОМПАКТНЫЙ ВИД СПРАВА
@@ -267,7 +267,7 @@ struct TaskActivityWidget: Widget {
           color: context.state.assigneeColor,
           progress: context.state.progress,
           accent: tfAccent(for: context.state.status),
-          size: 14
+          size: 20
         )
       }
       .widgetURL(URL(string: "taskflow://task/\(context.attributes.taskId)"))
