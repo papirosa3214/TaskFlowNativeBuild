@@ -21,7 +21,7 @@ public struct TFAvatar: View {
         /// строками содержания, а не теряется в одной строке заголовка.
         case taskList = 60
         /// Узел графа плана: раньше аватар был 32pt в коробке 56pt и тонул в ней.
-        case node = 48
+        case node = 56
     }
 
     let size: Size

@@ -1,4 +1,5 @@
 import SwiftUI
+import SDWebImageSwiftUI
 
 // LOCK-183: строка «Команды» — плоская, как сотрудник в списке, а не
 // тяжёлая карточка с конфигурацией. Всё техническое (Pi, provider, OAuth,
@@ -65,9 +66,19 @@ struct RoleAvatarView: View {
     /// ассета под них нет, рисовать заглушку из чужих рук неуместно.
     var role: String? = nil
 
+    /// Картинка роли с сервера — тот же справочник, что у остальных экранов.
+    private var serverURL: URL? {
+        guard let role, let path = AvatarDirectory.shared.urls["role_" + role] else { return nil }
+        return TFAvatar.fullURL(path)
+    }
+
     var body: some View {
         Group {
-            if let asset = RoleAvatarAsset.imageName(for: role) {
+            if let serverURL {
+                AnimatedImage(url: serverURL, placeholder: { Circle().fill(tint) })
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let asset = RoleAvatarAsset.imageName(for: role) {
                 Image(asset)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
