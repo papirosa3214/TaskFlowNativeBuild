@@ -182,9 +182,18 @@ enum LiveActivityService {
             projectName: task.projectName,
             projectColor: task.projectColor,
             updatedAt: Date(),
-            assigneeSlug: slug(from: task.assigneeName, userID: task.assigneeId),
+            assigneeSlug: slug(from: task.assigneeName, userID: task.assigneeId ?? currentStepAgentId(of: task)),
             startedAt: startDate(of: task)
         )
+    }
+
+    /// Карточка плана не имеет своего исполнителя: работают роли по шагам.
+    /// Портрет в островке — у той роли, что делает шаг прямо сейчас, а когда
+    /// ни один не бежит — у роли первого невыполненного шага.
+    private static func currentStepAgentId(of task: ApiTask) -> String? {
+        let step = task.subtasks.first(where: \.isActivelyRunning)
+            ?? task.subtasks.first(where: { !$0.done })
+        return step?.agentId
     }
 
     private static func label(for status: String) -> String {
