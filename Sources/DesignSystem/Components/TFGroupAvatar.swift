@@ -10,7 +10,10 @@ struct TFGroupAvatar: View {
         let hash = identity.utf8.reduce(UInt64(14695981039346656037)) {
             ($0 ^ UInt64($1)) &* 1099511628211
         }
-        return String(format: "GroupAvatar%02d", Int(hash % 8) + 1)
+        // Общий чат — всегда первая картинка; остальные групповые и проектные
+        // чаты — по кругу из трёх (владелец 06.10.2026).
+        if identity == "chat-common" { return "GroupAvatar01" }
+        return String(format: "GroupAvatar%02d", Int(hash % 3) + 1)
     }
 
     var body: some View {
