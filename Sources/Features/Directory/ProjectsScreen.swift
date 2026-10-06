@@ -196,6 +196,7 @@ struct ProjectsScreen: View {
 
     private var visibleProjects: [ApiProject] {
         projectStore.projects.filter { project in
+            guard project.id != archiveProject?.id else { return false }
             let queryMatches = searchText.isEmpty
                 || project.name.localizedCaseInsensitiveContains(searchText)
             guard queryMatches else { return false }
@@ -225,34 +226,60 @@ struct ProjectsScreen: View {
         taskStore.tasks.filter { $0.projectId == nil && $0.status == .active }.count
     }
 
+    /// «Архив» — раньше обычный проект в общем списке; владелец 06.10.2026:
+    /// это раздел, а не проект. Проект по-прежнему хранит задачи, но в списке
+    /// проектов его нет — он открывается плиткой рядом с «Без проекта».
+    private var archiveProject: ApiProject? {
+        projectStore.projects.first { $0.name == "Архив" }
+    }
+
+    private var archiveCount: Int {
+        guard let archiveProject else { return 0 }
+        return taskStore.tasks.filter { $0.projectId == archiveProject.id }.count
+    }
+
+    /// Две плитки в одну линию — тот же вид, что «В работе» / «На проверке»
+    /// в Обзоре, иконки крупнее (владелец 06.10.2026).
     private var noProjectRow: some View {
-        NavigationLink(value: AppRoute.noProjectTasks) {
-            TFCard {
-                HStack(spacing: TFSpacing.md) {
-                    Image(systemName: "tray")
-                        .tfText(.title)
-                        .foregroundStyle(Color.tfSub)
-                        .frame(width: 28, alignment: .center)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Без проекта")
-                            .tfText(.title)
-                            .foregroundStyle(Color.tfText)
-                        Text(
-                            noProjectCount == 0
-                                ? "Нет активных задач"
-                                : "\(noProjectCount) \(DirectoryPluralize.taskWord(noProjectCount))"
-                        )
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfSub)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfDim)
-                }
+        HStack(spacing: TFSpacing.sm) {
+            sectionTile(
+                route: .noProjectTasks, title: "Без проекта",
+                count: noProjectCount, icon: "tray", tint: .tfBlue
+            )
+            if let archiveProject {
+                sectionTile(
+                    route: .projectTasks(projectID: archiveProject.id), title: "Архив",
+                    count: archiveCount, icon: "archivebox", tint: .tfOrange
+                )
             }
         }
-        .buttonStyle(TFTapRowStyle())
+    }
+
+    private func sectionTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color) -> some View {
+        NavigationLink(value: route) {
+            TFCard(padding: TFSpacing.md) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                        Text("\(count)")
+                            .tfText(.taskTitle)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.tfText)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: icon)
+                        .font(.title)
+                        .foregroundStyle(count > 0 ? tint : Color.tfDim)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .buttonStyle(TFTapScaleStyle())
+        .accessibilityLabel("\(title): \(count)")
     }
 
     private func projectRow(_ project: ApiProject) -> some View {
