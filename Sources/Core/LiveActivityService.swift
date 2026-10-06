@@ -182,7 +182,7 @@ enum LiveActivityService {
             projectName: task.projectName,
             projectColor: task.projectColor,
             updatedAt: Date(),
-            assigneeSlug: slug(from: task.assigneeName),
+            assigneeSlug: slug(from: task.assigneeName, userID: task.assigneeId),
             startedAt: startDate(of: task)
         )
     }
@@ -212,8 +212,18 @@ enum LiveActivityService {
     /// по ссылке не забрать, поэтому в островок кладутся заранее ужатые файлы
     /// (avatar-claude и прочие), а сюда идёт только короткое имя. Незнакомое
     /// имя — нарисуется буква, как и раньше.
-    private static func slug(from name: String?) -> String? {
+    private static func slug(from name: String?, userID: String? = nil) -> String? {
+        // Роли и Секретарь: портреты лежат в ассетах расширения под avatar-РОЛЬ.
+        if let userID {
+            if userID == "u-secretary" { return "secretary" }
+            if userID.hasPrefix("role_") {
+                let role = String(userID.dropFirst("role_".count))
+                let known = ["architect", "builder", "qa", "researcher", "analyst", "critic_verifier", "designer"]
+                if known.contains(role) { return role.replacingOccurrences(of: "_", with: "-") }
+            }
+        }
         guard let name = name?.lowercased() else { return nil }
+        if name.contains("оркестратор") || name.contains("orchestrator") { return "orchestrator" }
         for known in ["claude", "hermes", "deepseek", "antigravity", "maksim"] where name.contains(known) {
             return known
         }

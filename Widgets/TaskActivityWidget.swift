@@ -50,8 +50,9 @@ struct AssigneeBadge: View {
     if hasImage, let slug {
       Image("avatar-\(slug)")
         .resizable()
-        .scaledToFit()
+        .scaledToFill()
         .frame(width: size, height: size)
+        .clipShape(Circle())
     } else {
       Circle()
         .fill(Color(hex: color))
