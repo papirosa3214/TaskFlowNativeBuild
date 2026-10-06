@@ -178,20 +178,18 @@ struct ProfileAccountRow: View {
 
     @ViewBuilder
     private var avatarView: some View {
-        // `AsyncImage` требует заголовок Authorization, которого он слать не
-        // умеет (см. комментарий `APIClient.downloadRaw`) — но `/avatars/:name`
-        // ПУБЛИЧНЫЙ (spec §5.10), поэтому прямой `URL` годится без обёртки.
-        if let avatarURL, let url = URL(string: avatarURL) {
-            AsyncImage(url: url) { image in
-                image.resizable().aspectRatio(contentMode: .fill)
-            } placeholder: {
-                TFAvatar(size: .lg, initials: user.initials ?? "?", tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned))
-            }
-            .frame(width: 40, height: 40)
-            .clipShape(Circle())
-        } else {
-            TFAvatar(size: .lg, initials: user.initials ?? "?", tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned))
-        }
+        // Раньше здесь был `AsyncImage(URL(string: "/api/avatars/…"))`: адрес
+        // относительный, без сервера, картинка не грузилась и всегда рисовалась
+        // буква (владелец 06.10.2026: «почему М»). `TFAvatar` сам дописывает
+        // адрес сервера и кеширует.
+        TFAvatar(
+            size: .profile,
+            initials: user.initials ?? "?",
+            tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned),
+            urlPath: avatarURL,
+            portrait: true,
+            zoomable: false
+        )
     }
 
     private func upload(_ item: PhotosPickerItem?) async {
@@ -200,7 +198,23 @@ struct ProfileAccountRow: View {
         isBusy = true
         defer { isBusy = false }
         do {
-            guard let data = try await item.loadTransferable(type: Data.self) else { return }
+            guard let raw = try await item.loadTransferable(type: Data.self) else { return }
+            // Сервер принимает png/jpeg/webp/gif до 5 МБ; из галереи приходит HEIC и
+            // большие файлы — перекодируем в JPEG не крупнее 1024 px.
+            guard let image = UIImage(data: raw) else {
+                errorMessage = "Не удалось прочитать картинку"
+                return
+            }
+            let longSide = max(image.size.width, image.size.height)
+            let scale = longSide > 1024 ? 1024 / longSide : 1
+            let target = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            let resized = UIGraphicsImageRenderer(size: target).image { _ in
+                image.draw(in: CGRect(origin: .zero, size: target))
+            }
+            guard let data = resized.jpegData(compressionQuality: 0.85) else {
+                errorMessage = "Не удалось подготовить картинку"
+                return
+            }
             let url = try await settings.uploadAvatar(data: data, mime: "image/jpeg")
             onAvatarChanged(url)
         } catch {
