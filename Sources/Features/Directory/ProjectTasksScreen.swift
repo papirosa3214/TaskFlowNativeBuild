@@ -30,6 +30,9 @@ struct ProjectTasksScreen: View {
     private let logger = Logger(subsystem: "com.taskflow.apiclient", category: "project-tasks")
 
     @State private var pendingDetail: String?
+    /// Раскрытые родительские задачи (шеврон слева у строки). Дочерние берутся
+    /// из `relationshipTasks` — там лежит весь список с потомками.
+    @State private var expandedIDs: Set<String> = []
 
     private struct TaskRef: Identifiable {
         let id: String
@@ -175,21 +178,63 @@ struct ProjectTasksScreen: View {
             logger.error("rowWithIndex out of bounds: index=\(rowIndex) count=\(tasks.count)")
             return AnyView(EmptyView())
         }
-        let task = tasks[rowIndex]
+        return treeRow(tasks[rowIndex], depth: 0)
+    }
+
+    /// Прямые потомки задачи; незакрытые впереди, порядок внутри групп стабильный.
+    private func children(of task: ApiTask) -> [ApiTask] {
+        let all = relationshipTasks.filter { $0.parentId == task.id }
+        return all.filter { $0.status != .completed } + all.filter { $0.status == .completed }
+    }
+
+    /// Строка задачи + (если раскрыта) её потомки со сдвигом. Шеврон слева у
+    /// каждой задачи с потомками (владелец 06.10.2026: потомков нигде не видно,
+    /// а запускать работу нужно по конкретной дочерней).
+    private func treeRow(_ task: ApiTask, depth: Int) -> AnyView {
         let shortId = String(task.id.prefix(8))
         let swipeAction = ProjectTaskSwipeAction.action(
             for: task, isOwner: isTaskOwner, currentUserID: session.currentUser?.id
         )
+        let kids = children(of: task)
+        let isOpen = expandedIDs.contains(task.id)
         return AnyView(
-            DirectoryTaskRow(
-                index: shortId,
-                task: task,
-                isOwner: isTaskOwner,
-                onOpen: { pendingDetail = task.id },
-                onDelete: { Task { await deleteTask(task) } },
-                swipeAction: swipeAction,
-                onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
-            )
+            VStack(spacing: 2) {
+                HStack(spacing: 0) {
+                    if kids.isEmpty {
+                        Color.clear.frame(width: 44, height: 44)
+                    } else {
+                        Button {
+                            withAnimation(.snappy) {
+                                if isOpen { expandedIDs.remove(task.id) } else { expandedIDs.insert(task.id) }
+                            }
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Color.tfSub)
+                                .rotationEffect(.degrees(isOpen ? 90 : 0))
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isOpen ? "Свернуть дочерние задачи" : "Развернуть дочерние задачи: \(kids.count)")
+                    }
+                    DirectoryTaskRow(
+                        index: shortId,
+                        task: task,
+                        isOwner: isTaskOwner,
+                        onOpen: { pendingDetail = task.id },
+                        onDelete: { Task { await deleteTask(task) } },
+                        swipeAction: swipeAction,
+                        onSwipeAction: { Task { await performSwipe(task: task, action: swipeAction) } }
+                    )
+                }
+                if isOpen {
+                    ForEach(kids, id: \.id) { kid in
+                        treeRow(kid, depth: depth + 1)
+                            .padding(.leading, 16)
+                    }
+                }
+            }
         )
     }
 
