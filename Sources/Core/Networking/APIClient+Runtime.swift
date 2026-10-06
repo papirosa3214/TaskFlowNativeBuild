@@ -118,4 +118,28 @@ public extension APIClient {
             ] as [String: JSONValue]
         )
     }
+
+    /// `PUT /api/runtime/routing/:role` только с основной моделью: запасные
+    /// роли сервер оставляет как есть (на них держится автопереключение при
+    /// лимите). `primary` — «голый» id или ссылка `провайдер/модель`.
+    @discardableResult
+    func updateRuntimeRoutingPrimary(role: String, primary: String) async throws -> RuntimeRoutingUpdate {
+        try await request(
+            .put,
+            "/runtime/routing/\(role)",
+            body: ["primary": .string(primary)] as [String: JSONValue]
+        )
+    }
+
+    /// `PUT /api/runtime/routing` — основная модель сразу всем ролям.
+    /// Запасные каждой роли не трогаются.
+    func updateRuntimeRoutingAll(primary: String) async throws {
+        let _: RuntimeRoutingAllUpdate = try await request(
+            .put,
+            "/runtime/routing",
+            body: ["primary": .string(primary)] as [String: JSONValue]
+        )
+    }
 }
+
+private struct RuntimeRoutingAllUpdate: Decodable { let primary: String }

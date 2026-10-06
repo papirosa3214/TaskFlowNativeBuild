@@ -274,6 +274,7 @@ struct RootShellView: View {
             case "upcoming": selectedTab = .upcoming
             case "chat": selectedTab = .chat
             case "agents": paths[selectedTab, default: NavigationPath()].append(AppRoute.agents)
+            case "models": paths[selectedTab, default: NavigationPath()].append(AppRoute.runtimeProviders)
             default: break
             }
         }

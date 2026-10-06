@@ -38,12 +38,15 @@ final class RuntimeProvidersViewModel {
 
 struct RuntimeProvidersScreen: View {
     @State private var viewModel = RuntimeProvidersViewModel()
+    @State private var roleModels = RoleModelsViewModel()
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.xl) {
                 TFErrorBanner(viewModel.errorMessage)
 
+                // Роли сверху: провайдеров десятки, ниже блок ушёл бы за экран.
+                RoleModelsSection(viewModel: roleModels, models: viewModel.models)
                 providersSection
                 modelsSection
             }
@@ -52,8 +55,14 @@ struct RuntimeProvidersScreen: View {
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Модели и провайдеры")
-        .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .task {
+            await viewModel.load()
+            await roleModels.load()
+        }
+        .refreshable {
+            await viewModel.load()
+            await roleModels.load()
+        }
     }
 
     private var providersSection: some View {
