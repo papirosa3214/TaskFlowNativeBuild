@@ -92,19 +92,34 @@ public extension APIClient {
             public let title: String
             public let preview: String?
             public let updatedAt: String?
+            /// В какой папке лежит заметка (для дерева «проект → папки задач → файлы»).
+            public let folderId: Int?
             enum CodingKeys: String, CodingKey {
                 case id, title, preview
                 case updatedAt = "updated_at"
+                case folderId = "folder_id"
+            }
+        }
+        /// Подпапка внутри папки документации проекта (папка задачи).
+        public struct FolderNode: Decodable, Sendable, Identifiable {
+            public let id: Int
+            public let parentId: Int?
+            public let name: String
+            enum CodingKeys: String, CodingKey {
+                case id, name
+                case parentId = "parent_id"
             }
         }
 
         public let project: ProjectRef
         public let folder: FolderRef?
         public let notes: [NoteRef]
+        /// Нет у старого сервера — тогда список остаётся плоским.
+        public let folders: [FolderNode]?
         public let подсказка: String?
 
         enum CodingKeys: String, CodingKey {
-            case project, folder, notes, подсказка
+            case project, folder, notes, folders, подсказка
         }
     }
 

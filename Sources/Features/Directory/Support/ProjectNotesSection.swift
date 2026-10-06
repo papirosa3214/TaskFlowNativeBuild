@@ -53,6 +53,8 @@ struct ProjectNotesSection: View {
     /// в неё, а не уводит на экран папки (владелец 05.10.2026: «я просто
     /// должен сворачивать папку, никуда я не провалюсь»).
     @State private var docsExpanded: Bool
+    /// Раскрытые папки задач внутри папки документации.
+    @State private var openFolders: Set<Int> = []
 
     /// Свёрнутость документации помнится по проекту (владелец 06.10.2026:
     /// «сворачиваю, выхожу, захожу — опять развёрнута»).
@@ -176,29 +178,19 @@ struct ProjectNotesSection: View {
                     .padding(.leading, TFSpacing.lg)
             }
 
-            ForEach(filteredNotes) { note in
-                Button { pendingNoteID = note.id } label: {
-                    HStack(alignment: .top, spacing: TFSpacing.sm) {
-                        Image(systemName: "doc.text")
-                            .tfText(.input)
-                            .foregroundStyle(Color.tfDim)
-                            .padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(note.title.isEmpty ? "Без названия" : note.title)
-                                .tfText(.body)
-                                .foregroundStyle(Color.tfText)
-                                .lineLimit(1)
-                            Text(updatedLabel(for: note))
-                                .tfText(.meta)
-                                .foregroundStyle(Color.tfSub)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                    }
-                    .padding(.leading, TFSpacing.lg)
-                    .frame(minHeight: 42)
+            if let rootID = docs?.folder?.id, let folders = docs?.folders {
+                // Дерево: проект → папки задач → файлы. Папки идут первыми
+                // (свежие сверху), заметки прямо в корне — после них.
+                ForEach(subfolders(of: rootID, in: folders)) { f in
+                    folderBlock(f, all: folders, depth: 0)
                 }
-                .buttonStyle(TFTapRowStyle())
+                ForEach(filteredNotes.filter { $0.folderId == rootID || $0.folderId == nil }) { note in
+                    noteRow(note, indent: TFSpacing.lg)
+                }
+            } else {
+                ForEach(filteredNotes) { note in
+                    noteRow(note, indent: TFSpacing.lg)
+                }
             }
 
             Button("Открепить папку") { detachConfirm = true }
@@ -207,6 +199,99 @@ struct ProjectNotesSection: View {
                 .foregroundStyle(Color.tfDim)
                 .padding(.top, TFSpacing.xs)
         }
+    }
+
+    private func noteRow(_ note: APIClient.DirectoryProjectDocs.NoteRef, indent: CGFloat) -> some View {
+        Button { pendingNoteID = note.id } label: {
+            HStack(alignment: .top, spacing: TFSpacing.sm) {
+                Image(systemName: "doc.text")
+                    .tfText(.input)
+                    .foregroundStyle(Color.tfDim)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(note.title.isEmpty ? "Без названия" : note.title)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(1)
+                    Text(updatedLabel(for: note))
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(.leading, indent)
+            .frame(minHeight: 42)
+        }
+        .buttonStyle(TFTapRowStyle())
+    }
+
+    /// Подпапки, у которых после фильтра по дате есть документы; свежие сверху.
+    private func subfolders(of parent: Int, in all: [APIClient.DirectoryProjectDocs.FolderNode]) -> [APIClient.DirectoryProjectDocs.FolderNode] {
+        let kids = all.filter { $0.parentId == parent && subtreeNotes($0.id, in: all).isEmpty == false }
+        func newest(_ f: APIClient.DirectoryProjectDocs.FolderNode) -> Date {
+            subtreeNotes(f.id, in: all).compactMap { $0.updatedAt.flatMap(DateFormats.sqliteUTC) }.max() ?? .distantPast
+        }
+        return kids.sorted { newest($0) > newest($1) }
+    }
+
+    /// Все (отфильтрованные) заметки папки и её потомков.
+    private func subtreeNotes(_ id: Int, in all: [APIClient.DirectoryProjectDocs.FolderNode]) -> [APIClient.DirectoryProjectDocs.NoteRef] {
+        var ids: Set<Int> = [id]
+        var grew = true
+        while grew {
+            grew = false
+            for f in all where f.parentId != nil && ids.contains(f.parentId!) && !ids.contains(f.id) {
+                ids.insert(f.id); grew = true
+            }
+        }
+        return filteredNotes.filter { $0.folderId.map(ids.contains) ?? false }
+    }
+
+    /// Строка папки задачи; по тапу раскрывается (файлы и вложенные папки).
+    private func folderBlock(_ f: APIClient.DirectoryProjectDocs.FolderNode, all: [APIClient.DirectoryProjectDocs.FolderNode], depth: Int) -> AnyView {
+        let isOpen = openFolders.contains(f.id)
+        let pad = TFSpacing.lg + CGFloat(depth) * TFSpacing.md
+        return AnyView(
+            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        if isOpen { openFolders.remove(f.id) } else { openFolders.insert(f.id) }
+                    }
+                } label: {
+                    HStack(spacing: TFSpacing.sm) {
+                        Image(systemName: "folder")
+                            .tfText(.input)
+                            .foregroundStyle(Color.tfSub)
+                        Text(f.name.isEmpty ? "Без названия" : f.name)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfText)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(subtreeNotes(f.id, in: all).count)")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfDim)
+                        Image(systemName: "chevron.right")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfDim)
+                            .rotationEffect(.degrees(isOpen ? 90 : 0))
+                    }
+                    .padding(.leading, pad)
+                    .frame(minHeight: 42)
+                }
+                .buttonStyle(TFTapRowStyle())
+                .accessibilityLabel(f.name)
+                .accessibilityValue(isOpen ? "развёрнуто" : "свёрнуто")
+                if isOpen {
+                    ForEach(subfolders(of: f.id, in: all)) { child in
+                        folderBlock(child, all: all, depth: depth + 1)
+                    }
+                    ForEach(filteredNotes.filter { $0.folderId == f.id }) { note in
+                        noteRow(note, indent: pad + TFSpacing.lg)
+                    }
+                }
+            }
+        )
     }
 
     /// Заметки, отфильтрованные по выбранному `dateFilter`. Если фильтр
