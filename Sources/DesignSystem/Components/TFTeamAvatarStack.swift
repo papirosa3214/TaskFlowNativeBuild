@@ -19,7 +19,7 @@ struct TFTeamAvatarStack: View {
                 ForEach(0..<shown.count, id: \.self) { depth in
                     // depth 0 — передний; дальше уходят назад и вправо
                     let idx = (front + depth) % shown.count
-                    avatar(shown[idx], url: idx < urls.count ? urls[idx] : "")
+                    avatar(shown[idx], url: (idx < urls.count && !urls[idx].isEmpty) ? urls[idx] : (AvatarDirectory.shared.urls[shown[idx]] ?? ""))
                         .frame(width: side * 0.8, height: side * 0.8)
                         .offset(x: CGFloat(depth) * step - CGFloat(shown.count - 1) * step / 2,
                                 y: 0)

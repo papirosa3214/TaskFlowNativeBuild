@@ -638,7 +638,7 @@ private struct CollaborationPlanGraph: View {
     private func node(_ entry: Entry, state: String) -> some View {
         ZStack(alignment: .topTrailing) {
             TFAvatar(
-                size: .lg,
+                size: .node,
                 initials: initials(for: entry.title),
                 tint: Color.tfCard2,
                 accessibilityLabel: "Аватар: \(entry.title)",

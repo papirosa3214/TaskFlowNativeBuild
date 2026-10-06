@@ -166,8 +166,9 @@ struct RootView: View {
             async let tasksLoaded: () = taskStore.load()
             async let projectsLoaded: () = projectStore.load()
             async let labelsLoaded: () = labelStore.load()
+            async let avatarsLoaded: () = AvatarDirectory.shared.load(apiClient: APIClient())
             async let notificationsLoaded: () = notificationStore.load()
-            _ = await (tasksLoaded, projectsLoaded, labelsLoaded, notificationsLoaded)
+            _ = await (tasksLoaded, projectsLoaded, labelsLoaded, notificationsLoaded, avatarsLoaded)
         }
     }
 }

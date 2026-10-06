@@ -20,6 +20,8 @@ public struct TFAvatar: View {
         /// Списки задач: роль читается отдельной колонкой рядом с тремя
         /// строками содержания, а не теряется в одной строке заголовка.
         case taskList = 60
+        /// Узел графа плана: раньше аватар был 32pt в коробке 56pt и тонул в ней.
+        case node = 48
     }
 
     let size: Size
@@ -98,6 +100,13 @@ public struct TFAvatar: View {
         self.accessibilityLabel = accessibilityLabel
     }
 
+    /// Своя картинка, а если не передали — из справочника по id учётки.
+    private var resolvedURLPath: String? {
+        if let urlPath { return urlPath }
+        guard let userID else { return nil }
+        return AvatarDirectory.shared.urls[userID]
+    }
+
     static func fullURL(_ path: String) -> URL? {
         URL(string: APIClient.baseURL.absoluteString + path)
     }
@@ -117,8 +126,8 @@ public struct TFAvatar: View {
         Group {
             if teamIDs.count > 1 {
                 TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side)
-            } else if let urlPath, let url = TFAvatar.fullURL(urlPath) {
-                if portrait {
+            } else if let urlPath = resolvedURLPath, let url = TFAvatar.fullURL(urlPath) {
+                if portrait || self.urlPath == nil {
                     AnimatedImage(url: url, placeholder: { placeholderCircle })
                         .resizable()
                         .aspectRatio(contentMode: .fill)
