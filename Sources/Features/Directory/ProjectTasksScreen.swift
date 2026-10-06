@@ -84,6 +84,16 @@ struct ProjectTasksScreen: View {
     /// авторизация владельца не появится отдельным состоянием.
     private var isTaskOwner: Bool { true }
 
+    /// Приватный проект скрыт от агентов; переключает только владелец (сервер иначе даст 403).
+    private func setPrivate(_ value: Bool, for project: ApiProject) async {
+        do {
+            _ = try await apiClient.patchProject(id: project.id, fields: ["is_private": .bool(value)])
+            await projectStore.load()
+        } catch {
+            logger.error("is_private: \(error.localizedDescription)")
+        }
+    }
+
     private var project: ApiProject? {
         guard let projectID else { return nil }
         return projectStore.projects.first { $0.id == projectID }
@@ -210,6 +220,12 @@ struct ProjectTasksScreen: View {
                         Divider()
                         Button { showNewTask = true } label: {
                             Label("Добавить задачу", systemImage: "plus")
+                        }
+                        if let project {
+                            Button { Task { await setPrivate(!project.isPrivate, for: project) } } label: {
+                                Label(project.isPrivate ? "Сделать проект обычным" : "Сделать проект приватным",
+                                      systemImage: project.isPrivate ? "eye" : "eye.slash")
+                            }
                         }
                     } label: {
                         Image(systemName: filter == .open ? "ellipsis.circle" : "ellipsis.circle.fill")

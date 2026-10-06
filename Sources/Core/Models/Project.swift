@@ -27,6 +27,8 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
     public let createdAt: String?
     public let position: Int?
     public let pinned: Bool
+    /// Приватный проект: сервер не отдаёт его агентам, задачи стоят на владельце.
+    public let isPrivate: Bool
     public let notesFolderId: Int?
     /// Активные задачи проекта (выполненные не считаются — так же, как на
     /// экране проекта, см. комментарий в `server/src/routes/projects.ts`).
@@ -51,6 +53,7 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         case ownerId = "owner_id"
         case createdAt = "created_at"
         case position, pinned
+        case isPrivate = "is_private"
         case notesFolderId = "notes_folder_id"
         case taskCount = "task_count"
         case completedCount = "completed_count"
@@ -70,6 +73,7 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
         position = try c.decodeIfPresent(Int.self, forKey: .position)
         pinned = try c.decodeIntBool(forKey: .pinned)
+        isPrivate = (try? c.decodeIntBool(forKey: .isPrivate)) ?? false
         notesFolderId = try c.decodeIfPresent(Int.self, forKey: .notesFolderId)
         taskCount = try c.decodeIfPresent(Int.self, forKey: .taskCount)
         completedCount = try c.decodeIfPresent(Int.self, forKey: .completedCount)
@@ -86,8 +90,10 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         completedCount: Int? = nil, overdueCount: Int? = nil,
         lastActivityAt: String? = nil, docsCount: Int? = nil,
         knowledgeDatasetId: String? = nil,
-        agents: [ApiProjectAgent] = []
+        agents: [ApiProjectAgent] = [],
+        isPrivate: Bool = false
     ) {
+        self.isPrivate = isPrivate
         self.id = id; self.name = name; self.color = color; self.ownerId = ownerId
         self.createdAt = createdAt; self.position = position; self.pinned = pinned
         self.notesFolderId = notesFolderId; self.taskCount = taskCount
@@ -106,6 +112,7 @@ public struct ApiProject: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(position, forKey: .position)
         try c.encode(pinned ? 1 : 0, forKey: .pinned)
+        try c.encode(isPrivate ? 1 : 0, forKey: .isPrivate)
         try c.encodeIfPresent(notesFolderId, forKey: .notesFolderId)
         try c.encodeIfPresent(taskCount, forKey: .taskCount)
         try c.encodeIfPresent(completedCount, forKey: .completedCount)
