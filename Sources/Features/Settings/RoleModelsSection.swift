@@ -2,51 +2,64 @@ import SwiftUI
 import Observation
 
 /// «Модели ролей» на экране «Модели и провайдеры» (владелец 07.10.2026):
-/// основная модель каждой роли и строка «Всем ролям» — выбрал, раскатилось
-/// на все роли. Веб-экран тот же (`RoleModelsBlock.tsx`). Выбор сохраняется
-/// сразу; запасные модели роли сервер не трогает (PUT без fallbacks), на них
-/// держится автопереключение при лимите.
+/// основная модель каждой роли, строка «Всем ролям», цепочка запасных у каждой
+/// роли (тап по строке), общие тумблеры автопереключения и статус лимитов.
+/// Веб-экран тот же (`RoleModelsBlock.tsx`). Выбор сохраняется сразу.
 @MainActor
 @Observable
 final class RoleModelsViewModel {
     private let api = APIClient()
 
     var roles: [AgentProfile] = []
-    /// Роль, которая сохраняется сейчас; "*" — «Всем ролям».
+    var failover: FailoverStatus?
+    /// Роль, которая сохраняется сейчас; "*" — «Всем ролям» и операции с лимитами.
     var busy: String?
     var errorMessage: String?
 
     func load() async {
         do {
             roles = try await api.runtimeProfiles().filter { $0.id != AgentProfile.autoAssignID }
+            failover = try await api.failoverStatus()
             errorMessage = nil
         } catch {
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            errorMessage = Self.message(error)
         }
     }
 
     func set(role: String, to ref: String) async {
-        guard busy == nil else { return }
-        busy = role
-        defer { busy = nil }
-        do {
-            try await api.updateRuntimeRoutingPrimary(role: role, primary: ref)
-            await load()
-        } catch {
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
-        }
+        await run(role) { try await self.api.updateRuntimeRoutingPrimary(role: role, primary: ref) }
+    }
+
+    func saveChain(role: String, primary: String, fallbacks: [String]) async {
+        await run(role) { try await self.api.updateRuntimeRouting(role: role, primary: primary, fallbacks: fallbacks) }
     }
 
     func setAll(to ref: String) async {
+        await run("*") { try await self.api.updateRuntimeRoutingAll(primary: ref) }
+    }
+
+    func setFailover(autoSwitch: Bool? = nil, autoReturn: Bool? = nil) async {
+        await run("*") { try await self.api.setFailover(autoSwitch: autoSwitch, autoReturn: autoReturn) }
+    }
+
+    func release(_ provider: String) async {
+        await run("*") { try await self.api.releaseProviderLimit(provider) }
+    }
+
+    private func run<T>(_ key: String, _ action: @escaping () async throws -> T) async {
         guard busy == nil else { return }
-        busy = "*"
+        busy = key
         defer { busy = nil }
         do {
-            try await api.updateRuntimeRoutingAll(primary: ref)
+            _ = try await action()
             await load()
         } catch {
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            errorMessage = Self.message(error)
         }
+    }
+
+    private static func message(_ error: Error) -> String {
+        (error as? APIError)?.errorDescription ?? error.localizedDescription
     }
 }
 
@@ -78,28 +91,15 @@ struct RoleModelsSection: View {
     let models: [RuntimeModel]
 
     @State private var pendingAll: RuntimeModel?
+    @State private var editing: AgentProfile?
 
     private var options: [RuntimeModel] { models.filter { $0.available && $0.isRoutable } }
 
-    private var providerOrder: [String] {
-        var seen: [String] = []
-        for model in options where !seen.contains(model.provider) { seen.append(model.provider) }
-        return seen
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFSectionHeader("Модели ролей")
+        VStack(alignment: .leading, spacing: TFSpacing.xl) {
             TFErrorBanner(viewModel.errorMessage)
-            TFCard(padding: 0) {
-                VStack(spacing: 0) {
-                    allRolesRow
-                    ForEach(viewModel.roles) { profile in
-                        TFDivider(inset: TFSpacing.lg)
-                        roleRow(profile)
-                    }
-                }
-            }
+            FailoverSettingsSection(viewModel: viewModel)
+            rolesCard
         }
         .confirmationDialog(
             "Поставить эту модель всем ролям?",
@@ -107,29 +107,73 @@ struct RoleModelsSection: View {
             titleVisibility: .visible
         ) {
             Button("Поставить всем") {
-                if let model = pendingAll {
-                    Task { await viewModel.setAll(to: model.routeRef) }
-                }
+                if let model = pendingAll { Task { await viewModel.setAll(to: model.routeRef) } }
                 pendingAll = nil
             }
             Button("Отмена", role: .cancel) { pendingAll = nil }
         } message: {
             Text("Основная модель каждой роли станет «\(pendingAll?.displayName ?? "")». Запасные остаются как есть.")
         }
+        .sheet(item: $editing) { profile in
+            RoleChainSheet(viewModel: viewModel, profile: profile, models: models)
+        }
     }
 
-    private var allRolesRow: some View {
-        row(title: "Всем ролям", subtitle: "на всех сразу") {
-            picker(label: "— выбрать —", accessibility: "Модель для всех ролей") { pendingAll = $0 }
+    private var rolesCard: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader("Модели ролей")
+            TFCard(padding: 0) {
+                VStack(spacing: 0) {
+                    row(title: "Всем ролям", subtitle: "основная модель на всех сразу") {
+                        ModelMenu(
+                            label: "— выбрать —",
+                            accessibility: "Модель для всех ролей",
+                            options: options,
+                            disabled: viewModel.busy != nil
+                        ) { pendingAll = $0 }
+                    }
+                    ForEach(viewModel.roles) { profile in
+                        TFDivider(inset: TFSpacing.lg)
+                        roleRow(profile)
+                    }
+                }
+            }
         }
     }
 
     private func roleRow(_ profile: AgentProfile) -> some View {
-        let current = profile.modelPolicy.primary
-        let currentName = models.first { $0.routeRef == current }?.displayName ?? current
-        return row(title: profile.title, subtitle: nil) {
-            picker(label: currentName, accessibility: "Модель роли \(profile.title)") { model in
-                Task { await viewModel.set(role: profile.role, to: model.routeRef) }
+        let state = viewModel.failover?.roles.first { $0.role == profile.role }
+        let chain = profile.modelPolicy.fallbacks
+        let subtitle = state?.onFallback == true
+            ? "сейчас на запасной: \(models.name(forRef: state?.current ?? ""))"
+            : (chain.isEmpty ? "запасных нет" : "запасных: \(chain.count)")
+        return HStack(spacing: TFSpacing.md) {
+            Button { editing = profile } label: {
+                HStack(spacing: TFSpacing.sm) {
+                    titleBlock(profile.title, subtitle, warn: state?.onFallback == true)
+                    Image(systemName: "chevron.right").font(.footnote).foregroundStyle(Color.tfDim)
+                }
+                .frame(minHeight: TFField.height)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Цепочка запасных: \(profile.title)")
+            Spacer(minLength: TFSpacing.sm)
+            ModelMenu(
+                label: models.name(forRef: profile.modelPolicy.primary),
+                accessibility: "Модель роли \(profile.title)",
+                options: options,
+                disabled: viewModel.busy != nil
+            ) { model in Task { await viewModel.set(role: profile.role, to: model.routeRef) } }
+        }
+        .padding(.horizontal, TFSpacing.lg)
+    }
+
+    private func titleBlock(_ title: String, _ subtitle: String?, warn: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).tfText(.action).foregroundStyle(Color.tfText)
+            if let subtitle {
+                Text(subtitle).tfText(.caption).foregroundStyle(warn ? Color.tfOrange : Color.tfSub)
             }
         }
     }
@@ -140,50 +184,11 @@ struct RoleModelsSection: View {
         @ViewBuilder trailing: () -> Trailing
     ) -> some View {
         HStack(spacing: TFSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfText)
-                if let subtitle {
-                    Text(subtitle)
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfSub)
-                }
-            }
+            titleBlock(title, subtitle)
             Spacer(minLength: TFSpacing.sm)
             trailing()
         }
         .padding(.horizontal, TFSpacing.lg)
         .frame(minHeight: TFField.height)
-    }
-
-    private func picker(
-        label: String,
-        accessibility: String,
-        onPick: @escaping (RuntimeModel) -> Void
-    ) -> some View {
-        Menu {
-            ForEach(providerOrder, id: \.self) { provider in
-                Section(provider) {
-                    ForEach(options.filter { $0.provider == provider }, id: \.uid) { model in
-                        Button(model.displayName) { onPick(model) }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: TFSpacing.xs) {
-                Text(label)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
-                    .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.footnote)
-                    .foregroundStyle(Color.tfDim)
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .disabled(viewModel.busy != nil)
-        .accessibilityLabel(accessibility)
     }
 }

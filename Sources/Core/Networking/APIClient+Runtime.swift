@@ -143,3 +143,69 @@ public extension APIClient {
 }
 
 private struct RuntimeRoutingAllUpdate: Decodable { let primary: String }
+
+// MARK: - Автопереключение моделей (владелец 07.10.2026)
+
+/// Провайдер, который сейчас в лимите. `until` — UTC-строка SQLite;
+/// `held` — автовозврат выключен, метка не истечёт сама.
+public struct FailoverLimit: Codable, Sendable, Hashable, Identifiable {
+    public let provider: String
+    public let until: String
+    public let held: Bool
+    public let mode: String
+    public let reason: String?
+    public var id: String { provider }
+}
+
+/// Состояние роли: на какой модели она работает сейчас (с учётом лимитов).
+public struct FailoverRoleState: Codable, Sendable, Hashable, Identifiable {
+    public let role: String
+    public let primary: String
+    public let fallbacks: [String]
+    public let current: String
+    public let onFallback: Bool
+    public var id: String { role }
+
+    enum CodingKeys: String, CodingKey {
+        case role, primary, fallbacks, current
+        case onFallback = "on_fallback"
+    }
+}
+
+/// `GET /api/runtime/failover`.
+public struct FailoverStatus: Codable, Sendable, Hashable {
+    public let autoSwitch: Bool
+    public let autoReturn: Bool
+    public let limits: [FailoverLimit]
+    public let roles: [FailoverRoleState]
+
+    enum CodingKeys: String, CodingKey {
+        case limits, roles
+        case autoSwitch = "auto_switch"
+        case autoReturn = "auto_return"
+    }
+}
+
+private struct FailoverToggles: Decodable { let autoSwitch: Bool; let autoReturn: Bool
+    enum CodingKeys: String, CodingKey { case autoSwitch = "auto_switch", autoReturn = "auto_return" }
+}
+
+public extension APIClient {
+    /// Тумблеры, провайдеры в лимите и состояние ролей.
+    func failoverStatus() async throws -> FailoverStatus {
+        try await request(.get, "/runtime/failover")
+    }
+
+    /// `PUT /api/runtime/failover` — общие тумблеры; не переданный не меняется.
+    func setFailover(autoSwitch: Bool? = nil, autoReturn: Bool? = nil) async throws {
+        var body: [String: JSONValue] = [:]
+        if let autoSwitch { body["auto_switch"] = .bool(autoSwitch) }
+        if let autoReturn { body["auto_return"] = .bool(autoReturn) }
+        let _: FailoverToggles = try await request(.put, "/runtime/failover", body: body)
+    }
+
+    /// «Вернуть сейчас»: снять метку лимита у провайдера.
+    func releaseProviderLimit(_ provider: String) async throws {
+        let _: APIOkResponse = try await request(.delete, "/runtime/failover/limits/\(provider)")
+    }
+}
