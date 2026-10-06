@@ -11,9 +11,9 @@ struct TFGroupAvatar: View {
             ($0 ^ UInt64($1)) &* 1099511628211
         }
         // Общий чат — всегда первая картинка; остальные групповые и проектные
-        // чаты — по кругу из трёх (владелец 06.10.2026).
+        // чаты — по кругу из шести (владелец 06.10.2026).
         if identity == "chat-common" { return "GroupAvatar01" }
-        return String(format: "GroupAvatar%02d", Int(hash % 3) + 1)
+        return String(format: "GroupAvatar%02d", Int(hash % 6) + 1)
     }
 
     var body: some View {
