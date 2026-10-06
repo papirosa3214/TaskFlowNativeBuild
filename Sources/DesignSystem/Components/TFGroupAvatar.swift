@@ -4,6 +4,8 @@ import SwiftUI
 struct TFGroupAvatar: View {
     let identity: String
     var size: TFAvatar.Size = .xl
+    @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
+    private var side: CGFloat { (size.rawValue * scalePercent / 100).rounded() }
 
     private var assetName: String {
         // Swift Hasher is randomly seeded per process; use a fixed hash instead.
@@ -17,7 +19,15 @@ struct TFGroupAvatar: View {
     }
 
     var body: some View {
-        TFAvatar(size: size, image: Image(assetName), initials: "",
-                 accessibilityLabel: "Аватар группы")
+        // Рисуем кругом сами: общий TFAvatar кладёт картинку в скруглённый
+        // квадрат на сером фоне, и прозрачные углы круглой картинки
+        // превращались в тёмные углы (владелец 06.10.2026).
+        Image(assetName)
+            .resizable()
+            .scaledToFill()
+            .frame(width: side, height: side)
+            .clipShape(Circle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Аватар группы")
     }
 }
