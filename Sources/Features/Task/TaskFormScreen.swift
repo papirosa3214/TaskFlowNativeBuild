@@ -1854,17 +1854,6 @@ struct TaskCardContent: View {
                         }
                     }
                 }
-                ForEach(viewModel.roles) { role in
-                    Button {
-                        assignExecutor(role: role.role)
-                    } label: {
-                        if viewModel.ownerSelectedRole == role.role {
-                            Label(role.title, systemImage: "checkmark")
-                        } else {
-                            Text(role.title)
-                        }
-                    }
-                }
             } label: {
                 Label("Исполнитель: \(selectedRoleTitle)", systemImage: "person.crop.circle")
             }
@@ -1874,15 +1863,8 @@ struct TaskCardContent: View {
         }
 
         if isOwner {
-            // Один запуск вместо двух (владелец 01.10.2026: «Запустить» и
-            // «Запустить исполнителя» путали): разрешить ролям взять
-            // карточку и сразу поднять исполнителя.
-            Button {
-                Task { await launchExecutor() }
-            } label: {
-                Label(viewModel.executionStatus?.status == "failed" ? "Повторить запуск исполнителя" : "Запустить исполнителя", systemImage: "play.circle")
-            }
-            .disabled(!viewModel.canLaunchExecutor || ((viewModel.assigneeId ?? "").isEmpty && viewModel.ownerSelectedRole == nil))
+            // Отдельных «назначить роль» и «запустить исполнителя» больше нет (владелец 07.10.2026):
+            // запуск — только планом, в том числе планом из одного исполнителя («Утвердить план»).
             // Вернуть в черновик можно, пока за карточку никто не взялся.
             if viewModel.readyForPickup, viewModel.agentState == nil, viewModel.canChangeExecutor {
                 Button {
@@ -2091,13 +2073,6 @@ struct TaskCardContent: View {
 
     /// Разрешить ролям взять карточку (если она ещё черновик) и поднять
     /// исполнителя, если он сам уже не взялся.
-    private func launchExecutor() async {
-        guard viewModel.canLaunchExecutor else { return }
-        if await viewModel.runAgent(mode: "executor") {
-            toast = TaskToastMessage("Запуск принят — исполнитель в очереди")
-        }
-    }
-
     /// Перенесено буквально из `TaskDetailScreen.ownerActionMenuItems` —
     /// та же логика (§19.2 AgentOwnerActions), другой источник состояния.
     @ViewBuilder
