@@ -37,3 +37,15 @@ extension APIClient: LinearImportServing {
         try await request(.post, "/integrations/linear/import", body: ["preview_id": JSONValue.string(previewID)])
     }
 }
+
+/// Автоимпорт из Linear (служба сервера): включён или выключен.
+struct LinearAutoImportState: Decodable { let enabled: Bool }
+
+extension APIClient {
+    func linearAutoImport() async throws -> LinearAutoImportState {
+        try await request(.get, "/integrations/linear/autoimport")
+    }
+    func setLinearAutoImport(enabled: Bool) async throws -> LinearAutoImportState {
+        try await request(.patch, "/integrations/linear/autoimport", body: ["enabled": JSONValue.bool(enabled)])
+    }
+}

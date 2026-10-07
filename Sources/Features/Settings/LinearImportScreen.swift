@@ -78,6 +78,8 @@ struct LinearImportScreen: View {
     @Environment(ProjectStore.self) private var projectStore
     @State private var detail: LinearPreviewItem?
     @State private var showsDetail = false
+    /// Автоимпорт на сервере: nil — состояние ещё не получено, тумблер не показываем.
+    @State private var autoImportEnabled: Bool?
     let embedded: Bool
     let onOpenConnection: (() -> Void)?
     init(api: any LinearImportServing = APIClient(), embedded: Bool = false, onOpenConnection: (() -> Void)? = nil) {
@@ -97,6 +99,7 @@ struct LinearImportScreen: View {
                     .safeAreaInset(edge: .bottom) { actions.padding(TFSpacing.lg).background(Color.tfBackground) }
             }
         }
+        .task { autoImportEnabled = try? await APIClient().linearAutoImport().enabled }
         .tfBottomSheet(isPresented: $showsDetail, title: detail?.identifier) {
             if let detail {
                 ScrollView {
@@ -116,10 +119,35 @@ struct LinearImportScreen: View {
             Text(model.workspace?.name ?? "Выборочный перенос задач и структуры")
                 .tfText(.caption).foregroundStyle(Color.tfSub)
             TFErrorBanner(model.error, variant: .block)
+            if let autoImportEnabled { autoImportRow(isOn: autoImportEnabled) }
             if let result = model.result { resultSection(result) }
             else if let preview = model.preview { previewSection(preview) }
             else { selectionSection }
             if model.loading { TFLoading(.inline) }
+        }
+    }
+
+    /// Тумблер автоимпорта (владелец 07.10.2026): включил — сервер сам заводит
+    /// задачи в работе из проектов Linear с меткой «Сейчас», выключил — не заводит.
+    private func autoImportRow(isOn: Bool) -> some View {
+        HStack(spacing: TFSpacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Автоимпорт").tfText(.action).foregroundStyle(Color.tfText)
+                Text("Сервер сам заводит задачи в работе раз в 5 минут").tfText(.caption).foregroundStyle(Color.tfSub)
+            }
+            Spacer(minLength: TFSpacing.sm)
+            TFToggle(isOn: Binding(get: { isOn }, set: { setAutoImport($0) }))
+        }
+        .frame(minHeight: TFField.height)
+        .accessibilityIdentifier("linear.autoimport")
+    }
+
+    private func setAutoImport(_ enabled: Bool) {
+        let previous = autoImportEnabled
+        autoImportEnabled = enabled
+        Task {
+            do { autoImportEnabled = try await APIClient().setLinearAutoImport(enabled: enabled).enabled }
+            catch { autoImportEnabled = previous; model.error = error.localizedDescription }
         }
     }
 
