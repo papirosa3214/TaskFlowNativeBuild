@@ -105,6 +105,7 @@ struct TaskCardContent: View {
     /// свой `didStartLoad`, обычный `onAppear` второй раз не сработает.
     @State private var collaborationPlanReloadToken = 0
     @State private var isPreparationPresented = false
+    @State private var preparationWaiting: String?
     @State private var isApprovingCollaborationPlan = false
     @State private var isSuggestingCollaborationPlan = false
     @State private var isProposingCollaborationPlan = false
@@ -381,7 +382,7 @@ struct TaskCardContent: View {
                 TaskPreparationPoller(taskID: taskID) {
                     await viewModel.refresh()
                     collaborationPlanReloadToken += 1
-                }
+                } onWaiting: { preparationWaiting = $0 }
             }
         }
         .tfBottomSheet(isPresented: $isPreparationPresented, title: "Подготовка") {
@@ -1811,14 +1812,20 @@ struct TaskCardContent: View {
             .accessibilityLabel("Работа")
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                moreMenuItems
-            } label: {
-                Image(systemName: "ellipsis")
-                    .foregroundStyle(Color.tfText)
-            }
-            .accessibilityLabel("Ещё")
+            // Подготовка ждёт владельца — системная отметка на «Ещё»
+            // (в шапке её рисует iOS 26, на более старых не видна).
+            moreMenu.badge(preparationWaiting == nil ? 0 : 1)
         }
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            moreMenuItems
+        } label: {
+            Image(systemName: "ellipsis")
+                .foregroundStyle(Color.tfText)
+        }
+        .accessibilityLabel("Ещё")
     }
 
     /// «Работа»: кто исполняет и что с ним делать.
@@ -2046,7 +2053,9 @@ struct TaskCardContent: View {
         }
         if viewModel.taskID != nil {
             Button { isPreparationPresented = true } label: {
-                Label("Подготовка", systemImage: "list.clipboard")
+                Text("Подготовка")
+                if let preparationWaiting { Text(preparationWaiting) }
+                Image(systemName: "list.clipboard")
             }
         }
         Button { saveAsTemplate() } label: {

@@ -6,12 +6,17 @@ import SwiftUI
 struct TaskPreparationPoller: View {
     let taskID: String
     let onChange: () async -> Void
+    /// Чего автомат ждёт от владельца (`nil` — ничего): по этому «Ещё» в шапке
+    /// получает отметку, а пункт «Подготовка» — подпись (владелец 07.10.2026).
+    let onWaiting: (String?) -> Void
     @State private var signature: String?
     private let api = APIClient()
 
     var body: some View {
         Color.clear
             .task(id: taskID) {
+                signature = nil
+                onWaiting(nil)
                 await load()
                 while !Task.isCancelled {
                     do { try await Task.sleep(for: .seconds(3)) } catch { return }
@@ -27,6 +32,13 @@ struct TaskPreparationPoller: View {
         let next = "\(fresh.id)|\(fresh.status)|\(fresh.planID ?? "")|\(fresh.planStatus ?? "")"
         guard next != signature else { return }
         signature = next
+        if fresh.canApproveStructure {
+            onWaiting("Жду решения по разделению карточки")
+        } else if fresh.status == "needs_clarification" || fresh.status == "structure_review" {
+            onWaiting("Жду уточнения по задаче")
+        } else {
+            onWaiting(nil)
+        }
         await onChange()
     }
 }
