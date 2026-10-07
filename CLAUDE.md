@@ -49,25 +49,25 @@ cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild
   `DirectoryCompactHeader` заменены и лежат в `archive/design-system-2026-09-11`
   (правка 22.09.2026: до неё здесь был предписан `TFScreenHeader`, удалённый
   ещё 11.09 — по этому указанию сессии искали несуществующий файл).
-- **Экран логина в симуляторе — не преграда.** В отладочной сборке есть штатный
-  вход по токену: переменная окружения `TASKFLOW_DEBUG_TOKEN` кладётся прямо в
-  Keychain при старте (`SessionStore.bootstrap()`, блок `#if DEBUG`). Токен —
-  ключ `TASKFLOW_AGENT_TOKEN` в vault, а vault ЖИВЁТ НА .110: на маке
-  `vault-run.py` нет вовсе. Значение в чат не печатать — забирать в
-  переменную и сразу отдавать потребителю:
-  `TOKEN=$(ssh maksim 'python3 ~/.claude/vault-get.py --raw TASKFLOW_AGENT_TOKEN')`,
-  дальше `SIMCTL_CHILD_TASKFLOW_DEBUG_TOKEN="$TOKEN" xcrun simctl launch <udid> com.maksim.taskflow.native`.
-  Работать этим токеном ПРЯМО НА .110 (curl к API и т.п.) — через обёртку,
-  она сама вычищает секрет из вывода:
-  `ssh maksim 'python3 ~/.claude/vault-run.py --secret T=ИМЯ_КЛЮЧА -- команда'`
-  (синтаксис именно `ПЕРЕМЕННАЯ=КЛЮЧ`, дальше `--` и команда). Бандл —
-  `com.maksim.taskflow.native`, не `com.taskflow.native`. В UI-тесте:
-  `app.launchEnvironment["TASKFLOW_DEBUG_TOKEN"] = <токен>`.
-  Рядом работает `TASKFLOW_DEBUG_ROUTE` — открыть нужный экран сразу при старте
+- **Экран логина в симуляторе — не преграда, токен не нужен.** В домашней сети
+  приложение входит само: при старте без токена `SessionStore.bootstrap()`
+  зовёт `tryLanLogin()` (`POST /auth/lan`) и кладёт полученный токен в
+  Keychain; дальше он там и лежит. Запуск:
+  `xcrun simctl launch <udid> com.maksim.taskflow.native`. В UI-тесте токен
+  не передавать вовсе — пустое значение `TASKFLOW_DEBUG_TOKEN` игнорируется.
+  Ключа `TASKFLOW_AGENT_TOKEN` в vault больше НЕТ — снят намеренно (контур
+  TaskFlow закрыт): не искать, не выпускать заново, другим токеном не
+  подменять. Переменная `TASKFLOW_DEBUG_TOKEN` в коде осталась (блок
+  `#if DEBUG`), но пользоваться ею — только если владелец сам дал токен.
+  Бандл — `com.maksim.taskflow.native`, не `com.taskflow.native`.
+  `TASKFLOW_DEBUG_ROUTE` открывает нужный экран сразу при старте
   (`overview`, `settings`, `notes`, `projects`, `notifications`, `chat`, `today`,
-  `upcoming`, `noteeditor:<id>`, `task:<id>`, `expand`, `quickadd`).
-  Проверено 02.09.2026: приложение снесено с симулятора и запущено с токеном —
-  «Обзор» открылся с данными, экрана входа не было.
+  `upcoming`, `noteeditor:<id>`, `task:<id>`, `expand`, `quickadd`); в UI-тесте —
+  `app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"]`.
+  Проверено 07.10.2026: XCUITest на iPhone 17 Pro Simulator без токена, маршрут
+  `task:<id>` — карточка открылась с живыми данными, экрана входа не было.
+  (До этой правки здесь был рецепт с `vault-get.py --raw TASKFLOW_AGENT_TOKEN`:
+  ключа нет, команда возвращала ошибку вместо токена.)
 - **Проверка правок интерфейса — кадром симулятора**, а не на глаз: временный
   XCUITest со `XCTAttachment(screenshot:)`, потом `xcrun xcresulttool export
   attachments` и замер пикселей. Временный тест удалять после сверки.

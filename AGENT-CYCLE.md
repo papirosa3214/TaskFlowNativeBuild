@@ -109,15 +109,15 @@ cd ~/Проекты/TaskFlowNativeBuild && xcodegen generate && xcodebuild -proj
 
 ### 6. Запуск в симуляторе
 
-Вход без экрана логина — отладочный токен из vault на .110:
+Вход без экрана логина — токен не нужен: в домашней сети приложение входит
+само (`POST /auth/lan` при старте без токена, дальше токен лежит в Keychain):
 
 ```bash
-TOKEN=$(ssh maksim 'python3 ~/.claude/vault-get.py --raw TASKFLOW_AGENT_TOKEN')   # с мака
-SIMCTL_CHILD_TASKFLOW_DEBUG_TOKEN="$TOKEN" SIMCTL_CHILD_TASKFLOW_DEBUG_ROUTE=today xcrun simctl launch <UDID> com.maksim.taskflow.native
+SIMCTL_CHILD_TASKFLOW_DEBUG_ROUTE=today xcrun simctl launch <UDID> com.maksim.taskflow.native
 ```
 
-С .110 токен берётся локально (`python3 ~/.claude/vault-get.py --raw …`) и
-передаётся в ssh-команду переменной; значение в чат и логи не печатать.
+Ключа `TASKFLOW_AGENT_TOKEN` в vault нет — снят намеренно; не искать и не
+подменять другим токеном.
 `TASKFLOW_DEBUG_ROUTE` открывает экран сразу: `overview`, `settings`,
 `notes`, `projects`, `notifications`, `chat`, `today`, `upcoming`,
 `noteeditor:<id>`, `task:<id>`, `expand`, `quickadd`. Booted-симуляторов
