@@ -106,6 +106,10 @@ struct TaskCardContent: View {
     @State private var collaborationPlanReloadToken = 0
     @State private var isPreparationPresented = false
     @State private var openedTaskChatID: String?
+    /// Причина блокировки карточки — по тапу на чип «заблокировано» в шапке
+    /// открываем модалку с полным текстом, чтобы он не висел строкой в теле
+    /// карточки (владелец 07.10.2026).
+    @State private var showingBlockedReason = false
     @State private var preparationWaiting: String?
     @State private var isApprovingCollaborationPlan = false
     @State private var isSuggestingCollaborationPlan = false
@@ -394,6 +398,18 @@ struct TaskCardContent: View {
                 }
             }
         }
+        .tfBottomSheet(isPresented: $showingBlockedReason, title: "Почему карточка заблокирована") {
+            if let reason = viewModel.loadedTask?.blockedReason?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+                Text(reason)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfText)
+            } else {
+                Text("Причина не указана.")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfSub)
+            }
+        }
         .fileImporter(
             isPresented: $isAttachmentPickerPresented,
             allowedContentTypes: [.item],
@@ -554,9 +570,24 @@ struct TaskCardContent: View {
                     if let state = viewModel.agentState {
                         // Те же слова и цвета, что в списках (владелец 07.10.2026).
                         let stale = viewModel.loadedTask?.agentStale == true
-                        Text(TFAgentStateTag.text(state, stale: stale))
-                            .tfText(.caption)
-                            .foregroundStyle(TFAgentStateTag.color(state, stale: stale))
+                        let isBlockedWithReason = state == .blocked
+                            && (viewModel.loadedTask?.blockedReason?
+                                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                        if isBlockedWithReason {
+                            Button {
+                                showingBlockedReason = true
+                            } label: {
+                                Text(TFAgentStateTag.text(state, stale: stale))
+                                    .tfText(.caption)
+                                    .foregroundStyle(TFAgentStateTag.color(state, stale: stale))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Показывает причину блокировки")
+                        } else {
+                            Text(TFAgentStateTag.text(state, stale: stale))
+                                .tfText(.caption)
+                                .foregroundStyle(TFAgentStateTag.color(state, stale: stale))
+                        }
                         if state == .review, viewModel.loadedTask?.criticApproved == true {
                             TFCriticApprovedMark()
                         }
@@ -567,15 +598,8 @@ struct TaskCardContent: View {
                     Spacer(minLength: 0)
                 }
             } footer: {
-                // Почему карточка стоит — словами сервера (владелец 07.10.2026:
-                // «заблокировано», а где стопор и почему — не видно).
-                if viewModel.agentState == .blocked,
-                   let reason = viewModel.loadedTask?.blockedReason?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
-                    Text(reason)
-                        .tfText(.caption)
-                        .foregroundStyle(TFAgentStateTag.color(.blocked, stale: false))
-                        .accessibilityIdentifier("task.blockedReason")
-                }
+                // Причина блокировки показывается по тапу на чип «заблокировано»
+                // в шапке (владелец 07.10.2026) — здесь она не нужна.
             }
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
