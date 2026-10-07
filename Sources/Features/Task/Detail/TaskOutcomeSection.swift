@@ -191,26 +191,37 @@ extension OutcomeTextSheet {
     /// адресованным шагу, чей результат открыт (`recipient_subtask_id`), с
     /// пометкой, на что это ответ. Сообщение владельца в чате задачи будит план.
     private func replyBar(chatID: String) -> some View {
+        // Тот же вид, что у поля ввода в чатах (`ChatVoiceComposer`): стеклянная
+        // капсула высотой `TFChatComposer.elementHeight`, красный самолётик.
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             if let replyStatus {
                 Text(replyStatus).tfText(.caption).foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, 12)
             }
-            HStack(alignment: .bottom, spacing: TFSpacing.sm) {
+            HStack(spacing: 8) {
                 TextField("Ответить", text: $reply, axis: .vertical)
-                    .lineLimit(1...5)
-                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1...4)
+                    .frame(maxWidth: .infinity, minHeight: TFChatComposer.elementHeight, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .textInputAutocapitalization(.sentences)
                     .accessibilityIdentifier("outcome-reply-field")
+                let canSend = !isSending && !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 Button { Task { await sendReply(chatID: chatID) } } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.title2)
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(canSend ? Color.tfRed : Color.tfReadableSecondary)
+                        .frame(width: 36, height: 36)
                 }
-                .disabled(isSending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(.plain)
+                .disabled(!canSend)
                 .accessibilityLabel("Отправить ответ")
                 .accessibilityIdentifier("outcome-reply-send")
             }
+            .padding(.horizontal, 12)
+            .frame(minHeight: TFChatComposer.elementHeight)
+            .voiceCapsuleSurface()
         }
-        .padding(.horizontal, TFSpacing.screenHorizontal)
-        .padding(.vertical, TFSpacing.sm)
-        .background(.bar)
+        .padding(.horizontal).padding(.vertical, 10)
     }
 
     private func sendReply(chatID: String) async {
