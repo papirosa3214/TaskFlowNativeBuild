@@ -32,6 +32,8 @@ struct PlanStepDetailSheet: View {
     /// Точечные действия по шагу; nil — действий нет (не владелец или шаг
     /// ещё не заведён подзадачей).
     var onControl: ((PlanStepControl) -> Void)? = nil
+    /// Вернуть сданную работу роли с замечанием владельца; nil — нельзя.
+    var onRework: ((String) -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -40,6 +42,8 @@ struct PlanStepDetailSheet: View {
     @State private var isLiveExpanded = false
     @State private var isRemoveConfirmOpen = false
     @State private var pendingControl: PlanStepControl?
+    @State private var isReworkPromptOpen = false
+    @State private var reworkRemark = ""
     @State private var copiedResult = false
     @State private var isPreviousResultExpanded = false
 
@@ -49,11 +53,13 @@ struct PlanStepDetailSheet: View {
          onSelectAssignment: @escaping (String) -> Void = { _ in }, plan: ApiCollaborationPlan,
          subtask: ApiSubtask?, roleTitle: @escaping (String) -> String, stateLabel: String,
          isEditable: Bool, onEdit: @escaping () -> Void, onSkip: @escaping (String) -> Void,
-         onRemove: @escaping () -> Void, onControl: ((PlanStepControl) -> Void)? = nil) {
+         onRemove: @escaping () -> Void, onControl: ((PlanStepControl) -> Void)? = nil,
+         onRework: ((String) -> Void)? = nil) {
         self.node = node; self.assignments = assignments; self.onSelectAssignment = onSelectAssignment
         self.plan = plan; self.subtask = subtask; self.roleTitle = roleTitle; self.stateLabel = stateLabel
         self.isEditable = isEditable; self.onEdit = onEdit; self.onSkip = onSkip; self.onRemove = onRemove
         self.onControl = onControl
+        self.onRework = onRework
         let key = "task.slot.\(node.taskId ?? plan.taskId).\(node.sourceSlotKey ?? node.slotKey)"
         _isLiveExpanded = State(initialValue: TaskCardDisclosureState.flag(key + ".live", default: false))
         _isPreviousResultExpanded = State(initialValue: TaskCardDisclosureState.flag(key + ".previous", default: false))
@@ -171,6 +177,17 @@ struct PlanStepDetailSheet: View {
                             .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
                     }
                 }
+                if let onRework, subtask?.done == true, !node.isSkipped {
+                    Section {
+                        Button { isReworkPromptOpen = true } label: {
+                            Label("Вернуть на доработку", systemImage: "arrow.uturn.backward.circle")
+                        }
+                        .accessibilityIdentifier("plan-step-rework")
+                    } footer: {
+                        Text("Роль получит новый шаг с вашим замечанием. Сданный результат остаётся в истории; шаги, которые ещё не начаты, подождут доработку.")
+                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                    }
+                }
                 if isEditable {
                     Section {
                         Button { onEdit() } label: { Label("Изменить шаг", systemImage: "pencil") }
@@ -205,6 +222,14 @@ struct PlanStepDetailSheet: View {
             }
             .confirmationDialog("Удалить шаг «\(roleTitle(node.roleKey))»?", isPresented: $isRemoveConfirmOpen, titleVisibility: .visible) {
                 Button("Удалить", role: .destructive) { onRemove() }
+            }
+            .alert("Что доработать?", isPresented: $isReworkPromptOpen) {
+                TextField("Замечание", text: $reworkRemark)
+                Button("Вернуть") { onRework?(reworkRemark.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                    .disabled(reworkRemark.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("«\(roleTitle(node.roleKey))» получит это замечание как задание на доработку.")
             }
             .confirmationDialog(
                 pendingControl == .cancel ? "Прервать шаг «\(roleTitle(node.roleKey))»?" : "Сбросить попытку шага «\(roleTitle(node.roleKey))»?",

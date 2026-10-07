@@ -152,6 +152,10 @@ public struct CollaborationPlanView: View {
                     onControl: isOwner && subtask != nil ? { control in
                         guard let subtask else { return }
                         Task { await perform(control, on: subtask) }
+                    } : nil,
+                    onRework: isOwner && allowsPlanChanges && plan.status == "approved" ? { remark in
+                        self.sheet = nil
+                        Task { await rework(node, remark: remark, in: plan) }
                     } : nil
                 )
                 .presentationDetents([.medium, .large])
@@ -223,8 +227,9 @@ public struct CollaborationPlanView: View {
 
     private func canAddSteps(to plan: ApiCollaborationPlan) -> Bool {
         guard plan.branchSnapshot == nil, isOwner, allowsPlanChanges else { return false }
-        if plan.status != "approved" { return true }
-        return false
+        // Идущий план владелец тоже дополняет: когда круги доработки исчерпаны,
+        // сервер оставляет решение за ним (07.10.2026).
+        return true
     }
 
     private func apply(_ op: ApiPlanOp, to plan: ApiCollaborationPlan) async {
@@ -240,6 +245,38 @@ public struct CollaborationPlanView: View {
             errorMessage = error.localizedDescription
             await load()
         }
+    }
+
+    /// Вернуть сданную работу роли с замечанием владельца (07.10.2026).
+    /// Сданный шаг на сервере — история, его не переоткрывают: роль получает
+    /// новый шаг «доработка» сразу после возвращаемого, а ещё не начатые шаги,
+    /// которые ждали возвращаемый, ждут и доработку. В плане ветки правка
+    /// уходит в план той карточки, которой принадлежит шаг.
+    private func rework(_ node: ApiCollaborationPlanNode, remark: String, in plan: ApiCollaborationPlan) async {
+        guard !isApplying, !remark.isEmpty else { return }
+        isApplying = true
+        defer { isApplying = false }
+        let waiting = plan.edges.filter { $0.fromSlotKey == node.slotKey }
+            .compactMap { edge in plan.nodes.first { $0.slotKey == edge.toSlotKey } }
+            .filter { next in
+                guard next.sourcePlanId == node.sourcePlanId, !next.isSkipped else { return false }
+                guard let step = subtaskFor(plan: plan, slot: next.slotKey) else { return true }
+                return !step.done && step.agentState == nil
+            }
+            .map { $0.sourceSlotKey ?? $0.slotKey }
+        let op = ApiPlanOp(op: "add_step", roleKey: node.roleKey,
+                           expectedResult: "Доработка по замечаниям владельца: \(remark)",
+                           instructions: remark, after: [node.sourceSlotKey ?? node.slotKey],
+                           before: waiting.isEmpty ? nil : waiting)
+        let isLocal = node.sourcePlanId == nil || node.sourcePlanId == plan.id
+        do {
+            try await api.applyCollaborationPlanOps(taskId: node.taskId ?? taskId, planId: node.sourcePlanId ?? plan.id,
+                                                    baseVersion: isLocal ? plan.version : nil, ops: [op], reason: remark)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await reloadSubtasks()
+        await load()
     }
 
     /// Точечное действие по одному шагу: запустить, прервать, сбросить попытку.
