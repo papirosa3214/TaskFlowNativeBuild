@@ -111,7 +111,6 @@ struct TaskCardContent: View {
     @State private var expandedSections: Set<TaskDetailSection>
     @State private var isTaskTitleExpanded = true
     /// Итог карточки — секция «Итог» (LOCK-273). nil — не загружен или пуст.
-    @State private var showTaskDocuments = false
     @State private var outcome: ApiTaskOutcome?
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
     /// «Убрать», а не второй раз «Вывести».
@@ -736,17 +735,6 @@ struct TaskCardContent: View {
                             planNodeInWorkRow(subtask)
                         }
                     }
-                }
-            }
-
-            if let folderID = viewModel.loadedTask?.artifactFolderId {
-                Section {
-                    Button("Документы задачи") { showTaskDocuments = true }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("task-documents")
-                }
-                .sheet(isPresented: $showTaskDocuments) {
-                    NavigationStack { NotesScreen(focusFolderID: folderID) }
                 }
             }
 
