@@ -70,14 +70,7 @@ enum AgentWorkStateTag {
 
     static func text(_ task: ApiTask) -> String? {
         guard let state = task.agentState else { return nil }
-        let stale = state == .inProgress && task.agentStale == true
-        let base: String
-        switch state {
-        case .inProgress: base = stale ? "Агент пропал" : "в работе"
-        case .blocked: base = "заблокировано"
-        case .review: base = "на проверке"
-        case .todo: base = "в очереди"
-        }
+        let base = TFAgentStateTag.text(state, stale: task.agentStale == true)
         // Веб печатает «· N мин назад» ТОЛЬКО для in_progress (обоих —
         // и обычного, и «пропал»), у blocked/review суффикса нет (UI.tsx
         // `AgentStateTag`, компактная ветка не в счёт — этот экран не «плотный»).
@@ -88,13 +81,7 @@ enum AgentWorkStateTag {
 
     static func color(_ task: ApiTask) -> Color {
         guard let state = task.agentState else { return .tfTeal }
-        if state == .inProgress, task.agentStale == true { return .tfCoral }
-        switch state {
-        case .inProgress: return .tfTeal
-        case .blocked: return .tfOrange
-        case .review: return .tfBlue
-        case .todo: return .tfSub
-        }
+        return TFAgentStateTag.color(state, stale: task.agentStale == true)
     }
 }
 

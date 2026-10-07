@@ -221,24 +221,12 @@ struct DirectoryTaskRow: View {
 enum DirectoryAgentStateTag {
     static func text(_ task: ApiTask) -> String? {
         guard let state = task.agentState else { return nil }
-        if state == .inProgress, task.agentStale == true { return "Агент пропал" }
-        switch state {
-        case .inProgress: return "в работе"
-        case .blocked: return "заблокировано"
-        case .review: return "на проверке"
-        case .todo: return "в очереди"
-        }
+        return TFAgentStateTag.text(state, stale: task.agentStale == true)
     }
 
     static func color(_ task: ApiTask) -> Color {
         guard let state = task.agentState else { return .tfTeal }
-        if state == .inProgress, task.agentStale == true { return .tfCoral }
-        switch state {
-        case .inProgress: return .tfTeal
-        case .blocked: return .tfOrange
-        case .review: return .tfBlue
-        case .todo: return .tfSub
-        }
+        return TFAgentStateTag.color(state, stale: task.agentStale == true)
     }
 }
 

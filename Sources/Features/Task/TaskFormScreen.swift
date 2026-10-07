@@ -540,9 +540,11 @@ struct TaskCardContent: View {
                             .foregroundStyle(Color.tfSub)
                     }
                     if let state = viewModel.agentState {
-                        Text(state == .blocked ? "Заблокировано" : agentStateText(state))
+                        // Те же слова и цвета, что в списках (владелец 07.10.2026).
+                        let stale = viewModel.loadedTask?.agentStale == true
+                        Text(TFAgentStateTag.text(state, stale: stale))
                             .tfText(.caption)
-                            .foregroundStyle(agentStateColor(state))
+                            .foregroundStyle(TFAgentStateTag.color(state, stale: stale))
                         if state == .review, viewModel.loadedTask?.criticApproved == true {
                             TFCriticApprovedMark()
                         }
@@ -1743,33 +1745,6 @@ struct TaskCardContent: View {
     private var attemptsExhausted: Bool {
         guard let ladder = viewModel.attemptLadder, ladder.totalSteps > 0 else { return false }
         return ladder.currentStep >= ladder.totalSteps
-    }
-
-    private func agentStateText(_ state: AgentState) -> String {
-        switch state {
-        case .inProgress: "В работе"
-        case .blocked: "Заблокирована"
-        case .review: "На проверке"
-        case .todo: "В очереди"
-        }
-    }
-
-    /// Цвет подписи состояния в шапке. «На проверке» — синяя, как в списках
-    /// (владелец 07.10.2026: «одинаковый статус»); проверил ли Критик, показывает
-    /// двойная зелёная галочка рядом, а не цвет подписи. Прежние три цвета
-    /// (серая / синяя / зелёная, 22.09.2026) этим отменены.
-    private func agentStateColor(_ state: AgentState) -> Color {
-        switch state {
-        case .blocked:
-            // Тёмный оттенок утверждённого оранжевого, не системный.
-            return Color.tfWarningText
-        case .inProgress:
-            return .tfSub
-        case .review:
-            return .tfBlue
-        case .todo:
-            return .tfSub
-        }
     }
 
     private func agentStateIcon(_ state: AgentState) -> String {
