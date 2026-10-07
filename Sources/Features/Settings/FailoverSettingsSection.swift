@@ -39,13 +39,15 @@ struct FailoverSettingsSection: View {
         isOn: Bool,
         onChange: @escaping (Bool) -> Void
     ) -> some View {
-        Toggle(isOn: Binding(get: { isOn }, set: onChange)) {
+        // Эталонный переключатель проекта (уменьшенный, как в остальных настройках).
+        HStack(spacing: TFSpacing.md) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).tfText(.action).foregroundStyle(Color.tfText)
                 Text(subtitle).tfText(.caption).foregroundStyle(Color.tfSub)
             }
+            Spacer(minLength: TFSpacing.sm)
+            TFToggle(isOn: Binding(get: { isOn }, set: onChange))
         }
-        .tint(Color.tfRed)
         .padding(.horizontal, TFSpacing.lg)
         .frame(minHeight: TFField.height)
     }
