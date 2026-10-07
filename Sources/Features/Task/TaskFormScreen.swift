@@ -104,6 +104,7 @@ struct TaskCardContent: View {
     /// (`.id(...)`) и заново загрузиться после утверждения плана — у неё
     /// свой `didStartLoad`, обычный `onAppear` второй раз не сработает.
     @State private var collaborationPlanReloadToken = 0
+    @State private var isPreparationPresented = false
     @State private var isApprovingCollaborationPlan = false
     @State private var isSuggestingCollaborationPlan = false
     @State private var isProposingCollaborationPlan = false
@@ -373,6 +374,24 @@ struct TaskCardContent: View {
             }
         }
         .taskToast($toast)
+        // Подготовка вынесена из карточки в шторку из «Ещё» (владелец 07.10.2026);
+        // фоновый опрос по-прежнему обновляет план на карточке.
+        .background {
+            if let taskID = viewModel.taskID {
+                TaskPreparationPoller(taskID: taskID) {
+                    await viewModel.refresh()
+                    collaborationPlanReloadToken += 1
+                }
+            }
+        }
+        .tfBottomSheet(isPresented: $isPreparationPresented, title: "Подготовка") {
+            if let taskID = viewModel.taskID {
+                TaskPreparationView(taskID: taskID, allowsExecution: viewModel.canUsePlan) {
+                    await viewModel.refresh()
+                    collaborationPlanReloadToken += 1
+                }
+            }
+        }
         .fileImporter(
             isPresented: $isAttachmentPickerPresented,
             allowedContentTypes: [.item],
@@ -707,13 +726,6 @@ struct TaskCardContent: View {
 
             collapsibleSection(.details, title: "Сведения") {
                 detailsContent.modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("details"), identifier: "details", text: "\(nativeDueText), \(viewModel.priority.label), метки: \(nativeLabelsText), исполнитель: \(selectedRoleTitle)", arm: { armedEditors.insert("details") }))
-            }
-
-            if let taskID = viewModel.taskID {
-                TaskPreparationView(taskID: taskID, allowsExecution: viewModel.canUsePlan) {
-                    await viewModel.refresh()
-                    collaborationPlanReloadToken += 1
-                }
             }
 
             // Секция целиком скрыта, пока не подтверждено, что approved-план
@@ -2030,6 +2042,11 @@ struct TaskCardContent: View {
         } else {
             Button { outputDynamicIsland() } label: {
                 Label("Вывести в Dynamic Island", systemImage: "bolt.badge.a")
+            }
+        }
+        if viewModel.taskID != nil {
+            Button { isPreparationPresented = true } label: {
+                Label("Подготовка", systemImage: "list.clipboard")
             }
         }
         Button { saveAsTemplate() } label: {

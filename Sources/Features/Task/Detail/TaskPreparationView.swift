@@ -1,5 +1,38 @@
 import SwiftUI
 
+/// Невидимый опрос подготовки. Самой подготовки в карточке больше нет
+/// (владелец 07.10.2026: «занимает место и отвлекает») — она открывается из «Ещё».
+/// Опрос остался: по смене его результата обновляется план на карточке.
+struct TaskPreparationPoller: View {
+    let taskID: String
+    let onChange: () async -> Void
+    @State private var signature: String?
+    private let api = APIClient()
+
+    var body: some View {
+        Color.clear
+            .task(id: taskID) {
+                await load()
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                    await load()
+                }
+            }
+    }
+
+    private func load() async {
+        // Ошибки молча пропускаем: старый сервер этого маршрута не знает,
+        // а показать их здесь негде — всё видимое живёт в шторке.
+        guard let fresh = try? await api.taskPreparation(taskId: taskID) else { return }
+        let next = "\(fresh.id)|\(fresh.status)|\(fresh.planID ?? "")|\(fresh.planStatus ?? "")"
+        guard next != signature else { return }
+        signature = next
+        await onChange()
+    }
+}
+
+/// Раздел «Подготовка» — шторка из меню «Ещё» карточки: что это такое,
+/// текущий статус с действием и расшифровка всех статусов.
 struct TaskPreparationView: View {
     let taskID: String
     let allowsExecution: Bool
@@ -11,96 +44,41 @@ struct TaskPreparationView: View {
     @State private var roleTitles: [String: String] = [:]
     @State private var isApplying = false
     @State private var isLoading = true
-    @State private var confirmingPlan = false
     @State private var confirmingStructure = false
-    @State private var confirmationPlanID: String?
-    @State private var confirmationBranchSnapshot: String?
     @State private var confirmationInputVersion: Int?
     private let api = APIClient()
 
     var body: some View {
-        Group {
-            // Секция «Подготовка» больше не показывает статус «готова» и не дублирует
-            // согласование плана (оно в меню «Ещё»): владелец 06.10.2026. Остаётся только то,
-            // где нужно действие или что-то сломалось. Опрос состояния ниже работает по-прежнему —
-            // по нему обновляется план на карточке.
-            if let preparation, ["failed", "needs_clarification", "structure_review"].contains(preparation.status) {
-                preparationSection {
-                    Group {
-                        if preparation.isPending {
-                            ProgressView(preparation.status == "queued" ? "Ожидает подготовки" : "Подготавливаем план…")
-                        } else {
-                            TFPill(statusTitle(preparation), color: Color.tfSub)
-                        }
-                        if let question = preparation.question {
-                            Text(question).tfText(.action).foregroundStyle(Color.tfSub)
-                        }
-                        if let proposal = preparation.result?.card?.preparation {
-                            Text(proposal.reason).tfText(.meta).foregroundStyle(Color.tfDim)
-                            ForEach(proposal.workstreams) { stream in
-                                DisclosureGroup {
-                                    Label("Результат: \(stream.result)", systemImage: "doc.text")
-                                        .tfText(.action).foregroundStyle(Color.tfSub)
-                                    if !stream.dependsOn.isEmpty {
-                                        Label("После: " + stream.dependsOn.map { key in
-                                            proposal.workstreams.first { $0.key == key }?.title ?? key
-                                        }.joined(separator: ", "), systemImage: "arrow.turn.down.right")
-                                            .tfText(.meta).foregroundStyle(Color.tfDim)
-                                    }
-                                } label: {
-                                    HStack(spacing: TFSpacing.sm) {
-                                        if let role = stream.role {
-                                            TFAvatar(size: .lg, initials: String((roleTitles[role] ?? role).prefix(2)).uppercased(),
-                                                     tint: Color.tfCard2, accessibilityLabel: "Роль: \(roleTitles[role] ?? role)", userID: "role_\(role)")
-                                        }
-                                        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                                            Text(stream.title).tfText(.action).foregroundStyle(Color.tfSub)
-                                            if let role = stream.role {
-                                                TFPill(roleTitles[role] ?? role, color: Color.tfDim)
-                                            }
-                                        }
-                                    }
-                                }
-                                .tfText(.action)
-                            }
-                        }
-                        if preparation.status == "failed" {
-                            Text(preparation.error ?? "Подготовка не завершена").tfText(.action)
-                            if isOwner { Button("Повторить подготовку") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } } }
-                        }
-                        if isOwner, allowsExecution, preparation.canApproveStructure {
-                            Button("Согласовать дочерние задачи") {
-                                confirmationInputVersion = preparation.inputVersion
-                                confirmingStructure = true
-                            }
-                                .foregroundStyle(Color.tfDim)
-                                .accessibilityIdentifier("preparation.approveStructure")
-                            Text("Создадим карточки и зависимости. Работа пока не начнётся.")
-                                .tfText(.action).foregroundStyle(Color.tfDim)
-                        }
-                        if preparation.status == "needs_clarification" || (preparation.status == "structure_review" && preparation.question != nil) {
-                            Text("Дополните название или описание задачи. Подготовка повторится после сохранения.")
-                                .tfText(.action).foregroundStyle(Color.tfDim)
-                        }
-                        if let message = actionError ?? errorMessage { Text(message).tfText(.action).foregroundStyle(Color.tfRed) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                Text("Автомат читает название и описание карточки и сам собирает черновик плана совместной работы: кто участвует и в каком порядке. Запускается при создании карточки и после правки названия, описания или проекта. Работу он не начинает — запуск только после вашего согласования плана.")
+                    .tfText(.action).foregroundStyle(Color.tfDim)
+
+                block("Сейчас") {
+                    if isLoading {
+                        ProgressView()
+                    } else if let errorMessage {
+                        Text(errorMessage).tfText(.action).foregroundStyle(Color.tfRed)
+                        TFButton("Повторить загрузку", variant: .secondary) { Task { await load() } }
+                    } else {
+                        current
                     }
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
-                    .buttonStyle(.borderless)
-                    .disabled(isApplying)
                 }
-            } else if isLoading {
-                preparationSection { ProgressView("Проверяем подготовку…") }
-            } else if let errorMessage {
-                preparationSection {
-                    Text(errorMessage).tfText(.action)
-                    Button("Повторить загрузку") { Task { await load() } }
-                        .foregroundStyle(Color.tfDim)
+
+                block("Что значат статусы") {
+                    ForEach(Self.legend, id: \.key) { item in
+                        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                            Text(item.title).tfText(.action)
+                                .foregroundStyle(item.key == currentKey ? Color.tfText : Color.tfSub)
+                            Text(item.meaning).tfText(.meta).foregroundStyle(Color.tfDim)
+                        }
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(TFSpacing.lg)
         }
-        .tfText(.action)
-        .tint(Color.tfDim)
+        .disabled(isApplying)
         .task(id: taskID) {
             if let roles = try? await api.roles() {
                 roleTitles = Dictionary(roles.map { ($0.role, $0.title) }, uniquingKeysWith: { first, _ in first })
@@ -112,12 +90,6 @@ struct TaskPreparationView: View {
                 await load()
             }
         }
-        .confirmationDialog("Согласовать и запустить план?", isPresented: $confirmingPlan, titleVisibility: .visible) {
-            Button("Запустить согласованный план") {
-                guard let planID = confirmationPlanID else { return }
-                Task { await apply { _ = try await api.approveCollaborationPlan(taskId: taskID, planId: planID, branchSnapshot: confirmationBranchSnapshot) } }
-            }
-        } message: { Text("Исполнители начнут работу по показанному графу. Процессные подзадачи создадутся автоматически.") }
         .confirmationDialog("Создать дочерние задачи?", isPresented: $confirmingStructure, titleVisibility: .visible) {
             Button("Создать согласованные задачи") {
                 guard let version = confirmationInputVersion else { return }
@@ -125,32 +97,97 @@ struct TaskPreparationView: View {
             }
         }
     }
-    private func preparationSection<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        Section {
-            content()
-        } header: {
-            Text("Подготовка")
-                .tfText(.taskTitle)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tfText)
-                .textCase(nil)
+
+    /// Текущий статус: название, что он значит, и то, что по нему можно сделать.
+    @ViewBuilder
+    private var current: some View {
+        let item = Self.legend.first { $0.key == currentKey }
+        Text(preparation.map(statusTitle) ?? item?.title ?? "").tfText(.taskTitle).foregroundStyle(Color.tfText)
+        if let item { Text(item.meaning).tfText(.action).foregroundStyle(Color.tfSub) }
+        if let preparation {
+            if let question = preparation.question {
+                Text(question).tfText(.action).foregroundStyle(Color.tfText)
+            }
+            if preparation.status == "failed", let error = preparation.error {
+                Text("Причина: \(error)").tfText(.action).foregroundStyle(Color.tfSub)
+            }
+            if preparation.status == "structure_review", let proposal = preparation.result?.card?.preparation {
+                Text(proposal.reason).tfText(.meta).foregroundStyle(Color.tfDim)
+                ForEach(proposal.workstreams) { stream in
+                    HStack(alignment: .top, spacing: TFSpacing.sm) {
+                        if let role = stream.role {
+                            TFAvatar(size: .lg, initials: String((roleTitles[role] ?? role).prefix(2)).uppercased(),
+                                     tint: Color.tfCard2, accessibilityLabel: "Роль: \(roleTitles[role] ?? role)", userID: "role_\(role)")
+                        }
+                        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                            Text(stream.title).tfText(.action).foregroundStyle(Color.tfText)
+                            if let role = stream.role {
+                                Text(roleTitles[role] ?? role).tfText(.meta).foregroundStyle(Color.tfDim)
+                            }
+                            Text("Результат: \(stream.result)").tfText(.meta).foregroundStyle(Color.tfSub)
+                            if !stream.dependsOn.isEmpty {
+                                Text("После: " + stream.dependsOn.map { key in
+                                    proposal.workstreams.first { $0.key == key }?.title ?? key
+                                }.joined(separator: ", "))
+                                    .tfText(.meta).foregroundStyle(Color.tfDim)
+                            }
+                        }
+                    }
+                }
+            }
+            if isOwner, preparation.status == "failed" {
+                TFButton("Повторить подготовку", variant: .secondary) {
+                    Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } }
+                }
+            }
+            if isOwner, allowsExecution, preparation.canApproveStructure {
+                TFButton("Согласовать дочерние задачи", variant: .secondary) {
+                    confirmationInputVersion = preparation.inputVersion
+                    confirmingStructure = true
+                }
+                .accessibilityIdentifier("preparation.approveStructure")
+            }
         }
-        .listRowBackground(Color.tfBackground)
-        .listRowSeparator(.hidden)
-        .listSectionSeparator(.hidden)
+        if let actionError { Text(actionError).tfText(.action).foregroundStyle(Color.tfRed) }
     }
 
+    private func block<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            Text(title).tfText(.meta).foregroundStyle(Color.tfDim)
+            content()
+        }
+    }
+
+    private struct LegendItem { let key: String; let title: String; let meaning: String }
+    /// Статусы — как их выставляет сервер (`runtime/autoPreparation.ts`).
+    private static let legend: [LegendItem] = [
+        .init(key: "none", title: "Не запускалась",
+              meaning: "Автомат берёт только активные карточки, лежащие в проекте. Плана от него нет."),
+        .init(key: "pending", title: "Готовится",
+              meaning: "Автомат читает карточку. Делать ничего не нужно, обычно это меньше минуты."),
+        .init(key: "ready", title: "План подготовлен",
+              meaning: "Черновик плана собран и лежит в «Плане совместной работы». Работа не начнётся, пока вы его не согласуете."),
+        .init(key: "needs_clarification", title: "Нужно уточнение",
+              meaning: "Постановки не хватило, плана нет. Дополните название или описание — подготовка запустится заново сама."),
+        .init(key: "structure_review", title: "Предложено разделение",
+              meaning: "Автомат считает, что задачу лучше разбить на дочерние карточки. Согласуете — создадутся карточки и зависимости между ними, работа при этом не начнётся."),
+        .init(key: "failed", title: "Ошибка подготовки",
+              meaning: "Автомат три раза не смог собрать план. Это сбой автомата, а не задачи: на уже идущую работу не влияет. Плана от него нет — можно повторить или собрать план через «Работа»."),
+        .init(key: "skipped", title: "Пропущена",
+              meaning: "У карточки уже есть свой план, исполнитель или идущая работа — автомат её не трогает."),
+        .init(key: "superseded", title: "Устарела",
+              meaning: "После этого прогона карточку изменили или план уже согласован. Результат прогона не используется."),
+    ]
+
+    private var currentKey: String {
+        guard let preparation else { return "none" }
+        return preparation.isPending ? "pending" : preparation.status
+    }
     private var isOwner: Bool { session.currentUser?.role == .owner }
     private func statusTitle(_ preparation: ApiTaskPreparation) -> String {
         if preparation.planStatus == "approved" { return "План согласован" }
         if preparation.result?.approvedChildren != nil { return "Дочерние задачи созданы" }
-        switch preparation.status {
-        case "ready": return "Подготовка готова"
-        case "structure_review": return "Предложена структура дочерних задач"
-        case "needs_clarification": return "Нужно уточнение"
-        case "failed": return "Ошибка подготовки"
-        default: return preparation.status
-        }
+        return Self.legend.first { $0.key == currentKey }?.title ?? preparation.status
     }
     private func load() async {
         defer { isLoading = false }
