@@ -30,17 +30,32 @@ struct PlanWorkSelectionView: View {
                             .accessibilityIdentifier("plan-choice-reset.\(node.slotKey)")
                     }
                 } else {
-                    Text(node.originalTitle ?? node.plannedWork ?? node.expectedResult)
+                    // Название шага — его ожидаемый результат. `plannedWork` — это
+                    // инструкции шага: у доработки там весь текст замечания, у
+                    // итоговой проверки — служебная метка сервера.
+                    Text(node.originalTitle ?? node.expectedResult)
                         .font(.body).foregroundStyle(Color.tfText)
+                        .lineLimit(3)
                 }
                 HStack(spacing: 6) {
                     TFAvatar(size: .xs, initials: String((roleTitles[node.roleKey] ?? node.roleKey).prefix(1)), userID: "role_" + node.roleKey)
                     Text(roleTitles[node.roleKey] ?? node.roleKey)
-                    Text("· Запланировано")
+                    Text("· \(stateText(node))")
                 }.font(.caption).foregroundStyle(Color.tfSub)
+                // В общем плане ветки шаги пришли из разных карточек.
+                if let cardID = node.taskId, cardID != plan.taskId, let card = node.taskTitle, !card.isEmpty {
+                    Text(card).font(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
+                }
             }.padding(.vertical, 4)
         }
         if let error { Text(error).font(.caption).foregroundStyle(Color.tfRed) }
+    }
+
+    /// Состояние шага — то же, что в графе плана; ещё не начатый шаг
+    /// черновика остаётся «Запланировано».
+    private func stateText(_ node: ApiCollaborationPlanNode) -> String {
+        guard let state = node.executionState, state != "waiting" else { return "Запланировано" }
+        return CollaborationPlanView.stateLabel(state)
     }
 
     private func choice(_ node: ApiCollaborationPlanNode, text: String, value: String, planned: Bool) -> some View {
