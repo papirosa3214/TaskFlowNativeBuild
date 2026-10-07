@@ -11,6 +11,12 @@ struct PlanRoleOption: Identifiable, Hashable {
 /// Шаг живого плана глазами владельца (01.10.2026): что делает роль, чего
 /// ждёт, кто и зачем добавил шаг, и — пока шаг не начат — правка,
 /// пропуск, удаление. Сданный и идущий шаг только читается: это история.
+/// Точечное действие владельца над одним шагом плана.
+enum PlanStepControl: String, Identifiable {
+    case run, cancel, reset
+    var id: String { rawValue }
+}
+
 struct PlanStepDetailSheet: View {
     let node: ApiCollaborationPlanNode
     var assignments: [ApiCollaborationPlanNode] = []
@@ -23,6 +29,9 @@ struct PlanStepDetailSheet: View {
     let onEdit: () -> Void
     let onSkip: (String) -> Void
     let onRemove: () -> Void
+    /// Точечные действия по шагу; nil — действий нет (не владелец или шаг
+    /// ещё не заведён подзадачей).
+    var onControl: ((PlanStepControl) -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -30,6 +39,7 @@ struct PlanStepDetailSheet: View {
     @State private var skipReason = ""
     @State private var isLiveExpanded = false
     @State private var isRemoveConfirmOpen = false
+    @State private var pendingControl: PlanStepControl?
     @State private var copiedResult = false
     @State private var isPreviousResultExpanded = false
 
@@ -39,10 +49,11 @@ struct PlanStepDetailSheet: View {
          onSelectAssignment: @escaping (String) -> Void = { _ in }, plan: ApiCollaborationPlan,
          subtask: ApiSubtask?, roleTitle: @escaping (String) -> String, stateLabel: String,
          isEditable: Bool, onEdit: @escaping () -> Void, onSkip: @escaping (String) -> Void,
-         onRemove: @escaping () -> Void) {
+         onRemove: @escaping () -> Void, onControl: ((PlanStepControl) -> Void)? = nil) {
         self.node = node; self.assignments = assignments; self.onSelectAssignment = onSelectAssignment
         self.plan = plan; self.subtask = subtask; self.roleTitle = roleTitle; self.stateLabel = stateLabel
         self.isEditable = isEditable; self.onEdit = onEdit; self.onSkip = onSkip; self.onRemove = onRemove
+        self.onControl = onControl
         let key = "task.slot.\(node.taskId ?? plan.taskId).\(node.sourceSlotKey ?? node.slotKey)"
         _isLiveExpanded = State(initialValue: TaskCardDisclosureState.flag(key + ".live", default: false))
         _isPreviousResultExpanded = State(initialValue: TaskCardDisclosureState.flag(key + ".previous", default: false))
@@ -144,6 +155,22 @@ struct PlanStepDetailSheet: View {
                     }
                     .onChange(of: result) { copiedResult = false }
                 }
+                if let onControl, let subtask, !subtask.done, !node.isSkipped {
+                    Section {
+                        if stateLabel == "В работе" {
+                            Button { pendingControl = .cancel } label: { Label("Прервать", systemImage: "stop.circle") }
+                                .accessibilityIdentifier("plan-step-cancel")
+                        } else {
+                            Button { onControl(.run) } label: { Label("Запустить", systemImage: "play.circle") }
+                                .accessibilityIdentifier("plan-step-run")
+                        }
+                        Button { pendingControl = .reset } label: { Label("Сбросить попытку", systemImage: "arrow.counterclockwise") }
+                            .accessibilityIdentifier("plan-step-reset")
+                    } footer: {
+                        Text("Действия касаются только этого шага: карточка и остальные шаги не меняются.")
+                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                    }
+                }
                 if isEditable {
                     Section {
                         Button { onEdit() } label: { Label("Изменить шаг", systemImage: "pencil") }
@@ -178,6 +205,16 @@ struct PlanStepDetailSheet: View {
             }
             .confirmationDialog("Удалить шаг «\(roleTitle(node.roleKey))»?", isPresented: $isRemoveConfirmOpen, titleVisibility: .visible) {
                 Button("Удалить", role: .destructive) { onRemove() }
+            }
+            .confirmationDialog(
+                pendingControl == .cancel ? "Прервать шаг «\(roleTitle(node.roleKey))»?" : "Сбросить попытку шага «\(roleTitle(node.roleKey))»?",
+                isPresented: Binding(get: { pendingControl != nil }, set: { if !$0 { pendingControl = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button(pendingControl == .cancel ? "Прервать" : "Сбросить", role: .destructive) {
+                    if let control = pendingControl { onControl?(control) }
+                    pendingControl = nil
+                }
             }
         }
     }

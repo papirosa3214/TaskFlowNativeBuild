@@ -148,7 +148,11 @@ public struct CollaborationPlanView: View {
                     onRemove: {
                         self.sheet = nil
                         Task { await apply(ApiPlanOp(op: "remove_step", slotKey: slot), to: plan) }
-                    }
+                    },
+                    onControl: isOwner && subtask != nil ? { control in
+                        guard let subtask else { return }
+                        Task { await perform(control, on: subtask) }
+                    } : nil
                 )
                 .presentationDetents([.medium, .large])
                 .task(id: node.slotKey) {
@@ -236,6 +240,24 @@ public struct CollaborationPlanView: View {
             errorMessage = error.localizedDescription
             await load()
         }
+    }
+
+    /// Точечное действие по одному шагу: запустить, прервать, сбросить попытку.
+    private func perform(_ control: PlanStepControl, on subtask: ApiSubtask) async {
+        guard !isApplying else { return }
+        isApplying = true
+        defer { isApplying = false }
+        do {
+            switch control {
+            case .run: try await api.runPlanStep(subtaskId: subtask.id)
+            case .cancel: try await api.cancelPlanStep(subtaskId: subtask.id)
+            case .reset: try await api.resetPlanStep(subtaskId: subtask.id)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await reloadSubtasks()
+        await load()
     }
 
     private func decide(_ proposal: ApiPlanProposal, approve: Bool, in plan: ApiCollaborationPlan) async {

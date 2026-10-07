@@ -44,6 +44,7 @@ public struct OwnerRestartAck: Decodable, Sendable {
 }
 
 private struct OwnerEmptyBody: Encodable {}
+private struct OwnerReasonBody: Encodable { let reason: String? }
 private struct OwnerRestartBody: Encodable { let confirm: Bool }
 
 public extension APIClient {
@@ -61,5 +62,25 @@ public extension APIClient {
     /// `confirm: true`. Подтверждение берётся у владельца до вызова.
     func restartServer() async throws -> OwnerRestartAck {
         try await request(.post, "/owner/restart-server", body: OwnerRestartBody(confirm: true))
+    }
+
+    // Точечные действия по одному шагу плана (сервер: routes/control.ts и
+    // routes/subtask-artifacts.ts). Сама карточка и другие шаги не трогаются.
+
+    /// Запустить роль на этом шаге. Сервер отвечает 409 с причиной, если шаг
+    /// запускать нельзя (ждёт предшественников, уже идёт и т.п.).
+    func runPlanStep(subtaskId: String) async throws {
+        let _: APIOkResponse = try await request(.post, "/subtasks/\(subtaskId)/run", body: OwnerEmptyBody())
+    }
+
+    /// Прервать идущий запуск шага и снять с него «в работе».
+    func cancelPlanStep(subtaskId: String, reason: String? = nil) async throws {
+        let _: APIOkResponse = try await request(.post, "/subtasks/\(subtaskId)/cancel", body: OwnerReasonBody(reason: reason))
+    }
+
+    /// Сбросить зависшую попытку: живого запуска может уже не быть, шаг
+    /// освобождается для нового старта.
+    func resetPlanStep(subtaskId: String, reason: String? = nil) async throws {
+        let _: APIOkResponse = try await request(.post, "/subtasks/\(subtaskId)/reset", body: OwnerReasonBody(reason: reason))
     }
 }
