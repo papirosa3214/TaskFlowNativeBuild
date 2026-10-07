@@ -147,6 +147,7 @@ struct DirectoryTaskRow: View {
                 if let status = DirectoryAgentStateTag.text(task) {
                     Text(status).foregroundStyle(DirectoryAgentStateTag.color(task)).layoutPriority(-1)
                 }
+                if task.agentState == .review, task.criticApproved == true { TFCriticApprovedMark() }
                 if let index {
                     Text("#" + index).font(.system(.caption, design: .monospaced))
                 }

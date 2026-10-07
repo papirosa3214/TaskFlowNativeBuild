@@ -94,6 +94,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// `agent_heartbeat_at` старше 15 минут при непустом `agent_state`
     /// («агент пропал») — ОТДЕЛЬНОЕ число от аренды `LEASE_MINUTES=5`, не путать.
     public let agentStale: Bool?
+    /// Критик проверил и одобрил текущую сдачу (сервер считает сам, только для
+    /// «На проверке») — рядом с подписью состояния рисуется `TFCriticApprovedMark`.
+    public let criticApproved: Bool?
     public let agentStartedAt: String?
     /// ТОЛЬКО в `GET /api/tasks` (список), завязано на текущую сессию.
     public let mine: Bool?
@@ -192,6 +195,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case planTeamAvatarUrls = "plan_team_avatar_urls"
         case assigneeType = "assignee_type"
         case agentStale = "agent_stale"
+        case criticApproved = "critic_approved"
         case agentStartedAt = "agent_started_at"
         case mine
         case assigneeName = "assignee_name"
@@ -254,6 +258,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         planTeamAvatarUrls = (try c.decodeIfPresent(String.self, forKey: .planTeamAvatarUrls))?.split(separator: ",", omittingEmptySubsequences: false).map(String.init) ?? []
         assigneeType = try c.decodeIfPresent(String.self, forKey: .assigneeType)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
+        criticApproved = try c.decodeIfPresent(Bool.self, forKey: .criticApproved)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
         assigneeName = try c.decodeIfPresent(String.self, forKey: .assigneeName)
@@ -323,6 +328,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         if !planTeamAvatarUrls.isEmpty { try c.encode(planTeamAvatarUrls.joined(separator: ","), forKey: .planTeamAvatarUrls) }
         try c.encodeIfPresent(assigneeType, forKey: .assigneeType)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
+        try c.encodeIfPresent(criticApproved, forKey: .criticApproved)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)
         try c.encodeIfPresent(assigneeName, forKey: .assigneeName)

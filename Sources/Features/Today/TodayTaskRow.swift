@@ -172,6 +172,7 @@ struct TodayTaskRow: View {
                 if let status = TodayAgentStateTag.text(task) {
                     Text(status).foregroundStyle(TodayAgentStateTag.color(task)).layoutPriority(-1)
                 }
+                if task.agentState == .review, task.criticApproved == true { TFCriticApprovedMark() }
                 if let project = task.projectName {
                     Text("#\(project)").foregroundStyle(Color.tfReadableText(Color(hex: task.projectColor ?? TFHexDefault.unassigned))).layoutPriority(-1)
                 }

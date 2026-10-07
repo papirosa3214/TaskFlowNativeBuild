@@ -543,6 +543,9 @@ struct TaskCardContent: View {
                         Text(state == .blocked ? "Заблокировано" : agentStateText(state))
                             .tfText(.caption)
                             .foregroundStyle(agentStateColor(state))
+                        if state == .review, viewModel.loadedTask?.criticApproved == true {
+                            TFCriticApprovedMark()
+                        }
                     }
                     if attemptsExhausted, let ladder = viewModel.attemptLadder {
                         AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)

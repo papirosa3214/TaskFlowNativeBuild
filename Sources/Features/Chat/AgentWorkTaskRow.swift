@@ -204,6 +204,7 @@ struct AgentWorkTaskRow: View {
                     .foregroundStyle(AgentWorkStateTag.color(task))
                     .layoutPriority(-1)
                 }
+                if task.agentState == .review, task.criticApproved == true { TFCriticApprovedMark() }
                 if let project = task.projectName {
                     Text("#\(project)").foregroundStyle(Color.tfReadableText(Color(hex: task.projectColor ?? TFHexDefault.unassigned))).layoutPriority(-1)
                 }
