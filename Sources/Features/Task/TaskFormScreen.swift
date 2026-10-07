@@ -774,7 +774,8 @@ struct TaskCardContent: View {
                     TaskOutcomeContent(
                         outcome: outcome,
                         roleTitle: { key in viewModel.roles.first { $0.role == key }?.title ?? key },
-                        onToast: { toast = TaskToastMessage($0) }
+                        onToast: { toast = TaskToastMessage($0) },
+                        onOpenDocument: { openedReportNoteID = $0 }
                     )
                 }
             }

@@ -42,12 +42,29 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
         public let title: String
         public let result: String?
         public let done: Bool
+        /// То же, что сдала роль, человеческим языком для владельца
+        /// (сервер, `lib/stepResults.ts`). nil — сервер пересказа не дал.
+        public let humanTitle: String?
+        public let humanResult: String?
 
         public var id: String { (slotKey ?? "") + "|" + title }
+
+        /// Что показывать владельцу: пересказ, а без него — исходный текст роли.
+        public var displayTitle: String {
+            if let humanTitle, !humanTitle.isEmpty { return humanTitle }
+            return title
+        }
+
+        public var displayResult: String? {
+            if let humanResult, !humanResult.isEmpty { return humanResult }
+            return result
+        }
 
         enum CodingKeys: String, CodingKey {
             case role, title, result, done
             case slotKey = "slot_key"
+            case humanTitle = "human_title"
+            case humanResult = "human_result"
         }
 
         public init(from decoder: Decoder) throws {
@@ -56,6 +73,8 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
             role = try c.decodeIfPresent(String.self, forKey: .role)
             title = try c.decode(String.self, forKey: .title)
             result = try c.decodeIfPresent(String.self, forKey: .result)
+            humanTitle = try c.decodeIfPresent(String.self, forKey: .humanTitle)
+            humanResult = try c.decodeIfPresent(String.self, forKey: .humanResult)
             // Сервер шлёт true/false, SQLite-ответы — 0/1: принимаем оба.
             if let flag = try? c.decode(Bool.self, forKey: .done) {
                 done = flag

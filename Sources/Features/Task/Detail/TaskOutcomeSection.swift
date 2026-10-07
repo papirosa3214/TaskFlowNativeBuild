@@ -12,6 +12,8 @@ struct TaskOutcomeContent: View {
     /// Название роли по ключу (`analyst` → «Аналитик») — из ролей карточки.
     let roleTitle: (String) -> String
     let onToast: (String) -> Void
+    /// Открыть документ (заметку) — шторкой поверх карточки.
+    let onOpenDocument: (String) -> Void
 
     private let api = APIClient()
 
@@ -40,12 +42,12 @@ struct TaskOutcomeContent: View {
         }
 
         ForEach(outcome.nodes) { node in
-            OutcomeTextRow(sheetTitle: nodeTitle(node), markdown: node.result ?? "Роль ничего не написала.") {
+            OutcomeTextRow(sheetTitle: nodeTitle(node), markdown: node.displayResult ?? "Роль ничего не написала.") {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(nodeTitle(node))
                         .tfText(.action)
                         .foregroundStyle(Color.tfText)
-                    if let result = node.result, !result.isEmpty {
+                    if let result = node.displayResult, !result.isEmpty {
                         Text(result)
                             .tfText(.meta)
                             .foregroundStyle(Color.tfSub)
@@ -58,12 +60,17 @@ struct TaskOutcomeContent: View {
 
         ForEach(outcome.documents) { document in
             HStack(spacing: TFSpacing.sm) {
-                NavigationLink(value: AppRoute.noteEditor(noteID: document.id)) {
+                // Кнопка, а не переход по маршруту: карточка сама открыта
+                // шторкой, и маршрут в ней некому обработать.
+                Button { onOpenDocument(document.id) } label: {
                     Label(document.title, systemImage: document.isOutcome ? "flag.checkered" : "doc.text")
                         .tfText(.action)
                         .foregroundStyle(Color.tfText)
                         .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 Menu {
                     Button {
                         Task { await pushToKnowledge(document) }
@@ -101,8 +108,8 @@ struct TaskOutcomeContent: View {
     }
 
     private func nodeTitle(_ node: ApiTaskOutcome.Node) -> String {
-        guard let role = node.role else { return node.title }
-        return "\(roleTitle(role)) — \(node.title)"
+        guard let role = node.role else { return node.displayTitle }
+        return "\(roleTitle(role)) — \(node.displayTitle)"
     }
 
     private func pushToKnowledge(_ document: ApiTaskOutcome.Document) async {
