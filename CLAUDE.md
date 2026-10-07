@@ -34,7 +34,7 @@
 Сборка (xcodegen генерирует `.xcodeproj` из `project.yml`, он в `.gitignore`):
 
 ```bash
-cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath build_sim build
+cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone Air,OS=27.0' -derivedDataPath build_sim build
 ```
 - **Ассеты обязаны быть в `sources` в `project.yml`** — ключа `resources`
   у таргета в xcodegen нет. Каталог, положенный не туда, молча не попадает
@@ -78,8 +78,8 @@ cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild
 - **Навигация по экрану для проверки — тоже через XCUITest, не через
   скриншот+ручной тап по координате.** `mcp__Claude_Code_iOS_Simulator__control`
   (`tap`/`swipe`) годится только для запуска/скриншота готового состояния —
-  не для «дойти до нужного экрана». В `tap` координаты — в points (402×874 у
-  iPhone 17 Pro), а скриншот отдаётся в пикселях retina (×3) и вдобавок может
+  не для «дойти до нужного экрана». В `tap` координаты — в points (420×912 у
+  iPhone Air), а скриншот отдаётся в пикселях retina (×3) и вдобавок может
   быть смасштабирован для показа — из-за этого каждый тап требует пересчёта
   и с высокой вероятностью промахивается (правило появилось именно после
   серии промахов). В XCUITest элементы ищутся по `accessibilityIdentifier`/
@@ -102,6 +102,13 @@ cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild
   `ScrollView` — его ПОТОМОК, а не предок, поэтому поиск вверх по
   `.superview` всегда возвращал `nil`. Без лога это гадание заняло бы ещё
   десяток кругов.
+- **Симулятор один: iPhone Air на iOS 27.0** — как телефон владельца (iPhone
+  Air, iOS 27; Xcode видит его подключённым). Он же открыт в панели
+  десктопного приложения. Другие симуляторы не загружать и другие модели и
+  версии iOS не брать: владелец 07.10.2026 обнаружил три загруженных
+  симулятора и проверку на iPhone 17 Pro с iOS 26.5 — «видит прекрасно, какой
+  телефон подключён, и симулятор берёт специально не тот». Нужного нет
+  загруженным — загрузить именно его, остальные выключить.
 - **Несколько booted-симуляторов сразу — указывать `device`/UDID явно.**
   `launch` без явного устройства молча берёт первый booted, который может
   быть не тем, за которым наблюдает владелец — путаница «я ничего не менял,

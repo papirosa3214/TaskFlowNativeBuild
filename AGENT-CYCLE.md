@@ -102,7 +102,7 @@ TaskFlow`, симулятор. XcodeBuildMCP сам `xcodegen` не запуск
 Или командой (с .110 — внутри `ssh … "zsh -lc '…'"`):
 
 ```bash
-cd ~/Проекты/TaskFlowNativeBuild && xcodegen generate && xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath build_sim build 2>&1 | grep -E 'error:|BUILD (SUCCEEDED|FAILED)' | head -30
+cd ~/Проекты/TaskFlowNativeBuild && xcodegen generate && xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone Air,OS=27.0' -derivedDataPath build_sim build 2>&1 | grep -E 'error:|BUILD (SUCCEEDED|FAILED)' | head -30
 ```
 
 Полный лог не выводить — фильтр и потолок. Готово при `BUILD SUCCEEDED`.
