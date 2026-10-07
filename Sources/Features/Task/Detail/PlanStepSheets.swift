@@ -158,6 +158,14 @@ struct PlanStepDetailSheet: View {
                         } else {
                             Text(result).textSelection(.enabled)
                         }
+                        if let document = node.resultDocument {
+                            NavigationLink {
+                                NoteEditorScreen(noteID: document.id)
+                            } label: {
+                                Label("Отчёт о работе", systemImage: "doc.text")
+                            }
+                            .accessibilityIdentifier("plan-result-report")
+                        }
                     }
                     .onChange(of: result) { copiedResult = false }
                 }

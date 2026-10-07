@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "45DE7993-E759-46F8-80C4-32EA545B8F5E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "stage-report-note_0_A2680BB3-4139-4F3B-973D-BAA00553A09E.png",
+        "timestamp" : 1791411665.654
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "ADFAF352-16AF-477B-BC17-98E2096A5E3F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "stage-report-link_0_3200E8C2-83F4-45C7-BEA7-29C959A1D702.png",
+        "timestamp" : 1791411663.548
+      }
+    ],
+    "testIdentifier" : "RoleReportUITests/testStageReportOpensNotesEditor()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleReportUITests/testStageReportOpensNotesEditor"
+  }
+]

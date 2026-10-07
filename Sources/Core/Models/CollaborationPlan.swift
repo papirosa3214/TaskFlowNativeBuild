@@ -44,6 +44,8 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
     public let responsible: Bool?
     /// Чего ждёт ещё не начатый шаг: от кого и почему (сервер, 07.10.2026).
     public let waitingFor: [PlanWaitingFor]?
+    /// Человекочитаемый отчёт этапа — заметка в папке документов задачи.
+    public let resultDocument: PlanResultDocument?
 
     public var id: String { slotKey }
     public var isSkipped: Bool { skippedAt != nil }
@@ -65,7 +67,13 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
         case sourcePlanVersion = "source_plan_version"
         case sourcePlanId = "source_plan_id", sourceSlotKey = "source_slot_key", responsible
         case waitingFor = "waiting_for"
+        case resultDocument = "result_document"
     }
+}
+
+public struct PlanResultDocument: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let title: String
 }
 
 /// Одна причина ожидания шага: от какого шага, какой результат и что с ним не так.
