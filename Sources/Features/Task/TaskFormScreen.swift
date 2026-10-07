@@ -1754,10 +1754,10 @@ struct TaskCardContent: View {
         }
     }
 
-    /// Цвет подписи состояния в шапке. «На проверке»: серая — ждёт
-    /// проверяющего, синяя — отправлена ему и он работает, зелёная — он
-    /// вынес вердикт (владелец 22.09.2026). Считаем по ленте после
-    /// последнего ухода в review: прошлые круги проверки не в счёт.
+    /// Цвет подписи состояния в шапке. «На проверке» — синяя, как в списках
+    /// (владелец 07.10.2026: «одинаковый статус»); проверил ли Критик, показывает
+    /// двойная зелёная галочка рядом, а не цвет подписи. Прежние три цвета
+    /// (серая / синяя / зелёная, 22.09.2026) этим отменены.
     private func agentStateColor(_ state: AgentState) -> Color {
         switch state {
         case .blocked:
@@ -1766,22 +1766,7 @@ struct TaskCardContent: View {
         case .inProgress:
             return .tfSub
         case .review:
-            let events = viewModel.journalEntries.compactMap { entry -> ApiTaskEvent? in
-                if case .event(let event) = entry { return event }
-                return nil
-            }
-            // `journalEntries` идут от новых к старым: всё, что новее
-            // последнего ухода в review, лежит ДО него.
-            let end = events.firstIndex { $0.kind == "state_changed" && $0.toValue == "review" }
-                ?? events.endIndex
-            let current = events[..<end]
-            if current.contains(where: { $0.kind == "review_recorded" }) { return .tfGreen }
-            if current.contains(where: {
-                $0.kind == "reviewer_sent" || ($0.kind == "run_requested" && $0.field == "reviewer")
-            }) {
-                return .tfBlue
-            }
-            return .tfSub
+            return .tfBlue
         case .todo:
             return .tfSub
         }
