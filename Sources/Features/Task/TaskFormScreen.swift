@@ -775,7 +775,9 @@ struct TaskCardContent: View {
                         outcome: outcome,
                         roleTitle: { key in viewModel.roles.first { $0.role == key }?.title ?? key },
                         onToast: { toast = TaskToastMessage($0) },
-                        onOpenDocument: { openedReportNoteID = $0 }
+                        onOpenDocument: { openedReportNoteID = $0 },
+                        replyChatID: viewModel.taskChats.first?.id,
+                        subtaskID: { slot in viewModel.subtasks.first { $0.planNodeKey == slot }?.id }
                     )
                 }
             }
