@@ -158,6 +158,18 @@ struct PlanStepDetailSheet: View {
                         } else {
                             Text(result).textSelection(.enabled)
                         }
+                        if let receipt = node.submissionReceipt, receipt.confirmed, receipt.authority == "primary" {
+                            LabeledContent("Сдача подтверждена сервером") {
+                                Text(receipt.confirmedAt.map { $0 + " UTC" } ?? "")
+                            }
+                            .accessibilityIdentifier("plan-submission-confirmed")
+                            if let artifactId = receipt.artifactId {
+                                Text("Артефакт: " + artifactId).font(.caption).textSelection(.enabled)
+                            }
+                        } else if subtask?.done != true {
+                            Text("Сдача основным сервером не подтверждена")
+                                .accessibilityIdentifier("plan-submission-unconfirmed")
+                        }
                         if let document = node.resultDocument {
                             NavigationLink {
                                 NoteEditorScreen(noteID: document.id)

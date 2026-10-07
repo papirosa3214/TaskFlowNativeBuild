@@ -46,6 +46,7 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
     public let waitingFor: [PlanWaitingFor]?
     /// Человекочитаемый отчёт этапа — заметка в папке документов задачи.
     public let resultDocument: PlanResultDocument?
+    public let submissionReceipt: PlanSubmissionReceipt?
 
     public var id: String { slotKey }
     public var isSkipped: Bool { skippedAt != nil }
@@ -68,6 +69,7 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
         case sourcePlanId = "source_plan_id", sourceSlotKey = "source_slot_key", responsible
         case waitingFor = "waiting_for"
         case resultDocument = "result_document"
+        case submissionReceipt = "submission_receipt"
     }
 }
 
@@ -193,3 +195,15 @@ public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+
+public struct PlanSubmissionReceipt: Codable, Sendable, Hashable {
+    public let confirmed: Bool
+    public let authority: String
+    public let artifactId: String?
+    public let documentId: String?
+    public let confirmedAt: String?
+    enum CodingKeys: String, CodingKey {
+        case confirmed, authority
+        case artifactId = "artifact_id", documentId = "document_id", confirmedAt = "confirmed_at"
+    }
+}
