@@ -566,6 +566,16 @@ struct TaskCardContent: View {
                     }
                     Spacer(minLength: 0)
                 }
+            } footer: {
+                // Почему карточка стоит — словами сервера (владелец 07.10.2026:
+                // «заблокировано», а где стопор и почему — не видно).
+                if viewModel.agentState == .blocked,
+                   let reason = viewModel.loadedTask?.blockedReason?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+                    Text(reason)
+                        .tfText(.caption)
+                        .foregroundStyle(TFAgentStateTag.color(.blocked, stale: false))
+                        .accessibilityIdentifier("task.blockedReason")
+                }
             }
             .listRowBackground(Color.tfBackground)
             .listRowSeparator(.hidden)
@@ -1399,7 +1409,9 @@ struct TaskCardContent: View {
                 .accessibilityLabel(
                     isRunning
                         ? TFSubtaskState.running.label
-                        : (subtask.done ? "Шаг выполнен" : "Отметить шаг выполненным")
+                        : (subtask.done
+                            ? (subtask.result?.hasPrefix("changes_requested:") == true ? "Вернул на доработку" : "Шаг выполнен")
+                            : "Отметить шаг выполненным")
                 )
                 .accessibilityHint(subtask.agentState == .review ? "" : "Переключает отметку шага")
 
@@ -1498,6 +1510,13 @@ struct TaskCardContent: View {
             TFSubtaskStatusRing(.blocked)
         } else if subtask.agentState == .review || subtask.state == .review {
             TFSubtaskStatusRing(.review)
+        } else if subtask.done, subtask.result?.hasPrefix("changes_requested:") == true {
+            // Шаг проверки сдан, но его итог — «вернуть на доработку»: это не
+            // «выполнено», зелёная галочка здесь обманывает.
+            Image(systemName: "arrow.uturn.backward.circle.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(Color.tfOrange)
+                .frame(width: 21, height: 21)
         } else {
             Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 20))

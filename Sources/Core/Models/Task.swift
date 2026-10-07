@@ -97,6 +97,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// Критик проверил и одобрил текущую сдачу (сервер считает сам, только для
     /// «На проверке») — рядом с подписью состояния рисуется `TFCriticApprovedMark`.
     public let criticApproved: Bool?
+    /// Почему карточка заблокирована — словами сервера; nil — причины нет.
+    public let blockedReason: String?
     public let agentStartedAt: String?
     /// ТОЛЬКО в `GET /api/tasks` (список), завязано на текущую сессию.
     public let mine: Bool?
@@ -196,6 +198,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case assigneeType = "assignee_type"
         case agentStale = "agent_stale"
         case criticApproved = "critic_approved"
+        case blockedReason = "blocked_reason"
         case agentStartedAt = "agent_started_at"
         case mine
         case assigneeName = "assignee_name"
@@ -259,6 +262,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         assigneeType = try c.decodeIfPresent(String.self, forKey: .assigneeType)
         agentStale = try c.decodeIfPresent(Bool.self, forKey: .agentStale)
         criticApproved = try c.decodeIfPresent(Bool.self, forKey: .criticApproved)
+        blockedReason = try c.decodeIfPresent(String.self, forKey: .blockedReason)
         agentStartedAt = try c.decodeIfPresent(String.self, forKey: .agentStartedAt)
         mine = try c.decodeIfPresent(Bool.self, forKey: .mine)
         assigneeName = try c.decodeIfPresent(String.self, forKey: .assigneeName)
@@ -329,6 +333,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(assigneeType, forKey: .assigneeType)
         try c.encodeIfPresent(agentStale, forKey: .agentStale)
         try c.encodeIfPresent(criticApproved, forKey: .criticApproved)
+        try c.encodeIfPresent(blockedReason, forKey: .blockedReason)
         try c.encodeIfPresent(agentStartedAt, forKey: .agentStartedAt)
         try c.encodeIfPresent(mine, forKey: .mine)
         try c.encodeIfPresent(assigneeName, forKey: .assigneeName)
