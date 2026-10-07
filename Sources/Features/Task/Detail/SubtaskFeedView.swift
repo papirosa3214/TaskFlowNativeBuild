@@ -45,7 +45,7 @@ struct SubtaskFeedView: View {
 
     /// Есть что показывать при раскрытии — текст результата или блокировка.
     private func hasDetails(_ subtask: ApiSubtask) -> Bool {
-        (subtask.result?.isEmpty == false) || subtask.agentState == .blocked
+        (subtask.displayResult?.isEmpty == false) || subtask.agentState == .blocked
     }
 
     private func row(_ subtask: ApiSubtask) -> some View {
@@ -103,7 +103,7 @@ struct SubtaskFeedView: View {
     @ViewBuilder
     private func expandedContent(_ subtask: ApiSubtask) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            if let result = subtask.result, !result.isEmpty {
+            if let result = subtask.displayResult, !result.isEmpty {
                 Text(result).tfText(.action).foregroundStyle(Color.tfSub)
             }
             if replyingId == subtask.id {

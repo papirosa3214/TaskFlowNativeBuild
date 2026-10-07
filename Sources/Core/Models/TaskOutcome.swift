@@ -62,30 +62,7 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
             } else {
                 raw = result
             }
-            return raw.map(Self.sanitizeForOwner)
-        }
-
-        /// Текст, который роль написала в свободной форме, может содержать
-        /// служебные метки сервера и имена инструментов, которые владельцу
-        /// знать не нужно. Чистим только для показа; сырой `result` не трогаем —
-        /// на нём держится детект «вернуть на доработку» через `hasPrefix`.
-        /// Владелец 07.10.2026: убрать `changes_requested:` и
-        /// `taskflow_plan_request` из текста вердикта в секции «Итог».
-        static func sanitizeForOwner(_ text: String) -> String {
-            var s = text
-            // Префикс «changes_requested: » сервер ставит перед текстом замечания;
-            // человеку он ничего не говорит — убираем полностью.
-            if let r = s.range(of: "changes_requested:") {
-                let after = s[r.upperBound...]
-                s = after.trimmingCharacters(in: .whitespaces)
-            }
-            // Имя инструмента роли «taskflow_plan_request» (добавить слот в план)
-            // протекает в текст, когда роль цитирует, что он недоступен.
-            s = s.replacingOccurrences(
-                of: "taskflow_plan_request",
-                with: "команда добавить слот в план"
-            )
-            return s
+            return raw.map(AgentTextSanitizer.sanitizeForOwner)
         }
 
         enum CodingKeys: String, CodingKey {

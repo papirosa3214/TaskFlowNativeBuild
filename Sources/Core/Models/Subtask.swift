@@ -20,6 +20,11 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
     public var isActivelyRunning: Bool { !done && agentStale != true && (state == .running || agentState == .inProgress) }
     /// Отчёт агента — максимум 400 символов (`RESULT_MAX`).
     public let result: String?
+    /// Тот же `result`, очищенный от служебных меток сервера и имён
+    /// инструментов роли — для показа владельцу. Сырой `result` не трогаем.
+    public var displayResult: String? {
+        result.map(AgentTextSanitizer.sanitizeForOwner)
+    }
     public let agentSessionId: String?
     /// Derived, см. заголовок файла.
     public let state: SubtaskState?

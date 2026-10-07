@@ -1551,7 +1551,7 @@ struct TaskCardContent: View {
                     }
                 }
             }
-            if let result = subtask.result, !result.isEmpty {
+            if let result = subtask.displayResult, !result.isEmpty {
                 // Итог шага — главное, ради чего эту карточку открывают:
                 // виден целиком и всегда, без сворачивания и усечения
                 // (владелец 11.09.2026).
