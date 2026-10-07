@@ -105,6 +105,7 @@ struct TaskCardContent: View {
     /// свой `didStartLoad`, обычный `onAppear` второй раз не сработает.
     @State private var collaborationPlanReloadToken = 0
     @State private var isPreparationPresented = false
+    @State private var openedTaskChatID: String?
     @State private var preparationWaiting: String?
     @State private var isApprovingCollaborationPlan = false
     @State private var isSuggestingCollaborationPlan = false
@@ -415,6 +416,17 @@ struct TaskCardContent: View {
         )) {
             if let noteID = openedReportNoteID {
                 NavigationStack { NoteEditorScreen(noteID: noteID) }
+            }
+        }
+        // Переписка по задаче — шторкой поверх карточки: карточка сама открыта
+        // шторкой, и переход по маршруту в ней некому обработать (владелец
+        // 07.10.2026: строка «Чат по задаче» была видна, но никуда не вела).
+        .sheet(isPresented: Binding(
+            get: { openedTaskChatID != nil },
+            set: { if !$0 { openedTaskChatID = nil } }
+        )) {
+            if let chatID = openedTaskChatID {
+                NavigationStack { RoleChatRoomLoader(chatID: chatID) }
             }
         }
     }
@@ -1013,7 +1025,7 @@ struct TaskCardContent: View {
     /// обёртки.
     @ViewBuilder private var chatByTaskContent: some View {
         ForEach(viewModel.taskChats) { chat in
-            NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
+            Button { openedTaskChatID = chat.id } label: {
                 HStack(spacing: TFSpacing.sm) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(chat.displayTitle)
@@ -1027,9 +1039,14 @@ struct TaskCardContent: View {
                         }
                     }
                     Spacer(minLength: TFSpacing.sm)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.tfDim)
                 }
                 .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("task.chat.\(chat.id)")
         }
     }
 

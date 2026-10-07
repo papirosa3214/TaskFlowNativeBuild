@@ -1394,7 +1394,7 @@ struct RoleChatRoomScreen: View {
                 if let steps = message.steps, steps.hasDetails {
                     RoleLiveItemsList(items: steps.items)
                 }
-                if let taskID = message.taskID {
+                if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 } else if !message.text.isEmpty {
                     RoleReplyMarkdown(text: message.text)
@@ -1476,7 +1476,10 @@ struct RoleChatRoomScreen: View {
                 // Секретаря») — раньше была только у Секретаря
                 // (ChatBubble.swift, message.fromUserId == secretaryID),
                 // здесь — для любой роли, отправитель не важен.
-                if let taskID = message.taskID {
+                // Кроме чата самой задачи: его сообщения наследуют её
+                // task_id, и карточка подменяла КАЖДОЕ сообщение — текста не
+                // было видно вовсе (владелец 07.10.2026).
+                if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 } else if !message.text.isEmpty && !hasAudio {
                     if mine {
