@@ -42,6 +42,8 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
     public let plannedWork: String?
     public let requiresChoice: Bool?
     public let responsible: Bool?
+    /// Чего ждёт ещё не начатый шаг: от кого и почему (сервер, 07.10.2026).
+    public let waitingFor: [PlanWaitingFor]?
 
     public var id: String { slotKey }
     public var isSkipped: Bool { skippedAt != nil }
@@ -62,6 +64,18 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
         case sourceSubtaskId = "source_subtask_id", workChoice = "work_choice", originalTitle = "original_title", plannedWork = "planned_work", requiresChoice = "requires_choice"
         case sourcePlanVersion = "source_plan_version"
         case sourcePlanId = "source_plan_id", sourceSlotKey = "source_slot_key", responsible
+        case waitingFor = "waiting_for"
+    }
+}
+
+/// Одна причина ожидания шага: от какого шага, какой результат и что с ним не так.
+public struct PlanWaitingFor: Codable, Sendable, Hashable {
+    public let fromSlotKey: String
+    public let artifactKey: String?
+    public let reason: String
+
+    enum CodingKeys: String, CodingKey {
+        case fromSlotKey = "from_slot_key", artifactKey = "artifact_key", reason
     }
 }
 

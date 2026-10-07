@@ -59,6 +59,13 @@ struct PlanStepDetailSheet: View {
                     LabeledContent("Роль") {
                         Text(roleTitle(node.roleKey)).foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
                     }
+                    // Ожидающий шаг не стоит молча: от кого и какой результат ему нужен.
+                    ForEach(node.waitingFor ?? [], id: \.fromSlotKey) { waiting in
+                        let author = plan.nodes.first { $0.slotKey == waiting.fromSlotKey }.map { roleTitle($0.roleKey) } ?? waiting.fromSlotKey
+                        Text("Ждёт: \(author) — \(waiting.reason)\(waiting.artifactKey.map { " («\($0)»)" } ?? "")")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfOrange)
+                    }
                     if stateLabel == "В работе" {
                         DisclosureGroup(isExpanded: Binding(get: { isLiveExpanded }, set: { value in
                             isLiveExpanded = value
