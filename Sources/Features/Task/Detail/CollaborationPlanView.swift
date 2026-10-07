@@ -554,8 +554,9 @@ private struct CollaborationPlanGraph: View {
             }
 
             GeometryReader { proxy in
-                let maxColumns = Dictionary(grouping: entries, by: { levels[$0.slotKey] ?? 0 }).values.map(\.count).max() ?? 1
-                let canvasWidth = max(proxy.size.width, CGFloat(maxColumns) * nodeWidth + CGFloat(maxColumns - 1) * TFSpacing.sm)
+                let maxColumns = isLinear ? entries.count : (Dictionary(grouping: entries, by: { levels[$0.slotKey] ?? 0 }).values.map(\.count).max() ?? 1)
+                let columnGap = isLinear ? linearGap : TFSpacing.sm
+                let canvasWidth = max(proxy.size.width, CGFloat(maxColumns) * nodeWidth + CGFloat(maxColumns - 1) * columnGap)
                 let places = layout(width: canvasWidth)
                 let centers = places.mapValues { $0.center }
 
@@ -569,7 +570,24 @@ private struct CollaborationPlanGraph: View {
                                 context.stroke(path, with: .color(ready.contains(edge.fromSlotKey) ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.75)), lineWidth: 1.2)
                                 continue
                             }
-                            let horizontal = false
+                            let horizontal = isLinear
+                            if isLinear, let a = levels[edge.fromSlotKey], let b = levels[edge.toSlotKey], b - a > 1 {
+                                // Связь через несколько шагов идёт дугой НАД цепочкой, а не сквозь аватарки.
+                                let lift = 8 + CGFloat(b - a - 1) * 6
+                                let start = CGPoint(x: fromCenter.x, y: fromCenter.y - nodeHeight / 2)
+                                let end = CGPoint(x: toCenter.x, y: toCenter.y - nodeHeight / 2)
+                                var arc = Path()
+                                arc.move(to: start)
+                                arc.addLine(to: CGPoint(x: start.x, y: start.y - lift))
+                                arc.addLine(to: CGPoint(x: end.x, y: start.y - lift))
+                                arc.addLine(to: end)
+                                arc.move(to: CGPoint(x: end.x - 4, y: end.y - 5))
+                                arc.addLine(to: end)
+                                arc.addLine(to: CGPoint(x: end.x + 4, y: end.y - 5))
+                                let isReady = ready.contains(edge.fromSlotKey)
+                                context.stroke(arc, with: .color(isReady ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.65)), lineWidth: isReady ? 1.5 : 1)
+                                continue
+                            }
                             let upward = toCenter.y < fromCenter.y
                             let direction: CGFloat = toCenter.x > fromCenter.x ? 1 : -1
                             let from = horizontal
@@ -704,8 +722,29 @@ private struct CollaborationPlanGraph: View {
         return Dictionary(uniqueKeysWithValues: entries.map { ($0.slotKey, level($0.slotKey, [])) })
     }
 
+    /// Зазор между соседними шагами в горизонтальной цепочке — место под стрелку.
+    private let linearGap: CGFloat = 28
+
+    /// Запас сверху под дуги связей, перескакивающих через шаги; без таких связей — ноль.
+    private var linearTopPad: CGFloat {
+        let levelOf = levels
+        let spans = edges.map { (levelOf[$0.toSlotKey] ?? 0) - (levelOf[$0.fromSlotKey] ?? 0) }.filter { $0 > 1 }
+        guard let widest = spans.max() else { return 0 }
+        return 8 + CGFloat(widest - 1) * 6 + 6
+    }
+
+    /// Цепочка без ветвлений: на каждом уровне один шаг и все связи идут вперёд.
+    private var isLinear: Bool {
+        guard entries.count > 1, !entries.contains(where: \.isParticipant) else { return false }
+        let levelOf = levels
+        let perLevel = Dictionary(grouping: entries, by: { levelOf[$0.slotKey] ?? 0 }).values
+        guard perLevel.allSatisfy({ $0.count == 1 }) else { return false }
+        return edges.allSatisfy { (levelOf[$0.toSlotKey] ?? 0) > (levelOf[$0.fromSlotKey] ?? 0) }
+    }
+
     private var graphHeight: CGFloat {
         if entries.contains(where: \.isParticipant) { return 280 }
+        if isLinear { return nodeHeight + linearTopPad }
         let rows = (levels.values.max() ?? 0) + 1
         return nodeHeight + CGFloat(rows - 1) * rowStep
     }
@@ -719,6 +758,16 @@ private struct CollaborationPlanGraph: View {
             })
         }
         let levelOf = levels
+        if isLinear {
+            // Линейная цепочка — в одну строку слева направо: меньше места и пустоты (владелец 07.10.2026).
+            let count = CGFloat(entries.count)
+            let total = nodeWidth * count + linearGap * (count - 1)
+            let startX = (width - total) / 2 + nodeWidth / 2
+            let ordered = entries.sorted { (levelOf[$0.slotKey] ?? 0) < (levelOf[$1.slotKey] ?? 0) }
+            return Dictionary(uniqueKeysWithValues: ordered.enumerated().map { index, entry in
+                (entry.slotKey, (center: CGPoint(x: startX + CGFloat(index) * (nodeWidth + linearGap), y: linearTopPad + nodeHeight / 2), width: nodeWidth))
+            })
+        }
         let rows = Dictionary(grouping: entries, by: { levelOf[$0.slotKey] ?? 0 })
         var result: [String: (center: CGPoint, width: CGFloat)] = [:]
         for (row, items) in rows {
