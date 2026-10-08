@@ -39,6 +39,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let createdAt: String?
     public let updatedAt: String?
     public let completedAt: String?
+    /// Архив независим от завершения и принадлежности проекту.
+    public let archivedAt: String?
+    public var isArchived: Bool { archivedAt != nil }
     public let agentState: AgentState?
     public let agentHeartbeatAt: String?
     public let position: Int?
@@ -173,6 +176,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case completedAt = "completed_at"
+        case archivedAt = "archived_at"
         case agentState = "agent_state"
         case agentHeartbeatAt = "agent_heartbeat_at"
         case position
@@ -234,6 +238,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
         updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
         completedAt = try c.decodeIfPresent(String.self, forKey: .completedAt)
+        archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
         agentState = try c.decodeIfPresent(AgentState.self, forKey: .agentState)
         agentHeartbeatAt = try c.decodeIfPresent(String.self, forKey: .agentHeartbeatAt)
         position = try c.decodeIfPresent(Int.self, forKey: .position)

@@ -31,7 +31,19 @@ public extension APIClient {
 
     /// Владелец; оркестратору 403 (spec §5.4).
     func deleteProject(id: String) async throws {
-        let _: APIOkResponse = try await request(.delete, "/projects/\(id)")
+        let _: APIOkResponse = try await request(.delete, "/projects/\(id)", body: [String: JSONValue]())
+    }
+
+    func archivedProjects() async throws -> [ApiProject] {
+        try await request(.get, "/projects/archive")
+    }
+
+    func restoreProject(id: String) async throws {
+        let _: APIOkResponse = try await request(.post, "/projects/\(id)/restore", body: [String: JSONValue]())
+    }
+
+    func permanentlyDeleteProject(id: String) async throws {
+        let _: APIOkResponse = try await request(.delete, "/projects/\(id)/purge", body: [String: JSONValue]())
     }
 
     func labels() async throws -> [ApiLabel] {

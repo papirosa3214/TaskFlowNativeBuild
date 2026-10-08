@@ -202,11 +202,8 @@ struct AgentWorkScreen: View {
     }
 
     private func deleteTask(_ task: ApiTask) async {
-        do {
-            _ = try await apiClient.deleteTask(id: task.id)
-            await taskStore.load(silent: true)
-        } catch {
-            swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        if !(await taskStore.delete(taskId: task.id)) {
+            swipeActionError = taskStore.errorMessage
         }
     }
 

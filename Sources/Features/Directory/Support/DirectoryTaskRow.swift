@@ -55,7 +55,7 @@ struct DirectoryTaskRow: View {
     var body: some View {
         ZStack {
             HStack(spacing: 0) {
-                swipeIconButton(icon: "trash", color: .tfSwipeDelete) {
+                swipeIconButton(icon: "archivebox", color: .tfSwipeDelete) {
                     close(); confirmDelete = true
                 }
                 .frame(width: leftRevealWidth)
@@ -96,11 +96,11 @@ struct DirectoryTaskRow: View {
         // Ближайший native-эквивалент своего нижнего экшн-листа из TaskRow.tsx
         // (красная «Удалить» текстом + отдельная карточка «Отмена») — тот же
         // приём, что уже выбрал TodayTaskRow.swift для идентичного узла.
-        .confirmationDialog("Удалить задачу?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Удалить", role: .destructive, action: onDelete)
+        .confirmationDialog("Отправить задачу в архив?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("В архив", role: .destructive, action: onDelete)
             Button("Отмена", role: .cancel) {}
         } message: {
-            Text("«\(task.title)» будет удалена безвозвратно")
+            Text("«\(task.title)» будет отправлена в архив. Её можно восстановить.")
         }
     }
 

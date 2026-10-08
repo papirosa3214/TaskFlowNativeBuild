@@ -78,6 +78,10 @@ public enum RealtimeEvent: Sendable {
             return decodeTask().map(RealtimeEvent.taskCreated) ?? .unknown(type: envelope.type, raw: raw)
         case "task:updated":
             return decodeTask().map(RealtimeEvent.taskUpdated) ?? .unknown(type: envelope.type, raw: raw)
+        case "task:archived", "task:restored":
+            struct ArchiveEnvelope: Decodable { let task: ApiTask }
+            return (try? decoder.decode(ArchiveEnvelope.self, from: data)).map { .taskUpdated($0.task) }
+                ?? decodeTask().map(RealtimeEvent.taskUpdated) ?? .unknown(type: envelope.type, raw: raw)
         case "task:completed":
             return decodeTask().map(RealtimeEvent.taskCompleted) ?? .unknown(type: envelope.type, raw: raw)
         case "task:deleted":

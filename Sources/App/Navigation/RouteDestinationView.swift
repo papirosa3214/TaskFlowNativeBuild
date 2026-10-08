@@ -71,6 +71,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         KnowledgeScreen()
     case .projectTasks(let projectID):
         ProjectTasksScreen(projectID: projectID)
+    case .taskArchive:
+        TaskArchiveScreen()
     case .noProjectTasks:
         ProjectTasksScreen(projectID: nil)
     case .labels:

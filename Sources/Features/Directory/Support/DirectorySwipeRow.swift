@@ -58,7 +58,7 @@ struct DirectorySwipeRow<Content: View>: View {
         ZStack {
             HStack(spacing: 0) {
                 Button(action: { close(); onDelete() }) {
-                    Image(systemName: "trash")
+                    Image(systemName: "archivebox")
                         .font(.system(size: 20, weight: .regular))
                         .foregroundStyle(.white)
                 }

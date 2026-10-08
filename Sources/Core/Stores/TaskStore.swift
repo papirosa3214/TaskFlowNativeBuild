@@ -11,6 +11,9 @@ import Observation
 @Observable
 public final class TaskStore {
     public private(set) var tasks: [ApiTask] = []
+    public private(set) var archivedTasks: [ApiTask] = []
+    public private(set) var isLoadingArchive = false
+    public var archiveErrorMessage: String?
     /// Тот же список, но С ДОЧЕРНИМИ (`include_children`). Только для плиток
     /// «Обзора» и «Работы агентов»: работу там ведут именно дочерние, а в
     /// `tasks` сервер кладёт лишь те из них, у кого есть проект — дочерняя
@@ -35,7 +38,7 @@ public final class TaskStore {
         defer { if !silent { isLoading = false } }
         async let withChildren = apiClient.tasks(includeChildren: true)
         do {
-            tasks = try await apiClient.tasks()
+            tasks = try await apiClient.tasks().filter { !$0.isArchived }
         } catch is CancellationError {
             // Экран перезапросил список раньше, чем доехал предыдущий заход
             // (смена формата «Список»/«Один день», быстрый повторный вход) —
@@ -44,7 +47,7 @@ public final class TaskStore {
             errorMessage = Self.message(for: error)
         }
         do {
-            agentWorkTasks = try await withChildren
+            agentWorkTasks = try await withChildren.filter { !$0.isArchived }
         } catch is CancellationError {
             // см. комментарий выше
         } catch {
@@ -99,19 +102,71 @@ public final class TaskStore {
         }
     }
 
+    public func loadArchive() async {
+        isLoadingArchive = true
+        archiveErrorMessage = nil
+        defer { isLoadingArchive = false }
+        do {
+            archivedTasks = try await apiClient.tasks(includeChildren: true, archived: true)
+                .filter { $0.isArchived }
+        } catch is CancellationError {
+        } catch {
+            archiveErrorMessage = Self.message(for: error)
+        }
+    }
+
     @discardableResult
     public func delete(taskId: String) async -> Bool {
-        let snapshot = tasks
-        tasks.removeAll { $0.id == taskId }
+        errorMessage = nil
         do {
-            try await apiClient.deleteTask(id: taskId)
+            let archived = try await apiClient.archiveTask(id: taskId)
+            guard archived.isArchived else {
+                errorMessage = "Сервер не подтвердил архивирование задачи."
+                return false
+            }
+            upsert(archived)
+            await load(silent: true)
+            await loadArchive()
             return true
         } catch {
-            // Задачи на сервере уже нет — цель удаления и так достигнута,
-            // возвращать строку на экран и ругаться незачем.
-            if Self.isMissingRecord(error) { return true }
-            tasks = snapshot
             errorMessage = Self.message(for: error)
+            return false
+        }
+    }
+
+    @discardableResult
+    public func restore(taskId: String) async -> Bool {
+        archiveErrorMessage = nil
+        do {
+            let restored = try await apiClient.restoreTask(id: taskId)
+            guard !restored.isArchived else {
+                archiveErrorMessage = "Сервер не подтвердил восстановление задачи."
+                return false
+            }
+            upsert(restored)
+            await load(silent: true)
+            await loadArchive()
+            return true
+        } catch {
+            archiveErrorMessage = Self.message(for: error)
+            return false
+        }
+    }
+
+    @discardableResult
+    public func permanentlyDelete(taskId: String) async -> Bool {
+        guard archivedTasks.contains(where: { $0.id == taskId && $0.isArchived }) else {
+            archiveErrorMessage = "Окончательное удаление доступно только из архива."
+            return false
+        }
+        archiveErrorMessage = nil
+        do {
+            try await apiClient.permanentlyDeleteTask(id: taskId)
+            archivedTasks.removeAll { $0.id == taskId }
+            await loadArchive()
+            return true
+        } catch {
+            archiveErrorMessage = Self.message(for: error)
             return false
         }
     }
@@ -125,6 +180,7 @@ public final class TaskStore {
         case .taskDeleted(let id):
             tasks.removeAll { $0.id == id }
             agentWorkTasks.removeAll { $0.id == id }
+            archivedTasks.removeAll { $0.id == id }
         default:
             break
         }
@@ -135,9 +191,21 @@ public final class TaskStore {
     /// полный рефетч, а не точечная синхронизация.
     public func refreshAfterReconnect() async {
         await load(silent: true)
+        await loadArchive()
     }
 
     private func upsert(_ task: ApiTask) {
+        if task.isArchived {
+            tasks.removeAll { $0.id == task.id }
+            agentWorkTasks.removeAll { $0.id == task.id }
+            if let index = archivedTasks.firstIndex(where: { $0.id == task.id }) {
+                archivedTasks[index] = task
+            } else {
+                archivedTasks.append(task)
+            }
+            return
+        }
+        archivedTasks.removeAll { $0.id == task.id }
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index] = task
         } else {

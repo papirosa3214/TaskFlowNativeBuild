@@ -40,6 +40,7 @@ public enum AppRoute: Hashable {
     case projectTasks(projectID: String)
     /// Задачи без проекта — тот же экран списка, но `projectID == nil`.
     case noProjectTasks
+    case taskArchive
     case labels
     case labelTasks(labelID: String)
     case search

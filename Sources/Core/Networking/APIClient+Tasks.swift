@@ -37,9 +37,10 @@ public extension APIClient {
     }
 
     /// `includeChildren` — query `include_children` (spec §5.1).
-    func tasks(includeChildren: Bool = false) async throws -> [ApiTask] {
+    func tasks(includeChildren: Bool = false, archived: Bool = false) async throws -> [ApiTask] {
         var query: [URLQueryItem] = []
         if includeChildren { query.append(URLQueryItem(name: "include_children", value: "true")) }
+        if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
         return try await request(.get, "/tasks", query: query)
     }
 
@@ -138,9 +139,27 @@ public extension APIClient {
         return response.task
     }
 
-    /// Только создатель задачи ИЛИ владелец — оркестратору 403 (spec §5.1).
+    /// Совместимый вход обычного удаления: теперь всегда архивирует.
+    /// Не использовать DELETE как запасной путь при недоступном архиве.
     func deleteTask(id: String) async throws {
-        let _: APIOkResponse = try await request(.delete, "/tasks/\(id)")
+        _ = try await archiveTask(id: id)
+    }
+
+    func archiveTask(id: String) async throws -> ApiTask {
+        let response: TaskResponse = try await request(.post, "/tasks/\(id)/archive", body: [String: JSONValue]())
+        return response.task
+    }
+
+    func restoreTask(id: String) async throws -> ApiTask {
+        let response: TaskResponse = try await request(.post, "/tasks/\(id)/restore", body: [String: JSONValue]())
+        return response.task
+    }
+
+    /// Используется только для подтверждённого удаления карточки из архива.
+    func permanentlyDeleteTask(id: String) async throws {
+        struct PurgeResponse: Decodable { let deleted: Bool }
+        let response: PurgeResponse = try await request(.delete, "/tasks/\(id)", body: [String: JSONValue]())
+        guard response.deleted else { throw APIError.server(status: 409, message: "Сервер не подтвердил окончательное удаление.") }
     }
 
     /// «✓ Запустить» на карточке Секретаря: сервер поднимает флаг дереву

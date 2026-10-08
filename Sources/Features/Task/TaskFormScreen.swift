@@ -337,11 +337,11 @@ struct TaskCardContent: View {
         .modifier(TFSoftTopScrollEdge())
         .navigationBarBackButtonHidden(true)
         .toolbar { if !preview { formToolbarContent } }
-        .confirmationDialog("Удалить задачу?", isPresented: $isDeleteConfirmationPresented, titleVisibility: .visible) {
-            Button("Удалить", role: .destructive) { Task { await deleteCurrentTask() } }
+        .confirmationDialog("Отправить задачу в архив?", isPresented: $isDeleteConfirmationPresented, titleVisibility: .visible) {
+            Button("В архив") { Task { await deleteCurrentTask() } }
             Button("Отмена", role: .cancel) {}
         } message: {
-            Text("Задача будет удалена без возможности восстановления.")
+            Text("Задача будет сохранена в архиве. Её можно восстановить.")
         }
         .alert("Комментарий", isPresented: Binding(
             get: { pendingAction != nil },
@@ -2151,7 +2151,7 @@ struct TaskCardContent: View {
 
         Divider()
 
-        Button("Удалить задачу", systemImage: "trash", role: .destructive) {
+        Button("В архив", systemImage: "archivebox") {
             isDeleteConfirmationPresented = true
         }
     }

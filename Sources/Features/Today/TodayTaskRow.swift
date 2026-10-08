@@ -53,7 +53,7 @@ struct TodayTaskRow: View {
             //    Было — фиксированные 70pt независимо от содержимого строки.
             HStack(spacing: 0) {
                 actionButton(
-                    icon: "trash", label: "Удалить",
+                    icon: "archivebox", label: "В архив",
                     identifier: "row.swipe.delete", color: .tfSwipeDelete
                 ) { close(); confirmDelete = true }
                 .frame(width: leftRevealWidth)
@@ -111,11 +111,11 @@ struct TodayTaskRow: View {
                 .fill(Color.tfStroke.opacity(0.5))
                 .frame(height: TFBorder.width)
         }
-        .confirmationDialog("Удалить задачу?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Удалить", role: .destructive, action: onDelete)
+        .confirmationDialog("Отправить задачу в архив?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("В архив", role: .destructive, action: onDelete)
             Button("Отмена", role: .cancel) {}
         } message: {
-            Text("«\(task.title)» будет удалена безвозвратно")
+            Text("«\(task.title)» будет отправлена в архив. Её можно восстановить.")
         }
     }
 

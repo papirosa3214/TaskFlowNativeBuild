@@ -48,11 +48,44 @@ public final class ProjectStore {
         }
     }
 
+    public private(set) var archivedProjects: [ApiProject] = []
+    public var archiveErrorMessage: String?
+
+    public func loadArchive() async {
+        archiveErrorMessage = nil
+        do { archivedProjects = try await apiClient.archivedProjects() }
+        catch { archiveErrorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription }
+    }
+
+    @discardableResult
+    public func restoreArchived(projectId: String) async -> Bool {
+        do {
+            try await apiClient.restoreProject(id: projectId)
+            await load()
+            await loadArchive()
+            return true
+        } catch { archiveErrorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription; return false }
+    }
+
+    @discardableResult
+    public func purgeArchived(projectId: String) async -> Bool {
+        guard archivedProjects.contains(where: { $0.id == projectId }) else {
+            archiveErrorMessage = "Окончательное удаление доступно только из архива."
+            return false
+        }
+        do {
+            try await apiClient.permanentlyDeleteProject(id: projectId)
+            await loadArchive()
+            return true
+        } catch { archiveErrorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription; return false }
+    }
+
     public func delete(projectId: String) async {
         let snapshot = projects
         projects.removeAll { $0.id == projectId }
         do {
             try await apiClient.deleteProject(id: projectId)
+            await loadArchive()
         } catch {
             projects = snapshot
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription

@@ -136,7 +136,7 @@ struct ProjectsScreen: View {
                 Button(role: .destructive) {
                     requestDeleteSelected()
                 } label: {
-                    Label("Удалить выбранные (\(selectedProjectIDs.count))", systemImage: "trash")
+                    Label("В архив (\(selectedProjectIDs.count))", systemImage: "archivebox")
                 }
                 .disabled(selectedProjectIDs.isEmpty)
 
@@ -196,7 +196,6 @@ struct ProjectsScreen: View {
 
     private var visibleProjects: [ApiProject] {
         projectStore.projects.filter { project in
-            guard project.id != archiveProject?.id else { return false }
             let queryMatches = searchText.isEmpty
                 || project.name.localizedCaseInsensitiveContains(searchText)
             guard queryMatches else { return false }
@@ -226,17 +225,7 @@ struct ProjectsScreen: View {
         taskStore.tasks.filter { $0.projectId == nil && $0.status == .active }.count
     }
 
-    /// «Архив» — раньше обычный проект в общем списке; владелец 06.10.2026:
-    /// это раздел, а не проект. Проект по-прежнему хранит задачи, но в списке
-    /// проектов его нет — он открывается плиткой рядом с «Без проекта».
-    private var archiveProject: ApiProject? {
-        projectStore.projects.first { $0.name == "Архив" }
-    }
-
-    private var archiveCount: Int {
-        guard let archiveProject else { return 0 }
-        return taskStore.tasks.filter { $0.projectId == archiveProject.id }.count
-    }
+    private var archiveCount: Int { taskStore.archivedTasks.count + projectStore.archivedProjects.count }
 
     /// Две плитки в одну линию — тот же вид, что «В работе» / «На проверке»
     /// в Обзоре, иконки крупнее (владелец 06.10.2026).
@@ -246,13 +235,12 @@ struct ProjectsScreen: View {
                 route: .noProjectTasks, title: "Без проекта",
                 count: noProjectCount, icon: "tray", tint: .tfBlue
             )
-            if let archiveProject {
-                sectionTile(
-                    route: .projectTasks(projectID: archiveProject.id), title: "Архив",
-                    count: archiveCount, icon: "archivebox", tint: .tfOrange
-                )
-            }
+            sectionTile(
+                route: .taskArchive, title: "Архив",
+                count: archiveCount, icon: "archivebox", tint: .tfOrange
+            )
         }
+        .task { await taskStore.loadArchive(); await projectStore.loadArchive() }
     }
 
     private func sectionTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color) -> some View {
@@ -327,10 +315,11 @@ struct ProjectsScreen: View {
     private func requestDelete(_ project: ApiProject) {
         let count = project.taskCount ?? 0
         deleteRequest = DirectoryConfirmRequest(
-            title: "Удалить проект «\(project.name)»?",
+            title: "Отправить проект «\(project.name)» в архив?",
             description: count > 0
-                ? "Задачи внутри (\(count) \(DirectoryPluralize.taskWord(count))) не удалятся — они останутся без проекта. Сам проект и его столбец на доске исчезнут без возможности отмены."
-                : "В нём сейчас нет задач. Действие нельзя отменить.",
+                ? "Проект и его задачи исчезнут из обычных списков. Их можно вернуть из архива."
+                : "Проект можно будет восстановить из архива.",
+            confirmLabel: "В архив",
             onConfirm: {
                 Task {
                     await projectStore.delete(projectId: project.id)
@@ -349,7 +338,7 @@ struct ProjectsScreen: View {
         guard openProjects.isEmpty else {
             let names = openProjects.prefix(2).map(\.name).joined(separator: ", ")
             let suffix = openProjects.count > 2 ? " и ещё \(openProjects.count - 2)" : ""
-            errorMessage = "Пакетное удаление доступно только для проектов без открытых задач. Сначала закройте задачи в: \(names)\(suffix)."
+            errorMessage = "Пакетное архивирование доступно только для проектов без открытых задач. Сначала закройте задачи в: \(names)\(suffix)."
             return
         }
         let count = selected.count
@@ -357,9 +346,9 @@ struct ProjectsScreen: View {
             partial + (project.taskCount ?? 0) + (project.completedCount ?? 0)
         }
         deleteRequest = DirectoryConfirmRequest(
-            title: "Удалить выбранные проекты (\(count))?",
-            description: "Задачи внутри (\(tasksCount)) не удалятся — они останутся без проекта. Действие нельзя отменить.",
-            confirmLabel: "Удалить \(count)",
+            title: "Отправить проекты (\(count)) в архив?",
+            description: "Проекты и задачи внутри (\(tasksCount)) можно будет восстановить из архива.",
+            confirmLabel: "В архив \(count)",
             onConfirm: {
                 Task { await deleteSelectedProjects(selected.map(\.id)) }
             }

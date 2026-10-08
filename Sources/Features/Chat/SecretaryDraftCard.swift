@@ -58,9 +58,9 @@ struct SecretaryDraftCard: View {
             await load()
             await titles
         }
-        .confirmationDialog("Удалить постановку целиком?", isPresented: $isDeleteConfirmOpen,
+        .confirmationDialog("Отправить постановку в архив?", isPresented: $isDeleteConfirmOpen,
                             titleVisibility: .visible) {
-            Button("Удалить", role: .destructive) { Task { await deleteTree() } }
+            Button("В архив") { Task { await deleteTree() } }
         } message: {
             Text("Задача и все её дочерние удалятся без возможности вернуть.")
         }
@@ -133,7 +133,7 @@ struct SecretaryDraftCard: View {
                     TFButton("Запустить", icon: "checkmark", variant: .primary, isEnabled: !isBusy) {
                         Task { await start() }
                     }
-                    TFButton("Удалить", icon: "xmark", variant: .outline, isEnabled: !isBusy) {
+                    TFButton("В архив", icon: "archivebox", variant: .outline, isEnabled: !isBusy) {
                         isDeleteConfirmOpen = true
                     }
                 }
@@ -324,18 +324,16 @@ struct SecretaryDraftCard: View {
         }
     }
 
-    /// Сначала дочерние, потом родитель: сервер удаляет карточку поодиночке,
-    /// и так не остаются дочерние без родителя, если что-то сорвётся посреди.
+    /// Архивирование дерева атомарно выполняет сервер одним запросом для корня.
     private func deleteTree() async {
         isBusy = true
         errorText = nil
         defer { isBusy = false }
         do {
-            for child in children { try await api.deleteTask(id: child.id) }
-            try await api.deleteTask(id: taskID)
+            _ = try await api.archiveTask(id: taskID)
             isDeleted = true
         } catch {
-            errorText = (error as? APIError)?.errorDescription ?? "Не удалось удалить"
+            errorText = (error as? APIError)?.errorDescription ?? "Не удалось отправить в архив"
             await load()
         }
     }
