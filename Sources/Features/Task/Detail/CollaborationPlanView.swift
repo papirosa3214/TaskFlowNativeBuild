@@ -420,6 +420,7 @@ public struct CollaborationPlanView: View {
             CollaborationPlanGraph(
                 entries: graphEntries(for: plan),
                 edges: graphEdges(for: plan),
+                returns: graphReturns(for: plan),
                 onTap: { slot in
                     let assignments = plan.nodes.filter { $0.roleKey == slot && !$0.isSkipped }
                     let node = assignments.first { $0.executionState == "active" }
@@ -488,6 +489,21 @@ public struct CollaborationPlanView: View {
                   seen.insert("\(from):\(to)").inserted else { return nil }
             return ApiCollaborationPlanEdge(fromSlotKey: from, toSlotKey: to, startCondition: edge.startCondition)
         }
+    }
+
+    /// Возвраты между ролями в общем плане ветки: ключ «кто вернул:кому»,
+    /// значение — отработаны ли все такие возвраты (шаг-доработка сдан).
+    private func graphReturns(for plan: ApiCollaborationPlan) -> [String: Bool] {
+        guard plan.branchTeam != nil else { return [:] }
+        let nodes = Dictionary(plan.nodes.map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
+        var result: [String: Bool] = [:]
+        for edge in plan.edges {
+            guard let from = nodes[edge.fromSlotKey], let to = nodes[edge.toSlotKey], from.roleKey != to.roleKey,
+                  from.executionState == "returned", to.origin == "rework", !to.isSkipped else { continue }
+            let key = "\(from.roleKey):\(to.roleKey)"
+            result[key] = (result[key] ?? true) && ["accepted", "returned"].contains(to.executionState ?? "")
+        }
+        return result
     }
 
     static func stateLabel(_ state: String) -> String {
@@ -564,10 +580,15 @@ private struct CollaborationPlanGraph: View {
     let entries: [Entry]
     let edges: [ApiCollaborationPlanEdge]
     /// Тап по шагу — подробности и правка (живой план, 01.10.2026).
+    /// Круговой граф: возвраты между ролями, «кто вернул:кому» → отработан ли.
+    var returns: [String: Bool] = [:]
     var onTap: (String) -> Void = { _ in }
 
-    private let nodeHeight: CGFloat = 56
-    private let nodeWidth: CGFloat = 56
+    private var isRing: Bool { entries.contains(where: \.isParticipant) }
+    private var nodeHeight: CGFloat { isRing ? 64 : 56 }
+    private var nodeWidth: CGFloat { isRing ? 64 : 56 }
+    /// Изгиб пары «возврат — отработка»: малый, чтобы стрелки шли рядом.
+    private let returnBend: CGFloat = 16
     private var rowStep: CGFloat { nodeHeight + 20 }
 
     /// waiting-узел, у которого предшественники (если есть) все уже done
@@ -625,8 +646,19 @@ private struct CollaborationPlanGraph: View {
                         for edge in edges {
                             guard let fromCenter = centers[edge.fromSlotKey], let toCenter = centers[edge.toSlotKey] else { continue }
                             if entries.contains(where: \.isParticipant) {
-                                let path = participantConnection(from: fromCenter, to: toCenter)
-                                context.stroke(path, with: .color(ready.contains(edge.fromSlotKey) ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.75)), lineWidth: 1.2)
+                                if returns["\(edge.fromSlotKey):\(edge.toSlotKey)"] != nil {
+                                    // Возврат на доработку — пунктиром, вплотную к парной стрелке отработки.
+                                    let link = participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
+                                    context.stroke(link.line, with: .color(Color.tfOrange), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                                    context.stroke(link.head, with: .color(Color.tfOrange), lineWidth: 1.5)
+                                    continue
+                                }
+                                // Обычную обратную связь заменяет пунктир отработанного возврата (ниже).
+                                if returns["\(edge.toSlotKey):\(edge.fromSlotKey)"] == true { continue }
+                                let link = participantConnection(from: fromCenter, to: toCenter)
+                                let color = ready.contains(edge.fromSlotKey) ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.75)
+                                context.stroke(link.line, with: .color(color), lineWidth: 1.2)
+                                context.stroke(link.head, with: .color(color), lineWidth: 1.2)
                                 continue
                             }
                             let horizontal = isLinear
@@ -688,6 +720,13 @@ private struct CollaborationPlanGraph: View {
                                 lineWidth: isReadyPath ? 1.5 : 1
                             )
                         }
+                        for (key, worked) in returns where worked {
+                            let roles = key.split(separator: ":").map(String.init)
+                            guard roles.count == 2, let fromCenter = centers[roles[1]], let toCenter = centers[roles[0]] else { continue }
+                            let link = participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
+                            context.stroke(link.line, with: .color(Color.tfGreen), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                            context.stroke(link.head, with: .color(Color.tfGreen), lineWidth: 1.5)
+                        }
                     }
 
                     ForEach(entries) { entry in
@@ -715,7 +754,7 @@ private struct CollaborationPlanGraph: View {
     private func node(_ entry: Entry, state: String) -> some View {
         ZStack(alignment: .topTrailing) {
             TFAvatar(
-                size: .node,
+                size: isRing ? .ringNode : .node,
                 initials: initials(for: entry.title),
                 tint: Color.tfCard2,
                 accessibilityLabel: "Аватар: \(entry.title)",
@@ -752,6 +791,8 @@ private struct CollaborationPlanGraph: View {
                 Text(entry.taskNumbers.map { $0 == 0 ? "⌂" : String($0) }.joined(separator: ","))
                     .tfText(.caption).foregroundStyle(Color.tfSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .offset(y: 17)
             }
         }
         .contentShape(Rectangle())
@@ -802,7 +843,7 @@ private struct CollaborationPlanGraph: View {
     }
 
     private var graphHeight: CGFloat {
-        if entries.contains(where: \.isParticipant) { return 280 }
+        if entries.contains(where: \.isParticipant) { return 300 }
         if isLinear { return nodeHeight + linearTopPad }
         let rows = (levels.values.max() ?? 0) + 1
         return nodeHeight + CGFloat(rows - 1) * rowStep
@@ -810,7 +851,7 @@ private struct CollaborationPlanGraph: View {
 
     private func layout(width: CGFloat) -> [String: (center: CGPoint, width: CGFloat)] {
         if entries.contains(where: \.isParticipant) {
-            let radius = min(104, max(60, width / 2 - 36))
+            let radius = min(104, max(60, width / 2 - nodeWidth / 2 - 8))
             return Dictionary(uniqueKeysWithValues: entries.enumerated().map { index, entry in
                 let angle = -CGFloat.pi / 2 + CGFloat(index) * 2 * .pi / CGFloat(max(entries.count, 1))
                 return (entry.slotKey, (center: CGPoint(x: width / 2 + radius * cos(angle), y: 140 + radius * sin(angle)), width: nodeWidth))
@@ -846,27 +887,28 @@ private struct CollaborationPlanGraph: View {
 
     /// Directed curves use opposite sides for reciprocal edges. Their end
     /// points follow the tangents, so arrowheads remain outside the avatars.
-    private func participantConnection(from source: CGPoint, to target: CGPoint) -> Path {
+    private func participantConnection(from source: CGPoint, to target: CGPoint, maxBend: CGFloat = 44) -> (line: Path, head: Path) {
         let dx = target.x - source.x, dy = target.y - source.y
         let distance = max(1, hypot(dx, dy))
-        let bend = min(44, distance * 0.28)
+        let bend = min(maxBend, distance * 0.28)
         let control = CGPoint(x: (source.x + target.x) / 2 - dy / distance * bend,
                               y: (source.y + target.y) / 2 + dx / distance * bend)
         func port(_ center: CGPoint, toward point: CGPoint) -> CGPoint {
             let length = max(1, hypot(point.x - center.x, point.y - center.y))
-            return CGPoint(x: center.x + (point.x - center.x) / length * 40,
-                           y: center.y + (point.y - center.y) / length * 40)
+            return CGPoint(x: center.x + (point.x - center.x) / length * (nodeWidth / 2 + 12),
+                           y: center.y + (point.y - center.y) / length * (nodeWidth / 2 + 12))
         }
         let start = port(source, toward: control), end = port(target, toward: control)
         let tangentLength = max(1, hypot(end.x - control.x, end.y - control.y))
         let ux = (end.x - control.x) / tangentLength, uy = (end.y - control.y) / tangentLength
-        var path = Path()
-        path.move(to: start)
-        path.addQuadCurve(to: end, control: control)
-        path.move(to: CGPoint(x: end.x - ux * 6 - uy * 3, y: end.y - uy * 6 + ux * 3))
-        path.addLine(to: end)
-        path.addLine(to: CGPoint(x: end.x - ux * 6 + uy * 3, y: end.y - uy * 6 - ux * 3))
-        return path
+        var line = Path()
+        line.move(to: start)
+        line.addQuadCurve(to: end, control: control)
+        var head = Path()
+        head.move(to: CGPoint(x: end.x - ux * 6 - uy * 3, y: end.y - uy * 6 + ux * 3))
+        head.addLine(to: end)
+        head.addLine(to: CGPoint(x: end.x - ux * 6 + uy * 3, y: end.y - uy * 6 - ux * 3))
+        return (line, head)
     }
 
     private func initials(for title: String) -> String {
