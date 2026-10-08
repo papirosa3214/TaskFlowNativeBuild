@@ -190,6 +190,7 @@ struct RoleLiveTurnBubble: View {
     let turn: RoleChatLiveTurn
     let showsName: Bool
     var isComplete = false
+    var pacesText = true
     var onPlaybackComplete: () -> Void = {}
     @State private var completionReported = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -204,8 +205,8 @@ struct RoleLiveTurnBubble: View {
                     .tfText(.meta)
                     .foregroundStyle(Color.tfSub)
             }
-            if !visibleItems.isEmpty {
-                RoleLiveItemsList(items: visibleItems, fade: reduceMotion ? nil : fade)
+            if !(pacesText ? visibleItems : turn.items).isEmpty {
+                RoleLiveItemsList(items: pacesText ? visibleItems : turn.items, fade: pacesText && !reduceMotion ? fade : nil)
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
             if turn.thinking != nil && turn.runningThinking == nil {
@@ -218,9 +219,10 @@ struct RoleLiveTurnBubble: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear { ingest(turn.items) }
-        .onChange(of: turn.items) { _, items in ingest(items) }
+        .onAppear { if pacesText { ingest(turn.items) } }
+        .onChange(of: turn.items) { _, items in if pacesText { ingest(items) } }
         .task(id: isComplete) {
+            guard pacesText else { return }
             // Часы очереди: ~60 раз в секунду, но экран перерисовывается
             // только когда показалось новое слово.
             while !Task.isCancelled {

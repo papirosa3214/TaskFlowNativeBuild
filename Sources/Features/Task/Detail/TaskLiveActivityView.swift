@@ -13,7 +13,7 @@ struct TaskLiveActivityView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if let live {
-                RoleLiveTurnBubble(turn: live.turn, showsName: false, isComplete: live.complete)
+                RoleLiveTurnBubble(turn: live.turn, showsName: false, isComplete: live.complete, pacesText: false)
                     .id(live.runID)
                     .accessibilityIdentifier("plan-slot-stream")
             } else {

@@ -89,7 +89,14 @@ struct PlanStepDetailSheet: View {
                             TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".live")
                         })) {
                             if isLiveExpanded {
-                                TaskLiveActivityView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
+                                ScrollView(.vertical) {
+                                    TaskLiveActivityView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(height: UIScreen.main.bounds.height * 0.5)
+                                .defaultScrollAnchor(.bottom)
+                                .scrollBounceBehavior(.basedOnSize)
+                                .accessibilityIdentifier("plan-slot-live-window")
                             }
                         } label: {
                             LabeledContent("Состояние") {
