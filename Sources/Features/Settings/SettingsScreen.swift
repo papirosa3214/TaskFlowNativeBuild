@@ -189,6 +189,9 @@ struct SettingsScreen: View {
     private var serverSection: some View {
         section(title: "Сервер", isExpanded: $serverExpanded) {
             if session.currentUser?.role == .owner {
+                navRow(icon: "slider.horizontal.3", title: "Параметры", route: .serverSettings)
+                    .accessibilityIdentifier("settings-server-parameters")
+                TFDivider(inset: rowDividerInset)
                 SystemControlSection()
                 TFDivider(inset: rowDividerInset)
                 ServerRestartRow()

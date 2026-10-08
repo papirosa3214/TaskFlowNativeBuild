@@ -107,6 +107,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         RuntimeProvidersScreen()
     case .providerDetail(let providerID):
         ProviderDetailScreen(providerID: providerID)
+    case .serverSettings:
+        ServerSettingsScreen()
     case .runtimeStatus:
         RuntimeStatusScreen()
     case .serviceAccounts:

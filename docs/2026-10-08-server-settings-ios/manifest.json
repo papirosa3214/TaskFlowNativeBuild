@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "ACD803F7-B87B-4AE2-8128-63CF5B293562.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "server-settings-history-live_0_E885DF3B-A641-4456-86C8-57C4CD81A02E.png",
+        "timestamp" : 1791471298.163
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "8200FA17-690B-4DEA-A7A9-52F85D967253.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "server-settings-groups-live_0_600C59CD-23FC-49A6-AC45-4FD71AEACBE8.png",
+        "timestamp" : 1791471275.062
+      }
+    ],
+    "testIdentifier" : "ServerSettingsUITests/testPrimaryNumericSaveResetAndBoolean()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ServerSettingsUITests/testPrimaryNumericSaveResetAndBoolean"
+  }
+]

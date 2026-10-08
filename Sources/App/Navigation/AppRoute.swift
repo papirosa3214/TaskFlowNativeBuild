@@ -68,6 +68,7 @@ public enum AppRoute: Hashable {
     case runtimeProviders
     case providerDetail(providerID: String)
     /// LOCK-180: статус Pi Runtime из «Настройки → Сервер».
+    case serverSettings
     case runtimeStatus
     /// LOCK-181: сервисные учётки (`ApiUser` + API-токен), переехали из «Команды».
     case serviceAccounts
