@@ -15,6 +15,25 @@ final class ServerSettingsUITests: XCTestCase {
         row.tap()
         return app
     }
+    func testReadableTimeUnits() {
+        continueAfterFailure = false
+        let app = openSettings(fixture: false)
+        let probe = app.buttons["server-setting-provider_probe_interval_ms"]
+        XCTAssertTrue(probe.waitForExistence(timeout: 20))
+        XCTAssertTrue(probe.staticTexts["5 мин"].exists)
+        let pause = app.buttons["server-setting-slot_stop_summary_ms"]
+        XCTAssertTrue(pause.staticTexts["30 с"].exists)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "server-settings-readable-time-units"
+        shot.lifetime = .keepAlways
+        add(shot)
+        pause.tap()
+        let input = app.textFields["server-setting-value"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertEqual(input.value as? String, "30")
+        XCTAssertTrue(app.staticTexts["Единица: с"].exists)
+        XCTAssertTrue(app.staticTexts["По умолчанию: 30 с"].exists)
+    }
     func testPrimaryNumericSaveResetAndBoolean() {
         continueAfterFailure = false
         let app = openSettings(fixture: false)

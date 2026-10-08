@@ -53,8 +53,7 @@ struct ServerSettingsScreen: View {
                                 HStack {
                                     Text(setting.label).foregroundStyle(Color.tfText)
                                     Spacer()
-                                    Text((snapshot.values[setting.key] ?? setting.defaultValue).serverSettingText +
-                                         (setting.unit.isEmpty ? "" : " " + setting.unit))
+                                    Text(setting.displayText(snapshot.values[setting.key] ?? setting.defaultValue))
                                         .foregroundStyle(Color.tfSub)
                                     Image(systemName: "chevron.right").foregroundStyle(Color.tfSub)
                                 }
@@ -92,7 +91,7 @@ struct ServerSettingsScreen: View {
                     ForEach(model.log) { entry in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(model.snapshot?.settings.first { $0.key == entry.key }?.label ?? entry.key)
-                            Text("\(readableLogValue(entry.oldValue)) → \(readableLogValue(entry.newValue))")
+                            Text("\(readableLogValue(entry.oldValue, key: entry.key)) → \(readableLogValue(entry.newValue, key: entry.key))")
                                 .foregroundStyle(Color.tfSub)
                             if let reason = entry.reason, !reason.isEmpty { Text(reason).font(.caption) }
                             Text(entry.createdAt).font(.caption).foregroundStyle(Color.tfSub)
@@ -105,11 +104,11 @@ struct ServerSettingsScreen: View {
             }
         }
     }
-    private func readableLogValue(_ raw: String?) -> String {
+    private func readableLogValue(_ raw: String?, key: String) -> String {
         guard let raw else { return "По умолчанию" }
         guard let data = raw.data(using: .utf8),
               let value = try? JSONDecoder().decode(JSONValue.self, from: data) else { return raw }
-        return value.serverSettingText
+        return model.snapshot?.settings.first { $0.key == key }?.displayText(value) ?? value.serverSettingText
     }
     private func groupTitle(_ group: String) -> String {
         switch group {
@@ -156,13 +155,12 @@ private struct ServerSettingEditor: View {
                             .accessibilityIdentifier("server-setting-value")
                         if !setting.unit.isEmpty { Text("Единица: " + setting.unit).foregroundStyle(Color.tfSub) }
                         if let min = setting.min, let max = setting.max {
-                            Text("От \(min.formatted()) до \(max.formatted())").foregroundStyle(Color.tfSub)
+                            Text("От \(setting.displayNumber(min)) до \(setting.displayNumber(max))").foregroundStyle(Color.tfSub)
                         }
                     }
                 } header: { Text(setting.label) }
                 footer: {
-                    Text("По умолчанию: " + setting.defaultValue.serverSettingText +
-                         (setting.unit.isEmpty ? "" : " " + setting.unit))
+                    Text("По умолчанию: " + setting.displayText(setting.defaultValue))
                 }
                 if let error { Section { Text(error).foregroundStyle(Color.tfCoral) } }
                 Section {
@@ -184,7 +182,7 @@ private struct ServerSettingEditor: View {
                 Button("Сбросить") { Task { await reset() } }
             }
             .onAppear {
-                if case .number(let v) = value { number = String(v).hasSuffix(".0") ? String(v).dropLast(2).description : String(v) }
+                if case .number(let v) = value { number = setting.displayNumber(v) }
                 if case .bool(let v) = value { enabled = v }
                 if case .string(let v) = value { option = v }
             }

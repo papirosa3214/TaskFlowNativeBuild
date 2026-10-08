@@ -18,19 +18,35 @@ struct ServerSetting: Decodable, Identifiable, Sendable {
         switch kind {
         case "duration_min": "мин"
         case "duration_sec": "с"
-        case "duration_ms", "interval_ms": "мс"
+        case "duration_ms", "interval_ms": displayDivisor == 60_000 ? "мин" : "с"
         default: ""
         }
+    }
+    var displayDivisor: Double {
+        guard kind == "duration_ms" || kind == "interval_ms" else { return 1 }
+        if case .number(let value) = defaultValue, value >= 60_000, value.truncatingRemainder(dividingBy: 60_000) == 0 { return 60_000 }
+        return 1_000
+    }
+    func displayNumber(_ value: Double) -> String {
+        (value / displayDivisor).formatted(.number.grouping(.never).precision(.fractionLength(0...6)))
+    }
+    func displayText(_ value: JSONValue) -> String {
+        if case .number(let number) = value {
+            return displayNumber(number) + (unit.isEmpty ? "" : " " + unit)
+        }
+        return value.serverSettingText
     }
     func validatedNumber(_ text: String) throws -> JSONValue {
         guard let number = Double(text.replacingOccurrences(of: ",", with: ".")),
               number.isFinite else {
             throw SettingValidationError(message: "Введите число")
         }
+        let storedNumber = number * displayDivisor
+        guard storedNumber.isFinite else { throw SettingValidationError(message: "Введите число") }
         if kind == "int" && number.rounded() != number { throw SettingValidationError(message: "Введите целое число") }
-        if let min, number < min { throw SettingValidationError(message: "Минимум: " + min.formatted()) }
-        if let max, number > max { throw SettingValidationError(message: "Максимум: " + max.formatted()) }
-        return .number(number)
+        if let min, storedNumber < min { throw SettingValidationError(message: "Минимум: " + displayNumber(min) + (unit.isEmpty ? "" : " " + unit)) }
+        if let max, storedNumber > max { throw SettingValidationError(message: "Максимум: " + displayNumber(max) + (unit.isEmpty ? "" : " " + unit)) }
+        return .number(storedNumber)
     }
 }
 struct SettingValidationError: LocalizedError {

@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "B000985C-DD20-46C3-A7F1-FA27D2D68BC5.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "server-settings-readable-time-units_0_BA738AFB-2223-4DBD-8CD8-FA2E469B206D.png",
+        "timestamp" : 1791471690.155
+      }
+    ],
+    "testIdentifier" : "ServerSettingsUITests/testReadableTimeUnits()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ServerSettingsUITests/testReadableTimeUnits"
+  }
+]

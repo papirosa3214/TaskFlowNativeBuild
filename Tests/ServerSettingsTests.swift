@@ -15,6 +15,16 @@ final class ServerSettingsTests: XCTestCase {
         XCTAssertThrowsError(try s.validatedNumber("nan"))
         XCTAssertThrowsError(try s.validatedNumber("abc"))
     }
+    func testMillisecondsConvertInputBoundsAndDisplay() throws {
+        let data = Data(#"{"key":"pause","label":"Пауза","group":"таймауты","kind":"duration_ms","default":30000,"min":1000,"max":120000}"#.utf8)
+        let seconds = try JSONDecoder().decode(ServerSetting.self, from: data)
+        XCTAssertEqual(seconds.displayText(.number(30000)), "30 с")
+        XCTAssertEqual(try seconds.validatedNumber("1,5"), .number(1500))
+        XCTAssertThrowsError(try seconds.validatedNumber("121"))
+        let minutes = try JSONDecoder().decode(ServerSetting.self, from: Data(String(decoding: data, as: UTF8.self).replacingOccurrences(of: "30000", with: "300000").utf8))
+        XCTAssertEqual(minutes.displayText(.number(300000)), "5 мин")
+        XCTAssertEqual(try minutes.validatedNumber("1,5"), .number(90000))
+    }
     func testIntegerCountsDoNotAcceptFraction() throws {
         XCTAssertThrowsError(try setting(kind: "int").validatedNumber("2.5"))
     }
