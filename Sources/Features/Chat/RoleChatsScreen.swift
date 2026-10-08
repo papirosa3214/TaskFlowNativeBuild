@@ -1397,7 +1397,7 @@ struct RoleChatRoomScreen: View {
                 if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 } else if !message.text.isEmpty {
-                    RoleReplyMarkdown(text: message.text)
+                    RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                 }
                 nonVoiceAttachments(message)
                 if isAgentReply(message) && !isSelecting { messageActions(message) }
@@ -1488,7 +1488,7 @@ struct RoleChatRoomScreen: View {
                     } else {
                         // В группе ответы ролей тоже с разметкой, таблицами,
                         // виджетами и артефактами — раньше здесь были звёздочки.
-                        RoleReplyMarkdown(text: message.text)
+                        RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                     }
                 }
                 if !mine && isAgentReply(message) && !isSelecting {

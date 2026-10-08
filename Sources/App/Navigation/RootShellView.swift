@@ -98,15 +98,33 @@ struct RootShellView: View {
     @State private var debugTaskSheetID: String?
     #endif
 
+    @ViewBuilder
+    private var mainTabContent: some View {
+        switch selectedTab {
+        case .overview: navigationStack(for: .overview)
+        case .projects: navigationStack(for: .projects)
+        case .upcoming: navigationStack(for: .upcoming)
+        case .chat: navigationStack(for: .chat)
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Group {
-                switch selectedTab {
-                case .overview: navigationStack(for: .overview)
-                case .projects: navigationStack(for: .projects)
-                case .upcoming: navigationStack(for: .upcoming)
-                case .chat: navigationStack(for: .chat)
+                #if DEBUG
+                if let command = ProcessInfo.processInfo.environment["TASKFLOW_OWNER_COMMAND_PREVIEW"] {
+                    NavigationStack {
+                        List {
+                            RoleReplyMarkdown(text: "```bash\n" + command + "\n```", allowsCommands: true)
+                        }
+                        .navigationTitle("Команда роли")
+                    }
+                } else {
+                    mainTabContent
                 }
+                #else
+                mainTabContent
+                #endif
             }
             #if DEBUG
             // Отдельный узел (не тот, что несёт `.sheet(item: $quickAddDraft)`

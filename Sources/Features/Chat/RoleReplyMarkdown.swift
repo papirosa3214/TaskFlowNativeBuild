@@ -7,6 +7,7 @@ import SwiftUI
 struct RoleReplyMarkdown: View {
     let text: String
     var color: Color = .tfText
+    var allowsCommands = false
     /// Проявление хвоста у идущего ответа (30.09.2026); nil — готовый текст.
     var fade: RoleTextFade?
 
@@ -44,7 +45,7 @@ struct RoleReplyMarkdown: View {
     private func segmentView(_ segment: ChatRichSegment, fade: RoleTextFade?) -> some View {
         switch segment {
         case .markdown(let part):
-            RoleReplyMarkdown(text: part, color: color, fade: fade)
+            RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: fade)
         case .table(let table):
             ChatTableView(table: table, color: color)
         case .widget(let json):
@@ -132,7 +133,11 @@ struct RoleReplyMarkdown: View {
                     .foregroundStyle(Color.tfSub)
             }
             .fixedSize(horizontal: false, vertical: true)
-        case .codeBlock:
+        case .codeBlock(let language):
+            if allowsCommands && fade == nil && language?.lowercased() == "bash" {
+                BashCommandBlock(command: block.runs.map(\.text).joined())
+                    .id(block.runs.map(\.text).joined())
+            } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(block.runs.map(\.text).joined())
                     .font(.system(.callout, design: .monospaced))
@@ -143,6 +148,7 @@ struct RoleReplyMarkdown: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.tfCard)
             .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+            }
         case .horizontalRule:
             Divider()
         case .table:

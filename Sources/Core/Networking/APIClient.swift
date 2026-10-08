@@ -50,11 +50,14 @@ public final class APIClient: Sendable {
         _ path: String,
         query: [URLQueryItem] = [],
         body: (any Encodable)? = nil,
-        timeout: TimeInterval? = nil
+        timeout: TimeInterval? = nil,
+        acceptedErrorStatuses: Set<Int> = []
     ) async throws -> Response {
         let request = try buildRequest(method: method, path: path, query: query, body: body, timeout: timeout)
         let (data, http) = try await send(request)
-        try Self.throwIfError(status: http.statusCode, data: data, request: request)
+        if !acceptedErrorStatuses.contains(http.statusCode) {
+            try Self.throwIfError(status: http.statusCode, data: data, request: request)
+        }
         do {
             return try decoder.decode(Response.self, from: data)
         } catch {
