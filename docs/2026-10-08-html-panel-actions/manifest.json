@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "1379A872-B757-4BDA-B3EE-AFB13667C858.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "panel-live-server-result_0_77FE173A-84EA-4B07-AA31-8A307A5DE777.png",
+        "timestamp" : 1791475476.777
+      }
+    ],
+    "testIdentifier" : "PanelCommandUITests/testCancelConfirmAndResultInsideHTML()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/PanelCommandUITests/testCancelConfirmAndResultInsideHTML"
+  }
+]

@@ -9,10 +9,12 @@ import WebKit
 ///
 /// Песочница: отдельный WKWebView без общих cookie и хранилища
 /// (`nonPersistent`), переходы по ссылкам уходят в Safari, а не внутрь
-/// артефакта, у страницы нет мостов в приложение, кроме сообщения о своей
-/// высоте. Скрипты с CDN (Chart.js, D3 и т.п.) грузятся — базовый адрес https.
+/// артефакта, страница сообщает высоту и может запросить команду через
+/// TaskFlow.runCommand; выполнение требует нативного подтверждения владельца. Скрипты с CDN (Chart.js, D3 и т.п.) грузятся — базовый адрес https.
 struct ChatHTMLView: View {
     let html: String
+    var allowsCommands = false
+    @State private var commands = PanelCommandBridge()
     @State private var height: CGFloat = 160
     @State private var isFullScreen = false
 
@@ -22,16 +24,18 @@ struct ChatHTMLView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if commands.running { ProgressView("Выполняется на .110…") }
             Divider()
-            ChatWebView(html: html, height: $height, isScrollEnabled: height > Self.inlineMaxHeight)
+            ChatWebView(html: html, height: $height, isScrollEnabled: height > Self.inlineMaxHeight, commands: commands, allowsCommands: allowsCommands)
                 .frame(height: min(max(height, 60), Self.inlineMaxHeight))
         }
         .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.xl))
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
+        .modifier(PanelCommandConfirmation(bridge: commands, active: !isFullScreen))
         .fullScreenCover(isPresented: $isFullScreen) {
             NavigationStack {
-                ChatWebView(html: html, height: .constant(0), isScrollEnabled: true)
+                ChatWebView(html: html, height: .constant(0), isScrollEnabled: true, commands: commands, allowsCommands: allowsCommands)
                     .ignoresSafeArea(edges: .bottom)
                     .background(Color.tfBackground)
                     .navigationTitle(Self.title(of: html) ?? "Интерактив")
@@ -47,6 +51,7 @@ struct ChatHTMLView: View {
                         }
                     }
             }
+            .modifier(PanelCommandConfirmation(bridge: commands, active: true))
         }
     }
 
@@ -121,6 +126,8 @@ struct ChatWebView: UIViewRepresentable {
     let html: String
     @Binding var height: CGFloat
     var isScrollEnabled: Bool
+    var commands: PanelCommandBridge? = nil
+    var allowsCommands = false
 
     /// Сообщает высоту документа при каждом её изменении.
     private static let heightScript = """
@@ -135,7 +142,7 @@ struct ChatWebView: UIViewRepresentable {
     })();
     """
 
-    func makeCoordinator() -> Coordinator { Coordinator(height: $height) }
+    func makeCoordinator() -> Coordinator { Coordinator(height: $height, commands: commands, allowed: allowsCommands) }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -146,6 +153,8 @@ struct ChatWebView: UIViewRepresentable {
                                               injectionTime: .atDocumentEnd,
                                               forMainFrameOnly: true))
         controller.add(WeakMessageHandler(context.coordinator), name: "tfHeight")
+        controller.add(WeakMessageHandler(context.coordinator), name: "tfCommand")
+        controller.addUserScript(WKUserScript(source: PanelCommandBridge.javascript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.userContentController = controller
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -162,20 +171,25 @@ struct ChatWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         webView.scrollView.isScrollEnabled = isScrollEnabled
         webView.scrollView.bounces = isScrollEnabled
+        context.coordinator.commands = commands
+        context.coordinator.allowed = allowsCommands
         context.coordinator.height = $height
         context.coordinator.load(html, into: webView)
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "tfHeight")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "tfCommand")
     }
 
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var height: Binding<CGFloat>
+        var commands: PanelCommandBridge?
+        var allowed: Bool
         private var loadedHTML: String?
 
-        init(height: Binding<CGFloat>) { self.height = height }
+        init(height: Binding<CGFloat>, commands: PanelCommandBridge?, allowed: Bool) { self.height = height; self.commands = commands; self.allowed = allowed }
 
         /// Грузим только новый код: перерисовка ленты не должна сбрасывать
         /// состояние артефакта (набранное, нажатое).
@@ -187,7 +201,13 @@ struct ChatWebView: UIViewRepresentable {
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let value = message.body as? NSNumber else { return }
+            if message.name == "tfCommand" {
+                guard message.frameInfo.isMainFrame, let webView = message.webView,
+                      webView.url?.host == "artifact.taskflow.local" else { return }
+                commands?.receive(message.body, from: webView, allowed: allowed)
+                return
+            }
+            guard message.name == "tfHeight", let value = message.body as? NSNumber else { return }
             let newHeight = CGFloat(truncating: value)
             guard newHeight > 0, abs(newHeight - height.wrappedValue) > 1 else { return }
             DispatchQueue.main.async { self.height.wrappedValue = newHeight }
@@ -200,6 +220,8 @@ struct ChatWebView: UIViewRepresentable {
                 await UIApplication.shared.open(url)
                 return .cancel
             }
+            if action.targetFrame?.isMainFrame == true, let url = action.request.url,
+               url.scheme != "about", url.host != "artifact.taskflow.local" { return .cancel }
             return .allow
         }
     }

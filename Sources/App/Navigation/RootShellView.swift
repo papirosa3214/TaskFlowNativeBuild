@@ -112,7 +112,12 @@ struct RootShellView: View {
         ZStack(alignment: .bottom) {
             Group {
                 #if DEBUG
-                if let command = ProcessInfo.processInfo.environment["TASKFLOW_OWNER_COMMAND_PREVIEW"] {
+                if let html = ProcessInfo.processInfo.environment["TASKFLOW_PANEL_PREVIEW"] {
+                    NavigationStack {
+                        ScrollView { RoleReplyMarkdown(text: "```html\n" + html + "\n```", allowsCommands: ProcessInfo.processInfo.environment["TASKFLOW_PANEL_DENIED"] != "1").padding() }
+                            .navigationTitle("Панель роли")
+                    }
+                } else if let command = ProcessInfo.processInfo.environment["TASKFLOW_OWNER_COMMAND_PREVIEW"] {
                     NavigationStack {
                         List {
                             RoleReplyMarkdown(text: "```bash\n" + command + "\n```", allowsCommands: true)

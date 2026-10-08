@@ -51,7 +51,7 @@ struct RoleReplyMarkdown: View {
         case .widget(let json):
             ChatWidgetView(json: json)
         case .html(let html):
-            ChatHTMLView(html: html)
+            ChatHTMLView(html: html, allowsCommands: allowsCommands && fade == nil)
         case .pending(let kind):
             HStack(spacing: TFSpacing.sm) {
                 ProgressView()
