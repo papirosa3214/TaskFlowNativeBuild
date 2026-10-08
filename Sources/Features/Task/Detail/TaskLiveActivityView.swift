@@ -1,39 +1,70 @@
 import SwiftUI
 
-/// Опрос выполняется только пока раскрыт текущий ход работы.
+/// Живой ход по WebSocket; REST восстанавливает снимок при открытии и разрыве.
 struct TaskLiveActivityView: View {
     let taskID: String
     let subtaskID: String?
+    @State private var live: TaskLiveTurn?
+    @State private var realtime = RealtimeClient()
     @State private var activity = ApiTaskActivity.idle
     @State private var errorText: String?
     @State private var loaded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            if let text = activity.text, !text.isEmpty { Text(text).textSelection(.enabled).accessibilityIdentifier("plan-slot-live-text") }
-            if !activity.actions.isEmpty {
-                HStack(spacing: TFSpacing.sm) {
+            if let live {
+                RoleLiveTurnBubble(turn: live.turn, showsName: false, isComplete: live.complete)
+                    .id(live.runID)
+                    .accessibilityIdentifier("plan-slot-stream")
+            } else {
+                if let text = activity.text, !text.isEmpty { Text(text).textSelection(.enabled).accessibilityIdentifier("plan-slot-live-text") }
+                if !activity.actions.isEmpty {
                     Text("Действий: \(activity.total ?? activity.actions.count)")
-                    ForEach(Array(activity.actions.suffix(5))) { action in
-                        Image(systemName: icon(action.kind))
-                            .accessibilityLabel(action.text ?? action.kind)
+                        .foregroundStyle(Color.tfSub)
+                    ForEach(activity.actions) { action in
+                        HStack(alignment: .top, spacing: TFSpacing.sm) {
+                            Image(systemName: icon(action.kind))
+                                .foregroundStyle(Color.tfSub)
+                                .frame(width: 18)
+                            Text(action.text ?? "Выполняет действие")
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(action.date.formatted(date: .omitted, time: .standard))
+                                .font(.caption)
+                                .foregroundStyle(Color.tfSub)
+                        }
+                        .accessibilityIdentifier("plan-slot-action")
                     }
-                }
-                .foregroundStyle(Color.tfSub)
-                if activity.text == nil, let text = activity.actions.last?.text { Text(text).textSelection(.enabled) }
-            } else if loaded && activity.text == nil {
-                Text(errorText ?? "Новых действий пока нет").foregroundStyle(Color.tfSub)
-            } else if !loaded { ProgressView() }
+                } else if loaded && activity.text == nil {
+                    Text(errorText ?? "Новых действий пока нет").foregroundStyle(Color.tfSub)
+                } else if !loaded { ProgressView() }
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("plan-slot-live-content")
         .task(id: "\(taskID):\(subtaskID ?? "")") {
+            live = nil
+            realtime.onEvent = { event in
+                if case .taskLive(let turn) = event,
+                   turn.taskID == taskID, turn.subtaskID == subtaskID {
+                    live = turn
+                }
+            }
+            realtime.connect()
+            defer { realtime.disconnect(); realtime.onEvent = nil }
             activity = .idle
             loaded = false
             errorText = nil
             let api = APIClient()
             while !Task.isCancelled {
                 do {
+                    // REST covers opening mid-run and missed WebSocket events.
+                    if let turns = try? await api.taskLiveTurns(taskID: taskID),
+                       let turn = turns.first(where: { $0.subtaskID == subtaskID }) {
+                        if live?.turn.startedAt == nil || (turn.turn.startedAt ?? "") >= (live?.turn.startedAt ?? "") {
+                            live = turn
+                        }
+                    }
                     activity = try await api.taskActivity(taskId: taskID).forSubtask(subtaskID)
                     errorText = nil
                 } catch {
@@ -41,7 +72,7 @@ struct TaskLiveActivityView: View {
                     errorText = "Не удалось обновить действия"
                 }
                 loaded = true
-                do { try await Task.sleep(for: .seconds(15)) } catch { return }
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
             }
         }
     }

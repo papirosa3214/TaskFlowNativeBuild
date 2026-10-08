@@ -21,6 +21,7 @@ public enum RealtimeEvent: Sendable {
     case taskDeleted(id: String)
     case taskState(ApiTask)
     case taskActivity(taskId: String?, raw: JSONValue)
+    case taskLive(TaskLiveTurn)
     case notificationNew(ApiNotification)
     case chatNew(ApiChatMessage)
     case chatTyping(raw: JSONValue)
@@ -118,6 +119,9 @@ public enum RealtimeEvent: Sendable {
                 return .unknown(type: envelope.type, raw: raw)
             }
             return .roleChatTyping(chatId: p.chat_id, userId: p.user_id, name: p.name ?? "", active: p.active, tool: p.tool)
+        case "tasks:live":
+            guard let turn = try? decoder.decode(TaskLiveTurn.self, from: data) else { return .unknown(type: envelope.type, raw: raw) }
+            return .taskLive(turn)
         case "chats:live":
             guard let p = try? decoder.decode(RoleLivePayload.self, from: data) else {
                 return .unknown(type: envelope.type, raw: raw)

@@ -13,3 +13,22 @@ public extension APIClient {
         try await request(.get, "/tasks/\(taskId)/activity")
     }
 }
+
+public struct TaskLiveTurn: Decodable, Sendable, Equatable {
+    public let taskID: String
+    public let subtaskID: String?
+    public let runID: String
+    public let complete: Bool
+    public let turn: RoleChatLiveTurn
+    enum CodingKeys: String, CodingKey {
+        case taskID = "task_id", subtaskID = "subtask_id", runID = "run_id"
+        case complete, turn
+    }
+}
+private struct TaskLiveEnvelope: Decodable { let turns: [TaskLiveTurn] }
+public extension APIClient {
+    func taskLiveTurns(taskID: String) async throws -> [TaskLiveTurn] {
+        let response: TaskLiveEnvelope = try await request(.get, "/tasks/\(taskID)/live")
+        return response.turns
+    }
+}
