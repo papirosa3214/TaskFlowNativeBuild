@@ -16,7 +16,7 @@ public final class CollaborationPlanState {
 
     public init(api: APIClient = APIClient()) { self.api = api }
 
-    func load(taskID: String, reloadToken: Int, force: Bool = false, isOwner: Bool) async {
+    func load(taskID: String, reloadToken: Int, force: Bool = false, isOwner: Bool, focusChildID: String? = nil) async {
         guard !isLoading, force || loadedToken != reloadToken else { return }
         isLoading = true
         defer { isLoading = false }
@@ -26,9 +26,16 @@ public final class CollaborationPlanState {
         guard let plans = try? await plansRequest else { return }
         let steps = ((try? await subtasksRequest) ?? []).filter { $0.collaborationPlanId != nil }
         let titles = ((try? await rolesRequest) ?? []).reduce(into: [String: String]()) { $0[$1.role] = $1.title }
+        // Дочерняя карточка: её собственный план точнее общего плана корня,
+        // поэтому он приоритетнее; нет своего — покажем её шаги из плана корня
+        // (сам срез делается в графе по `task_id`).
+        var ownPlans: [ApiCollaborationPlan] = []
+        if let focusChildID, let fetched = try? await api.collaborationPlans(taskId: focusChildID) {
+            ownPlans = fetched
+        }
         // Unchanged polling responses must not rebuild the graph or its List row.
-        let approved = plans.first { $0.status == "approved" }
-        let draft = plans.first { $0.status == "draft" }
+        let approved = ownPlans.first { $0.status == "approved" } ?? plans.first { $0.status == "approved" }
+        let draft = ownPlans.first { $0.status == "draft" } ?? plans.first { $0.status == "draft" }
         if plan != approved { plan = approved }
         if draftPlan != draft { draftPlan = draft }
         if subtasks != steps { subtasks = steps }

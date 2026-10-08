@@ -780,13 +780,14 @@ struct TaskCardContent: View {
                 detailsContent.modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("details"), identifier: "details", text: "\(nativeDueText), \(viewModel.priority.label), метки: \(nativeLabelsText), исполнитель: \(selectedRoleTitle)", arm: { armedEditors.insert("details") }))
             }
 
-            // Секция целиком скрыта, пока не подтверждено, что approved-план
-            // есть — иначе на обычных карточках оставалась бы пустая строка.
+            // Дочерняя ветки: показываем её собственный граф — свой план, если
+            // он есть, иначе её шаги из общего плана корня (сужение делает сам
+            // граф по `task_id`). Под графом — переход к родителю.
             if let parentID = viewModel.executionStatus?.branchRootTaskId, parentID != taskID {
                 collapsibleSection(.collaborationPlan, title: "План совместной работы") {
-                    parentPlanNotice(parentID)
+                    childBranchPlan(parentID)
                 } preview: {
-                    parentPlanNotice(parentID)
+                    childBranchPlan(parentID)
                 }
             } else if let taskID = viewModel.taskID {
                 if hasCollaborationPlan {
@@ -1195,20 +1196,70 @@ struct TaskCardContent: View {
         }
     }
 
+    /// Ссылка на родительскую задачу — одна на оба вида секции: и рядом со
+    /// строкой, и под графом.
+    private func parentLinkButton(_ id: String) -> some View {
+        Button {
+            if family.contains(where: { $0.id == id }) { switchFamily(id) }
+            else { linkedTaskNavigation = .detail(id) }
+        } label: {
+            Text(family.first(where: { $0.id == id })?.title ?? "Родительская задача")
+                .tfText(.action).foregroundStyle(Color.tfText)
+        }
+        .accessibilityIdentifier("branch-plan.parentLink")
+    }
+
     private func parentPlanNotice(_ id: String) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             Text("Общий план и запуск в родительской задаче")
                 .tfText(.action).foregroundStyle(Color.tfDim)
                 .accessibilityIdentifier("branch-plan.childNotice")
-            Button {
-                if family.contains(where: { $0.id == id }) { switchFamily(id) }
-                else { linkedTaskNavigation = .detail(id) }
-            } label: {
-                Text(family.first(where: { $0.id == id })?.title ?? "Родительская задача")
-                    .tfText(.action).foregroundStyle(Color.tfText)
-            }
-            .accessibilityIdentifier("branch-plan.parentLink")
+            parentLinkButton(id)
         }
+    }
+
+    /// Секция «План совместной работы» на дочерней карточке: граф ролей этой
+    /// карточки (линейной цепочкой, как у одиночной задачи), под ним — переход
+    /// к родителю. Если у карточки нет ни своего плана, ни шагов в плане корня,
+    /// остаётся прежняя строка со ссылкой.
+    @ViewBuilder
+    private func childBranchPlan(_ parentID: String) -> some View {
+        if let cardID = taskID {
+            let state = viewModel.collaborationPlanState
+            let isOwner = session.currentUser?.role == .owner
+            // Строка про родителя нужна только когда показывать нечего: ни
+            // утверждённых шагов, ни черновика, который видит владелец.
+            let showsGraph = hasSteps(of: cardID, in: state.plan)
+                || (isOwner && hasSteps(of: cardID, in: state.draftPlan))
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                CollaborationPlanView(
+                    taskId: parentID,
+                    focusTaskID: cardID,
+                    state: state,
+                    reloadToken: collaborationPlanReloadToken,
+                    subtasks: viewModel.subtasks,
+                    allowsPlanChanges: viewModel.canUsePlan,
+                    hasApprovedPlan: $hasCollaborationPlan,
+                    pendingApprovalPlanId: $pendingPlanApprovalId,
+                    pendingBranchSnapshot: $pendingBranchPlanSnapshot
+                )
+                .listRowSeparator(.hidden)
+                .accessibilityIdentifier("branch-plan.childGraph")
+                if showsGraph {
+                    parentLinkButton(parentID)
+                } else {
+                    parentPlanNotice(parentID)
+                }
+            }
+        }
+    }
+
+    /// Есть ли у карточки шаги в загруженном плане: свой план карточки — это уже
+    /// её шаги; у агрегата ветки ищем узлы с её `task_id`.
+    private func hasSteps(of cardID: String, in plan: ApiCollaborationPlan?) -> Bool {
+        guard let plan else { return false }
+        guard plan.branchTeam != nil else { return !plan.nodes.isEmpty }
+        return plan.nodes.contains { $0.taskId == cardID }
     }
 
     private var linkedTaskQuickAddPresented: Binding<Bool> {

@@ -32,6 +32,11 @@ public struct CollaborationPlanView: View {
 
     private let state: CollaborationPlanState
     private let reloadToken: Int
+    /// Карточка, до которой сужается план ветки: на дочерней показываем её
+    /// шаги из общего плана корня, а не весь граф. nil — обычный режим
+    /// (родительская ветки или одиночная задача): план рисуется целиком,
+    /// как и раньше.
+    private let focusTaskID: String?
     private var plan: ApiCollaborationPlan? { state.plan }
     /// Черновик, ещё не утверждённый — LOCK-249. Показывается владельцу
     /// вместе с той же графовой раскладкой, что и approved — чтобы было
@@ -72,8 +77,9 @@ public struct CollaborationPlanView: View {
 
     private let api = APIClient()
 
-    public init(taskId: String, state: CollaborationPlanState? = nil, reloadToken: Int = 0, subtasks: [ApiSubtask] = [], allowsPlanChanges: Bool = true, hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>, pendingBranchSnapshot: Binding<String?> = .constant(nil)) {
+    public init(taskId: String, focusTaskID: String? = nil, state: CollaborationPlanState? = nil, reloadToken: Int = 0, subtasks: [ApiSubtask] = [], allowsPlanChanges: Bool = true, hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>, pendingBranchSnapshot: Binding<String?> = .constant(nil)) {
         self.taskId = taskId
+        self.focusTaskID = focusTaskID
         self.state = state ?? CollaborationPlanState()
         self.reloadToken = reloadToken
         self.subtasks = subtasks
@@ -95,7 +101,7 @@ public struct CollaborationPlanView: View {
             if let draftPlan, isOwner {
                 draftSection(draftPlan)
             }
-            if let plan {
+            if let plan, showsGraph(plan) {
                 content(for: plan)
             }
         }
@@ -422,6 +428,12 @@ public struct CollaborationPlanView: View {
                 edges: graphEdges(for: plan),
                 returns: graphReturns(for: plan),
                 onTap: { slot in
+                    // В суженном плане дочерней ключ узла — это его слот; в
+                    // круговом графе ветки — роль, и слот ищется по роли.
+                    if focusTaskID != nil {
+                        sheet = .detail(planID: plan.id, slot: slot)
+                        return
+                    }
                     let assignments = plan.nodes.filter { $0.roleKey == slot && !$0.isSkipped }
                     let node = assignments.first { $0.executionState == "active" }
                         ?? assignments.first { ["blocked", "returned", "review"].contains($0.executionState ?? "") }
@@ -449,7 +461,35 @@ public struct CollaborationPlanView: View {
         }
     }
 
+    /// Узлы карточки, до которой сужаем план ветки. Свой план карточки (не
+    /// агрегат ветки) не сужается — он уже про неё. Агрегат корня сужаем по
+    /// `task_id` узла: это и есть прямой срез готовой структуры.
+    private func focusedNodes(in plan: ApiCollaborationPlan) -> [ApiCollaborationPlanNode] {
+        guard let focus = focusTaskID, plan.branchTeam != nil else { return plan.nodes }
+        return plan.nodes.filter { $0.taskId == focus }
+    }
+
+    /// Рисовать ли граф: в суженном режиме — только когда у карточки есть
+    /// шаги в плане. Иначе секция не должна показывать пустой граф.
+    private func showsGraph(_ plan: ApiCollaborationPlan) -> Bool {
+        focusTaskID == nil || !focusedNodes(in: plan).isEmpty
+    }
+
     private func graphEntries(for plan: ApiCollaborationPlan) -> [CollaborationPlanGraph.Entry] {
+        // Дочерняя ветки: тот же общий план, суженный до её шагов.
+        if focusTaskID != nil {
+            return focusedNodes(in: plan).map { node in
+                let subtask = subtaskFor(plan: plan, slot: node.slotKey)
+                return .init(
+                    slotKey: node.slotKey,
+                    roleKey: node.roleKey,
+                    title: graphTitle(for: node.roleKey),
+                    taskTitle: node.taskTitle,
+                    state: node.isSkipped ? "skipped" : node.executionState ?? baseState(for: subtask, plan: plan),
+                    badge: node.responsible == true ? "ответственный" : Self.badge(for: node)
+                )
+            }
+        }
         if let team = plan.branchTeam {
             return team.map { member in
                 .init(slotKey: member.roleKey, roleKey: member.roleKey,
@@ -481,6 +521,11 @@ public struct CollaborationPlanView: View {
     }
 
     private func graphEdges(for plan: ApiCollaborationPlan) -> [ApiCollaborationPlanEdge] {
+        // Дочерняя: связи, оба конца которых — среди её узлов.
+        if focusTaskID != nil {
+            let keys = Set(focusedNodes(in: plan).map(\.slotKey))
+            return plan.edges.filter { keys.contains($0.fromSlotKey) && keys.contains($0.toSlotKey) }
+        }
         guard plan.branchTeam != nil else { return plan.edges }
         let roles = Dictionary(uniqueKeysWithValues: plan.nodes.map { ($0.slotKey, $0.roleKey) })
         var seen = Set<String>()
@@ -494,6 +539,19 @@ public struct CollaborationPlanView: View {
     /// Возвраты между ролями в общем плане ветки: ключ «кто вернул:кому»,
     /// значение — отработаны ли все такие возвраты (шаг-доработка сдан).
     private func graphReturns(for plan: ApiCollaborationPlan) -> [String: Bool] {
+        // Дочерняя: то же правило «вернул → доработка», только ключи — слоты
+        // её шагов (в круговом графе роль узла и была его ключом).
+        if focusTaskID != nil {
+            let nodes = Dictionary(focusedNodes(in: plan).map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
+            var result: [String: Bool] = [:]
+            for edge in plan.edges {
+                guard let from = nodes[edge.fromSlotKey], let to = nodes[edge.toSlotKey],
+                      from.executionState == "returned", to.origin == "rework", !to.isSkipped else { continue }
+                let key = "\(from.slotKey):\(to.slotKey)"
+                result[key] = (result[key] ?? true) && ["accepted", "returned"].contains(to.executionState ?? "")
+            }
+            return result
+        }
         guard plan.branchTeam != nil else { return [:] }
         let nodes = Dictionary(plan.nodes.map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
         var result: [String: Bool] = [:]
@@ -533,7 +591,7 @@ public struct CollaborationPlanView: View {
     }
 
     private func load(force: Bool = true) async {
-        await state.load(taskID: taskId, reloadToken: reloadToken, force: force, isOwner: isOwner)
+        await state.load(taskID: taskId, reloadToken: reloadToken, force: force, isOwner: isOwner, focusChildID: focusTaskID)
         if hasApprovedPlan != state.isVisible { hasApprovedPlan = state.isVisible }
         let approvalID = isOwner ? draftPlan?.id : nil
         if pendingApprovalPlanId != approvalID { pendingApprovalPlanId = approvalID }
@@ -645,16 +703,21 @@ private struct CollaborationPlanGraph: View {
                     Canvas { context, _ in
                         for edge in edges {
                             guard let fromCenter = centers[edge.fromSlotKey], let toCenter = centers[edge.toSlotKey] else { continue }
+                            // Возврат на доработку — оранжевым пунктиром. Проверяем
+                            // ДО выбора вида графа: правило одно и для круга ветки,
+                            // и для цепочки дочерней (ключи — роли в круге, слоты
+                            // в цепочке), поэтому вид решает только форму стрелки.
+                            if returns["\(edge.fromSlotKey):\(edge.toSlotKey)"] != nil {
+                                let dashed = entries.contains(where: \.isParticipant)
+                                    ? participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
+                                    : chainReturnLink(from: fromCenter, to: toCenter)
+                                context.stroke(dashed.line, with: .color(Color.tfOrange), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                                context.stroke(dashed.head, with: .color(Color.tfOrange), lineWidth: 1.5)
+                                continue
+                            }
+                            // Обычную обратную связь заменяет пунктир отработанного возврата (ниже).
+                            if returns["\(edge.toSlotKey):\(edge.fromSlotKey)"] == true { continue }
                             if entries.contains(where: \.isParticipant) {
-                                if returns["\(edge.fromSlotKey):\(edge.toSlotKey)"] != nil {
-                                    // Возврат на доработку — пунктиром, вплотную к парной стрелке отработки.
-                                    let link = participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
-                                    context.stroke(link.line, with: .color(Color.tfOrange), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                                    context.stroke(link.head, with: .color(Color.tfOrange), lineWidth: 1.5)
-                                    continue
-                                }
-                                // Обычную обратную связь заменяет пунктир отработанного возврата (ниже).
-                                if returns["\(edge.toSlotKey):\(edge.fromSlotKey)"] == true { continue }
                                 let link = participantConnection(from: fromCenter, to: toCenter)
                                 let color = ready.contains(edge.fromSlotKey) ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.75)
                                 context.stroke(link.line, with: .color(color), lineWidth: 1.2)
@@ -720,10 +783,15 @@ private struct CollaborationPlanGraph: View {
                                 lineWidth: isReadyPath ? 1.5 : 1
                             )
                         }
-                        for (key, worked) in returns where worked {
-                            let roles = key.split(separator: ":").map(String.init)
-                            guard roles.count == 2, let fromCenter = centers[roles[1]], let toCenter = centers[roles[0]] else { continue }
-                            let link = participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
+                        // Отработанный возврат — зелёным пунктиром обратно. Идём по
+                        // связям, а не по ключам словаря: в цепочке дочерней ключ —
+                        // это слот («карточка:шаг»), и сам содержит двоеточие, так
+                        // что ключ не разделить. Направление обратное возврату.
+                        for edge in edges where returns["\(edge.fromSlotKey):\(edge.toSlotKey)"] == true {
+                            guard let fromCenter = centers[edge.toSlotKey], let toCenter = centers[edge.fromSlotKey] else { continue }
+                            let link = entries.contains(where: \.isParticipant)
+                                ? participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
+                                : chainReturnLink(from: fromCenter, to: toCenter)
                             context.stroke(link.line, with: .color(Color.tfGreen), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                             context.stroke(link.head, with: .color(Color.tfGreen), lineWidth: 1.5)
                         }
@@ -908,6 +976,42 @@ private struct CollaborationPlanGraph: View {
         head.move(to: CGPoint(x: end.x - ux * 6 - uy * 3, y: end.y - uy * 6 + ux * 3))
         head.addLine(to: end)
         head.addLine(to: CGPoint(x: end.x - ux * 6 + uy * 3, y: end.y - uy * 6 - ux * 3))
+        return (line, head)
+    }
+
+    /// Пунктир возврата в линейной цепочке: идёт рядом с обычной связью, чуть
+    /// выше неё, чтобы не перечёркивать ни аватарки, ни саму связь. Подъём
+    /// небольшой — в высоту цепочки укладывается без обрезки.
+    private func chainReturnLink(from source: CGPoint, to target: CGPoint) -> (line: Path, head: Path) {
+        if abs(target.x - source.x) > abs(target.y - source.y) {
+            // Соседние по строке: дуга рядом с обычной связью, чуть выше неё.
+            let direction: CGFloat = target.x >= source.x ? 1 : -1
+            let start = CGPoint(x: source.x + direction * nodeWidth / 2, y: source.y)
+            let end = CGPoint(x: target.x - direction * nodeWidth / 2, y: target.y)
+            let control = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 10)
+            var line = Path()
+            line.move(to: start)
+            line.addQuadCurve(to: end, control: control)
+            var head = Path()
+            head.move(to: CGPoint(x: end.x - direction * 5, y: end.y - 5))
+            head.addLine(to: end)
+            head.addLine(to: CGPoint(x: end.x - direction * 5, y: end.y + 5))
+            return (line, head)
+        }
+        // Друг под другом: обход сбоку, чтобы не идти сквозь аватарки.
+        let downward = target.y >= source.y
+        let start = CGPoint(x: source.x, y: source.y + (downward ? nodeHeight / 2 : -nodeHeight / 2))
+        let end = CGPoint(x: target.x, y: target.y + (downward ? -nodeHeight / 2 : nodeHeight / 2))
+        let sideX = max(8, min(source.x, target.x) - nodeWidth)
+        var line = Path()
+        line.move(to: start)
+        line.addLine(to: CGPoint(x: sideX, y: start.y))
+        line.addLine(to: CGPoint(x: sideX, y: end.y))
+        line.addLine(to: end)
+        var head = Path()
+        head.move(to: CGPoint(x: end.x - 5, y: end.y + (downward ? 5 : -5)))
+        head.addLine(to: end)
+        head.addLine(to: CGPoint(x: end.x - 5, y: end.y - (downward ? 5 : -5)))
         return (line, head)
     }
 
