@@ -1231,10 +1231,14 @@ struct TaskCardContent: View {
             // утверждённых шагов, ни черновика, который видит владелец.
             let showsGraph = hasSteps(of: cardID, in: state.plan)
                 || (isOwner && hasSteps(of: cardID, in: state.draftPlan))
+            // Лимит доработок исчерпан — сервер ставит карточке эту причину
+            // блокировки на третьем возврате.
+            let limitExhausted = (viewModel.loadedTask?.blockedReason ?? "").contains("лимит доработок")
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 CollaborationPlanView(
                     taskId: parentID,
                     focusTaskID: cardID,
+                    limitExhausted: limitExhausted,
                     state: state,
                     reloadToken: collaborationPlanReloadToken,
                     subtasks: viewModel.subtasks,

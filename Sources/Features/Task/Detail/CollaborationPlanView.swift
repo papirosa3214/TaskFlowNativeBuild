@@ -37,6 +37,8 @@ public struct CollaborationPlanView: View {
     /// (родительская ветки или одиночная задача): план рисуется целиком,
     /// как и раньше.
     private let focusTaskID: String?
+    /// Лимит доработок исчерпан: на графе в конце последнего захода ставится «!».
+    private let limitExhausted: Bool
     private var plan: ApiCollaborationPlan? { state.plan }
     /// Черновик, ещё не утверждённый — LOCK-249. Показывается владельцу
     /// вместе с той же графовой раскладкой, что и approved — чтобы было
@@ -77,9 +79,10 @@ public struct CollaborationPlanView: View {
 
     private let api = APIClient()
 
-    public init(taskId: String, focusTaskID: String? = nil, state: CollaborationPlanState? = nil, reloadToken: Int = 0, subtasks: [ApiSubtask] = [], allowsPlanChanges: Bool = true, hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>, pendingBranchSnapshot: Binding<String?> = .constant(nil)) {
+    public init(taskId: String, focusTaskID: String? = nil, limitExhausted: Bool = false, state: CollaborationPlanState? = nil, reloadToken: Int = 0, subtasks: [ApiSubtask] = [], allowsPlanChanges: Bool = true, hasApprovedPlan: Binding<Bool>, pendingApprovalPlanId: Binding<String?>, pendingBranchSnapshot: Binding<String?> = .constant(nil)) {
         self.taskId = taskId
         self.focusTaskID = focusTaskID
+        self.limitExhausted = limitExhausted
         self.state = state ?? CollaborationPlanState()
         self.reloadToken = reloadToken
         self.subtasks = subtasks
@@ -427,6 +430,9 @@ public struct CollaborationPlanView: View {
                 entries: graphEntries(for: plan),
                 edges: graphEdges(for: plan),
                 returns: graphReturns(for: plan),
+                rowReturns: graphRowReturns(for: plan),
+                attemptRows: focusTaskID != nil,
+                limitExhausted: limitExhausted,
                 onTap: { slot in
                     // В суженном плане дочерней ключ узла — это его слот; в
                     // круговом графе ветки — роль, и слот ищется по роли.
@@ -486,7 +492,8 @@ public struct CollaborationPlanView: View {
                     title: graphTitle(for: node.roleKey),
                     taskTitle: node.taskTitle,
                     state: node.isSkipped ? "skipped" : node.executionState ?? baseState(for: subtask, plan: plan),
-                    badge: node.responsible == true ? "ответственный" : Self.badge(for: node)
+                    badge: node.responsible == true ? "ответственный" : Self.badge(for: node),
+                    iteration: node.iteration ?? 0
                 )
             }
         }
@@ -521,10 +528,13 @@ public struct CollaborationPlanView: View {
     }
 
     private func graphEdges(for plan: ApiCollaborationPlan) -> [ApiCollaborationPlanEdge] {
-        // Дочерняя: связи, оба конца которых — среди её узлов.
+        // Дочерняя: только связи внутри одной попытки. Строки между собой не
+        // соединяются — каждый заход это отдельная цепочка.
         if focusTaskID != nil {
-            let keys = Set(focusedNodes(in: plan).map(\.slotKey))
-            return plan.edges.filter { keys.contains($0.fromSlotKey) && keys.contains($0.toSlotKey) }
+            let iterationOf = Dictionary(focusedNodes(in: plan).map { ($0.slotKey, $0.iteration ?? 0) }, uniquingKeysWith: { first, _ in first })
+            return plan.edges.filter {
+                iterationOf[$0.fromSlotKey] != nil && iterationOf[$0.fromSlotKey] == iterationOf[$0.toSlotKey]
+            }
         }
         guard plan.branchTeam != nil else { return plan.edges }
         let roles = Dictionary(uniqueKeysWithValues: plan.nodes.map { ($0.slotKey, $0.roleKey) })
@@ -541,17 +551,9 @@ public struct CollaborationPlanView: View {
     private func graphReturns(for plan: ApiCollaborationPlan) -> [String: Bool] {
         // Дочерняя: то же правило «вернул → доработка», только ключи — слоты
         // её шагов (в круговом графе роль узла и была его ключом).
-        if focusTaskID != nil {
-            let nodes = Dictionary(focusedNodes(in: plan).map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
-            var result: [String: Bool] = [:]
-            for edge in plan.edges {
-                guard let from = nodes[edge.fromSlotKey], let to = nodes[edge.toSlotKey],
-                      from.executionState == "returned", to.origin == "rework", !to.isSkipped else { continue }
-                let key = "\(from.slotKey):\(to.slotKey)"
-                result[key] = (result[key] ?? true) && ["accepted", "returned"].contains(to.executionState ?? "")
-            }
-            return result
-        }
+        // Дочерняя: возвраты рисуются дугой внутри строки попытки
+        // (см. `rowReturns` у графа), словарём их не считаем.
+        if focusTaskID != nil { return [:] }
         guard plan.branchTeam != nil else { return [:] }
         let nodes = Dictionary(plan.nodes.map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
         var result: [String: Bool] = [:]
@@ -560,6 +562,23 @@ public struct CollaborationPlanView: View {
                   from.executionState == "returned", to.origin == "rework", !to.isSkipped else { continue }
             let key = "\(from.roleKey):\(to.roleKey)"
             result[key] = (result[key] ?? true) && ["accepted", "returned"].contains(to.executionState ?? "")
+        }
+        return result
+    }
+
+    /// Возвраты: проверяющий отдаёт назад первой дефектной роли, и с неё
+    /// начинается следующий заход. Эта роль — узел-доработка следующей строки,
+    /// поэтому дуга идёт от Критика строки к первому узлу следующей.
+    private func graphRowReturns(for plan: ApiCollaborationPlan) -> [CollaborationPlanGraph.RowReturn] {
+        guard focusTaskID != nil else { return [] }
+        let nodes = focusedNodes(in: plan)
+        let bySlot = Dictionary(nodes.map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
+        var result: [CollaborationPlanGraph.RowReturn] = []
+        for edge in plan.edges {
+            guard let from = bySlot[edge.fromSlotKey], let to = bySlot[edge.toSlotKey],
+                  from.executionState == "returned", to.origin == "rework", !to.isSkipped else { continue }
+            result.append(.init(from: from.slotKey, to: to.slotKey,
+                                worked: ["accepted", "returned"].contains(to.executionState ?? "")))
         }
         return result
     }
@@ -618,6 +637,14 @@ public struct CollaborationPlanView: View {
 /// дублирует сам граф.
 private struct CollaborationPlanGraph: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Возврат внутри строки попытки: проверяющий (`from`) отдаёт назад роли
+    /// `to`; `worked` — доработку уже сдали, обратная дуга зелёная.
+    struct RowReturn: Hashable {
+        let from: String
+        let to: String
+        let worked: Bool
+    }
+
     struct Entry: Identifiable {
         let slotKey: String
         let roleKey: String
@@ -630,6 +657,9 @@ private struct CollaborationPlanGraph: View {
         /// «добавлен ролью», «доработка 1» — шаг не из исходного шаблона.
         var badge: String?
         var taskNumbers: [Int] = []
+        /// Номер попытки: 0 — старт, 1 — первая доработка, 2 — вторая.
+        /// В цепочке попыток по нему узлы раскладываются друг за другом.
+        var iteration: Int = 0
         var isParticipant = false
 
         var id: String { slotKey }
@@ -640,6 +670,15 @@ private struct CollaborationPlanGraph: View {
     /// Тап по шагу — подробности и правка (живой план, 01.10.2026).
     /// Круговой граф: возвраты между ролями, «кто вернул:кому» → отработан ли.
     var returns: [String: Bool] = [:]
+    /// Возвраты внутри строки попытки — для режима `attemptRows`.
+    var rowReturns: [RowReturn] = []
+    /// Цепочка попыток: каждая попытка — своя горизонтальная строка, строки
+    /// друг под другом (0 → I → II) и между собой НЕ соединяются. Возврат
+    /// рисуется дугой внутри своей строки — проверяющий отдаёт назад той роли,
+    /// которой дорабатывать; следующий заход начинается отдельной цепочкой.
+    var attemptRows = false
+    /// Лимит доработок исчерпан — в конце последнего захода рисуется «!».
+    var limitExhausted = false
     var onTap: (String) -> Void = { _ in }
 
     private var isRing: Bool { entries.contains(where: \.isParticipant) }
@@ -692,9 +731,15 @@ private struct CollaborationPlanGraph: View {
             }
 
             GeometryReader { proxy in
-                let maxColumns = isLinear ? entries.count : (Dictionary(grouping: entries, by: { levels[$0.slotKey] ?? 0 }).values.map(\.count).max() ?? 1)
-                let columnGap = isLinear ? linearGap : TFSpacing.sm
-                let canvasWidth = max(proxy.size.width, CGFloat(maxColumns) * nodeWidth + CGFloat(maxColumns - 1) * columnGap)
+                let maxColumns: CGFloat = isLinear
+                    ? CGFloat(entries.count)
+                    : CGFloat(Dictionary(grouping: entries, by: { levels[$0.slotKey] ?? 0 }).values.map(\.count).max() ?? 1)
+                let columnGap: CGFloat = isLinear ? linearGap : TFSpacing.sm
+                // Строки попыток шире канвы, если в попытке много шагов —
+                // считаем ширину по самой длинной строке, иначе она уезжает
+                // за край и её номер обрезается.
+                let gridWidth: CGFloat = maxColumns * nodeWidth + max(0, maxColumns - 1) * columnGap
+                let canvasWidth: CGFloat = max(proxy.size.width, attemptRows ? widestAttemptRow : gridWidth)
                 let places = layout(width: canvasWidth)
                 let centers = places.mapValues { $0.center }
 
@@ -724,7 +769,7 @@ private struct CollaborationPlanGraph: View {
                                 context.stroke(link.head, with: .color(color), lineWidth: 1.2)
                                 continue
                             }
-                            let horizontal = isLinear
+                            let horizontal = isLinear || (attemptRows && abs(fromCenter.y - toCenter.y) < 1)
                             if isLinear, let a = levels[edge.fromSlotKey], let b = levels[edge.toSlotKey], b - a > 1 {
                                 // Связь через несколько шагов идёт дугой НАД цепочкой, а не сквозь аватарки.
                                 let lift = 8 + CGFloat(b - a - 1) * 6
@@ -783,6 +828,21 @@ private struct CollaborationPlanGraph: View {
                                 lineWidth: isReadyPath ? 1.5 : 1
                             )
                         }
+                        // Возвраты внутри строки попытки: проверяющий отдаёт
+                        // назад роли, которой дорабатывать. Строки между собой
+                        // не соединяются — каждый заход отдельная цепочка.
+                        for link in rowReturns {
+                            guard let fromCenter = centers[link.from], let toCenter = centers[link.to] else { continue }
+                            let back = rowReturnLink(from: fromCenter, to: toCenter)
+                            context.stroke(back.line, with: .color(Color.tfOrange), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                            context.stroke(back.head, with: .color(Color.tfOrange), lineWidth: 1.5)
+                            if link.worked {
+                                // Доработка сдана — обратная дуга зелёная, выше первой.
+                                let done = rowReturnLink(from: fromCenter, to: toCenter, lift: 22)
+                                context.stroke(done.line, with: .color(Color.tfGreen), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                                context.stroke(done.head, with: .color(Color.tfGreen), lineWidth: 1.5)
+                            }
+                        }
                         // Отработанный возврат — зелёным пунктиром обратно. Идём по
                         // связям, а не по ключам словаря: в цепочке дочерней ключ —
                         // это слот («карточка:шаг»), и сам содержит двоеточие, так
@@ -807,6 +867,25 @@ private struct CollaborationPlanGraph: View {
                             .position(place.center)
                             .accessibilityIdentifier("plan-node-\(entry.slotKey)")
                         }
+                    }
+                    // Номер попытки над её первым шагом: сразу видно, сколько
+                    // заходов было и где начался следующий.
+                    ForEach(attemptStarts) { entry in
+                        if let place = places[entry.slotKey] {
+                            Text(Self.attemptLabel(entry.iteration))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.tfDim)
+                                .position(x: place.center.x, y: max(8, place.center.y - nodeHeight / 2 - 10))
+                                .accessibilityIdentifier("plan-attempt-\(entry.iteration)")
+                        }
+                    }
+                    // Попытки кончились — «!» в конце последнего захода.
+                    if let last = lastAttemptNode, let place = places[last.slotKey] {
+                        Text("!")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.tfRed)
+                            .position(x: place.center.x + nodeWidth, y: place.center.y)
+                            .accessibilityIdentifier("plan-attempt-limit")
                     }
                 }
                 .frame(width: canvasWidth, height: graphHeight)
@@ -877,6 +956,24 @@ private struct CollaborationPlanGraph: View {
         if entries.contains(where: \.isParticipant) {
             return Dictionary(uniqueKeysWithValues: entries.enumerated().map { ($0.element.slotKey, $0.offset / 3) })
         }
+        // Строки попыток: «уровень» тут — позиция внутри своей попытки
+        // (порядок работы по связям ЭТОЙ ЖЕ попытки; связь возврата ведёт в
+        // следующую строку и порядок внутри неё не задаёт).
+        if attemptRows {
+            let iterationOf = Dictionary(uniqueKeysWithValues: entries.map { ($0.slotKey, $0.iteration) })
+            let sameRound = edges.filter { iterationOf[$0.fromSlotKey] == iterationOf[$0.toSlotKey] }
+            let incoming = Dictionary(grouping: sameRound, by: \.toSlotKey)
+            var memo: [String: Int] = [:]
+            func local(_ slot: String, _ path: Set<String>) -> Int {
+                if let known = memo[slot] { return known }
+                guard !path.contains(slot) else { return 0 }
+                let preds = incoming[slot]?.map(\.fromSlotKey) ?? []
+                let value = preds.map { local($0, path.union([slot])) + 1 }.max() ?? 0
+                memo[slot] = value
+                return value
+            }
+            return Dictionary(uniqueKeysWithValues: entries.map { ($0.slotKey, local($0.slotKey, [])) })
+        }
         var memo: [String: Int] = [:]
         let incoming = Dictionary(grouping: edges, by: \.toSlotKey)
         func level(_ slot: String, _ path: Set<String>) -> Int {
@@ -893,6 +990,30 @@ private struct CollaborationPlanGraph: View {
     /// Зазор между соседними шагами в горизонтальной цепочке — место под стрелку.
     private let linearGap: CGFloat = 28
 
+    /// Строки попыток: зазор между строками и запас сверху под номер захода.
+    private let attemptRowGap: CGFloat = 30
+    private let attemptTopPad: CGFloat = 22
+
+    /// Ширина самой длинной строки попыток — по ней считается канва, иначе
+    /// длинная строка уезжает за край и её номер обрезается.
+    private var widestAttemptRow: CGFloat {
+        var widest: CGFloat = 0
+        for (_, items) in Dictionary(grouping: entries, by: \.iteration) {
+            let row = CGFloat(items.count) * nodeWidth + CGFloat(max(0, items.count - 1)) * linearGap
+            widest = max(widest, row)
+        }
+        // Место справа под знак «!» — попытки исчерпаны.
+        return limitExhausted ? widest + 30 : widest
+    }
+
+    /// Последний по порядку работы узел последнего захода — рядом с ним «!».
+    private var lastAttemptNode: Entry? {
+        guard attemptRows, limitExhausted, let last = entries.map(\.iteration).max() else { return nil }
+        let levelOf = levels
+        return entries.filter { $0.iteration == last }
+            .max { (levelOf[$0.slotKey] ?? 0) < (levelOf[$1.slotKey] ?? 0) }
+    }
+
     /// Запас сверху под дуги связей, перескакивающих через шаги; без таких связей — ноль.
     private var linearTopPad: CGFloat {
         let levelOf = levels
@@ -901,9 +1022,33 @@ private struct CollaborationPlanGraph: View {
         return 8 + CGFloat(widest - 1) * 6 + 6
     }
 
+    /// Первый (по порядку работы) узел каждой попытки — рядом с ним ставится
+    /// номер захода. Нулевая подписывается только если доработки были вообще.
+    private var attemptStarts: [Entry] {
+        guard attemptRows else { return [] }
+        let levelOf = levels
+        let hasReworks = entries.contains { $0.iteration > 0 }
+        let groups = Dictionary(grouping: entries.filter { $0.iteration > 0 || hasReworks }, by: \.iteration)
+        return groups.keys.sorted().compactMap { key in
+            groups[key]?.min { (levelOf[$0.slotKey] ?? 0) < (levelOf[$1.slotKey] ?? 0) }
+        }
+    }
+
+    private static func attemptLabel(_ iteration: Int) -> String {
+        switch iteration {
+        case 0: "0"
+        case 1: "I"
+        case 2: "II"
+        case 3: "III"
+        default: "\(iteration)"
+        }
+    }
+
     /// Цепочка без ветвлений: на каждом уровне один шаг и все связи идут вперёд.
     private var isLinear: Bool {
         guard entries.count > 1, !entries.contains(where: \.isParticipant) else { return false }
+        // Строки попыток раскладываются своим способом — по строке на попытку.
+        if attemptRows { return false }
         let levelOf = levels
         let perLevel = Dictionary(grouping: entries, by: { levelOf[$0.slotKey] ?? 0 }).values
         guard perLevel.allSatisfy({ $0.count == 1 }) else { return false }
@@ -912,6 +1057,11 @@ private struct CollaborationPlanGraph: View {
 
     private var graphHeight: CGFloat {
         if entries.contains(where: \.isParticipant) { return 300 }
+        // Строки попыток: по строке на попытку.
+        if attemptRows {
+            let rows = CGFloat(Set(entries.map(\.iteration)).count)
+            return attemptTopPad + rows * nodeHeight + max(0, rows - 1) * attemptRowGap + 6
+        }
         if isLinear { return nodeHeight + linearTopPad }
         let rows = (levels.values.max() ?? 0) + 1
         return nodeHeight + CGFloat(rows - 1) * rowStep
@@ -924,6 +1074,31 @@ private struct CollaborationPlanGraph: View {
                 let angle = -CGFloat.pi / 2 + CGFloat(index) * 2 * .pi / CGFloat(max(entries.count, 1))
                 return (entry.slotKey, (center: CGPoint(x: width / 2 + radius * cos(angle), y: 140 + radius * sin(angle)), width: nodeWidth))
             })
+        }
+        // Строки попыток: своя строка на каждый заход, внутри строки — порядок
+        // работы. Возврат тогда читается переходом на строку ниже.
+        if attemptRows {
+            let levelOf = levels
+            let ordered = entries.sorted {
+                $0.iteration != $1.iteration
+                    ? $0.iteration < $1.iteration
+                    : (levelOf[$0.slotKey] ?? 0) < (levelOf[$1.slotKey] ?? 0)
+            }
+            let byIteration = Dictionary(grouping: ordered, by: \.iteration)
+            var result: [String: (center: CGPoint, width: CGFloat)] = [:]
+            var y = attemptTopPad + nodeHeight / 2
+            for iteration in byIteration.keys.sorted() {
+                let items = byIteration[iteration] ?? []
+                let count = CGFloat(items.count)
+                let total = nodeWidth * count + linearGap * max(0, count - 1)
+                var x = (width - total) / 2 + nodeWidth / 2
+                for item in items {
+                    result[item.slotKey] = (CGPoint(x: x, y: y), nodeWidth)
+                    x += nodeWidth + linearGap
+                }
+                y += nodeHeight + attemptRowGap
+            }
+            return result
         }
         let levelOf = levels
         if isLinear {
@@ -1012,6 +1187,43 @@ private struct CollaborationPlanGraph: View {
         head.move(to: CGPoint(x: end.x - 5, y: end.y + (downward ? 5 : -5)))
         head.addLine(to: end)
         head.addLine(to: CGPoint(x: end.x - 5, y: end.y - (downward ? 5 : -5)))
+        return (line, head)
+    }
+
+    /// Дуга возврата внутри строки попытки: от проверяющего назад к роли,
+    /// которой надо доработать. Идёт над строкой, чтобы не перечёркивать
+    /// аватарки и обычные связи.
+    private func rowReturnLink(from source: CGPoint, to target: CGPoint, lift: CGFloat = 12) -> (line: Path, head: Path) {
+        // Возврат уводит в следующий заход (другая строка): обходим сбоку —
+        // вниз по краю и в цель сверху.
+        if abs(source.y - target.y) > 1 {
+            let start = CGPoint(x: source.x, y: source.y + nodeHeight / 2)
+            let end = CGPoint(x: target.x, y: target.y - nodeHeight / 2)
+            let sideX = max(6, min(source.x, target.x) - nodeWidth / 2 - 8 - lift)
+            var line = Path()
+            line.move(to: start)
+            line.addLine(to: CGPoint(x: sideX, y: start.y + 12))
+            line.addLine(to: CGPoint(x: sideX, y: end.y - 12))
+            line.addLine(to: CGPoint(x: end.x, y: end.y - 12))
+            line.addLine(to: end)
+            var head = Path()
+            head.move(to: CGPoint(x: end.x - 5, y: end.y - 12))
+            head.addLine(to: end)
+            head.addLine(to: CGPoint(x: end.x + 5, y: end.y - 12))
+            return (line, head)
+        }
+        let start = CGPoint(x: source.x, y: source.y - nodeHeight / 2)
+        let end = CGPoint(x: target.x, y: target.y - nodeHeight / 2)
+        var line = Path()
+        line.move(to: start)
+        line.addLine(to: CGPoint(x: start.x, y: start.y - lift))
+        line.addLine(to: CGPoint(x: end.x, y: end.y - lift))
+        line.addLine(to: end)
+        let direction: CGFloat = end.x >= start.x ? 1 : -1
+        var head = Path()
+        head.move(to: CGPoint(x: end.x - direction * 5, y: end.y - lift + 5))
+        head.addLine(to: end)
+        head.addLine(to: CGPoint(x: end.x + direction * 5, y: end.y - lift + 5))
         return (line, head)
     }
 
