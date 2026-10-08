@@ -89,7 +89,7 @@ struct PlanStepDetailSheet: View {
                             TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".live")
                         })) {
                             if isLiveExpanded {
-                                TaskLiveActivityView(taskID: node.taskId ?? plan.taskId)
+                                TaskLiveActivityView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId)
                             }
                         } label: {
                             LabeledContent("Состояние") {

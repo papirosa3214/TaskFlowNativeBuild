@@ -1608,17 +1608,18 @@ struct TaskCardContent: View {
     /// закрытого или заблокированного — его итог и кнопки владельца.
     @ViewBuilder
     private func subtaskDetails(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            if isRunning, viewModel.activity.isActive {
-                if !viewModel.activity.actions.isEmpty {
-                    activityChips(viewModel.activity.actions, total: viewModel.activity.total)
+        let activity = viewModel.activity.forSubtask(subtask.id)
+        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            if isRunning, activity.isActive {
+                if !activity.actions.isEmpty {
+                    activityChips(activity.actions, total: activity.total)
                 }
-                if let text = viewModel.activity.text {
+                if let text = activity.text {
                     Text(text)
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
                 }
-                ForEach(viewModel.activity.actions.suffix(5).reversed()) { action in
+                ForEach(activity.actions.suffix(5).reversed()) { action in
                     HStack(alignment: .top, spacing: TFSpacing.sm) {
                         Circle()
                             .fill(Color.tfDim)

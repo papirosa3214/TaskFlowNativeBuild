@@ -3,6 +3,7 @@ import SwiftUI
 /// Опрос выполняется только пока раскрыт текущий ход работы.
 struct TaskLiveActivityView: View {
     let taskID: String
+    let subtaskID: String?
     @State private var activity = ApiTaskActivity.idle
     @State private var errorText: String?
     @State private var loaded = false
@@ -26,14 +27,14 @@ struct TaskLiveActivityView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("plan-slot-live-content")
-        .task(id: taskID) {
+        .task(id: "\(taskID):\(subtaskID ?? "")") {
             activity = .idle
             loaded = false
             errorText = nil
             let api = APIClient()
             while !Task.isCancelled {
                 do {
-                    activity = try await api.taskActivity(taskId: taskID)
+                    activity = try await api.taskActivity(taskId: taskID).forSubtask(subtaskID)
                     errorText = nil
                 } catch {
                     if Task.isCancelled { return }

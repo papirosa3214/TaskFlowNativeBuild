@@ -17,6 +17,19 @@ public struct ApiTaskActivity: Codable, Sendable, Hashable {
     /// Сколько всего действий было с начала работы (сервер считает без лимита). `nil` — старый сервер.
     public var total: Int? = nil
 
+    public var bySubtask: [String: ApiTaskActivity]? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case text, actions, total
+        case bySubtask = "by_subtask"
+    }
+
+    /// Старый общий счётчик не выдаём за активность конкретного исполнителя.
+    public func forSubtask(_ id: String?) -> ApiTaskActivity {
+        guard let id else { return .idle }
+        return bySubtask?[id] ?? .idle
+    }
+
     public static let idle = ApiTaskActivity(text: nil, actions: [])
 
     public var isActive: Bool { text?.isEmpty == false || !actions.isEmpty }
