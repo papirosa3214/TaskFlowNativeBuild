@@ -209,4 +209,27 @@ final class MarkdownParserTests: XCTestCase {
         XCTAssertEqual(blocks[4].kind, .blockquote)
         XCTAssertEqual(blocks[5].kind, .codeBlock(language: nil))
     }
+    func testReportTablePreservesCellsAndInlineMarks() {
+        let blocks = MarkdownParser.parse("Итог\n| Действие | Результат |\n| --- | :---: |\n| В архив | **Сохранено** |\n| Восстановить | Возвращено |\n\nДальше")
+        guard case .table(let rows) = blocks[1].kind else { return XCTFail("Таблица превратилась в текст") }
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertTrue(rows[0].cells.allSatisfy(\.isHeader))
+        XCTAssertEqual(rows[1].cells[1].runs.first?.text, "Сохранено")
+        XCTAssertEqual(rows[1].cells[1].runs.first?.bold, true)
+        XCTAssertEqual(blocks[2].plainText, "Дальше")
+    }
+
+    func testTableHandlesEscapedPipeAndCodePipe() {
+        let blocks = MarkdownParser.parse("A | B\n--- | ---\nодин \\| два | `x|y`")
+        guard case .table(let rows) = blocks[0].kind else { return XCTFail("Нет таблицы") }
+        XCTAssertEqual(rows[1].cells.count, 2)
+        XCTAssertEqual(rows[1].cells[0].plainText, "один | два")
+        XCTAssertEqual(rows[1].cells[1].plainText, "x|y")
+    }
+
+    func testTableLikeTextAndFencedTableRemainText() {
+        XCTAssertEqual(MarkdownParser.parse("A | B\nне разделитель | текст")[0].kind, .paragraph)
+        XCTAssertEqual(MarkdownParser.parse("```\nA | B\n--- | ---\n```")[0].kind, .codeBlock(language: nil))
+    }
+
 }

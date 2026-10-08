@@ -53,6 +53,10 @@ enum MarkdownParser {
                 blocks.append(block); i = next; continue
             }
 
+            if let (block, next) = parseTable(lines, at: i) {
+                blocks.append(block); i = next; continue
+            }
+
             // Horizontal rule.
             if let (block, next) = parseHorizontalRule(lines, at: i) {
                 blocks.append(block); i = next; continue
@@ -162,6 +166,55 @@ enum MarkdownParser {
         return (NoteBlock(kind: kind, level: level, runs: runs), i + 1)
     }
 
+    /// GFM tables use the existing native table block, including inline marks.
+    private static func tableCells(_ line: String) -> [String] {
+        let chars = Array(line.trimmingCharacters(in: .whitespaces))
+        var cells: [String] = [], cell = "", fence = 0, i = 0
+        while i < chars.count {
+            if chars[i] == "\\", i + 1 < chars.count {
+                cell.append(chars[i]); cell.append(chars[i + 1]); i += 2; continue
+            }
+            if chars[i] == "`" {
+                var end = i
+                while end < chars.count, chars[end] == "`" { end += 1 }
+                let count = end - i
+                if fence == 0 { fence = count } else if fence == count { fence = 0 }
+                cell += String(repeating: "`", count: count); i = end; continue
+            }
+            if chars[i] == "|", fence == 0 {
+                cells.append(cell); cell = ""
+            } else { cell.append(chars[i]) }
+            i += 1
+        }
+        cells.append(cell)
+        if chars.first == "|", cells.first == "" { cells.removeFirst() }
+        if chars.last == "|", cells.last == "", !cells.isEmpty { cells.removeLast() }
+        return cells.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private static func tableHeader(_ lines: [String], at i: Int) -> [String]? {
+        guard i + 1 < lines.count, lines[i].contains("|") else { return nil }
+        let header = tableCells(lines[i]), separators = tableCells(lines[i + 1])
+        guard !header.isEmpty, header.count == separators.count,
+              separators.allSatisfy({ $0.range(of: "^:?-{3,}:?$", options: .regularExpression) != nil }) else { return nil }
+        return header
+    }
+
+    private static func parseTable(_ lines: [String], at i: Int) -> (NoteBlock, Int)? {
+        guard let header = tableHeader(lines, at: i) else { return nil }
+        func row(_ cells: [String], header: Bool) -> NoteTableRow {
+            NoteTableRow(cells: cells.map { NoteTableCell(runs: parseInline($0), isHeader: header) })
+        }
+        var rows = [row(header, header: true)], j = i + 2
+        while j < lines.count, !lines[j].trimmingCharacters(in: .whitespaces).isEmpty,
+              lines[j].contains("|"), !isBlockStart(lines[j]) {
+            var cells = Array(tableCells(lines[j]).prefix(header.count))
+            while cells.count < header.count { cells.append("") }
+            rows.append(row(cells, header: false)); j += 1
+        }
+        return (NoteBlock(kind: .table(rows: rows)), j)
+    }
+
     private static func parseParagraph(_ lines: [String], at i: Int) -> (NoteBlock, Int)? {
         var collected: [String] = []
         var j = i
@@ -170,7 +223,7 @@ enum MarkdownParser {
             if raw.trimmingCharacters(in: .whitespaces).isEmpty { break }
             // Если строка — это «следующий» блочный элемент, отдаём его тому,
             // кто его разбирает; сами собираем только текст до первого блочного.
-            if j > i, isBlockStart(lines[j]) { break }
+            if j > i, isBlockStart(lines[j]) || tableHeader(lines, at: j) != nil { break }
             collected.append(raw)
             j += 1
         }
