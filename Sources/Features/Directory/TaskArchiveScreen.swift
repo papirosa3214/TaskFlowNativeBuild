@@ -62,7 +62,7 @@ struct TaskArchiveScreen: View {
         .navigationTitle("Архив")
         .task { await loadArchive() }
         .refreshable { await loadArchive() }
-        .confirmationDialog("Удалить задачу окончательно?", isPresented: Binding(
+        .confirmationDialog(pendingProjectDelete == nil ? "Удалить задачу окончательно?" : "Удалить проект окончательно?", isPresented: Binding(
             get: { pendingDelete != nil || pendingProjectDelete != nil },
             set: { if !$0 { pendingDelete = nil; pendingProjectDelete = nil } }
         ), titleVisibility: .visible) {
