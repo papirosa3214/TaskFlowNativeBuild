@@ -366,8 +366,12 @@ struct PlanStepEditorSheet: View {
                 if !otherNodes.isEmpty {
                     Section {
                         ForEach(otherNodes) { node in
-                            Toggle(isOn: binding(node.slotKey, in: $after)) {
+                            HStack {
                                 stepLabel(node)
+                                Spacer()
+                                TFToggle(isOn: binding(node.slotKey, in: $after))
+                                    .accessibilityLabel("Начать после: \(roleTitle(node.roleKey)), \(node.expectedResult)")
+                                    .accessibilityIdentifier("plan-step-after.\(node.slotKey)")
                             }
                         }
                     } header: {
@@ -382,8 +386,12 @@ struct PlanStepEditorSheet: View {
                     if !candidates.isEmpty {
                         Section {
                             ForEach(candidates) { node in
-                                Toggle(isOn: binding(node.slotKey, in: $before)) {
+                                HStack {
                                     stepLabel(node)
+                                    Spacer()
+                                    TFToggle(isOn: binding(node.slotKey, in: $before))
+                                        .accessibilityLabel("Раньше шага: \(roleTitle(node.roleKey)), \(node.expectedResult)")
+                                        .accessibilityIdentifier("plan-step-before.\(node.slotKey)")
                                 }
                             }
                         } header: {
