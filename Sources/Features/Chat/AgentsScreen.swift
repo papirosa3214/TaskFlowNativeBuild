@@ -45,26 +45,19 @@ struct AgentsScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    if viewModel.isOwner {
+                        Button("Добавить участника", systemImage: "person.badge.plus") {
+                            editorMode = .create
+                        }
+                        .accessibilityIdentifier("team-add-member")
+                    }
                     Button("Внешний вид", systemImage: "person.crop.circle") { showAppearance = true }
                         .accessibilityIdentifier("team-appearance-open")
                 } label: { Image(systemName: "ellipsis") }
                 .accessibilityLabel("Меню команды")
                 .accessibilityIdentifier("team-menu")
             }
-            // Кнопка «+» есть только у владельца — это единственный, кто
-            // может создать роль. `agentProfile(id:)` маршрут остаётся в
-            // `AppRoute`, но из «Команды» теперь не открывается: правка
-            // идёт через тот же лист, что и создание.
-            if viewModel.isOwner {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        editorMode = .create
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("Новая роль")
-                }
-            }
+
         }
         .task {
             viewModel.configure(currentUser: session.currentUser)
