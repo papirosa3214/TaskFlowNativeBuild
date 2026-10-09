@@ -24,7 +24,6 @@ final class AgentsViewModel {
     var modelsErrorMessage: String?
 
     private let api = APIClient()
-    private var pollTask: Task<Void, Never>?
 
     func configure(currentUser: ApiUser?) {
         isOwner = currentUser?.role == .owner
@@ -32,23 +31,6 @@ final class AgentsViewModel {
 
     /// Жив ли исполнитель — общий признак на список.
     var runtimeReady: Bool? { profiles.first?.runtimeReady }
-
-    /// Раз в 15с — статус роли и текущая задача живые, как в вебе.
-    func start() {
-        pollTask?.cancel()
-        pollTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                await self.load()
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
-            }
-        }
-    }
-
-    func stop() {
-        pollTask?.cancel()
-        pollTask = nil
-    }
 
     func load() async {
         if profiles.isEmpty { isLoading = true }

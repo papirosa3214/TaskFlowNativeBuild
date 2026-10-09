@@ -20,6 +20,9 @@ public enum RealtimeEvent: Sendable {
     /// целиком» — разбираем оба варианта: полный `ApiTask` ИЛИ голый `{ id }`.
     case taskDeleted(id: String)
     case taskState(ApiTask)
+    case taskChanged(taskID: String)
+    case rolesChanged
+    case roleJobsChanged
     case taskActivity(taskId: String?, raw: JSONValue)
     case taskLive(TaskLiveTurn)
     case notificationNew(ApiNotification)
@@ -69,12 +72,23 @@ public enum RealtimeEvent: Sendable {
         guard let envelope = try? decoder.decode(Envelope.self, from: data) else { return nil }
         let raw = (try? decoder.decode(JSONValue.self, from: data)) ?? .null
 
-        func decodeTask() -> ApiTask? { try? decoder.decode(ApiTask.self, from: data) }
+        func decodeTask() -> ApiTask? {
+            struct Wrapped: Decodable { let task: ApiTask }
+            return (try? decoder.decode(Wrapped.self, from: data).task)
+                ?? (try? decoder.decode(ApiTask.self, from: data))
+        }
 
         switch envelope.type {
         case "connected": return .connected
         case "ping": return .ping
         case "pong": return .pong
+        case "task:changed":
+            guard let id = (try? decoder.decode(TaskIdField.self, from: data))?.task_id else {
+                return .unknown(type: envelope.type, raw: raw)
+            }
+            return .taskChanged(taskID: id)
+        case "roles:changed": return .rolesChanged
+        case "role-jobs:changed": return .roleJobsChanged
         case "task:created":
             return decodeTask().map(RealtimeEvent.taskCreated) ?? .unknown(type: envelope.type, raw: raw)
         case "task:updated":

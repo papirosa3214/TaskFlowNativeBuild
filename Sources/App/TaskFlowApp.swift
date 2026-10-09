@@ -161,6 +161,7 @@ struct RootView: View {
             }
         }
         realtimeClient.connect()
+        LiveActivityService.restore(api: APIClient())
 
         Task {
             async let tasksLoaded: () = taskStore.load()

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Невидимый опрос подготовки. Самой подготовки в карточке больше нет
+/// Невидимое наблюдение за подготовкой по событиям WebSocket. Самой подготовки в карточке больше нет
 /// (владелец 07.10.2026: «занимает место и отвлекает») — она открывается из «Ещё».
-/// Опрос остался: по смене его результата обновляется план на карточке.
+/// При открытии, восстановлении связи и событии перечитывается снимок подготовки.
 struct TaskPreparationPoller: View {
     let taskID: String
     let onChange: () async -> Void
@@ -10,18 +10,15 @@ struct TaskPreparationPoller: View {
     /// получает отметку, а пункт «Подготовка» — подпись (владелец 07.10.2026).
     let onWaiting: (String?) -> Void
     @State private var signature: String?
+    @Environment(RealtimeClient.self) private var realtime
+    @Environment(\.scenePhase) private var scenePhase
     private let api = APIClient()
 
     var body: some View {
         Color.clear
-            .task(id: taskID) {
-                signature = nil
-                onWaiting(nil)
+            .task(id: "\(taskID):\(scenePhase):\(realtime.revision(for: taskID))") {
+            guard scenePhase == .active else { return }
                 await load()
-                while !Task.isCancelled {
-                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
-                    await load()
-                }
             }
     }
 
@@ -58,6 +55,8 @@ struct TaskPreparationView: View {
     @State private var isLoading = true
     @State private var confirmingStructure = false
     @State private var confirmationInputVersion: Int?
+    @Environment(RealtimeClient.self) private var realtime
+    @Environment(\.scenePhase) private var scenePhase
     private let api = APIClient()
 
     var body: some View {
@@ -91,16 +90,12 @@ struct TaskPreparationView: View {
             .padding(TFSpacing.lg)
         }
         .disabled(isApplying)
-        .task(id: taskID) {
+        .task(id: "\(taskID):\(scenePhase):\(realtime.revision(for: taskID))") {
+            guard scenePhase == .active else { return }
             if let roles = try? await api.roles() {
                 roleTitles = Dictionary(roles.map { ($0.role, $0.title) }, uniquingKeysWith: { first, _ in first })
             }
             await load()
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .seconds(3)) } catch { return }
-                if isApplying { continue }
-                await load()
-            }
         }
         .confirmationDialog("Создать дочерние задачи?", isPresented: $confirmingStructure, titleVisibility: .visible) {
             Button("Создать согласованные задачи") {

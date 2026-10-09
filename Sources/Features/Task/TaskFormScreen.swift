@@ -224,9 +224,22 @@ struct TaskCardContent: View {
         }
     }
 
+    @Environment(RealtimeClient.self) private var realtime
+    @Environment(\.scenePhase) private var scenePhase
+
     private var fullFormBody: some View {
         formNavigationBody
             .task { await loadScreen() }
+            .task(id: "\(scenePhase):\(isEditorReady):\(realtime.revision(for: taskID ?? ""))") {
+                guard scenePhase == .active, isEditorReady, taskID != nil else { return }
+                await viewModel.refresh()
+                collaborationPlanReloadToken += 1
+                refreshDynamicIslandState()
+            }
+            .task(id: "\(scenePhase):\(isEditorReady):\(realtime.activityRevisions[taskID ?? ""] ?? 0)") {
+                guard scenePhase == .active, isEditorReady else { return }
+                await viewModel.loadActivity()
+            }
             .modifier(FocusDictationTargetModifier(
                 isTitleFocused: isTitleFocused,
                 isDescriptionFocused: isDescriptionFocused,
@@ -382,7 +395,7 @@ struct TaskCardContent: View {
         }
         .taskToast($toast)
         // Подготовка вынесена из карточки в шторку из «Ещё» (владелец 07.10.2026);
-        // фоновый опрос по-прежнему обновляет план на карточке.
+        // события WebSocket обновляют подготовку и план на карточке.
         .background {
             if let taskID = viewModel.taskID {
                 TaskPreparationPoller(taskID: taskID) {
@@ -483,7 +496,7 @@ struct TaskCardContent: View {
                     Task {
                         // Отложенное сохранение перебиваем здесь, а не внутри
                         // `saveExistingEdits` — см. комментарий у метода.
-                        pendingSaveTask?.cancel()
+                    pendingSaveTask?.cancel()
                         if viewModel.isEditing { await saveExistingEdits() }
                         dismiss()
                     }
@@ -1406,8 +1419,7 @@ struct TaskCardContent: View {
             viewModel.pendingNewStepBlocks = newSubtaskBlocks
             viewModel.pendingInsertedStepBlocks = insertSubtaskBlocks
             viewModel.pendingInsertAfterStepID = insertAfterSubtaskID
-            viewModel.stopPolling()
-            leavingFamily = true
+                leavingFamily = true
             onFamilySelected(id)
         }
     }
@@ -1539,7 +1551,7 @@ struct TaskCardContent: View {
     }
 
     /// Пока строку правят, текст живёт здесь, а не в модели: поллинг задачи
-    /// (раз в 30 с) перезаписывает `viewModel.subtasks` целиком и стёр бы
+    /// при обновлении с сервера перезаписывает `viewModel.subtasks` целиком и стёр бы
     /// набранное на полуслове.
     private func subtaskTitleBinding(_ subtask: ApiSubtask) -> Binding<[NoteBlock]> {
         Binding(
@@ -2602,7 +2614,6 @@ struct TaskCardContent: View {
     private func handleDisappear() {
         onSwitchAvailable(nil)
         guard !leavingFamily else { return }
-        viewModel.stopPolling()
         pendingSaveTask?.cancel()
         guard viewModel.isEditing, isEditorReady else { return }
         Task { _ = await flushCardEdits() }
@@ -2657,7 +2668,6 @@ struct TaskCardContent: View {
         if viewModel.startDictation { titleFocus.blockID = viewModel.titleBlocks.first?.id }
         await viewModel.loadActivity()
         await viewModel.loadReports()
-        viewModel.startPolling()
         refreshDynamicIslandState()
         isEditorReady = true
         onSwitchAvailable(switchFamily)

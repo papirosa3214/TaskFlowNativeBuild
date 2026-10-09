@@ -1,26 +1,15 @@
 // LiveActivityService.swift
-// Островок (Dynamic Island) для задачи в работе.
-//
-// До 10.09.2026 кнопка «Вывести в Dynamic Island» показывала только тост:
-// сам виджет жил в Capacitor-обёртке, а в нативном клиенте таргета не было
-// вовсе. Владелец нажал, свернул приложение и увидел пустоту.
-//
-// Здесь то же самое, что делал прежний мост `LiveActivityPlugin` в обёртке,
-// но напрямую из SwiftUI — прослойка на JavaScript нативному клиенту не
-// нужна.
-//
-// ЧТО ДВИГАЕТ КАРТОЧКУ, КОГДА ПРИЛОЖЕНИЕ СВЁРНУТО. Ничего изнутри: фонового
-// выполнения у приложения нет. Поэтому активность запускается с
-// `pushType: .token`, токен уходит на сервер (`POST /api/live-activity/token`),
-// и дальше карточку двигает сервер через APNs (`server/src/apns.ts`, таблица
-// `live_activity_tokens` — всё это уже написано и ждёт ключей, карточка
-// 75448a64). Без ключей островок покажет состояние на момент запуска и
-// будет обновляться, только пока приложение открыто.
+// Dynamic Island получает изменения по отдельному WebSocket.
+// Геолокационный keep-alive остаётся, пока есть активные островки;
+// ActivityKit сообщает об их завершении/закрытии, и тогда фон освобождается.
+// REST нужен при запуске, восстановлении связи и уведомлении об изменении,
+// периодического опроса нет. APNs-токен регистрируется, когда он доступен.
 
 import ActivityKit
 import Foundation
 
 @available(iOS 16.2, *)
+@MainActor
 enum LiveActivityService {
     /// Система может запретить активности целиком (настройка в «Face ID и
     /// код-пароль» → «Live Activities»), и тогда запрос падает с ошибкой.
@@ -37,6 +26,7 @@ enum LiveActivityService {
     static func start(for task: ApiTask, api: APIClient) async throws -> String {
         // Уже есть островок по этой задаче — не плодим второй, а обновляем.
         if let existing = activity(for: task.id) {
+            watch(existing, api: api)
             await update(task: task)
             return existing.id
         }
@@ -72,28 +62,12 @@ enum LiveActivityService {
             Diag.log("[LiveActivity] запущена без токена, id=%@")
         }
 
-        // Пока карточка висит — держим приложение живым и сами тянем
-        // задачу с сервера. Иначе островок замрёт на цифрах того момента,
-        // когда приложение свернули: пуши недоступны на бесплатном
-        // аккаунте, а спящее приложение ничего не обновляет.
-        BackgroundKeepAlive.shared.start()
-        startRefreshLoop(taskID: task.id, api: api)
-
-        // Токен приходит не сразу и меняется со временем — поэтому слушаем
-        // поток, а не берём одно значение. Сервер перезаписывает его по
-        // task_id, точка отсчёта таймера при этом не сдвигается.
-        Task.detached {
-            for await tokenData in activity.pushTokenUpdates {
-                let token = tokenData.map { String(format: "%02x", $0) }.joined()
-                try? await api.registerLiveActivityToken(taskId: task.id, token: token)
-            }
-        }
+        watch(activity, api: api)
 
         return activity.id
     }
 
-    /// Обновление изнутри приложения: работает, пока оно открыто. Свёрнутое
-    /// приложение карточку не двигает — этим занимается сервер по токену.
+    /// Обновление работает, пока процесс активен, включая keep-alive островка.
     static func update(task: ApiTask) async {
         guard let activity = activity(for: task.id) else { return }
         await activity.update(
@@ -107,50 +81,118 @@ enum LiveActivityService {
     }
 
     static func end(taskID: String, api: APIClient? = nil) async {
-        guard let activity = activity(for: taskID) else { return }
-        refreshTasks[taskID]?.cancel()
-        refreshTasks[taskID] = nil
-        await activity.end(nil, dismissalPolicy: .immediate)
+        // Clean local resources even if iOS already removed the Activity.
+        clearResources(taskID: taskID)
+        if let activity = activity(for: taskID) {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        reconcileBackground()
         try? await api?.dropLiveActivityToken(taskId: taskID)
-        // Живых карточек не осталось — отпускаем фон, чтобы не жечь батарею
-        // просто так.
-        if Activity<TaskActivityAttributes>.activities.isEmpty {
-            BackgroundKeepAlive.shared.stop()
+    }
+
+    static var activityObservers: [String: Task<Void, Never>] = [:]
+    private static var tokenObservers: [String: Task<Void, Never>] = [:]
+    private static var refreshTasks: [String: Task<Void, Never>] = [:]
+    private static var refreshIDs: [String: UUID] = [:]
+    private static var dirtyRefreshIDs: Set<String> = []
+    private static let realtime = RealtimeClient(allowsBackgroundConnection: true)
+
+    static func restore(api: APIClient) {
+        for activity in activeActivities { watch(activity, api: api) }
+        reconcileBackground()
+    }
+
+    private static var activeActivities: [Activity<TaskActivityAttributes>] {
+        Activity<TaskActivityAttributes>.activities.filter {
+            $0.activityState == .active || $0.activityState == .stale
         }
     }
 
-    /// Пока приложение живо (а живо оно ровно пока висит островок), раз в
-    /// пятнадцать секунд перечитываем задачу и двигаем карточку. Тот же
-    /// интервал, что у опроса на экране задачи — отдельного темпа заводить
-    /// незачем.
-    ///
-    /// Задача закрыта или снята с агента — гасим карточку и выходим из
-    /// цикла: висящий на экране блокировки островок по законченной работе
-    /// только мешает.
-    private static var refreshTasks: [String: Task<Void, Never>] = [:]
-
-    private static func startRefreshLoop(taskID: String, api: APIClient) {
-        refreshTasks[taskID]?.cancel()
-        refreshTasks[taskID] = Task.detached {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                guard !Task.isCancelled else { return }
-                Diag.log("[Цикл] круг обновления, задача \(taskID)")
-                guard let fresh = try? await api.task(id: taskID) else {
-                    Diag.log("[Цикл] сервер не ответил")
-                    continue
-                }
-                if fresh.status == .completed || fresh.agentState == nil {
-                    await end(taskID: taskID, api: api)
+    private static func watch(_ activity: Activity<TaskActivityAttributes>, api: APIClient) {
+        let id = activity.attributes.taskId
+        guard activityObservers[id] == nil else { return }
+        activityObservers[id] = Task {
+            for await state in activity.activityStateUpdates {
+                if state == .ended || state == .dismissed {
+                    await end(taskID: id, api: api)
                     return
                 }
-                await update(task: fresh)
             }
         }
+        tokenObservers[id] = Task {
+            for await tokenData in activity.pushTokenUpdates {
+                guard !Task.isCancelled else { return }
+                let token = tokenData.map { String(format: "%02x", $0) }.joined()
+                try? await api.registerLiveActivityToken(taskId: id, token: token)
+            }
+        }
+        realtime.onEvent = { event in
+            switch event {
+            case .taskChanged(let id): refresh(taskID: id, api: api)
+            case .taskCreated(let task), .taskUpdated(let task), .taskState(let task), .taskCompleted(let task):
+                refresh(taskID: task.id, api: api)
+            case .taskDeleted(let id): Task { await end(taskID: id, api: api) }
+            default: break
+            }
+        }
+        realtime.onReconnected = {
+            for activity in activeActivities { refresh(taskID: activity.attributes.taskId, api: api) }
+        }
+        BackgroundKeepAlive.shared.start()
+        realtime.connect()
+        refresh(taskID: id, api: api)
+    }
+
+    private static func refresh(taskID: String, api: APIClient) {
+        guard isShown(taskID: taskID) else { return }
+        dirtyRefreshIDs.insert(taskID)
+        guard refreshTasks[taskID] == nil else { return }
+        let refreshID = UUID()
+        refreshIDs[taskID] = refreshID
+        refreshTasks[taskID] = Task {
+            defer {
+                if refreshIDs[taskID] == refreshID {
+                    refreshTasks[taskID] = nil
+                    refreshIDs[taskID] = nil
+                    dirtyRefreshIDs.remove(taskID)
+                }
+            }
+            repeat {
+                dirtyRefreshIDs.remove(taskID)
+                guard let task = try? await api.task(id: taskID), !Task.isCancelled,
+                      isShown(taskID: taskID) else { return }
+                if dirtyRefreshIDs.contains(taskID) { continue }
+                await receive(task: task, api: api)
+                if !dirtyRefreshIDs.contains(taskID) { return }
+            } while !Task.isCancelled
+        }
+    }
+
+    private static func receive(task: ApiTask, api: APIClient) async {
+        if task.status == .completed || task.agentState == nil {
+            await end(taskID: task.id, api: api)
+        } else {
+            await update(task: task)
+        }
+    }
+
+    private static func clearResources(taskID: String) {
+        activityObservers.removeValue(forKey: taskID)?.cancel()
+        tokenObservers.removeValue(forKey: taskID)?.cancel()
+        refreshTasks.removeValue(forKey: taskID)?.cancel()
+        refreshIDs[taskID] = nil
+        dirtyRefreshIDs.remove(taskID)
+    }
+
+    private static func reconcileBackground() {
+        guard activeActivities.isEmpty else { return }
+        for id in Array(activityObservers.keys) { clearResources(taskID: id) }
+        realtime.disconnect()
+        BackgroundKeepAlive.shared.stop()
     }
 
     private static func activity(for taskID: String) -> Activity<TaskActivityAttributes>? {
-        Activity<TaskActivityAttributes>.activities.first { $0.attributes.taskId == taskID }
+        activeActivities.first { $0.attributes.taskId == taskID }
     }
 
     // MARK: Состояние карточки

@@ -4,6 +4,7 @@ import SwiftUI
 struct TaskLiveActivityView: View {
     let taskID: String
     let subtaskID: String?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var live: TaskLiveTurn?
     @State private var realtime = RealtimeClient()
     @State private var activity = ApiTaskActivity.idle
@@ -51,30 +52,30 @@ struct TaskLiveActivityView: View {
                 }
             }
             realtime.connect()
-            defer { realtime.disconnect(); realtime.onEvent = nil }
-            activity = .idle
-            loaded = false
-            errorText = nil
-            let api = APIClient()
-            while !Task.isCancelled {
-                do {
-                    // REST covers opening mid-run and missed WebSocket events.
-                    if let turns = try? await api.taskLiveTurns(taskID: taskID),
-                       let turn = turns.first(where: { $0.subtaskID == subtaskID }) {
-                        if live?.turn.startedAt == nil || (turn.turn.startedAt ?? "") >= (live?.turn.startedAt ?? "") {
-                            live = turn
-                        }
-                    }
-                    activity = try await api.taskActivity(taskId: taskID).forSubtask(subtaskID)
-                    errorText = nil
-                } catch {
-                    if Task.isCancelled { return }
-                    errorText = "Не удалось обновить действия"
-                }
-                loaded = true
-                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+        }
+        .task(id: "\(taskID):\(subtaskID ?? ""):\(scenePhase):\(realtime.revision(for: taskID)):\(realtime.activityRevisions[taskID] ?? 0)") {
+            guard scenePhase == .active else { return }
+            await restoreSnapshot()
+        }
+        .onDisappear { realtime.disconnect(); realtime.onEvent = nil }
+    }
+
+    private func restoreSnapshot() async {
+        let api = APIClient()
+        if let turns = try? await api.taskLiveTurns(taskID: taskID),
+           let turn = turns.first(where: { $0.subtaskID == subtaskID }) {
+            if live?.turn.startedAt == nil || (turn.turn.startedAt ?? "") > (live?.turn.startedAt ?? "") {
+                live = turn
             }
         }
+        do {
+            activity = try await api.taskActivity(taskId: taskID).forSubtask(subtaskID)
+            errorText = nil
+        } catch {
+            if Task.isCancelled { return }
+            errorText = "Не удалось обновить действия"
+        }
+        loaded = true
     }
 
     private func icon(_ kind: String) -> String {

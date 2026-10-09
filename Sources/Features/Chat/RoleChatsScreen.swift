@@ -935,14 +935,7 @@ struct RoleChatRoomScreen: View {
         }
         .onDisappear { realtime.disconnect() }
         .task {
-            // Опрос остаётся запасным путём на случай, если сокет молчит.
-            // Готовые сообщения приходят по сокету целиком, поэтому часто
-            // перечитывать всю ленту незачем.
             await refresh()
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(10))
-                if !Task.isCancelled { await refresh() }
-            }
         }
         .alert("Ошибка чата", isPresented: Binding(
             get: { errorMessage != nil },

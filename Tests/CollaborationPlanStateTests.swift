@@ -5,6 +5,7 @@ import Observation
 @MainActor
 final class CollaborationPlanStateTests: XCTestCase {
  private func fixture() -> CollaborationPlanState {
+  PlanStateURLProtocol.delayFirst = false
   PlanStateURLProtocol.planCalls = 0
   PlanStateURLProtocol.failure = false
   PlanStateURLProtocol.status = "draft"
@@ -36,6 +37,17 @@ final class CollaborationPlanStateTests: XCTestCase {
   _ = await (first,second)
   XCTAssertEqual(PlanStateURLProtocol.planCalls,1)
  }
+ func testEventDuringSnapshotLoadIsNotLost() async {
+  let state=fixture()
+  PlanStateURLProtocol.delayFirst=true
+  let first=Task { await state.load(taskID:"card",reloadToken:0,isOwner:true) }
+  while PlanStateURLProtocol.planCalls==0 { await Task.yield() }
+  PlanStateURLProtocol.status="approved"
+  await state.load(taskID:"card",reloadToken:1,force:true,isOwner:true)
+  await first.value
+  XCTAssertEqual(state.plan?.status,"approved")
+  XCTAssertNil(state.draftPlan)
+ }
  func testUnchangedPollingDoesNotInvalidateVisibleSnapshot() async {
   let state=fixture()
   await state.load(taskID:"card",reloadToken:0,isOwner:true)
@@ -47,6 +59,7 @@ final class CollaborationPlanStateTests: XCTestCase {
 }
 private final class ChangeFlag: @unchecked Sendable { var value=false }
 private final class PlanStateURLProtocol: URLProtocol {
+ static var delayFirst=false
  static var planCalls=0
  static var failure=false
  static var status="draft"
@@ -61,8 +74,13 @@ private final class PlanStateURLProtocol: URLProtocol {
    if Self.failure {code=500;body="{\"error\":\"test failure\"}"}
    else {body="{\"plans\":[{\"id\":\"plan\",\"task_id\":\"card\",\"revision\":1,\"status\":\"\(Self.status)\",\"profile\":\"manual\",\"rationale\":\"work\",\"nodes\":[],\"edges\":[]}]}"}
   } else if path.hasSuffix("roles") {body="{\"roles\":[]}"}
-  client?.urlProtocol(self,didReceive:HTTPURLResponse(url:request.url!,statusCode:code,httpVersion:nil,headerFields:["Content-Type":"application/json"])!,cacheStoragePolicy:.notAllowed)
-  client?.urlProtocol(self,didLoad:Data(body.utf8));client?.urlProtocolDidFinishLoading(self)
+  let deliver = {
+  self.client?.urlProtocol(self,didReceive:HTTPURLResponse(url:self.request.url!,statusCode:code,httpVersion:nil,headerFields:["Content-Type":"application/json"])!,cacheStoragePolicy:.notAllowed)
+  self.client?.urlProtocol(self,didLoad:Data(body.utf8));self.client?.urlProtocolDidFinishLoading(self)
+  }
+  if Self.delayFirst && path.hasSuffix("collaboration-plans") && Self.planCalls==1 {
+   DispatchQueue.global().asyncAfter(deadline:.now()+0.08,execute:deliver)
+  } else { deliver() }
  }
  override func stopLoading() {}
 }

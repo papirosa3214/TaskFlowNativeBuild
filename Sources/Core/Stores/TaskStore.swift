@@ -24,6 +24,9 @@ public final class TaskStore {
     public var errorMessage: String?
 
     private let apiClient: APIClient
+    @ObservationIgnored private var realtimeLoads: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var realtimeVersions: [String: Int] = [:]
+    @ObservationIgnored private var realtimeLoadIDs: [String: UUID] = [:]
 
     public init(apiClient: APIClient) {
         self.apiClient = apiClient
@@ -176,8 +179,30 @@ public final class TaskStore {
     public func apply(_ event: RealtimeEvent) {
         switch event {
         case .taskCreated(let task), .taskUpdated(let task), .taskCompleted(let task), .taskState(let task):
+            realtimeLoads.removeValue(forKey: task.id)?.cancel()
             upsert(task)
+        case .taskChanged(let id):
+            realtimeVersions[id, default: 0] += 1
+            guard realtimeLoads[id] == nil else { return }
+            let loadID = UUID()
+            realtimeLoadIDs[id] = loadID
+            realtimeLoads[id] = Task { [weak self] in
+                guard let self else { return }
+                defer {
+                    if self.realtimeLoadIDs[id] == loadID {
+                        self.realtimeLoads[id] = nil
+                        self.realtimeLoadIDs[id] = nil
+                    }
+                }
+                repeat {
+                    let version = self.realtimeVersions[id]
+                    guard let task = try? await self.apiClient.task(id: id), !Task.isCancelled else { return }
+                    self.upsert(task)
+                    if self.realtimeVersions[id] == version { return }
+                } while !Task.isCancelled
+            }
         case .taskDeleted(let id):
+            realtimeLoads.removeValue(forKey: id)?.cancel()
             tasks.removeAll { $0.id == id }
             agentWorkTasks.removeAll { $0.id == id }
             archivedTasks.removeAll { $0.id == id }

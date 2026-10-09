@@ -8,11 +8,13 @@ import SwiftUI
 /// показывает, что сейчас в очереди и в работе, и что закончилось —
 /// чтобы владелец видел работу агентов вживую, а не угадывал по тишине.
 ///
-/// Данные — `GET /api/role-run-jobs`, раз в 5 с, пока экран открыт.
+/// Снимок `GET /api/role-run-jobs` загружается при открытии и событиях WebSocket.
 /// Названия задач и ролей в записи нет: берём из стора задач и каталога
 /// ролей, недостающую карточку дочитываем по id.
 struct RoleRunJobsScreen: View {
     @Environment(TaskStore.self) private var taskStore
+    @Environment(RealtimeClient.self) private var realtime
+    @Environment(\.scenePhase) private var scenePhase
     @State private var jobs: [RoleRunJob] = []
     @State private var roleTitles: [String: String] = [:]
     @State private var fetchedTasks: [String: ApiTask] = [:]
@@ -51,11 +53,9 @@ struct RoleRunJobsScreen: View {
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Запуски агентов")
-        .task {
-            while !Task.isCancelled {
-                await load()
-                try? await Task.sleep(for: .seconds(5))
-            }
+        .task(id: "\(scenePhase):\(realtime.connectionRevision):\(realtime.jobsRevision)") {
+            guard scenePhase == .active else { return }
+            await load()
         }
         .alert("Не получилось", isPresented: Binding(
             get: { actionError != nil },

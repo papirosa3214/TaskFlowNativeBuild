@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "3EE11560-DC48-4AAD-9640-4552108F0683.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "websocket-card-after-reconnect_0_7D7B4EEB-B296-4A26-B8E8-B9EE897DE90F.png",
+        "timestamp" : 1791552533.966
+      }
+    ],
+    "testIdentifier" : "WebSocketEnergyUITests/testCardIsIdleThenUpdatesFromSocketAndReconnect()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/WebSocketEnergyUITests/testCardIsIdleThenUpdatesFromSocketAndReconnect"
+  }
+]

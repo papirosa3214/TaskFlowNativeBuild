@@ -74,6 +74,8 @@ public struct CollaborationPlanView: View {
     @Binding var pendingApprovalPlanId: String?
     @Binding var pendingBranchSnapshot: String?
 
+    @Environment(RealtimeClient.self) private var realtime
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(SessionStore.self) private var session
     private var isOwner: Bool { session.currentUser?.role == .owner }
 
@@ -108,13 +110,9 @@ public struct CollaborationPlanView: View {
                 content(for: plan)
             }
         }
-        .task(id: taskId) {
-            await load(force: false)
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .seconds(3)) } catch { return }
-                guard !isApplying else { continue }
-                await load()
-            }
+        .task(id: "\(taskId):\(scenePhase):\(realtime.revision(for: taskId))") {
+            guard scenePhase == .active else { return }
+            await load()
         }
         .onChange(of: subtasks.map { "\($0.id):\($0.done):\($0.agentState?.rawValue ?? "")" }.joined(separator: "|")) { _, _ in
             Task { await load() }

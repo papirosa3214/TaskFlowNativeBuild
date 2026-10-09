@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// Единственный канал реалтайма — WebSocket, SSE в проекте нет (spec/API.md §4).
 /// `ws://192.168.1.110:3001/ws?token=<JWT-или-api_token>` — эндпоинт ВНЕ
@@ -14,6 +15,32 @@ import Observation
 @Observable
 public final class RealtimeClient {
     public private(set) var isConnected = false
+    public private(set) var taskRevisions: [String: Int] = [:]
+    public private(set) var connectionRevision = 0
+    public private(set) var rolesRevision = 0
+    public private(set) var jobsRevision = 0
+    public private(set) var activityRevisions: [String: Int] = [:]
+
+    public func revision(for taskID: String) -> Int {
+        connectionRevision + (taskRevisions[taskID] ?? 0)
+    }
+
+    /// Invalidation events wake only affected screens; no screen polling timer.
+    func record(_ event: RealtimeEvent) {
+        switch event {
+        case .connected: connectionRevision += 1
+        case .taskChanged(let id), .taskDeleted(let id): taskRevisions[id, default: 0] += 1
+        case .taskCreated(let task), .taskUpdated(let task), .taskState(let task), .taskCompleted(let task):
+            taskRevisions[task.id, default: 0] += 1
+            if let parent = task.parentId { taskRevisions[parent, default: 0] += 1 }
+            rolesRevision += 1
+            jobsRevision += 1
+        case .rolesChanged: rolesRevision += 1
+        case .roleJobsChanged: jobsRevision += 1; rolesRevision += 1
+        case .taskActivity(let id?, _): activityRevisions[id, default: 0] += 1
+        default: break
+        }
+    }
 
     /// На каждое разобранное событие — сторы подписываются здесь напрямую,
     /// без Combine/NotificationCenter (проще в @Observable-мире SwiftUI).
@@ -33,6 +60,10 @@ public final class RealtimeClient {
     private var hasConnectedBefore = false
     private var isStopping = true
     private var reconnectAttempt = 0
+    private var reconnectTask: Task<Void, Never>?
+    private let allowsBackgroundConnection: Bool
+    @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
+    private var wantsConnection = false
 
     private static let watchdogIntervalNs: UInt64 = 20_000_000_000
     /// Дольше этого без НИКАКОГО входящего трафика (включая keepalive `ping`)
@@ -41,16 +72,44 @@ public final class RealtimeClient {
     /// но и не отражает реальность, полагаться только на него нельзя).
     private static let staleThreshold: TimeInterval = 45
 
-    public init() {}
+    public init(allowsBackgroundConnection: Bool = false) {
+        self.allowsBackgroundConnection = allowsBackgroundConnection
+        lifecycleObservers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, !self.allowsBackgroundConnection else { return }
+                self.closeConnection()
+            }
+        })
+        lifecycleObservers.append(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.wantsConnection else { return }
+                self.connect()
+            }
+        })
+    }
 
     public func connect() {
+        wantsConnection = true
+        guard allowsBackgroundConnection || UIApplication.shared.applicationState != .background else { return }
+        guard isStopping else { return }
         isStopping = false
         openSocket()
         startWatchdog()
     }
 
+    deinit {
+        for observer in lifecycleObservers { NotificationCenter.default.removeObserver(observer) }
+    }
+
     public func disconnect() {
+        wantsConnection = false
+        closeConnection()
+    }
+
+    private func closeConnection() {
         isStopping = true
+        reconnectTask?.cancel()
+        reconnectTask = nil
         watchdogTask?.cancel()
         watchdogTask = nil
         task?.cancel(with: .goingAway, reason: nil)
@@ -98,6 +157,7 @@ public final class RealtimeClient {
             guard task === socketTask else { return }
             handleDisconnect()
         case .success(let message):
+            guard task === socketTask else { return }
             lastTrafficAt = Date()
             if !isConnected {
                 isConnected = true
@@ -116,6 +176,7 @@ public final class RealtimeClient {
     private func handle(message: URLSessionWebSocketTask.Message, task socketTask: URLSessionWebSocketTask) {
         guard case .string(let text) = message, let data = text.data(using: .utf8) else { return }
         guard let event = RealtimeEvent.parse(data) else { return }
+        record(event)
         if case .ping = event {
             // Keepalive — сервер шлёт ping, клиент обязан ответить pong (spec §4).
             socketTask.send(.string("{\"type\":\"pong\"}")) { _ in }
@@ -134,8 +195,9 @@ public final class RealtimeClient {
         reconnectAttempt += 1
         // Экспоненциальный бэкофф, потолок 30с — не долбить сервер при долгом офлайне.
         let delaySeconds = min(30.0, pow(1.6, Double(reconnectAttempt)))
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000)) } catch { return }
             guard let self else { return }
             await MainActor.run {
                 guard !self.isStopping else { return }

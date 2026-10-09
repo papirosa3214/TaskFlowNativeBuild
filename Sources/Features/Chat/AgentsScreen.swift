@@ -9,6 +9,8 @@ import SwiftUI
 struct AgentsScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
+    @Environment(RealtimeClient.self) private var realtime
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = AgentsViewModel()
     @State private var showAppearance = false
     @State private var editorMode: RoleEditorSheet.Mode?
@@ -59,11 +61,11 @@ struct AgentsScreen: View {
             }
 
         }
-        .task {
+        .task(id: "\(scenePhase):\(realtime.connectionRevision):\(realtime.rolesRevision)") {
+            guard scenePhase == .active else { return }
             viewModel.configure(currentUser: session.currentUser)
-            viewModel.start()
+            await viewModel.load()
         }
-        .onDisappear { viewModel.stop() }
         .sheet(isPresented: $showAppearance) {
             TeamAppearanceSheet()
         }
