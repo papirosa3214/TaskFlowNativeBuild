@@ -12,9 +12,36 @@ struct IntegrationResponsibilityView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Ответственный за интеграцию").font(.subheadline)
-                    .foregroundStyle(validationError ? Color.red : Color.primary)
+            HStack(spacing: 4) {
+                if let state {
+                    Menu {
+                        Button("Автоматически") { select("auto", nil) }
+                        ForEach(state.candidates) { candidate in
+                            Button(candidate.title) { select("manual", candidate.id) }
+                        }
+                        Button("Не требуется") { select("not_required", nil) }
+                        Button("Не выбран") { select("manual", nil) }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.branch")
+                            Text(state.mode == "not_required" ? "Не требуется" : state.owner_title ?? "Выбрать участника")
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .tfText(.action)
+                        .foregroundStyle(validationError ? Color.red : Color.tfSub)
+                        .padding(.horizontal, TFSpacing.sm)
+                        .padding(.vertical, 6)
+                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Ответственный за интеграцию")
+                    .accessibilityValue(state.mode == "not_required" ? "Не требуется" : state.owner_title ?? "Не выбран")
+                    .accessibilityIdentifier("integration-owner-picker")
+                    .disabled(saving)
+                } else if error == nil {
+                    ProgressView()
+                }
                 Button { help = true } label: {
                     Image(systemName: "questionmark.circle").foregroundStyle(.tertiary)
                 }
@@ -22,25 +49,6 @@ struct IntegrationResponsibilityView: View {
                 .accessibilityLabel("Об ответственности за интеграцию")
                 .accessibilityIdentifier("integration-help")
                 Spacer(minLength: 0)
-            }
-            if let state {
-                Menu {
-                    Button("Автоматически") { select("auto", nil) }
-                    ForEach(state.candidates) { candidate in
-                        Button(candidate.title) { select("manual", candidate.id) }
-                    }
-                    Button("Не требуется") { select("not_required", nil) }
-                    Button("Не выбран") { select("manual", nil) }
-                } label: {
-                    HStack {
-                        Text(state.mode == "not_required" ? "Не требуется" : state.owner_title ?? "Выбрать участника")
-                        Image(systemName: "chevron.up.chevron.down").font(.caption)
-                    }
-                }
-                .accessibilityIdentifier("integration-owner-picker")
-                .disabled(saving)
-            } else if error == nil {
-                ProgressView()
             }
             if validationError {
                 Text("Назначьте ответственного за перенос изменений в основную ветку")
