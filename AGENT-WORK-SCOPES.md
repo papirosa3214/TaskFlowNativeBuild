@@ -456,3 +456,5 @@
 | LOCK-PREVIOUS-LEADER-20261009 | REVIEW | MAK-110 | Руководитель в стиле предыдущего набора | AGENT-WORK-SCOPES.md, Resources/Assets.xcassets/TeamPreviousOrchestrator.imageset/avatar.png, docs/2026-10-09-previous-leader.md | Прямое поручение владельца | Codex | Новый портрет подключён только в previous; визуальная сверка и PNG/mapping проверены; iPhone не установлен |
 
 | LOCK-INTEGRATION-STYLE-20261009 | REVIEW | MAK-111 | Интеграция в стиле сведений | AGENT-WORK-SCOPES.md, Sources/Features/Task/Detail/IntegrationResponsibilityView.swift, UITests/IntegrationStyleUITests.swift, docs/2026-10-09-integration-style.md, docs/2026-10-09-integration-style/ | Прямое поручение владельца | Codex | Сборка и XCUITest 1/1; серый стиль сверён кадром, выбор и help работают; iPhone не установлен |
+
+| LOCK-BATTERY-AUDIT-20261009 | REVIEW | MAK-113 | Аудит расхода батареи | AGENT-WORK-SCOPES.md, docs/2026-10-09-battery-audit.md | Только чтение исходников; отчёт по поручению владельца | Codex | Проверка жизненных циклов и ссылок; без измерения на iPhone |
