@@ -10,6 +10,7 @@ struct AgentsScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
     @State private var viewModel = AgentsViewModel()
+    @State private var showAppearance = false
     @State private var editorMode: RoleEditorSheet.Mode?
 
     var body: some View {
@@ -42,6 +43,14 @@ struct AgentsScreen: View {
         .background(Color.tfBackground)
         .tfNativeHeader("Команда")
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Внешний вид", systemImage: "person.crop.circle") { showAppearance = true }
+                        .accessibilityIdentifier("team-appearance-open")
+                } label: { Image(systemName: "ellipsis") }
+                .accessibilityLabel("Меню команды")
+                .accessibilityIdentifier("team-menu")
+            }
             // Кнопка «+» есть только у владельца — это единственный, кто
             // может создать роль. `agentProfile(id:)` маршрут остаётся в
             // `AppRoute`, но из «Команды» теперь не открывается: правка
@@ -62,6 +71,9 @@ struct AgentsScreen: View {
             viewModel.start()
         }
         .onDisappear { viewModel.stop() }
+        .sheet(isPresented: $showAppearance) {
+            TeamAppearanceSheet()
+        }
         .sheet(item: $editorMode) { mode in
             RoleEditorSheet(mode: mode, viewModel: viewModel)
                 .presentationDetents([.large])

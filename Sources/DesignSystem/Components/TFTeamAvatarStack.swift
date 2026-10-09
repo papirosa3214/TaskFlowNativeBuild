@@ -5,6 +5,7 @@ import SDWebImageSwiftUI
 /// Стопка лежит неподвижно; вперёд выходит следующий только после того,
 /// как владелец посмотрел всех по долгому нажатию (`front` двигает `TFAvatar`).
 struct TFTeamAvatarStack: View {
+    @AppStorage(TeamAvatarAppearance.storageKey) private var avatarAppearance = "current"
     let ids: [String]
     let urls: [String]
     let side: CGFloat
@@ -31,13 +32,13 @@ struct TFTeamAvatarStack: View {
     }
 
     @ViewBuilder private func avatar(_ id: String, url: String) -> some View {
-        if !url.isEmpty, let full = TFAvatar.fullURL(url) {
-            AnimatedImage(url: full, placeholder: { Circle().fill(Color.tfCard2) })
-                .resizable().aspectRatio(contentMode: .fill)
+        if let asset = RoleAvatarAsset.imageName(forUserID: id, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
+            Image(asset).resizable().aspectRatio(contentMode: .fill)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(Color.tfBackground, lineWidth: 1.5))
-        } else if let asset = RoleAvatarAsset.imageName(forUserID: id) {
-            Image(asset).resizable().aspectRatio(contentMode: .fill)
+        } else if !url.isEmpty, let full = TFAvatar.fullURL(url) {
+            AnimatedImage(url: full, placeholder: { Circle().fill(Color.tfCard2) })
+                .resizable().aspectRatio(contentMode: .fill)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(Color.tfBackground, lineWidth: 1.5))
         } else {

@@ -9,6 +9,7 @@ import SDWebImageSwiftUI
 // - инициалы-заглушка — круг, фон = цвет пользователя или `#A6A6A6`,
 //   шрифт `size × 0.43`, вес 600, белый текст.
 public struct TFAvatar: View {
+    @AppStorage(TeamAvatarAppearance.storageKey) private var avatarAppearance = "current"
     public enum Size: CGFloat {
         case xs = 18   // строка карточки доски
         case sm = 20   // строка задачи в списке
@@ -39,7 +40,7 @@ public struct TFAvatar: View {
     let userID: String?
     /// Бригада плана: если больше одного — наверх по очереди выходит каждый.
     let teamIDs: [String]
-    /// Картинка с сервера (`avatar_url`) — главный источник; вшитый портрет и инициалы — запасной вариант.
+    /// Фото человека с сервера; для известных ролей используется выбранный комплект команды.
     let urlPath: String?
     let teamURLs: [String]
     /// Круглый портрет агента (fill) вместо фото человека (fit в скруглённом квадрате).
@@ -128,7 +129,7 @@ public struct TFAvatar: View {
 
     /// Пока картинка грузится (или недоступна): вшитый портрет роли, иначе инициалы.
     @ViewBuilder private var placeholderCircle: some View {
-        if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
+        if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
             Image(asset).resizable().aspectRatio(contentMode: .fill)
                 .frame(width: side, height: side).clipShape(Circle())
         } else {
@@ -141,6 +142,9 @@ public struct TFAvatar: View {
         Group {
             if teamIDs.count > 1 {
                 TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side, front: teamFront)
+            } else if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
+                Image(asset).resizable().aspectRatio(contentMode: .fill)
+                    .frame(width: side, height: side).clipShape(Circle())
             } else if let urlPath = resolvedURLPath, let url = TFAvatar.fullURL(urlPath) {
                 if portrait || self.urlPath == nil {
                     AnimatedImage(url: url, placeholder: { placeholderCircle })
@@ -156,12 +160,6 @@ public struct TFAvatar: View {
                         .background(Color.tfCard2)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 }
-            } else if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
-                Image(asset)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: side, height: side)
-                    .clipShape(Circle())
             } else if let image {
                 image
                     .resizable()

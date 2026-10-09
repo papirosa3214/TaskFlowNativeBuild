@@ -16,6 +16,7 @@ import SDWebImageSwiftUI
 // и приватного AgentAvatarView в AgentRow.swift) — кандидат на вынос в
 // DesignSystem с параметром размера, в отчёте оркестратору.
 private struct AgentWorkAvatarView: View {
+    @AppStorage(TeamAvatarAppearance.storageKey) private var avatarAppearance = "current"
     let urlPath: String?
     let initials: String
     let tint: Color
@@ -25,7 +26,9 @@ private struct AgentWorkAvatarView: View {
     // `AnimatedImage` вместо `AsyncImage` — см. комментарий у AgentAvatarView
     // (AgentRow.swift), просьба владельца 03.09.2026, тот же приём.
     var body: some View {
-        if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
+        if RoleAvatarAsset.imageName(forUserID: userID, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) != nil {
+            bundledOrInitials
+        } else if let urlPath, let url = URL(string: APIClient.baseURL.absoluteString + urlPath) {
             AnimatedImage(url: url, placeholder: { bundledOrInitials })
                 .resizable()
                 .aspectRatio(contentMode: .fit)
@@ -38,7 +41,7 @@ private struct AgentWorkAvatarView: View {
     }
 
     @ViewBuilder private var bundledOrInitials: some View {
-        if let asset = RoleAvatarAsset.imageName(forUserID: userID) {
+        if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
             Image(asset).resizable().aspectRatio(contentMode: .fill)
                 .frame(width: size, height: size).clipShape(Circle())
         } else {

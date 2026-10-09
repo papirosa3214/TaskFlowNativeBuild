@@ -57,6 +57,7 @@ func roleStatusColor(_ status: RoleRuntimeStatus) -> Color {
 }
 
 struct RoleAvatarView: View {
+    @AppStorage(TeamAvatarAppearance.storageKey) private var avatarAppearance = "current"
     let initials: String
     let tint: Color
     let size: CGFloat
@@ -74,12 +75,10 @@ struct RoleAvatarView: View {
 
     var body: some View {
         Group {
-            if let serverURL {
+            if let asset = RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
+                Image(asset).resizable().aspectRatio(contentMode: .fill)
+            } else if let serverURL {
                 AnimatedImage(url: serverURL, placeholder: { Circle().fill(tint) })
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else if let asset = RoleAvatarAsset.imageName(for: role) {
-                Image(asset)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
