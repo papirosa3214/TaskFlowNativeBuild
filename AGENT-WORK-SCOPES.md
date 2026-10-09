@@ -452,3 +452,5 @@
 | LOCK-DIRECT-WORK-RULE-20261009 | REVIEW | DIRECT-WORK-RULE | Убрать учётные карточки внешнего агента | AGENT-CYCLE.md, AGENT-WORK-SCOPES.md | Прямое поручение владельца; внутренние роли не менять | Codex | Требования создавать, claim/heartbeat и сдавать учётную карточку удалены; серверные инструкции внутренних ролей не менялись |
 
 | LOCK-TEAM-MENU-ADD-20261009 | REVIEW | MAK-109 | Добавление участника в меню команды | AGENT-WORK-SCOPES.md, Sources/Features/Chat/AgentsScreen.swift, UITests/TeamMenuAddUITests.swift, docs/2026-10-09-team-menu-add.md, docs/2026-10-09-team-menu-add/ | Прямое поручение владельца | Codex | XcodeBuildMCP: сборка и UI 1/1; меню и форма проверены; кадры в docs; iPhone не установлен |
+
+| LOCK-PREVIOUS-LEADER-20261009 | REVIEW | MAK-110 | Руководитель в стиле предыдущего набора | AGENT-WORK-SCOPES.md, Resources/Assets.xcassets/TeamPreviousOrchestrator.imageset/avatar.png, docs/2026-10-09-previous-leader.md | Прямое поручение владельца | Codex | Новый портрет подключён только в previous; визуальная сверка и PNG/mapping проверены; iPhone не установлен |
