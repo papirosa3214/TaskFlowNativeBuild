@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "D8D4FAA9-F653-4CD1-87AB-98A9799AE141.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "rich-content-immediate_0_C6A1D1C5-15A8-4F81-9DFB-50C1D26F17F6.png",
+        "timestamp" : 1791658012.217
+      }
+    ],
+    "testIdentifier" : "RichFastUITests/testRichBlocksAppearWhileProseIsStillQueued()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RichFastUITests/testRichBlocksAppearWhileProseIsStillQueued"
+  }
+]

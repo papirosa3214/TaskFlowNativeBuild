@@ -310,6 +310,7 @@ struct RoleLiveTextPacer {
     private(set) var lastRevealAt: Date = .distantPast
     private(set) var lastPresentationAt: Date = .distantPast
     private var texts: [[Character]] = []
+    private var immediateText: Set<Int> = []
     private var budget: Double = 0
     private var revealedActions: Set<Int> = []
     private var actionWait: TimeInterval = 0
@@ -327,13 +328,26 @@ struct RoleLiveTextPacer {
     /// Сколько ждать продолжения оборванного слова в конце снимка.
     static let tailWait: TimeInterval = 0.65
 
-    mutating func ingest(_ items: [RoleChatLiveItem]) {
+    mutating func ingest(_ incoming: [RoleChatLiveItem]) {
+        // Rich blocks bypass the prose clock, including unfinished blocks whose
+        // renderer shows a placeholder. Keep raw fences for the existing parser.
+        var items: [RoleChatLiveItem] = []
+        immediateText = []
+        for item in incoming {
+            if case .text(let text) = item {
+                for (part, immediate) in Self.pacingParts(text) {
+                    if immediate { immediateText.insert(items.count) }
+                    items.append(.text(part))
+                }
+            } else { items.append(item) }
+        }
         var next = Array(repeating: 0, count: items.count)
         var nextTexts: [[Character]] = Array(repeating: [], count: items.count)
         for index in items.indices {
             guard case .text(let new) = items[index] else { continue }
             let chars = Array(new)
             nextTexts[index] = chars
+            if immediateText.contains(index) { next[index] = chars.count; continue }
             guard index < target.count, case .text = target[index] else { continue }
             let old = texts[index]
             let shown = visibleCharacters[index]
@@ -458,20 +472,56 @@ struct RoleLiveTextPacer {
 
     var visibleItems: [RoleChatLiveItem] {
         var result: [RoleChatLiveItem] = []
+        var blocked = false
         for index in target.indices {
             switch target[index] {
             case .text:
                 let count = visibleCharacters[index]
                 let chars = texts[index]
-                if count > 0 { result.append(.text(String(chars[0..<count]))) }
-                if count < chars.count { return result }
+                if immediateText.contains(index) {
+                    result.append(target[index])
+                } else if !blocked {
+                    if count > 0 { result.append(.text(String(chars[0..<count]))) }
+                    if count < chars.count { blocked = true }
+                }
             case .step, .thinking:
-                guard revealedActions.contains(index) else { return result }
+                if blocked { continue }
+                guard revealedActions.contains(index) else { blocked = true; continue }
                 result.append(target[index])
             }
         }
         return result
     }
+
+    /// Fence boundaries use String indices so Unicode and CRLF remain intact.
+    /// Ordinary code fences are consumed as pairs and never treated as HTML.
+    private static func pacingParts(_ text: String) -> [(String, Bool)] {
+        let pattern = #"(?m)^[ \t]*```([^\r\n]*)(?:\r?\n|$)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [(text, false)] }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        var parts: [(String, Bool)] = []
+        var consumed = text.startIndex
+        var index = 0
+        while index < matches.count {
+            let opening = matches[index]
+            let language = Range(opening.range(at: 1), in: text).map {
+                text[$0].trimmingCharacters(in: .whitespaces).lowercased()
+            } ?? ""
+            let special = ChatRichContent.htmlLanguages.contains(language) || ChatRichContent.widgetLanguages.contains(language)
+            let closing = index + 1 < matches.count ? matches[index + 1] : nil
+            if special, let begin = Range(opening.range, in: text)?.lowerBound {
+                var end = closing.flatMap { Range($0.range, in: text)?.upperBound } ?? text.endIndex
+                if end < text.endIndex, text[end] == "\n" { end = text.index(after: end) }
+                if consumed < begin { parts.append((String(text[consumed..<begin]), false)) }
+                parts.append((String(text[begin..<end]), true))
+                consumed = end
+            }
+            index += closing == nil ? 1 : 2
+        }
+        if consumed < text.endIndex { parts.append((String(text[consumed...]), false)) }
+        return parts.isEmpty ? [(text, false)] : parts
+    }
+
 }
 
 public struct RoleChatLiveStep: Decodable, Sendable, Equatable {

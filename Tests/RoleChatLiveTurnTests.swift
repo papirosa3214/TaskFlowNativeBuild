@@ -18,6 +18,59 @@ final class RoleChatLiveTurnTests: XCTestCase {
         }
     }
 
+    func testRichBlocksAppearImmediatelyWithoutProseBudget() {
+        for language in ["html", "artifact", "widget", "tf-widget"] {
+            let source = "```\(language)\n" + String(repeating: "content ", count: 1000) + "\n```"
+            var pacer = RoleLiveTextPacer()
+            pacer.ingest([.text(source)])
+            XCTAssertEqual(pacer.visibleItems, [.text(source)])
+            XCTAssertEqual(pacer.pendingCharacters, 0)
+            XCTAssertFalse(pacer.hasPendingText)
+        }
+    }
+
+    func testRichContentOvertakesQueuedProseAndActionsButDoesNotRevealTail() {
+        let prefix = String(repeating: "Объяснение ", count: 100) + "\n"
+        let html = "```html\n<h1>Готово</h1>\n```\n"
+        let widget = "```widget\n{\"type\":\"metric\"}\n```"
+        let step = RoleChatLiveStep(id: "later", tool: "read", detail: nil, status: .done)
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text(prefix + html + "Обычный хвост"), .step(step), .text(widget)])
+        XCTAssertEqual(pacer.visibleItems, [.text(html), .text(widget)])
+        XCTAssertEqual(pacer.pendingCharacters, prefix.count + "Обычный хвост".count)
+        drain(&pacer)
+        XCTAssertEqual(pacer.visibleItems, [.text(prefix), .text(html), .text("Обычный хвост"), .step(step), .text(widget)])
+    }
+
+    func testIncompleteHTMLBecomesReadyOnIngestWhileProseRemainsQueued() {
+        let prefix = String(repeating: "Слово ", count: 80) + "\n"
+        let partial = "```html\n<h1>Привет"
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text(prefix + partial)])
+        XCTAssertEqual(pacer.visibleItems, [.text(partial)])
+        XCTAssertEqual(ChatRichContent.split(partial), [.pending(.html)])
+        pacer.advance(elapsed: 1)
+        let progress = pacer.visibleCharacters[0]
+        let ready = partial + "</h1>\n```"
+        pacer.ingest([.text(prefix + ready)])
+        XCTAssertEqual(pacer.visibleCharacters[0], progress)
+        XCTAssertTrue(pacer.visibleItems.contains(.text(ready)))
+        XCTAssertEqual(ChatRichContent.split(ready), [.html("<h1>Привет</h1>")])
+    }
+
+    func testOrdinaryCodeStaysPacedAndUnicodeCRLFFencesRemainIntact() {
+        let ordinary = "```swift\nlet value = 1\n```"
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text(ordinary)])
+        XCTAssertTrue(pacer.visibleItems.isEmpty)
+        let prefix = "Привет 👨‍👩‍👧‍👦\r\n"
+        let html = "```HTML\r\n<h1>Привет 🌍</h1>\r\n```\r\n"
+        pacer.ingest([.text(prefix + html + "После")])
+        XCTAssertEqual(pacer.visibleItems, [.text(html)])
+        drain(&pacer)
+        XCTAssertEqual(pacer.visibleItems, [.text(prefix), .text(html), .text("После")])
+    }
+
     func testPacerRevealsWholeWordsAndPreservesProgressAcrossSnapshots() {
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text("Привет, как дела")])

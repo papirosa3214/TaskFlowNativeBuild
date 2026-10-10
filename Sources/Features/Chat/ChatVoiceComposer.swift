@@ -367,6 +367,12 @@ struct AgentChatComposerPreview: View {
     private let response = "Сначала изучу исходные данные и сравню независимые источники. Затем проверю противоречия, составлю план и отмечу критерии приёмки. Текст появляется постепенно и спокойно, а готовый ответ сохраняет своё место в ленте."
     private var smoothPreview: Bool { ProcessInfo.processInfo.environment["TASKFLOW_SMOOTH_STREAM_PREVIEW"] == "1" }
     private var previewItems: [RoleChatLiveItem] {
+        if ProcessInfo.processInfo.environment["TASKFLOW_RICH_FAST_PREVIEW"] == "1" {
+            let prefix = String(repeating: "Пояснение появляется плавно. ", count: 100)
+            let html = "```html\n<title>Быстрый интерактив</title><button onclick=\"this.textContent='Нажато'\">Проверить HTML</button>\n```"
+            let widget = "```widget\n{\"type\":\"card\",\"title\":\"Быстрый виджет\",\"subtitle\":\"Готов сразу\"}\n```"
+            return [.text(prefix + "\n" + html + "\n" + widget + "\nХВОСТ ПОЯСНЕНИЯ")]
+        }
         guard smoothPreview, !stream.isEmpty else { return [.text(stream)] }
         return [.text(stream)] + (0..<4).map {
             .step(RoleChatLiveStep(id: "smooth-\($0)", tool: "read", detail: "Файл \($0 + 1)", status: .done))
