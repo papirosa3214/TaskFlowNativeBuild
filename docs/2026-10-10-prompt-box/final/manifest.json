@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "4A037173-BA0B-44D4-9197-8C94DD6C3D92.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Текущее поле восстановлено_0_6B0FAAA0-FDA4-4958-A942-030DE19AAE39.png",
+        "timestamp" : 1791661382.961
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "FC28D9AB-A6F3-4C5D-BD02-4FC8D55C5CFF.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Экспериментальное поле_0_2339A99D-85E5-4A0F-9566-4FF8D9C61D0A.png",
+        "timestamp" : 1791661376.049
+      }
+    ],
+    "testIdentifier" : "PromptBoxUITests/testInputAndRestore()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/PromptBoxUITests/testInputAndRestore"
+  }
+]

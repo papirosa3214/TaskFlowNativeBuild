@@ -30,6 +30,7 @@ struct ChatVoiceComposer: View {
     var isStopping = false
     var onStop: (() -> Void)? = nil
 
+    @AppStorage("chat.experimentalPromptBox") private var experimentalPromptBox = true
     @State private var player = VoicePlayer()
     @State private var isRecording = false
     @State private var preview: VoiceMessage?
@@ -51,8 +52,10 @@ struct ChatVoiceComposer: View {
     var body: some View {
         ZStack {
             // Поле не удаляется при морфинге, поэтому клавиатура остаётся на месте.
-            idleComposer
-            if isRecording { recordingComposer }
+            if experimentalPromptBox { promptComposer } else { idleComposer }
+            if isRecording {
+                if experimentalPromptBox { promptRecordingComposer } else { recordingComposer }
+            }
             if let preview { previewComposer(preview) }
         }
         .contentShape(Rectangle())
@@ -63,6 +66,13 @@ struct ChatVoiceComposer: View {
                     isTextFieldFocused = false
                 }
         )
+        .onAppear {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["TASKFLOW_PROMPT_BOX_PREVIEW"] == "1" {
+                experimentalPromptBox = true
+            }
+            #endif
+        }
         .onDisappear {
             voice.cancel()
             player.stop()
@@ -86,6 +96,7 @@ struct ChatVoiceComposer: View {
                     .accessibilityIdentifier("chat.stop")
                 } else {
                     Menu {
+                        Toggle("Экспериментальное поле", isOn: $experimentalPromptBox)
                         Button { onAttachmentSource(.photo) } label: {
                             Label("Фото", systemImage: "photo.on.rectangle")
                         }
@@ -156,6 +167,101 @@ struct ChatVoiceComposer: View {
             .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         }
         .padding(.horizontal).padding(.vertical, 10)
+    }
+
+    private var promptAttachmentMenu: some View {
+        Menu {
+            Button { onAttachmentSource(.photo) } label: { Label("Фото", systemImage: "photo.on.rectangle") }
+            Button { onAttachmentSource(.file) } label: { Label("Файл", systemImage: "doc") }
+            Button { onAttachmentSource(.camera) } label: { Label("Камера", systemImage: "camera") }
+            Divider()
+            Toggle("Экспериментальное поле", isOn: $experimentalPromptBox)
+        } label: {
+            Image(systemName: "paperclip").frame(width: 44, height: 44)
+        }
+        .accessibilityLabel("Добавить вложение")
+        .accessibilityIdentifier("chat.attachment")
+    }
+
+    private var promptComposer: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
+                .lineLimit(2...5)
+                .textInputAutocapitalization(.sentences)
+                .focused($isTextFieldFocused)
+                .onSubmit(onSendText)
+                .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.white)
+                .accessibilityIdentifier("chat.message")
+                .padding(.horizontal, 10).padding(.top, 10)
+            HStack(spacing: 4) {
+                promptAttachmentMenu
+                if let workMode {
+                    Menu {
+                        Picker("Режим работы", selection: workMode) {
+                            ForEach(availableModes, id: \.self) { mode in
+                                Label(mode.title, systemImage: mode.symbol).tag(mode)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: workMode.wrappedValue.symbol).frame(width: 44, height: 44)
+                    }
+                    .accessibilityIdentifier("chat.mode")
+                    .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
+                }
+                Spacer(minLength: 0)
+                if canSendText {
+                    actionButton("arrow.up", label: "Отправить", identifier: "chat.send", tint: .black, action: onSendText)
+                        .background(.white, in: Circle())
+                } else if isResponding, let onStop {
+                    actionButton("stop.fill", label: "Остановить ответ роли", identifier: "chat.stop", tint: .white, action: onStop)
+                        .disabled(isStopping)
+                } else {
+                    Image(systemName: "mic.fill")
+                        .foregroundStyle(.black)
+                        .frame(width: 40, height: 40)
+                        .background(.white, in: Circle())
+                        .contentShape(Circle())
+                        .onLongPressGesture(minimumDuration: 0.18, perform: startVoiceRecording)
+                        .accessibilityLabel("Удерживайте для начала записи")
+                        .accessibilityIdentifier("chat.voice")
+                }
+            }
+            .foregroundStyle(.gray)
+        }
+        .padding(8)
+        .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12)))
+        .opacity(isRecording || preview != nil ? 0 : 1)
+        .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
+        .padding(.horizontal).padding(.vertical, 10)
+    }
+
+    private var promptRecordingComposer: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 8) {
+                Circle().fill(.red).frame(width: 8, height: 8)
+                Text(recordingDuration).font(.body.monospacedDigit().weight(.medium)).foregroundStyle(.white)
+            }
+            VoiceBarsView(level: recordingLevel, color: .gray, peakColor: .white,
+                          barWidth: 3, spacing: 2, maxHeight: 32, isSmooth: true)
+                .frame(width: 160, height: 40)
+            HStack {
+                Spacer()
+                Button(action: stopVoiceRecording) {
+                    Image(systemName: "stop.circle").font(.system(size: 25))
+                        .foregroundStyle(.red).frame(width: 44, height: 44)
+                        .background(.white, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Остановить запись")
+            }
+        }
+        .padding(14)
+        .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.red, lineWidth: 1))
+        .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
+        .padding(.horizontal).padding(.vertical, 10)
+        .transition(.opacity)
     }
 
     private var recordingComposer: some View {
@@ -360,7 +466,7 @@ struct AgentChatComposerPreview: View {
     @State private var text = ""
     @State private var mode: RoleChatWorkMode = .work
     @State private var voice = RoleChatVoiceController()
-    @State private var responding = true
+    @State private var responding = ProcessInfo.processInfo.environment["TASKFLOW_PROMPT_BOX_PREVIEW"] != "1"
     @State private var stream = ""
     @State private var complete = false
     @State private var playbackComplete = false
