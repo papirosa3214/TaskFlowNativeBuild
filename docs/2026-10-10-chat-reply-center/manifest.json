@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "34A4C3FD-C23C-464E-B625-24E6C1A3CADF.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "reply-completed-middle_0_4C888BD3-2825-4ABB-854D-AF7E367B6E72.png",
+        "timestamp" : 1791658834.517
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "259FC156-2FBA-4705-9768-12EE6361797A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "reply-long_0_91EEDB8D-99AA-45D0-AD5D-66A733F3C663.png",
+        "timestamp" : 1791658832.079
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "84D9FE24-9F0B-4F19-8101-A1759551BAA9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "reply-middle_0_23F73A05-85D2-42E5-8D60-A58B0CE129B0.png",
+        "timestamp" : 1791658828.532
+      }
+    ],
+    "testIdentifier" : "ChatReplyCenterUITests/testReplyStartsInMiddleThenLongReplyFollowsBottom()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ChatReplyCenterUITests/testReplyStartsInMiddleThenLongReplyFollowsBottom"
+  }
+]

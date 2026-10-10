@@ -674,13 +674,43 @@ struct RoleChatRoomScreen: View {
     @State private var followsChatBottom = true
     @State private var userIsScrollingChat = false
     @State private var chatIsNearBottom = true
+    @State private var centersLatestReply = false
+    @State private var readingReplyHeight: CGFloat = 0
     private let api = APIClient()
+
+    private var readingPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["TASKFLOW_CHAT_READING_PREVIEW"] == "1"
+        #else
+        false
+        #endif
+    }
+
+    #if DEBUG
+    static var readingPreviewChat: RoleChat {
+        try! JSONDecoder().decode(RoleChat.self, from: Data(#"{"id":"reading-preview","title":"Исследователь","kind":"direct","created_by":"preview-owner","members":[{"id":"role_researcher","name":"Исследователь","role_key":"researcher"}]}"#.utf8))
+    }
+    private static var readingPreviewMessages: [RoleChatMessage] {
+        try! JSONDecoder().decode([RoleChatMessage].self, from: Data(#"[{"id":"previous","is_session_marker":false,"text":"Расскажи о результате","from_user_id":"preview-owner","created_at":"2026-10-10T18:00:00Z"},{"id":"finished","is_session_marker":false,"text":"Ответ начинается здесь. Короткий готовый результат.","from_user_id":"role_researcher","created_at":"2026-10-10T18:01:00Z"}]"#.utf8))
+    }
+    private static func readingPreviewTurn(long: Bool) -> RoleChatLiveTurn {
+        RoleChatLiveTurn(chatID: "reading-preview", userID: "role_researcher", name: "Исследователь", startedAt: nil,
+            items: [.text(long ? "Ответ начинается здесь. " + String(repeating: "Подробное пояснение результата. ", count: 60) + "КОНЕЦ ДЛИННОГО ОТВЕТА" : "Ответ начинается здесь. Короткое пояснение.")], thinking: nil)
+    }
+    #endif
 
     init(chat: RoleChat) {
         _chat = State(initialValue: chat)
         let saved = UserDefaults.standard.string(forKey: "roleChat.mode." + chat.createdBy + "." + chat.id)
         let mode = saved.flatMap(RoleChatWorkMode.init(rawValue:)) ?? .work
         _workMode = State(initialValue: RoleChatWorkMode.available(in: chat).contains(mode) ? mode : .work)
+        #if DEBUG
+        if readingPreview {
+            _messages = State(initialValue: Array(Self.readingPreviewMessages.prefix(1)))
+            _liveTurns = State(initialValue: ["role_researcher": Self.readingPreviewTurn(long: false)])
+            _centersLatestReply = State(initialValue: true)
+        }
+        #endif
     }
 
     var body: some View {
@@ -755,6 +785,23 @@ struct RoleChatRoomScreen: View {
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            #if DEBUG
+            if readingPreview {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        liveTurns["role_researcher"] = Self.readingPreviewTurn(long: true)
+                    } label: { Image(systemName: "arrow.down.to.line") }
+                    .accessibilityLabel("Длинный ответ")
+                    Button {
+                        let message = Self.readingPreviewMessages.last!
+                        messages.append(message)
+                        liveTurns = [:]
+                    } label: { Image(systemName: "checkmark") }
+                    .accessibilityLabel("Завершить ответ")
+                }
+            }
+            #endif
+
             // Шапка — ещё и вход в состав: владелец 21.09.2026 — «нет
             // возможности понять, кто в этом чате присутствует». Тап открывает
             // название и участников.
@@ -878,6 +925,7 @@ struct RoleChatRoomScreen: View {
             }
         }
         .task {
+            if readingPreview { return }
             // Живые события (22.09.2026): новое сообщение этого чата — сразу
             // перечитываем ленту; «печатает» — ровно по сигналу сервера.
             let chatID = chat.id
@@ -938,7 +986,7 @@ struct RoleChatRoomScreen: View {
         }
         .onDisappear { realtime.disconnect() }
         .task {
-            await refresh()
+            if !readingPreview { await refresh() }
         }
         .alert("Ошибка чата", isPresented: Binding(
             get: { errorMessage != nil },
@@ -1003,6 +1051,10 @@ struct RoleChatRoomScreen: View {
     }
 
     private var messageScroll: some View {
+        GeometryReader { geometry in messageScroll(viewportHeight: geometry.size.height) }
+    }
+
+    private func messageScroll(viewportHeight: CGFloat) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
                 // История здесь пока небольшая (на сервере максимум 58
@@ -1020,6 +1072,11 @@ struct RoleChatRoomScreen: View {
                             ChatFeedDivider(title: ChatDayLabel.label(raw: message.createdAt) ?? "")
                         }
                         messageRow(message)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                if centersLatestReply && visibleLiveTurns.isEmpty && message.id == messages.last?.id {
+                                    readingReplyHeight = height
+                                }
+                            }
                             .id(message.id)
                     }
                     // Владелец 26.09.2026: плашки быстрых ответов должны
@@ -1064,6 +1121,14 @@ struct RoleChatRoomScreen: View {
                     }
                     ForEach(visibleLiveTurns, id: \.playbackID) { turn in
                         liveTurnRow(turn)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                if turn.playbackID == visibleLiveTurns.last?.playbackID {
+                                    readingReplyHeight = height
+                                    #if DEBUG
+                                    if readingPreview { NSLog("Chat reading reply=%.1f viewport=%.1f", height, viewportHeight) }
+                                    #endif
+                                }
+                            }
                     }
                     if !visibleTypists.isEmpty {
                         if chat.kind != "group", let onlyUserID = visibleTypists.keys.first,
@@ -1084,10 +1149,16 @@ struct RoleChatRoomScreen: View {
                     // нижний край, поэтому отступ СНАРУЖИ LazyVStack не
                     // создавал зазора над композером (проверено на телефоне).
                     Color.clear
-                        .frame(height: TFSpacing.xl + TFSpacing.lg)
+                        .frame(height: centersLatestReply && !isSelecting
+                            ? max(TFSpacing.xl + TFSpacing.lg, viewportHeight / 2 - readingReplyHeight - TFSpacing.lg - TFSpacing.md)
+                            : TFSpacing.xl + TFSpacing.lg)
                         .id("chat-bottom")
                 }
                 .padding(TFSpacing.lg)
+            }
+            .accessibilityIdentifier("chat.message.scroll")
+            .onChange(of: visibleLiveTurns.last?.playbackID) { _, id in
+                if id != nil { centersLatestReply = true }
             }
             .scrollDismissesKeyboard(.interactively)
             // Начальная позиция — конец истории. Дальше лентой управляет
@@ -1132,6 +1203,7 @@ struct RoleChatRoomScreen: View {
             }
             .onChange(of: messages.last?.id) { _, id in
                 if id != nil && messages.last?.fromUserID == session.currentUser?.id {
+                    centersLatestReply = false
                     followsChatBottom = true
                     proxy.scrollTo("chat-bottom", anchor: .bottom)
                 }
@@ -1165,6 +1237,7 @@ struct RoleChatRoomScreen: View {
     /// сервер его принял.
     private func insertIncoming(_ message: RoleChatMessage) {
         let mine = message.fromUserID == session.currentUser?.id
+        if !mine && isAgentReply(message) && !messages.contains(where: { $0.id == message.id }) { centersLatestReply = true }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -1257,7 +1330,7 @@ struct RoleChatRoomScreen: View {
 
     private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
         let messageID = finishingTurns.first { $0.value.playbackID == turn.playbackID }?.key
-        return RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: messageID != nil) {
+        return RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: messageID != nil, pacesText: !readingPreview) {
             if let messageID { finishingTurns[messageID] = nil }
         }
         .id(turn.playbackID)
@@ -1724,6 +1797,7 @@ struct RoleChatRoomScreen: View {
         draft = ""
         pendingAttachments = []
         followsChatBottom = true
+        centersLatestReply = false
         withAnimation(.snappy(duration: 0.25)) { pendingOutgoing.append(pending) }
         await deliver(pending.id)
     }
@@ -1808,6 +1882,7 @@ struct RoleChatRoomScreen: View {
     }
 
     private func sendVoicePreview(_ message: VoiceMessage) async -> Bool {
+        centersLatestReply = false
         if !pendingVoices.contains(where: { $0.id == message.id }) {
             pendingVoices.append(message)
             pendingVoiceModes[message.id] = workMode

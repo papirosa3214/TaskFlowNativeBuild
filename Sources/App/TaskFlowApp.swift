@@ -43,6 +43,8 @@ struct TaskFlowApp: App {
                 #if DEBUG
                 if ProcessInfo.processInfo.environment["TASKFLOW_DIAGNOSTICS_PREVIEW"] == "1" {
                     AppDiagnosticsPreview()
+                } else if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_READING_PREVIEW"] == "1" {
+                    NavigationStack { RoleChatRoomScreen(chat: RoleChatRoomScreen.readingPreviewChat) }
                 } else if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_COMPOSER_PREVIEW"] == "1" {
                     AgentChatComposerPreview()
                 } else {
