@@ -170,6 +170,14 @@ struct OverviewScreen: View {
     private var navigationSection: some View {
         TFCard(padding: 0) {
             VStack(spacing: 0) {
+                NavigationLink {
+                    RoleLoadScreen()
+                } label: {
+                    TFListRow(icon: "chart.bar.xaxis", iconStyle: .plain, title: "Загрузка ролей", subtitle: "Заходы, текущая занятость и открытые слоты", trailing: AnyView(chevron), titleStyle: .body, verticalPadding: TFSpacing.md)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("overview.role-load")
+                TFDivider(inset: rowDividerInset)
                 navigationRow(route: .knowledge, icon: "books.vertical", title: "База знаний", subtitle: "Документы, папки и поиск по всем проектам")
                 TFDivider(inset: rowDividerInset)
                 navigationRow(route: .notifications, icon: "bell", title: "Уведомления", subtitle: "История событий и напоминаний")

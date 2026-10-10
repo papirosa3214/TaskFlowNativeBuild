@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "06FEC0CA-EC8D-4B2E-BD30-D05C9AC17327.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Карточка задачи_0_20C98D08-BEF6-43CC-BA20-288CD5D24852.png",
+        "timestamp" : 1791647807.906
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "DC83BC4E-4E11-4F4D-B8B1-317E385FA749.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Неделя_0_B535D39B-C921-48A0-B42B-733BDAB2C7B8.png",
+        "timestamp" : 1791647802.306
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "1926B1DF-0E33-4E3E-82A8-5D445B481FB9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Сутки_0_1D9C8622-8256-4B51-A7E8-0AD6F23AD896.png",
+        "timestamp" : 1791647799.132
+      }
+    ],
+    "testIdentifier" : "RoleLoadUITests/testLiveRoleLoad()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleLoadUITests/testLiveRoleLoad"
+  }
+]
