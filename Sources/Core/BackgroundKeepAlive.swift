@@ -40,6 +40,7 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var isRunning = false
+    private var diagnosticID: UUID?
 
     private override init() {
         super.init()
@@ -54,6 +55,7 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
     func start() {
         guard !isRunning else { return }
         isRunning = true
+        diagnosticID = AppDiagnostics.shared.begin(.location)
 
         // Разрешение спрашиваем ровно в этот момент, а не при запуске
         // приложения: человек должен понимать, за что его спрашивают.
@@ -69,6 +71,8 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
     func stop() {
         guard isRunning else { return }
         isRunning = false
+        if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) }
+        diagnosticID = nil
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
         Diag.log("[KeepAlive] фон выключен")
@@ -80,6 +84,7 @@ final class BackgroundKeepAlive: NSObject, CLLocationManagerDelegate {
     private var tick = 0
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        AppDiagnostics.shared.increment(.locationEvents)
         tick += 1
         if tick % 10 == 0 {
             Diag.log("[KeepAlive] фон жив, событий: %d")

@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "2E9229F0-E7F1-452A-8722-8292BB4928A1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "diagnostics-queue-asleep-and-counters_0_E510265B-FE05-41B3-A2CA-C7207BEF817C.png",
+        "timestamp" : 1791629187.61
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "983E1BCE-B5FB-4D55-9F57-8B33A1926866.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "diagnostics-queue-asleep_0_A59868E8-CF9E-489A-84B1-9EDD219A0D16.png",
+        "timestamp" : 1791629186.969
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "105F06AC-1077-4DE1-BF1C-38F76F850E66.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "settings-white-history-and-diagnostics_0_F5BA345B-1971-478C-968F-EF899C2DC129.png",
+        "timestamp" : 1791629179.066
+      }
+    ],
+    "testIdentifier" : "AppDiagnosticsUITests/testSettingsEntryShowsActualPacerWorkAndSleepingQueue()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/AppDiagnosticsUITests/testSettingsEntryShowsActualPacerWorkAndSleepingQueue"
+  }
+]

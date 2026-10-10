@@ -191,9 +191,12 @@ public final class APIClient: Sendable {
     }
 
     private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let diagnosticID = AppDiagnostics.shared.begin(.http)
+        defer { AppDiagnostics.shared.end(diagnosticID) }
         let started = Date()
         do {
             let (data, response) = try await session.data(for: request)
+            AppDiagnostics.shared.increment(.bytes, by: data.count)
             guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
             // Диагностика: статус, X-Request-ID (если сервер его выставил —
             // по нему лог с iPhone сопоставляется с серверным), длительность.

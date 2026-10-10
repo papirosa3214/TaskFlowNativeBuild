@@ -17,6 +17,7 @@ struct TaskFlowApp: App {
     @State private var notificationStore: NotificationStore
 
     init() {
+        AppDiagnostics.shared.startMonitoring()
         AppAppearance.migratePreference()
 
         // Анимированные аватарки агентов (просьба владельца 03.09.2026:
@@ -40,7 +41,9 @@ struct TaskFlowApp: App {
         WindowGroup {
             Group {
                 #if DEBUG
-                if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_COMPOSER_PREVIEW"] == "1" {
+                if ProcessInfo.processInfo.environment["TASKFLOW_DIAGNOSTICS_PREVIEW"] == "1" {
+                    AppDiagnosticsPreview()
+                } else if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_COMPOSER_PREVIEW"] == "1" {
                     AgentChatComposerPreview()
                 } else {
                     RootView()

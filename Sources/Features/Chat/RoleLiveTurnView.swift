@@ -247,6 +247,8 @@ struct RoleLiveTurnBubble: View {
         .onChange(of: isComplete) { _, _ in playbackRevision += 1 }
         .task(id: playbackRevision) {
             guard pacesText else { return }
+            let diagnosticID = driver.isAnimating(now: .now) ? AppDiagnostics.shared.begin(.reply) : nil
+            defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
             // Часы работают только до опустошения очереди и проявления хвоста.
             while !Task.isCancelled && driver.isAnimating(now: .now) {
                 do { try await Task.sleep(for: .milliseconds(16)) } catch { break }
@@ -274,7 +276,10 @@ struct RoleLiveTurnBubble: View {
 
     private func publish() {
         let items = driver.pacer.visibleItems
-        if items != visibleItems { visibleItems = items }
+        if items != visibleItems {
+            visibleItems = items
+            AppDiagnostics.shared.increment(.updates)
+        }
         fade = RoleTextFade(
             rate: driver.pacer.rate,
             lastRevealAt: driver.pacer.lastRevealAt,
@@ -304,6 +309,7 @@ final class RoleLivePacerDriver {
 
     /// Такт; true — видимый текст вырос.
     func tick() -> Bool {
+        AppDiagnostics.shared.increment(.ticks)
         let now = ContinuousClock.now
         defer { lastTick = now }
         guard let lastTick, pacer.hasPendingText else { return false }
@@ -454,6 +460,8 @@ struct RoleThinkingWindow: View {
             playbackRevision += 1
         }
         .task(id: playbackRevision) {
+            let diagnosticID = driver.isAnimating(now: .now) ? AppDiagnostics.shared.begin(.thinking) : nil
+            defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
             while !Task.isCancelled && driver.isAnimating(now: .now) {
                 do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
                 if driver.tick() { publish() }
@@ -465,7 +473,10 @@ struct RoleThinkingWindow: View {
 
     private func publish() {
         if case .text(let shown)? = driver.pacer.visibleItems.first {
-            if shown != visible { visible = shown }
+            if shown != visible {
+                visible = shown
+                AppDiagnostics.shared.increment(.updates)
+            }
         }
         fade = RoleTextFade(
             rate: driver.pacer.rate,
@@ -631,6 +642,7 @@ struct RoleRevealRenderer: TextRenderer {
     var now: Date
 
     func draw(layout: Text.Layout, in ctx: inout GraphicsContext) {
+        AppDiagnostics.shared.increment(.draws)
         var total = 0
         for line in layout { for run in line { total += run.count } }
         var index = 0

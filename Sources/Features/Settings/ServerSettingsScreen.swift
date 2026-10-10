@@ -11,6 +11,12 @@ final class ServerSettingsViewModel {
     private let api = APIClient()
 
     func load() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TASKFLOW_DIAGNOSTICS_PREVIEW"] == "1" {
+            snapshot = ServerSettingsSnapshot(settings: [], values: [:], updatedAt: [:])
+            return
+        }
+        #endif
         guard !loading else { return }
         loading = true
         defer { loading = false }
@@ -67,7 +73,17 @@ struct ServerSettingsScreen: View {
                         showsLog = true
                         Task { await model.loadLog() }
                     }
+                    .foregroundStyle(Color.tfText)
                 }
+            }
+            Section {
+                NavigationLink {
+                    AppDiagnosticsScreen()
+                } label: {
+                    Label("Диагностика", systemImage: "waveform.path.ecg")
+                        .foregroundStyle(Color.tfText)
+                }
+                .accessibilityIdentifier("server-settings-diagnostics")
             }
         }
         .tfNativeHeader("Параметры сервера")

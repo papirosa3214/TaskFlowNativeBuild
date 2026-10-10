@@ -64,6 +64,8 @@ public final class RealtimeClient {
     private let allowsBackgroundConnection: Bool
     @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
     private var wantsConnection = false
+    @ObservationIgnored private var diagnosticSocketID: UUID?
+    @ObservationIgnored private var diagnosticWatchdogID: UUID?
 
     private static let watchdogIntervalNs: UInt64 = 20_000_000_000
     /// Дольше этого без НИКАКОГО входящего трафика (включая keepalive `ping`)
@@ -99,6 +101,8 @@ public final class RealtimeClient {
 
     deinit {
         for observer in lifecycleObservers { NotificationCenter.default.removeObserver(observer) }
+        if let diagnosticSocketID { AppDiagnostics.shared.end(diagnosticSocketID) }
+        if let diagnosticWatchdogID { AppDiagnostics.shared.end(diagnosticWatchdogID) }
     }
 
     public func disconnect() {
@@ -107,6 +111,10 @@ public final class RealtimeClient {
     }
 
     private func closeConnection() {
+        if let diagnosticSocketID { AppDiagnostics.shared.end(diagnosticSocketID) }
+        diagnosticSocketID = nil
+        if let diagnosticWatchdogID { AppDiagnostics.shared.end(diagnosticWatchdogID) }
+        diagnosticWatchdogID = nil
         isStopping = true
         reconnectTask?.cancel()
         reconnectTask = nil
@@ -128,6 +136,8 @@ public final class RealtimeClient {
         guard let url = components.url else { return }
 
         let newTask = session.webSocketTask(with: url)
+        if let diagnosticSocketID { AppDiagnostics.shared.end(diagnosticSocketID) }
+        diagnosticSocketID = AppDiagnostics.shared.begin(.socket)
         task = newTask
         newTask.resume()
         lastTrafficAt = Date()
@@ -158,6 +168,7 @@ public final class RealtimeClient {
             handleDisconnect()
         case .success(let message):
             guard task === socketTask else { return }
+            AppDiagnostics.shared.increment(.messages)
             lastTrafficAt = Date()
             if !isConnected {
                 isConnected = true
@@ -186,6 +197,8 @@ public final class RealtimeClient {
 
     private func handleDisconnect() {
         guard !isStopping else { return }
+        if let diagnosticSocketID { AppDiagnostics.shared.end(diagnosticSocketID) }
+        diagnosticSocketID = nil
         isConnected = false
         scheduleReconnect()
     }
@@ -193,6 +206,7 @@ public final class RealtimeClient {
     private func scheduleReconnect() {
         guard !isStopping else { return }
         reconnectAttempt += 1
+        AppDiagnostics.shared.increment(.reconnects)
         // Экспоненциальный бэкофф, потолок 30с — не долбить сервер при долгом офлайне.
         let delaySeconds = min(30.0, pow(1.6, Double(reconnectAttempt)))
         reconnectTask?.cancel()
@@ -207,11 +221,14 @@ public final class RealtimeClient {
     }
 
     private func startWatchdog() {
+        if let diagnosticWatchdogID { AppDiagnostics.shared.end(diagnosticWatchdogID) }
+        diagnosticWatchdogID = AppDiagnostics.shared.begin(.watchdog)
         watchdogTask?.cancel()
         watchdogTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: Self.watchdogIntervalNs)
                 guard !Task.isCancelled, let self else { return }
+                AppDiagnostics.shared.increment(.watchdogChecks)
                 await MainActor.run {
                     guard !self.isStopping else { return }
                     if Date().timeIntervalSince(self.lastTrafficAt) > Self.staleThreshold {
