@@ -77,15 +77,21 @@ struct RoleLoadScreen: View {
     private func chart(_ data: RoleLoad) -> some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(spacing: 0) {
-                Text("Роль").font(.caption).frame(height: 32)
+                Text("Роль").font(.caption).frame(width: 48, height: 32)
                 ForEach(data.rows) { row in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(row.title).font(.subheadline)
+                    VStack(spacing: 2) {
+                        Text(row.title).font(.subheadline).lineLimit(1)
                         Text(row.active.isEmpty ? "Свободна" : "Занята сейчас")
-                            .font(.caption2).foregroundStyle(row.active.isEmpty ? Color.tfSub : Color.tfBlue)
+                            .font(.caption2).lineLimit(1)
+                            .foregroundStyle(row.active.isEmpty ? Color.tfSub : Color.tfBlue)
                     }
-                    .frame(width: 112, height: height(row), alignment: .topLeading)
-                    .padding(.top, 0)
+                    .frame(width: height(row) - 8)
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 48, height: height(row))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(row.title)
+                    .accessibilityValue(row.active.isEmpty ? "Свободна" : "Занята сейчас")
+                    .accessibilityIdentifier("role-load.label.\(row.id)")
                 }
             }
             ScrollView(.horizontal) {

@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "C59FD9FD-E01E-40C6-87A4-308FC8BF8FAF.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "02-week-vertical-labels_0_226C6160-FBEF-445A-AD39-A35CA4970707.png",
+        "timestamp" : 1791672715.49
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "4D5A8A65-49C3-4409-BB1E-C787944BF626.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01-day-vertical-labels_0_08BAEF9D-B422-4597-99EE-11DBD15F8A82.png",
+        "timestamp" : 1791672711.156
+      }
+    ],
+    "testIdentifier" : "RoleLoadVerticalLabelsUITests/testVerticalLabelsDayAndWeek()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleLoadVerticalLabelsUITests/testVerticalLabelsDayAndWeek"
+  }
+]
