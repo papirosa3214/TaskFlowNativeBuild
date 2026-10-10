@@ -834,6 +834,12 @@ struct TaskCardContent: View {
             collapsibleSection(.subtasks, title: "Подзадачи") {
                 subtasksContent
             } preview: {
+                // Свёрнутая секция показывает идущие шаги (LOCK-272), и ряд
+                // иконок в ней тоже нужен: после снятия стрима под шагом это
+                // единственный признак, что агент работает, — без него свёрнутая
+                // секция выглядела бы как просто список без движения.
+                taskActivityChips
+                    .listRowSeparator(.hidden)
                 ForEach(runningSubtasks) { subtask in
                     nativeSubtaskRow(subtask)
                 }
@@ -1481,7 +1487,6 @@ struct TaskCardContent: View {
         let hasDetails = subtask.result?.isEmpty == false
             || subtask.agentState == .blocked
             || subtask.agentState == .review
-            || (isRunning && viewModel.activity.isActive)
 
         return VStack(alignment: .leading, spacing: TFSpacing.sm) {
             HStack(spacing: TFSpacing.md) {
@@ -1629,33 +1634,17 @@ struct TaskCardContent: View {
         }
     }
 
-    /// Что показываем под раскрытым шагом: у идущего — чем агент занят, у
-    /// закрытого или заблокированного — его итог и кнопки владельца.
+    /// Что показываем под раскрытым шагом: его итог и кнопки владельца.
+    ///
+    /// Владелец 10.10.2026: живой поток под шагом («чем занят агент» плюс
+    /// последние пять действий) убран — «до графа они были полезны, сейчас
+    /// нет», «стриминг убери», а «чек-лист поудобнее выглядит, чем этот живой
+    /// стрим». Свой ход у роли остался в графе плана, там он качественнее.
+    /// Отсюда ушло и условие, из-за которого блок раскрывался сам: у идущего
+    /// шага остаётся только то, что у шагов вообще, — итог и приёмка.
     @ViewBuilder
     private func subtaskDetails(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
-        let activity = viewModel.activity.forSubtask(subtask.id)
-        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            if isRunning, activity.isActive {
-                if !activity.actions.isEmpty {
-                    activityChips(activity.actions, total: activity.total)
-                }
-                if let text = activity.text {
-                    Text(text)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                }
-                ForEach(activity.actions.suffix(5).reversed()) { action in
-                    HStack(alignment: .top, spacing: TFSpacing.sm) {
-                        Circle()
-                            .fill(Color.tfDim)
-                            .frame(width: 4, height: 4)
-                            .padding(.top, 7)
-                        Text(action.text ?? action.target)
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfSub)
-                    }
-                }
-            }
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if let result = subtask.displayResult, !result.isEmpty {
                 // Итог шага — главное, ради чего эту карточку открывают:
                 // виден целиком и всегда, без сворачивания и усечения
@@ -1677,7 +1666,28 @@ struct TaskCardContent: View {
         }
     }
 
-    /// Ярлычки действий агента у идущего шага: СНАЧАЛА число всех действий,
+    /// Ряд иконок действий — ОДНА строка над всем списком шагов, а не под
+    /// каждым шагом. Владелец 10.10.2026: живой стрим под шагами убран
+    /// («стриминг убери»), иконки остались, но «единственные иконки ты выше
+    /// подзадачи поставь, чтобы они были выше». Число действий и последние
+    /// пять иконок — тот же вид, что был (владелец 21.09.2026: «в самом
+    /// начале делаем число, а эти пять меняются после»), только строка одна
+    /// на всю задачу и стоит выше списка.
+    ///
+    /// Данные задачи целиком, а не `forSubtask`: показывать иконки нужно
+    /// ровно тогда, когда агент работает, а идущий шаг может быть не один —
+    /// пять иконок от разных шагов в одной строке сбивали бы с толку.
+    @ViewBuilder
+    private var taskActivityChips: some View {
+        let activity = viewModel.activity
+        if activity.isActive, !activity.actions.isEmpty {
+            activityChips(activity.actions, total: activity.total)
+                .padding(.bottom, TFSpacing.sm)
+                .accessibilityIdentifier("task.activity-chips")
+        }
+    }
+
+    /// Ярлычки действий агента: СНАЧАЛА число всех действий,
     /// ПОСЛЕ — последние пять иконок (владелец 21.09.2026: «в самом начале
     /// делаем число, а эти пять меняются после»). Раньше было наоборот —
     /// уникальные виды иконок, потом счётчик; владелец это забраковал.
@@ -2470,6 +2480,11 @@ struct TaskCardContent: View {
     /// шаги с сервера. Контент отделён от обёртки — оборачивается
     /// `collapsibleSection` в `nativeTaskDetailBody` (LOCK-248).
     @ViewBuilder private var subtasksContent: some View {
+            // Владелец 10.10.2026: ряд иконок действий — выше списка
+            // шагов, одной строкой на задачу (живой стрим под шагами убран,
+            // см. `subtaskDetails`).
+            taskActivityChips
+                .listRowSeparator(.hidden)
             if let plan = viewModel.collaborationPlanState.draftPlan {
                 PlanWorkSelectionView(plan: plan, subtasks: viewModel.subtasks,
                     roleTitles: viewModel.collaborationPlanState.roleTitles,
