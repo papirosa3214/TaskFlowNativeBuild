@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "ED36F838-FDC4-43CB-B951-C491642096CD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01-live-order_0_FFA1B1A3-BEAF-45CD-AD24-B1EB37EEADCB.png",
+        "timestamp" : 1791673231.008
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "E5DA2408-7610-4AF7-B48A-9E6A4251D649.mp4",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Screen Recording 2026-10-11 at 02.00.23 AM.mp4",
+        "timestamp" : 1791673223.18
+      }
+    ],
+    "testIdentifier" : "RoleChatStableFeedUITests/testTwoRoleOrderSurvivesCompletion()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleChatStableFeedUITests/testTwoRoleOrderSurvivesCompletion"
+  }
+]

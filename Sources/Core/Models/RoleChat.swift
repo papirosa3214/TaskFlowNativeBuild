@@ -321,10 +321,10 @@ struct RoleLiveTextPacer {
     /// показываем, только если продолжения долго нет.
     private var stall: TimeInterval = 0
 
-    static let minRate: Double = 18
-    static let maxRate: Double = 36
+    static let minRate: Double = 18 * 1.05
+    static let maxRate: Double = 36 * 1.05
     /// На сколько секунд экран в среднем отстаёт от сервера.
-    static let targetLag: TimeInterval = 4
+    static let targetLag: TimeInterval = 4 / 1.05
     /// Сколько ждать продолжения оборванного слова в конце снимка.
     static let tailWait: TimeInterval = 0.65
 
