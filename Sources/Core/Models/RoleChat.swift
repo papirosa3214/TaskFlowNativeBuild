@@ -308,8 +308,12 @@ struct RoleLiveTextPacer {
     private(set) var rate: Double = Self.minRate
     /// Когда видимый текст последний раз вырос.
     private(set) var lastRevealAt: Date = .distantPast
+    private(set) var lastPresentationAt: Date = .distantPast
     private var texts: [[Character]] = []
     private var budget: Double = 0
+    private var revealedActions: Set<Int> = []
+    private var actionWait: TimeInterval = 0
+    static let actionInterval: TimeInterval = 0.14
     /// Сколько очередь стоит без новых слов — недописанное сервером слово
     /// показываем, только если продолжения долго нет.
     private var stall: TimeInterval = 0
@@ -335,6 +339,14 @@ struct RoleLiveTextPacer {
                 next[index] = shown
             }
         }
+        revealedActions = revealedActions.filter { index in
+            guard index < items.count, index < target.count else { return false }
+            switch (target[index], items[index]) {
+            case (.step(let old), .step(let new)): return old.id == new.id
+            case (.thinking(let old), .thinking(let new)): return old.id == new.id
+            default: return false
+            }
+        }
         target = items
         texts = nextTexts
         visibleCharacters = next
@@ -344,14 +356,19 @@ struct RoleLiveTextPacer {
         texts.indices.reduce(0) { $0 + max(0, texts[$1].count - visibleCharacters[$1]) }
     }
 
-    var hasPendingText: Bool { pendingCharacters > 0 }
+    var hasPendingText: Bool {
+        pendingCharacters > 0 || target.indices.contains {
+            if case .text = target[$0] { return false }
+            return !revealedActions.contains($0)
+        }
+    }
 
     /// Шаг часов на `elapsed` секунд. Возвращает true, пока в очереди
     /// остаются символы.
     @discardableResult
     mutating func advance(elapsed: TimeInterval, now: Date = .now) -> Bool {
         let pending = pendingCharacters
-        guard pending > 0 else {
+        guard hasPendingText else {
             budget = 0
             stall = 0
             return false
@@ -364,8 +381,23 @@ struct RoleLiveTextPacer {
         budget += rate * elapsed
         stall += elapsed
 
-        guard let index = texts.indices.first(where: { visibleCharacters[$0] < texts[$0].count }) else {
+        actionWait = max(0, actionWait - elapsed)
+        guard let index = target.indices.first(where: {
+            if case .text = target[$0] { return visibleCharacters[$0] < texts[$0].count }
+            return !revealedActions.contains($0)
+        }) else {
             return false
+        }
+        if case .text = target[index] {
+            // Продолжаем текст только после выдержанного интервала действия.
+            guard actionWait == 0 else { return true }
+        } else {
+            guard actionWait == 0 else { return true }
+            revealedActions.insert(index)
+            actionWait = Self.actionInterval
+            budget = 0
+            lastPresentationAt = now
+            return hasPendingText
         }
         let chars = texts[index]
         // Текст, за которым уже идёт шаг, дописан; у последнего куска
@@ -398,15 +430,21 @@ struct RoleLiveTextPacer {
         if shown > before {
             visibleCharacters[index] = shown
             lastRevealAt = now
+            lastPresentationAt = now
             stall = 0
         }
         return hasPendingText
     }
 
-    /// Выпустить всё сразу (тесты и конец хода).
+    /// Показать восстановленный снимок без повторного проигрывания.
     mutating func flush(now: Date = .now) {
         for index in texts.indices { visibleCharacters[index] = texts[index].count }
-        lastRevealAt = now
+        revealedActions = Set(target.indices.filter {
+            if case .text = target[$0] { return false }; return true
+        })
+        actionWait = 0
+        lastRevealAt = .distantPast
+        lastPresentationAt = .distantPast
         budget = 0
     }
 
@@ -420,6 +458,7 @@ struct RoleLiveTextPacer {
                 if count > 0 { result.append(.text(String(chars[0..<count]))) }
                 if count < chars.count { return result }
             case .step, .thinking:
+                guard revealedActions.contains(index) else { return result }
                 result.append(target[index])
             }
         }

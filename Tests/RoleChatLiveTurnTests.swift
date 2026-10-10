@@ -69,6 +69,50 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertTrue(pacer.visibleItems.isEmpty)
     }
 
+    func testActionOnlyBurstIsQueuedAndPreservesStatusUpdates() {
+        let steps = (0..<4).map { RoleChatLiveStep(id: "s\($0)", tool: "read", detail: nil, status: .running) }
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest(steps.map { .step($0) })
+        XCTAssertTrue(pacer.hasPendingText)
+        XCTAssertTrue(pacer.visibleItems.isEmpty)
+        pacer.advance(elapsed: 0.016)
+        XCTAssertEqual(pacer.visibleItems.count, 1)
+        pacer.advance(elapsed: 0.016)
+        XCTAssertEqual(pacer.visibleItems.count, 1)
+        let updated = RoleChatLiveStep(id: "s0", tool: "read", detail: nil, status: .done)
+        pacer.ingest([.step(updated)] + steps.dropFirst().map { .step($0) })
+        XCTAssertEqual(pacer.visibleItems, [.step(updated)])
+        drain(&pacer)
+        XCTAssertEqual(pacer.visibleItems.count, 4)
+        XCTAssertFalse(pacer.hasPendingText)
+    }
+
+    func testSnapshotSeedDoesNotFadeOrReplayExistingItems() {
+        var pacer = RoleLiveTextPacer()
+        let step = RoleChatLiveStep(id: "s", tool: "read", detail: nil, status: .done)
+        let snapshot: [RoleChatLiveItem] = [.text("Уже прочитанный текст"), .step(step)]
+        pacer.ingest(snapshot)
+        pacer.flush()
+        XCTAssertEqual(pacer.visibleItems, snapshot)
+        XCTAssertFalse(pacer.hasPendingText)
+        XCTAssertEqual(pacer.lastRevealAt, .distantPast)
+        pacer.ingest(snapshot + [.text("Новый текст")])
+        XCTAssertEqual(pacer.visibleItems, snapshot)
+        drain(&pacer)
+        XCTAssertEqual(pacer.visibleItems, snapshot + [.text("Новый текст")])
+    }
+
+    @MainActor
+    func testDriverStopsAnimatingAfterQueueAndFadeDrain() {
+        let driver = RoleLivePacerDriver()
+        XCTAssertFalse(driver.isAnimating(now: .now))
+        driver.pacer.ingest([.text("Ответ")])
+        XCTAssertTrue(driver.isAnimating(now: .now))
+        driver.pacer.advance(elapsed: 1)
+        XCTAssertFalse(driver.pacer.hasPendingText)
+        XCTAssertFalse(driver.isAnimating(now: .now.addingTimeInterval(1)))
+    }
+
     func testRevealFadeGrowsWithDistanceAndTime() {
         let now = Date()
         let fade = RoleTextFade(rate: 100, lastRevealAt: now, isAnimating: true)

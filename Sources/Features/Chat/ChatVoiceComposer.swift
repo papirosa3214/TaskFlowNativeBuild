@@ -365,13 +365,20 @@ struct AgentChatComposerPreview: View {
     @State private var complete = false
     @State private var playbackComplete = false
     private let response = "Сначала изучу исходные данные и сравню независимые источники. Затем проверю противоречия, составлю план и отмечу критерии приёмки. Текст появляется постепенно и спокойно, а готовый ответ сохраняет своё место в ленте."
+    private var smoothPreview: Bool { ProcessInfo.processInfo.environment["TASKFLOW_SMOOTH_STREAM_PREVIEW"] == "1" }
+    private var previewItems: [RoleChatLiveItem] {
+        guard smoothPreview, !stream.isEmpty else { return [.text(stream)] }
+        return [.text(stream)] + (0..<4).map {
+            .step(RoleChatLiveStep(id: "smooth-\($0)", tool: "read", detail: "Файл \($0 + 1)", status: .done))
+        } + [.text("Проверка завершена. Все действия показаны последовательно.")]
+    }
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 ScrollView {
                     RoleLiveTurnBubble(
                         turn: RoleChatLiveTurn(chatID: "preview", userID: "role_researcher", name: "Исследователь", startedAt: nil,
-                                               items: [.text(stream)], thinking: nil),
+                                               items: previewItems, thinking: nil),
                         showsName: false, isComplete: complete,
                         onPlaybackComplete: { playbackComplete = true }
                     )
@@ -387,6 +394,11 @@ struct AgentChatComposerPreview: View {
             .background(Color.tfBackground.ignoresSafeArea())
             .navigationTitle("Исследователь")
             .task {
+                if smoothPreview {
+                    stream = String(repeating: response + " ", count: 3)
+                    complete = true
+                    return
+                }
                 let words = response.split(separator: " ").map(String.init)
                 for word in words {
                     do { try await Task.sleep(for: .milliseconds(150)) } catch { return }

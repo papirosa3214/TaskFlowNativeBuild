@@ -140,35 +140,42 @@ struct RoleLiveItemsList: View {
             // Индекс, а не текст: текст растёт каждые 150 мс, и id по нему
             // пересоздавал бы строку на каждом кадре.
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                switch item {
-                case .text(let text):
-                    RoleReplyMarkdown(text: text, color: textColor, fade: fade?.shifted(by: after[index]))
-                case .step(let step):
-                    Button { detail = .step(step) } label: {
-                        RoleLiveStepRow(step: step)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Показать подробности")
-                case .thinking(let thinking):
-                    if thinking.isRunning {
-                        RoleThinkingLiveRow(thinking: thinking)
-                    } else {
-                        Button { detail = .thinking(thinking) } label: {
-                            RoleThinkingDoneRow(thinking: thinking)
+                Group {
+                    switch item {
+                    case .text(let text):
+                        RoleReplyMarkdown(text: text, color: textColor, fade: fade?.shifted(by: after[index]))
+                    case .step(let step):
+                        Button { detail = .step(step) } label: {
+                            RoleLiveStepRow(step: step)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Показать размышления")
+                        .accessibilityHint("Показать подробности")
+                    case .thinking(let thinking):
+                        if thinking.isRunning {
+                            RoleThinkingLiveRow(thinking: thinking)
+                        } else {
+                            Button { detail = .thinking(thinking) } label: {
+                                RoleThinkingDoneRow(thinking: thinking)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Показать размышления")
+                        }
                     }
                 }
+                .modifier(RoleItemAppearance(animate: fade?.isAnimating == true && Self.isAction(item)))
             }
         }
         .sheet(item: $detail) { detail in
             RoleLiveDetailSheet(detail: detail)
         }
+    }
+
+    private static func isAction(_ item: RoleChatLiveItem) -> Bool {
+        if case .text = item { return false }; return true
     }
 
     /// Сколько символов текста идёт после каждого элемента — чтобы хвост
@@ -184,6 +191,19 @@ struct RoleLiveItemsList: View {
     }
 }
 
+private struct RoleItemAppearance: ViewModifier {
+    let animate: Bool
+    @State private var appeared = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(animate && !appeared ? 0 : 1)
+            .onAppear {
+                if animate { withAnimation(.easeInOut(duration: 0.38)) { appeared = true } }
+                else { appeared = true }
+            }
+    }
+}
+
 /// Идущий ход: шаги и растущий текст прямо по фону ленты, без карточки —
 /// как ответ роли в 1:1-чате (LOCK-230); внизу — сколько уже идёт.
 struct RoleLiveTurnBubble: View {
@@ -191,6 +211,9 @@ struct RoleLiveTurnBubble: View {
     let showsName: Bool
     var isComplete = false
     var pacesText = true
+    var startsWithSnapshot = false
+    @State private var seeded = false
+    @State private var playbackRevision = 0
     var onPlaybackComplete: () -> Void = {}
     @State private var completionReported = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -221,26 +244,32 @@ struct RoleLiveTurnBubble: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear { if pacesText { ingest(turn.items) } }
         .onChange(of: turn.items) { _, items in if pacesText { ingest(items) } }
-        .task(id: isComplete) {
+        .onChange(of: isComplete) { _, _ in playbackRevision += 1 }
+        .task(id: playbackRevision) {
             guard pacesText else { return }
-            // Часы очереди: ~60 раз в секунду, но экран перерисовывается
-            // только когда показалось новое слово.
-            while !Task.isCancelled {
+            // Часы работают только до опустошения очереди и проявления хвоста.
+            while !Task.isCancelled && driver.isAnimating(now: .now) {
                 do { try await Task.sleep(for: .milliseconds(16)) } catch { break }
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
                 if animating != fade.isAnimating { fade.isAnimating = animating }
-                if isComplete && !driver.pacer.hasPendingText && (reduceMotion || !animating) && !completionReported {
-                    completionReported = true
-                    onPlaybackComplete()
-                }
+            }
+            if !Task.isCancelled && isComplete && !completionReported {
+                completionReported = true
+                onPlaybackComplete()
             }
         }
     }
 
     private func ingest(_ items: [RoleChatLiveItem]) {
+        if !driver.isAnimating(now: .now) { driver.resetClock() }
         driver.pacer.ingest(items)
+        if !seeded {
+            seeded = true
+            if startsWithSnapshot { driver.pacer.flush() }
+        }
         publish()
+        playbackRevision += 1
     }
 
     private func publish() {
@@ -271,6 +300,8 @@ final class RoleLivePacerDriver {
     var pacer = RoleLiveTextPacer()
     private var lastTick: ContinuousClock.Instant?
 
+    func resetClock() { lastTick = nil }
+
     /// Такт; true — видимый текст вырос.
     func tick() -> Bool {
         let now = ContinuousClock.now
@@ -278,13 +309,13 @@ final class RoleLivePacerDriver {
         guard let lastTick, pacer.hasPendingText else { return false }
         let elapsed = now - lastTick
         let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
-        let before = pacer.lastRevealAt
+        let before = pacer.lastPresentationAt
         pacer.advance(elapsed: min(seconds, 0.1))
-        return pacer.lastRevealAt != before
+        return pacer.lastPresentationAt != before
     }
 
     func isAnimating(now: Date) -> Bool {
-        pacer.hasPendingText || now.timeIntervalSince(pacer.lastRevealAt) < RoleTextFade.duration + 0.1
+        pacer.hasPendingText || now.timeIntervalSince(pacer.lastPresentationAt) < RoleTextFade.duration + 0.1
     }
 }
 
@@ -378,6 +409,8 @@ struct RoleThinkingWindow: View {
     @State private var visible = ""
     @State private var fade = RoleTextFade()
     @State private var contentHeight: CGFloat = 0
+    @State private var playbackRevision = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let maxHeight: CGFloat = 132
 
@@ -392,7 +425,7 @@ struct RoleThinkingWindow: View {
                     .foregroundStyle(Color.tfSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                    .roleReveal(fade)
+                    .roleReveal(reduceMotion ? nil : fade)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .scrollIndicators(.hidden)
@@ -415,12 +448,14 @@ struct RoleThinkingWindow: View {
             publish()
         }
         .onChange(of: text) { _, text in
+            if !driver.isAnimating(now: .now) { driver.resetClock() }
             driver.pacer.ingest([.text(text)])
             publish()
+            playbackRevision += 1
         }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(16))
+        .task(id: playbackRevision) {
+            while !Task.isCancelled && driver.isAnimating(now: .now) {
+                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
                 if animating != fade.isAnimating { fade.isAnimating = animating }
@@ -575,7 +610,7 @@ struct RoleTextFade: Equatable {
     /// Сколько символов текста идёт после этого куска.
     var offset = 0
 
-    static let duration: TimeInterval = 0.25
+    static let duration: TimeInterval = 0.38
 
     func shifted(by characters: Int) -> RoleTextFade {
         var copy = self
