@@ -1,0 +1,53 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "BB151E8A-5D58-464F-99D6-9B12536C1159.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "05-local-diagnostics-not-server-journal_0_B4C25E73-A9C2-4AD1-8A33-CDC8C76AD96C.png",
+        "timestamp" : 1791669130.845
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "0C7D0809-5C10-428E-8118-D81EFF978328.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "04-v2-delivery-decoding-error_0_D11EB28A-F393-4563-8A41-0DACC302681E.png",
+        "timestamp" : 1791669122.881
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "F4E2EF74-49C0-4268-8C57-3845E47953B3.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "03-v2-ack-ignored_0_99ED9A16-CDF1-4711-95D4-F9908681FD14.png",
+        "timestamp" : 1791669121.002
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "328B4111-4721-4917-915D-848DA779B26B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "02-live-gantt-week_0_7736E7C7-A803-4B6B-8650-E0574E768FDE.png",
+        "timestamp" : 1791669107.143
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "C7C90230-0EB6-4B58-9EDF-57A4375BB318.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01-live-gantt-day_0_08DDA287-244D-4A39-9CA9-84D5065682E9.png",
+        "timestamp" : 1791669103.019
+      }
+    ],
+    "testIdentifier" : "ThreeFeaturesAuditUITests/testAuditLiveGanttV2WebhooksAndLocalDiagnostics()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ThreeFeaturesAuditUITests/testAuditLiveGanttV2WebhooksAndLocalDiagnostics"
+  }
+]
