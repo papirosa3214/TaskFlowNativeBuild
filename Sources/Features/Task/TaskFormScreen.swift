@@ -491,19 +491,16 @@ struct TaskCardContent: View {
                 taskKeyboardDismissButton
                 taskKeyboardDictationButton
             }
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    Task {
-                        // Отложенное сохранение перебиваем здесь, а не внутри
-                        // `saveExistingEdits` — см. комментарий у метода.
-                    pendingSaveTask?.cancel()
-                        if viewModel.isEditing { await saveExistingEdits() }
+            if !viewModel.isEditing {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        pendingSaveTask?.cancel()
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
-                } label: {
-                    Image(systemName: "xmark")
+                    .accessibilityLabel("Закрыть")
                 }
-                .accessibilityLabel("Закрыть")
             }
             if viewModel.isEditing {
                 editingToolbarItems
