@@ -187,13 +187,37 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertLessThanOrEqual(afterPause.count - beforePause, 36)
     }
 
+    func testExistingTailDoesNotDimWhenNewWordArrives() {
+        let start = Date(timeIntervalSince1970: 100)
+        let arrival = start.addingTimeInterval(0.6)
+        let history = RoleTextRevealHistory()
+        history.record(count: 2, now: start, rate: 18, animated: true)
+        let before = history.opacity(at: 1, now: arrival)
+        history.record(count: 5, now: arrival, rate: 36, animated: true)
+        XCTAssertGreaterThanOrEqual(history.opacity(at: 1, now: arrival), before)
+        XCTAssertEqual(history.opacity(at: 4, now: arrival), 0, accuracy: 0.001)
+        history.record(count: 12, now: arrival.addingTimeInterval(0.5), rate: 18, animated: true)
+        XCTAssertEqual(history.opacity(at: 1, now: arrival.addingTimeInterval(0.5)), 1, accuracy: 0.001)
+    }
+
     func testRevealFadeGrowsWithDistanceAndTime() {
-        let now = Date()
-        let fade = RoleTextFade(rate: 100, lastRevealAt: now, isAnimating: true)
-        XCTAssertEqual(fade.opacity(distance: 0, now: now), 0, accuracy: 0.001)
-        XCTAssertGreaterThan(fade.opacity(distance: 20, now: now), fade.opacity(distance: 5, now: now))
-        XCTAssertEqual(fade.opacity(distance: 0, now: now.addingTimeInterval(1)), 1, accuracy: 0.001)
-        XCTAssertEqual(fade.shifted(by: 100).opacity(distance: 0, now: now), 1, accuracy: 0.001)
+        let now = Date(timeIntervalSince1970: 100)
+        let history = RoleTextRevealHistory()
+        history.record(count: 21, now: now, rate: 100, animated: true)
+        XCTAssertEqual(history.opacity(at: 20, now: now), 0, accuracy: 0.001)
+        XCTAssertGreaterThan(history.opacity(at: 0, now: now), history.opacity(at: 15, now: now))
+        XCTAssertEqual(history.opacity(at: 20, now: now.addingTimeInterval(1)), 1, accuracy: 0.001)
+    }
+
+    func testSettledGlyphsRemainVisibleAfterPauseAndSnapshot() {
+        let now = Date(timeIntervalSince1970: 100)
+        let history = RoleTextRevealHistory()
+        history.record(count: 10, now: now, rate: 18, animated: false)
+        history.record(count: 14, now: now.addingTimeInterval(2), rate: 36, animated: true)
+        for index in 0..<10 { XCTAssertEqual(history.opacity(at: index, now: now.addingTimeInterval(2)), 1) }
+        // Shrinking/reflow keeps the existing prefix's original timestamps.
+        history.record(count: 9, now: now.addingTimeInterval(2), rate: 36, animated: true)
+        XCTAssertEqual(history.opacity(at: 8, now: now.addingTimeInterval(2)), 1)
     }
 
     func testLiveEventCarriesThinkingItem() {

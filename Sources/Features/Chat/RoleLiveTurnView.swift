@@ -135,7 +135,6 @@ struct RoleLiveItemsList: View {
     @State private var detail: RoleLiveDetail?
 
     var body: some View {
-        let after = fade == nil ? [] : Self.charactersAfter(items)
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не текст: текст растёт каждые 150 мс, и id по нему
             // пересоздавал бы строку на каждом кадре.
@@ -143,7 +142,7 @@ struct RoleLiveItemsList: View {
                 Group {
                     switch item {
                     case .text(let text):
-                        RoleReplyMarkdown(text: text, color: textColor, fade: fade?.shifted(by: after[index]))
+                        RoleReplyMarkdown(text: text, color: textColor, fade: fade)
                     case .step(let step):
                         Button { detail = .step(step) } label: {
                             RoleLiveStepRow(step: step)
@@ -613,26 +612,33 @@ struct RoleLiveDetailSheet: View {
 
 /// Как проявляется хвост идущего текста (владелец 30.09.2026): новые буквы
 /// выходят из прозрачности и лёгкого размытия. Возраст буквы считается от
-/// её расстояния до конца текста при текущей скорости очереди.
+/// времени первого появления; новые слова не меняют возраст старых букв.
 struct RoleTextFade: Equatable {
     var rate: Double = RoleLiveTextPacer.minRate
     var lastRevealAt: Date = .distantPast
     var isAnimating = false
-    /// Сколько символов текста идёт после этого куска.
-    var offset = 0
-
     static let duration: TimeInterval = 0.7
+}
 
-    func shifted(by characters: Int) -> RoleTextFade {
-        var copy = self
-        copy.offset += characters
-        return copy
+/// Retain each glyph's first appearance across word batches, pauses and reflow.
+/// This reference lives in the modifier's State and does not publish draw ticks.
+final class RoleTextRevealHistory {
+    private var appearedAt: [Date] = []
+
+    func record(count: Int, now: Date, rate: Double, animated: Bool) {
+        if count < appearedAt.count { appearedAt.removeLast(appearedAt.count - count) }
+        let previous = appearedAt.count
+        if count > previous {
+            for index in previous..<count {
+                appearedAt.append(animated ? now.addingTimeInterval(-Double(count - index - 1) / max(rate, 1)) : .distantPast)
+            }
+        }
+        if !animated { appearedAt = Array(repeating: .distantPast, count: count) }
     }
 
-    /// 0 — буква только появилась, 1 — проявилась полностью.
-    func opacity(distance: Int, now: Date) -> Double {
-        let age = Double(distance + offset) / max(rate, 1) + now.timeIntervalSince(lastRevealAt)
-        let t = min(1, max(0, age / Self.duration))
+    func opacity(at index: Int, now: Date) -> Double {
+        guard appearedAt.indices.contains(index) else { return 1 }
+        let t = min(1, max(0, now.timeIntervalSince(appearedAt[index]) / RoleTextFade.duration))
         return t * t * (3 - 2 * t)
     }
 }
@@ -640,24 +646,26 @@ struct RoleTextFade: Equatable {
 struct RoleRevealRenderer: TextRenderer {
     var fade: RoleTextFade
     var now: Date
+    var history: RoleTextRevealHistory
 
     func draw(layout: Text.Layout, in ctx: inout GraphicsContext) {
         AppDiagnostics.shared.increment(.draws)
         var total = 0
         for line in layout { for run in line { total += run.count } }
+        history.record(count: total, now: now, rate: fade.rate, animated: fade.isAnimating)
         var index = 0
         for line in layout {
             var lineCount = 0
             for run in line { lineCount += run.count }
             // Строка целиком проявилась — рисуем одним вызовом.
-            if fade.opacity(distance: total - index - lineCount, now: now) >= 1 {
+            if (index..<(index + lineCount)).allSatisfy({ history.opacity(at: $0, now: now) >= 1 }) {
                 ctx.draw(line)
                 index += lineCount
                 continue
             }
             for run in line {
                 for glyph in run {
-                    let opacity = fade.opacity(distance: total - index - 1, now: now)
+                    let opacity = history.opacity(at: index, now: now)
                     index += 1
                     guard opacity > 0.01 else { continue }
                     var copy = ctx
@@ -669,19 +677,26 @@ struct RoleRevealRenderer: TextRenderer {
     }
 }
 
+private struct RoleTextRevealModifier: ViewModifier {
+    let fade: RoleTextFade
+    @State private var history = RoleTextRevealHistory()
+
+    func body(content: Content) -> some View {
+        TimelineView(.animation(minimumInterval: nil, paused: !fade.isAnimating)) { context in
+            content.textRenderer(RoleRevealRenderer(
+                fade: fade,
+                now: fade.isAnimating ? context.date : .distantFuture,
+                history: history
+            ))
+        }
+    }
+}
+
 extension View {
     /// Проявление хвоста текста; nil — текст рисуется как обычно.
     @ViewBuilder
     func roleReveal(_ fade: RoleTextFade?) -> some View {
-        if let fade {
-            TimelineView(.animation(minimumInterval: nil, paused: !fade.isAnimating)) { context in
-                self.textRenderer(RoleRevealRenderer(
-                    fade: fade,
-                    now: fade.isAnimating ? context.date : .distantFuture
-                ))
-            }
-        } else {
-            self
-        }
+        if let fade { self.modifier(RoleTextRevealModifier(fade: fade)) }
+        else { self }
     }
 }

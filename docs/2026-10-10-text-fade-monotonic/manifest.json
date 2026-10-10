@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "94FA4D71-61C2-48ED-9CD6-A6EEFA627418.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "text-fade-interactive_0_C15AC474-FA63-4D92-B8E4-9DB09229C06D.png",
+        "timestamp" : 1791658427.799
+      }
+    ],
+    "testIdentifier" : "TextFadeMonotonicUITests/testRichBlocksAppearWhileProseIsStillQueued()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TextFadeMonotonicUITests/testRichBlocksAppearWhileProseIsStillQueued"
+  }
+]

@@ -21,10 +21,9 @@ struct RoleReplyMarkdown: View {
             // Таблицы, виджеты и артефакты (владелец 01.10.2026) — своими
             // видами; текст между ними — как раньше. Хвост идущего ответа
             // проявляется по всему тексту, а не у каждого куска отдельно.
-            let after = Self.charactersAfterSegments(segments)
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-                    segmentView(segment, fade: fade?.shifted(by: after[index]))
+                    segmentView(segment, fade: fade)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -68,12 +67,11 @@ struct RoleReplyMarkdown: View {
     @ViewBuilder
     private func markdownBody(_ text: String) -> some View {
         let blocks = Self.numbered(MarkdownParser.parse(text))
-        let after = fade == nil ? [] : Self.charactersAfter(blocks.map(\.block))
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не id блока: парсер раздаёт новые UUID на каждый
             // разбор, а живой текст разбирается заново каждые 150 мс.
             ForEach(Array(blocks.enumerated()), id: \.offset) { index, item in
-                blockView(item.block, number: item.number, fade: fade?.shifted(by: after[index]))
+                blockView(item.block, number: item.number, fade: fade)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
