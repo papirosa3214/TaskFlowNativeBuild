@@ -49,6 +49,9 @@ struct RoleChatsScreen: View {
         chats.filter { $0.parentChatID == nil && $0.projectID != nil }.reduce(0) { $0 + $1.unread }
     }
     /// Иконки в списке чатов — тот же размер, что в списках задач (68 pt).
+    /// 10.10.2026 пробовали поднять до 76 («рядом пустоты»), но кружок — это
+    /// высота строки: строки стали выше, а владелец просил картинку побольше
+    /// БЕЗ поднятия строк. Больше кружок тут расти не может.
     private let listAvatar: TFAvatar.Size = .taskList
 
     var body: some View {

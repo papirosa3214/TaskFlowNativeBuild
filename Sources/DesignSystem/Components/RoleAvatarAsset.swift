@@ -5,38 +5,88 @@ enum TeamAvatarAppearance: String, CaseIterable, Identifiable {
     case current, previous, noir
     static let storageKey = "teamAvatarAppearance"
     var id: String { rawValue }
+    /// Названия переименованы по стилю 10.10.2026: прежние «Текущий»,
+    /// «Предыдущий», «Ретро-нуар» ничего не говорили о том, что видно.
+    /// `rawValue` остались прежними — сохранённый у владельца выбор не слетает.
     var title: String {
-        switch self { case .current: "Текущий"; case .previous: "Предыдущий"; case .noir: "Ретро-нуар" }
+        switch self { case .current: "Иллюстрация"; case .previous: "Плакат"; case .noir: "Гравюра" }
     }
 }
 
+/// Переключатель анимации аватарок. Общий для всех экранов: включил в
+/// «Внешнем виде» — поехали все портреты ролей приложения, снял — вернулись
+/// статичные. Выключен по умолчанию, потому что восемь одновременно играющих
+/// роликов заметно садят батарею.
+enum TeamAvatarAnimation {
+    static let storageKey = "teamAvatarAnimated"
+}
+
 enum RoleAvatarAsset {
-    static func imageName(for role: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
-        let suffix: String
+    /// Хвост имени ассета роли. `nil` — роль без вшитого портрета.
+    private static func suffix(for role: String?) -> String? {
         switch role {
-        case "architect": suffix = "Architect"
-        case "builder": suffix = "Builder"
-        case "qa": suffix = "QA"
-        case "researcher": suffix = "Researcher"
-        case "analyst": suffix = "Analyst"
-        case "critic_verifier": suffix = "CriticVerifier"
-        case "designer": suffix = "Designer"
-        case "secretary": suffix = "Secretary"
-        case "code_orchestrator", "orchestrator": suffix = "Orchestrator"
+        case "architect": return "Architect"
+        case "builder": return "Builder"
+        case "qa": return "QA"
+        case "researcher": return "Researcher"
+        case "analyst": return "Analyst"
+        case "critic_verifier": return "CriticVerifier"
+        case "designer": return "Designer"
+        case "secretary": return "Secretary"
+        case "code_orchestrator", "orchestrator": return "Orchestrator"
         default: return nil
         }
-        let selected = appearance ?? TeamAvatarAppearance(rawValue: UserDefaults.standard.string(forKey: TeamAvatarAppearance.storageKey) ?? "current") ?? .current
-        switch selected {
+    }
+
+    private static func resolve(_ appearance: TeamAvatarAppearance?) -> TeamAvatarAppearance {
+        appearance
+            ?? TeamAvatarAppearance(rawValue: UserDefaults.standard.string(forKey: TeamAvatarAppearance.storageKey) ?? "current")
+            ?? .current
+    }
+
+    static func imageName(for role: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+        guard let suffix = suffix(for: role) else { return nil }
+        switch resolve(appearance) {
         case .current: return "RoleAvatar" + suffix
         case .previous: return "TeamPrevious" + suffix
         case .noir: return "TeamNoir" + suffix
         }
     }
 
+    /// Роли, для которых ролик реально лежит в бандле. Перечислены ЯВНО, а не по
+    /// правилу «имя ассета + Loop»: у девятой роли «Дизайнер» портрет есть, а
+    /// ролика нет, и общее правило подставляло несуществующее имя — вьюха
+    /// рисовала пустой видеослой, то есть чёрный кружок вместо статики.
+    private static let loopRoles: Set<String> = [
+        "researcher", "analyst", "builder", "architect",
+        "code_orchestrator", "orchestrator", "secretary", "critic_verifier", "qa",
+    ]
+
+    /// Имя ролика в бандле (без `.mp4`) для роли, `nil` — анимации нет.
+    ///
+    /// Ролики сделаны только для комплекта «Гравюра» — это тот комплект, чьи
+    /// портреты владелец анимировал. У «Иллюстрации» и «Плаката» роликов нет,
+    /// поэтому переключатель на них ничего не меняет: остаются статичные.
+    static func loopName(for role: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+        guard let role, loopRoles.contains(role) else { return nil }
+        guard resolve(appearance) == .noir, let suffix = suffix(for: role) else { return nil }
+        return "RoleNoirLoop" + suffix
+    }
+
     static func imageName(forUserID userID: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+        guard let role = role(forUserID: userID) else { return nil }
+        return imageName(for: role, appearance: appearance)
+    }
+
+    static func loopName(forUserID userID: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+        guard let role = role(forUserID: userID) else { return nil }
+        return loopName(for: role, appearance: appearance)
+    }
+
+    private static func role(forUserID userID: String?) -> String? {
         guard let userID else { return nil }
-        if userID == "u-secretary" { return imageName(for: "secretary", appearance: appearance) }
+        if userID == "u-secretary" { return "secretary" }
         guard userID.hasPrefix("role_") else { return nil }
-        return imageName(for: String(userID.dropFirst("role_".count)), appearance: appearance)
+        return String(userID.dropFirst("role_".count))
     }
 }

@@ -17,11 +17,16 @@ import SDWebImageSwiftUI
 // DesignSystem с параметром размера, в отчёте оркестратору.
 private struct AgentWorkAvatarView: View {
     @AppStorage(TeamAvatarAppearance.storageKey) private var avatarAppearance = "current"
+    @AppStorage(TeamAvatarAnimation.storageKey) private var avatarsAnimated = false
     let urlPath: String?
     let initials: String
     let tint: Color
     let size: CGFloat
     let userID: String?
+
+    private var roleAppearance: TeamAvatarAppearance {
+        TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current
+    }
 
     // `AnimatedImage` вместо `AsyncImage` — см. комментарий у AgentAvatarView
     // (AgentRow.swift), просьба владельца 03.09.2026, тот же приём.
@@ -41,9 +46,9 @@ private struct AgentWorkAvatarView: View {
     }
 
     @ViewBuilder private var bundledOrInitials: some View {
-        if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
-            Image(asset).resizable().aspectRatio(contentMode: .fill)
-                .frame(width: size, height: size).clipShape(Circle())
+        if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: roleAppearance) {
+            let loop = avatarsAnimated ? RoleAvatarAsset.loopName(forUserID: userID, appearance: roleAppearance) : nil
+            TFRolePortrait(imageAsset: asset, loopName: loop, side: size)
         } else {
             initialsCircle
         }

@@ -10,6 +10,9 @@ import SDWebImageSwiftUI
 //   шрифт `size × 0.43`, вес 600, белый текст.
 public struct TFAvatar: View {
     @AppStorage(TeamAvatarAppearance.storageKey) private var avatarAppearance = "current"
+    /// Галочка «Анимировать» в «Внешнем виде»: когда включена, портреты ролей
+    /// комплекта «Ретро-нуар» играют роликом, иначе остаются статичными.
+    @AppStorage(TeamAvatarAnimation.storageKey) private var avatarsAnimated = false
     public enum Size: CGFloat {
         case xs = 18   // строка карточки доски
         case sm = 20   // строка задачи в списке
@@ -127,11 +130,26 @@ public struct TFAvatar: View {
         URL(string: APIClient.baseURL.absoluteString + path)
     }
 
+    /// Портрет роли: статика или ролик — смотря по галочке в «Внешнем виде».
+    /// Увеличение по максимуму и круглая обрезка живут в `TFRolePortrait`,
+    /// здесь только выбор, что именно рисовать.
+    private var roleAppearance: TeamAvatarAppearance {
+        TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current
+    }
+
+    private var roleAsset: String? {
+        RoleAvatarAsset.imageName(forUserID: userID, appearance: roleAppearance)
+    }
+
+    private var roleLoop: String? {
+        guard avatarsAnimated else { return nil }
+        return RoleAvatarAsset.loopName(forUserID: userID, appearance: roleAppearance)
+    }
+
     /// Пока картинка грузится (или недоступна): вшитый портрет роли, иначе инициалы.
     @ViewBuilder private var placeholderCircle: some View {
-        if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
-            Image(asset).resizable().aspectRatio(contentMode: .fill)
-                .frame(width: side, height: side).clipShape(Circle())
+        if let asset = roleAsset {
+            TFRolePortrait(imageAsset: asset, loopName: roleLoop, side: side)
         } else {
             Circle().fill(tint).frame(width: side, height: side)
                 .overlay { Text(initials).font(.system(size: side * 0.43, weight: .semibold)).foregroundStyle(.white) }
@@ -142,9 +160,8 @@ public struct TFAvatar: View {
         Group {
             if teamIDs.count > 1 {
                 TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side, front: teamFront)
-            } else if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
-                Image(asset).resizable().aspectRatio(contentMode: .fill)
-                    .frame(width: side, height: side).clipShape(Circle())
+            } else if let asset = roleAsset {
+                TFRolePortrait(imageAsset: asset, loopName: roleLoop, side: side)
             } else if let urlPath = resolvedURLPath, let url = TFAvatar.fullURL(urlPath) {
                 if portrait || self.urlPath == nil {
                     AnimatedImage(url: url, placeholder: { placeholderCircle })

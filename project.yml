@@ -38,6 +38,11 @@ targets:
       # Образцы голосов Секретаря для прослушивания в настройках (LOCK-218).
       - path: Resources/SecretaryVoices
         buildPhase: resources
+      # Ролики аватарок комплекта «Ретро-нуар» (LOCK-TEAM-AVATAR-ANIMATION).
+      # Тот же приём, что у голосов: каталог целиком, `buildPhase: resources`.
+      # 2,5 МБ восьми mp4 — они идут в бандл как файлы, а не в asset catalog.
+      - path: Resources/TeamAvatarLoops
+        buildPhase: resources
       # Модель состояния островка общая с расширением: оно её рисует,
       # приложение заполняет. Один файл на два таргета — чтобы поля не
       # разъехались молча.

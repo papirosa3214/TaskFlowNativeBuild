@@ -6,12 +6,17 @@ import SDWebImageSwiftUI
 /// как владелец посмотрел всех по долгому нажатию (`front` двигает `TFAvatar`).
 struct TFTeamAvatarStack: View {
     @AppStorage(TeamAvatarAppearance.storageKey) private var avatarAppearance = "current"
+    @AppStorage(TeamAvatarAnimation.storageKey) private var avatarsAnimated = false
     let ids: [String]
     let urls: [String]
     let side: CGFloat
     let front: Int
 
     private var shown: [String] { Array(ids.prefix(4)) }
+
+    private var roleAppearance: TeamAvatarAppearance {
+        TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current
+    }
 
     var body: some View {
         let front = self.front % shown.count
@@ -32,9 +37,9 @@ struct TFTeamAvatarStack: View {
     }
 
     @ViewBuilder private func avatar(_ id: String, url: String) -> some View {
-        if let asset = RoleAvatarAsset.imageName(forUserID: id, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
-            Image(asset).resizable().aspectRatio(contentMode: .fill)
-                .clipShape(Circle())
+        if let asset = RoleAvatarAsset.imageName(forUserID: id, appearance: roleAppearance) {
+            let loop = avatarsAnimated ? RoleAvatarAsset.loopName(forUserID: id, appearance: roleAppearance) : nil
+            TFRolePortrait(imageAsset: asset, loopName: loop, side: side * 0.92)
                 .overlay(Circle().stroke(Color.tfBackground, lineWidth: 1.5))
         } else if !url.isEmpty, let full = TFAvatar.fullURL(url) {
             AnimatedImage(url: full, placeholder: { Circle().fill(Color.tfCard2) })
