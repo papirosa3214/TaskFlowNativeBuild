@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "44657097-6344-4C6A-A241-315DF50D159D.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "smooth-stream-complete_0_620BBBA3-1271-4BD8-B562-080973E552A2.png",
+        "timestamp" : 1791630002.582
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "D0291438-EA61-4C01-9EA2-A6A99808D651.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "smooth-stream-actions_0_DAB49D35-317D-4156-B38D-130CC4DF481F.png",
+        "timestamp" : 1791629997.359
+      }
+    ],
+    "testIdentifier" : "SlowStreamUITests/testBurstDrainsTextThenActionsBeforeCompletion()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/SlowStreamUITests/testBurstDrainsTextThenActionsBeforeCompletion"
+  }
+]

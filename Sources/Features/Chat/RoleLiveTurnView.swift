@@ -198,7 +198,7 @@ private struct RoleItemAppearance: ViewModifier {
         content
             .opacity(animate && !appeared ? 0 : 1)
             .onAppear {
-                if animate { withAnimation(.easeInOut(duration: 0.38)) { appeared = true } }
+                if animate { withAnimation(.easeInOut(duration: 0.7)) { appeared = true } }
                 else { appeared = true }
             }
     }
@@ -621,7 +621,7 @@ struct RoleTextFade: Equatable {
     /// Сколько символов текста идёт после этого куска.
     var offset = 0
 
-    static let duration: TimeInterval = 0.38
+    static let duration: TimeInterval = 0.7
 
     func shifted(by characters: Int) -> RoleTextFade {
         var copy = self

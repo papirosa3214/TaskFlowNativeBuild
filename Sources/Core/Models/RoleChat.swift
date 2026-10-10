@@ -313,17 +313,19 @@ struct RoleLiveTextPacer {
     private var budget: Double = 0
     private var revealedActions: Set<Int> = []
     private var actionWait: TimeInterval = 0
-    static let actionInterval: TimeInterval = 0.14
+    static let actionInterval: TimeInterval = 0.4
+    static let initialBuffer: TimeInterval = 0.8
+    private var initialDelay: TimeInterval = Self.initialBuffer
     /// Сколько очередь стоит без новых слов — недописанное сервером слово
     /// показываем, только если продолжения долго нет.
     private var stall: TimeInterval = 0
 
-    static let minRate: Double = 40
-    static let maxRate: Double = 320
+    static let minRate: Double = 18
+    static let maxRate: Double = 36
     /// На сколько секунд экран в среднем отстаёт от сервера.
-    static let targetLag: TimeInterval = 0.7
+    static let targetLag: TimeInterval = 4
     /// Сколько ждать продолжения оборванного слова в конце снимка.
-    static let tailWait: TimeInterval = 0.35
+    static let tailWait: TimeInterval = 0.65
 
     mutating func ingest(_ items: [RoleChatLiveItem]) {
         var next = Array(repeating: 0, count: items.count)
@@ -373,10 +375,15 @@ struct RoleLiveTextPacer {
             stall = 0
             return false
         }
+        // В начале копим небольшой запас, чтобы сгладить следующие паузы сервера.
+        if pending > 0 && initialDelay > 0 {
+            initialDelay = max(0, initialDelay - elapsed)
+            return true
+        }
         // Скорость тянется к «очередь уйдёт за targetLag», но плавно — без
         // скачков, из-за которых поток то бежит, то встаёт.
         let desired = min(Self.maxRate, max(Self.minRate, Double(pending) / Self.targetLag))
-        let blend = min(1, elapsed / 0.3)
+        let blend = min(1, elapsed / 1.0)
         rate += (desired - rate) * blend
         budget += rate * elapsed
         stall += elapsed
@@ -443,6 +450,7 @@ struct RoleLiveTextPacer {
             if case .text = target[$0] { return false }; return true
         })
         actionWait = 0
+        initialDelay = 0
         lastRevealAt = .distantPast
         lastPresentationAt = .distantPast
         budget = 0

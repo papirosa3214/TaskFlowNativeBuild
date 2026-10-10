@@ -21,7 +21,8 @@ final class RoleChatLiveTurnTests: XCTestCase {
     func testPacerRevealsWholeWordsAndPreservesProgressAcrossSnapshots() {
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text("Привет, как дела")])
-        pacer.advance(elapsed: 0.2)
+        pacer.advance(elapsed: RoleLiveTextPacer.initialBuffer)
+        pacer.advance(elapsed: 0.4)
         guard case .text(let first)? = pacer.visibleItems.first else {
             return XCTFail("ожидали начало текста")
         }
@@ -37,7 +38,8 @@ final class RoleChatLiveTurnTests: XCTestCase {
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text("Смотрю доск")])
         // Первое слово успевает выйти, а хвост «доск» может дописаться — ждём.
-        for _ in 0..<18 { pacer.advance(elapsed: 0.016) }
+        pacer.advance(elapsed: RoleLiveTextPacer.initialBuffer)
+        for _ in 0..<22 { pacer.advance(elapsed: 0.016) }
         XCTAssertEqual(pacer.visibleItems, [.text("Смотрю")])
         pacer.ingest([.text("Смотрю доску")])
         drain(&pacer)
@@ -49,11 +51,12 @@ final class RoleChatLiveTurnTests: XCTestCase {
         slow.ingest([.text(String(repeating: "слово ", count: 5))])
         var fast = RoleLiveTextPacer()
         fast.ingest([.text(String(repeating: "слово ", count: 300))])
-        for _ in 0..<20 {
+        for _ in 0..<100 {
             slow.advance(elapsed: 0.016)
             fast.advance(elapsed: 0.016)
         }
-        XCTAssertGreaterThan(fast.rate, slow.rate * 3)
+        XCTAssertGreaterThan(fast.rate, slow.rate)
+        XCTAssertLessThanOrEqual(fast.rate, RoleLiveTextPacer.maxRate)
     }
 
     func testPacerShowsStepsAfterPreviousTextAndResetsChangedText() {
@@ -108,9 +111,27 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertFalse(driver.isAnimating(now: .now))
         driver.pacer.ingest([.text("Ответ")])
         XCTAssertTrue(driver.isAnimating(now: .now))
+        driver.pacer.advance(elapsed: RoleLiveTextPacer.initialBuffer)
         driver.pacer.advance(elapsed: 1)
         XCTAssertFalse(driver.pacer.hasPendingText)
         XCTAssertFalse(driver.isAnimating(now: .now.addingTimeInterval(1)))
+    }
+
+    func testInitialBufferAndLongReplyCannotRushDespiteLargeBacklog() {
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text(String(repeating: "слово ", count: 300))])
+        pacer.advance(elapsed: 0.4)
+        XCTAssertTrue(pacer.visibleItems.isEmpty)
+        pacer.advance(elapsed: 0.4)
+        for _ in 0..<60 { pacer.advance(elapsed: 1.0 / 60) }
+        guard case .text(let shown)? = pacer.visibleItems.first else { return XCTFail("Нет текста") }
+        XCTAssertLessThanOrEqual(shown.count, 36, "Большой запас не ускоряет выдачу сверх спокойного темпа")
+        let beforePause = shown.count
+        // Сервер не присылает ничего: очередь всё равно выдаёт накопленное.
+        for _ in 0..<60 { pacer.advance(elapsed: 1.0 / 60) }
+        guard case .text(let afterPause)? = pacer.visibleItems.first else { return XCTFail("Нет текста") }
+        XCTAssertGreaterThan(afterPause.count, beforePause)
+        XCTAssertLessThanOrEqual(afterPause.count - beforePause, 36)
     }
 
     func testRevealFadeGrowsWithDistanceAndTime() {
