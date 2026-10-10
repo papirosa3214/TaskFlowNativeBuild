@@ -808,7 +808,6 @@ struct TaskCardContent: View {
                 if hasCollaborationPlan {
                     collapsibleSection(.collaborationPlan, title: "План совместной работы") {
                         CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
-                            .id(collaborationPlanReloadToken)
                             .listRowSeparator(.hidden)
                     } preview: {
                         ForEach(runningSubtasks.filter { $0.collaborationPlanId != nil }) { subtask in
@@ -994,7 +993,6 @@ struct TaskCardContent: View {
         .background {
             if let taskID = viewModel.taskID, !hasCollaborationPlan {
                 CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
-                    .id(collaborationPlanReloadToken)
                     .frame(width: 0, height: 0)
                     .opacity(0)
                     .allowsHitTesting(false)

@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "17798F09-05D5-4408-A17B-D812B1A60846.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-after-refresh_0_7369CF41-4DA8-4DE7-9119-E2FC9235956B.png",
+        "timestamp" : 1791653417.529
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "E8A60685-5DB2-45DE-86F7-FD2EF33C5615.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-before-refresh_0_2A7B77A6-88BC-4A0B-9629-0C00676F0887.png",
+        "timestamp" : 1791653413.304
+      }
+    ],
+    "testIdentifier" : "CardRefreshUITests/testRoleSurvivesRefresh()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/CardRefreshUITests/testRoleSurvivesRefresh"
+  }
+]

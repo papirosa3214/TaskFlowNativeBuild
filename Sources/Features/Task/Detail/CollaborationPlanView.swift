@@ -110,7 +110,7 @@ public struct CollaborationPlanView: View {
                 content(for: plan)
             }
         }
-        .task(id: "\(taskId):\(scenePhase):\(realtime.revision(for: taskId))") {
+        .task(id: "\(taskId):\(reloadToken):\(scenePhase):\(realtime.revision(for: taskId))") {
             guard scenePhase == .active else { return }
             await load()
         }

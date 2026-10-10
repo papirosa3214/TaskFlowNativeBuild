@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "E4BC5F96-5B97-4A73-97D6-846883EBF0FE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "scroll-after-refresh_0_EA3303C8-B48F-40CD-98BD-5C5F982D7BCA.png",
+        "timestamp" : 1791653480.68
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "8F721D68-4996-4F2C-9F7F-226893B95B61.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-after-refresh_0_49E78BDB-D80E-47CA-9684-EBFF23473CEA.png",
+        "timestamp" : 1791653476.043
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "8DEFFF7E-3EB9-42A1-8611-E015A2B8A438.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-before-refresh_0_404BC5C1-DA1C-4FC2-B8B1-D14D458A4BC7.png",
+        "timestamp" : 1791653471.79
+      }
+    ],
+    "testIdentifier" : "CardRefreshUITests/testRoleSurvivesRefresh()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/CardRefreshUITests/testRoleSurvivesRefresh"
+  }
+]
