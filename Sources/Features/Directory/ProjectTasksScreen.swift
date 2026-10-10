@@ -248,6 +248,7 @@ struct ProjectTasksScreen: View {
         )) { ref in
             NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])
+                .presentationContentInteraction(.resizes)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color.tfSheetBackground)
         }

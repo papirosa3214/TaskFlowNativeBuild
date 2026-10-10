@@ -1027,7 +1027,6 @@ struct TaskCardContent: View {
         // комментария он есть, и та же подложка стала видна здесь тоже
         // (владелец 30.09.2026, кадр с серой полосой над панелью подзадачи).
         .hideComposerScrollEdgeEffect()
-        .refreshable { await viewModel.refresh() }
     }
 
     /// Контент секции «Связанные задачи» (LOCK-248). Обёртку `Section`

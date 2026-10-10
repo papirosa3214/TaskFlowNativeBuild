@@ -1,0 +1,42 @@
+import XCTest
+final class TaskSheetResizeUITests: XCTestCase {
+ func shot(_ name:String,_ app:XCUIApplication) { let a=XCTAttachment(screenshot:app.screenshot());a.name=name;a.lifetime = .keepAlways;add(a) }
+ func dragDown(_ element:XCUIElement) {
+  element.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.15)).press(forDuration:0.1,thenDragTo:element.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.95)),withVelocity:.fast,thenHoldForDuration:0)
+ }
+ func testCompareSheets() {
+  continueAfterFailure=false
+  let app=XCUIApplication()
+  app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"]="projects"
+  app.launchEnvironment["TASKFLOW_SHEET_DIAGNOSTICS"]="1"
+  app.launch()
+  let project=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@","TaskFlow - NewTodoist,")).firstMatch
+  XCTAssertTrue(project.waitForExistence(timeout:15));project.tap()
+  let task=app.buttons.matching(NSPredicate(format:"label CONTAINS %@","#905db3e3")).firstMatch
+  XCTAssertTrue(task.waitForExistence(timeout:10));task.tap()
+  let handle=app.buttons["Sheet Grabber"].firstMatch
+  XCTAssertTrue(handle.waitForExistence(timeout:10));handle.swipeUp()
+  let section=app.buttons["task-card.905db3e3-74b9-4762-a222-0d84750936d3.section.collaborationPlan"]
+  let node=app.buttons["plan-node-contract"]
+  if !node.exists { if section.isHittable { section.tap() } }
+  for _ in 0..<6 {
+   if node.exists && node.isHittable { break }
+   app.collectionViews.firstMatch.swipeUp()
+
+  }
+  XCTAssertTrue(node.isHittable,app.debugDescription);node.tap()
+  XCTAssertTrue(app.staticTexts["Роль"].waitForExistence(timeout:10))
+  shot("role-before-down",app)
+  let roleHandles=app.buttons.matching(identifier:"Sheet Grabber")
+  print("ROLE_BEFORE handles=\(roleHandles.count)")
+  dragDown(app.collectionViews.element(boundBy:app.collectionViews.count-1))
+  shot("role-after-down",app)
+  print("ROLE_AFTER visible=\(app.staticTexts["Роль"].exists)")
+  if app.staticTexts["Роль"].exists { app.buttons["Готово"].tap() }
+  print("TASK_BEFORE handle=\(handle.frame)")
+  for _ in 0..<6 { if !handle.exists { break };dragDown(app.collectionViews.firstMatch) }
+  shot("task-after-down",app)
+  print("TASK_AFTER exists=\(handle.exists)")
+  XCTAssertFalse(handle.exists)
+ }
+}
