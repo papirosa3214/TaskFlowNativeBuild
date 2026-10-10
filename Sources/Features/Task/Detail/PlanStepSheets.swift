@@ -139,6 +139,9 @@ struct PlanStepDetailSheet: View {
                         detailRow("Пропущен", lines: [reason])
                     }
                 }
+                Section("Ход работы") {
+                    AgentTraceView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
+                }
                 if let result = subtask?.result, !result.isEmpty, !node.isSkipped {
                     Section {
                         HStack {

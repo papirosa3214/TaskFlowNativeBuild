@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "2BBB4D1E-44E7-4A83-A50F-EDF308983C5F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "agent-trace-replay_0_5B54F772-908A-4C92-99EC-07EE1F644089.png",
+        "timestamp" : 1791631029.539
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "46A24F22-4552-4237-85E8-297CE409BB79.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "agent-trace-finished_0_660C9708-E9D4-48A9-9680-DCC04D120E61.png",
+        "timestamp" : 1791631025.756
+      }
+    ],
+    "testIdentifier" : "AgentTraceUITests/testGraphSheetShowsTraceAndReplaysHistory()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/AgentTraceUITests/testGraphSheetShowsTraceAndReplaysHistory"
+  }
+]
