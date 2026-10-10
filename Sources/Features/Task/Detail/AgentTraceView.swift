@@ -12,6 +12,7 @@ struct AgentTraceView: View {
     @State private var followsLive = true
     @State private var loaded = false
     @State private var failed = false
+    @State private var scrollRequest = 0
     private var scope: String { taskID + ":" + (subtaskID ?? "none") }
     private var selected: AgentTraceRun? { runs.first { $0.id == selectedID } ?? runs.last }
 
@@ -29,45 +30,61 @@ struct AgentTraceView: View {
                 HStack {
                     Text("\(Int(duration * position)) с / \(Int(duration)) с").monospacedDigit()
                     Spacer()
-                    Button("Сейчас") { selectedID = runs.last?.id; followsLive = true; position = 1 }
+                    Button("Сейчас") { selectedID = runs.last?.id; followsLive = true; position = 1; scrollRequest += 1 }
                         .foregroundStyle(Color.tfText)
+                        .buttonStyle(.borderless)
                         .accessibilityIdentifier("agent-trace-live")
                 }
                 Slider(value: Binding(get: { position }, set: { position = $0; followsLive = false }), in: 0...1)
                     .tint(Color.tfText)
                     .accessibilityLabel("Время просмотра")
                     .accessibilityIdentifier("agent-trace-scrubber")
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(run.spans) { span in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(alignment: .top) {
-                                    Text(span.label).font(.caption).lineLimit(2)
-                                    Spacer()
-                                    Text(span.state(at: cursor)).font(.caption).foregroundStyle(Color.tfSub)
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["TASKFLOW_AGENT_TRACE_LONG"] == "1" {
+                    Button("Следующее действие") {
+                        var next = run
+                        next.spans.append(AgentTraceSpan(id: "incoming", label: "edit", start: run.end, end: nil, status: "running"))
+                        next.observedAt = run.end.addingTimeInterval(1)
+                        update(next)
+                    }.buttonStyle(.borderless).accessibilityIdentifier("agent-trace-next-preview")
+                }
+                #endif
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(run.spans) { span in
+                                HStack(spacing: 8) {
+                                    Label(shortLabel(span), systemImage: symbol(span))
+                                        .font(.caption).lineLimit(1)
+                                        .frame(width: 94, alignment: .leading)
+                                    durationBar(span, run: run, cursor: cursor, duration: duration)
+                                        .frame(height: 8)
+                                    Text(span.state(at: cursor))
+                                        .font(.caption2).foregroundStyle(Color.tfSub)
+                                        .frame(width: 50, alignment: .trailing)
                                 }
-                                GeometryReader { geometry in
-                                    let offset = min(max(0, 1 - 3 / max(1, geometry.size.width)), max(0, span.start.timeIntervalSince(run.start) / duration))
-                                    let stop = min(span.end ?? run.end, cursor)
-                                    let width = max(0, stop.timeIntervalSince(span.start) / duration)
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(Color.tfCard2)
-                                        if cursor >= span.start {
-                                            Capsule().fill(span.status == "error" && span.end.map { cursor >= $0 } == true ? Color.tfRed : Color.tfText.opacity(0.75))
-                                                .frame(width: min(geometry.size.width * (1 - offset), max(3, geometry.size.width * width)))
-                                                .offset(x: geometry.size.width * offset)
-                                        }
-                                        Rectangle().fill(Color.tfSub).frame(width: 1).offset(x: geometry.size.width * position)
-                                    }
-                                }.frame(height: 8)
-                                if span.isEvent { Text("Событие: длительность неизвестна").font(.caption2).foregroundStyle(Color.tfSub) }
+                                .frame(minHeight: 24)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel("\(shortLabel(span)), \(span.state(at: cursor))")
+                                .accessibilityValue(span.isEvent ? "Событие: длительность неизвестна" : span.label)
+                                .accessibilityIdentifier("agent-trace-span-" + span.id)
                             }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityIdentifier("agent-trace-span")
+                            if run.spans.isEmpty { Text("Для этого запуска пока нет действий с временными метками").foregroundStyle(Color.tfSub) }
+                            Color.clear.frame(height: 1).id("trace-bottom")
                         }
-                        if run.spans.isEmpty { Text("Для этого запуска пока нет действий с временными метками").foregroundStyle(Color.tfSub) }
                     }
-                }.frame(maxHeight: 260)
+                    .frame(maxHeight: 260)
+                    .defaultScrollAnchor(.bottom)
+                    .accessibilityIdentifier("agent-trace-scroll")
+                    .onAppear { if followsLive { proxy.scrollTo("trace-bottom", anchor: .bottom) } }
+                    .onChange(of: run) { _, _ in
+                        if followsLive { proxy.scrollTo("trace-bottom", anchor: .bottom) }
+                    }
+                    .onChange(of: scrollRequest) { _, _ in proxy.scrollTo("trace-bottom", anchor: .bottom) }
+                    .onChange(of: followsLive) { _, follows in
+                        if follows { proxy.scrollTo("trace-bottom", anchor: .bottom) }
+                    }
+                }
                 Text(run.id.hasPrefix("events-") ? "Лента событий: границы запуска неизвестны" : (run.complete ? "Запуск завершён" : "Последний полученный снимок"))
                     .font(.caption).foregroundStyle(Color.tfSub)
             } else if loaded {
@@ -82,11 +99,21 @@ struct AgentTraceView: View {
             #if DEBUG
             if ProcessInfo.processInfo.environment["TASKFLOW_AGENT_TRACE_PREVIEW"] == "1" {
                 let start = Date(timeIntervalSince1970: 1791622800)
-                runs = [AgentTraceRun(id: "preview", start: start, observedAt: start.addingTimeInterval(30), complete: true, spans: [
-                    AgentTraceSpan(id: "read", label: "Чтение проекта", start: start, end: start.addingTimeInterval(8), status: "done"),
-                    AgentTraceSpan(id: "test", label: "Проверка результата", start: start.addingTimeInterval(10), end: start.addingTimeInterval(18), status: "error"),
-                    AgentTraceSpan(id: "retry", label: "Повторная проверка", start: start.addingTimeInterval(20), end: start.addingTimeInterval(30), status: "done")])]
-                selectedID = "preview"; loaded = true
+                if ProcessInfo.processInfo.environment["TASKFLOW_AGENT_TRACE_LONG"] == "1" {
+                    let spans = (0..<24).map { index in
+                        AgentTraceSpan(id: "preview-\(index)", label: index.isMultiple(of: 2) ? "read" : "bash",
+                            start: start.addingTimeInterval(Double(index)),
+                            end: start.addingTimeInterval(Double(index + 1)), status: "done")
+                    }
+                    runs = [AgentTraceRun(id: "preview", start: start, observedAt: start.addingTimeInterval(24), complete: false, spans: spans)]
+                    selectedID = "preview"; loaded = true
+                } else {
+                    runs = [AgentTraceRun(id: "preview", start: start, observedAt: start.addingTimeInterval(30), complete: true, spans: [
+                        AgentTraceSpan(id: "read", label: "read", start: start, end: start.addingTimeInterval(8), status: "done"),
+                        AgentTraceSpan(id: "test", label: "bash", start: start.addingTimeInterval(10), end: start.addingTimeInterval(18), status: "error"),
+                        AgentTraceSpan(id: "retry", label: "bash", start: start.addingTimeInterval(20), end: start.addingTimeInterval(30), status: "done")])]
+                    selectedID = "preview"; loaded = true
+                }
                 return
             }
             #endif
@@ -118,6 +145,32 @@ struct AgentTraceView: View {
         }
         .onChange(of: scenePhase) { _, phase in if phase != .active { persist(); realtime.disconnect() } else if subtaskID != nil { realtime.connect() } }
         .onDisappear { persist(); realtime.disconnect(); realtime.onEvent = nil }
+    }
+
+    private func shortLabel(_ span: AgentTraceSpan) -> String {
+        span.label == "Размышление" ? "Мысль" : RoleLiveStepKind.label(forTool: span.label.lowercased())
+    }
+
+    private func symbol(_ span: AgentTraceSpan) -> String {
+        span.label == "Размышление" ? "brain" : RoleLiveStepKind.symbol(forTool: span.label.lowercased())
+    }
+
+    private func durationBar(_ span: AgentTraceSpan, run: AgentTraceRun, cursor: Date, duration: Double) -> some View {
+        GeometryReader { geometry in
+            let offset = min(max(0, 1 - 3 / max(1, geometry.size.width)), max(0, span.start.timeIntervalSince(run.start) / duration))
+            let stop = min(span.end ?? run.end, cursor)
+            let width = max(0, stop.timeIntervalSince(span.start) / duration)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.tfCard2)
+                if cursor >= span.start {
+                    Capsule().fill(span.status == "error" && span.end.map { cursor >= $0 } == true ? Color.tfRed : Color.tfText.opacity(0.75))
+                        .frame(width: min(geometry.size.width * (1 - offset), max(3, geometry.size.width * width)))
+                        .offset(x: geometry.size.width * offset)
+                }
+                Rectangle().fill(Color.tfSub).frame(width: 1).offset(x: geometry.size.width * position)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     private func receive(_ live: TaskLiveTurn) {
