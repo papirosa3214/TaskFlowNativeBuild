@@ -22,10 +22,25 @@ struct ChatVoiceComposer: View {
     @Bindable var voice: RoleChatVoiceController
     let onAttachmentSource: (ChatAttachmentSource) -> Void
     let onSendText: () -> Void
+    /// Отправка уже набранного текста (используется, когда голосовое поле
+    /// в экспериментальном режиме отправляет расшифровку, а не голос).
+    var onSendTranscribedText: ((String) -> Void)? = nil
     let onSendVoice: (VoiceMessage) async -> Bool
     let onDiscardVoice: (VoiceMessage) -> Void
     var workMode: Binding<RoleChatWorkMode>? = nil
     var availableModes: [RoleChatWorkMode] = [.work, .plan]
+    /// Роли, которым можно написать в этом чате — для кнопки-собачки.
+    /// Владелец 11.10.2026: «чтобы я мог точечно писать, сразу же выбрать,
+    /// кому я хочу написать из агентов… ее все время от руки писать не охоту».
+    /// Пусто — кнопка не рисуется (например, в 1:1-чате или в другом
+    /// композере, который список не передаёт).
+    var mentionCandidates: [RoleChatMember] = []
+    /// Список ролей для кнопки «@» у ЭКСПЕРИМЕНТАЛЬНОГО поля. Старый вид
+    /// композера кнопку не показывает — там владелец её не просил, а места
+    /// в строке нет: там и так плюс, поле, режим и отправка.
+    private var showsMentionButton: Bool {
+        experimentalPromptBox && !mentionCandidates.isEmpty
+    }
     var isResponding = false
     var isStopping = false
     var onStop: (() -> Void)? = nil
@@ -56,7 +71,18 @@ struct ChatVoiceComposer: View {
             if isRecording {
                 if experimentalPromptBox { promptRecordingComposer } else { recordingComposer }
             }
-            if let preview { previewComposer(preview) }
+            if let preview {
+                // Владелец 10.10.2026: «я уже наговорил и мне пора отправлять —
+                // он переделывается опять в старое поле». Превью рендерилось
+                // единственным старым видом, и экспериментальное поле
+                // возвращалось назад ровно в момент отправки. У превью своя
+                // ветка на каждый режим.
+                if experimentalPromptBox {
+                    promptPreviewComposer(preview)
+                } else {
+                    previewComposer(preview)
+                }
+            }
         }
         .contentShape(Rectangle())
         .simultaneousGesture(
@@ -221,9 +247,16 @@ struct ChatVoiceComposer: View {
                         .frame(width: 40, height: 40)
                         .background(.white, in: Circle())
                         .contentShape(Circle())
-                        .onLongPressGesture(minimumDuration: 0.18, perform: startVoiceRecording)
-                        .accessibilityLabel("Удерживайте для начала записи")
+                        .onTapGesture { startVoiceRecording() }
+                        .accessibilityLabel("Начать запись")
                         .accessibilityIdentifier("chat.voice")
+                }
+                // Собачка — ПОСЛЕ отправки («молнии»), владелец 11.10.2026:
+                // «после молнии надо ставить». Серенькая, как скрепка и
+                // режим работы, — без белого круга, который есть только у
+                // действий-команд (микрофон, отправка).
+                if showsMentionButton {
+                    mentionButton
                 }
             }
             .foregroundStyle(.gray)
@@ -236,6 +269,38 @@ struct ChatVoiceComposer: View {
         .padding(.horizontal).padding(.vertical, 10)
     }
 
+    /// Собачка у отправки (владелец 11.10.2026: «после молнии надо ставить,
+    /// чтобы он тоже был таким вот сереньким»). По тапу — список ролей чата;
+    /// выбор подставляет упоминание в текст и сразу возвращает фокус в поле.
+    /// Вид рядовой, как скрепка и режим: серый, размером с ними, без белого
+    /// круга — белый круг в этом поле означает действие-команду.
+    private var mentionButton: some View {
+        Menu {
+            ForEach(mentionCandidates) { member in
+                // Без иконки в строке: в меню она дублировала бы то самое
+                // «@», ради которого меню и открыто. Плюс у ролей уже есть
+                // свои аватары в шапке чата — здесь достаточно имени.
+                Button { insertMention(member) } label: {
+                    Text(member.name)
+                }
+            }
+        } label: {
+            Image(systemName: "at").frame(width: 44, height: 44)
+        }
+        .accessibilityLabel("Выбрать адресата")
+        .accessibilityIdentifier("chat.mention")
+    }
+
+    /// «@Имя » в конец черновика. Пробел в конце — как у набранного руками
+    /// упоминания в `RoleChatsScreen.insertMention`: без него продолжение
+    /// набора слилось бы с именем, и подсказка адресатов не закрылась бы.
+    /// Пустое поле получает упоминание без ведущего пробела.
+    private func insertMention(_ member: RoleChatMember) {
+        let needsSpace = !text.isEmpty && !text.hasSuffix(" ")
+        text += (needsSpace ? " " : "") + "@\(member.name) "
+        isTextFieldFocused = true
+    }
+
     private var promptRecordingComposer: some View {
         VStack(spacing: 16) {
             HStack(spacing: 8) {
@@ -243,8 +308,8 @@ struct ChatVoiceComposer: View {
                 Text(recordingDuration).font(.body.monospacedDigit().weight(.medium)).foregroundStyle(.white)
             }
             VoiceBarsView(level: recordingLevel, color: .gray, peakColor: .white,
-                          barWidth: 3, spacing: 2, maxHeight: 32, isSmooth: true)
-                .frame(width: 160, height: 40)
+                          barWidth: 3, spacing: 2, maxHeight: 30, isSmooth: true)
+                .frame(width: 180, height: 36)
             HStack {
                 Spacer()
                 Button(action: stopVoiceRecording) {
@@ -290,6 +355,75 @@ struct ChatVoiceComposer: View {
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.vertical, 10)
         .transition(.opacity)
+    }
+
+    /// Превью записи в оформлении экспериментального поля (владелец
+    /// 10.10.2026). Тот же тёмный фон и та же кнопка отправки, что у нового
+    /// поля, — иначе перед отправкой интерфейс выглядит старым.
+    private func promptPreviewComposer(_ message: VoiceMessage) -> some View {
+        VStack(spacing: 12) {
+            if let transcript = readyTranscript(message) {
+                Text(transcript)
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("chat.voice.transcript")
+            } else if message.transcript == .pending {
+                HStack(spacing: 8) {
+                    ProgressView().tint(.white)
+                    Text("Расшифровываю…").font(.footnote).foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: 12) {
+                Button(action: discardPreview) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Удалить запись")
+                .accessibilityIdentifier("chat.voice.discard")
+                WaveformView(levels: message.waveform, color: .gray)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 30)
+                Text(durationText(message.duration))
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.gray)
+                if isSendingVoice {
+                    ProgressView().frame(width: 40, height: 40)
+                } else {
+                    Button(action: sendPreview) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.black)
+                            .frame(width: 40, height: 40)
+                            .background(.white, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Отправить")
+                    .accessibilityIdentifier("chat.voice.send")
+                }
+            }
+            .foregroundStyle(.white)
+        }
+        .padding(14)
+        .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12)))
+        .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
+        .padding(.horizontal).padding(.vertical, 10)
+        .transition(.opacity)
+    }
+
+    /// Расшифровка, если она готова. Пустая строка — тоже nil: показать нечего.
+    private func readyTranscript(_ message: VoiceMessage) -> String? {
+        guard case let .ready(t) = message.transcript else { return nil }
+        let trimmed = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func previewComposer(_ message: VoiceMessage) -> some View {
@@ -421,6 +555,28 @@ struct ChatVoiceComposer: View {
     private func deliverPreview() async {
         guard let message = preview else { return }
         isSendingVoice = true
+
+        // Владелец 10.10.2026: «в рамках этого экспериментального поля
+        // отправляется не голос, а сразу текст». Голосовое сообщение в чат
+        // уходит только в старом режиме — там галочка выключена.
+        if experimentalPromptBox, let transcript = readyTranscript(message), !transcript.isEmpty {
+            sendAfterTranscription = false
+            withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
+                preview = nil
+            }
+            isSendingVoice = false
+            player.stop()
+            voice.complete()
+            if let onSendTranscribedText {
+                onSendTranscribedText(transcript)
+            } else {
+                // Запасной путь: кладём в поле и отправляем как обычный текст.
+                text = transcript
+                onSendText()
+            }
+            return
+        }
+
         let accepted = await onSendVoice(message)
         isSendingVoice = false
         sendAfterTranscription = false

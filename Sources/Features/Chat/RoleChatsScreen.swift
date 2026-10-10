@@ -784,10 +784,22 @@ struct RoleChatRoomScreen: View {
                         }
                     },
                     onSendText: { Task { await send() } },
+                    onSendTranscribedText: { transcript in
+                        // Голосовое поле в экспериментальном режиме: уходит
+                        // текст расшифровки, а не голосовое сообщение.
+                        draft = transcript
+                        Task { await send() }
+                    },
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in },
                     workMode: $workMode,
                     availableModes: RoleChatWorkMode.available(in: chat),
+                    // Собачка: роли этого чата, кроме меня. Тот же справочник,
+                    // что у подсказок при наборе «@» (RoleChatsScreen
+                    // mentionCandidates), только берётся по нажатию, а не по
+                    // набору (владелец 11.10.2026: «ее все время от руки
+                    // писать не охоту»).
+                    mentionCandidates: chat.members.filter { $0.id != session.currentUser?.id },
                     isResponding: !liveTurns.isEmpty || !typists.isEmpty,
                     isStopping: isStopping,
                     onStop: { Task { await stopTurns() } }
