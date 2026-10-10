@@ -1,0 +1,308 @@
+diff --git a/AGENT-WORK-SCOPES.md b/AGENT-WORK-SCOPES.md
+index 1a6ebd37..5cd27d74 100644
+--- a/AGENT-WORK-SCOPES.md
++++ b/AGENT-WORK-SCOPES.md
+@@ -114,3 +114,5 @@ runRoleInProcess), iOS-рендер (критерий приёмки №5 — о
+ | LOCK-PREP-VALIDATION-20261010 | IN_PROGRESS | PREP-VALIDATION | Диагностика полей и исправление ответа модели подготовки | AGENT-WORK-SCOPES.md, server/src/lib/taskPreparation.ts, server/test/taskPreparationResponse.test.ts, docs/2026-10-10-preparation-response.md | Прямое поручение владельца | Codex | Mock repair/diagnostics + профильные тесты + tsc; live только при безопасной очереди |
+ 
+ | LOCK-ROLE-LOAD-GANTT-20261010 | IN_PROGRESS | ROLE-LOAD-GANTT | Гант загрузки ролей по факту (карточка 1117d06c…): экран веба + read-only эндпоинт | server/src/routes/coordination.ts (GET /api/coordination/role-load), server/test/coordination/roleLoad.test.ts, src/api/roleLoad.ts, src/screens/RoleLoadScreen.tsx, src/App.tsx (/role-load), src/screens/OverviewScreen.tsx (ссылка с обзора) | Карточка 1117d06c…; явно сказано: только факт + текущая занятость, без плановых сроков | Builder (этот шаг плана — узел «Выполненный результат») | 7/7 новых тестов зелёные, все 69 coordination зелёные, vite build чист, oxlint чист на новых файлах; живой прогон и перенос в main — за владельцем |
++
++| LOCK-WORK-CHECKLIST-20261010 | REVIEW | WORK-CHECKLIST | Рабочие этапы внутри слота, без смены технологии исполнения | AGENT-WORK-SCOPES.md, server/src/lib/subtaskWorkPlan.ts, server/src/lib/workPlanWatcher.ts, server/src/routes/subtasks.ts (только work-plan routes), server/src/runtime/inProcessRun.ts (только инструмент и инструкция), server/src/migrations.ts (новая таблица), server/src/index.ts (сторож), server/test/subtaskWorkPlan.test.ts, docs/watchers.md, docs/2026-10-10-work-checklist.md | Прямое поручение владельца; веб отложен MAK-126 | Codex | 5/5 Vitest PASS, tsc PASS, iOS 2/2 PASS; публикация ждёт пустой очереди/решения владельца |
+diff --git a/docs/2026-10-10-work-checklist.md b/docs/2026-10-10-work-checklist.md
+new file mode 100644
+index 00000000..16e8aee8
+--- /dev/null
++++ b/docs/2026-10-10-work-checklist.md
+@@ -0,0 +1,24 @@
++# Рабочий чек-лист исполнителя — 10.10.2026
++
++Поручение владельца: исполнитель до работы составляет небольшой список этапов внутри одной подзадачи, отмечает текущий и выполненные. iOS сначала; веб отложен в Linear MAK-126. Ревью подзадачи не вводится, обычное исполнение и сдача сохраняются.
++
++## Контракт и инструмент
++
++GET /api/subtasks/:id/work-plan → {plan:null} либо сохранённый план с subtask_id, revision, items [{id,title,state}], updated_at, author_id.
++PUT того же маршрута → {base_revision,items}. Запись только текущему исполнителю слота in_progress и done=0; чужой слот отклоняется, сменившиеся session/attempt при переданных заголовках отклоняются. Проверены 1–20 этапов, уникальные id, непустые названия до 200 символов, состояния pending/in_progress/done, максимум один текущий этап. Устаревший base_revision → 409, без перезаписи.
++
++Инструмент taskflow_work_plan привязан замыканием к текущему subtaskId: без items читает, с полным списком и base_revision записывает. Он добавлен в taskflowTools, которые входят в финальный customTools. Инструкция приложена к фактическому prompt каждого запуска слота, в том числе продолжениям: обычно 3–7 этапов, один текущий, выполненные не обнулять, список актуализировать. Инструкция доступна в слое tool.runtime.taskflow_work_plan через resolver; индивидуальные промпты ролей не перезаписаны.
++
++Миграция 129_subtask_work_plans: отдельная таблица, FK ON DELETE CASCADE. Новый список не меняет tasks/subtasks state/done, не создаёт узлы, не добавляет gate для сдачи. Изменение публикует task:updated для существующих слушателей.
++
++Сторож checkWorkPlanStore при старте и каждые 15 минут делает две записи и чтение этапа внутри полностью откатываемой пробы. Уведомление о сбое — в проекте «Серверные уведомления», устойчивый ID по дате ограничивает до одной задачи в сутки, включая перезапуски. Реестр docs/watchers.md обновлён.
++
++## Проверка
++
++Node 22.23.1, npm test -- test/subtaskWorkPlan.test.ts: 5/5 PASS. Проверены права, отсутствие плана, сохранение/версия, некорректный список, реальный вызов инструмента роли, запрет изменения после сдачи, отсутствие автоматического закрытия слота, откат пробы и дедупликация тревоги. npm run build (tsc): PASS. Тестовая БД отдельная, production DB не менялась.
++
++iOS: отображение этапов внутри раскрываемой строки, детали узла командного плана тоже содержат сворачиваемый рабочий список. iPhone Air iOS27, XcodeBuildMCP build + unit/XCUITest 2/2 PASS на HTTP/WS fixture.
++
++## Публикация
++
++Серверные изменения подготовлены в codex/subtask-work-checklist, worktree ~/.local/state/taskflow-runs/worktrees/codex-subtask-work-checklist. В main пока не влиты; работающий сервер не перезапущен. Проверка живого role_run_jobs показала 25 queued. INDEX.md требует вливание серверного кода только при пустой очереди. Включение при непустой очереди требует отдельного решения владельца. Новые инструкции и инструмент начнут работать после публикации сервера; текущим запускам ничего задним числом не отправлялось.
+diff --git a/docs/watchers.md b/docs/watchers.md
+index 40960d25..f3d9ce46 100644
+--- a/docs/watchers.md
++++ b/docs/watchers.md
+@@ -84,4 +84,7 @@
+ 3. Тревога — задачей в «Серверные уведомления», не чаще раза в сутки.
+ 4. Запись сюда: что, зачем, где код, как должно работать, что было.
+ 5. Тест на живой схеме: «сторож молчит, когда всё хорошо» — обязателен.
+-   Сторож, который молчит всегда, хуже отсутствия сторожа.
+\ No newline at end of file
++   Сторож, который молчит всегда, хуже отсутствия сторожа.
++## Рабочий чек-лист исполнителя
++
++`server/src/lib/workPlanWatcher.ts`: при старте и раз в 15 минут пишет пробный план, обновляет этап, сверяет чтение. Все служебные строки откатываются одной транзакцией. При сбое — одна задача в «Серверных уведомлениях» в день (устойчивый ID по UTC-дате). Хранение не должно молча терять этапы. Тесты: `server/test/subtaskWorkPlan.test.ts`. Добавлен 10.10.2026.
+diff --git a/server/src/index.ts b/server/src/index.ts
+index 9aba04f8..5ac2c51b 100644
+--- a/server/src/index.ts
++++ b/server/src/index.ts
+@@ -1,3 +1,4 @@
++import { startWorkPlanWatcher } from "./lib/workPlanWatcher.js";
+ import { registerPreparationRoutes, startPreparationWorker } from "./runtime/autoPreparation.js";
+ import { startSecretaryVoiceBridge } from "./runtime/secretaryVoiceBridge.js";
+ import { hierarchyViolations } from "./lib/taskHierarchy.js";
+@@ -478,6 +479,8 @@ export async function buildApp(): Promise<FastifyInstance> {
+     // Сторож прибора «учёт обращений к заметкам»: без счётчиков схема базы
+     // знаний слепнет (заметка cfa5cdcd, шаг 1 из 4).
+     startNoteAccessWatcher();
++    const stopWorkPlanWatcher = startWorkPlanWatcher();
++    app.addHook("onClose", async () => stopWorkPlanWatcher());
+     // Порог разбора заметок: набралось — заводим задачу Секретарю.
+     startKbTriageWatcher();
+   }
+diff --git a/server/src/lib/subtaskWorkPlan.ts b/server/src/lib/subtaskWorkPlan.ts
+new file mode 100644
+index 00000000..a1193b30
+--- /dev/null
++++ b/server/src/lib/subtaskWorkPlan.ts
+@@ -0,0 +1,29 @@
++import db from "../db.js";
++export type WorkPlanItem = { id: string; title: string; state: "pending" | "in_progress" | "done" };
++export const WORK_PLAN_INSTRUCTION = "РАБОЧИЙ ЧЕК-ЛИСТ: перед выполнением своего слота составь короткий план конкретных действий через taskflow_work_plan. Обычно 3–7 этапов, для простой работы достаточно одного. В начале прочитай сохранённый план (инструмент без items); при продолжении используй его, не обнуляй выполненное. Перед этапом отметь его in_progress, по факту выполнения — done, при необходимости дополни список. При записи передавай весь актуальный список с устойчивыми id и base_revision из последнего ответа. Галочки не сдача и не ревью подзадачи: обычную сдачу через taskflow_subtask_done сохраняем; автоматического закрытия или запрета сдачи по чек-листу нет.";
++export function validateWorkPlan(raw: unknown): WorkPlanItem[] {
++  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 20) throw new Error("План содержит от 1 до 20 этапов");
++  const ids = new Set<string>(); let current = 0;
++  return raw.map(item => {
++    if (!item || typeof item.id !== "string" || !/^[a-zA-Z0-9_-]{1,64}$/.test(item.id) || ids.has(item.id)) throw new Error("У этапов должны быть уникальные устойчивые id");
++    ids.add(item.id);
++    if (typeof item.title !== "string" || !item.title.trim() || item.title.trim().length > 200) throw new Error("Название этапа: 1–200 символов");
++    if (!["pending", "in_progress", "done"].includes(item.state)) throw new Error("Состояние этапа: pending, in_progress или done");
++    if (item.state === "in_progress" && ++current > 1) throw new Error("Текущим может быть только один этап");
++    return {id:item.id, title:item.title.trim(), state:item.state};
++  });
++}
++export function readWorkPlan(subtaskId: string) {
++  const row = db.prepare("SELECT * FROM subtask_work_plans WHERE subtask_id=?").get(subtaskId) as any;
++  return row ? {subtask_id:subtaskId, revision:row.revision, items:JSON.parse(row.items_json), updated_at:row.updated_at, author_id:row.author_id} : null;
++}
++export function saveWorkPlan(subtaskId: string, authorId: string, revision: number, items: WorkPlanItem[]) {
++  return db.transaction(() => {
++    const existing = readWorkPlan(subtaskId);
++    if ((existing?.revision ?? 0) !== revision) throw new Error("revision_conflict");
++    db.prepare(`INSERT INTO subtask_work_plans(subtask_id,revision,items_json,author_id,updated_at) VALUES(?,?,?,?,?)
++      ON CONFLICT(subtask_id) DO UPDATE SET revision=excluded.revision,items_json=excluded.items_json,author_id=excluded.author_id,updated_at=excluded.updated_at`)
++      .run(subtaskId, revision+1, JSON.stringify(items), authorId, new Date().toISOString());
++    return readWorkPlan(subtaskId);
++  })();
++}
+diff --git a/server/src/lib/workPlanWatcher.ts b/server/src/lib/workPlanWatcher.ts
+new file mode 100644
+index 00000000..72f8f4ec
+--- /dev/null
++++ b/server/src/lib/workPlanWatcher.ts
+@@ -0,0 +1,36 @@
++import crypto from "node:crypto";
++import db from "../db.js";
++import { readWorkPlan, saveWorkPlan } from "./subtaskWorkPlan.js";
++import { serverNotificationsProjectId } from "./serverNotificationsProject.js";
++export function checkWorkPlanStore(): {ok:boolean; reason?:string} {
++  const complete = new Error("probe_complete");
++  try {
++    db.transaction(() => {
++      const owner = db.prepare("SELECT id FROM users WHERE role='owner' LIMIT 1").get() as any;
++      if (!owner) throw new Error("Нет владельца для пробного хода");
++      const id = "work-plan-probe-" + crypto.randomUUID();
++      db.prepare("INSERT INTO tasks(id,title,creator_id) VALUES(?,?,?)").run(id,"Проба чек-листа",owner.id);
++      db.prepare("INSERT INTO subtasks(id,task_id,title,done,position) VALUES(?,?,?,0,0)").run(id,id,"Проба");
++      saveWorkPlan(id,owner.id,0,[{id:"probe",title:"Пробный этап",state:"pending"}]);
++      saveWorkPlan(id,owner.id,1,[{id:"probe",title:"Пробный этап",state:"done"}]);
++      const plan=readWorkPlan(id);
++      if (plan?.revision !== 2 || plan.items[0]?.state !== "done") throw new Error("Запись/чтение этапа расходятся");
++      throw complete; // rollback всей пробы, включая служебные task/subtask
++    })();
++  } catch (error) {
++    return error === complete ? {ok:true} : {ok:false,reason:String((error as Error).message)};
++  }
++  return {ok:false,reason:"Проба не завершена"};
++}
++export function raiseWorkPlanAlert(reason:string) {
++  const owner=db.prepare("SELECT id FROM users WHERE role='owner' LIMIT 1").get() as any;
++  if(!owner)return;
++  const id="work-plan-watch-"+new Date().toISOString().slice(0,10);
++  if(db.prepare("SELECT 1 FROM tasks WHERE id=?").get(id))return;
++  db.prepare(`INSERT OR IGNORE INTO tasks(id,title,description,priority,creator_id,status,project_id) VALUES(?,?,?,2,?,'active',?)`).run(id,"Рабочие чек-листы не сохраняются",
++    "## Работа\nСторож не смог записать и прочитать этап: "+reason+"\nПроверить миграцию 129_subtask_work_plans, таблицу subtask_work_plans и права записи; выполнить пробу checkWorkPlanStore.\n## Результат\nИсправлено хранение рабочего плана исполнителей.\n## Критерии приёмки\nПробный этап сохраняется и обновляется, после проверки служебные строки отсутствуют.\n## Границы\nНе менять исполнение и сдачу подзадач.",owner.id,serverNotificationsProjectId(owner.id));
++}
++export function startWorkPlanWatcher() {
++  const check=()=>{const result=checkWorkPlanStore();if(!result.ok)raiseWorkPlanAlert(result.reason ?? "Неизвестный сбой");};
++  check();const timer=setInterval(check,15*60*1000);timer.unref();return ()=>clearInterval(timer);
++}
+diff --git a/server/src/migrations.ts b/server/src/migrations.ts
+index 63214671..053e46fe 100644
+--- a/server/src/migrations.ts
++++ b/server/src/migrations.ts
+@@ -4114,6 +4114,14 @@ const migrations: Migration[] = [
+       `);
+     },
+   },
++  { id: "129_subtask_work_plans", description: "Рабочий чек-лист исполнителя внутри подзадачи, без смены жизненного цикла", up() {
++    db.exec(`CREATE TABLE IF NOT EXISTS subtask_work_plans (
++      subtask_id TEXT PRIMARY KEY REFERENCES subtasks(id) ON DELETE CASCADE,
++      revision INTEGER NOT NULL, items_json TEXT NOT NULL,
++      author_id TEXT NOT NULL REFERENCES users(id), updated_at TEXT NOT NULL
++    )`);
++  } },
++
+ ];
+ /**
+  * Опции прогона миграций.
+diff --git a/server/src/routes/subtasks.ts b/server/src/routes/subtasks.ts
+index 2b85f348..563e4b68 100644
+--- a/server/src/routes/subtasks.ts
++++ b/server/src/routes/subtasks.ts
+@@ -1,3 +1,4 @@
++import { readWorkPlan, saveWorkPlan, validateWorkPlan } from "../lib/subtaskWorkPlan.js";
+ import { sandboxSubmissionError } from "../lib/submissionReceipt.js";
+ import { validateRoleReport, saveRoleResultReport } from "../lib/roleResultReport.js";
+ import { effectiveRules } from "../lib/roleContextResolver.js";
+@@ -140,6 +141,39 @@ export function getSubtaskWithTaskForUser(
+ export function registerSubtaskCommentRoutes(app: FastifyInstance) {
+   const authPre = authOrApiToken;
+ 
++  app.get("/api/subtasks/:id/work-plan", { preHandler: authPre }, async (req: any, reply) => {
++    const subtask = getSubtaskWithTaskForUser(req.params.id, req.userId);
++    if (!subtask) return reply.code(404).send({error:"Not found"});
++    return {plan:readWorkPlan(subtask.id)};
++  });
++  app.put("/api/subtasks/:id/work-plan", { preHandler: authPre }, async (req: any, reply) => {
++    const subtask = getSubtaskWithTaskForUser(req.params.id, req.userId);
++    if (!subtask) return reply.code(404).send({error:"Not found"});
++    if (subtask.agent_id !== req.userId || subtask.agent_state !== "in_progress" || subtask.done)
++      return reply.code(403).send({error:"План обновляет только текущий исполнитель работающего слота"});
++    const session = sessionOf(req);
++    if (session && subtask.agent_session_id && session !== subtask.agent_session_id)
++      return reply.code(409).send({error:"Сессия исполнителя уже сменилась"});
++    const claimed = readAttemptId(req);
++    if (claimed) {
++      const attempt = db.prepare("SELECT id FROM attempts WHERE subtask_id=? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1").get(subtask.id) as any;
++      if (claimed !== attempt?.id) return reply.code(409).send({error:"Попытка исполнителя уже сменилась"});
++    }
++    const revision = req.body?.base_revision;
++    if (!Number.isSafeInteger(revision) || revision < 0) return reply.code(400).send({error:"Нужен base_revision из последнего ответа (0 для нового плана)"});
++    let items;
++    try { items = validateWorkPlan(req.body?.items); }
++    catch (error) { return reply.code(400).send({error: String((error as Error).message)}); }
++    try {
++      const plan = saveWorkPlan(subtask.id, req.userId, revision, items);
++      broadcastTaskEvent([subtask.task_creator_id, subtask.task_assignee_id], {type:"task:updated", task:getFullTask(subtask.task_id)});
++      return {plan};
++    } catch (error) {
++      if ((error as Error).message === "revision_conflict") return reply.code(409).send({error:"План изменился — перечитай перед записью", plan:readWorkPlan(subtask.id)});
++      throw error;
++    }
++  });
++
+   // ── Subtasks ── all scoped to a task the caller may access (creator or assignee).
+   app.get<{ Params: { taskId: string } }>(
+     "/api/tasks/:taskId/subtasks",
+diff --git a/server/src/runtime/inProcessRun.ts b/server/src/runtime/inProcessRun.ts
+index bcba02a2..62fef652 100644
+--- a/server/src/runtime/inProcessRun.ts
++++ b/server/src/runtime/inProcessRun.ts
+@@ -1,3 +1,4 @@
++import { WORK_PLAN_INSTRUCTION } from "../lib/subtaskWorkPlan.js";
+ import {integrationResponsibilityPrompt} from '../lib/integrationResponsibility.js';
+ import { orchestratorTools } from "./orchestratorTools.js";
+ import { resolveReviewTaskId } from "../lib/reviewTaskId.js";
+@@ -484,6 +485,13 @@ export function taskflowTools(role: string, model: string | null, taskId?: strin
+         const s = await asRole(role, "POST", `/api/tasks/${p.task_id}/subtasks`, body);
+         return { "шаг добавлен": s.title, id: s.id };
+       }),
++    T("taskflow_work_plan", WORK_PLAN_INSTRUCTION + "\nПрочитать или обновить свой внутренний рабочий чек-лист. Без items — чтение. Для записи: весь список items {id,title,state: pending|in_progress|done} и base_revision из последнего ответа. Обычно 3–7 конкретных этапов; только один in_progress. Сохраняй id этапов при обновлении. Это отображение твоего плана, оно не меняет состояние и сдачу подзадачи.",
++      Type.Object({base_revision:Type.Optional(Type.Number()), items:Type.Optional(Type.Array(Type.Object({id:Type.String(),title:Type.String(),state:Type.Union([Type.Literal("pending"),Type.Literal("in_progress"),Type.Literal("done")])})))}),
++      async (p) => {
++        if (!subtaskId) throw new ToolError("Рабочий план относится к текущему слоту подзадачи");
++        return await asRole(role, p.items === undefined ? "GET" : "PUT", `/api/subtasks/${subtaskId}/work-plan`,
++          p.items === undefined ? undefined : {base_revision:p.base_revision,items:p.items});
++      }),
+     T("taskflow_subtask_work", "Состояние шага: in_progress перед началом, blocked с причиной; result — итог. blocked принимается только с block_type: dependency | needs_input | capability | transient; для needs_input укажи changes_result=true, если меняет «Результат», «Критерии приёмки» или «Границы». При blocked приложи snapshot: что сделано, что осталось, блок и следующий шаг — сервер сохранит это ДО смены состояния. Перед blocked по решаемой причине укажи help_attempt (кого звал, что ответили) или help_skip_reason (почему никто не решит). Пока работа идёт, технический снимок сервер пишет сам; при прогрессе и сдаче снимок от тебя не нужен.",
+       Type.Object({ id: Type.String(), state: Type.Optional(Type.String()), result: Type.Optional(Type.String()), block_type: Type.Optional(Type.String()), changes_result: Type.Optional(Type.Boolean()), snapshot: Type.Optional(SNAPSHOT_SHAPE), help_attempt: Type.Optional(Type.String()), help_skip_reason: Type.Optional(Type.String()) }),
+       async (p) => {
+@@ -1245,7 +1253,8 @@ try {
+       const snapshot=input.subtaskId ? slotSnapshotBlock(input.subtaskId) : null;
+       const prompt = `${task}\n\n${messages}\n\nПереписка: до 100 слов, сообщение о блоке до 50. Адресат, задача, конкретный этап и вопрос по специализации коллеги. В ответе укажи адресата и reply_to_message_id. Полные отчёты сохраняй через taskflow_doc_write в папке задачи, в чат и комментарии дай короткую суть и ссылку.${snapshot ? `\n\n${snapshot}` : ""}\n\n${launchContext.prompt}\n\n${topicContext(taskId)}${memory ? `\n\n${memory}` : ""}`;
+       for(const m of queued)db.prepare("UPDATE slot_topic_inbox SET delivered_at=datetime('now') WHERE message_id=? AND subtask_id=?").run(m.id,input.subtaskId);
+-      await session.prompt(mode === "work" ? `${prompt}\n\n${repoNote(cwd)}\n${renderInstruction(role, "task.documentation", {})}` : prompt);
++      const workPlanPrompt = input.subtaskId ? "\n\n" + (composeLayer(role, "tool.runtime.taskflow_work_plan")?.effective ?? WORK_PLAN_INSTRUCTION) : "";
++      await session.prompt((mode === "work" ? `${prompt}\n\n${repoNote(cwd)}\n${renderInstruction(role, "task.documentation", {})}` : prompt) + workPlanPrompt);
+       // Лимит провайдера библиотека не бросает: ход молча кончается ответом с ошибкой 429
+       // (находка А36). Ловим здесь и уходим на запасную модель.
+       limitHit = lastAssistantLimitError(session);
+diff --git a/server/test/subtaskWorkPlan.test.ts b/server/test/subtaskWorkPlan.test.ts
+new file mode 100644
+index 00000000..3be97144
+--- /dev/null
++++ b/server/test/subtaskWorkPlan.test.ts
+@@ -0,0 +1,52 @@
++import {beforeAll,afterAll,it,expect} from 'vitest';
++import {buildApp} from '../src/index.js';
++import db from '../src/db.js';
++import {seedRoleAccounts} from './helpers/seedOwner.js';
++import {taskflowTools,setInProcessApp} from '../src/runtime/inProcessRun.js';
++import {checkWorkPlanStore,raiseWorkPlanAlert} from '../src/lib/workPlanWatcher.js';
++import {WORK_PLAN_INSTRUCTION} from '../src/lib/subtaskWorkPlan.js';
++let app:any;
++const items=[{id:'inspect',title:'Изучить контракт',state:'done'},{id:'implement',title:'Реализовать',state:'in_progress'},{id:'verify',title:'Проверить',state:'pending'}];
++function headers(id='role_builder'){return {authorization:'Bearer '+app.jwt.sign({id})};}
++const read=()=>app.inject({method:'GET',url:'/api/subtasks/work-plan-step/work-plan',headers:headers('u1')});
++const put=(payload:any,id='role_builder')=>app.inject({method:'PUT',url:'/api/subtasks/work-plan-step/work-plan',headers:headers(id),payload});
++beforeAll(async()=>{
++ app=await buildApp();await app.ready();setInProcessApp(app);seedRoleAccounts(db);
++ db.prepare("INSERT INTO tasks(id,title,creator_id,assignee_id,agent_state) VALUES('work-plan-task','Задача','u1','role_builder','in_progress')").run();
++ db.prepare("INSERT INTO subtasks(id,task_id,title,agent_id,agent_state) VALUES('work-plan-step','work-plan-task','Работа','role_builder','in_progress')").run();
++});
++afterAll(async()=>{await app.close();});
++it('protects access and honestly returns absent plan',async()=>{
++ expect((await app.inject({method:'GET',url:'/api/subtasks/work-plan-step/work-plan'})).statusCode).toBe(401);
++ expect((await read()).json()).toEqual({plan:null});
++ expect((await put({base_revision:0,items},'u1')).statusCode).toBe(403);
++ expect((await put({base_revision:0,items},'role_critic_verifier')).statusCode).toBe(403);
++});
++it('executor persists progress and version fence without changing slot or task',async()=>{
++ const before=db.prepare("SELECT done,agent_id,agent_state FROM subtasks WHERE id='work-plan-step'").get();
++ const result=await put({base_revision:0,items});expect(result.statusCode,result.body).toBe(200);
++ expect(result.json().plan.revision).toBe(1);expect((await read()).json().plan.items).toEqual(items);
++ expect((await put({base_revision:0,items})).statusCode).toBe(409);
++ expect(db.prepare("SELECT done,agent_id,agent_state FROM subtasks WHERE id='work-plan-step'").get()).toEqual(before);
++ expect((db.prepare("SELECT agent_state FROM tasks WHERE id='work-plan-task'").get() as any).agent_state).toBe('in_progress');
++});
++it('rejects invalid and ambiguous current stages',async()=>{
++ expect((await put({base_revision:1,items:[]})).statusCode).toBe(400);
++ expect((await put({base_revision:1,items:[items[1],{...items[1],id:'other'}]})).statusCode).toBe(400);
++ expect((await put({base_revision:1,items:[items[0],items[0]]})).statusCode).toBe(400);
++});
++it('runtime tool is usable in the current slot and cannot choose another slot',async()=>{
++ const tool=taskflowTools('builder',null,'work-plan-task','work-plan-step').find(t=>t.name==='taskflow_work_plan')!;
++ expect(tool.description).toContain(WORK_PLAN_INSTRUCTION);
++ const readResult:any=await tool.execute('read',{});expect(readResult.content[0].text).toContain('Изучить контракт');
++ const update:any=await tool.execute('update',{base_revision:1,items:items.map(i=>({...i,state:'done'}))});expect(update.content[0].text).toContain('"revision": 2');
++ expect((db.prepare("SELECT done FROM subtasks WHERE id='work-plan-step'").get() as any).done).toBe(0);
++ db.prepare("UPDATE subtasks SET done=1,agent_state=NULL WHERE id='work-plan-step'").run();
++ expect((await put({base_revision:2,items})).statusCode).toBe(403);
++});
++it('probe exercises writes and leaves no rows; alert deduplicates',()=>{
++ expect(checkWorkPlanStore()).toEqual({ok:true});
++ expect((db.prepare("SELECT COUNT(*) n FROM tasks WHERE id LIKE 'work-plan-probe-%'").get() as any).n).toBe(0);
++ raiseWorkPlanAlert('Пробная ошибка');raiseWorkPlanAlert('Та же ошибка');
++ expect((db.prepare("SELECT COUNT(*) n FROM tasks WHERE id LIKE 'work-plan-watch-%'").get() as any).n).toBe(1);
++});

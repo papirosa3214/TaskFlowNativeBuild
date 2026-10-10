@@ -139,6 +139,14 @@ struct PlanStepDetailSheet: View {
                         detailRow("Пропущен", lines: [reason])
                     }
                 }
+                if let subtaskID = node.sourceSubtaskId ?? subtask?.id {
+                    Section {
+                        DisclosureGroup("Рабочие этапы исполнителя") {
+                            SubtaskWorkPlanView(taskID: node.taskId ?? plan.taskId, subtaskID: subtaskID)
+                        }
+                        .accessibilityIdentifier("plan-step.work-plan-toggle")
+                    }
+                }
                 Section("Ход работы") {
                     AgentTraceView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
                 }

@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "1FFBC679-1BEE-47B1-B4E4-7C75E9AD46D0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Свёрнутая подзадача_0_C76C52F3-C3BE-478A-AC55-DA65E73979A8.png",
+        "timestamp" : 1791649326.052
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "29F78E27-78CC-44F0-A2D1-97235CFFC295.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Обновлённые этапы_0_F1FE68D3-6EB6-4351-A0FE-1DA9A2096FB4.png",
+        "timestamp" : 1791649325.474
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "8F77C268-1E31-49A4-91CF-57ED847E631A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Раскрытые этапы_0_3DE289FD-E305-4248-BBF5-8C8E9FC88350.png",
+        "timestamp" : 1791649324.07
+      }
+    ],
+    "testIdentifier" : "SubtaskWorkPlanUITests/testInlineWorkPlanAndLiveUpdate()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/SubtaskWorkPlanUITests/testInlineWorkPlanAndLiveUpdate"
+  }
+]

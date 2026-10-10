@@ -74,6 +74,7 @@ struct TaskCardContent: View {
     /// Тексты шагов, которые правят прямо сейчас (id шага → набранное).
     // LOCK-255: блоки вместо строки — тот же Markdown, что у названия и
     // описания задачи (владелец 30.09.2026: «вся карточка как описание»).
+    @State private var expandedWorkPlans: Set<String> = []
     @State private var subtaskTitleDrafts: [String: [NoteBlock]] = [:]
     /// Свой фокус на каждый шаг — `BlockDocumentEditor` не умеет делить
     /// один `NoteEditorFocusState` между независимыми документами.
@@ -1506,18 +1507,9 @@ struct TaskCardContent: View {
                 )
                 .accessibilityHint(subtask.agentState == .review ? "" : "Переключает отметку шага")
 
-                // Текст шага — обычное поле, как название и описание выше:
-                // тап ставит курсор, правка уходит на сервер по вводу или
-                // по уходу фокуса. Аккордеон с шевроном (раскрыть/свернуть
-                // подробности) здесь больше не нужен — тап теперь означает
-                // «правлю», а подробности показываются сами, когда есть.
-                // Зачёркивания у сделанного шага нет: владелец 11.09.2026 —
-                // «мне ж надо смотреть, как они называются». Что шаг закрыт,
-                // видно по галочке слева.
-                // Многострочное поле (длинные названия шагов видны целиком),
-                // поэтому Return здесь переносит строку, а не сохраняет —
-                // правка уходит на сервер, когда фокус покидает строку
-                // (см. `.onChange(of: focusedSubtaskID)` у списка).
+                // Обычный тап раскрывает рабочие этапы. Режим правки
+                // названий остаётся в существующем редакторе подзадач.
+                if !viewModel.isEditing || activeEditors.contains("subtasks") {
                 BlockDocumentEditor(
                     blocks: subtaskTitleBinding(subtask),
                     focus: subtaskFocus(for: subtask),
@@ -1528,6 +1520,29 @@ struct TaskCardContent: View {
                 .id(activeEditors.contains("subtasks"))
                 .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("subtasks"), identifier: "subtask.\(subtask.id)", text: subtask.title, arm: { armedEditors.insert("subtasks") }))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Button {
+                        if expandedWorkPlans.contains(subtask.id) { expandedWorkPlans.remove(subtask.id) }
+                        else { expandedWorkPlans.insert(subtask.id) }
+                    } label: {
+                        HStack {
+                            Text(subtask.title).frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: expandedWorkPlans.contains(subtask.id) ? "chevron.down" : "chevron.right")
+                                .font(.caption).foregroundStyle(Color.tfSub)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(subtask.title)
+                    .accessibilityValue(expandedWorkPlans.contains(subtask.id) ? "Раскрыто" : "Свёрнуто")
+                    .accessibilityIdentifier("subtask.work-plan-toggle.\(subtask.id)")
+                }
+
+            }
+
+            if expandedWorkPlans.contains(subtask.id), let taskID {
+                SubtaskWorkPlanView(taskID: taskID, subtaskID: subtask.id)
+                    .padding(.leading, 21 + TFSpacing.md)
             }
 
             if hasDetails {
