@@ -20,9 +20,9 @@ struct SubtaskWorkPlan: Decodable, Sendable, Equatable {
             }
             var symbol: String {
                 switch self {
-                case .pending: "circle"
-                case .inProgress: "play.circle"
-                case .done: "checkmark.circle.fill"
+                case .pending: "square"
+                case .inProgress: "play.square"
+                case .done: "checkmark.square.fill"
                 }
             }
         }

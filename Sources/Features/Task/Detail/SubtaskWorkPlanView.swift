@@ -19,7 +19,7 @@ struct SubtaskWorkPlanView: View {
                 ForEach(plan.items) { item in
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Image(systemName: item.state.symbol)
-                            .foregroundStyle(item.state == .inProgress ? Color.tfBlue : Color.tfSub)
+                            .foregroundStyle(item.state == .done ? Color.tfGreen : (item.state == .inProgress ? Color.tfBlue : Color.tfSub))
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.title)
