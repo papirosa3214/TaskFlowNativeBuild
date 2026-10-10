@@ -71,6 +71,8 @@ struct TaskFormScreen: View {
                         onExpandedSectionsChanged: { storeExpandedSections($0, for: incoming) },
                         preview: true)
                         .equatable()
+                        // Состояние секций листа — своё у каждой карточки, а не от первой построенной.
+                        .id(incoming.taskID)
                         .background {
                             UnevenRoundedRectangle(bottomTrailingRadius: 14, topTrailingRadius: 14)
                                 .fill(Color.tfBackground)
@@ -105,6 +107,8 @@ struct TaskFormScreen: View {
                         onExpandedSectionsChanged: { storeExpandedSections($0, for: incoming) },
                         preview: true)
                         .equatable()
+                        // Состояние секций листа — своё у каждой карточки, а не от первой построенной.
+                        .id(incoming.taskID)
                         // Лист во всю высоту — под кнопками шапки и до низа,
                         // как у открытой карточки, без обрубка сверху и
                         // «подбородка» снизу (владелец 02.10.2026). Кнопки

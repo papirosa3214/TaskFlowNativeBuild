@@ -16,52 +16,41 @@ struct TaskArchiveScreen: View {
     }
 
     var body: some View {
-        List {
-            projectArchiveSection
-            if let error = taskStore.archiveErrorMessage {
-                Section {
-                    Text(error).foregroundStyle(.red)
-                    Button("Повторить") { Task { await taskStore.loadArchive() } }
-                }
-            }
-            if taskStore.isLoadingArchive && tasks.isEmpty {
-                ProgressView("Загрузка архива")
-            } else if tasks.isEmpty && projectStore.archivedProjects.isEmpty && taskStore.archiveErrorMessage == nil && projectStore.archiveErrorMessage == nil {
-                ContentUnavailableView("Архив пуст", systemImage: "archivebox",
-                    description: Text("Задачи, отправленные в архив, можно восстановить или удалить окончательно."))
-            }
-            ForEach(tasks) { task in
-                Button { selectedTask = task } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(task.title).foregroundStyle(.primary)
-                        Text(task.projectName ?? "Без проекта")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .accessibilityIdentifier("archiveTask-\(task.id)")
-                .disabled(busyID != nil)
-                .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                    Button("Восстановить", systemImage: "arrow.uturn.backward") {
-                        restore(task)
-                    }
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
-                        pendingDelete = task
-                    }
-                }
-                .contextMenu {
-                    Button("Восстановить", systemImage: "arrow.uturn.backward") { restore(task) }
-                    Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
-                        pendingDelete = task
+        // Тот же каркас, что у списков проекта и меток: `ScrollView` +
+        // `LazyVStack` с разделителями между рядами. Штатный `List` давал
+        // карточный контейнер и разделители — это и был неровный вид.
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+                TFErrorBanner(taskStore.archiveErrorMessage, variant: .inline)
+
+                if taskStore.isLoadingArchive && tasks.isEmpty {
+                    TFLoading(.block)
+                } else if tasks.isEmpty && taskStore.archiveErrorMessage == nil {
+                    TFEmptyState(
+                        icon: "archivebox",
+                        text: "Задачи, отправленные в архив, можно восстановить или удалить окончательно."
+                    )
+                    .padding(.horizontal, TFSpacing.xs)
+                } else if !tasks.isEmpty {
+                    VStack(spacing: 2) {
+                        ForEach(tasks.indices, id: \.self) { rowIndex in
+                            if rowIndex > 0 { TFDivider() }
+                            archiveRow(tasks[rowIndex])
+                        }
                     }
                 }
             }
+            .padding(.top, TFSpacing.sm)
+            .padding(.bottom, TFSpacing.xl)
         }
         .accessibilityIdentifier("taskArchiveList")
-        .navigationTitle("Архив")
+        .tfNativeHeader("Архив", displayMode: .inline)
         .task { await loadArchive() }
         .refreshable { await loadArchive() }
+        // Фон экрана — тот же токен, что у списков проекта и меток. Без этой
+        // строки SwiftUI подставлял системный фон, и в тёмной теме раздел
+        // был чисто чёрным вместо общей серой подложки.
+        .background(Color.tfBackground)
         .confirmationDialog(pendingProjectDelete == nil ? "Удалить задачу окончательно?" : "Удалить проект окончательно?", isPresented: Binding(
             get: { pendingDelete != nil || pendingProjectDelete != nil },
             set: { if !$0 { pendingDelete = nil; pendingProjectDelete = nil } }
@@ -84,9 +73,9 @@ struct TaskArchiveScreen: View {
             NavigationStack {
                 List {
                     Section {
-                        Text(task.title).font(.headline)
+                        Text(task.title).tfText(.title).foregroundStyle(Color.tfText)
                         if let description = task.description, !description.isEmpty {
-                            Text(.init(description)).textSelection(.enabled)
+                            Text(.init(description)).tfText(.row).foregroundStyle(Color.tfText).textSelection(.enabled)
                         }
                         LabeledContent("Проект", value: task.projectName ?? "Без проекта")
                         LabeledContent("Состояние", value: task.status == .completed ? "Выполнена" : "Открыта")
@@ -116,34 +105,77 @@ struct TaskArchiveScreen: View {
         }
     }
 
-    @ViewBuilder
-    private var projectArchiveSection: some View {
-        if let error = projectStore.archiveErrorMessage {
-            Section("Проекты") {
-                Text(error).foregroundStyle(.red)
-                Button("Повторить") { Task { await projectStore.loadArchive() } }
+    /// Ряд архивной задачи — каноничный `DirectoryTaskRow` на `HorizontalPan`,
+    /// тот же, что в списках проекта и меток. Свайп вправо — безвозвратное
+    /// удаление, свайп влево — «Вернуть в работу».
+    private func archiveRow(_ task: ApiTask) -> some View {
+        DirectoryTaskRow(
+            index: nil,
+            task: task,
+            isOwner: true,
+            onOpen: { selectedTask = task },
+            onDelete: { pendingDelete = task },
+            swipeAction: .restore,
+            onSwipeAction: { restore(task) },
+            deleteConfirmTitle: "Удалить окончательно?",
+            deleteConfirmMessage: { title in
+                "«\(title)» и её история будут удалены без возможности восстановления."
+            }
+        )
+        .disabled(busyID != nil)
+        .contextMenu {
+            Button("Восстановить", systemImage: "arrow.uturn.backward") { restore(task) }
+            Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
+                pendingDelete = task
             }
         }
+    }
+
+    @ViewBuilder
+    private var projectArchiveSection: some View {
         if !projectStore.archivedProjects.isEmpty {
-            Section("Проекты") {
-                ForEach(projectStore.archivedProjects) { project in
-                    VStack(alignment: .leading) {
-                        Text(project.name)
-                        Text("Задач: \(project.taskCount ?? 0)").font(.caption).foregroundStyle(.secondary)
-                    }
-                    .disabled(busyID != nil)
-                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                        Button("Восстановить", systemImage: "arrow.uturn.backward") { restoreProject(project) }
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Удалить окончательно", systemImage: "trash", role: .destructive) { pendingProjectDelete = project }
-                    }
-                    .contextMenu {
-                        Button("Восстановить", systemImage: "arrow.uturn.backward") { restoreProject(project) }
-                        Button("Удалить окончательно", systemImage: "trash", role: .destructive) { pendingProjectDelete = project }
+            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                Text("Проекты")
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+
+                VStack(spacing: 2) {
+                    ForEach(projectStore.archivedProjects.indices, id: \.self) { i in
+                        if i > 0 { TFDivider() }
+                        projectRow(projectStore.archivedProjects[i])
                     }
                 }
             }
+        }
+    }
+
+    /// Ряд архивного проекта — `DirectorySwipeRow`, как в списке проектов:
+    /// свайп вправо — удалить окончательно, влево — восстановить.
+    private func projectRow(_ project: ApiProject) -> some View {
+        DirectorySwipeRow(
+            onEdit: { restoreProject(project) },
+            onDelete: { pendingProjectDelete = project }
+        ) {
+            HStack(spacing: TFSpacing.sm) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(project.name)
+                        .tfText(.row)
+                        .foregroundStyle(Color.tfText)
+                    Text("Задач: \(project.taskCount ?? 0)")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, TFSpacing.md)
+            .padding(.vertical, TFSpacing.sm)
+            .background(Color.tfBackground)
+        }
+        .disabled(busyID != nil)
+        .contextMenu {
+            Button("Восстановить", systemImage: "arrow.uturn.backward") { restoreProject(project) }
+            Button("Удалить окончательно", systemImage: "trash", role: .destructive) { pendingProjectDelete = project }
         }
     }
 

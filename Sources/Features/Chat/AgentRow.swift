@@ -79,7 +79,7 @@ struct RoleAvatarView: View {
             if let asset = RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
                 let appearance = TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current
                 let loop = avatarsAnimated ? RoleAvatarAsset.loopName(for: role, appearance: appearance) : nil
-                TFRolePortrait(imageAsset: asset, loopName: loop, side: size)
+                TFRolePortrait(role: role, imageAsset: asset, loopName: loop, side: size)
             } else if let serverURL {
                 AnimatedImage(url: serverURL, placeholder: { Circle().fill(tint) })
                     .resizable()

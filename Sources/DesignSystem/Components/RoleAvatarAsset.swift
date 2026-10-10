@@ -60,17 +60,24 @@ enum RoleAvatarAsset {
     private static let loopRoles: Set<String> = [
         "researcher", "analyst", "builder", "architect",
         "code_orchestrator", "orchestrator", "secretary", "critic_verifier", "qa",
+        // 10.10.2026: ролик «Дизайнера» появился (RoleLoopDesigner), роль
+        // добавлена в список. До этого вьюха рисовала пустой видеослой.
+        "designer",
     ]
 
     /// Имя ролика в бандле (без `.mp4`) для роли, `nil` — анимации нет.
     ///
-    /// Ролики сделаны только для комплекта «Гравюра» — это тот комплект, чьи
-    /// портреты владелец анимировал. У «Иллюстрации» и «Плаката» роликов нет,
-    /// поэтому переключатель на них ничего не меняет: остаются статичные.
+    /// У комплекта «Иллюстрация» свои ролики `RoleLoop*` — сняты 10.10.2026 с
+    /// перерисованных портретов этого же комплекта, поэтому переключатель
+    /// оживляет именно его. У «Гравюры» — прежние `RoleNoirLoop*`, их не
+    /// трогаем. У «Плаката» роликов нет: там переключатель ничего не меняет.
     static func loopName(for role: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
-        guard let role, loopRoles.contains(role) else { return nil }
-        guard resolve(appearance) == .noir, let suffix = suffix(for: role) else { return nil }
-        return "RoleNoirLoop" + suffix
+        guard let role, loopRoles.contains(role), let suffix = suffix(for: role) else { return nil }
+        switch resolve(appearance) {
+        case .current: return "RoleLoop" + suffix
+        case .noir: return "RoleNoirLoop" + suffix
+        case .previous: return nil
+        }
     }
 
     static func imageName(forUserID userID: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
@@ -83,7 +90,8 @@ enum RoleAvatarAsset {
         return loopName(for: role, appearance: appearance)
     }
 
-    private static func role(forUserID userID: String?) -> String? {
+    /// Роль по id учётки; `nil` — не наша роль (владелец, обычный человек).
+    static func role(forUserID userID: String?) -> String? {
         guard let userID else { return nil }
         if userID == "u-secretary" { return "secretary" }
         guard userID.hasPrefix("role_") else { return nil }

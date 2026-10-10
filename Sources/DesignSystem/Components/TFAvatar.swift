@@ -141,6 +141,9 @@ public struct TFAvatar: View {
         RoleAvatarAsset.imageName(forUserID: userID, appearance: roleAppearance)
     }
 
+    /// Роль по `userID` — по ней `TFRolePortrait` берёт кадрирование из редактора.
+    private var roleKey: String? { RoleAvatarAsset.role(forUserID: userID) }
+
     private var roleLoop: String? {
         guard avatarsAnimated else { return nil }
         return RoleAvatarAsset.loopName(forUserID: userID, appearance: roleAppearance)
@@ -149,7 +152,7 @@ public struct TFAvatar: View {
     /// Пока картинка грузится (или недоступна): вшитый портрет роли, иначе инициалы.
     @ViewBuilder private var placeholderCircle: some View {
         if let asset = roleAsset {
-            TFRolePortrait(imageAsset: asset, loopName: roleLoop, side: side)
+            TFRolePortrait(role: roleKey, imageAsset: asset, loopName: roleLoop, side: side)
         } else {
             Circle().fill(tint).frame(width: side, height: side)
                 .overlay { Text(initials).font(.system(size: side * 0.43, weight: .semibold)).foregroundStyle(.white) }
@@ -161,7 +164,7 @@ public struct TFAvatar: View {
             if teamIDs.count > 1 {
                 TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side, front: teamFront)
             } else if let asset = roleAsset {
-                TFRolePortrait(imageAsset: asset, loopName: roleLoop, side: side)
+                TFRolePortrait(role: roleKey, imageAsset: asset, loopName: roleLoop, side: side)
             } else if let urlPath = resolvedURLPath, let url = TFAvatar.fullURL(urlPath) {
                 if portrait || self.urlPath == nil {
                     AnimatedImage(url: url, placeholder: { placeholderCircle })

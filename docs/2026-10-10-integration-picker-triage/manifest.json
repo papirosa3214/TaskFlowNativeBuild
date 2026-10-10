@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "763D3638-37E5-4328-8928-0811B1EE1235.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "after_0_7A5210A7-AABB-449B-8766-0824B03AD1D1.png",
+        "timestamp" : 1791602384.264
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "A96CC8EB-B6F0-452E-932D-5DAC59DE6B49.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "menu_0_7C751604-5C55-4005-90A7-DAEADB1641CC.png",
+        "timestamp" : 1791602378.284
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "93525173-D872-4BC2-9514-14195FA9506A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "before_0_B2CD18C9-8B6E-4BA5-8C5D-1B7A53899BA9.png",
+        "timestamp" : 1791602374.467
+      }
+    ],
+    "testIdentifier" : "IntegrationPickerTriageUITests/testPicker()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/IntegrationPickerTriageUITests/testPicker"
+  }
+]

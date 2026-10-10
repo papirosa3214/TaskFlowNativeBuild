@@ -16,3 +16,43 @@ public extension APIClient {
         let _: Reply = try await request(.post, "/tasks/\(taskId)/preparation/approve-structure", body: Body(input_version: inputVersion))
     }
 }
+
+/// Ответ сохраняется в постановке, которую читает автомат подготовки.
+enum TaskPreparationReply {
+    struct Choice: Identifiable {
+        let id: String
+        let title: String
+        let answer: String
+    }
+    static func choices(for question: String) -> [Choice] {
+        let text = question.lowercased()
+        // Только вопрос, в котором перечислены эти три способа подготовки.
+        guard text.contains("дочер"), text.contains("рол"),
+              text.contains("подшаг") || text.contains("одн") || text.contains("подзадач") else { return [] }
+        return [
+            Choice(id: "children", title: "Дочерние карточки", answer: "Подготовить дочерние карточки по самостоятельным результатам работы."),
+            Choice(id: "roles", title: "План совместной работы по ролям", answer: "Подготовить план совместной работы по ролям в рамках одной карточки."),
+            Choice(id: "steps", title: "Одна карточка с подшагами", answer: "Оставить одну карточку с подшагами, без создания дочерних карточек.")
+        ]
+    }
+    static func description(original: String?, question: String, answer: String) -> String {
+        [original?.trimmingCharacters(in: .whitespacesAndNewlines),
+         "Уточнение подготовки\nВопрос: \(question)\nОтвет владельца: \(answer.trimmingCharacters(in: .whitespacesAndNewlines))"]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+}
+
+public extension APIClient {
+    func answerTaskPreparation(taskId: String, preparationID: Int, inputVersion: Int, question: String, answer: String) async throws {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw APIError.server(status: 400, message: "Выберите ответ") }
+        guard let current = try await taskPreparation(taskId: taskId),
+              current.id == preparationID, current.inputVersion == inputVersion,
+              current.question == question,
+              current.status == "needs_clarification" || current.status == "structure_review" else {
+            throw APIError.server(status: 409, message: "Вопрос подготовки изменился. Обновите окно и выберите ответ на новый вопрос.")
+        }
+        let task = try await self.task(id: taskId)
+        _ = try await patchTask(id: taskId, fields: ["description": .string(TaskPreparationReply.description(original: task.description, question: question, answer: trimmed))])
+    }
+}

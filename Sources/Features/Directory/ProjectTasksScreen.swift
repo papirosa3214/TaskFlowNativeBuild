@@ -347,6 +347,10 @@ struct ProjectTasksScreen: View {
                     _ = try await apiClient.setTaskAgentState(id: task.id, state: nil, comment: nil)
                 }
                 _ = try await apiClient.patchTask(id: task.id, fields: ["status": .string("completed")])
+            case .restore:
+                // Восстановление из архива — экран «Архив», здесь действие
+                // невозможно: `action(for:)` для живых задач его не выдаёт.
+                break
             }
             await taskStore.load(silent: true)
             await refreshRelationshipTasks()

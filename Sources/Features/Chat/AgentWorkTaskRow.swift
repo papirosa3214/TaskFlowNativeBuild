@@ -48,7 +48,8 @@ private struct AgentWorkAvatarView: View {
     @ViewBuilder private var bundledOrInitials: some View {
         if let asset = RoleAvatarAsset.imageName(forUserID: userID, appearance: roleAppearance) {
             let loop = avatarsAnimated ? RoleAvatarAsset.loopName(forUserID: userID, appearance: roleAppearance) : nil
-            TFRolePortrait(imageAsset: asset, loopName: loop, side: size)
+            TFRolePortrait(role: RoleAvatarAsset.role(forUserID: userID), imageAsset: asset,
+                           loopName: loop, side: size)
         } else {
             initialsCircle
         }

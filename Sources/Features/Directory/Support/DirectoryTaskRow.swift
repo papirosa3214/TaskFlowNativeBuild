@@ -44,6 +44,12 @@ struct DirectoryTaskRow: View {
     /// у задачи нет дочерних, аватар не ловит нажатие, строка открывается как раньше.
     var onAvatarTap: (() -> Void)? = nil
 
+    /// Слова подтверждения свайпа вправо. `nil` — дефолт «Отправить в архив»,
+    /// как у обычного списка. Экран «Архив» переиспользует ту же строку для
+    /// безвозвратного удаления и подставляет свои слова (10.10.2026).
+    var deleteConfirmTitle: String? = nil
+    var deleteConfirmMessage: ((String) -> String)? = nil
+
     /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
     @State private var rowID = UUID()
     @State private var settledOffset: CGFloat = 0
@@ -66,8 +72,11 @@ struct DirectoryTaskRow: View {
                 if let swipeAction {
                     swipeIconButton(
                         icon: swipeAction.icon,
-                        color: .tfGreen
-                    ) { close(); onSwipeAction() }
+                        color: .tfGreen,
+                        action: { close(); onSwipeAction() },
+                        accessibilityLabel: swipeAction.accessibilityLabel,
+                        accessibilityIdentifier: swipeAction.accessibilityIdentifier
+                    )
                     .frame(width: rightRevealWidth)
                     .opacity(revealOpacity(rightRevealWidth))
                 }
@@ -96,11 +105,12 @@ struct DirectoryTaskRow: View {
         // Ближайший native-эквивалент своего нижнего экшн-листа из TaskRow.tsx
         // (красная «Удалить» текстом + отдельная карточка «Отмена») — тот же
         // приём, что уже выбрал TodayTaskRow.swift для идентичного узла.
-        .confirmationDialog("Отправить задачу в архив?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("В архив", role: .destructive, action: onDelete)
+        .confirmationDialog(deleteConfirmTitle ?? "Отправить задачу в архив?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button(deleteConfirmTitle == nil ? "В архив" : "Удалить окончательно", role: .destructive, action: onDelete)
             Button("Отмена", role: .cancel) {}
         } message: {
-            Text("«\(task.title)» будет отправлена в архив. Её можно восстановить.")
+            Text(deleteConfirmMessage?(task.title)
+                ?? "«\(task.title)» будет отправлена в архив. Её можно восстановить.")
         }
     }
 
@@ -112,7 +122,12 @@ struct DirectoryTaskRow: View {
     }
 
     /// Кнопка свайпа — только иконка, без надписи (владелец 11.09.2026).
-    private func swipeIconButton(icon: String, color: Color, action: @escaping () -> Void) -> some View {
+    /// Идентификатор и подпись для VoiceOver берутся из действия, когда оно
+    /// задано: раньше они были объявлены в перечислении, но на кнопку не
+    /// попадали — из-за этого свайп было нечем проверить в UI-тесте.
+    private func swipeIconButton(icon: String, color: Color, action: @escaping () -> Void,
+                                 accessibilityLabel: String? = nil,
+                                 accessibilityIdentifier: String? = nil) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: TFIconSize.md))
@@ -124,6 +139,8 @@ struct DirectoryTaskRow: View {
         .clipped()
         .allowsHitTesting(abs(offsetX) >= TFRowActionWidth * 0.7)
         .accessibilityHidden(abs(offsetX) < TFRowActionWidth * 0.7)
+        .accessibilityLabel(Text(accessibilityLabel ?? icon))
+        .accessibilityIdentifier(accessibilityIdentifier ?? icon)
     }
 
     private var row: some View {
@@ -243,6 +260,10 @@ enum ProjectTaskSwipeAction: Equatable {
     /// галочка была зелёная принять». Покрывает и ревью (снимает блокировку),
     /// и просто активную задачу в пуле.
     case complete
+    /// Вернуть задачу из архива в работу (10.10.2026, экран «Архив»).
+    /// Отличается от `.complete` темп��м: свайп влево у архивной строки
+    /// означает восстановление, а не закрытие задачи.
+    case restore
 
     /// `currentUserID` — у личного дела (исполнитель — сам владелец) сразу
     /// «Принять», а не «Запустить»: запускать там некого (23.09.2026).
@@ -258,6 +279,7 @@ enum ProjectTaskSwipeAction: Equatable {
         switch self {
         case .complete: "checkmark"
         case .markReadyForPickup: "play.fill"
+        case .restore: "arrow.uturn.backward"
         }
     }
 
@@ -265,6 +287,7 @@ enum ProjectTaskSwipeAction: Equatable {
         switch self {
         case .complete: "Принять"
         case .markReadyForPickup: "Запустить"
+        case .restore: "Вернуть в работу"
         }
     }
 
@@ -272,6 +295,7 @@ enum ProjectTaskSwipeAction: Equatable {
         switch self {
         case .complete: "project.row.swipe.complete"
         case .markReadyForPickup: "project.row.swipe.ready"
+        case .restore: "archive.row.swipe.restore"
         }
     }
 }

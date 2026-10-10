@@ -39,7 +39,8 @@ struct TFTeamAvatarStack: View {
     @ViewBuilder private func avatar(_ id: String, url: String) -> some View {
         if let asset = RoleAvatarAsset.imageName(forUserID: id, appearance: roleAppearance) {
             let loop = avatarsAnimated ? RoleAvatarAsset.loopName(forUserID: id, appearance: roleAppearance) : nil
-            TFRolePortrait(imageAsset: asset, loopName: loop, side: side * 0.92)
+            TFRolePortrait(role: RoleAvatarAsset.role(forUserID: id), imageAsset: asset,
+                           loopName: loop, side: side * 0.92)
                 .overlay(Circle().stroke(Color.tfBackground, lineWidth: 1.5))
         } else if !url.isEmpty, let full = TFAvatar.fullURL(url) {
             AnimatedImage(url: full, placeholder: { Circle().fill(Color.tfCard2) })

@@ -53,6 +53,9 @@ struct TaskPreparationView: View {
     @State private var roleTitles: [String: String] = [:]
     @State private var isApplying = false
     @State private var isLoading = true
+    @State private var replyPreparation: ApiTaskPreparation?
+    @State private var replyText = ""
+    @State private var replyError: String?
     @State private var confirmingStructure = false
     @State private var confirmationInputVersion: Int?
     @Environment(RealtimeClient.self) private var realtime
@@ -97,6 +100,7 @@ struct TaskPreparationView: View {
             }
             await load()
         }
+        .sheet(item: $replyPreparation) { expected in replySheet(expected) }
         .confirmationDialog("Создать дочерние задачи?", isPresented: $confirmingStructure, titleVisibility: .visible) {
             Button("Создать согласованные задачи") {
                 guard let version = confirmationInputVersion else { return }
@@ -114,6 +118,13 @@ struct TaskPreparationView: View {
         if let preparation {
             if let question = preparation.question {
                 Text(question).tfText(.action).foregroundStyle(Color.tfText)
+                if isOwner, preparation.status == "needs_clarification" || preparation.status == "structure_review" {
+                    TFButton("Ответить", variant: .secondary) {
+                        replyPreparation = preparation
+                        replyError = nil
+                    }
+                    .accessibilityIdentifier("preparation.reply")
+                }
             }
             if preparation.status == "failed", let error = preparation.error {
                 Text("Причина: \(error)").tfText(.action).foregroundStyle(Color.tfSub)
@@ -156,6 +167,70 @@ struct TaskPreparationView: View {
             }
         }
         if let actionError { Text(actionError).tfText(.action).foregroundStyle(Color.tfRed) }
+    }
+
+    private func replySheet(_ expected: ApiTaskPreparation) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                    if let question = expected.question {
+                        Text(question).foregroundStyle(Color.tfText)
+                        let choices = TaskPreparationReply.choices(for: question)
+                        if !choices.isEmpty {
+                            Text("Выберите вариант — подготовка продолжится.")
+                                .foregroundStyle(Color.tfSub)
+                            ForEach(choices) { choice in
+                                TFButton(choice.title, variant: .secondary) {
+                                    replyText = choice.answer
+                                    Task { await sendReply(expected) }
+                                }
+                                .accessibilityIdentifier("preparation.choice." + choice.id)
+                            }
+                        } else {
+                            TextField("Ваш ответ", text: $replyText, axis: .vertical)
+                                .lineLimit(3...8)
+                                .padding(TFSpacing.md)
+                                .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
+                                .accessibilityIdentifier("preparation.replyText")
+                            TFButton("Продолжить подготовку", variant: .secondary) {
+                                Task { await sendReply(expected) }
+                            }
+                            .disabled(replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .accessibilityIdentifier("preparation.sendReply")
+                        }
+                        Text("Ответ будет сохранён в описании карточки как уточнение.")
+                            .font(.caption).foregroundStyle(Color.tfSub)
+                    }
+                    if isApplying { ProgressView("Отправляю ответ…") }
+                    if let replyError { Text(replyError).foregroundStyle(Color.tfRed) }
+                }
+                .padding(TFSpacing.lg)
+            }
+            .navigationTitle("Ответ подготовке")
+            .navigationBarTitleDisplayMode(.inline)
+            .tint(Color.tfText)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { replyPreparation = nil } } }
+            .disabled(isApplying)
+            .interactiveDismissDisabled(isApplying)
+        }
+    }
+
+    private func sendReply(_ expected: ApiTaskPreparation) async {
+        guard !isApplying, let question = expected.question else { return }
+        isApplying = true
+        replyError = nil
+        defer { isApplying = false }
+        do {
+            try await api.answerTaskPreparation(taskId: taskID, preparationID: expected.id,
+                inputVersion: expected.inputVersion, question: question, answer: replyText)
+            replyText = ""
+            replyPreparation = nil
+            await onChange()
+            await load()
+        } catch {
+            replyError = error.localizedDescription
+            await load()
+        }
     }
 
     private func block<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -221,3 +296,6 @@ struct TaskPreparationView: View {
         }
     }
 }
+
+// Item-based presentation carries the exact question into the answer sheet.
+extension ApiTaskPreparation: Identifiable {}

@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "89B31F61-F5ED-40E1-A517-E7A62FA7740B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "preparation-resumed_0_2DCD4211-39DD-4590-800D-6EBDD62EA885.png",
+        "timestamp" : 1791633840.839
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "90D109F2-518B-4095-9529-BAE1B7A7C0E4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "preparation-answer-options_0_2752140E-36FA-4BB4-AC26-F6B7C8D77D42.png",
+        "timestamp" : 1791633838.803
+      }
+    ],
+    "testIdentifier" : "TaskPreparationReplyUITests/testChooseAnswerWithoutTypingAndResumePreparation()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TaskPreparationReplyUITests/testChooseAnswerWithoutTypingAndResumePreparation"
+  }
+]

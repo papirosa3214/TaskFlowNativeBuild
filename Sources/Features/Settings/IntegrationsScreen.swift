@@ -280,6 +280,12 @@ struct IntegrationsScreen: View {
                             successBanner(successMessage)
                         }
                         integrationGroup("Подключения TaskFlow") {
+                            NavigationLink {
+                                WebhooksScreen()
+                            } label: {
+                                Label("Вебхуки", systemImage: "arrow.triangle.branch")
+                            }
+                            .accessibilityIdentifier("integrations.webhooks")
                             IntegrationAccordionCard(icon: "arrow.down.doc", asset: "IntegrationLinear", title: "Linear", subtitle: "Выбор задач и перенос структуры", badge: nil, isExpanded: $isLinearOpen, identifier: "integrations.linear") {
                                 LinearImportScreen(embedded: true)
                             }

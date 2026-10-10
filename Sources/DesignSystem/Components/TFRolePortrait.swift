@@ -1,7 +1,7 @@
 import SwiftUI
 import AVFoundation
 
-/// Портрет роли в круге: статичная картинка ИЛИ зацикленный ролик.
+/// Портрет роли в кружке: статичная картинка ИЛИ зацикленный ролик.
 ///
 /// Один вход для всех пяти мест, где рисуется вшитый портрет роли
 /// (`TFAvatar`, `TFTeamAvatarStack`, `RoleAvatarView`, `AgentWorkAvatarView`,
@@ -23,14 +23,16 @@ import AVFoundation
 /// а для аватарки он не нужен вовсе; слой всё равно глушится на случай, если
 /// файл пополнится.
 ///
-/// ## Увеличение по максимуму
+/// ## Кадрирование по роли
 ///
-/// Соблазн увеличить содержимое под круглую маску отменён 10.10.2026 по
-/// жалобе владельца: картинка в акте занимает весь квадрат, полей вокруг
-/// виньетки практически нет, а масштаб срезал по краям рисунка и сбивал
-/// центрирование. Кружок теперь ровно прежнего размера и показывает картинку
-/// целиком.
+/// `AvatarCrop` — то, что владелец подобрал сам в редакторе (`AvatarCropEditor`):
+/// масштаб, сдвиг, своё фото и форма кружка. Раньше тот же масштаб был зашит
+/// в код (1,14×), и картинку от этого срезало по краям; теперь эти числа
+/// выставляются руками и по умолчанию равны единице — то есть ничего не
+/// трогается, пока владелец сам не попросит.
 struct TFRolePortrait: View {
+    /// id роли (`researcher`, `qa`, …) — по нему берётся кадрирование.
+    let role: String?
     /// Имя imageset-ассета статичного портрета.
     let imageAsset: String
     /// Имя ролика в бандле без расширения; `nil` — показываем статику.
@@ -40,26 +42,42 @@ struct TFRolePortrait: View {
     /// Анимацию просим не запускать (Reduce Motion, режим энергосбережения).
     var allowsAnimation: Bool = true
 
+    @AppStorage(TeamAvatarAnimation.storageKey) private var avatarsAnimated = false
+
+    private var crop: AvatarCrop.Value {
+        guard let role else { return AvatarCrop.Value() }
+        return AvatarCrop.value(for: role)
+    }
+
     private var showsLoop: Bool {
-        guard allowsAnimation, let loopName, !UIAccessibility.isReduceMotionEnabled else { return false }
+        guard avatarsAnimated, allowsAnimation, let loopName,
+              !UIAccessibility.isReduceMotionEnabled else { return false }
         // Страховка от чёрного кружка: если файла в бандле нет (забыли положить
         // новую роль), показываем статику, а не пустой видеослой.
         return Bundle.main.url(forResource: loopName, withExtension: "mp4") != nil
     }
 
-    var body: some View {
-        Group {
-            if showsLoop, let loopName {
-                TFLoopingAvatarVideo(resourceName: loopName)
-                    .frame(width: side, height: side)
-                    .clipShape(Circle())
-            } else {
-                Image(imageAsset).resizable().aspectRatio(contentMode: .fill)
-                    .frame(width: side, height: side)
-                    .clipShape(Circle())
-            }
+    private var shape: AvatarCrop.Shape { crop.shape }
+
+    @ViewBuilder private var inner: some View {
+        if crop.photo != nil, let url = crop.photo.map(AvatarCrop.photoURL),
+           let img = UIImage(contentsOfFile: url.path) {
+            Image(uiImage: img).resizable().aspectRatio(contentMode: .fill)
+        } else if showsLoop, let loopName {
+            TFLoopingAvatarVideo(resourceName: loopName)
+        } else {
+            Image(imageAsset).resizable().aspectRatio(contentMode: .fill)
         }
-        .accessibilityHidden(true)
+    }
+
+    var body: some View {
+        inner
+            .frame(width: side, height: side)
+            .scaleEffect(crop.scale)
+            .offset(x: crop.dx, y: crop.dy)
+            .clipShape(shape == .circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: TFRadius.md)))
+            .frame(width: side, height: side)
+            .accessibilityHidden(true)
     }
 }
 
@@ -109,9 +127,10 @@ private struct TFLoopingAvatarVideo: UIViewRepresentable {
 
 #Preview("Портрет роли") {
     HStack(spacing: 16) {
-        TFRolePortrait(imageAsset: "TeamNoirResearcher",
+        TFRolePortrait(role: "researcher", imageAsset: "TeamNoirResearcher",
                        loopName: "RoleNoirLoopResearcher", side: 64)
-        TFRolePortrait(imageAsset: "TeamNoirResearcher", loopName: nil, side: 64)
+        TFRolePortrait(role: "researcher", imageAsset: "TeamNoirResearcher",
+                       loopName: nil, side: 64)
     }
     .padding()
     .background(Color.tfBackground)

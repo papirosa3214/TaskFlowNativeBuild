@@ -9,6 +9,8 @@ struct TeamAppearanceSheet: View {
     @AppStorage(TeamAvatarAppearance.storageKey) private var selected = "current"
     @AppStorage(TeamAvatarAnimation.storageKey) private var animated = false
     @Environment(\.dismiss) private var dismiss
+    @State private var showRoles = false
+    @State private var editingRole: String?
     private let roles = ["researcher", "analyst", "builder", "architect", "code_orchestrator", "secretary", "critic_verifier", "qa", "designer"]
 
     var body: some View {
@@ -32,7 +34,7 @@ struct TeamAppearanceSheet: View {
                                         // интерфейс (UI-тест на этом падал по таймауту
                                         // снимка) и едят батарею. Живой портрет виден
                                         // там, где он и нужен, — в самом приложении.
-                                        TFRolePortrait(imageAsset: asset, loopName: nil, side: 48)
+                                        TFRolePortrait(role: role, imageAsset: asset, loopName: nil, side: 48)
                                     }
                                 }
                             }
@@ -64,10 +66,64 @@ struct TeamAppearanceSheet: View {
                 } footer: {
                     Text("Выключено — везде статичные картинки. Включено — портреты ролей комплекта «Гравюра» играют зацикленный ролик.")
                 }
+
+                Section {
+                    Button {
+                        showRoles = true
+                    } label: {
+                        HStack(spacing: TFSpacing.md) {
+                            Image(systemName: "crop")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Настроить портреты")
+                                Text("Двигать и увеличивать картинку в кружке, выбрать своё фото, круг или квадрат.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .accessibilityIdentifier("team-avatar-crop-open")
+                    .tint(.tfRed)
+                }
             }
             .navigationTitle("Внешний вид")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+            .navigationDestination(isPresented: $showRoles) {
+                List {
+                    ForEach(roles, id: \.self) { role in
+                        Button {
+                            editingRole = role
+                        } label: {
+                            HStack(spacing: TFSpacing.md) {
+                                if let asset = RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current) {
+                                    TFRolePortrait(role: role, imageAsset: asset, loopName: nil, side: 44)
+                                }
+                                Text(AvatarCrop.roleTitle(role))
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("team-avatar-crop-role-" + role)
+                    }
+                }
+                .navigationTitle("Портреты ролей")
+                .navigationBarTitleDisplayMode(.inline)
+                .tint(.tfRed)
+            }
+            .sheet(item: Binding(
+                get: { editingRole.map { RoleBox(id: $0) } },
+                set: { editingRole = $0?.id }
+            )) { box in
+                let role = box.id
+                AvatarCropEditor(role: role,
+                                 roleTitle: AvatarCrop.roleTitle(role),
+                                 imageAsset: RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current) ?? "")
+            }
         }
     }
+}
+/// Обёртка для `.sheet(item:)`: `String` не `Identifiable`, а роль — это строка.
+private struct RoleBox: Identifiable {
+    let id: String
 }
