@@ -1,0 +1,175 @@
+{
+  "request": {
+    "scheme": "TaskFlow",
+    "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+    "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_device",
+    "platform": "iOS",
+    "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+    "target": "device",
+    "onlyTesting": [
+      "TaskFlowUITests/Heatmap3DUITests",
+      "TaskFlowUITests/TabBarGlassUITests"
+    ],
+    "skipTesting": []
+  },
+  "summary": {
+    "status": "SUCCEEDED",
+    "durationMs": 129776,
+    "counts": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    },
+    "target": "device"
+  },
+  "artifacts": {
+    "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/logs/test_device_2026-10-11T19-49-58-489Z_pid90992_55fbadee.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/result-bundles/test_device_2026-10-11T19-49-58-490Z_pid90992_a1248944.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/test-products/test_device_2026-10-11T19-49-58-490Z_pid90992_846845d6.xctestproducts"
+  },
+  "diagnostics": {
+    "warnings": [
+      {
+        "message": "main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Markdown/BlockDocumentEditor.swift:319"
+      },
+      {
+        "message": "'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Core/Session/SessionStore.swift:25"
+      },
+      {
+        "message": "variable 'shot' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/Heatmap3DUITests.swift:48"
+      },
+      {
+        "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/RoleStepLineSnapshotTests.swift:18"
+      },
+      {
+        "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/RoleStepLineSnapshotTests.swift:23"
+      },
+      {
+        "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/RoleStepLineSnapshotTests.swift:28"
+      },
+      {
+        "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:64"
+      },
+      {
+        "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:79"
+      },
+      {
+        "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:95"
+      },
+      {
+        "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:101"
+      },
+      {
+        "message": "'CommandURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/OwnerCommandTests.swift:4"
+      },
+      {
+        "message": "'SystemControlURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/SystemControlViewModelTests.swift:137"
+      },
+      {
+        "message": "'ReplyURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/TaskPreparationReplyTests.swift:37"
+      },
+      {
+        "message": "result of call to 'acquire' is unused [#NoUsage]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/PortraitVideoBudgetTests.swift:31"
+      },
+      {
+        "message": "result of call to 'acquire' is unused [#NoUsage]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/PortraitVideoBudgetTests.swift:43"
+      },
+      {
+        "message": "result of call to 'acquire' is unused [#NoUsage]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/PortraitVideoBudgetTests.swift:60"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/Foundation-91X1X3EF05G1GA1AOAHKGPZ1X.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/_SwiftConcurrencyShims-1ODS1PI25ISI3P84IK14QMBGK.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/os-5JKN68LOKXW6OLV32XP6JI1HW.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/SwiftUI-75KKUO3CYWUNAN0B9YJN7BDFR.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/UIKit-742ODYUABYWR0H8E7NEJYL2HL.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/EventKit-3YZ00Y80NFNSFFIPY1IJRP7FW.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/UniformTypeIdentifiers-6445F4VSDXUD5RUMDVNBNJSRK.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/CoreLocation-APSAVESRIINUX2U5R2L8QTDIW.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/AVFoundation-89XFDHMW46KMM1VNLJQ34SQY2.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/AuthenticationServices-6L1GGXYXLRGTR1WEM45OAA3JG.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/Security-KBE68EYYI18T8MOIOYJF4RUD.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/ActivityKit-9Q3H5ZOMUK58I72S35F6UY3V.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/LocalAuthentication-5D25S6LX9AROBHMUNBO3TDJ8D.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/SDWebImage-3DW4TPOL3FA6UL1J3N0Z7UMIM.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/SDWebImageWebPCoder-67VPRWFKR9H4P19V35S8VP72V.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/DeveloperToolsSupport-8JT2Z336821KGSRMNE7XADFZH.pcm: No such file or directory"
+      }
+    ],
+    "errors": [],
+    "testFailures": []
+  },
+  "testCases": [
+    {
+      "suite": "Heatmap3DUITests",
+      "test": "testOverviewGesturePerformance",
+      "status": "passed",
+      "durationMs": 34877
+    },
+    {
+      "suite": "Heatmap3DUITests",
+      "test": "testRecordBadgeFillsTheEmptyCornerOnlyWhenExpanded",
+      "status": "passed",
+      "durationMs": 10907
+    },
+    {
+      "suite": "Heatmap3DUITests",
+      "test": "testWholeScreenDragExpandsMapAndReturnsToOriginalLayout",
+      "status": "passed",
+      "durationMs": 12236
+    },
+    {
+      "suite": "TabBarGlassUITests",
+      "test": "testFourTabsHaveTouchTargetsAndSelectedState",
+      "status": "passed",
+      "durationMs": 13368
+    }
+  ]
+}

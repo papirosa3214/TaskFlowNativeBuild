@@ -20,6 +20,61 @@ enum CompletionCalendar {
     }
 }
 
+/// Кривая раскатки объёма карты.
+///
+/// Держится линейной с мягкими краями: кубический in-out отдавал первую
+/// десятую пути 0.2% движения, а третью–шестую — 78%, из-за чего карта сначала
+/// «ватала», а потом разом становилась объёмной. `rise` тоже линейный: ease-out
+/// поднимал столбик мгновенно, и последние колонки догоняли у самого финиша.
+enum HeatmapExpansion {
+    static func cameraEase(_ t: CGFloat) -> CGFloat {
+        let t = min(1, max(0, t))
+        let eased = t * t * (3 - 2 * t)
+        return t + (eased - t) * 0.18
+    }
+    // Reveal the plane's depth early instead of spending half the drag orbiting a flat grid.
+    static func tiltProgress(_ progress: CGFloat) -> CGFloat {
+        let t = min(1, max(0, progress))
+        return sin(t * .pi / 2)
+    }
+    static func rise(_ progress: CGFloat) -> CGFloat {
+        min(1, max(0, progress))
+    }
+}
+
+/// Градация карты: серый пустой день и 32 ступени чистого красного.
+///
+/// Пороги раньше были жёсткими (1 | 2–3 | 4–6 | 7+), но максимум дня на живых
+/// данных — 25. Бакет «7+» накрывал 7…25, то есть девятнадцать разных
+/// количеств красились одинаково, и соседние ступени читались как одна.
+enum HeatmapShade {
+    static let steps = 32
+
+    /// Номер ступени для количества проверок, `nil` означает «пусто».
+    ///
+    /// Делим диапазон по корню: при линейном делении низкие значения попадали
+    /// в одну ступень. Корень разводит их.
+    static func step(_ count: Int, maxCount: Int) -> Int? {
+        guard count > 0 else { return nil }
+        guard maxCount > 1 else { return steps }
+        let index = Int(ceil(sqrt(Double(count) / Double(maxCount)) * Double(steps)))
+        return min(max(index, 1), steps)
+    }
+
+    /// Reference ramp: #080000, #100000, …, #F80000, #FF0000.
+    /// Only the red channel changes; empty days retain tfStroke.
+    static func color(_ step: Int) -> Color {
+        let index = min(max(step, 1), steps)
+        let red = index == steps ? 255 : index * 8
+        return Color(red: Double(red) / 255, green: 0, blue: 0)
+    }
+
+    static func shade(_ count: Int, maxCount: Int) -> Color {
+        guard let step = step(count, maxCount: maxCount) else { return Color.tfStroke }
+        return color(step)
+    }
+}
+
 struct CompletionHeatmap: View {
     var depth: CGFloat = 0
     @Environment(TaskStore.self) private var store
@@ -35,14 +90,41 @@ struct CompletionHeatmap: View {
         "\(realtime.connectionRevision):" + realtime.taskRevisions.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: ",")
     }
 
-    private func shade(_ count: Int) -> Color {
-        switch count {
-        case 0: return Color.tfStroke
-        case 1: return Color.tfRed.mix(with: .black, by: 0.7)
-        case 2...3: return Color.tfRed.mix(with: .black, by: 0.45)
-        case 4...6: return Color.tfRed.mix(with: .black, by: 0.2)
-        default: return Color.tfRed
+    /// Самый продуктивный день поднявшейся карты — заполняет левый нижний угол,
+    /// который при объёме остаётся пустым.
+    private var recordDay: CompletionDay? {
+        days.filter { $0.count > 0 && $0.date <= Calendar.current.startOfDay(for: .now) }
+            .max { $0.count < $1.count }
+    }
+
+    private var recordBadge: some View {
+        // Гейтим по depth, а не только opacity: у элемента с opacity(0) всё равно
+        // остаётся в дереве доступности, и VoiceOver читал бы рекорд на плоской
+        // карте, где его не видно.
+        Group {
+            if let day = recordDay, depth > 0.42 {
+                let appear = min(1, max(0, (depth - 0.42) / 0.33))
+                let eased = appear * appear * (3 - 2 * appear)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Рекорд дня")
+                        .font(.caption2).foregroundStyle(Color.tfSub)
+                    Text("\(day.count)")
+                        .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.tfRed)
+                    Text(day.date.formatted(.dateTime.day().month(.abbreviated)))
+                        .font(.caption2).foregroundStyle(Color.tfSub)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Рекорд дня: \(day.count), \(day.date.formatted(.dateTime.day().month(.abbreviated)))")
+                .accessibilityIdentifier("overview.heatmap.record")
+                .opacity(eased)
+                .offset(y: 10 * (1 - eased))
+            }
         }
+    }
+
+    private var maxDayCount: Int {
+        max(1, days.map(\.count).max() ?? 1)
     }
 
     var body: some View {
@@ -61,20 +143,28 @@ struct CompletionHeatmap: View {
                     }
                 }
             }.frame(height: 16)
+                .opacity(1 - HeatmapExpansion.cameraEase(depth))
             GeometryReader { geometry in
                 HeatmapScene(values: values, depth: depth, selected: $selected)
-                    .frame(width: geometry.size.width, height: geometry.size.width * 7 / 26 + depth * 200)
+                    .frame(width: geometry.size.width, height: geometry.size.width * 7 / 26 + depth * 120)
             }
-                .frame(height: sceneWidth * 7 / 26 + depth * 200)
+                .frame(height: sceneWidth * 7 / 26 + depth * 120)
+                .overlay(alignment: .bottomLeading) {
+                    // Вне сцены: её accessibilityRepresentation заменяет потомков,
+                    // и бейдж внутри неё не попадал в дерево доступности.
+                    recordBadge
+                        .padding(.leading, 2).padding(.bottom, 8)
+                        .allowsHitTesting(false)
+                }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sceneWidth = $0 }
-                .accessibilityIdentifier("overview.heatmap")
-                .accessibilityValue(depth > 0.99 ? "Объёмная" : depth < 0.01 ? "Плоская" : "Переход")
             HStack(spacing: 5) {
                 Text("Меньше")
-                ForEach([0, 1, 2, 4, 7], id: \.self) { value in
-                    RoundedRectangle(cornerRadius: 2).fill(shade(value)).frame(width: 10, height: 10)
+                // Sample the complete ramp in a compact legend; all 32 steps remain in the map.
+                ForEach([0, 1, 8, 16, 24, 32], id: \.self) { step in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(step == 0 ? Color.tfStroke : HeatmapShade.color(step))
+                        .frame(width: 10, height: 10)
                 }
-                Text("Больше")
                 Spacer(minLength: 0)
             }.font(.caption2).foregroundStyle(Color.tfSub)
             if archiveError {
@@ -119,13 +209,7 @@ private struct HeatmapScene: View, Animatable {
     }
 
     private func color(_ count: Int) -> Color {
-        switch count {
-        case 0: return .tfStroke
-        case 1: return Color.tfRed.mix(with: .black, by: 0.7)
-        case 2...3: return Color.tfRed.mix(with: .black, by: 0.45)
-        case 4...6: return Color.tfRed.mix(with: .black, by: 0.2)
-        default: return .tfRed
-        }
+        HeatmapShade.shade(count, maxCount: max(1, values.map(\.count).max() ?? 1))
     }
     private func polygon(_ points: [CGPoint]) -> Path {
         Path { path in
@@ -133,26 +217,41 @@ private struct HeatmapScene: View, Animatable {
             path.closeSubpath()
         }
     }
-    private func cells(in size: CGSize) -> [(day: CompletionDay, top: [CGPoint], base: [CGPoint])] {
+    private func cells(in size: CGSize) -> [(day: CompletionDay, week: Int, row: Int, top: [CGPoint], base: [CGPoint])] {
+        let size = CGSize(width: size.width, height: max(1, size.height - 24 * HeatmapExpansion.cameraEase(depth)))
         let t = min(1, max(0, depth))
+        let e = HeatmapExpansion.cameraEase(t)
         let pitch = (size.width + 3) / 26
-        let planeHeight = pitch * 7 - 3
-        let side = pitch - 3 + 1.4 * t
-        let yaw = CGFloat.pi / 4 * t
-        let tilt = CGFloat.pi * 0.30 * t
+        // Preserve the existing flat cells; match the source's 0.78 → 0.90 ratio.
+        let flatSide = pitch - 3
+        let side = flatSide * (1 + (0.90 / 0.78 - 1) * e)
+        let offset = (flatSide - side) / 2
+        let yaw = CGFloat.pi / 4 * e
+        let tilt = CGFloat.pi * (56.0 / 180) * HeatmapExpansion.tiltProgress(t)
+        let maxCount = max(1, values.map(\.count).max() ?? 1)
+        func columnHeight(_ week: Int, _ row: Int) -> CGFloat {
+            let count = values[week * 7 + row].count
+            let delay = CGFloat(week) / 25 * 0.36 + CGFloat(row) / 6 * 0.06
+            let progress = min(1, max(0, (t - delay) / 0.58))
+            let rise = HeatmapExpansion.rise(progress)
+            let units: CGFloat = count > 0 ? 0.4 + pow(CGFloat(count) / CGFloat(maxCount), 0.85) * 7.2 : 0.2
+            return units * pitch * rise
+        }
         func raw(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> CGPoint {
             let xx = x * cos(yaw) - y * sin(yaw)
             let yy = (x * sin(yaw) + y * cos(yaw)) * cos(tilt) - z * sin(tilt)
             return CGPoint(x: xx, y: yy)
         }
-        var bounds = [raw(0, 0, 0), raw(size.width, 0, 0), raw(0, planeHeight, 0), raw(size.width, planeHeight, 0)]
-        // Fit actual columns, without reserving height for nonexistent peaks.
+        var bounds: [CGPoint] = []
+        // Fit both ground and actual tops, including each intermediate wave frame.
         for week in 0..<26 {
             for row in 0..<7 {
-                let count = values[week * 7 + row].count
-                let height = count == 0 ? 0 : min(64, 4 + sqrt(CGFloat(count)) * 11) * t
-                let x = CGFloat(week) * pitch, y = CGFloat(row) * pitch
-                bounds.append(contentsOf: [raw(x,y,height), raw(x+side,y,height), raw(x+side,y+side,height), raw(x,y+side,height)])
+                let height = columnHeight(week, row)
+                let x = CGFloat(week) * pitch + offset, y = CGFloat(row) * pitch + offset
+                for (cx, cy) in [(x,y),(x+side,y),(x+side,y+side),(x,y+side)] {
+                    bounds.append(raw(cx, cy, height))
+                    bounds.append(raw(cx, cy, 0))
+                }
             }
         }
         let minX = bounds.map(\.x).min()!, maxX = bounds.map(\.x).max()!
@@ -166,30 +265,50 @@ private struct HeatmapScene: View, Animatable {
         return (0..<182).map { slot in
             let week = slot % 26, row = slot / 26
             let day = values[week * 7 + row]
-            let x = CGFloat(week) * pitch, y = CGFloat(row) * pitch
-            let height = day.count == 0 ? 0 : min(64, 4 + sqrt(CGFloat(day.count)) * 11) * t
+            let x = CGFloat(week) * pitch + offset, y = CGFloat(row) * pitch + offset
+            let height = columnHeight(week, row)
             let corners = [(x,y),(x+side,y),(x+side,y+side),(x,y+side)]
-            return (day, corners.map { project($0.0, $0.1, height) }, corners.map { project($0.0, $0.1, -2.5 * t) })
+            return (day, week, row, corners.map { project($0.0, $0.1, height) }, corners.map { project($0.0, $0.1, 0) })
         }.sorted { $0.base.map(\.y).max()! < $1.base.map(\.y).max()! }
     }
     var body: some View {
         Canvas { context, size in
-            for cell in cells(in: size) {
+            let sceneCells = cells(in: size)
+            for cell in sceneCells {
                 let top = cell.top, base = cell.base
                 let shade = color(cell.day.count)
                 if depth > 0.001 {
                     let right = polygon([top[1],top[2],base[2],base[1]])
                     let front = polygon([top[2],top[3],base[3],base[2]])
-                    context.fill(right, with: .color(shade.mix(with: .black, by: 0.48)))
-                    context.fill(front, with: .color(shade.mix(with: .black, by: 0.26)))
-                    context.stroke(right, with: .color(.black.opacity(0.24 * depth)), lineWidth: 0.6)
-                    context.stroke(front, with: .color(.white.opacity(0.09 * depth)), lineWidth: 0.5)
+                    context.fill(right, with: .color(shade.mix(with: .black, by: 0.20)))
+                    context.fill(front, with: .color(shade.mix(with: .black, by: 0.08)))
+                    context.stroke(right, with: .color(.black.opacity(0.7 * depth)), lineWidth: 0.6)
+                    context.stroke(front, with: .color(.black.opacity(0.65 * depth)), lineWidth: 0.5)
                 }
                 if depth < 0.001 {
                     context.fill(Path(roundedRect: CGRect(x: top[0].x, y: top[0].y, width: top[1].x-top[0].x, height: top[3].y-top[0].y), cornerRadius: 2), with: .color(shade))
                 } else {
                     context.fill(polygon(top), with: .color(shade))
-                    context.stroke(polygon(top), with: .color(.white.opacity(0.14 * depth)), lineWidth: 0.65)
+                    context.stroke(polygon(top), with: .color(.black.opacity(0.75 * depth)), lineWidth: 0.65)
+                }
+            }
+            let labelOpacity = HeatmapExpansion.cameraEase(depth)
+            if labelOpacity > 0.001 {
+                for week in 0..<26 {
+                    let date = values[week * 7].date
+                    let month = Calendar.current.component(.month, from: date)
+                    let previous = week == 0 ? -1 : Calendar.current.component(.month, from: values[(week - 1) * 7].date)
+                    guard month != previous,
+                          let cell = sceneCells.first(where: { $0.week == week && $0.row == 6 }) else { continue }
+                    let edge = cell.base[3]
+                    let dx = cell.base[2].x - edge.x, dy = cell.base[2].y - edge.y
+                    let length = max(1, hypot(dx, dy))
+                    var labelContext = context
+                    labelContext.opacity = labelOpacity
+                    labelContext.translateBy(x: edge.x + dx / length * 5 - dy / length * 7, y: edge.y + dy / length * 5 + dx / length * 7)
+                    labelContext.rotate(by: .radians(Double(atan2(dy, dx))))
+                    labelContext.draw(Text(date.formatted(.dateTime.month(.abbreviated)))
+                        .font(.caption).foregroundStyle(Color.tfSub), at: .zero, anchor: .topLeading)
                 }
             }
         }
@@ -208,6 +327,9 @@ private struct HeatmapScene: View, Animatable {
             VStack {
                 Text(depth > 0.99 ? "Объёмная тепловая карта" : "Плоская тепловая карта")
                     .accessibilityIdentifier("overview.heatmap.mode")
+                    .accessibilityValue(depth > 0.99 ? "Объёмная" : depth < 0.01 ? "Плоская" : "Переход")
+                Text(depth > 0.99 ? "Месяцы вдоль нижнего края карты" : "Месяцы над картой")
+                    .accessibilityIdentifier("overview.heatmap.month-position")
                 ForEach(0..<182, id: \.self) { slot in
                     let day = values[(slot % 26) * 7 + slot / 26]
                     Button { selected = day.date } label: {
