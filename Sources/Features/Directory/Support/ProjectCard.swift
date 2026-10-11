@@ -1,21 +1,22 @@
 import SwiftUI
 
-// Карточка проекта — владелец 08.09.2026: «список обычный такой голимый, а
-// хочется, чтобы прям карточка была, с адекватной информацией: как давно
-// висит, сколько задач выполнено, сколько вообще было поставлено».
+// Строка проекта — владелец 11.10.2026: «давай проекты отображать плоско, а
+// между ними просто разделительные линии». Раньше здесь была карточка
+// (`TFCard` со скруглением) в ряд из полутора десятков; теперь это плоский
+// список строк, разделённых тонкими линиями, — так список читается как список,
+// а не как стопка плиток.
 //
 // Общие числа приходят готовыми из `GET /api/projects` (`task_count`,
 // `completed_count`, `overdue_count`, `last_activity_at`, `docs_count`).
 // Разбиение активных задач на review/blocked/остальные берётся из уже
 // загруженного общего `TaskStore`: отдельного запроса на каждый проект нет,
-// а realtime-изменение задачи сразу перерисовывает соответствующую карточку.
+// а realtime-изменение задачи сразу перерисовывает соответствующую строку.
 //
-// Оформление — по эталону «Модели и голоса» (владелец 03.09.2026 просил
-// причёсывать экраны под него): без цветных плашек и заливок. Цвет проекта
-// живёт ровно в одной точке у названия; полоса прогресса и весь текст —
-// нейтральные. Первая версия красила ещё и полосу, и список из полутора
-// десятков проектов превращался в радугу (владелец 08.09.2026: «всё
-// приложение минималистичное, а тут как клоуна нарядил»).
+// Цвет проекта живёт теперь в СЕКЦИОННЫХ ПОЛОСКАХ (владелец 11.10.2026:
+// «не рисовать точки, вот как раз будут полоски эти цветными»). Точка у
+// названия убрана вместе с ней — цвет и раньше был единственной пёстрой деталью
+// в списке («как клоуна нарядил», 08.09.2026), но хотя бы в одной точке; теперь
+// он размазан по полоскам и не спорит с текстом.
 struct ProjectCard: View {
     let project: ApiProject
     let tasks: [ApiTask]
@@ -35,68 +36,74 @@ struct ProjectCard: View {
     private var docs: Int { project.docsCount ?? 0 }
 
     var body: some View {
-        TFCard {
-            VStack(alignment: .leading, spacing: TFSpacing.md) {
-                header
-                progress.accessibilityIdentifier("projects.progress.\(project.id)")
-                statusLine
-                if hasMetadata {
-                    metrics
-                }
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            header
+            progress.accessibilityIdentifier("projects.progress.\(project.id)")
+            statusLine
+            if hasMetadata {
+                metrics
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, TFSpacing.md)
     }
 
     private var header: some View {
-        // Выравнивание по верху: у имени в две строки точка, центрированная
-        // по всему блоку, съезжала на межстрочный интервал. Отступ 6pt ставит
-        // её по центру ПЕРВОЙ строки (17pt title).
-        HStack(alignment: .top, spacing: TFSpacing.sm) {
-            Circle()
-                .fill(accent)
-                .frame(width: 8, height: 8)
-                .padding(.top, 7)
-            // Две строки, а не одна: в карточке место есть, а имена вроде
-            // «Аудит фактической схемы мультиагентов TaskFlow» на одной
-            // строке обрезаются до неразличимости (проверено кадром 08.09.2026).
+        HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             Text(project.name)
                 .tfText(.title)
                 .foregroundStyle(Color.tfText)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
             Spacer(minLength: TFSpacing.sm)
+            // Процент выполнения — напротив названия (просьба владельца
+            // 11.10.2026). Та же доля, что рисуют полоски ниже, но числом:
+            // доли двух-трёх секций на глаз не сравнить, а «62 %» сравнивается
+            // сразу. Моноширинные цифры, иначе колонка процентов прыгает.
+            Text("\(percent)%")
+                .font(.system(.headline, design: .default).monospacedDigit())
+                .foregroundStyle(Color.tfSub)
+                .layoutPriority(1)
             if project.pinned {
                 Image(systemName: "pin.fill")
                     .tfText(.caption)
                     .foregroundStyle(Color.tfDim)
-                    .padding(.top, 3)
                     .accessibilityLabel("Закреплён")
             }
         }
     }
 
-    /// Полоса «сделано из всего». Доля считается от ВСЕХ задач проекта
-    /// (активные + выполненные), а не от активных: вопрос владельца — «сколько
-    /// вообще было поставлено и сколько из этого закрыто».
+    /// Сколько «шашек» в секционной полосе. 12 — чтобы разница между соседними
+    /// проектами читалась глазом (одна шашка ≈ 8 % работы), но ряд из
+    /// полутора десятков строк не превращался в ��адугу из квадратиков.
+    private static let segments = 12
+
+    /// Секционные прямоугольники вместо капсулы (владелец 11.10.2026: «не
+    /// полоску, а секционные полоски… прямоугольнички»). Залитые — цветом
+    /// проекта, незалитые — нейтральной линией, как прежний фон капсулы.
     ///
-    /// Полоса НЕЙТРАЛЬНАЯ, не цвета проекта: владелец 08.09.2026, увидев
-    /// список из полутора десятков разноцветных полос, — «всё приложение
-    /// минималистичное, а тут как клоуна нарядил». Цвет проекта остаётся
-    /// только точкой у названия, как метка, а не как заливка.
+    /// Почему секциями, а не сплошной заливкой: по сплошной полосе не видно,
+    /// где кончается работа первых задач и начинаются последние, а процент рядом
+    /// с названием считается глазом хуже, чем по шашкам.
     private var progress: some View {
-        Capsule()
-            .fill(Color.tfStroke)
-            .frame(height: 6)
-            .overlay(alignment: .leading) {
-                GeometryReader { geo in
-                    Capsule()
-                        .fill(Color.tfSub)
-                        .frame(width: geo.size.width * fraction)
-                }
+        HStack(spacing: 3) {
+            ForEach(0..<Self.segments, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(i < filledSegments ? accent : Color.tfStroke)
             }
-            .accessibilityLabel("Выполнено \(completed) из \(total)")
+        }
+        .frame(height: 6)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Выполнено \(completed) из \(total)")
+        .accessibilityValue("\(percent)%")
     }
+
+    private var filledSegments: Int {
+        guard total > 0 else { return 0 }
+        return min(Self.segments, Int((fraction * Double(Self.segments)).rounded()))
+    }
+
+    private var percent: Int { Int((fraction * 100).rounded()) }
 
     private var fraction: Double {
         guard total > 0 else { return 0 }
@@ -231,7 +238,7 @@ struct ProjectTaskStatusSummary {
     }
 }
 
-#Preview("Карточки проектов") {
+#Preview("Строки проектов") {
     ScrollView {
         VStack(spacing: TFSpacing.sm) {
             ProjectCard(project: ApiProject(

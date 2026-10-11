@@ -49,10 +49,12 @@ struct ProjectsScreen: View {
         ZStack {
         Color.tfBackground.ignoresSafeArea()
         ScrollView {
-            // Интервал 8pt, а не 2pt: карточки (`ProjectCard`) — отдельные
-            // объекты со скруглением, слипшийся ряд из них читается как
-            // сломанная таблица.
-            LazyVStack(spacing: TFSpacing.sm) {
+            // Интервал 0, а строки разделены тонкими линиями (владелец 11.10.2026:
+            // «проекты отображать плоско, между ними просто разделительные
+            // линии»). Раньше здесь был шаг 8pt, потому что карточки со
+            // скруглением слипались в сломанную таблицу; у плоской строки
+            // скругления нет, и промежуток без разделителя просто пустой.
+            LazyVStack(spacing: 0) {
                 if showCreate {
                     ProjectCreateForm(onCreated: { showCreate = false }, onCancel: { showCreate = false })
                 }
@@ -64,9 +66,17 @@ struct ProjectsScreen: View {
                     // Пропали» повторяли ровно те же четыре числа, что стоят
                     // в строке статусов каждой карточки проекта ниже.
                     noProjectRow
+                    if !visibleProjects.isEmpty {
+                        TFDivider().padding(.top, TFSpacing.md)
+                    }
                 }
 
-                ForEach(visibleProjects) { project in
+                ForEach(Array(visibleProjects.enumerated()), id: \.element.id) { index, project in
+                    // Линия между строками проектов, но не перед первой и не
+                    // в режиме выбора — там строки окрашены как карточки выбора.
+                    if index > 0 && !isSelecting {
+                        TFDivider()
+                    }
                     if editingID == project.id {
                         ProjectEditForm(project: project, apiClient: apiClient, onSaved: {
                             editingID = nil
@@ -78,7 +88,11 @@ struct ProjectsScreen: View {
                         DirectorySwipeRow(
                             onEdit: { editingID = project.id },
                             onDelete: { requestDelete(project) },
-                            cornerRadius: TFRadius.xl
+                            // Плоская строка, а не карточка: скругление прежнего
+                            // `TFRadius.xl` выдавало рядом с линией-разделителем
+                            // фоновый прямоугольник со скруглёнными углами, и
+                            // при свайпе разрыв был виден.
+                            cornerRadius: TFRadius.md
                         ) {
                             projectRow(project)
                         }
@@ -103,7 +117,7 @@ struct ProjectsScreen: View {
                 TFErrorBanner(projectStore.errorMessage, variant: .inline)
                 TFErrorBanner(errorMessage, variant: .block)
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.horizontal, TFSpacing.xs)
             .padding(.top, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl)
         }
