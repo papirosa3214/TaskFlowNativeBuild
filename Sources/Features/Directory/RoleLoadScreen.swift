@@ -77,7 +77,7 @@ struct RoleLoadScreen: View {
     private func chart(_ data: RoleLoad) -> some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(spacing: 0) {
-                Text("Роль").font(.caption).frame(width: 48, height: 32)
+                Text("Роль").font(.caption).frame(width: 36, height: 32)
                 ForEach(data.rows) { row in
                     VStack(spacing: 2) {
                         Text(row.title).font(.subheadline).lineLimit(1)
@@ -87,7 +87,7 @@ struct RoleLoadScreen: View {
                     }
                     .frame(width: height(row) - 8)
                     .rotationEffect(.degrees(-90))
-                    .frame(width: 48, height: height(row))
+                    .frame(width: 36, height: height(row))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(row.title)
                     .accessibilityValue(row.active.isEmpty ? "Свободна" : "Занята сейчас")
