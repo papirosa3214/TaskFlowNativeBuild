@@ -4,10 +4,19 @@ final class VoiceRecordingWaveformTests: XCTestCase {
     func testAudioSamplePreservesSyllableRange() throws {
         let url = try XCTUnwrap(VoiceRecordingWaveformPreview.speechURL)
         let samples = try VoiceRecordingWaveformPreview.speechSamples(from: url)
-        XCTAssertGreaterThan(samples.count, 36)
+        XCTAssertGreaterThan(samples.count, 15)
         XCTAssertGreaterThan((samples.max() ?? 0) - (samples.min() ?? 1), 0.3)
         XCTAssertGreaterThan(Set(samples.map { Int($0 * 10) }).count, 5)
         print("Speech sample: count=\(samples.count), min=\(samples.min() ?? 0), max=\(samples.max() ?? 0)")
+    }
+    func testEachBarHasItsOwnLevelWithoutReleaseTail() {
+        let loud = VoiceWaveform.recordingBarLevel(averageDecibels: -12, peakDecibels: -6)
+        let quiet = VoiceWaveform.recordingBarLevel(averageDecibels: -45, peakDecibels: -35)
+        let normal = VoiceWaveform.recordingBarLevel(averageDecibels: -30, peakDecibels: -20)
+        XCTAssertGreaterThan(loud, normal)
+        XCTAssertGreaterThan(normal, quiet)
+        XCTAssertGreaterThan(quiet, 0.15)
+        XCTAssertEqual(VoiceWaveform.recordingBarLevel(averageDecibels: -80, peakDecibels: -70), 0)
     }
     func testSilenceStaysFlatAndSpeechRetainsAmplitude() {
         XCTAssertEqual(VoiceRecordingWaveformView.height(level: 0, maximum: 28), 3)

@@ -308,7 +308,7 @@ struct ChatVoiceComposer: View {
                 Text(recordingDuration).font(.body.monospacedDigit().weight(.medium)).foregroundStyle(.white)
             }
             VoiceRecordingWaveformView(levels: voice.recorderWaveform, elapsed: recordingElapsed,
-                                       color: .gray, peakColor: .white, maxHeight: 30)
+                                       color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 30)
                 .frame(width: 180, height: 36)
             HStack {
                 Spacer()

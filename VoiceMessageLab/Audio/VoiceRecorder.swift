@@ -97,6 +97,9 @@ final class VoiceRecorder: VoiceRecording {
     private func startMetering() {
         meterTask?.cancel()
         meterTask = Task { @MainActor in
+            var power = 0.0
+            var peak: Float = -160
+            var readings = 0
             while !Task.isCancelled, let recorder {
                 recorder.updateMeters()
                 // Визуализация следует микрофону сразу; тишина не стирает историю.
@@ -105,8 +108,19 @@ final class VoiceRecorder: VoiceRecording {
                     averageDecibels: recorder.averagePower(forChannel: 0),
                     peakDecibels: recorder.peakPower(forChannel: 0)
                 )
-                waveform.append(smoothedLevel)
-                if waveform.count > 120 { waveform.removeFirst(waveform.count - 120) }
+                power += pow(10, Double(recorder.averagePower(forChannel: 0)) / 10)
+                peak = max(peak, recorder.peakPower(forChannel: 0))
+                readings += 1
+                if readings == 4 {
+                    waveform.append(VoiceWaveform.recordingBarLevel(
+                        averageDecibels: Float(10 * log10(max(power / 4, 1e-16))),
+                        peakDecibels: peak
+                    ))
+                    if waveform.count > 120 { waveform.removeFirst(waveform.count - 120) }
+                    power = 0
+                    peak = -160
+                    readings = 0
+                }
                 state = .recording(elapsed: recorder.currentTime, level: smoothedLevel)
                 try? await Task.sleep(for: .milliseconds(40))
             }

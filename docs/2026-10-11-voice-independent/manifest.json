@@ -1,0 +1,41 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "EDEF00CE-31A7-426B-8CD3-BD05BA9CD8B9.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "02-completed-in-place_0_33B6828E-3F9F-4B86-9414-7C55D0EF4502.png",
+        "timestamp" : 1791700351.216
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "72DDF339-405F-4A0E-8A46-BEFA0ADE2234.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01-live-order_0_89C9C887-2736-42F4-8899-D255D3D01437.png",
+        "timestamp" : 1791700348.548
+      }
+    ],
+    "testIdentifier" : "RoleChatStableFeedUITests/testTwoRoleOrderSurvivesCompletion()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleChatStableFeedUITests/testTwoRoleOrderSurvivesCompletion"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "B84CD75A-8A7A-4BDB-9BD8-755F334871B2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Два режима — аудиообразец речи_0_D7A36FBF-B164-4D34-B699-F231909F7423.png",
+        "timestamp" : 1791700359.088
+      }
+    ],
+    "testIdentifier" : "VoiceRecordingWaveformUITests/testBothRecordingWaveforms()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/VoiceRecordingWaveformUITests/testBothRecordingWaveforms"
+  }
+]

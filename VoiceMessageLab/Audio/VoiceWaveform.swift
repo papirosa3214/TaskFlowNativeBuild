@@ -49,8 +49,8 @@ enum VoiceWaveform {
         return min(1, normalize(averageDecibels) * 0.65 + normalize(peakDecibels) * 0.35)
     }
 
-    /// Уровень для истории речи. Амплитуда сохраняет разницу между слогами,
-    /// не поднимает каждый тихий звук к середине и не нормирует окно по максимуму.
+    /// Уровень для живой волны записи: без ожидания нескольких отсчётов.
+    /// Тихие слоги остаются видимыми, пауза плавно затухает примерно за 0,7 с.
     static func recordingLevel(previous: Double, averageDecibels: Float, peakDecibels: Float) -> Double {
         func normalize(_ decibels: Float) -> Double {
             guard decibels.isFinite else { return 0 }
@@ -64,6 +64,15 @@ enum VoiceWaveform {
         // Быстрый отклик, спад ~0.1 с: история сохраняет слоги и паузы.
         let response = input > previous ? 0.85 : 0.65
         return min(1, max(0, previous + (input - previous) * response))
+    }
+
+    /// Один независимый столбик: общая шкала, без значения соседнего столбика.
+    static func recordingBarLevel(averageDecibels: Float, peakDecibels: Float) -> Double {
+        func normalized(_ db: Float) -> Double {
+            guard db.isFinite else { return 0 }
+            return min(1, max(0, Double(db + 55) / 49))
+        }
+        return normalized(averageDecibels) * 0.75 + normalized(peakDecibels) * 0.25
     }
 
     static func displaySamples(from samples: [Double], slots: Int) -> [Double] {

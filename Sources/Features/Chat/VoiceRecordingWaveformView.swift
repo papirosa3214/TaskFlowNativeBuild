@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 /// Огибающая измерений AVAudioRecorder: столбик соответствует моменту речи.
-/// Значения уже сглажены VoiceWaveform.recordingLevel, здесь нет генератора волн.
+/// Высота каждого столбика неизменна; анимируется только движение истории.
 struct VoiceRecordingWaveformView: View {
     let levels: [Double]
     let elapsed: TimeInterval
@@ -25,12 +25,12 @@ struct VoiceRecordingWaveformView: View {
                 let count = max(1, Int(ceil(size.width / pitch)) + 1)
                 let samples = Array(levels.suffix(count))
                 // За один период измерения плавно сдвигаем историю на столбик.
-                let phase = reduceMotion ? 1 : min(1, max(0, timeline.date.timeIntervalSince(sampledAt) / 0.04))
+                let phase = reduceMotion ? 1 : min(1, max(0, timeline.date.timeIntervalSince(sampledAt) / 0.16))
                 for index in 0..<count {
-                    let sampleIndex = index - (count - samples.count)
-                    let level = sampleIndex >= 0 ? samples[sampleIndex] : 0
+                    let sampleIndex = levels.count < count ? index : index - (count - samples.count)
+                    let level = sampleIndex >= 0 && sampleIndex < samples.count ? samples[sampleIndex] : 0
                     let h = Self.height(level: level, maximum: Double(maxHeight))
-                    let x = size.width - CGFloat(count - 1 - index) * pitch - barWidth + pitch * CGFloat(1 - phase)
+                    let x = levels.count < count ? CGFloat(index) * pitch : size.width - CGFloat(count - 1 - index) * pitch - barWidth + pitch * CGFloat(1 - phase)
                     let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
                     let tint = color.mix(with: peakColor, by: min(1, max(0, level)))
                     context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(tint))
@@ -39,7 +39,7 @@ struct VoiceRecordingWaveformView: View {
         }
         .frame(height: maxHeight)
         .clipped()
-        .onChange(of: elapsed) { _, _ in sampledAt = .now }
+        .onChange(of: Int(elapsed / 0.16)) { _, _ in sampledAt = .now }
         .accessibilityLabel("Звуковая волна записи")
         .accessibilityIdentifier("chat.voice.recording-wave")
     }
@@ -58,9 +58,8 @@ struct VoiceRecordingWaveformPreview: View {
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(file.length))!
         try file.read(into: buffer)
         guard let channel = buffer.floatChannelData?[0] else { return [] }
-        let window = max(1, Int(format.sampleRate * 0.04))
+        let window = max(1, Int(format.sampleRate * 0.16))
         var result: [Double] = []
-        var smoothed = 0.0
         for start in stride(from: 0, to: Int(buffer.frameLength), by: window) {
             let end = min(Int(buffer.frameLength), start + window)
             var sum = 0.0
@@ -73,8 +72,7 @@ struct VoiceRecordingWaveformPreview: View {
             let rms = sqrt(sum / Double(end - start))
             let averageDB = Float(20 * log10(max(rms, 1e-8)))
             let peakDB = Float(20 * log10(max(peak, 1e-8)))
-            smoothed = VoiceWaveform.recordingLevel(previous: smoothed, averageDecibels: averageDB, peakDecibels: peakDB)
-            result.append(smoothed)
+            result.append(VoiceWaveform.recordingBarLevel(averageDecibels: averageDB, peakDecibels: peakDB))
         }
         return result
     }
@@ -92,7 +90,7 @@ struct VoiceRecordingWaveformPreview: View {
                 color: .red.mix(with: .black, by: 0.55), peakColor: .red)
             Text("Расшифровка в текст")
             VoiceRecordingWaveformView(levels: samples, elapsed: elapsed,
-                color: .gray, peakColor: .white, maxHeight: 30)
+                color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 30)
                 .frame(width: 180)
         }
         .padding(24)
@@ -105,8 +103,8 @@ struct VoiceRecordingWaveformPreview: View {
                 guard !Task.isCancelled else { return }
                 samples.append(value)
                 if samples.count > 120 { samples.removeFirst() }
-                elapsed += 0.04
-                do { try await Task.sleep(for: .milliseconds(40)) } catch { return }
+                elapsed += 0.16
+                do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
             }
             finished = true
         }
