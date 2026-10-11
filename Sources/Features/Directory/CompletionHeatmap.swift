@@ -65,7 +65,7 @@ struct CompletionHeatmap: View {
                     let future = day.date > Calendar.current.startOfDay(for: .now)
                     Button { selected = day.date } label: {
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(future ? Color.tfStroke.opacity(0.4) : shade(day.count))
+                            .fill(shade(day.count))
                             .aspectRatio(1, contentMode: .fit)
                     }
                     .buttonStyle(.plain).disabled(future)
@@ -79,9 +79,7 @@ struct CompletionHeatmap: View {
                     RoundedRectangle(cornerRadius: 2).fill(shade(value)).frame(width: 10, height: 10)
                 }
                 Text("Больше")
-                Spacer(minLength: 8)
-                Text("Нет данных")
-                RoundedRectangle(cornerRadius: 2).fill(Color.tfStroke.opacity(0.4)).frame(width: 10, height: 10)
+                Spacer(minLength: 0)
             }.font(.caption2).foregroundStyle(Color.tfSub)
             if archiveError {
                 Button("История недоступна · Повторить") { Task { await loadArchive() } }.font(.caption)

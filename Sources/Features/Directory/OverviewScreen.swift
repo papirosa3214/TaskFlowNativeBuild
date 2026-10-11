@@ -8,26 +8,17 @@ import SwiftUI
 // счётчики читаются из уже прогретого `TaskStore.tasks`, пока кэш пуст —
 // молча показывают 0.
 struct OverviewScreen: View {
-    @Environment(TaskStore.self) private var taskStore
-
     @State private var summaryOpen = false
     var body: some View {
-        ScrollView {
-            // Тот же вертикальный ритм, что у секций «Настроек»: сводки
-            // отделены друг от друга, а связанные переходы собраны в одну
-            // карточку-список.
-            VStack(spacing: TFSpacing.xl) {
-                CompletionHeatmap()
-                navigationSection
-            }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.top, TFSpacing.lg)
-            .padding(.bottom, TFSpacing.xl)
+        VStack(spacing: TFSpacing.xl) {
+            CompletionHeatmap()
+            navigationSection
         }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+        .padding(.top, TFSpacing.lg)
+        .padding(.bottom, TFSpacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .sheet(isPresented: $summaryOpen) { WeeklySummarySheet() }
-        .refreshable {
-            await taskStore.load(silent: true)
-        }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Кнопка поиска переехала из
         // самодельного TFScreenHeader в `.toolbar { .topBarTrailing }` —

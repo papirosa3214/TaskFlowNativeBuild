@@ -567,3 +567,5 @@
 | LOCK-DURABLE-REVIEW-IOS-20261011 | REVIEW | DURABLE-REVIEW-IOS | Heatmap from durable server facts, independent of existing tasks | AGENT-WORK-SCOPES.md, Sources/Features/Directory/CompletionHeatmap.swift, docs/2026-10-11-durable-review-ios.md | Owner urgent request | Codex | Build and phone review without new UI tests |
 
 | LOCK-IPHONE-WIFI-DIAG-20261011 | REVIEW | IPHONE-WIFI-DIAG | Diagnose CoreDevice wireless installation failures | AGENT-WORK-SCOPES.md, docs/2026-10-11-iphone-wifi.md | Owner request | Codex | CoreDevice logs and wired/wireless comparison |
+
+| LOCK-OVERVIEW-STATIC-20261011 | REVIEW | OVERVIEW-STATIC | Убрать Нет данных и оттягивание Обзора | AGENT-WORK-SCOPES.md, Sources/Features/Directory/OverviewScreen.swift, Sources/Features/Directory/CompletionHeatmap.swift, docs/2026-10-11-overview-static.md | Прямое поручение владельца | Codex | Сборка и установка, без новых тестов по указанию владельца |
