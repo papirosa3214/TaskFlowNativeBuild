@@ -9,15 +9,36 @@ import SwiftUI
 // молча показывают 0.
 struct OverviewScreen: View {
     @State private var summaryOpen = false
+    @State private var depth: CGFloat = 0
+    @State private var dragOrigin: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(spacing: TFSpacing.xl) {
-            CompletionHeatmap()
+            CompletionHeatmap(depth: reduceMotion ? 0 : depth)
             navigationSection
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
         .padding(.top, TFSpacing.lg)
         .padding(.bottom, TFSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .clipped()
+        .contentShape(Rectangle())
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 12)
+                .onChanged { value in
+                    guard abs(value.translation.height) > abs(value.translation.width) else { return }
+                    if dragOrigin == nil { dragOrigin = depth }
+                    depth = min(1, max(0, (dragOrigin ?? depth) + value.translation.height / 130))
+                }
+                .onEnded { value in
+                    guard dragOrigin != nil else { return }
+                    let projected = (dragOrigin ?? depth) + value.predictedEndTranslation.height / 130
+                    dragOrigin = nil
+                    withAnimation(.spring(duration: 0.26, bounce: 0)) {
+                        depth = projected >= 0.5 ? 1 : 0
+                    }
+                }
+        )
         .sheet(isPresented: $summaryOpen) { WeeklySummarySheet() }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Кнопка поиска переехала из

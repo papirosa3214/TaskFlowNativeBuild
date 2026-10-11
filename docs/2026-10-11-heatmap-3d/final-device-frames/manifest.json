@@ -1,0 +1,41 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "8BD06A05-617F-4379-9079-BB13E0040050.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "overview-flat_0_9823FA1C-1F85-4726-B4DB-EE8E428444F3.png",
+        "timestamp" : 1791735249.287
+      }
+    ],
+    "testIdentifier" : "Heatmap3DUITests/testOverviewGesturePerformance()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/Heatmap3DUITests/testOverviewGesturePerformance"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "AF1B9F50-76DE-403F-9BEF-E2CAD6587F61.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "overview-returned-flat_0_6F894422-C7E3-46EA-AD4E-53C2DDBF1861.png",
+        "timestamp" : 1791735259.367
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "4FE35643-2E1A-4D55-B179-84A43F49782E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "overview-3d_0_30E5CA84-9C8C-4461-8468-4366A74DD9EC.png",
+        "timestamp" : 1791735256.446
+      }
+    ],
+    "testIdentifier" : "Heatmap3DUITests/testWholeScreenDragExpandsMapAndReturnsToOriginalLayout()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/Heatmap3DUITests/testWholeScreenDragExpandsMapAndReturnsToOriginalLayout"
+  }
+]
