@@ -150,15 +150,7 @@ public struct TFTabBar: View {
                 // Фиксируем квадрат: без этого рамки плашку растягивает
                 // родитель по ширине и кнопка превращается в вертикальный овал.
                 .frame(width: TFTabBarMetrics.tabPlateSize, height: TFTabBarMetrics.tabPlateSize)
-                .overlay(alignment: .topTrailing) {
-                    if let count = item.badgeCount, count > 0 {
-                        Text("\(count)")
-                            .tfText(.meta)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tfRed)
-                            .offset(x: 12, y: -10)
-                    }
-                }
+
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, TFTabBarMetrics.itemVerticalPadding)

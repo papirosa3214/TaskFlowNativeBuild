@@ -162,52 +162,7 @@ struct RootShellView: View {
             // был бы бесполезен: почти весь список экранов в приложении —
             // как раз запушенные.
 
-            if isCreateMenuOpen {
-                // Подложка ловит тап мимо и закрывает меню БЕЗ затемнения
-                // фона (spec §2.1) — почти нулевая непрозрачность вместо
-                // clear, иначе `onTapGesture` не ловит касания.
-                Color.black.opacity(0.0001)
-                    .ignoresSafeArea()
-                    .onTapGesture { isCreateMenuOpen = false }
-            }
 
-            // Панель прячется на чате (её место занимает панель ввода,
-            // владелец 01.09.2026) И на любом пуше текущей вкладки — см.
-            // `shouldHideTabBar`. Раньше пряталась через `.opacity(0)` —
-            // владелец 03.09.2026, увидев результат: «подложку-то ты
-            // оставил какую-то, надо убрать вообще все слои, внизу ставить
-            // только фон» — `.opacity` не убирает саму панель из дерева, её
-            // фон-подложка (градиент под safe area, см. `TFTabBar.swift`)
-            // технически всё ещё рендерится, просто прозрачной. Настоящее
-            // «пусто внизу» — панель вообще не строится, когда скрыта.
-            if !shouldHideTabBar {
-                VStack(spacing: 0) {
-                    if isCreateMenuOpen {
-                        TFCreateMenu(items: createMenuItems)
-                            .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar)
-                            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
-                    }
-                    TFTabBar(
-                        items: tabItems,
-                        selectedIndex: selectedIndexBinding,
-                        isCreateMenuOpen: isCreateMenuOpen,
-                        onSelect: { index in
-                            guard let tab = Tab(rawValue: index) else { return }
-                            // Повторный тап по УЖЕ активной вкладке возвращает в её
-                            // корень — как в родных приложениях. Без этого из
-                            // «Проектов» нельзя было вернуться в «Обзор» тапом по
-                            // самой вкладке: она уже выбрана, ничего не менялось.
-                            if tab == selectedTab {
-                                paths[tab] = NavigationPath()
-                            } else {
-                                selectedTab = tab
-                            }
-                        },
-                        onCreateTap: { isCreateMenuOpen.toggle() }
-                    )
-                }
-                .transition(.opacity)
-            }
         }
         .environment(\.chatBackAction, {
             isCreateMenuOpen = false
@@ -368,24 +323,51 @@ struct RootShellView: View {
         return taskStore.tasks.count { $0.status == .active && $0.isDueToday }
     }
 
-    /// Свой (не системный) `TFTabBar` не умеет родное `hidesBottomBarWhenPushed`
-    /// сам по себе — он отдельный узел `ZStack`, поверх ЛЮБОГО экрана текущей
-    /// вкладки, включая запушенные. Раньше это было незаметно (пуши без
-    /// клавиатуры), но на экране с клавиатурой (редактор заметки) стало
-    /// видно прямо: чужой нижний бар «едет» вместе с клавиатурой — владелец
-    /// 03.09.2026: «поднимается меню... оно не типовое, какая-то странная
-    /// отсебятина». Прячем панель, как только на вкладке есть хоть один
-    /// пуш — то же правило, что раньше было только у чата.
-    private var shouldHideTabBar: Bool {
-        // Панель вкладок прячем только когда внутри вкладки есть пуш (открыт
-        // конкретный чат). На КОРНЕ вкладки «Чат» (список чатов) панель нужна
-        // — иначе с неё некуда вернуться (владелец 21.09.2026).
-        !(paths[selectedTab]?.isEmpty ?? true)
+    /// Root-owned controls participate in UIKit's interactive navigation transition.
+    /// Pushed destinations cover them instead of recreating them after the pop.
+    private var rootTabControls: some View {
+        ZStack(alignment: .bottom) {
+            if isCreateMenuOpen {
+                // Подложка ловит тап мимо и закрывает меню БЕЗ затемнения
+                // фона (spec §2.1) — почти нулевая непрозрачность вместо
+                // clear, иначе `onTapGesture` не ловит касания.
+                Color.black.opacity(0.0001)
+                    .ignoresSafeArea()
+                    .onTapGesture { isCreateMenuOpen = false }
+            }
+
+                VStack(spacing: 0) {
+                    if isCreateMenuOpen {
+                        TFCreateMenu(items: createMenuItems)
+                            .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar)
+                            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+                    }
+                    TFTabBar(
+                        items: tabItems,
+                        selectedIndex: selectedIndexBinding,
+                        isCreateMenuOpen: isCreateMenuOpen,
+                        onSelect: { index in
+                            guard let tab = Tab(rawValue: index) else { return }
+                            // Повторный тап по УЖЕ активной вкладке возвращает в её
+                            // корень — как в родных приложениях. Без этого из
+                            // «Проектов» нельзя было вернуться в «Обзор» тапом по
+                            // самой вкладке: она уже выбрана, ничего не менялось.
+                            if tab == selectedTab {
+                                paths[tab] = NavigationPath()
+                            } else {
+                                selectedTab = tab
+                            }
+                        },
+                        onCreateTap: { isCreateMenuOpen.toggle() }
+                    )
+                }
+        }
     }
 
     private func navigationStack(for tab: Tab) -> some View {
         NavigationStack(path: pathBinding(for: tab)) {
             routeDestination(tab.route, reservesTabBarSpace: true)
+                .overlay(alignment: .bottom) { rootTabControls }
                 .navigationDestination(for: AppRoute.self) { routeDestination($0, reservesTabBarSpace: false) }
         }
     }
