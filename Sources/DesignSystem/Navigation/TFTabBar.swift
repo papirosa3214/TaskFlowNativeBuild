@@ -187,7 +187,7 @@ public struct TFTabBar: View {
                     .frame(width: TFTabBarMetrics.createButtonSize, height: TFTabBarMetrics.createButtonSize)
                 Image(systemName: "plus")
                     .font(.system(size: TFTabBarMetrics.iconSize, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tfBackground)
                     .rotationEffect(.degrees(isCreateMenuOpen ? 45 : 0))
             }
             .frame(maxWidth: .infinity)
