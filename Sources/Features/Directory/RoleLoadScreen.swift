@@ -46,8 +46,10 @@ struct RoleLoadScreen: View {
         .tfNativeHeader("Загрузка ролей", displayMode: .inline)
         .sheet(item: $selectedTask) { ref in
             NavigationStack { TaskFormScreen(taskID: ref.id) }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color.tfSheetBackground)
         }
-        .refreshable { await load() }
         .task(id: "\(window):\(scenePhase):\(realtime.connectionRevision):\(realtime.rolesRevision):\(realtime.jobsRevision)") {
             guard scenePhase == .active else { return }
             await load()

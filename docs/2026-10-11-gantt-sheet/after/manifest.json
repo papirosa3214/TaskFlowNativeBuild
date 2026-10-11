@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "8AC3BE15-E830-407B-BCDA-822C6AAEF8F4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "gantt-task-sheet_0_0C49305E-CA49-4239-AA59-728C106E5D6F.png",
+        "timestamp" : 1791704085.911
+      }
+    ],
+    "testIdentifier" : "GanttTaskSheetUITests/testTaskSheet()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/GanttTaskSheetUITests/testTaskSheet"
+  }
+]
