@@ -32,14 +32,15 @@ struct CompletionHeatmap: View {
         return CompletionCalendar.days(dates: dates)
     }
     private func shade(_ count: Int) -> Color {
-        if count == 0 { return Color.tfStroke }
         switch count {
-        case 1: return Color.tfRed.mix(with: .black, by: 0.65)
-        case 2...3: return Color.tfRed.mix(with: .black, by: 0.3)
+        case 0: return Color(white: 0.9)
+        case 1: return Color.tfRed.mix(with: .white, by: 0.8)
+        case 2...3: return Color.tfRed.mix(with: .white, by: 0.4)
         case 4...6: return Color.tfRed
-        default: return Color.tfRed.mix(with: .white, by: 0.4)
+        default: return Color.tfRed.mix(with: .black, by: 0.45)
         }
     }
+
     var body: some View {
         let values = days
         VStack(alignment: .leading, spacing: 10) {
