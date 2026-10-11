@@ -552,3 +552,9 @@
 | LOCK-HEATMAP-FLAT-RED-20261011 | REVIEW | HEATMAP-FLAT-RED | Квадратная красная карта без плашки, месяцы и легенда | AGENT-WORK-SCOPES.md, Sources/Features/Directory/CompletionHeatmap.swift, Tests/OverviewActivityTests.swift, UITests/HeatmapStyleUITests.swift, docs/2026-10-11-heatmap-flat-red.md, docs/2026-10-11-heatmap-flat-red/ | Образец владельца | Codex | Квадратная геометрия и кадр XCUITest |
 
 | LOCK-HEATMAP-PALETTE-20261011 | REVIEW | HEATMAP-PALETTE | Красная градация до бледного максимума | AGENT-WORK-SCOPES.md, Sources/Features/Directory/CompletionHeatmap.swift, UITests/HeatmapStyleUITests.swift, docs/2026-10-11-heatmap-palette.md, docs/2026-10-11-heatmap-palette/ | Образец владельца | Codex | Кадр XCUITest |
+
+| LOCK-PROJECTS-COMPACT-20261011 | REVIEW | PROJECTS-COMPACT | Плоские строки и честные счётчики статусов | AGENT-WORK-SCOPES.md, Sources/Features/Directory/ProjectsScreen.swift, Sources/Features/Directory/AgentStatusGrid.swift, Sources/Features/Directory/Support/ProjectCard.swift, Tests/ProjectSummaryTests.swift, UITests/ProjectsCompactUITests.swift, docs/2026-10-11-projects-compact.md, docs/2026-10-11-projects-compact/ | Прямое поручение владельца | Codex | Сверка API, тесты классификации и кадр |
+
+| LOCK-GANTT-SHEET-20261011 | REVIEW | GANTT-SHEET | Карточка без refreshable, стандартные детенты | AGENT-WORK-SCOPES.md, Sources/Features/Directory/RoleLoadScreen.swift, UITests/GanttTaskSheetUITests.swift, docs/2026-10-11-gantt-sheet.md, docs/2026-10-11-gantt-sheet/ | Прямое поручение владельца | Codex | Открытие и сворачивание XCUITest |
+
+| LOCK-TAB-PLUS-COLOR-20261011 | REVIEW | TAB-PLUS-COLOR | Plus uses background color | AGENT-WORK-SCOPES.md, Sources/DesignSystem/Navigation/TFTabBar.swift, docs/2026-10-11-tab-plus-color.md | Owner request | Codex | Build and existing Gantt UI screenshot |

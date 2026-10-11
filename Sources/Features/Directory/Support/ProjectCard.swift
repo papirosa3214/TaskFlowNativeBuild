@@ -38,9 +38,7 @@ struct ProjectCard: View {
         TFCard {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 header
-                if total > 0 {
-                    progress
-                }
+                progress.accessibilityIdentifier("projects.progress.\(project.id)")
                 statusLine
                 if hasMetadata {
                     metrics
@@ -109,14 +107,24 @@ struct ProjectCard: View {
     /// цветом. Порядок постоянный, поэтому карточки легко сравнивать глазами;
     /// полные названия остаются доступны VoiceOver.
     private var statusLine: some View {
-        HStack(spacing: TFSpacing.lg) {
+        HStack(spacing: 10) {
             statusMetric("tray.full", value: status.total, color: .tfText, label: "Всего задач")
             statusMetric("checkmark.circle.fill", value: status.completed, color: .tfGreen, label: "Выполнено")
-            statusMetric("eye.fill", value: status.review, color: .tfBlue, label: "На ревью")
-            statusMetric("exclamationmark.triangle.fill", value: status.blocked, color: .tfOrange, label: "Заблокировано")
-            statusMetric("play.circle.fill", value: status.inWork, color: .tfDim, label: "В работе")
+            stateMetric(.review, value: status.review, label: "На проверке")
+            stateMetric(.blocked, value: status.blocked, label: "Заблокировано")
+            statusMetric("clock", value: status.pending, color: .tfDim, label: "Ещё не начаты")
+            stateMetric(.running, value: status.inWork, label: "В работе")
+            stateMetric(.stale, value: status.stale, label: "Пропали")
             Spacer(minLength: 0)
         }
+    }
+
+    private func stateMetric(_ kind: ProjectStatusIcon.Kind, value: Int, label: String) -> some View {
+        HStack(spacing: 4) {
+            ProjectStatusIcon(kind: kind)
+            Text("\(value)").monospacedDigit().foregroundStyle(Color.tfText)
+        }.font(.caption).accessibilityElement(children: .ignore)
+            .accessibilityLabel(label).accessibilityValue("\(value)")
     }
 
     private func statusMetric(_ icon: String, value: Int, color: Color, label: String) -> some View {
@@ -207,22 +215,18 @@ struct ProjectTaskStatusSummary {
     let review: Int
     let blocked: Int
     let inWork: Int
+    let pending: Int
+    let stale: Int
 
     init(project: ApiProject, tasks: [ApiTask]) {
         let scoped = tasks.filter { $0.projectId == project.id }
-        let activeParentIDs = Set(tasks.lazy.filter { $0.status == .active }.compactMap(\.parentId))
-        let completedWithOpenWork = scoped.count { task in
-            guard task.status == .completed else { return false }
-            return task.subtasks.contains { !$0.done } || activeParentIDs.contains(task.id)
-        }
-        let active = (project.taskCount ?? scoped.count { $0.status == .active }) + completedWithOpenWork
-        completed = max(
-            0,
-            (project.completedCount ?? scoped.count { $0.status == .completed }) - completedWithOpenWork
-        )
+        let active = project.taskCount ?? scoped.count { $0.status == .active }
+        completed = project.completedCount ?? scoped.count { $0.status == .completed }
         review = scoped.count { $0.status == .active && $0.agentState == .review }
         blocked = scoped.count { $0.status == .active && $0.agentState == .blocked }
-        inWork = max(0, active - review - blocked)
+        stale = scoped.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale == true }
+        inWork = scoped.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale != true }
+        pending = max(0, active - review - blocked - inWork - stale)
         total = active + completed
     }
 }

@@ -111,12 +111,14 @@ struct ProjectsScreen: View {
         // Штатная SwiftUI-шапка. Системная стрелка назад добавляется стеком
         // навигации; пару кнопок группирует сам toolbar iOS.
         .tfNativeHeader("Проекты", displayMode: .inline)
-        .searchable(
-            text: $searchText,
-            isPresented: $searchPresented,
-            placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: "Поиск проектов"
-        )
+        .sheet(isPresented: $searchPresented) {
+            NavigationStack {
+                Form { TextField("Поиск проектов", text: $searchText).accessibilityIdentifier("projects.search.field") }
+                    .navigationTitle("Поиск проектов")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { searchPresented = false } } }
+            }.presentationDetents([.medium])
+        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 projectActionsMenu
@@ -134,6 +136,7 @@ struct ProjectsScreen: View {
 
     private var projectActionsMenu: some View {
         Menu {
+            Button { searchPresented = true } label: { Label("Поиск проектов", systemImage: "magnifyingglass") }
             if isSelecting {
                 Button(role: .destructive) {
                     requestDeleteSelected()
@@ -247,28 +250,13 @@ struct ProjectsScreen: View {
 
     private func sectionTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color) -> some View {
         NavigationLink(value: route) {
-            TFCard(padding: TFSpacing.md) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .tfText(.caption)
-                            .foregroundStyle(Color.tfSub)
-                            .lineLimit(1)
-                        Text("\(count)")
-                            .tfText(.taskTitle)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tfText)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: icon)
-                        .font(.title)
-                        .foregroundStyle(count > 0 ? tint : Color.tfDim)
-                        .accessibilityHidden(true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            HStack(spacing: 8) {
+                Image(systemName: icon).foregroundStyle(tint)
+                Text(title).lineLimit(1)
+                Text("\(count)").monospacedDigit().foregroundStyle(Color.tfSub)
+            }.font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
         }
-        .buttonStyle(TFTapScaleStyle())
+        .buttonStyle(.plain)
         .accessibilityLabel("\(title): \(count)")
     }
 

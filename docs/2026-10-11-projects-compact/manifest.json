@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "ED37955C-F8C8-4A25-AE8C-AA40E63548F4.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "projects-compact_0_4851550D-511E-4F5B-BD66-200C3AF401FA.png",
+        "timestamp" : 1791703844.925
+      }
+    ],
+    "testIdentifier" : "ProjectsCompactUITests/testCompactProjectRowsAndSearchMenu()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ProjectsCompactUITests/testCompactProjectRowsAndSearchMenu"
+  }
+]
