@@ -1,0 +1,50 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "2EB2CC02-280E-4CC4-B90A-DAC7EE54C261.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01-missing-task-dead-end_0_5220F24A-5FA6-4D1A-844C-DEBE02BF54E3.png",
+        "timestamp" : 1791727055.932
+      }
+    ],
+    "testIdentifier" : "TicketDeadLinkTempUITests/testDeadEndOnMissingTask()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TicketDeadLinkTempUITests/testDeadEndOnMissingTask"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "4179B853-CA62-485C-80A0-29FE7996433F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "04-after-link-tap_0_CC12AF2D-96E3-4454-A39D-B66163CED877.png",
+        "timestamp" : 1791727089.064
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "2698219F-5B8E-488D-811F-C5AD5F24524F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "03-ticket-detail-bottom_0_A5D52687-8E34-4DC7-A7CD-C537B0639E4C.png",
+        "timestamp" : 1791727067.496
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "E8331467-CC66-42B9-BF66-5FB98CADE1FC.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "02-server-notifications-list_0_EB328C47-AF74-41C6-9074-F818A951B957.png",
+        "timestamp" : 1791727065.393
+      }
+    ],
+    "testIdentifier" : "TicketDeadLinkTempUITests/testTicketSheetBottomLink()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TicketDeadLinkTempUITests/testTicketSheetBottomLink"
+  }
+]

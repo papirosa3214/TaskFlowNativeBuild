@@ -15,6 +15,12 @@ struct NotificationTicketDetailSheet: View {
 
     @State private var diagnosticTasks: [String: ApiTask] = [:]
     @State private var diagnosticTaskErrors: [String: String] = [:]
+    /// Карточек, которых сервер не знает (404) — не «не загрузилось», а
+    /// именно нет. Владелец 11.10.2026: ссылка в сводке осталась, а задача
+    /// не создана — тап по такой ведёл на экран, из которого нельзя было
+    /// выйти. Такую ссылку не показываем вовсе, а другие сбои (сеть и пр.)
+    /// оставляем как были, с баннером и рабочей кнопкой.
+    @State private var missingTaskIDs: Set<String> = []
     private let apiClient = APIClient()
 
 
@@ -49,7 +55,13 @@ struct NotificationTicketDetailSheet: View {
         .task(id: diagnosticTaskIDs.joined(separator: ",")) {
             for taskId in diagnosticTaskIDs {
                 do { diagnosticTasks[taskId] = try await apiClient.task(id: taskId) }
-                catch { diagnosticTaskErrors[taskId] = "Не удалось загрузить карточку диагностики" }
+                catch {
+                    if case .notFound = (error as? APIError) {
+                        missingTaskIDs.insert(taskId)
+                    } else {
+                        diagnosticTaskErrors[taskId] = "Не удалось загрузить карточку диагностики"
+                    }
+                }
             }
         }
     }
@@ -121,20 +133,27 @@ struct NotificationTicketDetailSheet: View {
                 }
             } else if let error = diagnosticTaskErrors[taskId] {
                 TFErrorBanner(error, variant: .inline)
-            } else {
+            } else if !missingTaskIDs.contains(taskId) {
                 TFLoading(.inline)
             }
 
-            Button {
-                onOpenTask(taskId)
-            } label: {
-                HStack(spacing: 4) {
-                    Text("Открыть карточку").tfText(.row).foregroundStyle(Color.tfSub)
-                    Spacer()
-                    Image(systemName: "chevron.right").imageScale(.small).foregroundStyle(Color.tfDim)
+            if missingTaskIDs.contains(taskId) {
+                // Ссылка в сводке есть, а задачи нет — говорим об этом прямо,
+                // вместо тапа в пустоту.
+                Text("Карточка не создана")
+                    .tfText(.row).foregroundStyle(Color.tfDim)
+            } else {
+                Button {
+                    onOpenTask(taskId)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Открыть карточку").tfText(.row).foregroundStyle(Color.tfSub)
+                        Spacer()
+                        Image(systemName: "chevron.right").imageScale(.small).foregroundStyle(Color.tfDim)
+                    }
                 }
+                .buttonStyle(TFTapScaleStyle())
             }
-            .buttonStyle(TFTapScaleStyle())
         }
     }
 

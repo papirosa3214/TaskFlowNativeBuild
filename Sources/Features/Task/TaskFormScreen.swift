@@ -492,7 +492,13 @@ struct TaskCardContent: View {
                 taskKeyboardDismissButton
                 taskKeyboardDictationButton
             }
-            if !viewModel.isEditing {
+            // Владелец 11.10.2026: экран «Задача не найдена» (заход по ссылке
+            // из серверной сводки) был тупиком — при `taskID != nil`
+            // `isEditing == true`, кнопки «×» не рисовалось, а системная
+            // «Назад» скрыта `navigationBarBackButtonHidden(true)`. На
+            // несуществующей карточке редактировать нечего, поэтому «×»
+            // показываем и там.
+            if !viewModel.isEditing || viewModel.notFound {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         pendingSaveTask?.cancel()

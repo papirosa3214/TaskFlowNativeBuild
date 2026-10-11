@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "5D2E273A-7566-4B73-AC1C-0B3EF9E91E22.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "07-ticket-bottom-no-dead-link_0_C75224DE-682E-4925-AC6C-3A9894AFD050.png",
+        "timestamp" : 1791727309.724
+      }
+    ],
+    "testIdentifier" : "TicketDeadLinkTempUITests/testTicketSheetBottomLink()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TicketDeadLinkTempUITests/testTicketSheetBottomLink"
+  }
+]

@@ -1,0 +1,41 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "44F7B220-A94C-4D90-B028-37E068CEE013.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "06-after-close-back_0_E5035F79-8466-4129-844E-C713BF66EAE5.png",
+        "timestamp" : 1791727239.379
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "E1BD7F3B-6303-4DEE-972D-0A731B8FF650.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "05-missing-task-has-close_0_FDDAF51C-14F8-4FCA-BCF8-379600534B4B.png",
+        "timestamp" : 1791727236.42
+      }
+    ],
+    "testIdentifier" : "TicketDeadLinkTempUITests/testDeadEndOnMissingTask()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TicketDeadLinkTempUITests/testDeadEndOnMissingTask"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "AD5B7DB5-F294-4E8A-A101-FF8FD6E5CB52.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "07-ticket-bottom-no-dead-link_0_617383B2-FD17-4E44-B289-E03D90C3DD0A.png",
+        "timestamp" : 1791727249.917
+      }
+    ],
+    "testIdentifier" : "TicketDeadLinkTempUITests/testTicketSheetBottomLink()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TicketDeadLinkTempUITests/testTicketSheetBottomLink"
+  }
+]

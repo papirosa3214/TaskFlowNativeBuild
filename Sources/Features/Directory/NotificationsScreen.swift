@@ -35,6 +35,7 @@ struct NotificationsScreen: View {
     @State private var isLoadingServiceTickets = false
     @State private var resolutionSheetItem: ServiceTicketResolutionItem?
     @State private var resolutionSheetTaskId: String?
+    @State private var openTaskError: String?
     private let serviceClient = ServiceNotificationsClient()
 
     private let apiClient = APIClient()
@@ -116,6 +117,7 @@ struct NotificationsScreen: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
                 TFErrorBanner(serviceTicketsError, variant: .inline)
+                TFErrorBanner(openTaskError, variant: .inline)
                 if isLoadingServiceTickets && serviceTickets.isEmpty {
                     ProgressView("Загрузка серверных уведомлений")
                 } else if serviceTickets.isEmpty && serviceTicketsError == nil {
@@ -125,7 +127,7 @@ struct NotificationsScreen: View {
                         NotificationTicketCard(
                             summary: summary,
                             detail: serviceTicketDetails[summary.id],
-                            onOpenTask: { route = .taskDetail(taskID: $0) },
+                            onOpenTask: { taskId in Task { await openTaskFromTicket(taskId) } },
                             onTapResolutionItem: { item in
                                 let fallbackTaskId = serviceTicketDetails[summary.id]?.diagnosticTaskId
                                 guard let taskId = item.taskId ?? fallbackTaskId else { return }
@@ -270,6 +272,20 @@ struct NotificationsScreen: View {
             route = .taskDetail(taskID: taskId)
         } catch {
             rowErrors[n.id] = "Задача удалена или недоступна"
+        }
+    }
+
+    /// Переход по ссылке на задачу из сводки тикета. Та же проверка
+    /// существования, что и в `open(_:)` для обычного уведомления
+    /// (владелец 27.09.2026): не создана — остаёмся на странице и говорим
+    /// об этом баннером, вместо перехода в карточку, которой нет.
+    private func openTaskFromTicket(_ taskId: String) async {
+        openTaskError = nil
+        do {
+            _ = try await apiClient.task(id: taskId)
+            route = .taskDetail(taskID: taskId)
+        } catch {
+            openTaskError = "Задача удалена или не создана"
         }
     }
 
