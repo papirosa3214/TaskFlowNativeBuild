@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "DC1C3A0F-DF7A-41A8-8411-C6708D309859.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "ordered-replies-completed-no-working-timer_0_E1CBE488-186B-49FD-B479-9FF79996718F.png",
+        "timestamp" : 1791730710.087
+      }
+    ],
+    "testIdentifier" : "ChatCorrectnessUITests/testOrderedRepliesFinishWithoutWorkingArtifactsAndScrollPerformance()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ChatCorrectnessUITests/testOrderedRepliesFinishWithoutWorkingArtifactsAndScrollPerformance"
+  }
+]

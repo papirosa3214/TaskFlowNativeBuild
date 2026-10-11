@@ -167,11 +167,12 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// M с» над текстом. `nil` — ход без шагов или сообщение не от роли.
     public let steps: RoleChatSteps?
     public let reactions: [RoleChatReaction]?
+    public var sequence: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case replyToMessageID = "reply_to_message_id"
         case replyToSenderName = "reply_to_sender_name"
-        case id, text, kind, attachments, steps, reactions
+        case id, text, kind, attachments, steps, reactions, sequence
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"
@@ -283,11 +284,14 @@ public struct RoleChatThinking: Decodable, Sendable, Equatable {
 }
 
 enum RoleChatTime {
+    private static let fractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private static let whole = Date.ISO8601FormatStyle()
+
     static func date(_ value: String?) -> Date? {
         guard let value else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        let normalized = value.count == 19 && value.contains(" ")
+            ? value.replacingOccurrences(of: " ", with: "T") + "Z" : value
+        return (try? fractional.parse(normalized)) ?? (try? whole.parse(normalized))
     }
 
     static func seconds(from start: String?, to end: String?) -> Int? {
@@ -315,14 +319,15 @@ struct RoleLiveTextPacer {
     private var revealedActions: Set<Int> = []
     private var actionWait: TimeInterval = 0
     static let actionInterval: TimeInterval = 0.4
-    static let initialBuffer: TimeInterval = 0.8
+    static let initialBuffer: TimeInterval = 0
     private var initialDelay: TimeInterval = Self.initialBuffer
     private var completionRemaining: TimeInterval?
 
-    /// После сдачи ответа плавно дочитываем хвост, не растягивая его на минуты.
+    /// После сдачи показываем остаток сразу: готовый ответ не стоит в очереди.
     mutating func finish() {
         guard completionRemaining == nil else { return }
-        completionRemaining = 2
+        completionRemaining = 0
+        flush()
         initialDelay = 0
         actionWait = 0
     }
@@ -330,12 +335,12 @@ struct RoleLiveTextPacer {
     /// показываем, только если продолжения долго нет.
     private var stall: TimeInterval = 0
 
-    static let minRate: Double = 18 * 1.05
-    static let maxRate: Double = 36 * 1.05
+    static let minRate: Double = 120
+    static let maxRate: Double = 1200
     /// На сколько секунд экран в среднем отстаёт от сервера.
-    static let targetLag: TimeInterval = 4 / 1.05
+    static let targetLag: TimeInterval = 0.15
     /// Сколько ждать продолжения оборванного слова в конце снимка.
-    static let tailWait: TimeInterval = 0.65
+    static let tailWait: TimeInterval = 0.15
 
     mutating func ingest(_ incoming: [RoleChatLiveItem]) {
         // Rich blocks bypass the prose clock, including unfinished blocks whose
@@ -601,9 +606,11 @@ public struct RoleChatLiveTurn: Decodable, Sendable, Equatable {
     /// Роль сейчас думает (28.09.2026): последняя законченная фраза её
     /// размышлений; "" — думает, фразы ещё нет; nil — не думает.
     public let thinking: String?
+    public var triggerMessageID: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case name, items, thinking
+        case triggerMessageID = "trigger_message_id"
         case chatID = "chat_id"
         case userID = "user_id"
         case startedAt = "started_at"
@@ -640,8 +647,57 @@ public enum RoleChatWorkMode: String, CaseIterable, Codable {
 
 extension RoleChatLiveTurn {
     var playbackID: String { userID + ":" + (startedAt ?? "live") }
+    func ending(at date: Date = .now) -> Self {
+        let end = date.ISO8601Format()
+        let finishedItems = items.map { item -> RoleChatLiveItem in
+            switch item {
+            case .text: return item
+            case .thinking(let thought):
+                return .thinking(RoleChatThinking(id: thought.id, text: thought.text, isRunning: false,
+                    startedAt: thought.startedAt, endedAt: thought.endedAt ?? end))
+            case .step(let step):
+                return .step(RoleChatLiveStep(id: step.id, tool: step.tool, detail: step.detail,
+                    status: step.status == .running ? .done : step.status,
+                    startedAt: step.startedAt, endedAt: step.endedAt ?? end))
+            }
+        }
+        return Self(chatID: chatID, userID: userID, name: name, startedAt: startedAt,
+            items: finishedItems, thinking: nil, triggerMessageID: triggerMessageID)
+    }
+
+    func isCompleted(by message: RoleChatMessage) -> Bool {
+        guard message.fromUserID == userID else { return false }
+        if let triggerMessageID { return message.replyToMessageID == triggerMessageID }
+        guard let start = startDate, let end = RoleChatTime.date(message.createdAt) else { return true }
+        // SQLite messages have whole seconds; live events retain milliseconds.
+        return end.addingTimeInterval(1) > start
+    }
+
     func completed(with message: RoleChatMessage) -> Self {
         Self(chatID: chatID, userID: userID, name: name, startedAt: startedAt,
              items: (message.steps?.items ?? []) + (message.text.isEmpty ? [] : [.text(message.text)]), thinking: nil)
+    }
+}
+
+/// SQLite sequence is shared by REST and WebSocket; ties on older servers retain input order.
+enum RoleChatMessageOrder {
+    static func mergingSnapshot(_ snapshot: [RoleChatMessage], current: [RoleChatMessage], receivedAfterRequest: Set<String>) -> [RoleChatMessage] {
+        var byID = Dictionary(snapshot.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        for message in current where receivedAfterRequest.contains(message.id) { byID[message.id] = message }
+        let order = snapshot.map(\.id) + current.filter { message in byID[message.id] != nil && !snapshot.contains(where: { $0.id == message.id }) }.map(\.id)
+        var seen: Set<String> = []
+        return sorted(order.compactMap { id in
+            guard seen.insert(id).inserted else { return nil }
+            return byID[id]
+        })
+    }
+
+    static func sorted(_ messages: [RoleChatMessage]) -> [RoleChatMessage] {
+        messages.enumerated().sorted { lhs, rhs in
+            if let a = lhs.element.sequence, let b = rhs.element.sequence, a != b { return a < b }
+            let a = RoleChatTime.date(lhs.element.createdAt) ?? .distantPast
+            let b = RoleChatTime.date(rhs.element.createdAt) ?? .distantPast
+            return a == b ? lhs.offset < rhs.offset : a < b
+        }.map(\.element)
     }
 }

@@ -5,6 +5,41 @@ import XCTest
 /// Живой ход роли в чате (LOCK-229) — формы как их шлёт сервер
 /// (`server/src/runtime/chatLiveTurn.ts`: `chats:live`, `chat_messages.steps`).
 final class RoleChatLiveTurnTests: XCTestCase {
+    func testEndingSnapshotStopsThinkingAndRunningStepsImmediately() {
+        let turn = RoleChatLiveTurn(chatID: "chat", userID: "role", name: "Role", startedAt: "2026-10-11T14:20:51Z",
+            items: [.text("Ответ"), .thinking(RoleChatThinking(id: "thought", text: "мысль", isRunning: true)),
+                    .step(RoleChatLiveStep(id: "step", tool: "read", detail: nil, status: .running))], thinking: "", triggerMessageID: "question")
+        let ended = turn.ending()
+        XCTAssertNil(ended.thinking)
+        XCTAssertEqual(ended.triggerMessageID, "question")
+        if case .thinking(let thought) = ended.items[1] { XCTAssertFalse(thought.isRunning); XCTAssertNotNil(thought.endedAt) }
+        else { XCTFail("thinking was lost") }
+        if case .step(let step) = ended.items[2] { XCTAssertEqual(step.status, .done); XCTAssertNotNil(step.endedAt) }
+        else { XCTFail("step was lost") }
+    }
+
+    func testSQLiteTimestampMatchesLiveTimestamp() {
+        let stored = RoleChatTime.date("2026-10-11 14:20:50")
+        XCTAssertNotNil(stored)
+        XCTAssertEqual(stored, RoleChatTime.date("2026-10-11T14:20:50.000Z"))
+    }
+
+    func testFirstCompleteWordAppearsWithoutArtificialBuffer() {
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text("Готово ")])
+        for _ in 0..<10 { pacer.advance(elapsed: 0.016) }
+        XCTAssertFalse(pacer.visibleItems.isEmpty)
+    }
+
+    func testFinalAnswerIsAvailableImmediatelyAtCompletion() {
+        var pacer = RoleLiveTextPacer()
+        let text = String(repeating: "готовый ответ ", count: 1000)
+        pacer.ingest([.text(text)])
+        pacer.finish()
+        XCTAssertFalse(pacer.hasPendingText)
+        XCTAssertEqual(pacer.visibleItems, [.text(text)])
+    }
+
     func testCompletedLongReplyDrainsWithinTwoSeconds() {
         var pacer = RoleLiveTextPacer()
         let text = String(repeating: "длинный ответ ", count: 1000)
@@ -103,7 +138,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
             return XCTFail("ожидали начало текста")
         }
         // Слово целиком, без обрывков: «Привет,» или «Привет, как».
-        XCTAssertTrue(["Привет,", "Привет, как"].contains(first), "показано: \(first)")
+        XCTAssertTrue(["Привет,", "Привет, как", "Привет, как дела"].contains(first), "показано: \(first)")
         pacer.ingest([.text("Привет, как дела? Всё хорошо.")])
         XCTAssertEqual(pacer.visibleItems, [.text(first)])
         drain(&pacer)
@@ -115,7 +150,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
         pacer.ingest([.text("Смотрю доск")])
         // Первое слово успевает выйти, а хвост «доск» может дописаться — ждём.
         pacer.advance(elapsed: RoleLiveTextPacer.initialBuffer)
-        for _ in 0..<22 { pacer.advance(elapsed: 0.016) }
+        for _ in 0..<5 { pacer.advance(elapsed: 0.016) }
         XCTAssertEqual(pacer.visibleItems, [.text("Смотрю")])
         pacer.ingest([.text("Смотрю доску")])
         drain(&pacer)
@@ -193,21 +228,15 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertFalse(driver.isAnimating(now: .now.addingTimeInterval(1)))
     }
 
-    func testInitialBufferAndLongReplyCannotRushDespiteLargeBacklog() {
+    func testLongReplyCatchesUpWithoutArtificialReadingDelay() {
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text(String(repeating: "слово ", count: 300))])
-        pacer.advance(elapsed: 0.4)
-        XCTAssertTrue(pacer.visibleItems.isEmpty)
-        pacer.advance(elapsed: 0.4)
         for _ in 0..<60 { pacer.advance(elapsed: 1.0 / 60) }
         guard case .text(let shown)? = pacer.visibleItems.first else { return XCTFail("Нет текста") }
-        XCTAssertLessThanOrEqual(shown.count, 36, "Большой запас не ускоряет выдачу сверх спокойного темпа")
-        let beforePause = shown.count
-        // Сервер не присылает ничего: очередь всё равно выдаёт накопленное.
-        for _ in 0..<60 { pacer.advance(elapsed: 1.0 / 60) }
-        guard case .text(let afterPause)? = pacer.visibleItems.first else { return XCTFail("Нет текста") }
-        XCTAssertGreaterThan(afterPause.count, beforePause)
-        XCTAssertLessThanOrEqual(afterPause.count - beforePause, 36)
+        XCTAssertGreaterThan(shown.count, 500)
+        XCTAssertLessThanOrEqual(pacer.rate, RoleLiveTextPacer.maxRate)
+        pacer.finish()
+        XCTAssertFalse(pacer.hasPendingText)
     }
 
     func testExistingTailDoesNotDimWhenNewWordArrives() {

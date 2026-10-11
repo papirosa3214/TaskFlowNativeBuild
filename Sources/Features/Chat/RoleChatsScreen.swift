@@ -654,6 +654,9 @@ struct RoleChatRoomScreen: View {
     @State private var isClearChatConfirmOpen = false
     @State private var isDetailsPresented = false
     @State private var realtime = RealtimeClient()
+    @State private var roomEventRevision = 0
+    @State private var refreshRevision = 0
+    @State private var messageEventRevisions: [String: Int] = [:]
     /// Кто сейчас готовит ответ: userId → имя. Наполняет только сервер
     /// (`chats:typing`) — на время, пока роль действительно отвечает.
     @State private var typists: [String: String] = [:]
@@ -664,15 +667,13 @@ struct RoleChatRoomScreen: View {
     /// Идущие ходы ролей (userId → снимок): текст по словам и шаги
     /// (`chats:live`, 27.09.2026). Рисуются и в группах.
     @State private var liveTurns: [String: RoleChatLiveTurn] = [:]
+    @State private var restoredTurnIDs: Set<String> = []
+    @State private var endedTurnIDs: Set<String> = []
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
     @State private var pendingOutgoing: [PendingOutgoing] = []
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
     @State private var isStopping = false
     @State private var workMode: RoleChatWorkMode = .work
-    @State private var finishingTurns: [String: RoleChatLiveTurn] = [:]
-    // Retain the live slot after completion, so another role's response
-    // cannot move past it while the text clock drains.
-    @State private var completedTurnSlots: [String: RoleChatLiveTurn] = [:]
     /// Автопрокрутка работает, пока владелец читает конец ленты. Ручной
     /// скролл отключает её до возвращения к низу.
     @State private var followsChatBottom = true
@@ -690,6 +691,14 @@ struct RoleChatRoomScreen: View {
         #endif
     }
 
+    private var pacesLiveText: Bool {
+        #if DEBUG
+        !readingPreview || ProcessInfo.processInfo.environment["TASKFLOW_CHAT_PACER_PREVIEW"] == "1"
+        #else
+        true
+        #endif
+    }
+
     #if DEBUG
     static var readingPreviewChat: RoleChat {
         if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_ORDER_PREVIEW"] == "1" {
@@ -697,6 +706,18 @@ struct RoleChatRoomScreen: View {
         }
         return try! JSONDecoder().decode(RoleChat.self, from: Data(#"{"id":"reading-preview","title":"Исследователь","kind":"direct","created_by":"preview-owner","members":[{"id":"role_researcher","name":"Исследователь","role_key":"researcher"}]}"#.utf8))
     }
+    private static func correctnessMessages(stress: Bool = false) -> [RoleChatMessage] {
+        let rows: [[String: Any]] = stress ? (0..<300).map { index in
+            ["id": "history-\(index)", "text": "Сообщение \(index). " + String(repeating: "Подробный текст результата для проверки прокрутки. ", count: 6),
+             "from_user_id": index.isMultiple(of: 2) ? "preview-owner" : "role_architect",
+             "created_at": "2026-10-11 14:20:50", "is_session_marker": false, "sequence": index]
+        } : [
+            ["id": "question-1", "text": "ПЕРВЫЙ ВОПРОС", "from_user_id": "preview-owner", "created_at": "2026-10-11 14:20:50", "sequence": 1, "is_session_marker": false],
+            ["id": "question-2", "text": "ВТОРОЙ ВОПРОС", "from_user_id": "preview-owner", "created_at": "2026-10-11 14:20:51", "sequence": 2, "is_session_marker": false]
+        ]
+        return try! JSONDecoder().decode([RoleChatMessage].self, from: JSONSerialization.data(withJSONObject: rows))
+    }
+
     private static var readingPreviewMessages: [RoleChatMessage] {
         try! JSONDecoder().decode([RoleChatMessage].self, from: Data(#"[{"id":"previous","is_session_marker":false,"text":"Расскажи о результате","from_user_id":"preview-owner","created_at":"2026-10-10T18:00:00Z"},{"id":"finished","is_session_marker":false,"text":"Ответ начинается здесь. Короткий готовый результат.","from_user_id":"role_researcher","created_at":"2026-10-10T18:01:00Z"}]"#.utf8))
     }
@@ -721,6 +742,17 @@ struct RoleChatRoomScreen: View {
                 ])
             } else {
                 _liveTurns = State(initialValue: ["role_researcher": Self.readingPreviewTurn(long: false)])
+            }
+            if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_CORRECTNESS_PREVIEW"] == "1" {
+                _messages = State(initialValue: Self.correctnessMessages())
+                _liveTurns = State(initialValue: [
+                    "role_code_orchestrator": RoleChatLiveTurn(chatID: "reading-preview", userID: "role_code_orchestrator", name: "Оркестратор", startedAt: "2026-10-11T14:20:51.500Z", items: [.text("```widget\n{\"type\":\"card\""), .text("```html\n<button>Готовый интерактив")], thinking: nil, triggerMessageID: "question-1"),
+                    "role_architect": RoleChatLiveTurn(chatID: "reading-preview", userID: "role_architect", name: "Архитектор", startedAt: "2026-10-11T14:20:51.700Z", items: [.text("ВТОРОЙ ОТВЕТ")], thinking: nil, triggerMessageID: "question-2")
+                ])
+            }
+            if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_STRESS_PREVIEW"] == "1" {
+                _messages = State(initialValue: Self.correctnessMessages(stress: true))
+                _liveTurns = State(initialValue: [:])
             }
             _centersLatestReply = State(initialValue: true)
         }
@@ -813,11 +845,27 @@ struct RoleChatRoomScreen: View {
         .toolbar {
             #if DEBUG
             if readingPreview {
+                if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_CORRECTNESS_PREVIEW"] == "1" {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Сигнал конца") {
+                            for userID in Array(liveTurns.keys) { markLiveTurnEnded(userID) }
+                        }.accessibilityIdentifier("chat.preview.end-live")
+                    }
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Завершить оба") {
+                            let rows: [[String: Any]] = [
+                                ["id": "answer-1", "text": "ПЕРВЫЙ ОТВЕТ\n\n```widget\n{\"type\":\"card\",\"title\":\"Готовый виджет\",\"body\":\"Содержимое уже готово\"}\n```\n\n```html\n<button onclick=\"this.textContent='Нажато'\">Готовый интерактив</button>\n```", "from_user_id": "role_code_orchestrator", "created_at": "2026-10-11 14:20:52", "sequence": 3, "reply_to_message_id": "question-1", "is_session_marker": false],
+                                ["id": "answer-2", "text": "ВТОРОЙ ОТВЕТ", "from_user_id": "role_architect", "created_at": "2026-10-11 14:20:51", "sequence": 4, "reply_to_message_id": "question-2", "is_session_marker": false]
+                            ]
+                            let replies = try! JSONDecoder().decode([RoleChatMessage].self, from: JSONSerialization.data(withJSONObject: rows))
+                            for reply in replies { insertIncoming(reply) }
+                        }.accessibilityIdentifier("chat.preview.complete-both")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Готово") {
                         let done = try! JSONDecoder().decode(RoleChatMessage.self, from: Data(#"{"id":"done-orchestrator","from_user_id":"role_code_orchestrator","from_user_name":"Оркестратор","text":"ПЕРВЫЙ ОТВЕТ ОРКЕСТРАТОРА","created_at":"2026-10-10T18:00:03Z","is_session_marker":false}"#.utf8))
                         insertIncoming(done)
-                        finishingTurns[done.id] = nil
                     }.accessibilityIdentifier("chat.preview.finish-first")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -965,11 +1013,13 @@ struct RoleChatRoomScreen: View {
             realtime.onEvent = { event in
                 switch event {
                 case .roleChatMessage(let id, let message) where id == chatID:
+                    roomEventRevision += 1
                     // Сервер прислал готовое сообщение — вставляем его сразу,
                     // без перечитывания ленты (01.10.2026: пузырь ответа
                     // появлялся с задержкой и лента вздрагивала).
                     if let message { insertIncoming(message) } else { Task { await refresh() } }
                 case .roleChatTyping(let id, let userID, let name, let active, let tool) where id == chatID:
+                    roomEventRevision += 1
                     if active {
                         typists[userID] = name.isEmpty ? "Участник" : name
                         typistTools[userID] = tool
@@ -978,13 +1028,20 @@ struct RoleChatRoomScreen: View {
                         typistTools[userID] = nil
                     }
                 case .roleChatLive(let id, let userID, let turn, let messageID) where id == chatID:
+                    roomEventRevision += 1
                     if let turn {
+                        guard !endedTurnIDs.contains(turn.playbackID) else { return }
+                        if let trigger = turn.triggerMessageID,
+                           messages.contains(where: { $0.fromUserID == userID && $0.replyToMessageID == trigger }) { return }
                         liveTurns[userID] = turn
                     } else if let messageID, let message = messages.first(where: { $0.id == messageID }) {
-                        // Polling may have loaded the final message before chat:new.
-                        // Retain the paced tail through the same completion path.
+                        // REST may have loaded the final message before chat:new.
+                        // Use the same completion path as the socket delivery.
                         insertIncoming(message)
                     } else {
+                        typists[userID] = nil
+                        typistTools[userID] = nil
+                        markLiveTurnEnded(userID)
                         // Ответа в ленте ещё нет (ход без ответа, потерянный
                         // chat:new или старый сервер): сначала дочитываем
                         // ленту и только потом убираем живой пузырь — без
@@ -1091,10 +1148,9 @@ struct RoleChatRoomScreen: View {
         let orderedFeed = feedItems
         return ScrollViewReader { proxy in
             ScrollView {
-                // История здесь пока небольшая (на сервере максимум 58
-                // сообщений на 28.09). LazyVStack измерял длинные ответы
-                // только при прокрутке вверх и сдвигал уже видимую ленту.
-                VStack(alignment: .leading, spacing: TFSpacing.md) {
+                // Instantiate visible rows only: the measured 300-message history
+                // consumed 15.5 CPU seconds for three swipes with an eager stack.
+                LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
                     if messages.isEmpty {
                         ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
                                                description: Text("Напишите первое сообщение."))
@@ -1200,6 +1256,7 @@ struct RoleChatRoomScreen: View {
             .defaultScrollAnchor(.bottom, for: .alignment)
             .defaultScrollAnchor(followsChatBottom ? .bottom : nil, for: .sizeChanges)
             .background(Color.tfBackground)
+            .accessibilityIdentifier("chat.feed")
             .hideComposerScrollEdgeEffect()
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentSize.height - geometry.visibleRect.maxY <= 80
@@ -1245,12 +1302,12 @@ struct RoleChatRoomScreen: View {
 
     /// Живой ход виден и в группе: у каждого ответа своя подпись роли.
     private var visibleLiveTurns: [RoleChatLiveTurn] {
-        return (Array(liveTurns.values) + Array(finishingTurns.values))
+        return Array(liveTurns.values)
             .filter { !$0.items.isEmpty || $0.thinking != nil }
             .sorted { ($0.startDate ?? .distantFuture, $0.playbackID) < ($1.startDate ?? .distantFuture, $1.playbackID) }
     }
 
-    private var visibleMessages: [RoleChatMessage] { messages.filter { finishingTurns[$0.id] == nil } }
+    private var visibleMessages: [RoleChatMessage] { messages }
 
     private struct FeedItem: Identifiable {
         let id: String
@@ -1262,20 +1319,23 @@ struct RoleChatRoomScreen: View {
     }
     private var feedItems: [FeedItem] {
         let history = visibleMessages.enumerated().map { index, message in
-            let slot = completedTurnSlots[message.id]
-            return FeedItem(id: slot?.playbackID ?? message.id,
-                dateString: slot?.startedAt ?? message.createdAt, position: index, message: message, turn: nil,
-                date: RoleChatTime.date(slot?.startedAt ?? message.createdAt) ?? .distantPast)
+            return FeedItem(id: message.id,
+                dateString: message.createdAt, position: index, message: message, turn: nil,
+                date: RoleChatTime.date(message.createdAt) ?? .distantPast)
         }
         let live = visibleLiveTurns.enumerated().map { index, turn in
             FeedItem(id: turn.playbackID, dateString: turn.startedAt,
                 position: messages.count + index, message: nil, turn: turn,
                 date: turn.startDate ?? .distantFuture)
         }
-        return (history + live).sorted {
-            if $0.date != $1.date { return $0.date < $1.date }
-            return $0.position < $1.position
+        // История уже упорядочена серверной последовательностью. Не сортируем
+        // её повторно по часам: точность даты и порядок доставки различаются.
+        var ordered = history
+        for item in live {
+            let insertion = ordered.firstIndex { $0.date > item.date } ?? ordered.endIndex
+            ordered.insert(item, at: insertion)
         }
+        return ordered
     }
 
 
@@ -1295,6 +1355,8 @@ struct RoleChatRoomScreen: View {
     /// лента не прыгает. Свой пузырь «в пути» с тем же текстом тоже уходит:
     /// сервер его принял.
     private func insertIncoming(_ message: RoleChatMessage) {
+        roomEventRevision += 1
+        messageEventRevisions[message.id] = roomEventRevision
         let mine = message.fromUserID == session.currentUser?.id
         if !mine && isAgentReply(message) && !messages.contains(where: { $0.id == message.id }) { centersLatestReply = true }
         var transaction = Transaction()
@@ -1304,16 +1366,20 @@ struct RoleChatRoomScreen: View {
                 messages[index] = message
             } else {
                 messages.append(message)
+                messages = RoleChatMessageOrder.sorted(messages)
             }
             if let author = message.fromUserID, !mine {
-                if let turn = liveTurns[author],
-                   turn.startDate == nil || (RoleChatTime.date(message.createdAt) ?? .distantPast) >= turn.startDate! {
-                    completedTurnSlots[message.id] = turn
-                    finishingTurns[message.id] = turn.completed(with: message)
-                    liveTurns[author] = nil
+                if let turn = liveTurns[author] {
+                    if turn.isCompleted(by: message) {
+                        liveTurns[author] = nil
+                        restoredTurnIDs.remove(turn.playbackID)
+                        typists[author] = nil
+                        typistTools[author] = nil
+                    }
+                } else if message.replyToMessageID != nil {
+                    typists[author] = nil
+                    typistTools[author] = nil
                 }
-                typists[author] = nil
-                typistTools[author] = nil
             }
             if mine, let index = pendingOutgoing.firstIndex(where: { !$0.failed && $0.text == message.text }) {
                 pendingOutgoing.remove(at: index)
@@ -1390,16 +1456,29 @@ struct RoleChatRoomScreen: View {
     }
 
     private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
-        let messageID = finishingTurns.first { $0.value.playbackID == turn.playbackID }?.key
-        return RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: messageID != nil, pacesText: !readingPreview) {
-            if let messageID { finishingTurns[messageID] = nil }
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            replyContext(messageID: turn.triggerMessageID, sender: nil)
+            RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
+                               startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID))
+                .id(turn.playbackID)
         }
-        .id(turn.playbackID)
+    }
+
+    private func markLiveTurnEnded(_ userID: String) {
+        guard let turn = liveTurns[userID] else { return }
+        endedTurnIDs.insert(turn.playbackID)
+        liveTurns[userID] = turn.ending()
+        typists[userID] = nil
+        typistTools[userID] = nil
     }
 
     private func loadLiveTurns() async {
-        guard let turns = try? await api.roleChatLive(id: chat.id) else { return }
+        let revision = roomEventRevision
+        guard let turns = try? await api.roleChatLive(id: chat.id), revision == roomEventRevision else { return }
         liveTurns = Dictionary(turns.map { ($0.userID, $0) }, uniquingKeysWith: { _, last in last })
+        restoredTurnIDs = Set(turns.map(\.playbackID))
+        typists = Dictionary(turns.map { ($0.userID, $0.name) }, uniquingKeysWith: { _, last in last })
+        typistTools = typistTools.filter { liveTurns[$0.key] != nil }
     }
 
     /// Полоса выбора вместо панели ввода: отметить всё или снять отметки.
@@ -1510,6 +1589,22 @@ struct RoleChatRoomScreen: View {
         return !(message.attachments?.contains { $0.isVoiceRecording } ?? false)
     }
 
+    @ViewBuilder
+    private func replyContext(messageID: String?, sender: String?) -> some View {
+        if let messageID, let original = messages.first(where: { $0.id == messageID }) {
+            let excerpt = original.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            Text("В ответ на: " + (excerpt.isEmpty ? "Вложение" : excerpt))
+                .font(.caption)
+                .foregroundStyle(Color.tfSub)
+                .lineLimit(2)
+                .accessibilityIdentifier("chat.replyTo." + messageID)
+        } else if messageID != nil {
+            Text("В ответ на сообщение" + (sender.map { " · " + $0 } ?? ""))
+                .font(.caption)
+                .foregroundStyle(Color.tfSub)
+        }
+    }
+
     private func flatReplyRow(_ message: RoleChatMessage) -> some View {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
             if isSelecting {
@@ -1521,6 +1616,7 @@ struct RoleChatRoomScreen: View {
             }
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 senderLine(message, color: Color.tfSub)
+                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
                 if let steps = message.steps, steps.hasDetails {
                     RoleLiveItemsList(items: steps.items)
                 }
@@ -1588,6 +1684,7 @@ struct RoleChatRoomScreen: View {
                 if !hasAudio {
                     senderLine(message, color: Color.tfSub)
                 }
+                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
                 // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
                 if let steps = message.steps, steps.hasDetails {
                     RoleLiveItemsList(items: steps.items)
@@ -1779,19 +1876,25 @@ struct RoleChatRoomScreen: View {
     }
 
     private func refresh() async {
+        refreshRevision += 1
+        let revision = refreshRevision
+        let eventRevision = roomEventRevision
         do {
             async let chatRequest = api.roleChat(id: chat.id)
             async let messagesRequest = api.roleChatMessages(id: chat.id)
             let (updatedChat, updatedMessages) = try await (chatRequest, messagesRequest)
+            guard revision == refreshRevision else { return }
             chat = updatedChat
-            if updatedMessages.map(\.id) != messages.map(\.id) || updatedMessages.map(\.attachments) != messages.map(\.attachments) || updatedMessages.map(\.reactions) != messages.map(\.reactions) {
+            // Снимок может менять текст и контекст ответа без изменения ID.
+            // Объединяем его с событиями, пришедшими уже после начала запроса.
+            do {
                 for message in updatedMessages where !messages.contains(where: { $0.id == message.id }) {
-                    if let author = message.fromUserID, let turn = liveTurns[author],
-                       let started = turn.startDate, let ended = RoleChatTime.date(message.createdAt), ended >= started {
+                    if let author = message.fromUserID, let turn = liveTurns[author], turn.isCompleted(by: message) {
                         insertIncoming(message)
                     }
                 }
-                messages = updatedMessages
+                let receivedAfterRequest = Set(messageEventRevisions.filter { $0.value > eventRevision }.map(\.key))
+                messages = RoleChatMessageOrder.mergingSnapshot(updatedMessages, current: messages, receivedAfterRequest: receivedAfterRequest)
             }
             // Комната открыта — всё в ней прочитано. Бейдж в списке сервер
             // считает от отметки прочтения, а двигает её только этот вызов
@@ -1885,7 +1988,10 @@ struct RoleChatRoomScreen: View {
                                                             attachmentIDs: pending.attachments.map(\.id), mode: pending.mode)
             withAnimation(.snappy(duration: 0.25)) {
                 pendingOutgoing.removeAll { $0.id == pendingID }
-                if !messages.contains(where: { $0.id == message.id }) { messages.append(message) }
+                if !messages.contains(where: { $0.id == message.id }) {
+                    messages.append(message)
+                    messages = RoleChatMessageOrder.sorted(messages)
+                }
             }
         } catch {
             if let index = pendingOutgoing.firstIndex(where: { $0.id == pendingID }) {

@@ -8,6 +8,33 @@ final class RoleChatTests: XCTestCase {
         try JSONDecoder().decode(type, from: Data(json.utf8))
     }
 
+    func testServerSequenceOrdersOutOfOrderSocketMessagesWithEqualTimestamps() throws {
+        let messages = try decode([RoleChatMessage].self, #"[{"id":"reply","text":"Ответ","from_user_id":"u-secretary","created_at":"2026-10-11 14:20:50","is_session_marker":false,"sequence":42},{"id":"question","text":"Вопрос","created_at":"2026-10-11 14:20:50","is_session_marker":false,"sequence":41}]"#)
+        XCTAssertEqual(RoleChatMessageOrder.sorted(messages).map(\.id), ["question", "reply"])
+    }
+
+    func testOnlyReplyToCurrentTriggerCompletesLiveTurn() throws {
+        let turn = try decode(RoleChatLiveTurn.self, #"{"chat_id":"chat-secretary","user_id":"u-secretary","name":"Секретарь","started_at":"2026-10-11T14:20:50.900Z","trigger_message_id":"question-2","items":[]}"#)
+        let messages = try decode([RoleChatMessage].self, #"[{"id":"old","text":"Старый ответ","from_user_id":"u-secretary","created_at":"2026-10-11 14:20:51","is_session_marker":false,"reply_to_message_id":"question-1"},{"id":"current","text":"Ответ","from_user_id":"u-secretary","created_at":"2026-10-11 14:20:50","is_session_marker":false,"reply_to_message_id":"question-2"}]"#)
+        XCTAssertFalse(turn.isCompleted(by: messages[0]))
+        XCTAssertTrue(turn.isCompleted(by: messages[1]))
+    }
+
+    func testLegacyCompletionWithinSameSQLiteSecond() throws {
+        let turn = try decode(RoleChatLiveTurn.self, #"{"chat_id":"c","user_id":"r","name":"Роль","started_at":"2026-10-11T14:20:50.900Z","items":[]}"#)
+        let message = try decode(RoleChatMessage.self, #"{"id":"m","text":"Готово","from_user_id":"r","created_at":"2026-10-11 14:20:50","is_session_marker":false}"#)
+        XCTAssertTrue(turn.isCompleted(by: message))
+    }
+
+    func testStaleRESTSnapshotCannotRemoveOrReplaceNewSocketMessage() throws {
+        let old = try decode([RoleChatMessage].self, #"[{"id":"q","text":"Вопрос","sequence":1,"is_session_marker":false},{"id":"a","text":"Старый текст","sequence":2,"is_session_marker":false}]"#)
+        let current = try decode([RoleChatMessage].self, #"[{"id":"q","text":"Вопрос","sequence":1,"is_session_marker":false},{"id":"a","text":"Новый текст","sequence":2,"is_session_marker":false},{"id":"b","text":"Получен по сокету","sequence":3,"is_session_marker":false}]"#)
+        let merged = RoleChatMessageOrder.mergingSnapshot(old, current: current, receivedAfterRequest: ["a", "b"])
+        XCTAssertEqual(merged.map(\.text), ["Вопрос", "Новый текст", "Получен по сокету"])
+        let deleted = RoleChatMessageOrder.mergingSnapshot([], current: current, receivedAfterRequest: [])
+        XCTAssertTrue(deleted.isEmpty)
+    }
+
     func testGroupChatDecodesServerFieldsAndMembers() throws {
         let chat = try decode(RoleChat.self, #"""
         {

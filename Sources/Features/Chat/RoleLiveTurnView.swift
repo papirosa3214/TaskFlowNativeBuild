@@ -132,6 +132,7 @@ struct RoleLiveItemsList: View {
     var textColor: Color = .tfText
     /// Проявление текста из пустоты — только у идущего хода.
     var fade: RoleTextFade?
+    var isStreaming = false
     @State private var detail: RoleLiveDetail?
 
     var body: some View {
@@ -142,7 +143,7 @@ struct RoleLiveItemsList: View {
                 Group {
                     switch item {
                     case .text(let text):
-                        RoleReplyMarkdown(text: text, color: textColor, fade: fade)
+                        RoleReplyMarkdown(text: text, color: textColor, fade: fade, isStreaming: isStreaming)
                     case .step(let step):
                         Button { detail = .step(step) } label: {
                             RoleLiveStepRow(step: step)
@@ -215,6 +216,7 @@ struct RoleLiveTurnBubble: View {
     @State private var playbackRevision = 0
     var onPlaybackComplete: () -> Void = {}
     @State private var completionReported = false
+    @State private var completedAt: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var driver = RoleLivePacerDriver()
     @State private var visibleItems: [RoleChatLiveItem] = []
@@ -228,23 +230,36 @@ struct RoleLiveTurnBubble: View {
                     .foregroundStyle(Color.tfSub)
             }
             if !(pacesText ? visibleItems : turn.items).isEmpty {
-                RoleLiveItemsList(items: pacesText ? visibleItems : turn.items, fade: pacesText && !reduceMotion ? fade : nil)
+                RoleLiveItemsList(items: pacesText ? visibleItems : turn.items, fade: pacesText && !reduceMotion ? fade : nil, isStreaming: !isComplete)
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
             if turn.thinking != nil && turn.runningThinking == nil {
                 RoleThinkingLiveRow(thinking: nil)
             }
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(footer(now: context.date))
+            if isComplete {
+                Text(footer(now: completedAt ?? .now))
                     .tfText(.caption)
                     .foregroundStyle(Color.tfDim)
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(footer(now: context.date))
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear { if pacesText { ingest(turn.items) } }
+        .onAppear {
+            if isComplete { completedAt = .now }
+            if pacesText { ingest(turn.items) }
+        }
         .onChange(of: turn.items) { _, items in if pacesText { ingest(items) } }
         .onChange(of: isComplete) { _, complete in
-            if complete { driver.pacer.finish() }
+            if complete {
+                completedAt = .now
+                driver.pacer.finish()
+                publish()
+            } else { completedAt = nil }
             playbackRevision += 1
         }
         .task(id: playbackRevision) {

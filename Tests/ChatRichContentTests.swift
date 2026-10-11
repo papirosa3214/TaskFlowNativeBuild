@@ -3,6 +3,18 @@ import XCTest
 
 /// Разбор ответа роли на текст, таблицы, виджеты и артефакты (01.10.2026).
 final class ChatRichContentTests: XCTestCase {
+    func testTerminalWidgetWithoutClosingFenceDoesNotRemainLoading() {
+        let text = "```widget\n{\"type\":\"card\",\"title\":\"Готово\"}"
+        XCTAssertEqual(ChatRichContent.split(text), [.pending(.widget)])
+        XCTAssertEqual(ChatRichContent.split(text, isStreaming: false), [.widget("{\"type\":\"card\",\"title\":\"Готово\"}")])
+    }
+
+    func testTerminalHTMLWithoutClosingFenceDoesNotRemainLoading() {
+        let text = "```html\n<button>Готово</button>"
+        XCTAssertEqual(ChatRichContent.split(text), [.pending(.html)])
+        XCTAssertEqual(ChatRichContent.split(text, isStreaming: false), [.html("<button>Готово</button>")])
+    }
+
     func testPlainMarkdownStaysOneSegment() {
         XCTAssertEqual(ChatRichContent.split("**Привет**\n\n- пункт"), [.markdown("**Привет**\n\n- пункт")])
     }

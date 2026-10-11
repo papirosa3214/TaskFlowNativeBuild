@@ -41,7 +41,7 @@ enum ChatRichContent {
     static let htmlLanguages: Set<String> = ["html", "artifact"]
     static let widgetLanguages: Set<String> = ["widget", "tf-widget"]
 
-    static func split(_ text: String) -> [ChatRichSegment] {
+    static func split(_ text: String, isStreaming: Bool = true) -> [ChatRichSegment] {
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
         var segments: [ChatRichSegment] = []
         var buffer: [String] = []
@@ -71,7 +71,7 @@ enum ChatRichContent {
                     : widgetLanguages.contains(language) ? .widget : nil
                 if let special {
                     flush()
-                    if !closed {
+                    if !closed && isStreaming {
                         segments.append(.pending(special))
                     } else {
                         segments.append(special == .html ? .html(body) : .widget(body))

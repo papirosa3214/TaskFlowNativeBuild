@@ -6,7 +6,7 @@ import SwiftUI
 /// `MarkdownParser` заметок (только чтение): второго парсера не заводим.
 struct RoleReplyMarkdown: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade
+        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming
     }
 
     let text: String
@@ -14,9 +14,10 @@ struct RoleReplyMarkdown: View, Equatable {
     var allowsCommands = false
     /// Проявление хвоста у идущего ответа (30.09.2026); nil — готовый текст.
     var fade: RoleTextFade?
+    var isStreaming = false
 
     var body: some View {
-        let segments = ChatRichContent.split(text)
+        let segments = ChatRichContent.split(text, isStreaming: isStreaming)
         if segments.count == 1, case .markdown = segments[0] {
             markdownBody(text)
         } else if segments.isEmpty {
