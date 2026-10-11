@@ -58,6 +58,8 @@ struct ProjectsScreen: View {
                 }
 
                 if !isSelecting {
+                    AgentStatusGrid()
+                        .padding(.bottom, TFSpacing.sm)
                     noProjectRow
                 }
 
@@ -108,7 +110,7 @@ struct ProjectsScreen: View {
         }
         // Штатная SwiftUI-шапка. Системная стрелка назад добавляется стеком
         // навигации; пару кнопок группирует сам toolbar iOS.
-        .tfNativeHeader("Проекты")
+        .tfNativeHeader("Проекты", displayMode: .inline)
         .searchable(
             text: $searchText,
             isPresented: $searchPresented,

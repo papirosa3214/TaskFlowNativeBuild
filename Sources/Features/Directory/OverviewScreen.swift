@@ -15,16 +15,14 @@ struct OverviewScreen: View {
     /// тап-лейбл, а здесь тап уже съеден кнопкой шапки.
     @State private var searchOpen = false
 
-    /// «Сводка недели» — модалка `WeeklySummaryModal` вне зоны этого экрана
-    /// (не входит в список экранов задачи), тап оставлен инертным.
-    /// В отчёте — оркестратору, кто и когда возьмёт эту модалку.
+    @State private var summaryOpen = false
     var body: some View {
         ScrollView {
             // Тот же вертикальный ритм, что у секций «Настроек»: сводки
             // отделены друг от друга, а связанные переходы собраны в одну
             // карточку-список.
             VStack(spacing: TFSpacing.xl) {
-                statusGrid
+                CompletionHeatmap()
                 weeklySummaryCard
                 navigationSection
             }
@@ -32,6 +30,7 @@ struct OverviewScreen: View {
             .padding(.top, TFSpacing.lg)
             .padding(.bottom, TFSpacing.xl)
         }
+        .sheet(isPresented: $summaryOpen) { WeeklySummarySheet() }
         .refreshable {
             await taskStore.load(silent: true)
         }
@@ -49,7 +48,7 @@ struct OverviewScreen: View {
         // владельца 03.09.2026 — «когда наверх закидываю, меняется фон» —
         // тот же баг, что чинили в самом начале на «Проектах»). `tfNativeHeader`
         // без ручного `toolbarBackground` — тот же приём, что и везде.
-        .tfNativeHeader("Обзор")
+        .tfNativeHeader("Обзор", displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -74,55 +73,6 @@ struct OverviewScreen: View {
         .navigationDestination(isPresented: $searchOpen) { routeDestination(.search) }
     }
 
-    // MARK: - Сетка 2×2 статусов агентов — числа считаются на клиенте (spec §5.3)
-
-    // Раньше вся плашка заливалась цветом (`tint.opacity(bgOpacity)`) — просьба
-    // владельца 03.09.2026: «не всю плашку цветом закрашивай, а только
-    // иконку» — плюс своя раскладка цветов по смыслу (в работе — зелёная,
-    // на проверке — синяя, заблокировано — оранжевая, пропали — красная) и
-    // цифра остаётся нейтральной, красится только иконка.
-    private var statusGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: TFSpacing.sm), GridItem(.flexible())], spacing: TFSpacing.sm) {
-            // Каждая плитка открывает сводку СРАЗУ на своём состоянии
-            // (09.09.2026): до этого все четыре вели в один и тот же полный
-            // список, и выбор ничего не значил.
-            statusTile(route: .agentWork(focus: .inProgress), title: "В работе", count: workingCount,
-                       icon: "waveform.path.ecg", tint: .tfGreen)
-            statusTile(route: .agentWork(focus: .review), title: "На проверке", count: reviewCount,
-                       icon: "checkmark", tint: .tfBlue)
-            statusTile(route: .agentWork(focus: .blocked), title: "Заблокированы", count: blockedCount,
-                       icon: "flag", tint: .tfOrange)
-            statusTile(route: .agentWork(focus: .stale), title: "Пропали", count: staleCount,
-                       icon: "cpu", tint: .tfRed)
-        }
-    }
-
-    private func statusTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color) -> some View {
-        let active = count > 0
-        return NavigationLink(value: route) {
-            TFCard(padding: TFSpacing.md) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .tfText(.caption)
-                            .foregroundStyle(Color.tfSub)
-                            .lineLimit(1)
-                        Text("\(count)")
-                            .tfText(.taskTitle)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tfText)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: icon)
-                        .font(.system(size: 20))
-                        .foregroundStyle(active ? tint : Color.tfDim)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .buttonStyle(TFTapScaleStyle())
-    }
-
     // MARK: - Сводка недели
 
     // Была фиолетово-красным градиентом иконка + коралловый тег "SECOND
@@ -132,7 +82,7 @@ struct OverviewScreen: View {
     // навигационные строки.
     private var weeklySummaryCard: some View {
         Button {
-            // Инертно — WeeklySummaryModal не входит в мою зону экранов.
+            summaryOpen = true
         } label: {
             HStack(spacing: TFSpacing.md) {
                 // 32×32 — тот же размер, что у иконок navCard ниже (было
@@ -165,6 +115,7 @@ struct OverviewScreen: View {
         .background(Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .buttonStyle(TFTapRowStyle())
+        .accessibilityIdentifier("overview.weekly-summary")
     }
 
     private var navigationSection: some View {
@@ -222,16 +173,5 @@ struct OverviewScreen: View {
     @State private var searchPushed = false
     private func navigateToSearch() { searchPushed = true }
 
-    private var workingCount: Int {
-        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale != true }
-    }
-    private var reviewCount: Int {
-        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .review }
-    }
-    private var blockedCount: Int {
-        taskStore.agentWorkTasks.count { $0.status == .active && $0.agentState == .blocked }
-    }
-    private var staleCount: Int {
-        taskStore.agentWorkTasks.count { $0.agentState == .inProgress && $0.agentStale == true }
-    }
+
 }
