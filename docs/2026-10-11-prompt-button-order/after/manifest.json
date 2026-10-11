@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "EFC5FE7D-96C8-4B57-BE3F-DA8D5EC56E23.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "button-order_0_EC26FA30-F203-45BF-AF14-82F3C60C8CEC.png",
+        "timestamp" : 1791701014.245
+      }
+    ],
+    "testIdentifier" : "PromptButtonOrderUITests/testButtonOrder()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/PromptButtonOrderUITests/testButtonOrder"
+  }
+]

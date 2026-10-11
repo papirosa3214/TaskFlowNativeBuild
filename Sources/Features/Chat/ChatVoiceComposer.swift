@@ -221,6 +221,7 @@ struct ChatVoiceComposer: View {
                 .padding(.horizontal, 10).padding(.top, 10)
             HStack(spacing: 4) {
                 promptAttachmentMenu
+                if showsMentionButton { mentionButton }
                 if let workMode {
                     Menu {
                         Picker("Режим работы", selection: workMode) {
@@ -251,13 +252,7 @@ struct ChatVoiceComposer: View {
                         .accessibilityLabel("Начать запись")
                         .accessibilityIdentifier("chat.voice")
                 }
-                // Собачка — ПОСЛЕ отправки («молнии»), владелец 11.10.2026:
-                // «после молнии надо ставить». Серенькая, как скрепка и
-                // режим работы, — без белого круга, который есть только у
-                // действий-команд (микрофон, отправка).
-                if showsMentionButton {
-                    mentionButton
-                }
+
             }
             .foregroundStyle(.gray)
         }
@@ -269,11 +264,7 @@ struct ChatVoiceComposer: View {
         .padding(.horizontal).padding(.vertical, 10)
     }
 
-    /// Собачка у отправки (владелец 11.10.2026: «после молнии надо ставить,
-    /// чтобы он тоже был таким вот сереньким»). По тапу — список ролей чата;
-    /// выбор подставляет упоминание в текст и сразу возвращает фокус в поле.
-    /// Вид рядовой, как скрепка и режим: серый, размером с ними, без белого
-    /// круга — белый круг в этом поле означает действие-команду.
+    /// Выбор адресата рядом со скрепкой и режимом работы.
     private var mentionButton: some View {
         Menu {
             ForEach(mentionCandidates) { member in
@@ -654,6 +645,7 @@ struct AgentChatComposerPreview: View {
                                   voice: voice, onAttachmentSource: { _ in }, onSendText: { text = "" },
                                   onSendVoice: { _ in false }, onDiscardVoice: { _ in },
                                   workMode: $mode, availableModes: RoleChatWorkMode.allCases,
+                                  mentionCandidates: [RoleChatMember(id: "preview-role", name: "Архитектор", avatarColor: nil, avatarURL: nil, initials: nil, roleKey: "architect")],
                                   isResponding: responding, onStop: { responding = false })
             }
             .background(Color.tfBackground.ignoresSafeArea())
