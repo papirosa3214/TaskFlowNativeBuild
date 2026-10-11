@@ -542,3 +542,5 @@
 | LOCK-PROMPT-BUTTON-ORDER-20261011 | REVIEW | PROMPT-BUTTON-ORDER | Собачка между скрепкой и режимом, микрофон на краю | AGENT-WORK-SCOPES.md, Sources/Features/Chat/ChatVoiceComposer.swift, UITests/PromptButtonOrderUITests.swift, docs/2026-10-11-prompt-button-order.md, docs/2026-10-11-prompt-button-order/ | Прямое поручение владельца | Codex | Геометрия кнопок XCUITest и кадр |
 
 | LOCK-GANTT-NARROW-20261011 | REVIEW | GANTT-NARROW | Уменьшить ширину колонки ролей с 48 до 36 | AGENT-WORK-SCOPES.md, Sources/Features/Directory/RoleLoadScreen.swift, UITests/RoleLoadVerticalLabelsUITests.swift, docs/2026-10-11-gantt-narrow.md, docs/2026-10-11-gantt-narrow/ | Прямое поручение владельца | Codex | Ширина day/week XCUITest |
+
+| LOCK-CHAT-LIST-MENU-20261011 | REVIEW | CHAT-LIST-MENU | Личные чаты без вкладок, проекты в меню троеточия | AGENT-WORK-SCOPES.md, Sources/Features/Chat/RoleChatsScreen.swift, UITests/ChatListMenuUITests.swift, docs/2026-10-11-chat-list-menu.md, docs/2026-10-11-chat-list-menu/ | Прямое поручение владельца | Codex | Навигация списка XCUITest |

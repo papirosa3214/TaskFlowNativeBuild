@@ -37,13 +37,12 @@ struct RoleChatsScreen: View {
         var unread: Int
     }
 
-    private enum ChatTab { case personal, projects }
-    @State private var tab: ChatTab = .personal
+    var projectsOnly = false
 
     /// Чаты по проектам живут в своей вкладке и в общем списке не светятся
     /// (владелец 06.10.2026).
     private var visibleChats: [RoleChat] {
-        chats.filter { $0.parentChatID == nil && (tab == .projects) == ($0.projectID != nil) }
+        chats.filter { $0.parentChatID == nil && projectsOnly == ($0.projectID != nil) }
     }
     private var projectsUnread: Int {
         chats.filter { $0.parentChatID == nil && $0.projectID != nil }.reduce(0) { $0 + $1.unread }
@@ -62,21 +61,14 @@ struct RoleChatsScreen: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, TFSpacing.xl)
                 } else {
-                    Picker("Раздел", selection: $tab) {
-                        Text("Личные").tag(ChatTab.personal)
-                        Text(projectsUnread > 0 ? "Проекты · \(projectsUnread)" : "Проекты").tag(ChatTab.projects)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
-                    .padding(.vertical, TFSpacing.sm)
-                    if tab == .personal {
+                    if !projectsOnly {
                         secretaryBlock
                         // Граница блока: «Секретарь» стоит особняком, а не первым
                         // в общем списке (владелец 21.09.2026).
                         TFDivider()
                     }
                     if visibleChats.isEmpty {
-                        Text(tab == .projects ? "Пока нет чатов по проектам." : "Пока нет чатов. Создайте чат с одной или несколькими ролями.")
+                        Text(projectsOnly ? "Пока нет чатов по проектам." : "Пока нет чатов. Создайте чат с одной или несколькими ролями.")
                             .tfText(.action)
                             .foregroundStyle(Color.tfDim)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -101,15 +93,24 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
-        .tfNativeHeader("Чаты")
+        .tfNativeHeader(projectsOnly ? "Чаты проектов" : "Чаты")
         .tint(Color.tfText)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    if !projectsOnly {
+                        NavigationLink {
+                            RoleChatsScreen(projectsOnly: true)
+                        } label: {
+                            Label(projectsUnread > 0 ? "Чаты проектов · \(projectsUnread)" : "Чаты проектов", systemImage: "folder")
+                        }
+                        Divider()
+                    }
                     Button("Чат с участниками") { showingCreate = true }
                     Button("Группа проекта") { showingProjectCreate = true }
-                } label: { Image(systemName: "plus").foregroundStyle(Color.tfRed) }
-                    .accessibilityLabel("Создать чат")
+                } label: { Image(systemName: "ellipsis") }
+                    .accessibilityLabel("Меню чатов")
+                    .accessibilityIdentifier("chats.menu")
             }
         }
         .sheet(isPresented: $showingProjectCreate) {

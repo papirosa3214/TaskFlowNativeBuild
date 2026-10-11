@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "C8719F69-21A7-435E-970A-2E5F0EFF51E6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "projects-from-menu_0_CC708227-1C0C-4E7F-B1E3-C7EA5DDE0885.png",
+        "timestamp" : 1791701304.065
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "09322E1D-04C4-4665-8D43-E1BFA8E7D2FE.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "personal-no-tabs_0_8C24532D-F7F0-4386-8B28-38FE8141297D.png",
+        "timestamp" : 1791701298.452
+      }
+    ],
+    "testIdentifier" : "ChatListMenuUITests/testListMenu()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ChatListMenuUITests/testListMenu"
+  }
+]

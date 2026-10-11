@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "B0B10D55-DA2B-40F7-B323-8092741C94F8.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-list-before_0_4D4953A7-059E-48BD-8833-6A03327DE1BA.png",
+        "timestamp" : 1791701241.629
+      }
+    ],
+    "testIdentifier" : "ChatListMenuUITests/testListMenu()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ChatListMenuUITests/testListMenu"
+  }
+]
