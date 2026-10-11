@@ -25,7 +25,6 @@ struct CompletionHeatmap: View {
     @State private var selected: Date?
     @Environment(RealtimeClient.self) private var realtime
     @State private var reviewDates: [String: Date] = [:]
-    @State private var loadedRevisions: [String: Int] = [:]
     @State private var archiveError = false
     private var days: [CompletionDay] {
         CompletionCalendar.days(dates: Array(reviewDates.values))
@@ -96,37 +95,19 @@ struct CompletionHeatmap: View {
         }
         .task(id: historyRevision) { await loadArchive() }
     }
+    private struct ReviewHistory: Decodable {
+        struct Entry: Decodable {
+            let task_id: String
+            let submitted_at: String
+        }
+        let entries: [Entry]
+    }
     private func loadArchive() async {
         do {
-            let client = APIClient()
-            async let current = client.tasks(includeChildren: true)
-            async let archived = client.tasks(includeChildren: true, archived: true)
-            var seen = Set<String>()
-            let all = try await (current + archived).filter { seen.insert($0.id).inserted }
-            let revisions = Dictionary(uniqueKeysWithValues: all.map { ($0.id, realtime.revision(for: $0.id)) })
-            let pending = all.filter { loadedRevisions[$0.id] != revisions[$0.id] }
-            for start in stride(from: 0, to: pending.count, by: 4) {
-                try Task.checkCancellation()
-                let batch = Array(pending[start..<min(start + 4, pending.count)])
-                let results = try await withThrowingTaskGroup(of: (String, Date?).self) { group in
-                    for task in batch {
-                        group.addTask {
-                            let detail = try await client.task(id: task.id)
-                            let first = (detail.events ?? []).filter { $0.field == "agent_state" && $0.toValue == "review" }
-                                .compactMap(\.createdAtDate).min()
-                            return (task.id, first)
-                        }
-                    }
-                    var values: [(String, Date?)] = []
-                    for try await value in group { values.append(value) }
-                    return values
-                }
-                for (id, date) in results {
-                    reviewDates[id] = date
-                    loadedRevisions[id] = revisions[id]
-                }
-            }
-            reviewDates = reviewDates.filter { seen.contains($0.key) }
+            let response: ReviewHistory = try await APIClient().request(.get, "/stats/review-history")
+            reviewDates = Dictionary(uniqueKeysWithValues: response.entries.compactMap { entry in
+                DateFormats.sqliteUTC(entry.submitted_at).map { (entry.task_id, $0) }
+            })
             archiveError = false
         } catch is CancellationError { }
         catch { archiveError = true }
