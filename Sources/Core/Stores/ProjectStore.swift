@@ -23,6 +23,8 @@ public final class ProjectStore {
         defer { isLoading = false }
         do {
             projects = try await apiClient.projects()
+        } catch is CancellationError {
+            // Отмена при уходе с экрана не является ошибкой загрузки.
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
@@ -54,6 +56,7 @@ public final class ProjectStore {
     public func loadArchive() async {
         archiveErrorMessage = nil
         do { archivedProjects = try await apiClient.archivedProjects() }
+        catch is CancellationError {}
         catch { archiveErrorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription }
     }
 

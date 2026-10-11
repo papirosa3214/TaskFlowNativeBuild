@@ -29,6 +29,9 @@ struct ProjectsScreen: View {
     @State private var isSelecting = false
     @State private var selectedProjectIDs: Set<String> = []
     @State private var hasOpenedCreateForm = false
+    #if DEBUG
+    @State private var cancellationChecked = false
+    #endif
 
     /// Сценарий центрального «+»: список остаётся контекстом формы, но сама
     /// форма открывается сразу, без промежуточного ручного тапа по «…».
@@ -114,6 +117,20 @@ struct ProjectsScreen: View {
                 }
 
                 if projectStore.isLoading { TFLoading(.block) }
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["TASKFLOW_PROJECT_CANCELLATION_TEST"] == "1" {
+                    Button("Отменить обновление") {
+                        Task {
+                            withUnsafeCurrentTask { $0?.cancel() }
+                            await projectStore.load()
+                            cancellationChecked = true
+                        }
+                    }.accessibilityIdentifier("projects.test.cancel")
+                    if cancellationChecked {
+                        Text("Обновление отменено").accessibilityIdentifier("projects.test.cancelled")
+                    }
+                }
+                #endif
                 TFErrorBanner(projectStore.errorMessage, variant: .inline)
                 TFErrorBanner(errorMessage, variant: .block)
             }

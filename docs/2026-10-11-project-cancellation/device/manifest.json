@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "FB2F5468-953F-4692-A204-E126ADBA543F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "projects-cancelled-refresh_0_6943683B-1111-4B0B-968F-8268EDB012C1.png",
+        "timestamp" : 1791733517.93
+      }
+    ],
+    "testIdentifier" : "ProjectCancellationUITests/testCancelledRefreshKeepsProjectsWithoutError()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ProjectCancellationUITests/testCancelledRefreshKeepsProjectsWithoutError"
+  }
+]
