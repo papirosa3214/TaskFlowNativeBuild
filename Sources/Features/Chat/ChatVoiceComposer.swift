@@ -307,8 +307,8 @@ struct ChatVoiceComposer: View {
                 Circle().fill(.red).frame(width: 8, height: 8)
                 Text(recordingDuration).font(.body.monospacedDigit().weight(.medium)).foregroundStyle(.white)
             }
-            VoiceBarsView(level: recordingLevel, color: .gray, peakColor: .white,
-                          barWidth: 3, spacing: 2, maxHeight: 30, isSmooth: true)
+            VoiceRecordingWaveformView(levels: voice.recorderWaveform, elapsed: recordingElapsed,
+                                       color: .gray, peakColor: .white, maxHeight: 30)
                 .frame(width: 180, height: 36)
             HStack {
                 Spacer()
@@ -331,12 +331,9 @@ struct ChatVoiceComposer: View {
 
     private var recordingComposer: some View {
         HStack(spacing: 16) {
-            VoiceBarsView(
-                // Владелец 26.09.2026: волна в покое — тёмно-красная, а
-                // полоски, которые сейчас растут сильнее (амплитуда),
-                // загораются ярко-красным.
-                level: recordingLevel, color: .red.mix(with: .black, by: 0.55), peakColor: .red,
-                barWidth: 3, spacing: 2, maxHeight: 28, isSmooth: true
+            VoiceRecordingWaveformView(
+                levels: voice.recorderWaveform, elapsed: recordingElapsed,
+                color: .red.mix(with: .black, by: 0.55), peakColor: .red
             )
                 .frame(maxWidth: .infinity)
                 .frame(height: 32)
@@ -480,9 +477,9 @@ struct ChatVoiceComposer: View {
         .accessibilityIdentifier(identifier ?? label)
     }
 
-    private var recordingLevel: Double {
-        guard case let .recording(_, level) = voice.recordingState else { return 0 }
-        return level
+    private var recordingElapsed: TimeInterval {
+        guard case let .recording(elapsed, _) = voice.recordingState else { return 0 }
+        return elapsed
     }
 
     private var recordingDuration: String {

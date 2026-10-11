@@ -41,7 +41,9 @@ struct TaskFlowApp: App {
         WindowGroup {
             Group {
                 #if DEBUG
-                if ProcessInfo.processInfo.environment["TASKFLOW_DIAGNOSTICS_PREVIEW"] == "1" {
+                if ProcessInfo.processInfo.environment["TASKFLOW_VOICE_HISTORY_PREVIEW"] == "1" {
+                    VoiceRecordingWaveformPreview()
+                } else if ProcessInfo.processInfo.environment["TASKFLOW_DIAGNOSTICS_PREVIEW"] == "1" {
                     AppDiagnosticsPreview()
                 } else if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_READING_PREVIEW"] == "1" {
                     NavigationStack { RoleChatRoomScreen(chat: RoleChatRoomScreen.readingPreviewChat) }

@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "1A69EF6D-42B6-4A11-8C14-26C2A6879258.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Два режима — история речи и пауз_0_C3C7E1BF-8B98-40C8-B6DA-A727172530FA.png",
+        "timestamp" : 1791698216.751
+      }
+    ],
+    "testIdentifier" : "VoiceRecordingWaveformUITests/testBothRecordingWaveforms()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/VoiceRecordingWaveformUITests/testBothRecordingWaveforms"
+  }
+]
