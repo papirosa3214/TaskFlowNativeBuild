@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "E48951F2-8BA3-4581-9874-A56B2322B6FD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "flat-red-square-heatmap_0_75B59C13-B144-475C-89F2-317039103E42.png",
+        "timestamp" : 1791702320.787
+      }
+    ],
+    "testIdentifier" : "HeatmapStyleUITests/testFlatSquareRedHeatmap()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/HeatmapStyleUITests/testFlatSquareRedHeatmap"
+  }
+]
