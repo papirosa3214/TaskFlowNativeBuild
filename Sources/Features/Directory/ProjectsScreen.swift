@@ -58,8 +58,11 @@ struct ProjectsScreen: View {
                 }
 
                 if !isSelecting {
-                    AgentStatusGrid()
-                        .padding(.bottom, TFSpacing.sm)
+                    // Владелец 11.10.2026: верхняя полоса статусов убрана —
+                    // «нет необходимости, раз в каждом проекте они присутствуют».
+                    // Четыре плитки «В работе / На проверке / Заблокированы /
+                    // Пропали» повторяли ровно те же четыре числа, что стоят
+                    // в строке статусов каждой карточки проекта ниже.
                     noProjectRow
                 }
 
@@ -234,6 +237,11 @@ struct ProjectsScreen: View {
 
     /// Две плитки в одну линию — тот же вид, что «В работе» / «На проверке»
     /// в Обзоре, иконки крупнее (владелец 06.10.2026).
+    ///
+    /// 11.10.2026: после снятия верхней полосы статусов плитки остались
+    /// одними наверху — и на фоне карточек проекта выглядели «мизерными».
+    /// Значок и подпись теперь одного кегля с остальным содержимым экрана
+    /// (`.body`), как у обычной строки раздела.
     private var noProjectRow: some View {
         HStack(spacing: TFSpacing.sm) {
             sectionTile(
@@ -250,11 +258,15 @@ struct ProjectsScreen: View {
 
     private func sectionTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color) -> some View {
         NavigationLink(value: route) {
-            HStack(spacing: 8) {
-                Image(systemName: icon).foregroundStyle(tint)
+            HStack(spacing: TFSpacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 19))
+                    .foregroundStyle(tint)
                 Text(title).lineLimit(1)
                 Text("\(count)").monospacedDigit().foregroundStyle(Color.tfSub)
-            }.font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .font(.body)
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title): \(count)")

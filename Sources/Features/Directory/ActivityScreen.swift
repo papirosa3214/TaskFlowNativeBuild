@@ -16,8 +16,6 @@ struct ActivityScreen: View {
     @State private var labelId: String?
     /// nil — все, "__none" — без исполнителя, иначе id пользователя.
     @State private var assigneeKey: String?
-    @State private var sheetOpen = false
-    @State private var openSection: String?
     @State private var route: AppRoute?
 
     private var today: String { DirectoryDate.todayKeyLocal() }
@@ -56,7 +54,7 @@ struct ActivityScreen: View {
                                 .padding(.horizontal, TFSpacing.screenHorizontal + 4)
                             VStack(spacing: TFSpacing.sm) {
                                 ForEach(group.tasks, id: \.id) { task in
-                                    completedCard(task)
+                                    completedRow(task)
                                 }
                             }
                             .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -78,64 +76,35 @@ struct ActivityScreen: View {
         .tfNativeHeader("Активность")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    sheetOpen = true
-                } label: {
-                    TFPlannerToolbarIcon(systemName: "line.3.horizontal.decrease")
-                }
-                .accessibilityLabel("Фильтры")
+                filterMenu
             }
         }
         .navigationDestination(item: $route) { routeDestination($0) }
-        .tfBottomSheet(isPresented: $sheetOpen, title: "Фильтры", actionTitle: "Сбросить", action: resetFilters) {
-            filterSheetContent
-        }
     }
 
-    // MARK: - Карточка выполненной задачи
+    // MARK: - Строка выполненной задачи
 
-    private func completedCard(_ task: ApiTask) -> some View {
-        VStack(spacing: 0) {
-            Button { route = .taskDetail(taskID: task.id) } label: {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(task.title).tfText(.body).foregroundStyle(Color.tfSub).strikethrough()
-                    HStack(spacing: TFSpacing.xs) {
-                        if let time = completionTime(task) {
-                            Text(time).tfText(.caption).foregroundStyle(Color.tfDim)
-                        }
-                        if let name = task.projectName {
-                            TFLabelPill(name, color: task.projectColor.map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned))
-                        }
-                        ForEach(task.labels, id: \.id) { label in
-                            TFLabelPill(label.name, color: label.color.map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned))
-                        }
-                    }
-                }
-                .padding(.horizontal, TFSpacing.lg)
-                .padding(.top, TFSpacing.sm + 4)
-                .padding(.bottom, TFSpacing.sm)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(TFTapRowStyle())
-
-            TFDivider()
-            Button {
-                Task { await restore(task) }
-            } label: {
-                HStack(spacing: TFSpacing.xs) {
-                    Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: TFIconSize.xs))
-                    Text("Вернуть в работу").tfText(.action).fontWeight(.semibold)
-                }
-                .foregroundStyle(Color.tfRed)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-            }
-            .buttonStyle(TFTapRowStyle())
-        }
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
-    }
+/// Владелец 11.10.2026: карточки закрытых задач переделаны в строку —
+/// (1) без зачёркивания названия: зачёркнутый список читался как «остановленное»,
+/// и было не видно, что именно надо вернуть в работу; (2) в одну строку вместо
+/// двух — под названием не было тяжёлой красной полосы «Вернуть в работу» на всю
+/// ширину; (3) возврат в работу — свайпом влево, как на экране «Архив», поэтому
+/// взята та же самая `DirectoryTaskRow` со свайп-действием `.restore`.
+/// Свайп вправо — в архив (дефолт самой строки, с подтверждением).
+private func completedRow(_ task: ApiTask) -> some View {
+    DirectoryTaskRow(
+        index: nil,
+        task: task,
+        isOwner: true,
+        onOpen: { route = .taskDetail(taskID: task.id) },
+        onDelete: { Task { _ = await taskStore.delete(taskId: task.id) } },
+        swipeAction: .restore,
+        onSwipeAction: { Task { await restore(task) } },
+        showsAvatar: false,
+        strikesDoneTitle: false,
+        timestamp: completionTime(task)
+    )
+}
 
     private func completionTime(_ task: ApiTask) -> String? {
         guard let raw = task.completedAt ?? (task.status == .completed ? task.updatedAt : nil),
@@ -297,7 +266,7 @@ struct ActivityScreen: View {
         return (result.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }, hasUnassigned)
     }
 
-    // MARK: - Шторка фильтров
+    // MARK: - Меню фильтров
 
     private var projectLabel: String { projectId.flatMap { id in projectOptions.first { $0.id == id }?.label } ?? "Все проекты" }
     private var labelLabel: String { labelId.flatMap { id in labelOptions.first { $0.id == id }?.label } ?? "Все метки" }
@@ -307,132 +276,71 @@ struct ActivityScreen: View {
         return "Все исполнители"
     }
 
-    @ViewBuilder
-    private var filterSheetContent: some View {
-        VStack(spacing: TFSpacing.md) {
-            TFFieldGroup {
-                TFFieldRow(icon: "number", title: "Проект", value: projectLabel) { toggleSection("project") }
-                if openSection == "project" {
-                    TFFieldDivider()
-                    optionsList(
-                        allLabel: "Все проекты", isAllSelected: projectId == nil, onSelectAll: { projectId = nil; openSection = nil },
-                        options: projectOptions, selectedId: projectId, optionIcon: "number",
-                        emptyText: "Нет выполненных задач с проектом"
-                    ) { id in projectId = id; openSection = nil }
+    /// Владелец 11.10.2026: фильтр открывался нижней панелью-шторкой — надо
+/// было штатное меню-окошко, как на остальных экранах. Сделано тем же
+/// приёмом, что меню «…» в «Команде» и «Памяти» (`Menu` в toolbar) и меню
+/// фильтров в строке быстрого добавления: у выбранного значения галочка,
+/// сброс — отдельным пунктом внизу, как было действием шторки.
+    ///
+    /// Секции, а не подменю: первая версия делала каждый фильтр вложенным
+    /// `Menu` (подменю), и такой `Menu` в toolbar НЕ ОТРИСОВЫВАЛСЯ ВООБЩЕ —
+    /// кнопка фильтра пропадала из шапки и не появлялась ни в кадре, ни в
+    /// дереве доступности (проверено XCUITest, 11.10.2026). Секции верхнего
+    /// уровня рисуются всегда.
+    private var filterMenu: some View {
+        Menu {
+            Section("Период") {
+                ForEach(ActivityPeriod.allCases) { p in
+                    menuPick(p.label, selected: period == p) { period = p }
                 }
             }
-            TFFieldGroup {
-                TFFieldRow(icon: "tag", title: "Метка", value: labelLabel) { toggleSection("label") }
-                if openSection == "label" {
-                    TFFieldDivider()
-                    optionsList(
-                        allLabel: "Все метки", isAllSelected: labelId == nil, onSelectAll: { labelId = nil; openSection = nil },
-                        options: labelOptions, selectedId: labelId, optionIcon: "tag",
-                        emptyText: "Нет выполненных задач с метками"
-                    ) { id in labelId = id; openSection = nil }
+
+            Section("Проект · \(projectLabel)") {
+                menuPick("Все проекты", selected: projectId == nil) { projectId = nil }
+                ForEach(projectOptions) { opt in
+                    menuPick(opt.label, selected: projectId == opt.id) { projectId = opt.id }
+                }
+                if projectOptions.isEmpty {
+                    Text("Нет выполненных задач с проектом")
                 }
             }
-            TFFieldGroup {
-                TFFieldRow(icon: "person", title: "Исполнитель", value: assigneeLabel) { toggleSection("assignee") }
-                if openSection == "assignee" { assigneeOptionsList }
-            }
-            TFFieldGroup {
-                TFFieldRow(icon: "calendar", title: "Период", value: period.label) { toggleSection("period") }
-                if openSection == "period" {
-                    TFFieldDivider()
-                    VStack(spacing: 0) {
-                        ForEach(ActivityPeriod.allCases) { p in
-                            filterOptionRow(label: p.label, isSelected: period == p, color: nil, icon: nil) {
-                                period = p; openSection = nil
-                            }
-                        }
-                    }
+
+            Section("Метка · \(labelLabel)") {
+                menuPick("Все метки", selected: labelId == nil) { labelId = nil }
+                ForEach(labelOptions) { opt in
+                    menuPick(opt.label, selected: labelId == opt.id) { labelId = opt.id }
+                }
+                if labelOptions.isEmpty {
+                    Text("Нет выполненных задач с метками")
                 }
             }
+
+            Section("Исполнитель · \(assigneeLabel)") {
+                menuPick("Все исполнители", selected: assigneeKey == nil) { assigneeKey = nil }
+                ForEach(assigneeOptions.list) { a in
+                    menuPick(a.name, selected: assigneeKey == a.id) { assigneeKey = a.id }
+                }
+                if assigneeOptions.hasUnassigned {
+                    menuPick("Без исполнителя", selected: assigneeKey == "__none") { assigneeKey = "__none" }
+                }
+                if assigneeOptions.list.isEmpty && !assigneeOptions.hasUnassigned {
+                    Text("Нет данных об исполнителях")
+                }
+            }
+
+            Button("Сбросить фильтры", systemImage: "arrow.counterclockwise") { resetFilters() }
+        } label: {
+            TFPlannerToolbarIcon(systemName: "line.3.horizontal.decrease")
         }
-        .padding(.bottom, TFSpacing.xl)
+        .accessibilityLabel("Фильтры")
+        .accessibilityIdentifier("activity.filter-menu")
     }
 
-    private func toggleSection(_ key: String) { openSection = openSection == key ? nil : key }
-
-    private func optionsList(
-        allLabel: String, isAllSelected: Bool, onSelectAll: @escaping () -> Void,
-        options: [FilterOption], selectedId: String?, optionIcon: String, emptyText: String,
-        onSelect: @escaping (String) -> Void
-    ) -> some View {
-        VStack(spacing: 0) {
-            filterOptionRow(label: allLabel, isSelected: isAllSelected, color: nil, icon: nil, action: onSelectAll)
-            ForEach(options) { opt in
-                filterOptionRow(label: opt.label, isSelected: selectedId == opt.id, color: opt.color, icon: optionIcon) {
-                    onSelect(opt.id)
-                }
-            }
-            if options.isEmpty {
-                Text(emptyText).tfText(.action).foregroundStyle(Color.tfDim)
-                    .padding(.horizontal, TFField.cardInsetH).padding(.vertical, TFSpacing.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    /// Пункт меню с галочкой у выбранного значения — как в меню фильтров
+    /// строки быстрого добавления.
+    private func menuPick(_ title: String, selected: Bool, set: @escaping () -> Void) -> some View {
+        Button(action: set) {
+            if selected { Label(title, systemImage: "checkmark") } else { Text(title) }
         }
-    }
-
-    private var assigneeOptionsList: some View {
-        VStack(spacing: 0) {
-            TFFieldDivider()
-            filterOptionRow(label: "Все исполнители", isSelected: assigneeKey == nil, color: nil, icon: nil) {
-                assigneeKey = nil; openSection = nil
-            }
-            ForEach(assigneeOptions.list) { a in
-                HStack(spacing: TFSpacing.sm) {
-                    Circle().fill(a.color).frame(width: 22, height: 22)
-                        .overlay { Text(a.initials).font(.system(size: 9, weight: .semibold)).foregroundStyle(.white) }
-                    Text(a.name).tfText(.row).foregroundStyle(Color.tfText).lineLimit(1)
-                    Spacer()
-                    if assigneeKey == a.id {
-                        Image(systemName: "checkmark").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.tfRed)
-                    }
-                }
-                .padding(.horizontal, TFField.cardInsetH).padding(.vertical, TFSpacing.sm)
-                .contentShape(Rectangle())
-                .onTapGesture { assigneeKey = a.id; openSection = nil }
-            }
-            if assigneeOptions.hasUnassigned {
-                HStack(spacing: TFSpacing.sm) {
-                    Circle().fill(Color.tfCard2).frame(width: 22, height: 22)
-                        .overlay { Image(systemName: "person").font(.system(size: 10)).foregroundStyle(Color.tfDim) }
-                    Text("Без исполнителя").tfText(.row).foregroundStyle(Color.tfText)
-                    Spacer()
-                    if assigneeKey == "__none" {
-                        Image(systemName: "checkmark").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.tfRed)
-                    }
-                }
-                .padding(.horizontal, TFField.cardInsetH).padding(.vertical, TFSpacing.sm)
-                .contentShape(Rectangle())
-                .onTapGesture { assigneeKey = "__none"; openSection = nil }
-            }
-            if assigneeOptions.list.isEmpty && !assigneeOptions.hasUnassigned {
-                Text("Нет данных об исполнителях").tfText(.action).foregroundStyle(Color.tfDim)
-                    .padding(.horizontal, TFField.cardInsetH).padding(.vertical, TFSpacing.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-
-    private func filterOptionRow(label: String, isSelected: Bool, color: Color?, icon: String?, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: TFSpacing.sm) {
-                if let icon, let color {
-                    Image(systemName: icon).font(.system(size: TFIconSize.xs)).foregroundStyle(color)
-                }
-                Text(label).tfText(.row).foregroundStyle(Color.tfText).lineLimit(1)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.tfRed)
-                }
-            }
-            .padding(.horizontal, TFField.cardInsetH)
-            .padding(.vertical, TFSpacing.sm)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(TFTapRowStyle())
     }
 }

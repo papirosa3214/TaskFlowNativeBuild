@@ -121,7 +121,7 @@ struct ProjectCard: View {
 
     private func stateMetric(_ kind: ProjectStatusIcon.Kind, value: Int, label: String) -> some View {
         HStack(spacing: 4) {
-            ProjectStatusIcon(kind: kind)
+            ProjectStatusIcon(kind: kind, size: 13)
             Text("\(value)").monospacedDigit().foregroundStyle(Color.tfText)
         }.font(.caption).accessibilityElement(children: .ignore)
             .accessibilityLabel(label).accessibilityValue("\(value)")

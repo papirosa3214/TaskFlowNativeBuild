@@ -44,11 +44,33 @@ struct DirectoryTaskRow: View {
     /// у задачи нет дочерних, аватар не ловит нажатие, строка открывается как раньше.
     var onAvatarTap: (() -> Void)? = nil
 
+    /// Рисовать ли аватарку исполнителя (LOCK 11.10.2026, «Активность»).
+    /// `false` — строка без кружка, строка уже и без того компактная, а на
+    /// «Активности» их десятки: каждый кружок с портретом роли — это ещё и
+    /// видеоплеер (`AVPlayerLayer`+`AVPlayerLooper`, LOCK-TEAM-AVATAR-ANIMATION),
+    /// и список выполненных задач подвешивал приложение (проверено спиндампом
+    /// симулятора: 199 потоков, 20 видеоконвертеров, главный поток не отвечал).
+    /// По умолчанию `true` — прежнее поведение остальных списков.
+    var showsAvatar: Bool = true
+
     /// Слова подтверждения свайпа вправо. `nil` — дефолт «Отправить в архив»,
     /// как у обычного списка. Экран «Архив» переиспользует ту же строку для
     /// безвозвратного удаления и подставляет свои слова (10.10.2026).
     var deleteConfirmTitle: String? = nil
     var deleteConfirmMessage: ((String) -> String)? = nil
+
+    /// Зачёркивать ли название выполненной задачи (LOCK 11.10.2026, экран
+    /// «Активность»). `nil` — прежнее поведение: зачёркивание выводится из
+    /// `task.status`. На «Активности» задачи по определению выполнены, и
+    /// зачёркнутый список читался как «остановленное»: владелец не видел, что
+    /// именно надо вернуть в работу. Там передаётся `false`.
+    var strikesDoneTitle: Bool? = nil
+
+    /// Подпись времени в строке меток (LOCK 11.10.2026, «Активность»): час
+    /// закрытия задачи. `nil` — не показывать, прежнее поведение всех
+    /// остальных списков. Нужен именно здесь: у строки выполненной задачи
+    /// время закрытия — главное, ради чего список сгруппирован по дням.
+    var timestamp: String? = nil
 
     /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
     @State private var rowID = UUID()
@@ -147,13 +169,16 @@ struct DirectoryTaskRow: View {
         Button {
             if settledOffset != 0 { close() } else { onOpen() }
         } label: {
-            TFTaskRowContent(title: task.title, description: task.description, isDone: task.status == .completed) {
-                if let initials = task.rowAvatarInitials {
+            TFTaskRowContent(title: task.title, description: task.description, isDone: strikesDoneTitle ?? (task.status == .completed)) {
+                if showsAvatar, let initials = task.rowAvatarInitials {
                     TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.rowAvatarID, teamIDs: task.rowAvatarTeam, urlPath: task.rowAvatarURL, teamURLs: task.rowAvatarTeamURLs, portrait: task.rowAvatarPortrait)
                         .contentShape(Rectangle())
                         .highPriorityGesture(TapGesture().onEnded { onAvatarTap?() }, including: onAvatarTap == nil ? .none : .all)
                 }
             } metadata: {
+                if let timestamp, !timestamp.isEmpty {
+                    Text(timestamp).layoutPriority(-1)
+                }
                 TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                 if let due = task.dueDate {
                     TFDueChip(plain: DirectoryDate.formatDuePlain(due), relative: DirectoryDate.formatDaysLeft(due), days: DirectoryDate.daysUntil(due), overdueText: "Просрочено, \(DirectoryDate.formatDuePlain(due))", highlight: task.status == .active)
