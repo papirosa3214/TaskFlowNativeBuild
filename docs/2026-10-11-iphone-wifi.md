@@ -6,4 +6,4 @@ Failed wireless attempt around10:49:50: remotepairingd connection on en0 IPv6 fa
 
 Successful10:35 session teardown says No active usage assertions after transfer; this is normal teardown and must not be misdiagnosed as a wireless failure. utun6 is created by RemotePairing for device tunneling; its presence alone does not prove VPN interference.
 
-Awaiting controlled check: disconnect cable, keep phone unlocked on same Wi-Fi, inspect wireless connection and read-only device service request. No pairing reset or network settings changes performed.
+Controlled check after owner disconnected cable: device info reported connected, paired, transport localNetwork, TCP tunnel. Reinstallation of the previously built app over wireless succeeded (databaseSequenceNumber4452). This verifies discovery, developer services and app transfer without USB in this session. The earlier peer-route failure is intermittent; its underlying trigger is not proven. No pairing reset or network settings changes performed.
