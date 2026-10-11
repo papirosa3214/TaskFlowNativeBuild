@@ -1,0 +1,30 @@
+{
+  "summary": {
+    "status": "SUCCEEDED",
+    "durationMs": 117237,
+    "counts": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "target": "device"
+  },
+  "request": {
+    "scheme": "TaskFlow",
+    "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+    "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_device",
+    "platform": "iOS",
+    "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+    "target": "device",
+    "onlyTesting": [
+      "TaskFlowUITests/TabBarGlassUITests"
+    ],
+    "skipTesting": []
+  },
+  "artifacts": {
+    "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/logs/test_device_2026-10-11T20-34-38-516Z_pid26233_2cdcfa66.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/result-bundles/test_device_2026-10-11T20-34-38-516Z_pid26233_911fbbf4.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/test-products/test_device_2026-10-11T20-34-38-516Z_pid26233_f2a53735.xctestproducts"
+  }
+}

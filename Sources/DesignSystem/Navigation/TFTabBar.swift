@@ -132,34 +132,41 @@ public struct TFTabBar: View {
             onSelect(index)
         } label: {
             ZStack {
-                // Кружка-подложки под активной вкладкой нет (владелец,
-                // 01.09.2026: «не надо никаких кружков»). Выделение несёт
-                // только цвет значка: серый → белый.
-                TFTabDrawIcon(
-                    name: item.icon,
-                    showsTodayDate: item.showsTodayDate,
-                    isActive: isActive,
-                    size: TFTabBarMetrics.tabIconSize
-                )
-                .frame(
-                    width: TFTabBarMetrics.tabIconSize,
-                    height: TFTabBarMetrics.tabIconSize
-                )
-                .foregroundStyle(isActive ? Color.tfText : Color.tfDim)
-                if let count = item.badgeCount, count > 0 {
-                    Text("\(count)")
-                        .tfText(.meta)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.tfRed)
-                        .offset(x: 14, y: -12) // top:-1em left:3.3em от угла иконки, спека §4
+                TFGlassTabIcon(
+                    size: TFTabBarMetrics.tabPlateSize,
+                    tint: Color.tfRed,
+                    isActive: isActive
+                ) {
+                    TFTabDrawIcon(
+                        name: item.icon,
+                        showsTodayDate: item.showsTodayDate,
+                        isActive: isActive,
+                        size: TFTabBarMetrics.tabIconSize * 0.625
+                    )
+                    // Активная иконка красная, неактивная — серая
+                    // (владелец 11.10.2026).
+                    .foregroundStyle(isActive ? Color.tfRed : Color.tfDim)
+                }
+                // Фиксируем квадрат: без этого рамки плашку растягивает
+                // родитель по ширине и кнопка превращается в вертикальный овал.
+                .frame(width: TFTabBarMetrics.tabPlateSize, height: TFTabBarMetrics.tabPlateSize)
+                .overlay(alignment: .topTrailing) {
+                    if let count = item.badgeCount, count > 0 {
+                        Text("\(count)")
+                            .tfText(.meta)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.tfRed)
+                            .offset(x: 12, y: -10)
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, TFTabBarMetrics.itemVerticalPadding)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TFTapScaleStyle())
+        .buttonStyle(TFGlassTabStyle())
         .animation(.easeOut(duration: TFAnimation.tabSwitch), value: isActive)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
         .accessibilityLabel(item.accessibilityLabel)
         .accessibilityIdentifier(Self.identifier(for: item.icon))
     }
@@ -181,19 +188,17 @@ public struct TFTabBar: View {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             onCreateTap()
         } label: {
-            ZStack {
-                Circle()
-                    .fill(Color.tfRed)
-                    .frame(width: TFTabBarMetrics.createButtonSize, height: TFTabBarMetrics.createButtonSize)
+            TFGlassTabIcon(size: TFTabBarMetrics.createButtonSize, tint: .tfRed,
+                           isActive: isCreateMenuOpen, circular: true, surfaceTint: .tfRed) {
                 Image(systemName: "plus")
                     .font(.system(size: TFTabBarMetrics.iconSize, weight: .semibold))
-                    .foregroundStyle(Color.tfBackground)
+                    .foregroundStyle(.black)
                     .rotationEffect(.degrees(isCreateMenuOpen ? 45 : 0))
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TFTapScaleStyle())
+        .buttonStyle(TFGlassTabStyle())
         .animation(.easeOut(duration: TFAnimation.createMenu), value: isCreateMenuOpen)
         .accessibilityLabel(isCreateMenuOpen ? "Закрыть меню создания" : "Создать")
         .accessibilityIdentifier("tab.add")

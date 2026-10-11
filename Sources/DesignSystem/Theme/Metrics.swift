@@ -117,21 +117,19 @@ public enum TFIconSize {
 /// в `Navigation/TFTabBar.swift` — имя этого enum'а с суффиксом `Metrics`,
 /// чтобы не конфликтовать с ним, как и у `TFButtonMetrics` выше).
 public enum TFTabBarMetrics {
-    /// Высота панели без safe-area (значение в браузере).
-    public static let heightCompact: CGFloat = 52
-    /// Общий оптический canvas четырёх вкладок. SF Symbols имеют разные
-    /// intrinsic bounds даже при одинаковом pointSize, поэтому один только
-    /// `.font(size:)` не делает значки визуально одинаковыми.
+    /// 56 pt surface plus 4 pt vertical padding on either side.
+    public static let heightCompact: CGFloat = 64
+    /// Reference canvas for the navigation glyphs.
     public static let tabIconSize: CGFloat = 32
-    /// Размер glyph внутри отдельной центральной кнопки создания.
+    /// Outer mounting base of each navigation key.
+    public static let tabPlateSize: CGFloat = 56
+    /// Glyph inside the round creation key.
     public static let iconSize: CGFloat = 28
-    /// Круг-«шарик» под активной вкладкой.
     public static let bubbleSize: CGFloat = 44
     public static let bubbleColor = Color.white.opacity(0.1)
-    /// Центральная кнопка «Создать».
-    public static let createButtonSize: CGFloat = 44
-    /// Тап-зона пункта — вертикальный паддинг сверху/снизу (без safe-area слагаемого, оно добавляется отдельно).
-    public static let itemVerticalPadding: CGFloat = 12
+    /// Creation key matches the four navigation keys in outer diameter.
+    public static let createButtonSize: CGFloat = 56
+    public static let itemVerticalPadding: CGFloat = 4
 }
 
 /// Меню «что создать» (`CreateMenu.tsx`) — всплывающая карточка над центральной

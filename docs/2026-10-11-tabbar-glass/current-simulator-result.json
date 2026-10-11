@@ -1,0 +1,28 @@
+{
+  "summary": {
+    "status": "SUCCEEDED",
+    "durationMs": 108782,
+    "counts": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "target": "simulator"
+  },
+  "request": {
+    "scheme": "TaskFlow",
+    "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+    "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+    "platform": "iOS Simulator",
+    "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+    "onlyTesting": [
+      "TaskFlowUITests/TabBarGlassUITests"
+    ],
+    "skipTesting": []
+  },
+  "artifacts": {
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-11T20-32-41-179Z_pid24388_8776b70d.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_sim_2026-10-11T20-32-41-179Z_pid24388_c850aefa.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-11T20-32-41-179Z_pid24388_04f82cc2.xctestproducts"
+  }
+}
