@@ -40,6 +40,11 @@ public enum AppRoute: Hashable {
     case projectTasks(projectID: String)
     /// Задачи без проекта — тот же экран списка, но `projectID == nil`.
     case noProjectTasks
+    /// Все задачи всех проектов разом — корневые, тем же списком
+    /// (`ProjectTasksScreen` в режиме «все проекты»). Просьба владельца
+    /// 11.10.2026: после снятия верхней полосы статусов из «Проектов» не
+    /// осталось входа к общему списку — он лежит в меню «…».
+    case allTasks
     case taskArchive
     case labels
     case labelTasks(labelID: String)

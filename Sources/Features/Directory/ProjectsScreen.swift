@@ -140,6 +140,15 @@ struct ProjectsScreen: View {
     private var projectActionsMenu: some View {
         Menu {
             Button { searchPresented = true } label: { Label("Поиск проектов", systemImage: "magnifyingglass") }
+            if !isSelecting {
+                // Общий список задач (просьба владельца 11.10.2026): после
+                // снятия верхней полосы статусов из «Проектов» входа к нему не
+                // осталось, а раздел «Без проекта» показывает только задачи
+                // вне проектов — не то же самое.
+                NavigationLink(value: AppRoute.allTasks) {
+                    Label("Все задачи", systemImage: "tray.full")
+                }
+            }
             if isSelecting {
                 Button(role: .destructive) {
                     requestDeleteSelected()

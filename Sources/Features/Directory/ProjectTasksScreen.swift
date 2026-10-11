@@ -57,6 +57,12 @@ enum ProjectTaskFilter: String, CaseIterable, Identifiable {
 struct ProjectTasksScreen: View {
     /// `nil` — раздел «Без проекта»: все задачи без проекта, тем же списком.
     let projectID: String?
+    /// Корневые задачи ВСЕХ проектов разом, тем же списком (просьба владельца
+    /// 11.10.2026, пункт «Все задачи» в меню «…» раздела «Проекты»).
+    /// Раздел «Связанные задачи» (дочерние) в этом режиме не подгружается —
+    /// он строится запросом по каждому проекту, а общий список он только
+    /// раздувает; корневые задачи показывают тот же состав работы.
+    var showsAllProjects: Bool = false
 
     @Environment(ProjectStore.self) private var projectStore
     @Environment(TaskStore.self) private var taskStore
@@ -72,7 +78,9 @@ struct ProjectTasksScreen: View {
     @State private var expandedIDs: Set<String> = []
     /// Фильтр списка; помнится по проекту.
     @State private var filter: ProjectTaskFilter = .open
-    private var filterKey: String { "project.filter.\(projectID ?? "none")" }
+    private var filterKey: String {
+        showsAllProjects ? "all-projects.filter" : "project.filter.\(projectID ?? "none")"
+    }
 
     private struct TaskRef: Identifiable {
         let id: String
@@ -104,13 +112,17 @@ struct ProjectTasksScreen: View {
     /// гарантированно стабилен, а спека и веб-код требуют стабильность).
     private var tasks: [ApiTask] {
         let source = relationshipTasks.isEmpty ? taskStore.tasks : relationshipTasks
+        // В режиме «все проекты» (`showsAllProjects`) проверка проекта снимается:
+        // иначе в общий список попадали бы только задачи без проекта, то есть
+        /// ровно то, что уже показывает «Без проекта».
+        let inScope: (ApiTask) -> Bool = { showsAllProjects || $0.projectId == projectID }
         if filter != .open {
             // Фильтр по состоянию: корень остаётся, если подходит он сам или кто-то из потомков.
             let byParent = Dictionary(grouping: source, by: \.parentId)
             func hit(_ t: ApiTask) -> Bool {
                 filter.matches(t) || (byParent[t.id] ?? []).contains(where: hit)
             }
-            let scoped = source.filter { $0.projectId == projectID && $0.parentId == nil && hit($0) }
+            let scoped = source.filter { inScope($0) && $0.parentId == nil && hit($0) }
             return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
         }
         var openTreeIDs = Set(source.lazy.filter { task in
@@ -131,13 +143,25 @@ struct ProjectTasksScreen: View {
         }
 
         let scoped = source.filter { task in
-            task.projectId == projectID && task.parentId == nil && openTreeIDs.contains(task.id)
+            inScope(task) && task.parentId == nil && openTreeIDs.contains(task.id)
         }
         return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
     }
 
     private var notFound: Bool {
         projectID != nil && !projectStore.isLoading && projectStore.errorMessage == nil && project == nil
+    }
+
+    /// Заголовок шапки. «Все задачи» — режим обхода проектов, там названия
+    /// проекта нет по определению.
+    private var screenTitle: String {
+        if showsAllProjects { return "Все задачи" }
+        return projectID == nil ? "Без проекта" : (project?.name ?? "Проект")
+    }
+
+    private var emptyText: String {
+        if showsAllProjects { return "Задач нет" }
+        return projectID == nil ? "Задач без проекта нет" : "В проекте пока нет задач"
     }
 
     var body: some View {
@@ -154,7 +178,7 @@ struct ProjectTasksScreen: View {
                     if tasks.isEmpty {
                         TFEmptyState(
                             icon: "tray",
-                            text: projectID == nil ? "Задач без проекта нет" : "В проекте пока нет задач"
+                            text: emptyText
                         )
                         .padding(.horizontal, TFSpacing.xs)
                     } else {
@@ -189,14 +213,14 @@ struct ProjectTasksScreen: View {
         // содержимое заголовка на произвольное вью, сам разруливая место с
         // соседним «+» (тот самый наезд текста на кнопку, LOCK-060/061,
         // здесь в принципе невозможен на системном toolbar).
-        .tfNativeHeader(projectID == nil ? "Без проекта" : (project?.name ?? "Проект"), displayMode: .inline)
+        .tfNativeHeader(screenTitle, displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
                     if let project {
                         Circle().fill(Color(hex: project.color ?? TFHexDefault.unassigned)).frame(width: 10, height: 10)
                     }
-                    Text(projectID == nil ? "Без проекта" : (project?.name ?? "Проект"))
+                    Text(screenTitle)
                         .tfText(.title)
                         .foregroundStyle(Color.tfText)
                         .lineLimit(1)
