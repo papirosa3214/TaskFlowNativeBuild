@@ -25,7 +25,14 @@ enum VoiceBarsMotion {
         let syllable = 0.18 + 0.82 * pow(max(0, sin(phase)), 1.15)
         let texture = 0.76 + 0.14 * sin(Double(bar) * 1.7 + time * 0.6)
             + 0.10 * sin(Double(bar) * 0.61 - time * 0.32)
-        let signal = min(1, 0.11 + normalizedLevel * 0.89 * max(0, sensitivity))
+        // Владелец 10.10.2026: «про звук, там он коряво очень». При
+        // sensitivity 2 обычная речь уже упиралась в потолок — полоски
+        // подряд шли в максимум и волна читалась плоской гребёнкой. Отклик
+        // делаем мягче: скругляем амплитуду (мягкая амплитуда ближе к
+        // диктофону, где тихое не выглядит как «всё одинаково высокое») и
+        // держим потолок только на настоящем пике.
+        let eased = pow(normalizedLevel, 0.72)
+        let signal = min(1, 0.10 + eased * 0.90 * max(0, sensitivity))
         let height = maxHeight * signal * syllable * texture
         return min(maxHeight, max(barWidth, height))
     }
@@ -81,7 +88,7 @@ struct VoiceBarsView: View {
                                 bar: i,
                                 count: count,
                                 time: t,
-                                sensitivity: 2,
+                                sensitivity: 1,
                                 barWidth: Double(barWidth),
                                 maxHeight: Double(maxHeight)
                             )
