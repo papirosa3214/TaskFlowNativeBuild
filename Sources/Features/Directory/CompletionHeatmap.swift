@@ -23,14 +23,17 @@ enum CompletionCalendar {
 struct CompletionHeatmap: View {
     @Environment(TaskStore.self) private var store
     @State private var selected: Date?
-    @State private var archive: [ApiTask] = []
+    @Environment(RealtimeClient.self) private var realtime
+    @State private var reviewDates: [String: Date] = [:]
+    @State private var loadedRevisions: [String: Int] = [:]
     @State private var archiveError = false
     private var days: [CompletionDay] {
-        var seen = Set<String>()
-        let dates = (store.tasks + archive).filter { seen.insert($0.id).inserted && $0.status == .completed }
-            .compactMap(\.completedAtDate)
-        return CompletionCalendar.days(dates: dates)
+        CompletionCalendar.days(dates: Array(reviewDates.values))
     }
+    private var historyRevision: String {
+        "\(realtime.connectionRevision):" + realtime.taskRevisions.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: ",")
+    }
+
     private func shade(_ count: Int) -> Color {
         switch count {
         case 0: return Color.tfStroke
@@ -68,7 +71,7 @@ struct CompletionHeatmap: View {
                     }
                     .buttonStyle(.plain).disabled(future)
                     .accessibilityIdentifier("overview.heatmap.cell.\(slot)")
-                    .accessibilityLabel(day.date.formatted(date: .abbreviated, time: .omitted) + ": выполнено \(day.count)")
+                    .accessibilityLabel(day.date.formatted(date: .abbreviated, time: .omitted) + ": на проверку \(day.count)")
                 }
             }
             HStack(spacing: 5) {
@@ -82,20 +85,50 @@ struct CompletionHeatmap: View {
                 RoundedRectangle(cornerRadius: 2).fill(Color.tfStroke.opacity(0.4)).frame(width: 10, height: 10)
             }.font(.caption2).foregroundStyle(Color.tfSub)
             if archiveError {
-                Button("Архив недоступен · Повторить") { Task { await loadArchive() } }.font(.caption)
+                Button("История недоступна · Повторить") { Task { await loadArchive() } }.font(.caption)
             }
         }
         .popover(isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } })) {
             if let day = values.first(where: { $0.date == selected }) {
-                Text(day.date.formatted(date: .abbreviated, time: .omitted) + " · выполнено \(day.count)")
+                Text(day.date.formatted(date: .abbreviated, time: .omitted) + " · на проверку \(day.count)")
                     .padding().presentationCompactAdaptation(.popover)
             }
         }
-        .task { await loadArchive() }
+        .task(id: historyRevision) { await loadArchive() }
     }
     private func loadArchive() async {
-        do { archive = try await APIClient().tasks(archived: true); archiveError = false }
-        catch is CancellationError { }
+        do {
+            let client = APIClient()
+            async let current = client.tasks(includeChildren: true)
+            async let archived = client.tasks(includeChildren: true, archived: true)
+            var seen = Set<String>()
+            let all = try await (current + archived).filter { seen.insert($0.id).inserted }
+            let revisions = Dictionary(uniqueKeysWithValues: all.map { ($0.id, realtime.revision(for: $0.id)) })
+            let pending = all.filter { loadedRevisions[$0.id] != revisions[$0.id] }
+            for start in stride(from: 0, to: pending.count, by: 4) {
+                try Task.checkCancellation()
+                let batch = Array(pending[start..<min(start + 4, pending.count)])
+                let results = try await withThrowingTaskGroup(of: (String, Date?).self) { group in
+                    for task in batch {
+                        group.addTask {
+                            let detail = try await client.task(id: task.id)
+                            let first = (detail.events ?? []).filter { $0.field == "agent_state" && $0.toValue == "review" }
+                                .compactMap(\.createdAtDate).min()
+                            return (task.id, first)
+                        }
+                    }
+                    var values: [(String, Date?)] = []
+                    for try await value in group { values.append(value) }
+                    return values
+                }
+                for (id, date) in results {
+                    reviewDates[id] = date
+                    loadedRevisions[id] = revisions[id]
+                }
+            }
+            reviewDates = reviewDates.filter { seen.contains($0.key) }
+            archiveError = false
+        } catch is CancellationError { }
         catch { archiveError = true }
     }
 }

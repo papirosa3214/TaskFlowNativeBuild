@@ -560,3 +560,5 @@
 | LOCK-TAB-PLUS-COLOR-20261011 | REVIEW | TAB-PLUS-COLOR | Plus uses background color | AGENT-WORK-SCOPES.md, Sources/DesignSystem/Navigation/TFTabBar.swift, docs/2026-10-11-tab-plus-color.md | Owner request | Codex | Build and existing Gantt UI screenshot |
 
 | LOCK-HEATMAP-RED-BRIGHTNESS-20261011 | REVIEW | HEATMAP-RED-BRIGHTNESS | Gray zero then increasing red brightness | AGENT-WORK-SCOPES.md, Sources/Features/Directory/CompletionHeatmap.swift, docs/2026-10-11-heatmap-red-brightness.md | Owner correction | Codex | Device build, owner phone review without tests |
+
+| LOCK-OVERVIEW-REVIEW-20261011 | REVIEW | OVERVIEW-REVIEW | Review-date heatmap and unified navigation without search/chevrons | AGENT-WORK-SCOPES.md, Sources/Features/Directory/CompletionHeatmap.swift, Sources/Features/Directory/OverviewScreen.swift, docs/2026-10-11-overview-review.md | Owner request | Codex | Build and phone review without new tests |

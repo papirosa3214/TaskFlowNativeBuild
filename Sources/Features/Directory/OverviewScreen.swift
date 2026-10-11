@@ -10,11 +10,6 @@ import SwiftUI
 struct OverviewScreen: View {
     @Environment(TaskStore.self) private var taskStore
 
-    /// Поиск открывается кнопкой в шапке, а не пунктом навигации, поэтому
-    /// ему нужен свой флаг: `NavigationLink(value:)` требует собственный
-    /// тап-лейбл, а здесь тап уже съеден кнопкой шапки.
-    @State private var searchOpen = false
-
     @State private var summaryOpen = false
     var body: some View {
         ScrollView {
@@ -23,7 +18,6 @@ struct OverviewScreen: View {
             // карточку-список.
             VStack(spacing: TFSpacing.xl) {
                 CompletionHeatmap()
-                weeklySummaryCard
                 navigationSection
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -49,28 +43,6 @@ struct OverviewScreen: View {
         // тот же баг, что чинили в самом начале на «Проектах»). `tfNativeHeader`
         // без ручного `toolbarBackground` — тот же приём, что и везде.
         .tfNativeHeader("Обзор", displayMode: .inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    searchOpen = true
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                }
-                .accessibilityLabel("Поиск")
-                .accessibilityLabel("Поиск")
-                .accessibilityIdentifier("overview.search")
-            }
-        }
-        // Кнопка в шапке — обработчик без своего Label-контейнера, поэтому
-        // переход не через `NavigationLink(value:)` (тому нужен собственный
-        // тап-лейбл), а через локальный `navigationDestination(isPresented:)`
-        // на свой же экран поиска — тот же пункт таблицы маршрутов
-        // (`SearchScreen`, INTEGRATION.md), просто без похода через общий
-        // `routeDestination` в `Sources/App/`.
-        // Экран поиска берём из общей фабрики маршрутов, а не создаём тип
-        // напрямую: пока экран не написан, фабрика отдаёт заглушку, и
-        // «Обзор» от этого не ломается.
-        .navigationDestination(isPresented: $searchOpen) { routeDestination(.search) }
     }
 
     // MARK: - Сводка недели
@@ -81,50 +53,20 @@ struct OverviewScreen: View {
     // причёсывания под стиль «Моделей и голосов»). Нейтрально, как соседние
     // навигационные строки.
     private var weeklySummaryCard: some View {
-        Button {
-            summaryOpen = true
-        } label: {
-            HStack(spacing: TFSpacing.md) {
-                // 32×32 — тот же размер, что у иконок navCard ниже (было
-                // 36×36, лишний повод для разной высоты строк).
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Color.tfDim)
-                    .frame(width: 32, height: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: TFSpacing.sm) {
-                        Text("Сводка недели")
-                            .tfText(.body)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tfText)
-                            .lineLimit(1)
-                        TFAccentTag("SECOND BRAIN", color: .tfDim)
-                    }
-                    Text("Победы, хвосты и фокус на цели недели")
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.tfDim)
-            }
-            .padding(TFSpacing.lg)
-        }
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
-        .buttonStyle(TFTapRowStyle())
-        .accessibilityIdentifier("overview.weekly-summary")
+        Button { summaryOpen = true } label: {
+            TFListRow(icon: "brain.head.profile", iconStyle: .plain, title: "Сводка недели", subtitle: "Победы, хвосты и фокус на цели недели", titleStyle: .body, verticalPadding: TFSpacing.md)
+        }.buttonStyle(.plain).accessibilityIdentifier("overview.weekly-summary")
     }
 
     private var navigationSection: some View {
         TFCard(padding: 0) {
             VStack(spacing: 0) {
+                weeklySummaryCard
+                TFDivider(inset: rowDividerInset)
                 NavigationLink {
                     RoleLoadScreen()
                 } label: {
-                    TFListRow(icon: "chart.bar.xaxis", iconStyle: .plain, title: "Загрузка ролей", subtitle: "Заходы, текущая занятость и открытые слоты", trailing: AnyView(chevron), titleStyle: .body, verticalPadding: TFSpacing.md)
+                    TFListRow(icon: "chart.bar.xaxis", iconStyle: .plain, title: "Загрузка ролей", subtitle: "Заходы, текущая занятость и открытые слоты", titleStyle: .body, verticalPadding: TFSpacing.md)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("overview.role-load")
@@ -147,7 +89,6 @@ struct OverviewScreen: View {
                 iconStyle: .plain,
                 title: title,
                 subtitle: subtitle,
-                trailing: AnyView(chevron),
                 titleStyle: .body,
                 verticalPadding: TFSpacing.md
             )
@@ -155,23 +96,8 @@ struct OverviewScreen: View {
         .buttonStyle(.plain)
     }
 
-    private var chevron: some View {
-        Image(systemName: "chevron.right")
-            .font(.system(size: 13))
-            .foregroundStyle(Color.tfDim)
-    }
+
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
-
-    // Кнопка поиска в шапке — тоже переход по маршруту, но actions
-    // TFScreenHeader ждёт обработчик, не value-ссылку, поэтому здесь
-    // отдельный @State-флаг + скрытый NavigationLink(isActive:) современный
-    // эквивалент — value-based navigationDestination тоже слушает push
-    // программно через тот же механизм с помощью `NavigationLink(value:)`,
-    // но у кнопки шапки нет своего Label-контейнера для него, поэтому
-    // прокладываем переход через отдельный invisible link.
-    @State private var searchPushed = false
-    private func navigateToSearch() { searchPushed = true }
-
 
 }
