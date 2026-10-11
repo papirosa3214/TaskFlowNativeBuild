@@ -33,11 +33,11 @@ struct CompletionHeatmap: View {
     }
     private func shade(_ count: Int) -> Color {
         switch count {
-        case 0: return Color(white: 0.9)
-        case 1: return Color.tfRed.mix(with: .white, by: 0.8)
-        case 2...3: return Color.tfRed.mix(with: .white, by: 0.4)
-        case 4...6: return Color.tfRed
-        default: return Color.tfRed.mix(with: .black, by: 0.45)
+        case 0: return Color.tfStroke
+        case 1: return Color.tfRed.mix(with: .black, by: 0.7)
+        case 2...3: return Color.tfRed.mix(with: .black, by: 0.45)
+        case 4...6: return Color.tfRed.mix(with: .black, by: 0.2)
+        default: return Color.tfRed
         }
     }
 
