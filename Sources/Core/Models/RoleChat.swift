@@ -317,6 +317,15 @@ struct RoleLiveTextPacer {
     static let actionInterval: TimeInterval = 0.4
     static let initialBuffer: TimeInterval = 0.8
     private var initialDelay: TimeInterval = Self.initialBuffer
+    private var completionRemaining: TimeInterval?
+
+    /// После сдачи ответа плавно дочитываем хвост, не растягивая его на минуты.
+    mutating func finish() {
+        guard completionRemaining == nil else { return }
+        completionRemaining = 2
+        initialDelay = 0
+        actionWait = 0
+    }
     /// Сколько очередь стоит без новых слов — недописанное сервером слово
     /// показываем, только если продолжения долго нет.
     private var stall: TimeInterval = 0
@@ -383,6 +392,11 @@ struct RoleLiveTextPacer {
     /// остаются символы.
     @discardableResult
     mutating func advance(elapsed: TimeInterval, now: Date = .now) -> Bool {
+        if let remaining = completionRemaining {
+            let next = max(0, remaining - elapsed)
+            completionRemaining = next
+            if next == 0 { flush(now: now); return false }
+        }
         let pending = pendingCharacters
         guard hasPendingText else {
             budget = 0
@@ -398,7 +412,12 @@ struct RoleLiveTextPacer {
         // скачков, из-за которых поток то бежит, то встаёт.
         let desired = min(Self.maxRate, max(Self.minRate, Double(pending) / Self.targetLag))
         let blend = min(1, elapsed / 1.0)
-        rate += (desired - rate) * blend
+        if let remaining = completionRemaining {
+            rate = max(Self.minRate, Double(pending) / max(remaining, 0.016))
+            actionWait = 0
+        } else {
+            rate += (desired - rate) * blend
+        }
         budget += rate * elapsed
         stall += elapsed
 

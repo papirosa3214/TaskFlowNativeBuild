@@ -243,7 +243,10 @@ struct RoleLiveTurnBubble: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear { if pacesText { ingest(turn.items) } }
         .onChange(of: turn.items) { _, items in if pacesText { ingest(items) } }
-        .onChange(of: isComplete) { _, _ in playbackRevision += 1 }
+        .onChange(of: isComplete) { _, complete in
+            if complete { driver.pacer.finish() }
+            playbackRevision += 1
+        }
         .task(id: playbackRevision) {
             guard pacesText else { return }
             let diagnosticID = driver.isAnimating(now: .now) ? AppDiagnostics.shared.begin(.reply) : nil
@@ -265,6 +268,7 @@ struct RoleLiveTurnBubble: View {
     private func ingest(_ items: [RoleChatLiveItem]) {
         if !driver.isAnimating(now: .now) { driver.resetClock() }
         driver.pacer.ingest(items)
+        if isComplete { driver.pacer.finish() }
         if !seeded {
             seeded = true
             if startsWithSnapshot { driver.pacer.flush() }

@@ -5,6 +5,29 @@ import XCTest
 /// Живой ход роли в чате (LOCK-229) — формы как их шлёт сервер
 /// (`server/src/runtime/chatLiveTurn.ts`: `chats:live`, `chat_messages.steps`).
 final class RoleChatLiveTurnTests: XCTestCase {
+    func testCompletedLongReplyDrainsWithinTwoSeconds() {
+        var pacer = RoleLiveTextPacer()
+        let text = String(repeating: "длинный ответ ", count: 1000)
+        pacer.ingest([.text(text)])
+        pacer.advance(elapsed: 0.2)
+        XCTAssertTrue(pacer.hasPendingText)
+        pacer.finish()
+        for _ in 0..<126 { pacer.advance(elapsed: 0.016) }
+        XCTAssertFalse(pacer.hasPendingText)
+        XCTAssertEqual(pacer.visibleItems, [.text(text)])
+    }
+
+    func testRepeatedCompletionDoesNotPostponeDeadline() {
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text(String(repeating: "слово ", count: 1000))])
+        pacer.finish()
+        for _ in 0..<126 {
+            pacer.finish()
+            pacer.advance(elapsed: 0.016)
+        }
+        XCTAssertFalse(pacer.hasPendingText)
+    }
+
     private func parse(_ json: String) -> RealtimeEvent? {
         RealtimeEvent.parse(Data(json.utf8))
     }
