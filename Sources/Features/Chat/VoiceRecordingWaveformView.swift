@@ -1,8 +1,7 @@
 import SwiftUI
 import AVFoundation
 
-/// Огибающая измерений AVAudioRecorder: столбик соответствует моменту речи.
-/// Высота каждого столбика неизменна; анимируется только движение истории.
+/// Декоративная волна: непрерывная временная шкала, без переключения режимов.
 struct VoiceRecordingWaveformView: View {
     let levels: [Double]
     let elapsed: TimeInterval
@@ -10,7 +9,7 @@ struct VoiceRecordingWaveformView: View {
     let peakColor: Color
     var maxHeight: CGFloat = 28
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sampledAt = Date()
+    @State private var startedAt = Date()
     private let barWidth: CGFloat = 3
     private let spacing: CGFloat = 2
 
@@ -18,28 +17,43 @@ struct VoiceRecordingWaveformView: View {
         minimum + min(1, max(0, level)) * max(0, maximum - minimum)
     }
 
+    static func travel(seconds: Double) -> Double { max(0, seconds) * 18 }
+
+    private static func noise(_ index: Int) -> Double {
+        let value = sin(Double(index) * 127.1 + 311.7) * 43758.5453
+        return value - floor(value)
+    }
+
+    static func decorativeLevel(index: Int) -> Double {
+        // Нерегулярные группы разной длины; соседние столбики тоже различаются.
+        let position = Double(index) / 11
+        let group = Int(floor(position))
+        let fraction = position - floor(position)
+        let smooth = fraction * fraction * (3 - 2 * fraction)
+        let envelope = noise(group) * (1 - smooth) + noise(group + 1) * smooth
+        return min(1, 0.06 + pow(envelope, 1.3) * (0.35 + noise(index + 913) * 0.65))
+    }
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
             Canvas { context, size in
                 let pitch = barWidth + spacing
-                let count = max(1, Int(ceil(size.width / pitch)) + 1)
-                let samples = Array(levels.suffix(count))
-                // За один период измерения плавно сдвигаем историю на столбик.
-                let phase = reduceMotion ? 1 : min(1, max(0, timeline.date.timeIntervalSince(sampledAt) / 0.16))
-                for index in 0..<count {
-                    let sampleIndex = levels.count < count ? index : index - (count - samples.count)
-                    let level = sampleIndex >= 0 && sampleIndex < samples.count ? samples[sampleIndex] : 0
+                let distance = reduceMotion ? 0 : Self.travel(seconds: timeline.date.timeIntervalSince(startedAt))
+                let first = Int(floor(distance / pitch))
+                let offset = CGFloat(distance.truncatingRemainder(dividingBy: Double(pitch)))
+                let count = max(1, Int(ceil(size.width / pitch)) + 2)
+                for slot in 0..<count {
+                    let level = Self.decorativeLevel(index: first + slot)
                     let h = Self.height(level: level, maximum: Double(maxHeight))
-                    let x = levels.count < count ? CGFloat(index) * pitch : size.width - CGFloat(count - 1 - index) * pitch - barWidth + pitch * CGFloat(1 - phase)
-                    let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
-                    let tint = color.mix(with: peakColor, by: min(1, max(0, level)))
+                    let rect = CGRect(x: CGFloat(slot) * pitch - offset,
+                                      y: (size.height - h) / 2, width: barWidth, height: h)
+                    let tint = color.mix(with: peakColor, by: level)
                     context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(tint))
                 }
             }
         }
         .frame(height: maxHeight)
         .clipped()
-        .onChange(of: Int(elapsed / 0.16)) { _, _ in sampledAt = .now }
         .accessibilityLabel("Звуковая волна записи")
         .accessibilityIdentifier("chat.voice.recording-wave")
     }

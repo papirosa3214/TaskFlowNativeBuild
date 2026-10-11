@@ -1,6 +1,14 @@
 import XCTest
 @testable import TaskFlow
 final class VoiceRecordingWaveformTests: XCTestCase {
+    func testDecorativeTapeMovesContinuouslyAcrossBarBoundary() {
+        XCTAssertEqual(VoiceRecordingWaveformView.travel(seconds: 0), 0)
+        XCTAssertEqual(VoiceRecordingWaveformView.travel(seconds: 10), 180)
+        XCTAssertEqual(VoiceRecordingWaveformView.travel(seconds: 0.28) - VoiceRecordingWaveformView.travel(seconds: 0.27), 0.18, accuracy: 0.00001)
+        let levels = (0..<100).map { VoiceRecordingWaveformView.decorativeLevel(index: $0) }
+        XCTAssertGreaterThan(Set(levels.map { Int($0 * 100) }).count, 25)
+        XCTAssertGreaterThan((levels.max() ?? 0) - (levels.min() ?? 1), 0.5)
+    }
     func testAudioSamplePreservesSyllableRange() throws {
         let url = try XCTUnwrap(VoiceRecordingWaveformPreview.speechURL)
         let samples = try VoiceRecordingWaveformPreview.speechSamples(from: url)
