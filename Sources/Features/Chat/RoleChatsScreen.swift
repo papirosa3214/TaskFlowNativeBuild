@@ -1087,7 +1087,8 @@ struct RoleChatRoomScreen: View {
     }
 
     private func messageScroll(viewportHeight: CGFloat) -> some View {
-        ScrollViewReader { proxy in
+        let orderedFeed = feedItems
+        return ScrollViewReader { proxy in
             ScrollView {
                 // История здесь пока небольшая (на сервере максимум 58
                 // сообщений на 28.09). LazyVStack измерял длинные ответы
@@ -1099,9 +1100,9 @@ struct RoleChatRoomScreen: View {
                     }
                     // Перед первым сообщением нового дня — плашка даты
                     // («когда заканчивается день», владелец 03.10.2026).
-                    ForEach(Array(feedItems.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(orderedFeed.enumerated()), id: \.element.id) { index, item in
                         let day = ChatDayLabel.label(raw: item.dateString)
-                        if index == 0 || day != ChatDayLabel.label(raw: feedItems[index - 1].dateString) {
+                        if index == 0 || day != ChatDayLabel.label(raw: orderedFeed[index - 1].dateString) {
                             ChatFeedDivider(title: day ?? "")
                         }
                         if let turn = item.turn {
@@ -1256,17 +1257,19 @@ struct RoleChatRoomScreen: View {
         let position: Int
         let message: RoleChatMessage?
         let turn: RoleChatLiveTurn?
-        var date: Date { RoleChatTime.date(dateString) ?? (turn == nil ? .distantPast : .distantFuture) }
+        let date: Date
     }
     private var feedItems: [FeedItem] {
         let history = visibleMessages.enumerated().map { index, message in
             let slot = completedTurnSlots[message.id]
             return FeedItem(id: slot?.playbackID ?? message.id,
-                dateString: slot?.startedAt ?? message.createdAt, position: index, message: message, turn: nil)
+                dateString: slot?.startedAt ?? message.createdAt, position: index, message: message, turn: nil,
+                date: RoleChatTime.date(slot?.startedAt ?? message.createdAt) ?? .distantPast)
         }
         let live = visibleLiveTurns.enumerated().map { index, turn in
             FeedItem(id: turn.playbackID, dateString: turn.startedAt,
-                position: messages.count + index, message: nil, turn: turn)
+                position: messages.count + index, message: nil, turn: turn,
+                date: turn.startDate ?? .distantFuture)
         }
         return (history + live).sorted {
             if $0.date != $1.date { return $0.date < $1.date }
@@ -1524,6 +1527,7 @@ struct RoleChatRoomScreen: View {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 } else if !message.text.isEmpty {
                     RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
+                        .equatable()
                 }
                 nonVoiceAttachments(message)
                 if isAgentReply(message) && !isSelecting { messageActions(message) }
@@ -1615,6 +1619,7 @@ struct RoleChatRoomScreen: View {
                         // В группе ответы ролей тоже с разметкой, таблицами,
                         // виджетами и артефактами — раньше здесь были звёздочки.
                         RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
+                        .equatable()
                     }
                 }
                 if !mine && isAgentReply(message) && !isSelecting {

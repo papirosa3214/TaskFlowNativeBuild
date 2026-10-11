@@ -4,7 +4,11 @@ import SwiftUI
 /// идёт плоским текстом, как в окне Claude Code, и `**жирный**`, списки, код
 /// показываются по-человечески, а не звёздочками. Разбор — существующий
 /// `MarkdownParser` заметок (только чтение): второго парсера не заводим.
-struct RoleReplyMarkdown: View {
+struct RoleReplyMarkdown: View, Equatable {
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade
+    }
+
     let text: String
     var color: Color = .tfText
     var allowsCommands = false
