@@ -5,12 +5,14 @@ import XCTest
 final class RoleChatVoiceTests: XCTestCase {
     func testRecordingMeterRespondsToFirstQuietSpeechSample() {
         let level = VoiceWaveform.recordingLevel(previous: 0, averageDecibels: -45, peakDecibels: -35)
-        XCTAssertGreaterThan(level, 0.25)
+        XCTAssertGreaterThan(level, 0.1)
+        XCTAssertLessThan(level, 0.4)
     }
 
     func testRecordingMeterReleasesSmoothlyThroughBriefPause() {
         var level = VoiceWaveform.recordingLevel(previous: 0.8, averageDecibels: -160, peakDecibels: -160)
-        XCTAssertGreaterThan(level, 0.65)
+        XCTAssertGreaterThan(level, 0)
+        XCTAssertLessThan(level, 0.4)
         for _ in 0..<19 {
             level = VoiceWaveform.recordingLevel(previous: level, averageDecibels: -160, peakDecibels: -160)
         }
@@ -22,9 +24,27 @@ final class RoleChatVoiceTests: XCTestCase {
         let pause = VoiceWaveform.recordingLevel(previous: first, averageDecibels: -160, peakDecibels: -160)
         let next = VoiceWaveform.recordingLevel(previous: pause, averageDecibels: -30, peakDecibels: -20)
         XCTAssertGreaterThan(first, 0)
-        XCTAssertGreaterThan(pause, first * 0.8)
+        XCTAssertGreaterThan(pause, 0)
+        XCTAssertLessThan(pause, first * 0.8)
         XCTAssertGreaterThan(next, first)
         XCTAssertEqual(VoiceWaveform.recordingLevel(previous: 0, averageDecibels: -160, peakDecibels: -160), 0)
+    }
+
+    func testSpeechRangeKeepsOrdinaryVoiceBelowCeiling() {
+        func settled(_ avg: Float, _ peak: Float) -> Double {
+            var value = 0.0
+            for _ in 0..<30 { value = VoiceWaveform.recordingLevel(previous: value, averageDecibels: avg, peakDecibels: peak) }
+            return value
+        }
+        let quiet = settled(-45, -35)
+        let ordinary = settled(-30, -20)
+        let loud = settled(-12, -6)
+        XCTAssertGreaterThan(quiet, 0.1)
+        XCTAssertGreaterThan(ordinary, quiet + 0.15)
+        XCTAssertLessThan(ordinary, 0.75)
+        XCTAssertGreaterThan(loud, ordinary + 0.2)
+        XCTAssertEqual(settled(-60, -60), 0)
+        XCTAssertEqual(settled(.nan, -.infinity), 0)
     }
 
     func testSmoothRecordingWaveUsesAvailableWidthInsteadOfFiveBars() {

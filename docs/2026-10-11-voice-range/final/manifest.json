@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "88A1EE2E-E69E-4AD7-AA46-453BD75628D0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Два режима — аудиообразец речи_0_3E787904-B5E7-4F0C-A518-9A97BC6D573F.png",
+        "timestamp" : 1791698893.335
+      }
+    ],
+    "testIdentifier" : "VoiceRecordingWaveformUITests/testBothRecordingWaveforms()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/VoiceRecordingWaveformUITests/testBothRecordingWaveforms"
+  }
+]

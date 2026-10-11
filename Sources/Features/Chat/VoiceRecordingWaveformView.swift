@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 /// Огибающая измерений AVAudioRecorder: столбик соответствует моменту речи.
 /// Значения уже сглажены VoiceWaveform.recordingLevel, здесь нет генератора волн.
@@ -45,14 +46,46 @@ struct VoiceRecordingWaveformView: View {
 }
 
 #if DEBUG
-/// Детерминированные уровни для проверки отрисовки; не имитация микрофонного теста.
+/// Проверка по аудиообразцу: одна запись, без повторяющегося узора.
 struct VoiceRecordingWaveformPreview: View {
     @State private var samples: [Double] = []
     @State private var elapsed = 0.0
-    private let fixture: [Double] = [0, 0.02, 0.1, 0.35, 0.7, 1, 0.8, 0.4, 0.1, 0.02, 0, 0, 0, 0.1, 0.6, 0.9, 0.3, 0]
+    @State private var finished = false
+
+    static func speechSamples(from url: URL) throws -> [Double] {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(file.length))!
+        try file.read(into: buffer)
+        guard let channel = buffer.floatChannelData?[0] else { return [] }
+        let window = max(1, Int(format.sampleRate * 0.04))
+        var result: [Double] = []
+        var smoothed = 0.0
+        for start in stride(from: 0, to: Int(buffer.frameLength), by: window) {
+            let end = min(Int(buffer.frameLength), start + window)
+            var sum = 0.0
+            var peak = 0.0
+            for index in start..<end {
+                let value = Double(channel[index])
+                sum += value * value
+                peak = max(peak, abs(value))
+            }
+            let rms = sqrt(sum / Double(end - start))
+            let averageDB = Float(20 * log10(max(rms, 1e-8)))
+            let peakDB = Float(20 * log10(max(peak, 1e-8)))
+            smoothed = VoiceWaveform.recordingLevel(previous: smoothed, averageDecibels: averageDB, peakDecibels: peakDB)
+            result.append(smoothed)
+        }
+        return result
+    }
+
+    static var speechURL: URL? {
+        Bundle.main.url(forResource: "secretary-voice-kore", withExtension: "m4a")
+            ?? Bundle.main.url(forResource: "secretary-voice-kore", withExtension: "m4a", subdirectory: "SecretaryVoices")
+    }
     var body: some View {
         VStack(spacing: 40) {
-            Text(samples.count >= 36 ? "История готова" : "Накопление истории")
+            Text(finished ? "Аудиообразец прочитан" : "Чтение аудиообразца")
                 .accessibilityIdentifier("voice.preview.ready")
             Text("Голосовое сообщение")
             VoiceRecordingWaveformView(levels: samples, elapsed: elapsed,
@@ -67,14 +100,15 @@ struct VoiceRecordingWaveformPreview: View {
         .background(Color(white: 0.125))
         .foregroundStyle(.white)
         .task {
-            var index = 0
-            while !Task.isCancelled {
-                samples.append(fixture[index % fixture.count])
+            guard let url = Self.speechURL, let fixture = try? Self.speechSamples(from: url) else { return }
+            for value in fixture {
+                guard !Task.isCancelled else { return }
+                samples.append(value)
                 if samples.count > 120 { samples.removeFirst() }
-                index += 1
                 elapsed += 0.04
                 do { try await Task.sleep(for: .milliseconds(40)) } catch { return }
             }
+            finished = true
         }
     }
 }
