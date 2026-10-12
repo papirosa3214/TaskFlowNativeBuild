@@ -49,7 +49,7 @@
 	<true/>
 	<key>UIAppFonts</key>
 	<array>
-		<string>DotGothic16-Subset.ttf</string>
+		<string>Handjet-Metric.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

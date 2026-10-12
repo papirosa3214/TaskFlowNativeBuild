@@ -9,11 +9,13 @@ import SwiftUI
 // («заведена 12 окт») прямо: «мне не надо вот эту вот всю херню, мне только
 // числа нужны».
 //
-// Шрифт DotGothic16 (OFL, Pixel Maniac / Japanese pixel tradition) — выбран
-// владельцем из восьми вариантов, показанных кадрами в строке списка.
-// Файл урезан до ASCII+кириллицы (60 КБ вместо 2 МБ), в бандл кладётся
-// через `Resources/Fonts` (project.yml), регистрируется `UIAppFonts`
-// (Resources/Info.plist).
+// Шрифт Handjet (OFL, модульный пиксельный) — выбран владельцем. Сначала был
+// DotGothic16, но у него цифра, точка и двоеточие занимают ОДИНАКОВУЮ ячейку
+// (500/1000 em каждая): пустая половина ячейки после точки читается как
+// пробел — владелец: «убери эти пробелы». У Handjet точка занимает 176/1000 em
+// против цифры 412, дыр нет. Файл инстанцирован на вес 600 и урезан до
+// ASCII+кириллицы (72 КБ вместо 284 КБ), в бандл кладётся через
+// `Resources/Fonts` (project.yml), регистрируется `UIAppFonts`.
 //
 // ⚠️ Время — МОСКОВСКОЕ, не таймзона устройства: `created_at` приходит из
 // SQLite в UTC (`DateFormats.sqliteUTC`), и та же трактовка уже принята для
@@ -99,7 +101,7 @@ public extension TFFont {
     /// Кегль 11 — как `.caption` (шаг мета-строки), но `@ScaledMetric`
     /// обязателен: `Font.custom(_:size:)` не масштабируется под Dynamic Type,
     /// а строка задачи — текст, а не декорация (WCAG 1.4.4).
-    static let pixelStamp = Font.custom("DotGothic16", size: 11, relativeTo: .caption)
+    static let pixelStamp = Font.custom("Handjet", size: 11, relativeTo: .caption)
 }
 
 #Preview("Метка даты заведения") {

@@ -1,4 +1,6 @@
 import XCTest
+import CoreGraphics
+import CoreText
 @testable import TaskFlow
 
 /// Метка даты и времени заведения в строке задачи — LOCK-TASK-CREATED-STAMP.
@@ -92,13 +94,50 @@ final class TaskCreatedStampTests: XCTestCase {
     /// включённой опции разработчика ещё и падает в консоль. Это тест на
     /// наличие ресурса, а не на вид шрифта.
     func testPixelStampFontIsRegisteredInBundle() {
-        let url = Bundle.main.url(forResource: "DotGothic16-Subset", withExtension: "ttf")
-        XCTAssertNotNil(url, "Resources/Fonts/DotGothic16-Subset.ttf не попал в бандл")
+        let url = Bundle.main.url(forResource: "Handjet-Metric", withExtension: "ttf")
+        XCTAssertNotNil(url, "Resources/Fonts/Handjet-Metric.ttf не попал в бандл")
 
         let names = (Bundle.main.infoDictionary?["UIAppFonts"] as? [String]) ?? []
         XCTAssertTrue(
-            names.contains { $0.hasPrefix("DotGothic16-Subset") },
+            names.contains { $0.hasPrefix("Handjet-Metric") },
             "UIAppFonts не объявляет шрифт: \(names)"
         )
+    }
+
+    /// Точка и двоеточие в пиксельном шрифте не должны съедать ячейку цифры:
+    /// в DotGothic16 все три занимали по 500/1000 em, и пустая половина ячейки
+    /// после точки читалась как пробел (владелец 12.10.2026: «убери эти
+    /// пробелы»). У Handjet точка уже цифры — это и есть проверка на регресс
+    /// при следующей замене шрифта.
+    func testStampFontHasNoGapsAroundPunctuation() throws {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: "Handjet-Metric", withExtension: "ttf"),
+            "шрифт метки не найден в бандле"
+        )
+        let data = try Data(contentsOf: url)
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        let cgFont = try XCTUnwrap(CGFont(provider))
+
+        // Ширину меряем через CTLine — тем же путём, каким символ рисуется.
+        // `CTFontGetAdvancesForGlyphs` на этом шрифте отдаёт нули (проверено
+        // 12.10.2026), а CTLine измеряет фактический набор.
+        let ctFont = CTFontCreateWithGraphicsFont(cgFont, 1000, nil, nil)
+
+        func advance(_ character: Character) -> Int {
+            let attributed = NSAttributedString(string: String(character), attributes: [
+                kCTFontAttributeName as NSAttributedString.Key: ctFont,
+            ])
+            let line = CTLineCreateWithAttributedString(attributed)
+            return Int(CTLineGetTypographicBounds(line, nil, nil, nil))
+        }
+
+        let digit = advance("0")
+        for character: Character in [".", ":"] {
+            let value = advance(character)
+            XCTAssertLessThan(
+                value, digit,
+                "«\(character)» занимает \(value)/1000 em — не у́же цифры (\(digit)), в метке появятся дыры"
+            )
+        }
     }
 }
