@@ -1,0 +1,52 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "66AC35BC-0761-473D-BC21-13BDBB3DECF2.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "tabbar-overview_0_0D1AE351-E315-4FAB-B618-DFF9D0F06D1B.png",
+        "timestamp" : 1791741157.34
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "57BC5904-051C-405C-A70D-D94532D47503.mp4",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Screen Recording 2026-10-11 at 08.52.28 PM.mp4",
+        "timestamp" : 1791741148.156
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "1BA9CAFE-A947-4BBC-AE27-91C7BE92C211.txt",
+        "isAssociatedWithFailure" : true,
+        "suggestedHumanReadableName" : "Complete Issue Description.txt"
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "F29464BE-F8FE-49AD-AE3B-00000268CBF0.txt",
+        "isAssociatedWithFailure" : true,
+        "suggestedHumanReadableName" : "App UI hierarchy for com.maksim.taskflow_0_6DC6CBEC-BCA0-48B1-8144-A673A32482F9.native",
+        "timestamp" : 1791741159.722
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "A08D3990-2943-4381-AEC4-51EE856C26C1",
+        "isAssociatedWithFailure" : true,
+        "suggestedHumanReadableName" : "UI Snapshot 2026-10-11 at 08.52.39 PM",
+        "timestamp" : 1791741159.722
+      }
+    ],
+    "testIdentifier" : "TabBarGlassUITests/testTabBarLooksLikeGlass()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/TabBarGlassUITests/testTabBarLooksLikeGlass"
+  }
+]

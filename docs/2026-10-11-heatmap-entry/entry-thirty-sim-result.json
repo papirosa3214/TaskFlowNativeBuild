@@ -1,0 +1,41 @@
+{
+  "request": {
+    "scheme": "TaskFlow",
+    "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+    "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+    "platform": "iOS Simulator",
+    "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+    "onlyTesting": [
+      "TaskFlowUITests/HeatmapEntryUITests/testInitialThirtyPercentPerformance"
+    ],
+    "skipTesting": []
+  },
+  "summary": {
+    "status": "SUCCEEDED",
+    "durationMs": 90100,
+    "counts": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "target": "simulator"
+  },
+  "artifacts": {
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-11T20-57-02-563Z_pid42782_3121ce0e.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_sim_2026-10-11T20-57-02-563Z_pid42782_d58eda1b.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-11T20-57-02-563Z_pid42782_70b96811.xctestproducts"
+  },
+  "diagnostics": {
+    "warnings": [],
+    "errors": [],
+    "testFailures": []
+  },
+  "testCases": [
+    {
+      "suite": "HeatmapEntryUITests",
+      "test": "testInitialThirtyPercentPerformance",
+      "status": "passed",
+      "durationMs": 58656
+    }
+  ]
+}

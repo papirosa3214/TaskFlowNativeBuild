@@ -1,0 +1,297 @@
+{
+  "request": {
+    "scheme": "TaskFlow",
+    "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+    "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+    "platform": "iOS Simulator",
+    "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+    "onlyTesting": [
+      "TaskFlowTests/HeatmapExpansionTests",
+      "TaskFlowUITests/Heatmap3DUITests"
+    ],
+    "skipTesting": []
+  },
+  "summary": {
+    "status": "SUCCEEDED",
+    "durationMs": 82020,
+    "counts": {
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    "target": "simulator"
+  },
+  "artifacts": {
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-11T19-39-51-635Z_pid83485_76705d7f.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_sim_2026-10-11T19-39-51-635Z_pid83485_a0ecf05b.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-11T19-39-51-635Z_pid83485_5a34fc76.xctestproducts"
+  },
+  "diagnostics": {
+    "warnings": [
+      {
+        "message": "main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Markdown/BlockDocumentEditor.swift:319"
+      },
+      {
+        "message": "'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Core/Session/SessionStore.swift:25"
+      },
+      {
+        "message": "'CommandURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/OwnerCommandTests.swift:4"
+      },
+      {
+        "message": "'SystemControlURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/SystemControlViewModelTests.swift:137"
+      },
+      {
+        "message": "'ReplyURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/TaskPreparationReplyTests.swift:37"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Foundation-67IMQKVZO967HJCZXAC9OG4EY.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/_SwiftConcurrencyShims-EL1HPZCPQZST1TBRBGHEFSJAR.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreML-6L1LXW7T1P1KP4YQ62LBHMQL8.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Accelerate-74DTA3PP0190JVBQY44M4JBOU.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/OSLog-8WLHRB08W4QJ5ETTLSVZDPLT5.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/AVFoundation-4XQ091WIBRTMGZZ924FJHWX63.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/os-4PFUJF4Q2JEWLHTMFGVF5OUUU.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/FastClusterWrapper-8S012TR5H2W93BJ75VE8J0J2S.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/NaturalLanguage-1K7TDHM735EP7DS5BH3PBS38N.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Metal-7O29Y29C3PIW3W40BMA4WSQS3.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Darwin-EBO2LNGF76N1P10EDRR11YO6U.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreMedia-7X5L166Y8OPAVSZHDUESNT37O.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/MachTaskSelfWrapper-DM3TQ7TVYUP2YHHIZASVPNT1P.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/CNemoTextProcessing-3570DWKTYKFL1H0VL6KRV4NK2.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreFoundation-9XXEXGJGX15K6A04UQBWF4S0L.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/SwiftShims-3X1BEL11LPVA1RUSWLAHPL7LS.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/AVFAudio-6PKCW1BX841810OULAAFUDCO1.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/ObjectiveC-EAAOS49G9NQ0C1NE4EP5IYHUJ.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreAudioTypes-CP2SWRD9F5RULIU2Y17YCVM5D.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Dispatch-6YEK6ZFGGLVLJN5SB4YXMG017.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/_Builtin_stddef-7S7UZK1K133ZDS7TPES0P3AKN.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/_DarwinFoundation2-6IITYTABWW1RB3VRSH6B6YHKX.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Foundation-28NLZKVK61FOT39I6J831YRRG.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/_SwiftConcurrencyShims-4CK4ZSTJ43S3QNX3V1R8H5GH6.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/SwiftUI-2ST6B6TKLB1GPBCFEWOPQWS9J.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/SDWebImage-655JT7VYUZDD3QA9XQZ9W355L.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/UIKit-54RLTNF6P05NRVCY9V8RGA2F3.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreFoundation-DY88U7JS9SAMWFRBRJIYILB67.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Dispatch-8CFGBIWQFWZJN5ZE5RVCPUXCS.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreGraphics-1F2P4QI7X3FUDZGEG1YUZZ2SJ.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/LiveKitWebRTC-6R1BM5FMYWJYL87AW5NF88C9S.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/ReplayKit-A2AM6TWEUORPZ3WODSEBH5DML.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/UIKit-2DOP856R4N81W8QF1SKCCZBKD.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreImage-85FUYQFIADEOCLJ0GXS8S473Q.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Network-O8BGFEA9CJY49V8Y365GTL08.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/LKObjCHelpers-7DF40A3MVXC2UWX7FI915UTCL.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/UniformTypeIdentifiers-3XIKKQ400N36551BOGEKSG2SN.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreServices-648FY98VM3SDSO9WOQAR4MJGI.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/CLiveKitProto-5VEG0Q1JU8MRR00DIGD2ZVTS3.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Compression-EH16O3BIPVGTQFTXASD3SS7UC.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/SwiftUI-1LOUTNJMVNH0SGZ75GHLO37OW.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreVideo-C7EZQM83JJHWDKB5JIKL84N67.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Vision-256Q684GO1JB273VJARKT6S3K.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/MetalKit-2QG005UI05XNREOVNNPZD2HFC.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/AudioToolbox-CXHBJMRLG3NQ464J97IHFICD0.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreGraphics-A6EJ60B79YXKK67HGOU69UQV7.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/ImageIO-1GAQGOUU2KG2TJWVK65HE9D85.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/AVKit-2VWV4X5EB21IXDXYVK2PR3GRZ.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/QuartzCore-F380GEUQD6OYBYL28R7ZIUH1I.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/RustLiveKitUniFFI-BE5PNPIG5WQ1LC0LIHLKDFAS5.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/SwiftShims-9395WN2PLQ7TG087B9PMDSRIA.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/XCTest-7BDDAP4ID31US181PVFKXMB4M.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreServices-7BIBXGWGE1NI8HPENVOWZUJPP.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/SceneKit-BYRVGUZ4IA4HP94T5RHHPV71A.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/SpriteKit-5UOTPAD1VJ9WI6H8GE4DEC6UD.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/WebKit-61C4008RBLEPENH6J0X0DJVZ3.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Accelerate-36KQCCGUDHEJIM66E0JYVCMIV.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/CoreImage-86M178KHVE1BBJE1EFZDDI2UH.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/MetalPerformanceShaders-DJZLF348RTA5BUD184EFAS06J.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/ObjectiveC-2CQLKR1LFE6LPS4NWPJBP5L62.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/QuartzCore-C9MSWKC5KHA04WBM2UC9XZ7Y5.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/Metal-7KS7UHETIDAOIOKODISNWVH3G.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/_Builtin_stddef-BJV2PG31390ZC9OOA5W3XDY6E.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/SDKExplicitPrecompiledModules/_DarwinFoundation2-7W3CGPCLAP1HX9YQEMZSI0B8B.pcm: No such file or directory"
+      }
+    ],
+    "errors": [],
+    "testFailures": []
+  },
+  "testCases": [
+    {
+      "suite": "Heatmap3DUITests",
+      "test": "testOverviewGesturePerformance",
+      "status": "passed",
+      "durationMs": 22674
+    },
+    {
+      "suite": "Heatmap3DUITests",
+      "test": "testRecordBadgeFillsTheEmptyCornerOnlyWhenExpanded",
+      "status": "passed",
+      "durationMs": 11730
+    },
+    {
+      "suite": "Heatmap3DUITests",
+      "test": "testWholeScreenDragExpandsMapAndReturnsToOriginalLayout",
+      "status": "passed",
+      "durationMs": 12939
+    },
+    {
+      "test": "Камера раскрывается равномерно на всём пути, без провала и без рывка",
+      "status": "passed",
+      "durationMs": 1
+    },
+    {
+      "test": "Карта уже наклонена в первой четверти жеста, а не вращается плоской",
+      "status": "passed",
+      "durationMs": 1
+    },
+    {
+      "test": "Столбики растут линейно, а не взлетают ease-out в начале",
+      "status": "passed",
+      "durationMs": 1
+    },
+    {
+      "test": "Крайние значения зажаты: жест глубже экрана не ломает геометрию",
+      "status": "passed",
+      "durationMs": 1
+    },
+    {
+      "test": "Шкала строго красная, различает яркость и оставляет нулевой день серым",
+      "status": "passed",
+      "durationMs": 1
+    },
+    {
+      "test": "Финальный кадр полностью объёмный, плоский — полностью плоский",
+      "status": "passed",
+      "durationMs": 1
+    }
+  ]
+}
