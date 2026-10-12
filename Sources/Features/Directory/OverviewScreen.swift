@@ -12,6 +12,8 @@ struct OverviewScreen: View {
     @State private var depth: CGFloat = 0
     @State private var dragOrigin: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var openIncidents: Int?
+    @State private var busyRoles: Int?
     var body: some View {
         VStack(spacing: TFSpacing.md) {
             CompletionHeatmap(depth: reduceMotion ? 0 : depth)
@@ -40,6 +42,7 @@ struct OverviewScreen: View {
                 }
         )
         .sheet(isPresented: $summaryOpen) { WeeklySummarySheet() }
+        .task { await loadRowValues() }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Кнопка поиска переехала из
         // самодельного TFScreenHeader в `.toolbar { .topBarTrailing }` —
@@ -73,53 +76,68 @@ struct OverviewScreen: View {
         }.buttonStyle(.plain).accessibilityIdentifier("overview.weekly-summary")
     }
 
+    // Владелец 12.10.2026: без общей подложки — строки лежат на фоне, между
+    // ними линия. Справа живое значение; где значения нет — стрелка.
     private var navigationSection: some View {
-        TFCard(padding: 0) {
-            VStack(spacing: 0) {
-                weeklySummaryCard
-                TFDivider(inset: rowDividerInset)
-                NavigationLink {
-                    RoleLoadScreen()
-                } label: {
-                    navigationRowBody(title: "Загрузка ролей")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("overview.role-load")
-                TFDivider(inset: rowDividerInset)
-                navigationRow(route: .knowledge, title: "База знаний")
-                TFDivider(inset: rowDividerInset)
-                navigationRow(route: .notifications, title: "Состояние системы")
-                TFDivider(inset: rowDividerInset)
-                navigationRow(route: .activity, title: "Статистика")
-                TFDivider(inset: rowDividerInset)
-                navigationRow(route: .settings, title: "Настройки")
+        VStack(spacing: 0) {
+            weeklySummaryCard
+            TFDivider()
+            NavigationLink {
+                RoleLoadScreen()
+            } label: {
+                navigationRowBody(title: "Загрузка ролей", value: busyRoles.map { $0 > 0 ? "занято: \($0)" : "свободны" })
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("overview.role-load")
+            TFDivider()
+            navigationRow(route: .knowledge, title: "База знаний")
+            TFDivider()
+            navigationRow(route: .notifications, title: "Состояние системы",
+                          value: openIncidents.map { $0 > 0 ? "не починено: \($0)" : "в порядке" },
+                          tint: (openIncidents ?? 0) > 0 ? .tfRed : nil)
+            TFDivider()
+            navigationRow(route: .activity, title: "Статистика")
+            TFDivider()
+            navigationRow(route: .settings, title: "Настройки")
         }
     }
 
-    private func navigationRowBody(title: String) -> some View {
+    private func navigationRowBody(title: String, value: String? = nil, tint: Color? = nil) -> some View {
         HStack(spacing: TFSpacing.md) {
             Text(title)
                 .tfSectionDisplay(style: .taskTitle)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Spacer(minLength: 0)
+            if let value {
+                Text(value).tfText(.action).foregroundStyle(tint ?? Color.tfSub).lineLimit(1)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.tfDim)
+            }
         }
-        .padding(.horizontal, TFSpacing.lg)
         .padding(.vertical, TFSpacing.md)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
     }
 
-    private func navigationRow(route: AppRoute, title: String) -> some View {
+    /// Значения справа — по возможности: сбой запроса оставляет стрелку.
+    private func loadRowValues() async {
+        let client = APIClient()
+        if let state = try? await client.systemState(from: Calendar.current.startOfDay(for: Date())) {
+            openIncidents = state.counts.open
+        }
+        if let load: RoleLoad = try? await client.request(.get, "/coordination/role-load",
+                                                         query: [URLQueryItem(name: "window", value: "24h")]) {
+            busyRoles = Set(load.active_now.compactMap(\.role_key)).count
+        }
+    }
+
+    private func navigationRow(route: AppRoute, title: String, value: String? = nil, tint: Color? = nil) -> some View {
         NavigationLink(value: route) {
-            navigationRowBody(title: title)
+            navigationRowBody(title: title, value: value, tint: tint)
         }
         .buttonStyle(.plain)
     }
-
-    // Без иконки инсет разделителя — только горизонтальный отступ строки
-    // (раньше тут был ещё и отступ под иконку 40 pt + промежуток).
-    private var rowDividerInset: CGFloat { TFSpacing.lg }
-
 }
