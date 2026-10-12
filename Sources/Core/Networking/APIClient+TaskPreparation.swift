@@ -2,9 +2,20 @@ import Foundation
 
 public extension APIClient {
     func taskPreparation(taskId: String) async throws -> ApiTaskPreparation? {
+        #if DEBUG
+        if let mode = ProcessInfo.processInfo.environment["TASKFLOW_PREPARATION_PREVIEW"], ["executor", "structure"].contains(mode) {
+            return try await PreparationPreview.shared.snapshot(mode: mode)
+        }
+        #endif
         struct Envelope: Decodable { let preparation: ApiTaskPreparation? }
         let value: Envelope = try await request(.get, "/tasks/\(taskId)/preparation")
-        return value.preparation
+        guard var preparation = value.preparation else { return nil }
+        if preparation.status == "needs_clarification", preparation.question == nil {
+            struct Clarification: Decodable { let clarification_question: String? }
+            let card: Clarification = try await request(.get, "/tasks/\(taskId)")
+            preparation.taskQuestion = card.clarification_question
+        }
+        return preparation
     }
     func retryTaskPreparation(taskId: String) async throws {
         struct Reply: Decodable { let queued: Bool }
@@ -24,8 +35,11 @@ enum TaskPreparationReply {
         let title: String
         let answer: String
     }
-    static func choices(for question: String) -> [Choice] {
+    static func choices(for question: String, roles: [Choice] = []) -> [Choice] {
         let text = question.lowercased()
+        if text.contains("исполнител") || text.contains("какую роль") || text.contains("кто выполн") {
+            return roles
+        }
         // Только вопрос, в котором перечислены эти три способа подготовки.
         guard text.contains("дочер"), text.contains("рол"),
               text.contains("подшаг") || text.contains("одн") || text.contains("подзадач") else { return [] }
@@ -52,7 +66,31 @@ public extension APIClient {
               current.status == "needs_clarification" || current.status == "structure_review" else {
             throw APIError.server(status: 409, message: "Вопрос подготовки изменился. Обновите окно и выберите ответ на новый вопрос.")
         }
+        #if DEBUG
+        if let mode = ProcessInfo.processInfo.environment["TASKFLOW_PREPARATION_PREVIEW"], ["executor", "structure"].contains(mode) {
+            await PreparationPreview.shared.submit()
+            return
+        }
+        #endif
         let task = try await self.task(id: taskId)
         _ = try await patchTask(id: taskId, fields: ["description": .string(TaskPreparationReply.description(original: task.description, question: question, answer: trimmed))])
     }
 }
+
+#if DEBUG
+/// Подменяет только ответ подготовки для точного UI-теста; реальные карточки не меняет.
+private actor PreparationPreview {
+    static let shared = PreparationPreview()
+    private var submitted = false
+    func submit() { submitted = true }
+    func snapshot(mode: String) throws -> ApiTaskPreparation {
+        let question = mode == "executor"
+            ? "Уточните исполнителя результата перед согласованием плана."
+            : "Подготовить дочерние карточки, план по ролям или одну карточку с подшагами?"
+        let payload: [String: Any] = ["id": 420, "input_version": 1,
+            "status": submitted ? "queued" : "needs_clarification",
+            "result": ["question": submitted ? NSNull() : question as Any]]
+        return try JSONDecoder().decode(ApiTaskPreparation.self, from: JSONSerialization.data(withJSONObject: payload))
+    }
+}
+#endif

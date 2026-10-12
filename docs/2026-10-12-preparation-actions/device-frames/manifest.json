@@ -1,0 +1,32 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "ABB5FBFE-AFCB-4124-9FBF-33F89CFB41A6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "preparation-ready-roles_0_21843755-C4E7-430F-B421-FBD98E319B54.png",
+        "timestamp" : 1791818839.645
+      }
+    ],
+    "testIdentifier" : "PreparationActionsUITests/testPreparationScreen()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/PreparationActionsUITests/testPreparationScreen"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "CE71C3E7-689D-403E-9EB3-E151CAD82C56.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "preparation-answer-saved_0_E00CD698-78F5-4B39-9E85-698FD56D5F27.png",
+        "timestamp" : 1791818854.594
+      }
+    ],
+    "testIdentifier" : "PreparationActionsUITests/testReadyStructureAnswerContinuesWithoutTyping()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/PreparationActionsUITests/testReadyStructureAnswerContinuesWithoutTyping"
+  }
+]

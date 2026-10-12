@@ -9,6 +9,8 @@ public struct ApiTaskPreparation: Decodable, Sendable {
     public let branchSnapshot: String?
     public let error: String?
     public let result: Recommendation?
+    /// Старые результаты автомата не включают вопрос, записанный в самой карточке.
+    var taskQuestion: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, status, error, result
@@ -42,5 +44,9 @@ public struct ApiTaskPreparation: Decodable, Sendable {
     public var canApproveStructure: Bool {
         status == "structure_review" && result?.question == nil && result?.card?.preparation?.question == nil
     }
-    public var question: String? { result?.question ?? result?.card?.preparation?.question }
+    public var question: String? {
+        [result?.question, result?.card?.preparation?.question, taskQuestion]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
 }

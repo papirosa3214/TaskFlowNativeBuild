@@ -1,0 +1,96 @@
+{
+  "schema": "xcodebuildmcp.output.test-result",
+  "schemaVersion": "3",
+  "didError": false,
+  "error": null,
+  "data": {
+    "request": {
+      "scheme": "TaskFlow",
+      "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+      "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_preparation_device",
+      "platform": "iOS",
+      "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+      "target": "device",
+      "onlyTesting": [
+        "TaskFlowUITests/PreparationActionsUITests"
+      ],
+      "skipTesting": []
+    },
+    "summary": {
+      "status": "SUCCEEDED",
+      "durationMs": 82649,
+      "counts": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0
+      },
+      "target": "device"
+    },
+    "artifacts": {
+      "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+      "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-3d3690f622f9/logs/test_device_2026-10-12T15-26-08-850Z_pid98701_a0792211.log",
+      "xcresultPath": "~/Проекты/TaskFlowNativeBuild/docs/2026-10-12-preparation-actions/final-device.xcresult",
+      "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-3d3690f622f9/test-products/test_device_2026-10-12T15-26-08-850Z_pid98701_2a13a90f.xctestproducts"
+    },
+    "diagnostics": {
+      "warnings": [
+        {
+          "message": "main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Markdown/BlockDocumentEditor.swift:319"
+        },
+        {
+          "message": "'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Core/Session/SessionStore.swift:25"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1342"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1508"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1715"
+        },
+        {
+          "message": "result of call to 'acquire' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/DesignSystem/Components/TFRolePortrait.swift:143"
+        },
+        {
+          "message": "main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Settings/GoogleIntegrationsAPI.swift:126"
+        },
+        {
+          "message": "result of 'try?' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Chat/ChatViewModel.swift:334"
+        },
+        {
+          "message": "result of 'try?' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Chat/ChatViewModel.swift:340"
+        },
+        {
+          "message": "immutable value 'onRework' was never used; consider replacing with '_' or removing it [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/Detail/PlanStepSheets.swift:218"
+        }
+      ],
+      "errors": [],
+      "testFailures": []
+    },
+    "testCases": [
+      {
+        "suite": "PreparationActionsUITests",
+        "test": "testPreparationScreen",
+        "status": "passed",
+        "durationMs": 23632
+      },
+      {
+        "suite": "PreparationActionsUITests",
+        "test": "testReadyStructureAnswerContinuesWithoutTyping",
+        "status": "passed",
+        "durationMs": 13068
+      }
+    ]
+  }
+}

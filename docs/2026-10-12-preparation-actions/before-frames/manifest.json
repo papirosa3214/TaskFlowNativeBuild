@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "9A7330D6-A41B-4D67-A744-9194E9CFB70E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "preparation-before_0_D4468A5B-1BA5-4FDB-90F7-767C205A2141.png",
+        "timestamp" : 1791818048.562
+      }
+    ],
+    "testIdentifier" : "PreparationActionsUITests/testPreparationScreen()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/PreparationActionsUITests/testPreparationScreen"
+  }
+]
