@@ -131,7 +131,8 @@ struct ProjectsScreen: View {
                 TFErrorBanner(projectStore.errorMessage, variant: .inline)
                 TFErrorBanner(errorMessage, variant: .block)
             }
-            .padding(.horizontal, TFSpacing.xs)
+            // Владелец 12.10.2026: отступ от краёв экрана — как во всём приложении.
+            .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl)
         }
