@@ -25,15 +25,9 @@ struct RoleLoadScreen: View {
                     if data.roles.isEmpty {
                         Text("Нет включённых ролей — откройте «Команду».")
                     } else {
-                        HStack(spacing: 14) {
-                            Label("Заходы", systemImage: "rectangle.fill").foregroundStyle(Color.tfGreen)
-                            Label("Сейчас", systemImage: "circle.fill").foregroundStyle(Color.tfBlue)
-                            Label("Без исполнителя", systemImage: "flag").foregroundStyle(Color.tfOrange)
-                        }
-                        .font(.caption)
                         chart(data)
                         if data.attempts.isEmpty && data.active_now.isEmpty && data.open_slots.isEmpty {
-                            Text("За выбранный период заходов нет.").foregroundStyle(Color.tfSub)
+                            Text("За выбранный период рабочего времени нет.").foregroundStyle(Color.tfSub)
                         }
                     }
                 } else if error == nil {
