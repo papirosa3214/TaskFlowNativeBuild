@@ -77,11 +77,14 @@ extension View {
     /// `navigationTitle` рисуется своим системным шрифтом, а атрибуты
     /// `UINavigationBarAppearance` до SwiftUI-заголовка не доходят — подробно
     /// в `TFNavBarTitleFont`. `navigationTitle` остаётся пустым, чтобы не было
-    /// дубля текста; `displayMode` у `.principal` не нужен, параметр оставлен
-    /// для совместимости вызовов и не влияет на отрисовку.
+    /// дубля текста; параметр `displayMode` оставлен для совместимости вызовов
+    /// и не влияет на отрисовку. Режим при этом задаём всегда `.inline`: без
+    /// него система оставляла под шапкой пустое место под большой заголовок —
+    /// зазор на всех экранах (жалоба владельца 12.10.2026).
     func tfNativeHeader(_ title: String, displayMode: ToolbarTitleDisplayMode = .inline) -> some View {
         self
             .navigationTitle("")
+            .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     TFNavBarTitleFont.title(title)
