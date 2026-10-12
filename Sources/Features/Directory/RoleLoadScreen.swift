@@ -18,6 +18,7 @@ struct RoleLoadScreen: View {
                     if data.roles.isEmpty {
                         Text("Нет включённых ролей — откройте «Команду».")
                     } else {
+                        legend
                         chart(data)
                         if data.attempts.isEmpty && data.active_now.isEmpty && data.open_slots.isEmpty {
                             Text("За выбранный период рабочего времени нет.").foregroundStyle(Color.tfSub)
@@ -61,6 +62,31 @@ struct RoleLoadScreen: View {
                 await load()
             }
         }
+    }
+
+    // Владелец 12.10.2026: цветов на графике стало много — подписать, что какой значит.
+    private static let legendItems: [(Color, String)] = [
+        (.tfBlue, "Идёт сейчас"),
+        (.tfGreen, "Сдано"),
+        (.tfRed, "Сбой"),
+        (.tfOrange, "Заблокировано или без исполнителя"),
+        (.tfDim, "Завершено без итога"),
+        (.tfPurple, "Починка поломки"),
+    ]
+
+    private var legend: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
+                  alignment: .leading, spacing: 6) {
+            ForEach(Self.legendItems, id: \.1) { color, title in
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 3).fill(color.opacity(0.3))
+                        .overlay { RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: 1) }
+                        .frame(width: 14, height: 14)
+                    Text(title).font(.caption).foregroundStyle(Color.tfSub)
+                }
+            }
+        }
+        .accessibilityIdentifier("role-load.legend")
     }
 
     private func load() async {
