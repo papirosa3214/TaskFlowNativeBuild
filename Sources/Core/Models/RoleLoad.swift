@@ -26,6 +26,8 @@ struct RoleLoad: Decodable {
         let ended_at: String?
         let outcome: String?
         let active: Bool
+        /// Служебная карточка починки поломки («Состояние системы»).
+        let service: Bool?
     }
     struct Active: Decodable, Identifiable {
         let id: String
@@ -47,6 +49,11 @@ struct RoleLoad: Decodable {
         let attempts: [Attempt]
         let active: [Active]
         let open: [OpenSlot]
+    }
+    /// Идёт ли по карточке починка поломки: у «идёт сейчас» своего признака
+    /// нет, берём его у интервалов той же карточки.
+    func isService(taskID: String) -> Bool {
+        attempts.contains { $0.service == true && $0.task_id == taskID }
     }
     var rows: [Row] {
         var keys = roles.sorted { $0.position < $1.position }.map(\.key)

@@ -30,6 +30,22 @@ public struct ServiceNotificationsClient: Sendable {
         }
     }
 
+    /// Сырой поток за день (`/notifications/inbox`): сколько уведомлений
+    /// пришло и сколько из них с тревогой. `fetchInbox` отдаёт уже свёрнутые
+    /// плашки сводки и для подсчёта не годится.
+    public func fetchDayCounts(date: String) async throws -> (total: Int, alarms: Int) {
+        var url = Self.baseURL.appendingPathComponent("notifications/inbox")
+        url.append(queryItems: [URLQueryItem(name: "date", value: date)])
+        let (data, response) = try await session.data(from: url)
+        try Self.checkStatus(response)
+        do {
+            let items = try JSONDecoder().decode(ServiceTicketInboxResponse.self, from: data).items
+            return (items.count, items.filter(\.hasTriage).count)
+        } catch {
+            throw ClientError.decoding(error)
+        }
+    }
+
     public func fetchRaw(path: String) async throws -> String {
         var url = Self.baseURL.appendingPathComponent("notifications/raw")
         url.append(queryItems: [URLQueryItem(name: "path", value: path)])

@@ -112,12 +112,12 @@ struct RoleLoadScreen: View {
                                 ForEach(row.attempts) { attempt in
                                     bar(data, title: attempt.task_title, taskID: attempt.task_id,
                                         start: attempt.started_at, end: attempt.ended_at ?? data.now,
-                                        color: attempt.active ? .tfBlue : tone(attempt.outcome), active: attempt.active)
+                                        color: attempt.service == true ? .tfPurple : attempt.active ? .tfBlue : tone(attempt.outcome), active: attempt.active)
                                 }
                                 ForEach(row.active) { slot in
                                     bar(data, title: slot.task_title, taskID: slot.task_id,
                                         start: slot.started_at ?? slot.heartbeat_at ?? data.now,
-                                        end: data.now, color: .tfBlue, active: true)
+                                        end: data.now, color: data.isService(taskID: slot.task_id) ? .tfPurple : .tfBlue, active: true)
                                 }
                                 ForEach(row.open) { slot in
                                     Button { selectedTask = TaskRef(id: slot.id) } label: {

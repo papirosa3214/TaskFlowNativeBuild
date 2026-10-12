@@ -36,6 +36,10 @@ struct NotificationsScreen: View {
     @State private var resolutionSheetItem: ServiceTicketResolutionItem?
     @State private var resolutionSheetTaskId: String?
     @State private var openTaskError: String?
+    @State private var systemState: SystemState?
+    @State private var dayCounts: (total: Int, alarms: Int)?
+    @State private var systemStateError: String?
+    @State private var isLoadingSystemState = false
     private let serviceClient = ServiceNotificationsClient()
 
     private let apiClient = APIClient()
@@ -43,32 +47,160 @@ struct NotificationsScreen: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
-                TFErrorBanner(notificationStore.errorMessage, variant: .inline)
-                TFErrorBanner(markAllErrorMessage, variant: .inline)
+                TFErrorBanner(systemStateError, variant: .inline)
+                TFErrorBanner(openTaskError, variant: .inline)
+
                 TFCard(padding: 0) {
                     VStack(spacing: 0) {
-                        NavigationLink {
-                            serverNotificationsPage
-                        } label: {
-                            TFListRow(
-                                icon: "server.rack",
-                                iconStyle: .plain,
-                                title: "Серверные уведомления",
-                                subtitle: "Работа сервисов, сбои и результаты диагностики",
-                                trailing: AnyView(
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color.tfDim)
-                                ),
-                                titleStyle: .body,
-                                verticalPadding: TFSpacing.md
-                            )
+                        summaryRow("Уведомлений за сегодня", dayCounts.map { "\($0.total)" })
+                        TFDivider()
+                        summaryRow("Из них с тревогой", dayCounts.map { "\($0.alarms)" },
+                                   tint: (dayCounts?.alarms ?? 0) > 0 ? .tfOrange : nil)
+                        TFDivider()
+                        summaryRow("Поломок", systemState.map { "\($0.counts.total)" })
+                        TFDivider()
+                        summaryRow("Починено", systemState.map { "\($0.counts.fixed)" },
+                                   tint: (systemState?.counts.fixed ?? 0) > 0 ? .tfGreen : nil)
+                        TFDivider()
+                        summaryRow("Не починено", systemState.map { "\($0.counts.open)" },
+                                   tint: (systemState?.counts.open ?? 0) > 0 ? .tfRed : nil)
+                    }
+                }
+                .accessibilityIdentifier("system-state.summary")
+
+                if let state = systemState, !state.incidents.isEmpty {
+                    sectionTitle("Поломки")
+                    TFCard(padding: 0) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(state.incidents.enumerated()), id: \.element.id) { idx, incident in
+                                incidentRow(incident)
+                                if idx < state.incidents.count - 1 { TFDivider() }
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("notifications.server-section")
                     }
                 }
 
+                if let workers = systemState?.workers, !workers.isEmpty {
+                    sectionTitle("Кто работал")
+                    TFCard(padding: 0) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(workers.enumerated()), id: \.element.id) { idx, worker in
+                                summaryRow(worker.name, SystemState.duration(worker.seconds))
+                                if idx < workers.count - 1 { TFDivider() }
+                            }
+                        }
+                    }
+                }
+
+                TFCard(padding: 0) {
+                    NavigationLink {
+                        feedPage
+                    } label: {
+                        TFListRow(
+                            icon: "tray.full",
+                            iconStyle: .plain,
+                            title: "Все уведомления",
+                            subtitle: "Поток как есть: что пришло и когда",
+                            trailing: AnyView(
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Color.tfDim)
+                            ),
+                            titleStyle: .body,
+                            verticalPadding: TFSpacing.md
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("system-state.feed")
+                }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.top, TFSpacing.md)
+            .padding(.bottom, TFSpacing.xl)
+        }
+        .refreshable { await loadSystemState() }
+        .background(Color.tfBackground)
+        // Владелец 12.10.2026: «это уже не уведомление, а состояние системы».
+        // Первый экран — сводка за сегодня, поток уведомлений — внутри.
+        .tfNativeHeader("Состояние системы")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await loadSystemState() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(isLoadingSystemState)
+                .accessibilityLabel("Обновить")
+            }
+        }
+        .navigationDestination(item: $route) { routeDestination($0) }
+        .task { await loadSystemState() }
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text).tfText(.meta).foregroundStyle(Color.tfSub)
+            .padding(.horizontal, TFSpacing.md)
+            .padding(.top, TFSpacing.sm)
+    }
+
+    private func summaryRow(_ title: String, _ value: String?, tint: Color? = nil) -> some View {
+        HStack {
+            Text(title).tfText(.row).foregroundStyle(Color.tfText)
+            Spacer()
+            Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
+        }
+        .padding(.horizontal, TFSpacing.md)
+        .padding(.vertical, TFSpacing.sm + 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func incidentRow(_ incident: SystemState.Incident) -> some View {
+        Button {
+            Task { await openTaskFromTicket(incident.id) }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(incident.title).tfText(.row).foregroundStyle(Color.tfText)
+                    .lineLimit(2).multilineTextAlignment(.leading)
+                Text(incident.statusLine).tfText(.action)
+                    .foregroundStyle(incident.fixed ? Color.tfGreen : Color.tfRed)
+                if incident.work_seconds > 0 {
+                    Text("Время работы: \(SystemState.duration(incident.work_seconds))")
+                        .tfText(.meta).foregroundStyle(Color.tfDim)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TFSpacing.md)
+            .padding(.vertical, TFSpacing.sm + 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(TFTapRowStyle())
+    }
+
+    // Склад: всё, что сыпется, как есть — сводки сервисов и лента сервера.
+    private var feedPage: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
+                TFErrorBanner(notificationStore.errorMessage, variant: .inline)
+                TFErrorBanner(markAllErrorMessage, variant: .inline)
+                TFErrorBanner(serviceTicketsError, variant: .inline)
+                TFErrorBanner(openTaskError, variant: .inline)
+                if isLoadingServiceTickets && serviceTickets.isEmpty {
+                    ProgressView("Загрузка уведомлений")
+                }
+                ForEach(serviceTickets) { summary in
+                    NotificationTicketCard(
+                        summary: summary,
+                        detail: serviceTicketDetails[summary.id],
+                        onOpenTask: { taskId in Task { await openTaskFromTicket(taskId) } },
+                        onTapResolutionItem: { item in
+                            let fallbackTaskId = serviceTicketDetails[summary.id]?.diagnosticTaskId
+                            guard let taskId = item.taskId ?? fallbackTaskId else { return }
+                            resolutionSheetItem = item
+                            resolutionSheetTaskId = taskId
+                        }
+                    )
+                }
                 if !visibleNotifications.isEmpty {
                     TFCard(padding: 0) {
                         VStack(spacing: 0) {
@@ -79,22 +211,17 @@ struct NotificationsScreen: View {
                         }
                     }
                 }
+                if serviceTickets.isEmpty && visibleNotifications.isEmpty && !isLoadingServiceTickets
+                    && serviceTicketsError == nil {
+                    Text("Уведомлений пока нет")
+                }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.md)
             .padding(.bottom, TFSpacing.xl)
         }
-        .refreshable {
-            await notificationStore.load()
-            await loadServiceTickets()
-        }
         .background(Color.tfBackground)
-        // Штатная SwiftUI-шапка (`tfNativeHeader`, просьба владельца
-        // 03.09.2026 — «нативные кнопки везде одним элементом»). Была своя
-        // ZStack-шапка ради текстовой кнопки «Прочитать все» — системный
-        // toolbar принимает текстовую кнопку точно так же, как иконку,
-        // отдельный слот под это не нужен был вовсе.
-        .tfNativeHeader("Уведомления")
+        .tfNativeHeader("Все уведомления")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -105,46 +232,14 @@ struct NotificationsScreen: View {
                 .disabled(isMarkingAllRead || allRead)
             }
         }
-        .navigationDestination(item: $route) { routeDestination($0) }
+        .refreshable {
+            await notificationStore.load()
+            await loadServiceTickets()
+        }
         .task {
             await notificationStore.load()
             await loadServiceTickets()
         }
-    }
-
-    // Владелец 27.09: серверные сводки — самостоятельная страница.
-    private var serverNotificationsPage: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
-                TFErrorBanner(serviceTicketsError, variant: .inline)
-                TFErrorBanner(openTaskError, variant: .inline)
-                if isLoadingServiceTickets && serviceTickets.isEmpty {
-                    ProgressView("Загрузка серверных уведомлений")
-                } else if serviceTickets.isEmpty && serviceTicketsError == nil {
-                    Text("Серверных уведомлений пока нет")
-                } else {
-                    ForEach(serviceTickets) { summary in
-                        NotificationTicketCard(
-                            summary: summary,
-                            detail: serviceTicketDetails[summary.id],
-                            onOpenTask: { taskId in Task { await openTaskFromTicket(taskId) } },
-                            onTapResolutionItem: { item in
-                                let fallbackTaskId = serviceTicketDetails[summary.id]?.diagnosticTaskId
-                                guard let taskId = item.taskId ?? fallbackTaskId else { return }
-                                resolutionSheetItem = item
-                                resolutionSheetTaskId = taskId
-                            }
-                        )
-                    }
-                }
-            }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.top, TFSpacing.md)
-            .padding(.bottom, TFSpacing.xl)
-        }
-        .background(Color.tfBackground)
-        .tfNativeHeader("Серверные уведомления")
-        .refreshable { await loadServiceTickets() }
         .sheet(item: $resolutionSheetItem) { item in
             ServiceTicketResolutionSheet(
                 item: item,
@@ -297,6 +392,21 @@ struct NotificationsScreen: View {
         } catch {
             rowErrors[n.id] = "Не удалось удалить уведомление"
         }
+    }
+
+    private func loadSystemState() async {
+        guard !isLoadingSystemState else { return }
+        isLoadingSystemState = true
+        defer { isLoadingSystemState = false }
+        systemStateError = nil
+        do {
+            systemState = try await apiClient.systemState(from: Calendar.current.startOfDay(for: Date()))
+        } catch {
+            systemStateError = "Не удалось загрузить состояние системы"
+        }
+        // Счётчики потока — с отдельного сервиса; его сбой не должен прятать
+        // поломки, поэтому ошибка здесь только оставляет прочерки.
+        dayCounts = try? await serviceClient.fetchDayCounts(date: ServiceTicketDate.localDayString())
     }
 
     private func loadServiceTickets() async {

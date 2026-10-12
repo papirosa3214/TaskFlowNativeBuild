@@ -54,6 +54,12 @@ public extension APIClient {
         let _: APIOkResponse = try await request(.post, "/notifications/read-all")
     }
 
+    /// `GET /system-state?from=` — сводка поломок с начала дня устройства.
+    internal func systemState(from: Date) async throws -> SystemState {
+        try await request(.get, "/system-state",
+                          query: [URLQueryItem(name: "from", value: ISO8601DateFormatter().string(from: from))])
+    }
+
     // MARK: - Заметки: список с превью (для секции «Документация» проекта)
 
     struct DirectoryNoteSummary: Decodable, Identifiable, Sendable, Hashable {

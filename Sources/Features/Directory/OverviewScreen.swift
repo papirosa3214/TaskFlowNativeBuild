@@ -88,7 +88,7 @@ struct OverviewScreen: View {
                 TFDivider(inset: rowDividerInset)
                 navigationRow(route: .knowledge, title: "База знаний")
                 TFDivider(inset: rowDividerInset)
-                navigationRow(route: .notifications, title: "Уведомления")
+                navigationRow(route: .notifications, title: "Состояние системы")
                 TFDivider(inset: rowDividerInset)
                 navigationRow(route: .activity, title: "Статистика")
                 TFDivider(inset: rowDividerInset)
