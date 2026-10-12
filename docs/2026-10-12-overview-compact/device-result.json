@@ -1,0 +1,112 @@
+{
+  "request": {
+    "scheme": "TaskFlow",
+    "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+    "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_device",
+    "platform": "iOS",
+    "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+    "target": "device",
+    "onlyTesting": [
+      "TaskFlowUITests/OverviewCompactUITests"
+    ],
+    "skipTesting": []
+  },
+  "summary": {
+    "status": "SUCCEEDED",
+    "durationMs": 62727,
+    "counts": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "target": "device"
+  },
+  "artifacts": {
+    "deviceId": "B752C915-688A-5FE2-B7A2-CD355FCD8D47",
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/logs/test_device_2026-10-12T02-46-10-768Z_pid42303_8d5cf888.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/result-bundles/test_device_2026-10-12T02-46-10-768Z_pid42303_2a12f482.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/new-chat-3a086737fe5a/test-products/test_device_2026-10-12T02-46-10-768Z_pid42303_3c5b1eef.xctestproducts"
+  },
+  "diagnostics": {
+    "warnings": [
+      {
+        "message": "main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Markdown/BlockDocumentEditor.swift:319"
+      },
+      {
+        "message": "'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Core/Session/SessionStore.swift:25"
+      },
+      {
+        "message": "initialization of immutable value 'app' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/CoverageTests.swift:33"
+      },
+      {
+        "message": "variable 'found' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/E2ETests.swift:41"
+      },
+      {
+        "message": "variable 'shot' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]",
+        "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/Heatmap3DUITests.swift:48"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/Foundation-91X1X3EF05G1GA1AOAHKGPZ1X.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/_SwiftConcurrencyShims-1ODS1PI25ISI3P84IK14QMBGK.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/os-5JKN68LOKXW6OLV32XP6JI1HW.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/SwiftUI-75KKUO3CYWUNAN0B9YJN7BDFR.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/UIKit-742ODYUABYWR0H8E7NEJYL2HL.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/EventKit-3YZ00Y80NFNSFFIPY1IJRP7FW.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/UniformTypeIdentifiers-6445F4VSDXUD5RUMDVNBNJSRK.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/CoreLocation-APSAVESRIINUX2U5R2L8QTDIW.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/AVFoundation-89XFDHMW46KMM1VNLJQ34SQY2.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/AuthenticationServices-6L1GGXYXLRGTR1WEM45OAA3JG.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/Security-KBE68EYYI18T8MOIOYJF4RUD.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/ActivityKit-9Q3H5ZOMUK58I72S35F6UY3V.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/LocalAuthentication-5D25S6LX9AROBHMUNBO3TDJ8D.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/SDWebImage-3DW4TPOL3FA6UL1J3N0Z7UMIM.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/SDWebImageWebPCoder-67VPRWFKR9H4P19V35S8VP72V.pcm: No such file or directory"
+      },
+      {
+        "message": "/Users/max/Проекты/TaskFlowNativeBuild/build_device/SDKExplicitPrecompiledModules/DeveloperToolsSupport-8JT2Z336821KGSRMNE7XADFZH.pcm: No such file or directory"
+      }
+    ],
+    "errors": [],
+    "testFailures": []
+  },
+  "testCases": [
+    {
+      "suite": "OverviewCompactUITests",
+      "test": "testExpandedSectionsFitAboveFixedButtons",
+      "status": "passed",
+      "durationMs": 20771
+    }
+  ]
+}

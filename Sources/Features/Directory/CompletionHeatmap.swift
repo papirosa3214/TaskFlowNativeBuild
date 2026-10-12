@@ -142,7 +142,7 @@ struct CompletionHeatmap: View {
                             .fixedSize().offset(x: CGFloat(week) * pitch)
                     }
                 }
-            }.frame(height: 16)
+            }.frame(height: 16 * (1 - HeatmapExpansion.cameraEase(depth)))
                 .opacity(1 - HeatmapExpansion.cameraEase(depth))
             GeometryReader { geometry in
                 HeatmapScene(values: values, depth: depth, selected: $selected)

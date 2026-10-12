@@ -13,13 +13,13 @@ struct OverviewScreen: View {
     @State private var dragOrigin: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        VStack(spacing: TFSpacing.xl) {
+        VStack(spacing: TFSpacing.md) {
             CompletionHeatmap(depth: reduceMotion ? 0 : depth)
             navigationSection
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
-        .padding(.top, TFSpacing.lg)
-        .padding(.bottom, TFSpacing.xl)
+        .padding(.top, TFSpacing.xs)
+        .padding(.bottom, TFSpacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .clipped()
         .contentShape(Rectangle())
@@ -66,7 +66,7 @@ struct OverviewScreen: View {
     // навигационные строки.
     private var weeklySummaryCard: some View {
         Button { summaryOpen = true } label: {
-            TFListRow(icon: "brain.head.profile", iconStyle: .plain, title: "Сводка недели", subtitle: "Победы, хвосты и фокус на цели недели", titleStyle: .body, verticalPadding: TFSpacing.md)
+            TFListRow(icon: "brain.head.profile", iconStyle: .plain, title: "Сводка недели", subtitle: "Победы, хвосты и фокус на цели недели", titleStyle: .body, verticalPadding: TFSpacing.sm)
         }.buttonStyle(.plain).accessibilityIdentifier("overview.weekly-summary")
     }
 
@@ -78,7 +78,7 @@ struct OverviewScreen: View {
                 NavigationLink {
                     RoleLoadScreen()
                 } label: {
-                    TFListRow(icon: "chart.bar.xaxis", iconStyle: .plain, title: "Загрузка ролей", subtitle: "Заходы, текущая занятость и открытые слоты", titleStyle: .body, verticalPadding: TFSpacing.md)
+                    TFListRow(icon: "chart.bar.xaxis", iconStyle: .plain, title: "Загрузка ролей", subtitle: "Заходы, текущая занятость и открытые слоты", titleStyle: .body, verticalPadding: TFSpacing.sm)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("overview.role-load")
@@ -102,7 +102,7 @@ struct OverviewScreen: View {
                 title: title,
                 subtitle: subtitle,
                 titleStyle: .body,
-                verticalPadding: TFSpacing.md
+                verticalPadding: TFSpacing.sm
             )
         }
         .buttonStyle(.plain)
