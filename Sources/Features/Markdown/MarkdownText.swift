@@ -61,7 +61,10 @@ enum MarkdownText {
         case .codeBlock:
             UIFontMetrics(forTextStyle: .footnote).scaledFont(for: .monospacedSystemFont(ofSize: 14, weight: .regular), compatibleWith: traits)
         default:
-            UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: .systemFont(ofSize: 15, weight: .regular), compatibleWith: traits)
+            // Основной текст карточки и заметок — 16 pt: владелец 12.10.2026
+            // «название не 17, а где-то 16, и все остальные основные текста
+            // тоже» (LOCK-TYPOGRAPHY-UNIFY). Было 15.
+            UIFontMetrics(forTextStyle: .callout).scaledFont(for: .systemFont(ofSize: 16, weight: .regular), compatibleWith: traits)
         }
     }
 

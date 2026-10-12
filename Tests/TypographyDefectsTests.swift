@@ -46,11 +46,13 @@ final class TypographyDefectsTests: XCTestCase {
         }
     }
 
-    /// Тело блока — по-прежнему 15 pt на дефолтном размере: масштабирование
-    /// не должно менять обычный вид.
+    /// Тело блока — 16 pt на дефолтном размере: это основной текст, который
+    /// человек читает и правит (владелец 12.10.2026: «название не 17, а где-то
+    /// 16, и все остальные основные текста тоже»). Масштабирование не должно
+    /// менять обычный вид.
     func testMarkdownBodyKeepsBaseSizeAtDefaultCategory() {
         let font = MarkdownText.baseFont(for: .paragraph)
-        XCTAssertEqual(font.pointSize, 15, accuracy: 0.01)
+        XCTAssertEqual(font.pointSize, 16, accuracy: 0.01)
     }
 
     // MARK: Дефект Б — иерархия карточки была перевёрнута

@@ -548,12 +548,11 @@ struct TaskCardContent: View {
                                 blocks: $viewModel.titleBlocks,
                                 focus: titleFocus,
                                 placeholder: "Название задачи",
-                                // Название задачи — ступень `taskTitle` (20 semibold).
-                                // Было 17 regular: на 3 pt МЕЛЬЧЕ заголовков секций
-                                // под ним, иерархия читалась перевёрнутой
-                                // (LOCK-TYPOGRAPHY-SPEC, дефект Б).
-                                baseFontOverride: UIFontMetrics(forTextStyle: .title3)
-                                    .scaledFont(for: .systemFont(ofSize: 20, weight: .semibold)),
+                                // Название задачи — основной текст карточки, 16 pt
+                                // (владелец 12.10.2026: «название не 17, а где-то
+                                // 16, и все остальные основные текста тоже»).
+                                baseFontOverride: UIFontMetrics(forTextStyle: .callout)
+                                    .scaledFont(for: .systemFont(ofSize: 16, weight: .regular)),
                                 textColor: UIColor(Color.tfText),
                                 requestsFocus: activeEditors.contains("title"),
                                 onEdit: { scheduleSave() }
@@ -787,7 +786,10 @@ struct TaskCardContent: View {
                     blocks: $viewModel.taskDescriptionBlocks,
                     focus: descriptionFocus,
                     placeholder: "Описание",
-                    baseFontOverride: UIFont.preferredFont(forTextStyle: .footnote),
+                    // Описание — основной текст карточки, 16 pt как и название
+                    // (владелец 12.10.2026). Было `.footnote` = 13.
+                    baseFontOverride: UIFontMetrics(forTextStyle: .callout)
+                        .scaledFont(for: .systemFont(ofSize: 16, weight: .regular)),
                     textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub),
                     requestsFocus: activeEditors.contains("description"),
                     onEdit: { scheduleSave() }
@@ -1314,10 +1316,10 @@ struct TaskCardContent: View {
 
     private func taskSectionHeader(_ title: String) -> some View {
         Text(title)
-            // Единый заголовок секции — как во всём приложении: 13 pt `tfSub`
-            // (`TFSectionHeader`). Владелец 12.10.2026: «заголовки как везде…
-            // меньшинство сделать как большинство». Было 17 semibold белым —
-            // на 4 pt крупнее общего заголовка секции.
+            // Заголовок секции — как во всём приложении: 13 pt `tfSub`
+            // (ступень `.action`, большинство заголовков секций). Владелец
+            // 12.10.2026: «заголовки по той же самой логике» — то есть как
+            // заголовки остальных списков, а не крупнее основного текста.
             .tfText(.action)
             .foregroundStyle(Color.tfSub)
             .textCase(nil)
