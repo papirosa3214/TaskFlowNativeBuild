@@ -140,7 +140,8 @@ struct SearchScreen: View {
                         priority: TaskPriority(rawValue: task.priority),
                         isOverdue: task.status == .active && task.dueDate.map { DirectoryDate.daysUntil($0) < 0 } == true,
                         dueText: task.dueDate.map { DirectoryDate.dueShort($0) },
-                        labels: task.labels.map { ($0.name, Color(hex: $0.color ?? TFHexDefault.unassigned)) }
+                        labels: task.labels.map { ($0.name, Color(hex: $0.color ?? TFHexDefault.unassigned)) },
+                        createdAtStamp: task.createdAt // метка даты заведения (LOCK-TASK-CREATED-STAMP)
                     )) {
                         route = .taskDetail(taskID: task.id)
                     }

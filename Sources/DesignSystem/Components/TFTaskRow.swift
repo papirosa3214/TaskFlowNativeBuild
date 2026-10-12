@@ -30,6 +30,11 @@ public struct TFTaskRowModel {
     public var isOverdue: Bool
     public var dueText: String?
     public var labels: [(title: String, color: Color)]
+    /// `created_at` заявки для пиксельной метки даты заведения
+    /// (LOCK-TASK-CREATED-STAMP). Строка SQLite UTC из `ApiTask`; `nil` —
+    /// метки нет. Экраны со своей строкой (`DirectoryTaskRow`,
+    /// `TodayTaskRow`, `LabelTasksScreen`) берут дату из задачи напрямую.
+    public var createdAtStamp: String?
 
     public init(
         projectName: String? = nil,
@@ -53,7 +58,8 @@ public struct TFTaskRowModel {
         priority: TaskPriority? = nil,
         isOverdue: Bool = false,
         dueText: String? = nil,
-        labels: [(title: String, color: Color)] = []
+        labels: [(title: String, color: Color)] = [],
+        createdAtStamp: String? = nil
     ) {
         self.projectName = projectName
         self.projectColor = projectColor
@@ -77,6 +83,7 @@ public struct TFTaskRowModel {
         self.isOverdue = isOverdue
         self.dueText = dueText
         self.labels = labels
+        self.createdAtStamp = createdAtStamp
     }
 }
 
@@ -108,6 +115,9 @@ public struct TFTaskRow: View {
                 if let project = model.projectName {
                     Text("#\(project)").foregroundStyle(model.projectColor ?? .tfSub).layoutPriority(-1)
                 }
+                // Дата и время заведения заявки — пиксельной меткой в квадратных
+                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
+                TFTaskCreatedStamp(createdAt: model.createdAtStamp)
                 ForEach(model.labels, id: \.title) { label in
                     TFLabelPill(label.title, color: label.color).layoutPriority(-1)
                 }
@@ -135,12 +145,21 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
         self.metadata = metadata()
     }
 
+    /// Название задачи — 17 pt вместо прежних 15 pt ступени `.body`
+    /// (владелец 12.10.2026: «увеличить шрифт наименования задачи»).
+    /// Свой `@ScaledMetric`, а не новая ступень шкалы: это правится одна строка
+    /// сразу во всех списках, а добавление кейса в `TFTextStyle` задевало бы
+    /// общий файл типографики и все его 342 вызова. Кривую масштабирования
+    /// берём системную — как у соседних ступеней.
+    @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 17
+
     var body: some View {
         HStack(alignment: .center, spacing: TFSpacing.sm) {
             avatar
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .tfText(.body)
+                    .font(.system(size: titleSize, weight: .regular))
+                    .kerning(-0.03)
                     .foregroundStyle(isDone ? Color.tfSub : Color.tfText)
                     .strikethrough(isDone)
                     .lineLimit(1)

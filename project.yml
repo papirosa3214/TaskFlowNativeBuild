@@ -43,6 +43,12 @@ targets:
       # 2,5 МБ восьми mp4 — они идут в бандл как файлы, а не в asset catalog.
       - path: Resources/TeamAvatarLoops
         buildPhase: resources
+      # Пиксельный шрифт для метки даты заведения в строке задачи
+      # (LOCK-TASK-CREATED-STAMP). Шрифтовый файл обязан быть в бандле как
+      # ресурс, иначе `CTFontManager` его не найдёт, а имя — в UIAppFonts
+      # (Resources/Info.plist). Урезан до ASCII+кириллицы: 60 КБ вместо 2 МБ.
+      - path: Resources/Fonts
+        buildPhase: resources
       # Модель состояния островка общая с расширением: оно её рисует,
       # приложение заполняет. Один файл на два таргета — чтобы поля не
       # разъехались молча.
@@ -100,6 +106,14 @@ targets:
         # через пуши закрыт бесплатным аккаунтом (10.09.2026).
         UIBackgroundModes:
           - location
+        # Пиксельный шрифт метки даты заведения в строке задачи
+        # (LOCK-TASK-CREATED-STAMP). Ключ живёт ЗДЕСЬ, а не в
+        # `Resources/Info.plist`: xcodegen генерирует plist из `properties`
+        # и молча затирает файл, поэтому правка в самом plist пропадала бы.
+        # Имя — PostScript-имя из name-таблицы TTF; сам файл приходит
+        # в бандл из `Resources/Fonts` (см. `sources` выше).
+        UIAppFonts:
+          - DotGothic16-Subset.ttf
         NSLocationWhenInUseUsageDescription: Пока задача показана в Dynamic Island, приложение остаётся на связи с сервером и обновляет её прогресс. Сама геопозиция никуда не отправляется и нигде не сохраняется.
     settings:
       base:

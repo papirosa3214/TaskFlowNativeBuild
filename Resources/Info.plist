@@ -47,6 +47,10 @@
 	<string>Нужен, чтобы распознавать надиктованный текст задач прямо на телефоне, без отправки на сервер.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>DotGothic16-Subset.ttf</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

@@ -124,7 +124,8 @@ struct UpcomingTaskRow: View {
             priority: TaskPriority(rawValue: task.priority),
             isOverdue: false, // «Планирование» никогда не показывает просроченное (спека §5.2)
             dueText: nil,     // showDueBadge=false (спека §5.2)
-            labels: task.labels.prefix(1).map { ($0.name, Color(hex: $0.color ?? TFHexDefault.unassigned)) } // maxLabels=1
+            labels: task.labels.prefix(1).map { ($0.name, Color(hex: $0.color ?? TFHexDefault.unassigned)) }, // maxLabels=1
+            createdAtStamp: task.createdAt // метка даты заведения (LOCK-TASK-CREATED-STAMP)
         )
     }
 
