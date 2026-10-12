@@ -20,7 +20,7 @@ struct ProjectsScreen: View {
     @Environment(TaskStore.self) private var taskStore
 
     @State private var editingID: String?
-    @State private var showCreate = false
+    @State private var projectDraft: ProjectDraft?
     @State private var deleteRequest: DirectoryConfirmRequest?
     @State private var errorMessage: String?
     @State private var searchText = ""
@@ -46,9 +46,10 @@ struct ProjectsScreen: View {
     var body: some View {
         // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
         // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
-        // `.ignoresSafeArea()` без ограничения edges — тут в этом же списке
-        // прямо на месте открывается `ProjectCreateForm`/`ProjectEditForm`
-        // с текстовым полем, и до фикса под клавиатурой были те же уголки.
+        // `.ignoresSafeArea()` без ограничения edges — здесь живёт
+        // `ProjectEditForm` с текстовым полем, и до фикса под клавиатурой
+        // были те же уголки. Создание проекта теперь идёт через `.fullScreenCover`
+        // (`QuickAddProjectView`), а не inline в списке.
         ZStack {
         Color.tfBackground.ignoresSafeArea()
         ScrollView {
@@ -58,10 +59,6 @@ struct ProjectsScreen: View {
             // скруглением слипались в сломанную таблицу; у плоской строки
             // скругления нет, и промежуток без разделителя просто пустой.
             LazyVStack(spacing: 0) {
-                if showCreate {
-                    ProjectCreateForm(onCreated: { showCreate = false }, onCancel: { showCreate = false })
-                }
-
                 if !isSelecting {
                     // Владелец 11.10.2026: верхняя полоса статусов убрана —
                     // «нет необходимости, раз в каждом проекте они присутствуют».
@@ -102,13 +99,13 @@ struct ProjectsScreen: View {
                     }
                 }
 
-                if projectStore.projects.isEmpty && !projectStore.isLoading && !showCreate {
+                if projectStore.projects.isEmpty && !projectStore.isLoading && projectDraft == nil {
                     TFEmptyState(
                         icon: "folder",
                         text: "Проектов пока нет — создайте первый через меню «…»"
                     )
                     .padding(.horizontal, TFSpacing.xs)
-                } else if visibleProjects.isEmpty && !projectStore.isLoading && !showCreate {
+                } else if visibleProjects.isEmpty && !projectStore.isLoading && projectDraft == nil {
                     Text("Проекты не найдены")
                         .tfText(.action)
                         .foregroundStyle(Color.tfDim)
@@ -153,6 +150,18 @@ struct ProjectsScreen: View {
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { searchPresented = false } } }
             }.presentationDetents([.medium])
         }
+        // Шторка создания проекта в стиле quick-add: те же стеклянные/тёплые
+        // эффекты, что у задачи (QuickAddTaskView), две иконки в капсуле —
+        // цвет и база знаний, кнопка-стрелка при непустом названии, тап по
+        // фону закрывает. Полная форма остаётся за `ProjectEditForm`.
+        .fullScreenCover(item: $projectDraft) { draft in
+            QuickAddProjectView(draft: draft) {
+                projectDraft = nil
+            } onCancel: {
+                projectDraft = nil
+            }
+            .presentationBackground(.clear)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 projectActionsMenu
@@ -161,7 +170,7 @@ struct ProjectsScreen: View {
         .task {
             if opensCreateForm && !hasOpenedCreateForm {
                 hasOpenedCreateForm = true
-                showCreate = true
+                openProjectDraft()
             }
             if projectStore.projects.isEmpty { await projectStore.load() }
         }
@@ -210,7 +219,7 @@ struct ProjectsScreen: View {
             } else {
                 Button {
                     editingID = nil
-                    showCreate = true
+                    openProjectDraft()
                 } label: {
                     Label("Добавить проект", systemImage: "plus")
                 }
@@ -221,7 +230,6 @@ struct ProjectsScreen: View {
                     } else {
                         ForEach(projectStore.projects) { project in
                             Button(project.name) {
-                                showCreate = false
                                 editingID = project.id
                             }
                         }
@@ -342,10 +350,19 @@ struct ProjectsScreen: View {
 
     private func beginSelection() {
         editingID = nil
-        showCreate = false
+        projectDraft = nil
         searchPresented = false
         selectedProjectIDs.removeAll()
         isSelecting = true
+    }
+
+    /// Открывает шторку создания — единая точка входа для центрального «+»
+    /// (`opensCreateForm`) и меню «…» → «Добавить проект». Дубль проверки
+    /// `projectDraft == nil` защищает от повторного открытия поверх уже
+    /// открытой шторки.
+    private func openProjectDraft() {
+        guard projectDraft == nil else { return }
+        projectDraft = ProjectDraft()
     }
 
     private func endSelection() {
@@ -461,79 +478,351 @@ private enum ProjectFilter: String, CaseIterable, Identifiable {
     }
 }
 
-/// Форма создания — над списком (из меню «…»), симметрично
-/// `ProjectEditForm` ниже: название, системный выбор цвета и база знаний.
-private struct ProjectCreateForm: View {
-    @Environment(ProjectStore.self) private var projectStore
-    let onCreated: () -> Void
+/// Форма создания в стиле quick-add — те же стеклянные/тёплые эффекты, что у
+/// задачи (`QuickAddTaskView`). В капсуле отличается только составом
+/// инструментов: вместо срока/проекта/приоритета — **цвет и база знаний**.
+/// Закрывается тапом по фону (как у задачи). Полная форма правки существующего
+/// проекта остаётся за `ProjectEditForm`.
+private struct QuickAddProjectView: View {
+    @ObservedObject var draft: ProjectDraft
+    let onSaved: () -> Void
     let onCancel: () -> Void
 
-    @State private var name = ""
-    @State private var color = Color.tfBlue
-    @State private var isSaving = false
-    /// Полка базы знаний. `nil` — общая база TaskFlow.
-    @State private var datasetId: String?
+    @Environment(ProjectStore.self) private var projectStore
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var isNameFocused: Bool
+    @State private var isDatasetPopoverPresented = false
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            TextField("Название проекта", text: $name)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .padding(.horizontal, TFSpacing.sm + 4)
-                .padding(.vertical, TFSpacing.sm + 2)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+    var body: some View { AnyView(bodyContent) }
 
-            ColorPicker("Цвет проекта", selection: $color, supportsOpacity: false)
-
-            // У нового проекта документов ещё нет, переносить нечего —
-            // предупреждение о переиндексации здесь не нужно.
-            KnowledgeDatasetPicker(selection: $datasetId)
-
-            TFErrorBanner(projectStore.errorMessage, variant: .block)
-
-            HStack(spacing: TFSpacing.sm) {
-                Button("Отмена", action: onCancel)
-                    .buttonStyle(TFTapRowStyle())
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .tfText(.row)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tfSub)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-
-                Button {
-                    Task { await create() }
-                } label: {
-                    Text(isSaving ? "Создаём…" : "Создать")
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .tfText(.row)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .background(Color.tfRedSolid)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-                }
-                .buttonStyle(TFTapFadeStyle())
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
-                .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+    @ViewBuilder private var bodyContent: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                systemQuickAdd
+            } else {
+                legacyQuickAdd
             }
         }
-        .padding(TFSpacing.lg)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
+        .alert("Не удалось создать проект", isPresented: Binding(
+            get: { projectStore.errorMessage != nil },
+            set: { if !$0 { projectStore.errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { projectStore.errorMessage = nil }
+        } message: {
+            Text(projectStore.errorMessage ?? "")
+        }
+        .task {
+            isNameFocused = true
+        }
     }
 
-    private func create() async {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
-        isSaving = true
-        defer { isSaving = false }
-        if await projectStore.create(
-            name: trimmed, color: color.toHex(), knowledgeDatasetId: datasetId
-        ) != nil {
-            onCreated()
+    @available(iOS 26.0, *)
+    private var systemQuickAdd: some View {
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !isDatasetPopoverPresented else { return }
+                    closePanel()
+                }
+                .safeAreaBar(edge: .bottom) {
+                    card(systemAppearance: true)
+                        .glassEffect(.regular, in: .rect(cornerRadius: 26))
+                        .tint(Color.primary)
+                        .padding(.horizontal, TFSpacing.md)
+                        .padding(.bottom, TFSpacing.sm)
+                }
+        }
+    }
+
+    private var legacyQuickAdd: some View {
+        ZStack(alignment: .bottom) {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Color.black.opacity(0.1))
+                .ignoresSafeArea()
+                .onTapGesture {
+                    guard !isDatasetPopoverPresented else { return }
+                    closePanel()
+                }
+
+            card(systemAppearance: false)
+                .background(Color.tfCard, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.45), radius: 20, y: 8)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.bottom, TFSpacing.sm)
+        }
+    }
+
+    private static let warmGlow = Color(red: 1.0, green: 0.84, blue: 0.6)
+
+    private func card(systemAppearance: Bool) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TextField("Название проекта", text: $draft.name, axis: .vertical)
+                .tfText(.input)
+                .foregroundStyle(Color.tfText)
+                .lineLimit(1...3)
+                .focused($isNameFocused)
+
+            HStack(spacing: TFSpacing.xs) {
+                toolsScroll(systemAppearance: systemAppearance)
+
+                if draft.isSaveEnabled {
+                    primaryActionButton(systemAppearance: systemAppearance)
+                }
+            }
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.vertical, TFSpacing.sm)
+    }
+
+    @ViewBuilder
+    private func toolsScroll(systemAppearance: Bool) -> some View {
+        if systemAppearance {
+            ScrollView(.horizontal, showsIndicators: false) {
+                toolsCapsule(slot: TFHitTarget.min, systemAppearance: true)
+                    .background(ProjectScrollBounceDisabler())
+            }
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                toolsCapsule(slot: TFHitTarget.min, systemAppearance: false)
+                    .background(ProjectScrollBounceDisabler())
+            }
+            .clipShape(Capsule())
+        }
+    }
+
+    private func toolsCapsule(slot: CGFloat, systemAppearance: Bool) -> some View {
+        HStack(spacing: 0) {
+            Menu {
+                DirectoryColorSwatches(
+                    colors: DirectoryColors.project,
+                    selected: $draft.colorHex,
+                    size: 28
+                )
+                .padding(.vertical, TFSpacing.xs)
+            } label: {
+                quickIcon(
+                    slot: slot,
+                    "paintpalette",
+                    isSet: draft.colorHex != DirectoryColors.project.first,
+                    systemAppearance: systemAppearance,
+                    swatch: Color(hex: draft.colorHex)
+                )
+            }
+            .accessibilityLabel("Цвет проекта")
+            .accessibilityValue("Текущий цвет")
+
+            Button { isDatasetPopoverPresented = true } label: {
+                quickIcon(
+                    slot: slot,
+                    "book.closed",
+                    isSet: draft.datasetId != nil,
+                    systemAppearance: systemAppearance
+                )
+            }
+            .accessibilityLabel("База знаний")
+            .accessibilityValue(datasetLabel)
+            .popover(isPresented: $isDatasetPopoverPresented) {
+                KnowledgeDatasetPicker(selection: $draft.datasetId)
+                    .padding(TFSpacing.lg)
+                    .frame(width: 320)
+                    .presentationCompactAdaptation(.popover)
+                    .presentationBackground(.regularMaterial)
+            }
+        }
+        .buttonStyle(TFTapScaleStyle())
+        .padding(.horizontal, systemAppearance ? 0 : TFSpacing.xs)
+        .background {
+            if !systemAppearance {
+                Capsule()
+                    .fill(Color.tfBackground)
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.black.opacity(0.55), lineWidth: 3)
+                            .blur(radius: 2.5)
+                            .offset(y: 1.5)
+                            .mask(Capsule().fill(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)))
+                    }
+                    .overlay {
+                        Capsule().fill(
+                            LinearGradient(
+                                colors: [.clear, Self.warmGlow.opacity(0.14)],
+                                startPoint: .center,
+                                endPoint: .bottom
+                            )
+                        )
+                    }
+                    .overlay {
+                        Capsule()
+                            .stroke(Self.warmGlow.opacity(0.45), lineWidth: 2.5)
+                            .blur(radius: 3)
+                            .offset(y: -2)
+                            .mask(Capsule().fill(LinearGradient(colors: [.clear, .black], startPoint: .center, endPoint: .bottom)))
+                    }
+                    .overlay {
+                        Capsule().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func quickIcon(slot: CGFloat, _ systemImage: String, isSet: Bool, systemAppearance: Bool, swatch: Color? = nil) -> some View {
+        if systemAppearance {
+            ZStack {
+                if let swatch, isSet {
+                    Circle()
+                        .fill(swatch)
+                        .frame(width: 14, height: 14)
+                }
+                Image(systemName: systemImage)
+                    .symbolVariant(isSet && swatch == nil ? .fill : .none)
+                    .font(.system(size: TFIconSize.sm))
+                    .foregroundStyle(isSet ? Color.tfRed : Color.tfSub)
+            }
+            .frame(width: slot, height: slot)
+        } else {
+            ZStack {
+                if let swatch, isSet {
+                    Circle()
+                        .fill(swatch)
+                        .frame(width: 12, height: 12)
+                }
+                Image(systemName: systemImage)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: isSet && swatch == nil
+                                ? [Color.tfRed.opacity(0.7), Color.tfRed]
+                                : [Color.tfSub.opacity(0.55), Color.tfText.opacity(0.95)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: .black.opacity(0.9), radius: 1, y: -1)
+                    .shadow(color: Self.warmGlow.opacity(0.5), radius: 2, y: 1.5)
+                    .opacity(swatch != nil && isSet ? 0.0 : 1.0)
+            }
+            .frame(width: slot, height: slot)
+        }
+    }
+
+    @ViewBuilder
+    private func primaryActionButton(systemAppearance: Bool) -> some View {
+        if #available(iOS 26.0, *), systemAppearance {
+            Button(action: save) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.glass)
+            .accessibilityLabel("Создать проект")
+        } else {
+            Button(action: save) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background {
+                        Circle()
+                            .fill(Color.tfRed)
+                            .overlay {
+                                Circle().fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.22), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .center
+                                    )
+                                )
+                            }
+                            .overlay {
+                                Circle()
+                                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.75)
+                                    .mask(
+                                        Circle().fill(
+                                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .center)
+                                        )
+                                    )
+                            }
+                            .shadow(color: .black.opacity(0.5), radius: 7, y: 4)
+                            .shadow(color: Color.tfRed.opacity(0.45), radius: 10, y: 2)
+                    }
+                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Создать проект")
+        }
+    }
+
+    private var datasetLabel: String {
+        // Без загруженного списка датасетов даём короткую подпись «по умолчанию».
+        draft.datasetId == nil ? "Общая база" : "Выбран датасет"
+    }
+
+    private func closePanel() {
+        isNameFocused = false
+        dismiss()
+    }
+
+    private func save() {
+        guard draft.isSaveEnabled else { return }
+        isNameFocused = false
+        Task {
+            let created = await projectStore.create(
+                name: draft.name.trimmingCharacters(in: .whitespaces),
+                color: draft.colorHex,
+                knowledgeDatasetId: draft.datasetId
+            )
+            if created != nil {
+                onSaved()
+            }
+        }
+    }
+}
+
+/// Локальное состояние черновика создания проекта — тот же объект, что у
+/// `QuickAddTaskView` через `QuickAddDraft` (`RootShellView.swift`). Хранится
+/// здесь же, потому что форма живёт только в этом файле и не нужна снаружи.
+final class ProjectDraft: ObservableObject, Identifiable {
+    let id = UUID()
+    @Published var name: String = ""
+    @Published var colorHex: String = DirectoryColors.project.first ?? "#4A9FD8"
+    @Published var datasetId: String?
+
+    var isSaveEnabled: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+}
+
+/// Гасит «резинку» горизонтального скролла капсулы инструментов. Тот же
+/// приём, что в `QuickAddTaskView` — SwiftUI своего API не даёт, и пустая
+/// UIKit-вьюха снимает `bounces` у ближайшего `UIScrollView` вверх по
+/// иерархии. Имя с префиксом, потому что в `QuickAddTaskView.swift` уже
+/// живёт `private struct ScrollBounceDisabler` с тем же телом — отдельный
+/// публичный там не оправдан.
+struct ProjectScrollBounceDisabler: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            var candidate: UIView? = uiView.superview
+            while let current = candidate {
+                if let scrollView = current as? UIScrollView {
+                    scrollView.bounces = false
+                    scrollView.alwaysBounceHorizontal = false
+                    return
+                }
+                candidate = current.superview
+            }
         }
     }
 }
