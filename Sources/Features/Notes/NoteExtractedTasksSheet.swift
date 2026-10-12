@@ -85,7 +85,10 @@ struct NoteExtractedTasksSheetContent: View {
             .buttonStyle(TFTapScaleStyle())
 
             TextField("Название", text: row.title)
-                .tfText(.body)
+                // Поле ввода — ступень `input` (16), не `body` (15): правило
+                // «16 только под поля» держим единым (LOCK-TYPOGRAPHY-SPEC,
+                // дефект В).
+                .tfText(.input)
                 .foregroundStyle(Color.tfText)
                 .disabled(!row.wrappedValue.include)
                 .opacity(row.wrappedValue.include ? 1 : 0.4)

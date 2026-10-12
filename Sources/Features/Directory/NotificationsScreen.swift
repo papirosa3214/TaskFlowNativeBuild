@@ -121,7 +121,17 @@ struct NotificationsScreen: View {
                 if isLoadingServiceTickets && serviceTickets.isEmpty {
                     ProgressView("Загрузка серверных уведомлений")
                 } else if serviceTickets.isEmpty && serviceTicketsError == nil {
+                    // Пустое состояние было вообще без типографики — рисовалось
+                    // системным 17 pt primary, единственное такое место в
+                    // приложении (LOCK-TYPOGRAPHY-SPEC, дефект Г). Рядом, в
+                    // обычной ленте уведомлений, текст набирается `.action` 13
+                    // цветом `tfDim`.
                     Text("Серверных уведомлений пока нет")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.vertical, TFSpacing.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     ForEach(serviceTickets) { summary in
                         NotificationTicketCard(

@@ -188,7 +188,12 @@ struct UpcomingListView: View {
                         .foregroundStyle(filled ? Color.tfRed : Color.tfSub)
                 }
                 Text("\(UpcomingDate.day(ds))")
-                    .tfText(.input)
+                    // Число дня в большой ячейке календаря. Было `.tfText(.input)`
+                    // (16 pt) — ступень, зарезервированная ТОЛЬКО под текстовые
+                    // поля: она ставила числу календаря кегль поля ввода
+                    // (LOCK-TYPOGRAPHY-SPEC, дефект В). `body` 15 — соседняя
+                    // ступень, на 1 pt меньше, визуально не отличить.
+                    .tfText(.body)
                     .monospacedDigit()
                     .fontWeight(filled ? .semibold : .regular)
                     // «Сегодня» — сплошной круг (осталось как было). «Выбрано» —

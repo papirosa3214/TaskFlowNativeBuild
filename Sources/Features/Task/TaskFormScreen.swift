@@ -548,8 +548,12 @@ struct TaskCardContent: View {
                                 blocks: $viewModel.titleBlocks,
                                 focus: titleFocus,
                                 placeholder: "Название задачи",
-                                baseFontOverride: UIFontMetrics(forTextStyle: .headline)
-                                    .scaledFont(for: .systemFont(ofSize: 17, weight: .regular)),
+                                // Название задачи — ступень `taskTitle` (20 semibold).
+                                // Было 17 regular: на 3 pt МЕЛЬЧЕ заголовков секций
+                                // под ним, иерархия читалась перевёрнутой
+                                // (LOCK-TYPOGRAPHY-SPEC, дефект Б).
+                                baseFontOverride: UIFontMetrics(forTextStyle: .title3)
+                                    .scaledFont(for: .systemFont(ofSize: 20, weight: .semibold)),
                                 textColor: UIColor(Color.tfText),
                                 requestsFocus: activeEditors.contains("title"),
                                 onEdit: { scheduleSave() }
@@ -1310,8 +1314,10 @@ struct TaskCardContent: View {
 
     private func taskSectionHeader(_ title: String) -> some View {
         Text(title)
-            .tfText(.taskTitle)
-            .fontWeight(.semibold)
+            // Заголовок секции — ступень `title` (17 semibold). Было 20 pt:
+            // он был КРУПНЕЕ названия задачи над ним (LOCK-TYPOGRAPHY-SPEC,
+            // дефект Б). Дубль `.fontWeight(.semibold)` снят — он уже в ступени.
+            .tfText(.title)
             .foregroundStyle(Color.tfText)
             .textCase(nil)
             // Без `.underline()` (владелец 28.09.2026: «полоска другого цвета
@@ -3010,7 +3016,11 @@ private struct LinkedTaskPicker: View {
                             HStack(spacing: TFSpacing.sm) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(task.title)
-                                        .foregroundStyle(.primary)
+                                        // Название задачи — основным цветом палитры,
+                                        // а не системным `.primary`: соседняя
+                                        // подпись в этой же шторке взята из палитры
+                                        // (LOCK-TYPOGRAPHY-SPEC, дефект Д).
+                                        .foregroundStyle(Color.tfText)
                                         .lineLimit(2)
                                     Text(task.status == .completed ? "Выполнена" : "Открыта")
                                         .font(.caption)

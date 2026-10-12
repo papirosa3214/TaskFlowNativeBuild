@@ -41,7 +41,7 @@ struct TeamAppearanceSheet: View {
                             if appearance == .noir, animated {
                                 Text("Ролики зациклены и идут без звука. У роли «Дизайнер» ролика нет — она остаётся статичной.")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.tfSub)
                             }
                         }
                         .padding(.vertical, 8)
@@ -56,7 +56,7 @@ struct TeamAppearanceSheet: View {
                             Text("Анимировать")
                             Text("Анимация есть только у комплекта «Гравюра».")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.tfSub)
                         }
                         Spacer()
                         TFToggle(isOn: $animated)
@@ -77,7 +77,7 @@ struct TeamAppearanceSheet: View {
                                 Text("Настроить портреты")
                                 Text("Двигать и увеличивать картинку в кружке, выбрать своё фото, круг или квадрат.")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.tfSub)
                             }
                             Spacer()
                         }
@@ -101,7 +101,7 @@ struct TeamAppearanceSheet: View {
                                 }
                                 Text(AvatarCrop.roleTitle(role))
                                 Spacer()
-                                Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right").foregroundStyle(Color.tfSub)
                             }
                         }
                         .accessibilityIdentifier("team-avatar-crop-role-" + role)

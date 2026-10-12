@@ -367,6 +367,11 @@ struct NoteBlockTextView: UIViewRepresentable {
         tv.textContainer.lineFragmentPadding = 0
         tv.delegate = context.coordinator
         tv.font = baseFontOverride ?? MarkdownText.baseFont(for: blockKind)
+        // Кегль в атрибутах получен через `UIFontMetrics` (`MarkdownText.baseFont`),
+        // но без этого флага UITextView не пересчитывает УЖЕ набранный текст при
+        // смене системного размера: комментарий и шаг в карточке оставались
+        // прежними, пока всё остальное росло (LOCK-TYPOGRAPHY-SPEC, дефект А).
+        tv.adjustsFontForContentSizeCategory = true
         tv.tintColor = UIColor(Color.tfRed)
         tv.dataDetectorTypes = []
         tv.attributedText = MarkdownText.attributedString(runs: runs, blockKind: blockKind, base: baseFontOverride, textColor: textColor)

@@ -43,7 +43,7 @@ struct IntegrationResponsibilityView: View {
                     ProgressView()
                 }
                 Button { help = true } label: {
-                    Image(systemName: "questionmark.circle").foregroundStyle(.tertiary)
+                    Image(systemName: "questionmark.circle").foregroundStyle(Color.tfDim)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Об ответственности за интеграцию")

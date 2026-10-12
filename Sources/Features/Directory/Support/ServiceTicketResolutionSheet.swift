@@ -44,6 +44,7 @@ struct ServiceTicketResolutionSheet: View {
             // однострочный и такого не умеет. `TFButton` ниже, наоборот,
             // подходит без потери поведения — используется он.
             TextField("Что делать?", text: $customText, axis: .vertical)
+                .tfText(.input)
                 .textFieldStyle(.roundedBorder)
 
             TFErrorBanner(errorMessage, variant: .inline)
