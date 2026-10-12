@@ -20,12 +20,22 @@ struct TaskFlowWebhook: Decodable, Identifiable, Sendable {
     let lastError: String?
     let wakeConfirmedAt: String?
     let wake: Wake?
+    /// Счётчики и код последнего ответа приёмника — для сводной строки
+    /// «работают / не работают» в секции «Сервер» настроек (12.10.2026).
+    /// Раньше они не декодировались: экран «Вебхуки» их не показывал, и
+    /// сводки не было. Опциональные — старый сервер без этих полей не ломает
+    /// разбор ответа.
+    let deliveryCount: Int?
+    let wakeCount: Int?
+    let lastDeliveryStatus: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, name, url, enabled, wake
         case eventKinds = "event_kinds", projectID = "project_id"
         case lastDeliveryAt = "last_delivery_at", lastError = "last_error"
         case wakeConfirmedAt = "wake_confirmed_at"
+        case deliveryCount = "delivery_count", wakeCount = "wake_count"
+        case lastDeliveryStatus = "last_delivery_status"
     }
 }
 

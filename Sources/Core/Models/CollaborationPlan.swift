@@ -165,7 +165,8 @@ public struct ApiBranchTeamMember: Codable, Sendable, Hashable {
 public struct ApiBranchCard: Codable, Sendable, Hashable {
     public let id: String
     public let tabNumber: Int
-    enum CodingKeys: String, CodingKey { case id, tabNumber = "tab_number" }
+    public var responsibleRole: String? = nil
+    enum CodingKeys: String, CodingKey { case id, tabNumber = "tab_number", responsibleRole = "responsible_role" }
 }
 
 public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {
@@ -192,6 +193,56 @@ public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {
         case pendingProposals = "pending_proposals"
         case branchSnapshot = "branch_snapshot", branchRootTaskId = "branch_root_task_id"
         case branchTeam = "branch_team", branchCards = "branch_cards"
+    }
+}
+
+public extension ApiCollaborationPlan {
+    /// Ноль — только этап этой роли в родительской вкладке, не участие в ветке вообще.
+    func tabNumbers(forRole role: String) -> [Int] {
+        let root = branchRootTaskId ?? taskId
+        let work = nodes.filter { $0.roleKey == role && !$0.isSkipped && $0.executionState != "skipped" }
+        if let cards = branchCards {
+            let numbers = Dictionary(cards.map { ($0.id, $0.tabNumber) }, uniquingKeysWith: { first, _ in first })
+            return Set(work.compactMap { node -> Int? in
+                guard let id = node.taskId else { return nil }
+                if id == root { return 0 }
+                guard let number = numbers[id], number > 0 else { return nil }
+                return number
+            }).sorted()
+        }
+        let children = branchTeam?.first { $0.roleKey == role }?.taskNumbers.filter { $0 > 0 } ?? []
+        return Set((work.contains { $0.taskId == root } ? [0] : []) + children).sorted()
+    }
+
+    func tabStates(forRole role: String) -> [Int: String] {
+        let root = branchRootTaskId ?? taskId
+        return Dictionary(tabNumbers(forRole: role).map { number in
+            let id = number == 0 ? root : branchCards?.first { $0.tabNumber == number }?.id
+            let states = nodes.filter { id != nil && $0.roleKey == role && $0.taskId == id && !$0.isSkipped && $0.executionState != "skipped" }
+                .map { $0.executionState ?? "waiting" }
+            let priority = ["blocked", "returned", "active", "review", "ready", "waiting", "accepted"]
+            return (number, priority.first { states.contains($0) } ?? "waiting")
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
+    var activeChildTaskIDs: Set<String> {
+        let root = branchRootTaskId ?? taskId
+        return Set(nodes.filter { !$0.isSkipped && $0.executionState == "active" }.compactMap(\.taskId).filter { $0 != root })
+    }
+
+    var branchExecutionState: String {
+        let states = nodes.filter { !$0.isSkipped && $0.executionState != "skipped" }.map { $0.executionState ?? "waiting" }
+        if states.contains("active") { return "active" }
+        if states.contains("blocked") || states.contains("returned") { return "blocked" }
+        if states.contains("review") { return "review" }
+        if !states.isEmpty && states.allSatisfy({ $0 == "accepted" }) { return "accepted" }
+        return "waiting"
+    }
+
+    var branchResponsibleRole: String? {
+        let root = branchRootTaskId ?? taskId
+        return branchCards?.first { $0.id == root }?.responsibleRole
+            ?? nodes.first { $0.taskId == root && $0.responsible == true && !$0.isSkipped }?.roleKey
     }
 }
 

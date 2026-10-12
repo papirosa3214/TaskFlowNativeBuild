@@ -17,6 +17,10 @@ extension TaskCardContent: Equatable {
 
 struct TaskCardContent: View {
     let taskID: String?
+    /// Карточка открыта ПУШЕМ в навигационный стек, а не листом (см.
+    /// `TaskFormScreen.isPushedInNavigationStack`). Лист сворачивается свайпом
+    /// вниз, пуш — нет, поэтому у пуша обязан быть «×» (LOCK-TICKET-PUSH-EXIT).
+    let isPushedInNavigationStack: Bool
 
     private enum LinkedTaskNavigation: Identifiable, Hashable {
         case detail(String)
@@ -163,8 +167,10 @@ struct TaskCardContent: View {
          onSelectionFailed: @escaping () -> Void = {},
          initialExpandedSections: Set<TaskDetailSection> = [],
          onExpandedSectionsChanged: @escaping (Set<TaskDetailSection>) -> Void = { _ in },
-         preview: Bool = false) {
+         preview: Bool = false,
+         isPushedInNavigationStack: Bool = false) {
         taskID = model.taskID
+        self.isPushedInNavigationStack = isPushedInNavigationStack
         _viewModel = State(initialValue: model)
         _showQuickAdd = State(initialValue: model.taskID == nil && !expanding)
         _isExpanded = State(initialValue: expanding)
@@ -228,13 +234,39 @@ struct TaskCardContent: View {
     @Environment(RealtimeClient.self) private var realtime
     @Environment(\.scenePhase) private var scenePhase
 
+    private var parentBranchPlan: ApiCollaborationPlan? {
+        let plan = viewModel.collaborationPlanState.plan ?? viewModel.collaborationPlanState.draftPlan
+        guard let plan, plan.branchTeam != nil, (plan.branchRootTaskId ?? plan.taskId) == taskID else { return nil }
+        return plan
+    }
+
+    private var familyStateRevision: String {
+        let ids = Set(([taskID].compactMap { $0 }) + viewModel.childTasks.map(\.id)
+            + (parentBranchPlan?.branchCards?.map(\.id) ?? []))
+        return ids.sorted().map { "\($0):\(realtime.revision(for: $0))" }.joined(separator: "|")
+    }
+
+    /// Только отображение ветки: не меняет состояние карточки и права запуска.
+    private var displayedAgentState: AgentState? {
+        if viewModel.loadedTask?.status == .completed { return nil }
+        switch parentBranchPlan?.branchExecutionState {
+        case "active": return .inProgress
+        case "blocked": return .blocked
+        case "review": return .review
+        default: return viewModel.agentState
+        }
+    }
+
     private var fullFormBody: some View {
         formNavigationBody
             .task { await loadScreen() }
-            .task(id: "\(scenePhase):\(isEditorReady):\(realtime.revision(for: taskID ?? ""))") {
+            .task(id: "\(scenePhase):\(isEditorReady):\(familyStateRevision)") {
                 guard scenePhase == .active, isEditorReady, taskID != nil else { return }
                 await viewModel.refresh()
                 collaborationPlanReloadToken += 1
+                if let taskID, !viewModel.childTasks.isEmpty, viewModel.parentTask == nil {
+                    await viewModel.collaborationPlanState.load(taskID: taskID, reloadToken: collaborationPlanReloadToken, force: true, isOwner: isOwner)
+                }
                 refreshDynamicIslandState()
             }
             .task(id: "\(scenePhase):\(isEditorReady):\(realtime.activityRevisions[taskID ?? ""] ?? 0)") {
@@ -498,7 +530,12 @@ struct TaskCardContent: View {
             // «Назад» скрыта `navigationBarBackButtonHidden(true)`. На
             // несуществующей карточке редактировать нечего, поэтому «×»
             // показываем и там.
-            if !viewModel.isEditing || viewModel.notFound {
+            // Владелец 12.10.2026: тот же тупик был у СУЩЕСТВУЮЩЕЙ
+            // карточки, открытой пушем из «Серверных уведомлений» или по
+            // ссылке в чате: свайпа вниз у пуша нет, а «×» по старому
+            // условию не рисовался. Теперь «×» есть всегда, где карточку
+            // нельзя закрыть свайпом.
+            if !viewModel.isEditing || viewModel.notFound || isPushedInNavigationStack {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         pendingSaveTask?.cancel()
@@ -585,10 +622,10 @@ struct TaskCardContent: View {
                             .tfText(.caption)
                             .foregroundStyle(Color.tfSub)
                     }
-                    if let state = viewModel.agentState {
+                    if let state = displayedAgentState {
                         // Те же слова и цвета, что в списках (владелец 07.10.2026).
-                        let stale = viewModel.loadedTask?.agentStale == true
-                        let isBlockedWithReason = state == .blocked
+                        let stale = parentBranchPlan == nil && viewModel.loadedTask?.agentStale == true
+                        let isBlockedWithReason = parentBranchPlan == nil && state == .blocked
                             && (viewModel.loadedTask?.blockedReason?
                                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
                         if isBlockedWithReason {
@@ -605,10 +642,16 @@ struct TaskCardContent: View {
                             Text(TFAgentStateTag.text(state, stale: stale))
                                 .tfText(.caption)
                                 .foregroundStyle(TFAgentStateTag.color(state, stale: stale))
+                                .accessibilityIdentifier(parentBranchPlan == nil ? "task.status" : "task.branch.status")
                         }
-                        if state == .review, viewModel.loadedTask?.criticApproved == true {
+                        if parentBranchPlan == nil, state == .review, viewModel.loadedTask?.criticApproved == true {
                             TFCriticApprovedMark()
                         }
+                    } else if let plan = parentBranchPlan {
+                        Text(viewModel.loadedTask?.status == .completed ? "выполнена" : (plan.branchExecutionState == "accepted" ? "этапы выполнены" : "ожидает"))
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .accessibilityIdentifier("task.branch.status")
                     }
                     if attemptsExhausted, let ladder = viewModel.attemptLadder {
                         AttemptLadderView(ladder: ladder, agentState: viewModel.agentState)
@@ -987,6 +1030,7 @@ struct TaskCardContent: View {
         .listStyle(.plain)
         .listRowSeparator(.hidden)
         .listSectionSeparator(.hidden)
+        .accessibilityIdentifier("task.content.\(taskID ?? "draft")")
         // Карточка получалась полосатой: промежутки и заголовки секций шли на
         // нашем фоне, а сами строки — на системном чёрном, и это било в глаза
         // (владелец 09.09.2026: «текст задачи, текст описания — чёрный, он
@@ -1495,6 +1539,14 @@ struct TaskCardContent: View {
             || subtask.agentState == .review
 
         return VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            if let agentID = subtask.agentId, subtask.collaborationPlanId != nil {
+                let key = agentID.hasPrefix("role_") ? String(agentID.dropFirst(5)) : agentID
+                let role = viewModel.roles.first { $0.role == key }?.title ?? key
+                Text(role)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tfText)
+                    .accessibilityIdentifier("subtask.role.\(subtask.id)")
+            }
             HStack(spacing: TFSpacing.md) {
                 Button {
                     guard subtask.agentState != .review else { return }
@@ -1890,7 +1942,9 @@ struct TaskCardContent: View {
             return me.name
         }
         let assignedRole = viewModel.assigneeId.flatMap { $0.hasPrefix("role_") ? String($0.dropFirst(5)) : nil }
-        guard let role = viewModel.loadedTask?.dispatchedRole ?? viewModel.ownerSelectedRole ?? assignedRole ?? viewModel.loadedTask?.machineSelectedRole,
+        let planRole = parentBranchPlan?.branchResponsibleRole
+            ?? viewModel.loadedTask?.planResponsibleId.flatMap { $0.hasPrefix("role_") ? String($0.dropFirst(5)) : nil }
+        guard let role = viewModel.loadedTask?.dispatchedRole ?? viewModel.ownerSelectedRole ?? assignedRole ?? planRole ?? viewModel.loadedTask?.machineSelectedRole,
               let profile = viewModel.roles.first(where: { $0.role == role }) else {
             return "Автоматически"
         }

@@ -32,7 +32,6 @@ struct TodayTaskRow: View {
     /// убрана 09.09.2026.
     @State private var settledOffset: CGFloat = 0
     @State private var dragOffset: CGFloat = 0
-    @State private var confirmDelete = false
 
     private var offsetX: CGFloat { clamp(settledOffset + dragOffset) }
 
@@ -55,7 +54,7 @@ struct TodayTaskRow: View {
                 actionButton(
                     icon: "archivebox", label: "В архив",
                     identifier: "row.swipe.delete", color: .tfSwipeDelete
-                ) { close(); confirmDelete = true }
+                ) { close(); onDelete() }
                 .frame(width: leftRevealWidth)
                 .opacity(revealOpacity(leftRevealWidth))
 
@@ -111,12 +110,10 @@ struct TodayTaskRow: View {
                 .fill(Color.tfStroke.opacity(0.5))
                 .frame(height: TFBorder.width)
         }
-        .confirmationDialog("Отправить задачу в архив?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("В архив", role: .destructive, action: onDelete)
-            Button("Отмена", role: .cancel) {}
-        } message: {
-            Text("«\(task.title)» будет отправлена в архив. Её можно восстановить.")
-        }
+        // Диалога «Отправить в архив?» больше нет (поручение владельца
+        // 12.10.2026): свайп уводит задачу в архив сразу. Задача не пропадает —
+        // она в «Архиве», её можно вернуть. Подтверждение осталось только на
+        // окончательное удаление (см. `TaskArchiveScreen`).
     }
 
     /// Насколько раскрыт левый край (кнопка «Удалить») — прямо за пальцем.

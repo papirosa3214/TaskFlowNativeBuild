@@ -38,6 +38,11 @@ targets:
       # Образцы голосов Секретаря для прослушивания в настройках (LOCK-218).
       - path: Resources/SecretaryVoices
         buildPhase: resources
+      # Гарнитура для заголовков разделов (LOCK-OVERVIEW-YELLOW-DISPLAY).
+      # Тот же приём: каталог целиком, `buildPhase: resources` — файлы шрифта
+      # идут в бандл как файлы, а UIAppFonts в Info.plist их регистрирует.
+      - path: Resources/Fonts
+        buildPhase: resources
       # Ролики аватарок комплекта «Ретро-нуар» (LOCK-TEAM-AVATAR-ANIMATION).
       # Тот же приём, что у голосов: каталог целиком, `buildPhase: resources`.
       # 2,5 МБ восьми mp4 — они идут в бандл как файлы, а не в asset catalog.
@@ -68,6 +73,15 @@ targets:
         CFBundleDisplayName: Задачи
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Шрифты заголовков разделов (LOCK-OVERVIEW-YELLOW-DISPLAY). Ключ
+        # ОБЯЗАН быть здесь, а не в `Resources/Info.plist`: этот файл
+        # xcodegen перегенерирует из `properties` при каждой сборке, и
+        # ручная правка молча пропадает — шрифт лежит в бандле, но iOS его не
+        # регистрирует, `Font.custom` не находит и SwiftUI рисует системным
+        # шрифтом БЕЗ ошибки (проверено 12.10.2026 на кадре «Обзора»).
+        UIAppFonts:
+          - PT-Sans-Narrow-Bold.ttf
+          - PT-Sans-Narrow-Regular.ttf
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

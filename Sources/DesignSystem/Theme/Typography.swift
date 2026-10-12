@@ -80,6 +80,112 @@ public enum TFFont {
     /// Совсем мелкое: буквы недели, деления графика, счётчик на таббаре.
     public static let micro = Font.system(size: 10, weight: .medium)
     public static let microTracking: CGFloat = 0.25
+
+    // 12.10.2026, LOCK-OVERVIEW-YELLOW-DISPLAY. Заголовок раздела жёлтым
+    // капсом встроенной гарнитуры PT Sans Narrow (см. обоснование выбора в
+    // `TFSectionDisplayModifier` ниже). Кегль и `Font` живут в модификаторе
+    // через `@ScaledMetric` — здесь только разрядка, она от кегля не зависит.
+    public static let sectionDisplayTracking: CGFloat = 0.6
+    public static let sectionDisplaySmallTracking: CGFloat = 0.4
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 12.10.2026, LOCK-OVERVIEW-YELLOW-DISPLAY. Заголовки разделов «Обзора».
+//
+// Владелец дал образец: узкий жирный дисплейный капс, все заглавные, без
+// иконок и без пояснений. Гарнитуру назвал — Big Shoulders Display.
+//
+// Цвет из образца НЕ переносится: владелец отдельно уточнил «цвета наши
+// сохранить», поэтому заголовки остаются `Color.tfText` (как были до правки).
+// Класть в приложение жёлтый из макета — было моей самодеятельностью.
+//
+// ПОЧЕМУ PT Sans Narrow, а не Big Shoulders Display. У Big Shoulders Display
+// НЕТ КИРИЛЛИЦЫ — проверено напрямую по таблице `cmap`, у всех трёх начертаний
+// (Black/ExtraBold/Bold) из оригинального репозитория
+// github.com/xotypeco/big_shoulders: ни U+0410 «А», ни U+044F «я». То же в
+// версии Google Fonts (латиница + latin-ext + вьетнамский, и всё).
+// Заголовки разделов русские, они бы не набрались вовсе — пустые
+// прямоугольники. PT Sans Narrow — узкая жирная гротеск-гарнитура с полной
+// кириллицей; выбрана владельцем 12.10.2026 из списка вариантов после того,
+// как Oswald не понравился.
+//
+// Файлы статичные, начертания Regular и Bold из репозитория Google Fonts
+// (`ofl/ptsansnarrow`). Кириллица проверена по `cmap` при установке: U+0410,
+// U+044F, U+0451, «—» и «№» на месте. Имена в файлах: family = «PT Sans
+// Narrow», «Bold» — начертание (name ID 2), поэтому в коде указывается одно
+// семейство, а начертание задаётся весом.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Заголовок раздела узким жирным капсом встроенной гарнитуры.
+/// Трекинг положительный, а не отрицательный: узкая гарнитура рассыпается
+/// на длинных русских словах («УВЕДОМЛЕНИЯ»).
+public struct TFSectionDisplayModifier: ViewModifier {
+    private let style: TFTextStyle
+    private let color: Color
+
+    @ScaledMetric(relativeTo: .title3)    private var largeSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .headline)  private var smallSize: CGFloat = 15
+
+    init(style: TFTextStyle, color: Color) {
+        self.style = style
+        self.color = color
+    }
+
+    private var size: CGFloat {
+        switch style {
+        case .taskTitle, .titleLarge: largeSize
+        default: smallSize
+        }
+    }
+
+    // Одно семейство на оба кегля: в файлах PT Sans Narrow family = «PT Sans
+    // Narrow», а Regular/Bold — это начертания (name ID 2). Поэтому в коде
+    // указывается одно имя, а начертание задаётся весом ниже. Два разных
+    // имени здесь означали бы «Oswald Bold» вместо family — и SwiftUI молча
+    // нарисовал бы системный шрифт (та же ошибка, что стоила первой попытки
+    // ещё с Oswald).
+    private var name: String { "PT Sans Narrow" }
+
+    private var weight: Font.Weight {
+        switch style {
+        case .taskTitle, .titleLarge: .bold
+        default: .medium
+        }
+    }
+
+    private var tracking: CGFloat {
+        switch style {
+        case .taskTitle, .titleLarge: TFFont.sectionDisplayTracking
+        default: TFFont.sectionDisplaySmallTracking
+        }
+    }
+
+    public func body(content: Content) -> some View {
+        content
+            .font(.custom(name, size: size).weight(weight))
+            .tracking(tracking)
+            .textCase(.uppercase)
+            .foregroundStyle(color)
+    }
+}
+
+public extension View {
+    /// Заголовок раздела «Обзора» узким жирным капсом (образец владельца).
+    ///
+    /// Цвет — НЕ жёлтый из образца: владелец прямо попросил сохранить свои
+    /// цвета («я же просил цвета наши сохранить»), поэтому новых цветов не
+    /// заводим. Жёлтый из макета в приложение не переносится.
+    ///
+    /// Цвет по умолчанию — `Color.tfText`, то есть белый. 12.10.2026 пробовали
+    /// приглушать на `tfSub` («сильно белый, прям сильно яркий»), но с новой
+    /// гарнитурой PT Sans Narrow серый стал читаться вялым, и владелец вернул
+    /// белый: заголовки разделов должны быть заметными. Это откат правки
+    /// `LOCK-OVERVIEW-HEADER-DIM`, а не новый цвет — новых красок не заводим.
+    ///
+    /// `style: .taskTitle` — крупный заголовок раздела, остальное — подзаголовок.
+    func tfSectionDisplay(style: TFTextStyle = .taskTitle, color: Color = .tfText) -> some View {
+        modifier(TFSectionDisplayModifier(style: style, color: color))
+    }
 }
 
 /// Готовые модификаторы «размер + трекинг одним вызовом» — большинство мест

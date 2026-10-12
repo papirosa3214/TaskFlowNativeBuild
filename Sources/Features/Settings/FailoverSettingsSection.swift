@@ -9,6 +9,15 @@ struct FailoverSettingsSection: View {
     var body: some View {
         if let status = viewModel.failover {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                // Остаток лимита у провайдера — владелец 12.10.2026: «в лёгкую
+                // можно видеть остатки на панели провайдера, а у нас не
+                // отображается». Сервер теперь спрашивает остаток сам и
+                // отдаёт его здесь; провайдеры, которые остаток не отдают,
+                // в список не попадают.
+                if !status.quotas.isEmpty {
+                    TFSectionHeader("Остаток лимитов")
+                    quotaCard(status.quotas)
+                }
                 TFSectionHeader("Автопереключение моделей")
                 TFCard(padding: 0) {
                     VStack(spacing: 0) {
@@ -50,6 +59,43 @@ struct FailoverSettingsSection: View {
         }
         .padding(.horizontal, TFSpacing.lg)
         .frame(minHeight: TFField.height)
+    }
+
+    /// Остаток по каждому провайдеру, который его сообщает: зелёный — живой,
+    /// оранжевый — в лимите, с точным временем сброса от провайдера.
+    private func quotaCard(_ quotas: [ProviderQuotaState]) -> some View {
+        TFCard(padding: 0) {
+            VStack(spacing: 0) {
+                ForEach(Array(quotas.enumerated()), id: \.element.id) { index, quota in
+                    if index > 0 { TFDivider(inset: TFSpacing.lg) }
+                    HStack(spacing: TFSpacing.md) {
+                        Circle()
+                            .fill(quota.limited ? Color.tfOrange : Color.tfGreen)
+                            .frame(width: 8, height: 8)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(quota.provider).tfText(.action).foregroundStyle(Color.tfText)
+                            Text(Self.quotaSubtitle(quota))
+                                .tfText(.caption)
+                                .foregroundStyle(quota.limited ? Color.tfOrange : Color.tfSub)
+                        }
+                        Spacer(minLength: TFSpacing.sm)
+                    }
+                    .padding(.horizontal, TFSpacing.lg)
+                    .frame(minHeight: TFField.height)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("quota.\(quota.provider)")
+                }
+            }
+        }
+    }
+
+    static func quotaSubtitle(_ quota: ProviderQuotaState) -> String {
+        guard quota.known else { return "остаток не сообщает" }
+        guard quota.limited else { return "лимит есть, работает" }
+        if let minutes = quota.minutesToReset {
+            return "в лимите, сброс через \(minutes) мин"
+        }
+        return "в лимите, время сброса неизвестно"
     }
 
     private func limitRow(_ limit: FailoverLimit) -> some View {

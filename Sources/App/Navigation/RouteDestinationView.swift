@@ -52,7 +52,9 @@ private func routeContent(_ route: AppRoute) -> some View {
         // сначала меню чатов, потом конкретный чат (владелец 21.09.2026).
         RoleChatsScreen()
     case .taskDetail(let taskID):
-        TaskFormScreen(taskID: taskID)
+        // Пуше внутрь NavigationStack, а не лист: свайп вниз здесь не
+        // работает, поэтому карточке нужен явный «×» (LOCK-TICKET-PUSH-EXIT).
+        TaskFormScreen(taskID: taskID, isPushedInNavigationStack: true)
     case .taskCreate:
         TaskFormScreen()
     case .notes:

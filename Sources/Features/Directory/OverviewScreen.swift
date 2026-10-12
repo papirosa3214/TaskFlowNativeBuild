@@ -24,7 +24,7 @@ struct OverviewScreen: View {
         .clipped()
         .contentShape(Rectangle())
         .highPriorityGesture(
-            DragGesture(minimumDistance: 12)
+            DragGesture(minimumDistance: 4)
                 .onChanged { value in
                     guard abs(value.translation.height) > abs(value.translation.width) else { return }
                     if dragOrigin == nil { dragOrigin = depth }
@@ -64,9 +64,12 @@ struct OverviewScreen: View {
     // чёрно-бело-цветной» на фоне причёсанного остального «Обзора» (LOCK
     // причёсывания под стиль «Моделей и голосов»). Нейтрально, как соседние
     // навигационные строки.
+    //
+    // 12.10.2026 (LOCK-OVERVIEW-YELLOW-DISPLAY): иконка убрана совсем, как и
+    // подзаголовок-пояснение, заголовок стал жёлтым капсом (образец владельца).
     private var weeklySummaryCard: some View {
         Button { summaryOpen = true } label: {
-            TFListRow(icon: "brain.head.profile", iconStyle: .plain, title: "Сводка недели", subtitle: "Победы, хвосты и фокус на цели недели", titleStyle: .body, verticalPadding: TFSpacing.sm)
+            navigationRowBody(title: "Сводка недели")
         }.buttonStyle(.plain).accessibilityIdentifier("overview.weekly-summary")
     }
 
@@ -78,38 +81,45 @@ struct OverviewScreen: View {
                 NavigationLink {
                     RoleLoadScreen()
                 } label: {
-                    TFListRow(icon: "chart.bar.xaxis", iconStyle: .plain, title: "Загрузка ролей", subtitle: "Заходы, текущая занятость и открытые слоты", titleStyle: .body, verticalPadding: TFSpacing.sm)
+                    navigationRowBody(title: "Загрузка ролей")
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("overview.role-load")
                 TFDivider(inset: rowDividerInset)
-                navigationRow(route: .knowledge, icon: "books.vertical", title: "База знаний", subtitle: "Документы, папки и поиск по всем проектам")
+                navigationRow(route: .knowledge, title: "База знаний")
                 TFDivider(inset: rowDividerInset)
-                navigationRow(route: .notifications, icon: "bell", title: "Уведомления", subtitle: "История событий и напоминаний")
+                navigationRow(route: .notifications, title: "Уведомления")
                 TFDivider(inset: rowDividerInset)
-                navigationRow(route: .activity, icon: "waveform.path.ecg", title: "Активность и статистика", subtitle: "Графики продуктивности и выполненные задачи")
+                navigationRow(route: .activity, title: "Статистика")
                 TFDivider(inset: rowDividerInset)
-                navigationRow(route: .settings, icon: "gearshape", title: "Настройки", subtitle: "Профиль, ИИ, сервер и внешний вид")
+                navigationRow(route: .settings, title: "Настройки")
             }
         }
     }
 
-    private func navigationRow(route: AppRoute, icon: String, title: String, subtitle: String) -> some View {
+    private func navigationRowBody(title: String) -> some View {
+        HStack(spacing: TFSpacing.md) {
+            Text(title)
+                .tfSectionDisplay(style: .taskTitle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.vertical, TFSpacing.md)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+
+    private func navigationRow(route: AppRoute, title: String) -> some View {
         NavigationLink(value: route) {
-            TFListRow(
-                icon: icon,
-                iconStyle: .plain,
-                title: title,
-                subtitle: subtitle,
-                titleStyle: .body,
-                verticalPadding: TFSpacing.sm
-            )
+            navigationRowBody(title: title)
         }
         .buttonStyle(.plain)
     }
 
-
-
-    private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
+    // Без иконки инсет разделителя — только горизонтальный отступ строки
+    // (раньше тут был ещё и отступ под иконку 40 pt + промежуток).
+    private var rowDividerInset: CGFloat { TFSpacing.lg }
 
 }

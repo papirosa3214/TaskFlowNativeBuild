@@ -19,16 +19,28 @@ struct TaskFormScreen: View {
     @State private var requestSwitch: ((String) -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let expanding: Bool
+    /// Экран открыт ПУШЕМ внутрь навигационного стека, а не листом.
+    ///
+    /// Лист сворачивается свайпом вниз, поэтому «×» там не нужен и условие
+    /// «`isEditing == true` → не рисуем» было верным. При пуше свайпа нет,
+    /// системная «Назад» скрыта `navigationBarBackButtonHidden(true)`, и
+    /// карточка из «Серверных уведомлений» или по ссылке в чате оставалась
+    /// тупиком: нечем выйти (владелец 12.10.2026). Ставится из
+    /// `RouteDestinationView.taskDetail`.
+    private let isPushedInNavigationStack: Bool
 
-    init(taskID: String? = nil, presetDueToday: Bool = false, startDictation: Bool = false) {
+    init(taskID: String? = nil, presetDueToday: Bool = false, startDictation: Bool = false,
+         isPushedInNavigationStack: Bool = false) {
         _model = State(initialValue: TaskFormViewModel(taskID: taskID, presetDueToday: presetDueToday, startDictation: startDictation))
         _selectedCardID = State(initialValue: taskID)
+        self.isPushedInNavigationStack = isPushedInNavigationStack
         expanding = false
     }
 
     init(expandingFrom viewModel: TaskFormViewModel) {
         _model = State(initialValue: viewModel)
         _selectedCardID = State(initialValue: nil)
+        isPushedInNavigationStack = false
         expanding = true
     }
 
@@ -42,7 +54,8 @@ struct TaskFormScreen: View {
                     onSwitchAvailable: { requestSwitch = $0 },
                     onSelectionFailed: resetPull,
                     initialExpandedSections: expandedSections(for: model),
-                    onExpandedSectionsChanged: { storeExpandedSections($0, for: model) })
+                    onExpandedSectionsChanged: { storeExpandedSections($0, for: model) },
+                    isPushedInNavigationStack: isPushedInNavigationStack)
                     .equatable()
                     .id(selectedCardID ?? "new")
                     .blur(radius: reduceMotion ? 0 : 3.2 * pullProgress(width: geometry.size.width))

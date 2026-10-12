@@ -73,7 +73,7 @@ struct ActivityScreen: View {
         // остаётся только фильтр. Было ручное `.toolbarBackground` — просьба
         // владельца 03.09.2026 («нативные кнопки, нативный фильтр везде
         // одним элементом») — `tfNativeHeader`, как на остальных экранах.
-        .tfNativeHeader("Активность")
+        .tfNativeHeader("Статистика")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 filterMenu

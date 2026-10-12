@@ -1,4 +1,52 @@
 import SwiftUI
+import UIKit
+
+// Заголовок экрана — тем же капсом, что и заголовки разделов «Обзора», и по
+// центру (12.10.2026, поручение владельца: «все заголовки наверху… тем же
+// самым шрифтом, все заглавные… чтобы всё было однородно»).
+//
+// ПОЧЕМУ ТЕКСТ В TOOLBAR, А НЕ `UINavigationBar.appearance()`.
+//
+// Сначала было сделано правильно по документации: `UINavigationBarAppearance
+// .titleTextAttributes` через прокси `UINavigationBar.appearance()`. На iOS 27
+// этот путь НЕ РАБОТАЕТ, и молча, без ошибки сборки:
+//
+//   * чтение атрибутов сразу после записи возвращает ПУСТОЙ словарь — то
+//     есть прокси их вообще не хранит;
+//   * «Обход живых навбаров» тоже не помогает: рекурсивный обход
+//     `UIWindow.subviews` находит НОЛЬ `UINavigationBar` — на iOS 27 SwiftUI
+//     рисует шапку сам, UIKit-навбара в иерархии нет;
+//   * проверка «красным» доказала то же самое: заголовок остался серым и с
+//     системным шрифтом, и с PT Sans Narrow.
+//
+// Значит атрибуты просто некуда положить: `navigationTitle` на iOS 27 рисует
+// SwiftUI своим шрифтом. Единственный штатный слот, который рисует SwiftUI и
+// которым можно задать шрифт — `ToolbarItem(placement: .principal)`. Слот
+// системный, фон и блюр остаются прежними (свою шапку не рисуем), меняется
+// ТОЛЬКО текст заголовка.
+enum TFNavBarTitleFont {
+    /// Family — та же гарнитура, что у `.tfSectionDisplay` (PT Sans Narrow,
+    /// выбрана владельцем 12.10.2026). В файле family = «PT Sans Narrow», а
+    /// Regular/Bold — начертания (name ID 2).
+    static let family = "PT Sans Narrow"
+
+    /// Трекинг тот же, что у заголовков разделов: узкая гарнитура рассыпается
+    /// на длинных русских словах.
+    static let tracking = TFFont.sectionDisplayTracking
+
+    /// Текст заголовка для слота `.principal`.
+    ///
+    /// Регистр — здесь: у навбара нет атрибута «капс».
+    /// Цвет белый (`tfText`), как у заголовков разделов: владелец 12.10.2026
+    /// вернул белый и разделам, и шапке после смены гарнитуры на
+    /// PT Sans Narrow — с серым капс выглядел вялым.
+    static func title(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.custom(family, size: 17).weight(.bold))
+            .tracking(tracking)
+            .foregroundStyle(Color.tfText)
+    }
+}
 
 // Штатная шапка экрана — один модификатор вместо повторения одного и того
 // же набора на каждом экране (было причиной расхождений: где-то забыли
@@ -22,10 +70,23 @@ import SwiftUI
 // цветом. Владелец 02.09.2026 отдельно указал: заменить самодельное на
 // native — значит убрать самодельное, а не имитировать его native-вызовами.
 extension View {
-    func tfNativeHeader(_ title: String, displayMode: ToolbarTitleDisplayMode = .large) -> some View {
+    /// Заголовок капсом той же гарнитуры, что и заголовки разделов «Обзора»,
+    /// по центру (12.10.2026).
+    ///
+    /// Текст кладётся в штатный слот `.principal`, потому что на iOS 27
+    /// `navigationTitle` рисуется своим системным шрифтом, а атрибуты
+    /// `UINavigationBarAppearance` до SwiftUI-заголовка не доходят — подробно
+    /// в `TFNavBarTitleFont`. `navigationTitle` остаётся пустым, чтобы не было
+    /// дубля текста; `displayMode` у `.principal` не нужен, параметр оставлен
+    /// для совместимости вызовов и не влияет на отрисовку.
+    func tfNativeHeader(_ title: String, displayMode: ToolbarTitleDisplayMode = .inline) -> some View {
         self
-            .navigationTitle(title)
-            .toolbarTitleDisplayMode(displayMode)
+            .navigationTitle("")
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    TFNavBarTitleFont.title(title)
+                }
+            }
     }
 
     /// Единый размер tappable-области для управляющих элементов «Планирования».

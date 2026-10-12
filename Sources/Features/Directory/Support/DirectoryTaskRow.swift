@@ -84,7 +84,18 @@ struct DirectoryTaskRow: View {
         ZStack {
             HStack(spacing: 0) {
                 swipeIconButton(icon: "archivebox", color: .tfSwipeDelete) {
-                    close(); confirmDelete = true
+                    close()
+                    // В архив — сразу, без подтверждения (владелец 12.10.2026):
+                    // задача не пропадает, её видно в «Архиве» и можно вернуть.
+                    // Диалог остаётся только там, где действие необратимо, —
+                    // то есть когда строка переиспользуется экраном «Архив»
+                    // и передаёт свои `deleteConfirmTitle`/`deleteConfirmMessage`
+                    // на окончательное удаление.
+                    if deleteConfirmTitle == nil {
+                        onDelete()
+                    } else {
+                        confirmDelete = true
+                    }
                 }
                 .frame(width: leftRevealWidth)
                 .opacity(revealOpacity(leftRevealWidth))
@@ -124,9 +135,9 @@ struct DirectoryTaskRow: View {
         .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
             if openID != rowID, settledOffset != 0 { close() }
         }
-        // Ближайший native-эквивалент своего нижнего экшн-листа из TaskRow.tsx
-        // (красная «Удалить» текстом + отдельная карточка «Отмена») — тот же
-        // приём, что уже выбрал TodayTaskRow.swift для идентичного узла.
+        // Диалог остался только для окончательного удаления с экрана «Архив»
+        // (там владелец передаёт `deleteConfirmTitle`). Обычный свайп в архив
+        // его больше не показывает — поручение владельца 12.10.2026.
         .confirmationDialog(deleteConfirmTitle ?? "Отправить задачу в архив?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button(deleteConfirmTitle == nil ? "В архив" : "Удалить окончательно", role: .destructive, action: onDelete)
             Button("Отмена", role: .cancel) {}

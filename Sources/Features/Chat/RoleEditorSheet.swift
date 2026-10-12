@@ -51,6 +51,11 @@ struct RoleEditorSheet: View {
     @State private var isTogglingEnabled = false
     @State private var errorText: String?
     @State private var showsRuntimeContext = false
+    /// Владельцу карточка профили была недостижима: тап по строке роли
+    /// открывает только этот лист правки (LOCK-183 отдал `agentProfile`
+    /// только тем, кто не владелец), а именно в профиле живёт раздел
+    /// «Инструменты». Отдельный вход отсюда — без смены привычного тапа.
+    @State private var showsProfile = false
 
     init(mode: Mode, viewModel: AgentsViewModel) {
         self.mode = mode
@@ -123,6 +128,14 @@ struct RoleEditorSheet: View {
                 RoleRuntimeContextSheet(role: profile)
             }
         }
+        .sheet(isPresented: $showsProfile) {
+            if let profile = mode.profile {
+                NavigationStack {
+                    AgentProfileScreen(roleID: profile.role)
+                }
+                .presentationDetents([.large])
+            }
+        }
     }
 
     private var fields: some View {
@@ -180,6 +193,11 @@ struct RoleEditorSheet: View {
         if mode.isEdit, let profile = mode.profile {
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
+                    TFListRow(icon: "person.text.rectangle", iconStyle: .plain,
+                              title: "Профиль и инструменты", action: { showsProfile = true })
+                        .accessibilityHint("Открывает карточку роли: модель, навыки и полный список инструментов с описаниями")
+                        .accessibilityIdentifier("role.openProfile")
+                    TFDivider(inset: TFSpacing.lg)
                     TFListRow(icon: "text.alignleft", iconStyle: .plain,
                               title: "Как запускается роль", action: { showsRuntimeContext = true })
                         .accessibilityHint("Открывает постоянные правила и источники запуска \(profile.title)")

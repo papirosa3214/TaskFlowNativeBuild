@@ -4,18 +4,42 @@ struct CompletionDay: Identifiable {
     var id: Date { date }
     let date: Date
     let count: Int
+    let month: Int
+    let monthLabel: String
+    let accessibilityLabel: String
+    let shortLabel: String
+    let isFuture: Bool
+    let shade: Color
+    let rightShade: Color
+    let frontShade: Color
+
+    init(date: Date, count: Int, maxCount: Int, now: Date, calendar: Calendar) {
+        self.date = date
+        self.count = count
+        month = calendar.component(.month, from: date)
+        monthLabel = date.formatted(.dateTime.month(.abbreviated))
+        accessibilityLabel = date.formatted(date: .abbreviated, time: .omitted) + ": на проверку \(count)"
+        shortLabel = date.formatted(.dateTime.day().month(.abbreviated))
+        isFuture = date > calendar.startOfDay(for: now)
+        let color = HeatmapShade.shade(count, maxCount: maxCount)
+        shade = color
+        rightShade = color.mix(with: .black, by: 0.20)
+        frontShade = color.mix(with: .black, by: 0.08)
+    }
 }
 
 enum CompletionCalendar {
+    static let initialDays = days(dates: [])
     static func days(dates: [Date], now: Date = .now, calendar: Calendar = .current) -> [CompletionDay] {
         let today = calendar.startOfDay(for: now)
         let weekday = calendar.component(.weekday, from: today)
         let monday = calendar.date(byAdding: .day, value: -((weekday + 5) % 7), to: today)!
         let start = calendar.date(byAdding: .day, value: -175, to: monday)!
         let counts = Dictionary(grouping: dates, by: { calendar.startOfDay(for: $0) }).mapValues(\.count)
-        return (0..<182).map {
-            let date = calendar.date(byAdding: .day, value: $0, to: start)!
-            return CompletionDay(date: date, count: counts[date, default: 0])
+        let dates = (0..<182).map { calendar.date(byAdding: .day, value: $0, to: start)! }
+        let maxCount = max(1, dates.map { counts[$0, default: 0] }.max() ?? 1)
+        return dates.map { date in
+            CompletionDay(date: date, count: counts[date, default: 0], maxCount: maxCount, now: now, calendar: calendar)
         }
     }
 }
@@ -81,11 +105,8 @@ struct CompletionHeatmap: View {
     @State private var selected: Date?
     @State private var sceneWidth: CGFloat = 0
     @Environment(RealtimeClient.self) private var realtime
-    @State private var reviewDates: [String: Date] = [:]
+    @State private var days = CompletionCalendar.initialDays
     @State private var archiveError = false
-    private var days: [CompletionDay] {
-        CompletionCalendar.days(dates: Array(reviewDates.values))
-    }
     private var historyRevision: String {
         "\(realtime.connectionRevision):" + realtime.taskRevisions.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: ",")
     }
@@ -93,7 +114,7 @@ struct CompletionHeatmap: View {
     /// Самый продуктивный день поднявшейся карты — заполняет левый нижний угол,
     /// который при объёме остаётся пустым.
     private var recordDay: CompletionDay? {
-        days.filter { $0.count > 0 && $0.date <= Calendar.current.startOfDay(for: .now) }
+        days.filter { $0.count > 0 && $0.isFuture == false }
             .max { $0.count < $1.count }
     }
 
@@ -111,11 +132,11 @@ struct CompletionHeatmap: View {
                     Text("\(day.count)")
                         .font(.system(size: 34, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.tfRed)
-                    Text(day.date.formatted(.dateTime.day().month(.abbreviated)))
+                    Text(day.shortLabel)
                         .font(.caption2).foregroundStyle(Color.tfSub)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Рекорд дня: \(day.count), \(day.date.formatted(.dateTime.day().month(.abbreviated)))")
+                .accessibilityLabel("Рекорд дня: \(day.count), \(day.shortLabel)")
                 .accessibilityIdentifier("overview.heatmap.record")
                 .opacity(eased)
                 .offset(y: 10 * (1 - eased))
@@ -133,11 +154,10 @@ struct CompletionHeatmap: View {
             GeometryReader { geometry in
                 let pitch = (geometry.size.width + 3) / 26
                 ForEach(0..<26, id: \.self) { week in
-                    let date = values[week * 7].date
-                    let month = Calendar.current.component(.month, from: date)
-                    let previous = week == 0 ? -1 : Calendar.current.component(.month, from: values[(week - 1) * 7].date)
+                    let month = values[week * 7].month
+                    let previous = week == 0 ? -1 : values[(week - 1) * 7].month
                     if month != previous {
-                        Text(date.formatted(.dateTime.month(.abbreviated)))
+                        Text(values[week * 7].monthLabel)
                             .font(.caption).foregroundStyle(Color.tfSub)
                             .fixedSize().offset(x: CGFloat(week) * pitch)
                     }
@@ -189,9 +209,10 @@ struct CompletionHeatmap: View {
     private func loadArchive() async {
         do {
             let response: ReviewHistory = try await APIClient().request(.get, "/stats/review-history")
-            reviewDates = Dictionary(uniqueKeysWithValues: response.entries.compactMap { entry in
+            let reviewDates = Dictionary(uniqueKeysWithValues: response.entries.compactMap { entry in
                 DateFormats.sqliteUTC(entry.submitted_at).map { (entry.task_id, $0) }
             })
+            days = CompletionCalendar.days(dates: Array(reviewDates.values))
             archiveError = false
         } catch is CancellationError { }
         catch { archiveError = true }
@@ -208,9 +229,6 @@ private struct HeatmapScene: View, Animatable {
         set { depth = newValue }
     }
 
-    private func color(_ count: Int) -> Color {
-        HeatmapShade.shade(count, maxCount: max(1, values.map(\.count).max() ?? 1))
-    }
     private func polygon(_ points: [CGPoint]) -> Path {
         Path { path in
             path.addLines(points)
@@ -237,9 +255,11 @@ private struct HeatmapScene: View, Animatable {
             let units: CGFloat = count > 0 ? 0.4 + pow(CGFloat(count) / CGFloat(maxCount), 0.85) * 7.2 : 0.2
             return units * pitch * rise
         }
+        let yawCos = cos(yaw), yawSin = sin(yaw)
+        let tiltCos = cos(tilt), tiltSin = sin(tilt)
         func raw(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> CGPoint {
-            let xx = x * cos(yaw) - y * sin(yaw)
-            let yy = (x * sin(yaw) + y * cos(yaw)) * cos(tilt) - z * sin(tilt)
+            let xx = x * yawCos - y * yawSin
+            let yy = (x * yawSin + y * yawCos) * tiltCos - z * tiltSin
             return CGPoint(x: xx, y: yy)
         }
         var bounds: [CGPoint] = []
@@ -276,12 +296,12 @@ private struct HeatmapScene: View, Animatable {
             let sceneCells = cells(in: size)
             for cell in sceneCells {
                 let top = cell.top, base = cell.base
-                let shade = color(cell.day.count)
+                let shade = cell.day.shade
                 if depth > 0.001 {
                     let right = polygon([top[1],top[2],base[2],base[1]])
                     let front = polygon([top[2],top[3],base[3],base[2]])
-                    context.fill(right, with: .color(shade.mix(with: .black, by: 0.20)))
-                    context.fill(front, with: .color(shade.mix(with: .black, by: 0.08)))
+                    context.fill(right, with: .color(cell.day.rightShade))
+                    context.fill(front, with: .color(cell.day.frontShade))
                     context.stroke(right, with: .color(.black.opacity(0.7 * depth)), lineWidth: 0.6)
                     context.stroke(front, with: .color(.black.opacity(0.65 * depth)), lineWidth: 0.5)
                 }
@@ -295,9 +315,8 @@ private struct HeatmapScene: View, Animatable {
             let labelOpacity = HeatmapExpansion.cameraEase(depth)
             if labelOpacity > 0.001 {
                 for week in 0..<26 {
-                    let date = values[week * 7].date
-                    let month = Calendar.current.component(.month, from: date)
-                    let previous = week == 0 ? -1 : Calendar.current.component(.month, from: values[(week - 1) * 7].date)
+                    let month = values[week * 7].month
+                    let previous = week == 0 ? -1 : values[(week - 1) * 7].month
                     guard month != previous,
                           let cell = sceneCells.first(where: { $0.week == week && $0.row == 6 }) else { continue }
                     let edge = cell.base[3]
@@ -307,7 +326,7 @@ private struct HeatmapScene: View, Animatable {
                     labelContext.opacity = labelOpacity
                     labelContext.translateBy(x: edge.x + dx / length * 5 - dy / length * 7, y: edge.y + dy / length * 5 + dx / length * 7)
                     labelContext.rotate(by: .radians(Double(atan2(dy, dx))))
-                    labelContext.draw(Text(date.formatted(.dateTime.month(.abbreviated)))
+                    labelContext.draw(Text(values[week * 7].monthLabel)
                         .font(.caption).foregroundStyle(Color.tfSub), at: .zero, anchor: .topLeading)
                 }
             }
@@ -333,9 +352,9 @@ private struct HeatmapScene: View, Animatable {
                 ForEach(0..<182, id: \.self) { slot in
                     let day = values[(slot % 26) * 7 + slot / 26]
                     Button { selected = day.date } label: {
-                        Text(day.date.formatted(date: .abbreviated, time: .omitted) + ": на проверку \(day.count)")
+                        Text(day.accessibilityLabel)
                     }
-                    .disabled(day.date > Calendar.current.startOfDay(for: .now))
+                    .disabled(day.isFuture)
                     .accessibilityIdentifier("overview.heatmap.cell.\(slot)")
                 }
             }

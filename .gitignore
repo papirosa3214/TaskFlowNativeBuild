@@ -43,3 +43,15 @@ loop-output/
 /40000
 /60
 /600
+
+# 12.10.2026: то же про пересобираемые артефакты, но под другими именами —
+# они копились в дереве и весили 4.8 ГБ (build_preparation/,
+# build_preparation_device/) плюс сотни мегабайт xcresult-бандлов и
+# покадровых каталогов. Одиночные кадры в docs остаются в Git (их уже
+# 364), массовые прогоны — нет: они пересобираются тестом заново.
+build_preparation/
+build_preparation_device/
+*.xcresult/
+*-frames/
+simulator-frames/
+device-frames/

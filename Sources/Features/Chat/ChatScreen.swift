@@ -16,6 +16,10 @@ struct ChatScreen: View {
     @State private var isNearBottom = true
     /// Пушем экран открывает системная кнопка «назад» — тогда своя не нужна.
     var hidesOwnBackButton = false
+    /// Лимиты провайдеров по кнопке в шапке (владелец 12.10.2026).
+    @State private var showsQuota = false
+    /// Остатки провайдеров для меню «Ещё». Один раз тянем при открытии чата.
+    @State private var failover: FailoverStatus?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,6 +65,25 @@ struct ChatScreen: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    // Лимиты провайдеров — владелец 12.10.2026: «в чате
+                    // прикрути иконку, чтобы я мог нажать и сразу же увидеть
+                    // лимиты все». Отдельной иконкой НЕ вышло: на iOS 27 кластер
+                    // шапки берёт два первых элемента (голос с родительского
+                    // экрана и это меню), третий молча выпадал — кода не было ни
+                    // в кадре, ни в дереве доступности. Поэтому лимиты лежат
+                    // первым пунктом меню.
+                    if let quotas = failover?.quotas, !quotas.isEmpty {
+                        Section("Лимиты провайдеров") {
+                            ForEach(quotas) { quota in
+                                Button { showsQuota = true } label: {
+                                    Text(Self.quotaMenuTitle(quota))
+                                }
+                            }
+                        }
+                        Button { showsQuota = true } label: {
+                            Label("Подробнее", systemImage: "info.circle")
+                        }
+                    }
                     if viewModel.bothChannelsVisible {
                         Section("Канал") {
                             Button {
@@ -92,6 +115,13 @@ struct ChatScreen: View {
             }
         }
         .background(Color.tfBackground)
+        .sheet(isPresented: $showsQuota) {
+            ProviderQuotaSheet()
+        }
+        .task {
+            // Остатки нужны меню «Ещё» сразу при открытии чата.
+            failover = try? await APIClient().failoverStatus()
+        }
         .alert("Очистить чат?", isPresented: $isClearConfirmOpen) {
             Button("Очистить", role: .destructive) {
                 Task { await viewModel.clearChat() }
@@ -200,6 +230,16 @@ struct ChatScreen: View {
     /// Подпись закрывающей плашки внизу ленты — дата последнего сообщения.
     private var feedEndLabel: String? {
         ChatDayLabel.label(raw: viewModel.messages.last?.createdAt)
+    }
+
+    /// Строка остатка провайдера в меню: «minimax — работает».
+    static func quotaMenuTitle(_ quota: ProviderQuotaState) -> String {
+        guard quota.known else { return "\(quota.provider) — остаток не сообщает" }
+        if !quota.limited { return "\(quota.provider) — работает" }
+        if let minutes = quota.minutesToReset {
+            return "\(quota.provider) — лимит, сброс через \(minutes) мин"
+        }
+        return "\(quota.provider) — в лимите"
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {

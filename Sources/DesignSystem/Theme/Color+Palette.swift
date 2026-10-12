@@ -99,7 +99,7 @@ public extension Color {
 
     /// Единственный акцент приложения — активная вкладка/пункт, «сегодня», просрочка, удаление.
     /// Как заливку под белый текст НЕ использовать — контраст 4.08:1, ниже нормы 4.5. См. `tfRedSolid`.
-    static let tfRed = dynamic(dark: "#e44332", light: "#c53426")
+        static let tfRed = dynamic(dark: "#e44332", light: "#c53426")
     /// Заливка ИМЕННО под белый текст 15px/600 (`Button variant="primary"`) — контраст 4.67:1.
     static let tfRedSolid = Color(hex: "#d63a28")
     /// Приоритет P2, предупреждения.

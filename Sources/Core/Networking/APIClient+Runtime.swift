@@ -172,18 +172,50 @@ public struct FailoverRoleState: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// Остаток лимита у провайдера, который его отдаёт (12.10.2026).
+/// `known == false` — провайдер остаток не сообщает, тогда `limited` ни о чём
+/// не говорит: лимита может и не быть, а может быть.
+public struct ProviderQuotaState: Codable, Sendable, Hashable, Identifiable {
+    public let provider: String
+    public let known: Bool
+    public let limited: Bool
+    public let resetAt: String?
+    public let detail: String?
+    public var id: String { provider }
+
+    enum CodingKeys: String, CodingKey {
+        case provider, known, limited, detail
+        case resetAt = "reset_at"
+    }
+
+    /// Через сколько минут провайдер обещает ожить (nil — не обещал).
+    public var minutesToReset: Int? {
+        guard let resetAt else { return nil }
+        let iso = ISO8601DateFormatter().date(from: resetAt)
+            ?? DateFormatter().date(from: resetAt.replacingOccurrences(of: "T", with: " ").replacingOccurrences(of: "Z", with: "")) as Date?
+        guard let iso else { return nil }
+        return max(0, Int(iso.timeIntervalSinceNow / 60))
+    }
+}
+
 /// `GET /api/runtime/failover`.
 public struct FailoverStatus: Codable, Sendable, Hashable {
     public let autoSwitch: Bool
     public let autoReturn: Bool
     public let limits: [FailoverLimit]
     public let roles: [FailoverRoleState]
+    /// Остатки у провайдеров, которые их отдают; остальные сюда не попадают.
+    /// Необязательное: поле появилось позже, прежние сборки сервера его не шлют.
+    public let quota: [ProviderQuotaState]?
 
     enum CodingKeys: String, CodingKey {
-        case limits, roles
+        case limits, roles, quota
         case autoSwitch = "auto_switch"
         case autoReturn = "auto_return"
     }
+
+    /// Остатки; пусто у прежних сборок сервера.
+    public var quotas: [ProviderQuotaState] { quota ?? [] }
 }
 
 private struct FailoverToggles: Decodable { let autoSwitch: Bool; let autoReturn: Bool

@@ -424,6 +424,21 @@ public struct CollaborationPlanView: View {
                 .tfText(.title)
                 .fontWeight(.regular)
                 .foregroundStyle(Color.tfText)
+            if plan.branchTeam != nil, focusTaskID == nil {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    if let role = plan.branchResponsibleRole {
+                        Text("Ответственный за итог: \(graphTitle(for: role))")
+                            .tfText(.action)
+                            .accessibilityIdentifier("branch.responsible")
+                    }
+                    Text("Дочерние вкладки в работе: \(plan.activeChildTaskIDs.count)")
+                        .tfText(.caption).foregroundStyle(Color.tfSub)
+                    Label("Родительская вкладка", systemImage: "house")
+                        .tfText(.caption).foregroundStyle(Color.tfSub)
+                    Text("Цифры — номера дочерних вкладок")
+                        .tfText(.caption).foregroundStyle(Color.tfSub)
+                }
+            }
             CollaborationPlanGraph(
                 entries: graphEntries(for: plan),
                 edges: graphEdges(for: plan),
@@ -499,7 +514,8 @@ public struct CollaborationPlanView: View {
                 .init(slotKey: member.roleKey, roleKey: member.roleKey,
                       title: graphTitle(for: member.roleKey), taskTitle: "team",
                       state: member.executionState, badge: nil,
-                      taskNumbers: member.taskNumbers, isParticipant: true)
+                      taskNumbers: plan.tabNumbers(forRole: member.roleKey),
+                      tabStates: plan.tabStates(forRole: member.roleKey), isParticipant: true)
             }
         }
         return plan.nodes.map { node in
@@ -629,6 +645,7 @@ private struct CollaborationPlanGraph: View {
         /// «добавлен ролью», «доработка 1» — шаг не из исходного шаблона.
         var badge: String?
         var taskNumbers: [Int] = []
+        var tabStates: [Int: String] = [:]
         /// Номер попытки: 0 — старт, 1 — первая доработка, 2 — вторая.
         /// В цепочке попыток по нему узлы раскладываются друг за другом.
         var iteration: Int = 0
@@ -657,6 +674,13 @@ private struct CollaborationPlanGraph: View {
     /// Изгиб пары «возврат — отработка»: малый, чтобы стрелки шли рядом.
     private let returnBend: CGFloat = 16
     private var rowStep: CGFloat { nodeHeight + 20 }
+
+    /// Узлы, которые уже отработали («accepted»). Их домики красим зелёным, а
+/// входящие в них связи гасим: путь пройден, ждать там больше нечего
+/// (владелец 12.10.2026).
+    private var finishedSlots: Set<String> {
+        Set(entries.filter { $0.state == "accepted" }.map(\.slotKey))
+    }
 
     /// waiting-узел, у которого предшественники (если есть) все уже done
     /// ("accepted") — сервер такой узел стартует сам почти мгновенно,
@@ -733,10 +757,27 @@ private struct CollaborationPlanGraph: View {
                             // Обычную обратную связь заменяет пунктир отработанного возврата (ниже).
                             if returns["\(edge.toSlotKey):\(edge.fromSlotKey)"] == true { continue }
                             if entries.contains(where: \.isParticipant) {
-                                let link = participantConnection(from: fromCenter, to: toCenter)
-                                let color = ready.contains(edge.fromSlotKey) ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.75)
-                                context.stroke(link.line, with: .color(color), lineWidth: 1.2)
-                                context.stroke(link.head, with: .color(color), lineWidth: 1.2)
+                                // Чужие домики на пути — связь должна обходить их
+                                // (владелец 12.10.2026), а не резать поперёк.
+                                let others = centers.filter { $0.key != edge.fromSlotKey && $0.key != edge.toSlotKey }.values
+                                let link = participantConnection(from: fromCenter, to: toCenter, avoiding: Array(others))
+                                // Связь В уже отработавший шаг (владелец 12.10.2026):
+                                // такие стрелки только засоряли граф и читались
+                                // как «ещё надо ждать». Зелёным — видно, что
+                                // путь пройден.
+                                //
+                                // Тот же день, уточнение владельца: зелёный тут
+                                // был приглушён до 0.42 и на тёмном фоне почти
+                                // не читался («его даже не видно») — это бледнее
+                                // соседнего зелёного «готов к старту» (0.8).
+                                // Поднято до 0.85 и толщина линии до 1.8, чтобы
+                                // отработавший путь был виден так же отчётливо.
+                                let color = finishedSlots.contains(edge.toSlotKey)
+                                    ? Color.tfGreen.opacity(0.85)
+                                    : (ready.contains(edge.fromSlotKey) ? Color.tfGreen.opacity(0.8) : Color.tfDim.opacity(0.75))
+                                let width = finishedSlots.contains(edge.toSlotKey) ? 1.8 : 1.2
+                                context.stroke(link.line, with: .color(color), lineWidth: width)
+                                context.stroke(link.head, with: .color(color), lineWidth: width)
                                 continue
                             }
                             let horizontal = isLinear || (attemptRows && abs(fromCenter.y - toCenter.y) < 1)
@@ -855,13 +896,21 @@ private struct CollaborationPlanGraph: View {
     @ViewBuilder
     private func node(_ entry: Entry, state: String) -> some View {
         ZStack(alignment: .topTrailing) {
-            TFAvatar(
-                size: isRing ? .ringNode : .node,
+            // Роль рисуется тем же `RoleAvatarView`, что и в «Команде», — с
+            // портретом и его анимацией. Раньше здесь был голый `TFAvatar`
+            // (цветной круг), и роли в графе стояли мёртвые (владелец
+            // 12.10.2026). Анимацию ролика сдерживает общий бюджет видео в
+            // `TFRolePortrait`: в графе одновременно крутится лишь несколько
+            // кружков, остальные показывают статику.
+            RoleAvatarView(
                 initials: initials(for: entry.title),
-                tint: Color.tfCard2,
-                accessibilityLabel: "Аватар: \(entry.title)",
-                userID: "role_\(entry.roleKey)"
+                // Отработавший шаг помечаем зелёным домиком: в графе сразу
+                // видно, что уже сделано, а что ещё в работе.
+                tint: state == "accepted" ? Color.tfGreen.opacity(0.28) : Color.tfCard2,
+                size: CGFloat(isRing ? TFAvatar.Size.ringNode.rawValue : TFAvatar.Size.node.rawValue),
+                role: entry.roleKey
             )
+            .accessibilityLabel("Аватар: \(entry.title)")
             .frame(width: nodeWidth, height: nodeHeight)
             Group {
                 switch state {
@@ -890,8 +939,16 @@ private struct CollaborationPlanGraph: View {
         .frame(width: nodeWidth, height: nodeHeight)
         .overlay(alignment: .bottom) {
             if !entry.taskNumbers.isEmpty {
-                Text(entry.taskNumbers.map { $0 == 0 ? "⌂" : String($0) }.joined(separator: ","))
-                    .tfText(.caption).foregroundStyle(Color.tfSub)
+                HStack(spacing: 4) {
+                    ForEach(entry.taskNumbers, id: \.self) { number in
+                        Group {
+                            if number == 0 { Image(systemName: "house") }
+                            else { Text(String(number)) }
+                        }
+                        .foregroundStyle(tabMarkerColor(entry.tabStates[number] ?? state))
+                    }
+                }
+                    .tfText(.caption)
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .fixedSize(horizontal: false, vertical: true)
                     .offset(y: 17)
@@ -899,7 +956,7 @@ private struct CollaborationPlanGraph: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.title), \(stateLabel(state)), задачи \(entry.taskNumbers.map(String.init).joined(separator: ", "))")
+        .accessibilityLabel("\(entry.title), \(stateLabel(state)), \(entry.taskNumbers.map { number in "\(number == 0 ? "родительская вкладка" : "дочерняя вкладка \(number)"), \(stateLabel(entry.tabStates[number] ?? state))" }.joined(separator: "; "))")
         .accessibilityHint("Открыть задание и действия")
     }
 
@@ -1102,18 +1159,49 @@ private struct CollaborationPlanGraph: View {
 
     /// Directed curves use opposite sides for reciprocal edges. Their end
     /// points follow the tangents, so arrowheads remain outside the avatars.
-    private func participantConnection(from source: CGPoint, to target: CGPoint, maxBend: CGFloat = 44) -> (line: Path, head: Path) {
+    private func participantConnection(from source: CGPoint, to target: CGPoint, avoiding obstacles: [CGPoint] = [], maxBend: CGFloat = 44) -> (line: Path, head: Path) {
         let dx = target.x - source.x, dy = target.y - source.y
         let distance = max(1, hypot(dx, dy))
-        let bend = min(maxBend, distance * 0.28)
-        let control = CGPoint(x: (source.x + target.x) / 2 - dy / distance * bend,
-                              y: (source.y + target.y) / 2 + dx / distance * bend)
+        let mid = CGPoint(x: (source.x + target.x) / 2, y: (source.y + target.y) / 2)
         func port(_ center: CGPoint, toward point: CGPoint) -> CGPoint {
             let length = max(1, hypot(point.x - center.x, point.y - center.y))
             return CGPoint(x: center.x + (point.x - center.x) / length * (nodeWidth / 2 + 12),
                            y: center.y + (point.y - center.y) / length * (nodeWidth / 2 + 12))
         }
-        let start = port(source, toward: control), end = port(target, toward: control)
+        func curve(bend: CGFloat) -> (start: CGPoint, control: CGPoint, end: CGPoint) {
+            let control = CGPoint(x: mid.x - dy / distance * bend, y: mid.y + dx / distance * bend)
+            return (port(source, toward: control), control, port(target, toward: control))
+        }
+        func quad(_ a: CGPoint, _ c: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
+            let u = 1 - t
+            return CGPoint(x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+                           y: u * u * a.y + 2 * u * t * c.y + t * t * b.y)
+        }
+        // Владелец 12.10.2026: связь «Архитектор → Разработчик» шла ПРЯМО через
+        // домик дизайнера. Если дуга натыкается на чужой узел — увеличиваем
+        // отклонение, пока не пройдёт мимо; предел — половина расстояния между
+        // узлами, иначе дуга уехала бы за пределы круга.
+        let clearance = nodeWidth / 2 + 8
+        func passesThroughNode(_ c: (start: CGPoint, control: CGPoint, end: CGPoint)) -> Bool {
+            for o in obstacles {
+                if hypot(o.x - source.x, o.y - source.y) < 1 || hypot(o.x - target.x, o.y - target.y) < 1 { continue }
+                for i in 1...24 {
+                    if hypot((quad(c.start, c.control, c.end, CGFloat(i) / 25).x - o.x),
+                             (quad(c.start, c.control, c.end, CGFloat(i) / 25).y - o.y)) < clearance { return true }
+                }
+            }
+            return false
+        }
+        var chosen = curve(bend: min(maxBend, distance * 0.28))
+        if passesThroughNode(chosen) {
+            for factor in [1.4, 1.9, 2.6] as [CGFloat] {
+                chosen = curve(bend: min(maxBend * factor, distance * 0.5))
+                if !passesThroughNode(chosen) { break }
+            }
+        }
+        let control = chosen.control
+        let start = chosen.start
+        let end = chosen.end
         let tangentLength = max(1, hypot(end.x - control.x, end.y - control.y))
         let ux = (end.x - control.x) / tangentLength, uy = (end.y - control.y) / tangentLength
         var line = Path()
@@ -1171,6 +1259,15 @@ private struct CollaborationPlanGraph: View {
         CollaborationPlanView.stateLabel(state)
     }
 
+    private func tabMarkerColor(_ state: String) -> Color {
+        switch state {
+        case "accepted": .tfGreen
+        case "active", "blocked", "returned": .tfOrange
+        case "skipped": .tfDim
+        default: .tfSub
+        }
+    }
+
     private func stateColor(_ state: String) -> Color {
         switch state {
         case "ready": .tfGreen
@@ -1178,6 +1275,23 @@ private struct CollaborationPlanGraph: View {
         case "blocked", "returned": .tfOrange
         case "review": .tfSub
         case "accepted": .tfGreen
+        case "skipped": .tfDim
+        default: .tfSub
+        }
+    }
+
+    /// Цвет домика и номеров дочерних под аватаром (`⌂` + порядковые номера).
+    ///
+    /// 12.10.2026, поручение владельца: эти подписи — главный носитель
+    /// информации о том, что заблокировано и где («по цифре сразу видно,
+    /// какая по порядковому номеру дочерняя задача заблокирована»), поэтому
+    /// они повторяют цвет состояния узла, а не всегда серые. Раньше подпись
+    /// была всегда `tfSub`, и отработавший узел внизу выглядел так же, как
+    /// пустой. Галочки на аватарках владелец трогать не просил.
+    private func taskNumbersColor(_ state: String) -> Color {
+        switch state {
+        case "accepted": .tfGreen
+        case "active", "blocked", "returned": .tfOrange
         case "skipped": .tfDim
         default: .tfSub
         }

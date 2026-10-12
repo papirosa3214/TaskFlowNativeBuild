@@ -13,13 +13,6 @@ struct RoleLoadScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Picker("Период", selection: $window) {
-                    Text("Сутки").tag("24h")
-                    Text("3 дня").tag("3d")
-                    Text("Неделя").tag("week")
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("role-load.period")
                 TFErrorBanner(error)
                 if let data {
                     if data.roles.isEmpty {
@@ -38,6 +31,21 @@ struct RoleLoadScreen: View {
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Загрузка ролей", displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Период", selection: $window) {
+                        Text("Сутки").tag("24h")
+                        Text("3 дня").tag("3d")
+                        Text("Неделя").tag("week")
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease")
+                }
+                .accessibilityLabel("Период графика")
+                .accessibilityIdentifier("role-load.period-menu")
+            }
+        }
         .sheet(item: $selectedTask) { ref in
             NavigationStack { TaskFormScreen(taskID: ref.id) }
                 .presentationDetents([.medium, .large])

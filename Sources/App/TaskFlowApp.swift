@@ -19,6 +19,8 @@ struct TaskFlowApp: App {
     init() {
         AppDiagnostics.shared.startMonitoring()
         AppAppearance.migratePreference()
+        // Заголовок экрана задаёт `tfNativeHeader` слотом `.principal`
+        // (12.10.2026) — глобальной настройки шрифта шапки больше нет.
 
         // Анимированные аватарки агентов (просьба владельца 03.09.2026:
         // «раньше были анимированными») — голый WebP-декодер в SDWebImage
