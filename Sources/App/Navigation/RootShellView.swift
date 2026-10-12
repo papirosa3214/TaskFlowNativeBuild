@@ -366,9 +366,12 @@ struct RootShellView: View {
 
     private func navigationStack(for tab: Tab) -> some View {
         NavigationStack(path: pathBinding(for: tab)) {
-            routeDestination(tab.route, reservesTabBarSpace: true)
-                .overlay(alignment: .bottom) { rootTabControls }
-                .navigationDestination(for: AppRoute.self) { routeDestination($0, reservesTabBarSpace: false) }
+            GeometryReader { viewport in
+                routeDestination(tab.route, reservesTabBarSpace: true)
+                    .frame(width: viewport.size.width, height: viewport.size.height, alignment: .top)
+                    .overlay(alignment: .bottom) { rootTabControls }
+            }
+            .navigationDestination(for: AppRoute.self) { routeDestination($0, reservesTabBarSpace: false) }
         }
     }
 
