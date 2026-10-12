@@ -151,7 +151,7 @@ struct RoleModelsSection: View {
             Button { editing = profile } label: {
                 HStack(spacing: TFSpacing.sm) {
                     titleBlock(profile.title, subtitle, warn: state?.onFallback == true)
-                    Image(systemName: "chevron.right").font(.footnote).foregroundStyle(Color.tfDim)
+                    Image(systemName: "chevron.right").tfText(.action).foregroundStyle(Color.tfDim)
                 }
                 .frame(minHeight: TFField.height)
                 .contentShape(Rectangle())

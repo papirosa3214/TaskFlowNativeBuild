@@ -360,7 +360,7 @@ struct VoiceModelsScreen: View {
                 if !text.wrappedValue.isEmpty {
                     Button("Сбросить", action: onReset)
                         .buttonStyle(TFTapFadeStyle())
-                        .font(.system(size: 13, weight: .medium))
+                        .tfText(.action).fontWeight(.medium)
                         .foregroundStyle(Color.tfCoral)
                 }
             }
@@ -699,7 +699,7 @@ struct VoiceModelsScreen: View {
                             DictationLog.setEnabled(isLogEnabled)
                         }
                         .buttonStyle(TFTapScaleStyle())
-                        .font(.system(size: 13, weight: .medium))
+                        .tfText(.action).fontWeight(.medium)
                         .foregroundStyle(isLogEnabled ? Color.tfGreen : Color.tfBlue)
                         .padding(.horizontal, TFSpacing.sm)
                         .padding(.vertical, TFSpacing.xs)
@@ -733,7 +733,7 @@ struct VoiceModelsScreen: View {
                     logEntries = []
                 }
                 .buttonStyle(TFTapFadeStyle())
-                .font(.system(size: 13, weight: .medium))
+                .tfText(.action).fontWeight(.medium)
                 .foregroundStyle(Color.tfCoral)
                 .padding(.horizontal, TFSpacing.screenHorizontal + TFSpacing.xs)
             }

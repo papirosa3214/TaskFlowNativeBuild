@@ -41,13 +41,30 @@ enum MarkdownText {
     /// (числа спекой для блочного редактора не даны — используем шкалу
     /// `TFTextStyle`: H1=titleLarge 28px, H2=taskTitle 20px, H3=title 17px,
     /// ближайшие ступени готовой шкалы, не придуманные отдельно).
-    static func baseFont(for kind: BlockKind) -> UIFont {
+    /// ⚠️ Кегли МАСШТАБИРУЮТСЯ под Dynamic Type (LOCK-TYPOGRAPHY-SPEC, дефект А):
+    /// раньше это были статичные `systemFont(ofSize:)`, и текст, который человек
+    /// печатает в карточке (комментарий, шаг, подзадача), оставался 15 pt, пока
+    /// всё остальное на экране росло. Кривые взяты те же, что у соответствующих
+    /// ступеней `TFTextStyle` (`relativeTo`), чтобы блочный редактор и обычный
+    /// текст масштабировались одинаково.
+    /// `compatibleWith` — только для тестов и предпросмотров: позволяет
+    /// посчитать кегль под заданную категорию размера текста, не меняя
+    /// системную настройку. В рабочем коде параметр не передаётся.
+    static func baseFont(for kind: BlockKind, compatibleWith traits: UITraitCollection? = nil) -> UIFont {
         switch kind {
-        case .heading(1): UIFont.systemFont(ofSize: 28, weight: .bold)
-        case .heading(2): UIFont.systemFont(ofSize: 20, weight: .semibold)
-        case .heading(3): UIFont.systemFont(ofSize: 17, weight: .semibold)
-        case .codeBlock: UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-        default: UIFont.systemFont(ofSize: 15, weight: .regular)
+        case .heading(1):
+            UIFontMetrics(forTextStyle: .title1).scaledFont(for: .systemFont(ofSize: 28, weight: .bold), compatibleWith: traits)
+        case .heading(2):
+            UIFontMetrics(forTextStyle: .title3).scaledFont(for: .systemFont(ofSize: 20, weight: .semibold), compatibleWith: traits)
+        case .heading(3):
+            UIFontMetrics(forTextStyle: .headline).scaledFont(for: .systemFont(ofSize: 17, weight: .semibold), compatibleWith: traits)
+        case .codeBlock:
+            UIFontMetrics(forTextStyle: .footnote).scaledFont(for: .monospacedSystemFont(ofSize: 14, weight: .regular), compatibleWith: traits)
+        default:
+            // Основной текст карточки и заметок — 16 pt: владелец 12.10.2026
+            // «название не 17, а где-то 16, и все остальные основные текста
+            // тоже» (LOCK-TYPOGRAPHY-UNIFY). Было 15.
+            UIFontMetrics(forTextStyle: .callout).scaledFont(for: .systemFont(ofSize: 16, weight: .regular), compatibleWith: traits)
         }
     }
 

@@ -184,15 +184,13 @@ struct TodayListView: View {
                     .font(.system(size: 16))
                     .foregroundStyle(section.color)
             }
-            // Владелец 15.09.2026: «подзаголовки чуть-чуть покрупнее шрифт
-            // сделай и белым их, чтобы они выделялись, а то прям они как
-            // будто бы не подзаголовки, а спрятались так тускленько».
-            // Поэтому ступень типографики выше (.title → .taskTitle) и
-            // основной цвет текста вместо приглушённого `section.color`.
+            // Владелец 12.10.2026: «заголовки как везде… меньшинство сделать
+            // как большинство». Большинство заголовков секций приложения —
+            // `TFSectionHeader` (13 pt, `tfSub`), поэтому частное решение
+            // 15.09.2026 («покрупнее и белым») отменено ради единообразия.
             Text(section.title)
-                .tfText(.taskTitle)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tfText)
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
         }
         .padding(.horizontal, TFSpacing.lg)
         .padding(.top, 8)

@@ -72,7 +72,9 @@ struct ProjectNotesSection: View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             HStack {
                 Text("Документация")
-                    .tfText(.title)
+                    // Единый заголовок секции — 13 pt `tfSub`
+                    // (LOCK-TYPOGRAPHY-UNIFY): было `.title` 17.
+                    .tfText(.action)
                     .foregroundStyle(Color.tfSub)
                 Spacer()
                 if docs?.folder != nil {

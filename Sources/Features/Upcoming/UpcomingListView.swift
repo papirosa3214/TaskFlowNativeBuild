@@ -188,7 +188,12 @@ struct UpcomingListView: View {
                         .foregroundStyle(filled ? Color.tfRed : Color.tfSub)
                 }
                 Text("\(UpcomingDate.day(ds))")
-                    .tfText(.input)
+                    // Число дня в большой ячейке календаря. Было `.tfText(.input)`
+                    // (16 pt) — ступень, зарезервированная ТОЛЬКО под текстовые
+                    // поля: она ставила числу календаря кегль поля ввода
+                    // (LOCK-TYPOGRAPHY-SPEC, дефект В). `body` 15 — соседняя
+                    // ступень, на 1 pt меньше, визуально не отличить.
+                    .tfText(.body)
                     .monospacedDigit()
                     .fontWeight(filled ? .semibold : .regular)
                     // «Сегодня» — сплошной круг (осталось как было). «Выбрано» —
@@ -331,10 +336,11 @@ struct UpcomingListView: View {
 
     private func dateHeader(_ date: String) -> some View {
         Text(UpcomingDate.formatFullDate(date))
-            // Было 13pt/.semibold/tfSub (tfRed для сегодня) — просьба владельца
-            // 03.09.2026: всем без исключения белым, покрупнее и пожирнее.
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(Color.tfText)
+            // Владелец 12.10.2026: «заголовки как везде». Единый заголовок
+            // секции приложения — 13 pt `tfSub` (TFSectionHeader); частное
+            // «покрупнее и пожирнее» от 03.09.2026 отменено.
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, 6)

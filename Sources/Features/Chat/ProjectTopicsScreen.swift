@@ -38,7 +38,7 @@ struct ProjectTopicsScreen: View {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: TFSpacing.sm) {
                     TFGroupAvatar(identity: group.projectID ?? group.id, size: .md)
-                    Text(group.title ?? "Проект").font(.headline).foregroundStyle(Color.tfText).lineLimit(1)
+                    Text(group.title ?? "Проект").tfText(.title).foregroundStyle(Color.tfText).lineLimit(1)
                 }
             }
         }

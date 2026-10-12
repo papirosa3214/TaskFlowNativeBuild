@@ -182,7 +182,9 @@ struct TemplatesScreen: View {
                         if !isFormOpen {
                             Button("+ Добавить") { openCreateForm() }
                                 .buttonStyle(TFTapFadeStyle())
-                                .font(.system(size: 12, weight: .semibold))
+                                // Кегль из шкалы (было сырое 12 semibold):
+                                // размер правится в `Typography.swift`.
+                                .tfText(.meta).fontWeight(.semibold)
                                 .foregroundStyle(Color.tfRed)
                         }
                     }

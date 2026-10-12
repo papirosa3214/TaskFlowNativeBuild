@@ -38,7 +38,6 @@ struct PlanStepDetailSheet: View {
     /// Вернуть сданную работу роли с замечанием владельца; nil — нельзя.
     var onRework: ((String) -> Void)? = nil
 
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var isSkipPromptOpen = false
     @State private var skipReason = ""
@@ -78,7 +77,7 @@ struct PlanStepDetailSheet: View {
             List {
                 Section {
                     LabeledContent("Роль") {
-                        Text(roleTitle(node.roleKey)).foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                        Text(roleTitle(node.roleKey)).foregroundStyle(Color.tfSub)
                     }
                     // Ожидающий шаг не стоит молча: от кого и какой результат ему нужен.
                     ForEach(node.waitingFor ?? [], id: \.fromSlotKey) { waiting in
@@ -104,18 +103,18 @@ struct PlanStepDetailSheet: View {
                             }
                         } label: {
                             LabeledContent("Состояние") {
-                                Text(stateLabel).foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                                Text(stateLabel).foregroundStyle(Color.tfSub)
                             }
                         }
                         .accessibilityIdentifier("plan-state-live")
                     } else {
                         LabeledContent("Состояние") {
-                            Text(stateLabel).foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            Text(stateLabel).foregroundStyle(Color.tfSub)
                         }
                     }
                     if let iteration = node.iteration, iteration > 0 {
                         LabeledContent("Круг доработки") {
-                            Text("\(iteration)").foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            Text("\(iteration)").foregroundStyle(Color.tfSub)
                         }
                     }
                     if assignments.count > 1 {
@@ -186,7 +185,7 @@ struct PlanStepDetailSheet: View {
                             }
                             .accessibilityIdentifier("plan-submission-confirmed")
                             if let artifactId = receipt.artifactId {
-                                Text("Артефакт: " + artifactId).font(.caption).textSelection(.enabled)
+                                Text("Артефакт: " + artifactId).tfText(.meta).textSelection(.enabled)
                             }
                         } else if subtask?.done != true {
                             Text("Сдача основным сервером не подтверждена")
@@ -216,7 +215,7 @@ struct PlanStepDetailSheet: View {
                             .accessibilityIdentifier("plan-step-reset")
                     } footer: {
                         Text("Действия касаются только этого шага: карточка и остальные шаги не меняются.")
-                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
                 if let onRework, subtask?.done == true, !node.isSkipped {
@@ -227,7 +226,7 @@ struct PlanStepDetailSheet: View {
                         .accessibilityIdentifier("plan-step-rework")
                     } footer: {
                         Text("Роль получит новый шаг с вашим замечанием. Сданный результат остаётся в истории; шаги, которые ещё не начаты, подождут доработку.")
-                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
                 if isEditable {
@@ -252,7 +251,7 @@ struct PlanStepDetailSheet: View {
                         .accessibilityIdentifier("plan-step-remove")
                     } footer: {
                         Text("Шаг ещё не начат — его можно менять. Порядок сохранится: те, кто ждал этот шаг, будут ждать его предшественников.")
-                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
             }
@@ -356,7 +355,6 @@ struct PlanStepEditorSheet: View {
     let roleTitle: (String) -> String
     let onSave: (ApiPlanOp) -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var roleKey = ""
     @State private var expectedResult = ""
@@ -388,9 +386,11 @@ struct PlanStepEditorSheet: View {
                     }
                     .accessibilityIdentifier("plan-step-role")
                     TextField("Что сдать", text: $expectedResult, axis: .vertical)
+                        .tfText(.input)
                         .lineLimit(2...5)
                         .accessibilityIdentifier("plan-step-expected")
                     TextField("Задание (необязательно)", text: $instructions, axis: .vertical)
+                        .tfText(.input)
                         .lineLimit(2...8)
                 }
                 if !otherNodes.isEmpty {
@@ -408,7 +408,7 @@ struct PlanStepEditorSheet: View {
                         Text("Начать после")
                     } footer: {
                         Text("Ничего не выбрано — шаг начнётся сразу, параллельно остальным.")
-                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
                 if mode == .add {
@@ -428,7 +428,7 @@ struct PlanStepEditorSheet: View {
                             Text("Раньше шагов")
                         } footer: {
                             Text("Эти шаги дождутся нового. Например, дизайнер между аналитиком и разработчиком.")
-                            .foregroundStyle(colorScheme == .light ? Color.tfSub : .secondary)
+                            .foregroundStyle(Color.tfSub)
                         }
                     }
                 }
@@ -452,7 +452,7 @@ struct PlanStepEditorSheet: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(roleTitle(node.roleKey))
             Text(node.expectedResult)
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
                 .lineLimit(2)
         }

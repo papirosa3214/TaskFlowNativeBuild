@@ -31,7 +31,7 @@ struct TaskLiveActivityView: View {
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Text(action.date.formatted(date: .omitted, time: .standard))
-                                .font(.caption)
+                                .tfText(.meta)
                                 .foregroundStyle(Color.tfSub)
                         }
                         .accessibilityIdentifier("plan-slot-action")

@@ -49,8 +49,7 @@
 	<true/>
 	<key>UIAppFonts</key>
 	<array>
-		<string>PT-Sans-Narrow-Bold.ttf</string>
-		<string>PT-Sans-Narrow-Regular.ttf</string>
+		<string>Handjet-Metric.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

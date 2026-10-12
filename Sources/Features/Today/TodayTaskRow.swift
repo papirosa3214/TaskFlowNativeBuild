@@ -170,6 +170,9 @@ struct TodayTaskRow: View {
                     Text(status).foregroundStyle(TodayAgentStateTag.color(task)).layoutPriority(-1)
                 }
                 if task.agentState == .review, task.criticApproved == true { TFCriticApprovedMark() }
+                // Дата и время заведения заявки — пиксельной меткой в квадратных
+                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
+                TFTaskCreatedStamp(createdAt: task.createdAt)
                 if let project = task.projectName {
                     Text("#\(project)").foregroundStyle(Color.tfReadableText(Color(hex: task.projectColor ?? TFHexDefault.unassigned))).layoutPriority(-1)
                 }
@@ -194,13 +197,23 @@ struct TodayTaskRow: View {
     }
 
 
-    /// Короткое имя для VoiceOver: название задачи, опционально проект.
-    /// Без проекта и бейджей — одна строка; с проектом — «Проект, Задача».
+    /// Короткое имя для VoiceOver: название задачи, опционально проект и
+    /// дата заведения. Без проекта и бейджей — одна строка; с проектом —
+    /// «Проект, Задача».
+    ///
+    /// Дата добавлена с меткой (LOCK-TASK-CREATED-STAMP): строка собрана
+    /// `accessibilityElement(children: .ignore)`, то есть всё содержимое, включая
+    /// метку, заменяется этой подписью. Без неё дата заведения была бы видна
+    /// только глазами — для VoiceOver её просто не существовало бы.
     private var rowAccessibilityLabel: String {
+        let base: String
         if let projectName = task.projectName, !projectName.isEmpty {
-            return "\(projectName), \(task.title)"
+            base = "\(projectName), \(task.title)"
+        } else {
+            base = task.title
         }
-        return task.title
+        guard let spoken = TFTaskCreatedStamp.spokenLabel(forCreatedAt: task.createdAt) else { return base }
+        return "\(base), \(spoken)"
     }
 
     private func close() {

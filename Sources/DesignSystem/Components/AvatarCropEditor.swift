@@ -60,14 +60,14 @@ struct AvatarCropEditor: View {
                     .pickerStyle(.segmented)
 
                     HStack {
-                        Text("Размер").font(.caption).foregroundStyle(.secondary)
+                        Text("Размер").tfText(.meta).foregroundStyle(Color.tfSub)
                         Slider(value: $scale, in: 1...4)
                         Text("\(Int(scale * 100))%")
                             .font(.caption.monospacedDigit())
                             .frame(width: 46, alignment: .trailing)
                     }
                     Text("Тяните картинку мышью или пальцем, щипок меняет размер.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .tfText(.meta).foregroundStyle(Color.tfSub)
                 }
                 .padding(.horizontal, TFSpacing.screenHorizontal)
 

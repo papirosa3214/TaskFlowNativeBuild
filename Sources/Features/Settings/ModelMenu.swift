@@ -31,7 +31,7 @@ struct ModelMenu: View {
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(1)
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.footnote)
+                    .tfText(.action)
                     .foregroundStyle(Color.tfDim)
             }
             .frame(minHeight: 44)

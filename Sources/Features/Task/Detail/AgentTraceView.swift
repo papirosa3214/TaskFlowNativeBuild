@@ -55,12 +55,12 @@ struct AgentTraceView: View {
                             ForEach(run.spans) { span in
                                 HStack(spacing: 8) {
                                     Label(shortLabel(span), systemImage: symbol(span))
-                                        .font(.caption).lineLimit(1)
+                                        .tfText(.meta).lineLimit(1)
                                         .frame(width: 94, alignment: .leading)
                                     durationBar(span, run: run, cursor: cursor, duration: duration)
                                         .frame(height: 8)
                                     Text(span.state(at: cursor))
-                                        .font(.caption2).foregroundStyle(Color.tfSub)
+                                        .tfText(.caption).foregroundStyle(Color.tfSub)
                                         .frame(width: 50, alignment: .trailing)
                                 }
                                 .frame(minHeight: 24)
@@ -86,12 +86,12 @@ struct AgentTraceView: View {
                     }
                 }
                 Text(run.id.hasPrefix("events-") ? "Лента событий: границы запуска неизвестны" : (run.complete ? "Запуск завершён" : "Последний полученный снимок"))
-                    .font(.caption).foregroundStyle(Color.tfSub)
+                    .tfText(.meta).foregroundStyle(Color.tfSub)
             } else if loaded {
                 Text(failed ? "Не удалось загрузить ход работы" : "Полученных запусков пока нет").foregroundStyle(Color.tfSub)
             } else { ProgressView() }
             Text("Сохранено на этом устройстве. История содержит полученные события; более ранние действия могут отсутствовать.")
-                .font(.caption).foregroundStyle(Color.tfSub)
+                .tfText(.meta).foregroundStyle(Color.tfSub)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("agent-trace")

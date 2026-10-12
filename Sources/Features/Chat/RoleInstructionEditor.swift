@@ -57,7 +57,9 @@ struct RoleInstructionEditor: View {
                 if canEdit && block.editable {
                     TextEditor(text: $draft.text).frame(minHeight: 220)
                         .scrollContentBackground(.hidden)
-                        .tfText(.body)
+                        // Поле ввода — `.input` 16, как в остальных формах
+                        // (LOCK-TYPOGRAPHY-SPEC, дефект В).
+                        .tfText(.input)
                         .foregroundStyle(Color.tfText)
                         .disabled(busy)
                         .accessibilityIdentifier("roleContext.editor")

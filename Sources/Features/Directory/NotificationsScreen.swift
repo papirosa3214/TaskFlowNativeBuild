@@ -194,7 +194,13 @@ struct NotificationsScreen: View {
                 }
                 if serviceTickets.isEmpty && visibleNotifications.isEmpty && !isLoadingServiceTickets
                     && serviceTicketsError == nil {
+                    // Пустое состояние было вообще без типографики — рисовалось
+                    // системным 17 pt primary (LOCK-TYPOGRAPHY-SPEC, дефект Г).
+                    // Кегль и цвет — из шкалы и палитры, как у соседних подписей.
                     Text("Уведомлений пока нет")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)

@@ -585,8 +585,11 @@ struct TaskCardContent: View {
                                 blocks: $viewModel.titleBlocks,
                                 focus: titleFocus,
                                 placeholder: "Название задачи",
-                                baseFontOverride: UIFontMetrics(forTextStyle: .headline)
-                                    .scaledFont(for: .systemFont(ofSize: 17, weight: .regular)),
+                                // Название задачи — основной текст карточки, 16 pt
+                                // (владелец 12.10.2026: «название не 17, а где-то
+                                // 16, и все остальные основные текста тоже»).
+                                baseFontOverride: UIFontMetrics(forTextStyle: .callout)
+                                    .scaledFont(for: .systemFont(ofSize: 16, weight: .regular)),
                                 textColor: UIColor(Color.tfText),
                                 requestsFocus: activeEditors.contains("title"),
                                 onEdit: { scheduleSave() }
@@ -826,7 +829,10 @@ struct TaskCardContent: View {
                     blocks: $viewModel.taskDescriptionBlocks,
                     focus: descriptionFocus,
                     placeholder: "Описание",
-                    baseFontOverride: UIFont.preferredFont(forTextStyle: .footnote),
+                    // Описание — основной текст карточки, 16 pt как и название
+                    // (владелец 12.10.2026). Было `.footnote` = 13.
+                    baseFontOverride: UIFontMetrics(forTextStyle: .callout)
+                        .scaledFont(for: .systemFont(ofSize: 16, weight: .regular)),
                     textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub),
                     requestsFocus: activeEditors.contains("description"),
                     onEdit: { scheduleSave() }
@@ -1172,7 +1178,7 @@ struct TaskCardContent: View {
         let role = viewModel.roles.first { "role_\($0.role)" == subtask.agentId }?.title ?? "Роль"
         return HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             Image(systemName: "play.circle.fill")
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfReadableSecondary)
                 .symbolEffect(.pulse, options: .repeating)
             Text(role)
@@ -1354,14 +1360,13 @@ struct TaskCardContent: View {
 
     private func taskSectionHeader(_ title: String) -> some View {
         Text(title)
-            .tfText(.taskTitle)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tfText)
+            // Заголовок секции — как во всём приложении: 13 pt `tfSub`
+            // (ступень `.action`, большинство заголовков секций). Владелец
+            // 12.10.2026: «заголовки по той же самой логике» — то есть как
+            // заголовки остальных списков, а не крупнее основного текста.
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
             .textCase(nil)
-            // Без `.underline()` (владелец 28.09.2026: «полоска другого цвета
-            // под подзаголовком» — это она и была). Акцент держим
-            // `fontWeight(.semibold)` + `tfText(.title)`; рамок и линий
-            // карточка задачи не рисует.
     }
 
     /// Тапабельный заголовок секции-«аккордеона»: вся строка переключает
@@ -1423,7 +1428,7 @@ struct TaskCardContent: View {
             }
         } label: {
             Image(systemName: activeEditors.contains(key) ? "checkmark" : "pencil")
-                .font(.footnote)
+                .tfText(.action)
                 .frame(width: 44, height: 44)
         }
         .buttonStyle(.plain)
@@ -1589,7 +1594,7 @@ struct TaskCardContent: View {
                         HStack {
                             Text(subtask.title).frame(maxWidth: .infinity, alignment: .leading)
                             Image(systemName: expandedWorkPlans.contains(subtask.id) ? "chevron.down" : "chevron.right")
-                                .font(.caption).foregroundStyle(Color.tfSub)
+                                .tfText(.meta).foregroundStyle(Color.tfSub)
                         }
                         .contentShape(Rectangle())
                     }
@@ -3064,10 +3069,14 @@ private struct LinkedTaskPicker: View {
                             HStack(spacing: TFSpacing.sm) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(task.title)
-                                        .foregroundStyle(.primary)
+                                        // Название задачи — основным цветом палитры,
+                                        // а не системным `.primary`: соседняя
+                                        // подпись в этой же шторке взята из палитры
+                                        // (LOCK-TYPOGRAPHY-SPEC, дефект Д).
+                                        .foregroundStyle(Color.tfText)
                                         .lineLimit(2)
                                     Text(task.status == .completed ? "Выполнена" : "Открыта")
-                                        .font(.caption)
+                                        .tfText(.meta)
                                         .foregroundStyle(Color.tfReadableSecondary)
                                 }
                                 Spacer(minLength: TFSpacing.sm)

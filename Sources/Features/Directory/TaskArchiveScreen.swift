@@ -136,7 +136,9 @@ struct TaskArchiveScreen: View {
         if !projectStore.archivedProjects.isEmpty {
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
                 Text("Проекты")
-                    .tfText(.meta)
+                    // Единый заголовок секции — 13 pt `tfSub`
+                    // (LOCK-TYPOGRAPHY-UNIFY): было `.meta` 12.
+                    .tfText(.action)
                     .foregroundStyle(Color.tfSub)
                     .padding(.horizontal, TFSpacing.screenHorizontal)
 

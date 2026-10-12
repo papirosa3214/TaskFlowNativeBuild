@@ -106,12 +106,12 @@ struct RoleLoadScreen: View {
     private func chart(_ data: RoleLoad) -> some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(spacing: 0) {
-                Text("Роль").font(.caption).frame(width: 36, height: 32)
+                Text("Роль").tfText(.meta).frame(width: 36, height: 32)
                 ForEach(data.rows) { row in
                     VStack(spacing: 2) {
-                        Text(row.title).font(.subheadline).lineLimit(1)
+                        Text(row.title).tfText(.body).lineLimit(1)
                         Text(row.active.isEmpty ? "Свободна" : "Занята сейчас")
-                            .font(.caption2).lineLimit(1)
+                            .tfText(.caption).lineLimit(1)
                             .foregroundStyle(row.active.isEmpty ? Color.tfSub : Color.tfBlue)
                     }
                     .frame(width: height(row) - 8)
@@ -147,7 +147,7 @@ struct RoleLoadScreen: View {
                                 ForEach(row.open) { slot in
                                     Button { selectedTask = TaskRef(id: slot.id) } label: {
                                         Label("Без исполнителя · \(slot.task_title)", systemImage: "flag")
-                                            .font(.caption).lineLimit(1).padding(.horizontal, 8).frame(height: 28)
+                                            .tfText(.meta).lineLimit(1).padding(.horizontal, 8).frame(height: 28)
                                             .foregroundStyle(Color.tfOrange).background(Color.tfOrange.opacity(0.15))
                                             .clipShape(RoundedRectangle(cornerRadius: 5))
                                     }.buttonStyle(.plain)
@@ -173,7 +173,7 @@ struct RoleLoadScreen: View {
                 if let start = RoleLoad.date(data.from), let end = RoleLoad.date(data.to) {
                     let date = start.addingTimeInterval(end.timeIntervalSince(start) * Double(tick) / 4)
                     Text(date.formatted(window == "24h" ? .dateTime.hour().minute() : .dateTime.day().month().hour()))
-                        .font(.caption2)
+                        .tfText(.caption)
                         .frame(width: 120, alignment: tick == 4 ? .trailing : .leading)
                         .offset(x: width * CGFloat(tick) / 4 - (tick == 4 ? 120 : 0))
                 }
@@ -187,7 +187,7 @@ struct RoleLoadScreen: View {
         return Button { selectedTask = TaskRef(id: taskID) } label: {
             RoundedRectangle(cornerRadius: 5).fill(color.opacity(0.3))
                 .overlay { RoundedRectangle(cornerRadius: 5).stroke(color, lineWidth: active ? 2 : 1) }
-                .overlay(alignment: .leading) { Text(title).font(.caption2).lineLimit(1).padding(.horizontal, 5) }
+                .overlay(alignment: .leading) { Text(title).tfText(.caption).lineLimit(1).padding(.horizontal, 5) }
                 .frame(width: max(4, barWidth), height: 28)
         }
         .buttonStyle(.plain)

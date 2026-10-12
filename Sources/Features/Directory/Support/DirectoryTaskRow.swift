@@ -190,6 +190,9 @@ struct DirectoryTaskRow: View {
                 if let timestamp, !timestamp.isEmpty {
                     Text(timestamp).layoutPriority(-1)
                 }
+                // Дата и время заведения заявки — пиксельной меткой в квадратных
+                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
+                TFTaskCreatedStamp(createdAt: task.createdAt)
                 TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                 if let due = task.dueDate {
                     TFDueChip(plain: DirectoryDate.formatDuePlain(due), relative: DirectoryDate.formatDaysLeft(due), days: DirectoryDate.daysUntil(due), overdueText: "Просрочено, \(DirectoryDate.formatDuePlain(due))", highlight: task.status == .active)
@@ -202,7 +205,10 @@ struct DirectoryTaskRow: View {
                 }
                 if task.agentState == .review, task.criticApproved == true { TFCriticApprovedMark() }
                 if let index {
-                    Text("#" + index).font(.system(.caption, design: .monospaced))
+                    // Кегль и вес — ступенью (было сырое `.system(.caption)` 12
+                    // regular, тогда как весь мета-ряд вокруг — `.caption` 11
+                    // medium): размер правится в шкале (LOCK-TYPOGRAPHY-UNIFY).
+                    Text("#" + index).tfText(.caption).monospaced()
                 }
                 if let agentLine, !agentLine.isEmpty {
                     Label(agentLine, systemImage: "cpu")

@@ -23,9 +23,9 @@ struct WebhooksScreen: View {
                 Section {
                     Button { editing = hook } label: {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(hook.name).font(.headline)
-                            Text(hook.url).font(.caption).foregroundStyle(.secondary)
-                            Text(hook.enabled ? "Включён" : "Выключен").font(.caption)
+                            Text(hook.name).tfText(.title)
+                            Text(hook.url).tfText(.meta).foregroundStyle(Color.tfSub)
+                            Text(hook.enabled ? "Включён" : "Выключен").tfText(.meta)
                         }
                     }
                     if let at = hook.lastDeliveryAt { LabeledContent("Доставлено", value: at) }

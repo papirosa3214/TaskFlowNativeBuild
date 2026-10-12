@@ -180,7 +180,7 @@ struct RoleEditorSheet: View {
                 if !prompt.isEmpty {
                     Button("Вернуть исходную инструкцию", action: { prompt = "" })
                         .buttonStyle(.plain)
-                        .font(.system(size: 13, weight: .medium))
+                        .tfText(.action).fontWeight(.medium)
                         .foregroundStyle(Color.tfCoral)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
@@ -374,6 +374,9 @@ struct RoleEditorSheet: View {
             TextEditor(text: text)
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
+                // Поле ввода — `.input` 16: до этого кегль был системный 17,
+                // а плейсхолдер тут же (см. выше) — 16 (LOCK-TYPOGRAPHY-SPEC, дефект В).
+                .tfText(.input)
                 .foregroundStyle(Color.tfText)
                 .frame(minHeight: 96, maxHeight: 200)
                 .padding(.horizontal, TFSpacing.xs)

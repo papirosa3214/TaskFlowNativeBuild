@@ -156,6 +156,9 @@ struct LabelTasksScreen: View {
                     ForEach(task.labels, id: \.id) { label in
                         TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned)).layoutPriority(-1)
                     }
+                    // Дата и время заведения заявки — пиксельной меткой в
+                    // квадратных скобках (LOCK-TASK-CREATED-STAMP).
+                    TFTaskCreatedStamp(createdAt: task.createdAt)
                 }
             }
             .buttonStyle(TFTapRowStyle())

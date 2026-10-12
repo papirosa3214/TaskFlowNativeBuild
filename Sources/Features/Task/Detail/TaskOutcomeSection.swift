@@ -200,6 +200,9 @@ extension OutcomeTextSheet {
             }
             HStack(spacing: 8) {
                 TextField("Ответить", text: $reply, axis: .vertical)
+                    // Поле ввода — `.input` 16 (было системное 17)
+                    // (LOCK-TYPOGRAPHY-SPEC, дефект В).
+                    .tfText(.input)
                     .lineLimit(1...4)
                     .frame(maxWidth: .infinity, minHeight: TFChatComposer.elementHeight, alignment: .leading)
                     .contentShape(Rectangle())

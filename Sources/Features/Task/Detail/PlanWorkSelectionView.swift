@@ -26,7 +26,7 @@ struct PlanWorkSelectionView: View {
                     if node.workChoice != nil {
                         Button("Изменить выбор") { save(node, choice: nil) }
                             .buttonStyle(.plain).disabled(saving)
-                            .font(.caption).foregroundStyle(Color.tfSub)
+                            .tfText(.meta).foregroundStyle(Color.tfSub)
                             .accessibilityIdentifier("plan-choice-reset.\(node.slotKey)")
                     }
                 } else {
@@ -41,14 +41,14 @@ struct PlanWorkSelectionView: View {
                     TFAvatar(size: .xs, initials: String((roleTitles[node.roleKey] ?? node.roleKey).prefix(1)), userID: "role_" + node.roleKey)
                     Text(roleTitles[node.roleKey] ?? node.roleKey)
                     Text("· \(stateText(node))")
-                }.font(.caption).foregroundStyle(Color.tfSub)
+                }.tfText(.meta).foregroundStyle(Color.tfSub)
                 // В общем плане ветки шаги пришли из разных карточек.
                 if let cardID = node.taskId, cardID != plan.taskId, let card = node.taskTitle, !card.isEmpty {
-                    Text(card).font(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
+                    Text(card).tfText(.meta).foregroundStyle(Color.tfDim).lineLimit(1)
                 }
             }.padding(.vertical, 4)
         }
-        if let error { Text(error).font(.caption).foregroundStyle(Color.tfRed) }
+        if let error { Text(error).tfText(.meta).foregroundStyle(Color.tfRed) }
     }
 
     /// Состояние шага — то же, что в графе плана; ещё не начатый шаг

@@ -92,7 +92,7 @@ private struct WidgetCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             if let title {
-                Text(title).font(.headline).foregroundStyle(Color.tfText)
+                Text(title).tfText(.title).foregroundStyle(Color.tfText)
             }
             content
         }
@@ -116,7 +116,7 @@ private struct WeatherWidget: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(data.string("location") ?? "Погода")
-                        .font(.headline)
+                        .tfText(.title)
                     Text(temperature(data.number("temperature")))
                         .font(.system(size: 56, weight: .thin))
                         .monospacedDigit()
@@ -131,7 +131,7 @@ private struct WeatherWidget: View {
                     }
                     if let high = data.number("high"), let low = data.number("low") {
                         Text("Макс. \(temperature(high)) · мин. \(temperature(low))")
-                            .font(.caption)
+                            .tfText(.meta)
                     }
                 }
             }
@@ -145,10 +145,10 @@ private struct WeatherWidget: View {
                             Text(day.string("day") ?? "").font(.caption.weight(.semibold))
                             Image(systemName: WeatherSymbol.name(day.string("icon") ?? "cloudy", isDay: true))
                                 .symbolRenderingMode(.multicolor)
-                                .font(.title3)
+                                .tfText(.taskTitle)
                                 .frame(height: 26)
                             Text(temperature(day.number("high"))).font(.caption.weight(.semibold))
-                            Text(temperature(day.number("low"))).font(.caption).opacity(0.75)
+                            Text(temperature(day.number("low"))).tfText(.meta).opacity(0.75)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -176,7 +176,7 @@ private struct WeatherWidget: View {
         if !items.isEmpty {
             HStack(spacing: TFSpacing.lg) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    Label(item.1, systemImage: item.0).font(.caption)
+                    Label(item.1, systemImage: item.0).tfText(.meta)
                 }
             }
             .opacity(0.9)
@@ -230,7 +230,7 @@ private struct MetricsWidget: View {
                 ForEach(Array(data.array("items").enumerated()), id: \.offset) { _, item in
                     VStack(alignment: .leading, spacing: TFSpacing.xs) {
                         Text(item.string("label") ?? "")
-                            .font(.caption)
+                            .tfText(.meta)
                             .foregroundStyle(Color.tfSub)
                         Text(item.string("value") ?? "—")
                             .font(.title2.weight(.semibold))
@@ -272,11 +272,11 @@ private struct ProgressWidget: View {
                             .monospacedDigit()
                             .foregroundStyle(Color.tfSub)
                     }
-                    .font(.subheadline)
+                    .tfText(.body)
                     ProgressView(value: fraction)
                         .tint(fraction >= 1 ? Color.tfGreen : Color.tfBlue)
                     if let note = item.string("note") {
-                        Text(note).font(.caption).foregroundStyle(Color.tfSub)
+                        Text(note).tfText(.meta).foregroundStyle(Color.tfSub)
                     }
                 }
             }
@@ -327,10 +327,10 @@ private struct CardWidget: View {
         WidgetCard(title: nil) {
             VStack(alignment: .leading, spacing: 2) {
                 if let title = data.string("title") {
-                    Text(title).font(.headline).foregroundStyle(Color.tfText)
+                    Text(title).tfText(.title).foregroundStyle(Color.tfText)
                 }
                 if let subtitle = data.string("subtitle") {
-                    Text(subtitle).font(.subheadline).foregroundStyle(Color.tfSub)
+                    Text(subtitle).tfText(.body).foregroundStyle(Color.tfSub)
                 }
             }
             if let bodyText = data.string("body") {
@@ -347,7 +347,7 @@ private struct CardWidget: View {
                                 .foregroundStyle(Color.tfText)
                                 .multilineTextAlignment(.trailing)
                         }
-                        .font(.subheadline)
+                        .tfText(.body)
                         .padding(.vertical, TFSpacing.sm)
                         if index < rows.count - 1 { Divider() }
                     }
@@ -415,7 +415,7 @@ private struct UnknownWidget: View {
     var body: some View {
         WidgetCard(title: nil) {
             Label("Виджет не разобран", systemImage: "exclamationmark.triangle")
-                .font(.subheadline)
+                .tfText(.body)
                 .foregroundStyle(Color.tfSub)
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(raw)

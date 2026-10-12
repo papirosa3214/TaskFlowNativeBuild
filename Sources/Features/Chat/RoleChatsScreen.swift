@@ -894,10 +894,12 @@ struct RoleChatRoomScreen: View {
                         }
                         VStack(spacing: 1) {
                         Text(chat.displayTitle(excluding: session.currentUser?.id))
-                            .font(.headline)
+                            // Кегль из шкалы (было системное `.headline`):
+                            // ступень `.title` даёт те же 17 semibold.
+                            .tfText(.title)
                             .lineLimit(1)
                         Text("\(chat.members.count) \(participantsWord(chat.members.count))")
-                            .font(.caption2)
+                            .tfText(.caption)
                             .foregroundStyle(Color.tfSub)
                         }
                     }
@@ -1204,7 +1206,7 @@ struct RoleChatRoomScreen: View {
                             if sendingVoiceIDs.contains(message.id) { ProgressView("Отправка…") }
                             else if message.transcript != .pending {
                                 Button("Повторить отправку") { Task { await sendVoice(message.id) } }
-                                    .font(.caption)
+                                    .tfText(.meta)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -1410,7 +1412,7 @@ struct RoleChatRoomScreen: View {
                         withAnimation { pendingOutgoing.removeAll { $0.id == pending.id } }
                     }
                 }
-                .font(.caption)
+                .tfText(.meta)
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -1594,13 +1596,13 @@ struct RoleChatRoomScreen: View {
         if let messageID, let original = messages.first(where: { $0.id == messageID }) {
             let excerpt = original.text.trimmingCharacters(in: .whitespacesAndNewlines)
             Text("В ответ на: " + (excerpt.isEmpty ? "Вложение" : excerpt))
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
                 .lineLimit(2)
                 .accessibilityIdentifier("chat.replyTo." + messageID)
         } else if messageID != nil {
             Text("В ответ на сообщение" + (sender.map { " · " + $0 } ?? ""))
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
         }
     }
@@ -1772,10 +1774,10 @@ struct RoleChatRoomScreen: View {
             Button { exportMessage(message) } label: { Image(systemName: "square.and.arrow.down") }
                 .accessibilityLabel("Сохранить в Markdown")
             ForEach(message.reactions ?? [], id: \.userID) { reaction in
-                Text(reaction.emoji).font(.caption)
+                Text(reaction.emoji).tfText(.meta)
             }
         }
-        .font(.caption)
+        .tfText(.meta)
         .foregroundStyle(Color.tfSub)
         .buttonStyle(.plain)
         .padding(.top, TFSpacing.xs)
@@ -1859,7 +1861,7 @@ struct RoleChatRoomScreen: View {
         HStack(spacing: TFSpacing.sm) {
             RoleChatAvatar(message: message, size: .lg)
             Text(message.fromUserName ?? "Участник")
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(color)
         }
     }
@@ -1870,7 +1872,7 @@ struct RoleChatRoomScreen: View {
         HStack(spacing: TFSpacing.sm) {
             RoleChatAvatar(user: session.currentUser, size: .lg)
             Text(session.currentUser?.name ?? "Вы")
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
         }
     }

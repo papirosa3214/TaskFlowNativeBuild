@@ -30,6 +30,11 @@ public struct TFTaskRowModel {
     public var isOverdue: Bool
     public var dueText: String?
     public var labels: [(title: String, color: Color)]
+    /// `created_at` заявки для пиксельной метки даты заведения
+    /// (LOCK-TASK-CREATED-STAMP). Строка SQLite UTC из `ApiTask`; `nil` —
+    /// метки нет. Экраны со своей строкой (`DirectoryTaskRow`,
+    /// `TodayTaskRow`, `LabelTasksScreen`) берут дату из задачи напрямую.
+    public var createdAtStamp: String?
 
     public init(
         projectName: String? = nil,
@@ -53,7 +58,8 @@ public struct TFTaskRowModel {
         priority: TaskPriority? = nil,
         isOverdue: Bool = false,
         dueText: String? = nil,
-        labels: [(title: String, color: Color)] = []
+        labels: [(title: String, color: Color)] = [],
+        createdAtStamp: String? = nil
     ) {
         self.projectName = projectName
         self.projectColor = projectColor
@@ -77,6 +83,7 @@ public struct TFTaskRowModel {
         self.isOverdue = isOverdue
         self.dueText = dueText
         self.labels = labels
+        self.createdAtStamp = createdAtStamp
     }
 }
 
@@ -108,6 +115,9 @@ public struct TFTaskRow: View {
                 if let project = model.projectName {
                     Text("#\(project)").foregroundStyle(model.projectColor ?? .tfSub).layoutPriority(-1)
                 }
+                // Дата и время заведения заявки — пиксельной меткой в квадратных
+                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
+                TFTaskCreatedStamp(createdAt: model.createdAtStamp)
                 ForEach(model.labels, id: \.title) { label in
                     TFLabelPill(label.title, color: label.color).layoutPriority(-1)
                 }
@@ -135,12 +145,16 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
         self.metadata = metadata()
     }
 
+    /// Название задачи — ступень `.listTitle` (16 pt). Кегль живёт в
+    /// `Typography.swift`: раньше здесь стоял свой `@ScaledMetric`, и менять
+    /// размер приходилось в этом файле отдельно от общей шкалы — теперь
+    /// ступень общая, как у остального текста (LOCK-TYPOGRAPHY-SPEC).
     var body: some View {
         HStack(alignment: .center, spacing: TFSpacing.sm) {
             avatar
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .tfText(.body)
+                    .tfText(.listTitle)
                     .foregroundStyle(isDone ? Color.tfSub : Color.tfText)
                     .strikethrough(isDone)
                     .lineLimit(1)

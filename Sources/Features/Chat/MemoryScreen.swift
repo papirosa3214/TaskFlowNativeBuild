@@ -139,7 +139,7 @@ struct MemoryScreen: View {
     private func chip(_ title: String, _ value: Filter) -> some View {
         Button { filter = value } label: {
             Text(title)
-                .font(.subheadline.weight(filter == value ? .semibold : .regular))
+                .tfText(.body).fontWeight(filter == value ? .semibold : .regular)
                 .padding(.horizontal, TFSpacing.md)
                 .padding(.vertical, TFSpacing.xs)
                 .background(filter == value ? Color.tfRed.opacity(0.15) : Color.tfCard, in: Capsule())
@@ -157,19 +157,19 @@ struct MemoryScreen: View {
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 3) {
                 if let title = memory.title, !title.isEmpty {
-                    Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.tfText).lineLimit(1)
+                    Text(title).tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText).lineLimit(1)
                 }
                 Text(memory.text)
-                    .font(.subheadline)
+                    .tfText(.body)
                     .foregroundStyle(Color.tfText)
                     .lineLimit(memory.isFile ? 2 : 3)
                 Text(caption(memory))
-                    .font(.caption)
+                    .tfText(.meta)
                     .foregroundStyle(Color.tfSub)
             }
             Spacer(minLength: 0)
             if memory.isPinned {
-                Image(systemName: "pin.fill").font(.caption).foregroundStyle(Color.tfOrange)
+                Image(systemName: "pin.fill").tfText(.meta).foregroundStyle(Color.tfOrange)
             }
         }
         .padding(.vertical, 2)
@@ -313,7 +313,7 @@ struct MemoryEditorSheet: View {
                     TextField("Заголовок (необязательно)", text: $title)
                     if isFile {
                         Text("Файл: текст разрезан на \(chunks.count) кусков, роли находят нужный по смыслу.")
-                            .font(.footnote)
+                            .tfText(.action)
                             .foregroundStyle(Color.tfSub)
                     } else {
                         TextField("Что помнить", text: $text, axis: .vertical)
@@ -343,7 +343,7 @@ struct MemoryEditorSheet: View {
                 if isFile && !chunks.isEmpty {
                     Section("Содержимое") {
                         ForEach(chunks, id: \.idx) { chunk in
-                            Text(chunk.text).font(.footnote).foregroundStyle(Color.tfSub).lineLimit(6)
+                            Text(chunk.text).tfText(.action).foregroundStyle(Color.tfSub).lineLimit(6)
                         }
                     }
                 }
@@ -351,7 +351,7 @@ struct MemoryEditorSheet: View {
                     Section {
                         if memory.isFromRole {
                             Text("Записала роль сама. Поправьте, если неточно, — правка владельца для ролей важнее.")
-                                .font(.footnote)
+                                .tfText(.action)
                                 .foregroundStyle(Color.tfSub)
                         }
                         Button("Забыть", role: .destructive) { isDeleteConfirmOpen = true }

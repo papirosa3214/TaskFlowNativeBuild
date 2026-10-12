@@ -61,7 +61,10 @@ struct ProjectCard: View {
             // доли двух-трёх секций на глаз не сравнить, а «62 %» сравнивается
             // сразу. Моноширинные цифры, иначе колонка процентов прыгает.
             Text("\(percent)%")
-                .font(.system(.headline, design: .default).monospacedDigit())
+                // Было сырое `.system(.headline)` (17) — ступень `.title` даёт
+                // тот же кегль и вес, но живёт в шкале (LOCK-TYPOGRAPHY-UNIFY).
+                .tfText(.title)
+                .monospacedDigit()
                 .foregroundStyle(Color.tfSub)
                 .layoutPriority(1)
             if project.pinned {
@@ -130,7 +133,7 @@ struct ProjectCard: View {
         HStack(spacing: 4) {
             ProjectStatusIcon(kind: kind, size: 13)
             Text("\(value)").monospacedDigit().foregroundStyle(Color.tfText)
-        }.font(.caption).accessibilityElement(children: .ignore)
+        }.tfText(.caption).accessibilityElement(children: .ignore)
             .accessibilityLabel(label).accessibilityValue("\(value)")
     }
 

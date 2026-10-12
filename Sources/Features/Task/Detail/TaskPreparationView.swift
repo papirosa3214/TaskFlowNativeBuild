@@ -81,8 +81,8 @@ struct TaskPreparationView: View {
                 if isLoading {
                     ProgressView("Загружаю подготовку…")
                 } else if let errorMessage {
-                    Text("Не удалось загрузить подготовку").font(.headline)
-                    Text(errorMessage).foregroundStyle(.secondary)
+                    Text("Не удалось загрузить подготовку").tfText(.title)
+                    Text(errorMessage).foregroundStyle(Color.tfSub)
                     Button("Повторить загрузку") { Task { await load() } }
                 } else {
                     current
@@ -98,7 +98,7 @@ struct TaskPreparationView: View {
                         Text("Подготовка читает постановку и предлагает, кто выполнит работу и в каком порядке. Если нужен ваш выбор, он появится здесь.")
                         Text("Ответ продолжает подготовку. Исполнители начнут работу только после утверждения плана. Для дочерней карточки общий план утверждается в родительской задаче.")
                     }
-                    .font(.subheadline).foregroundStyle(.secondary).padding(.top, TFSpacing.sm)
+                    .tfText(.body).foregroundStyle(Color.tfSub).padding(.top, TFSpacing.sm)
                 }
                 .accessibilityIdentifier("preparation.help")
             }
@@ -111,7 +111,7 @@ struct TaskPreparationView: View {
                preparation?.status == "needs_clarification" || preparation?.status == "structure_review" {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     Text(selectedChoice.map { "Выбрано: \($0.title)" } ?? "Выберите один вариант")
-                        .font(.subheadline)
+                        .tfText(.body)
                         .accessibilityIdentifier("preparation.selection")
                     Button {
                         guard let preparation else { return }
@@ -151,13 +151,13 @@ struct TaskPreparationView: View {
             .accessibilityIdentifier("preparation.status")
         if let preparation, preparation.status == "needs_clarification" || (preparation.status == "structure_review" && question != nil) {
             if let question {
-                Text(question).font(.headline)
+                Text(question).tfText(.title)
                     .accessibilityIdentifier("preparation.question")
                 Text("Выберите подходящий вариант.")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .tfText(.body).foregroundStyle(Color.tfSub)
                 if isOwner {
                     if choices.isEmpty {
-                        Text("Для этого вопроса готовые варианты пока не получены.").foregroundStyle(.secondary)
+                        Text("Для этого вопроса готовые варианты пока не получены.").foregroundStyle(Color.tfSub)
                         Button("Повторить подготовку") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } }
                     } else {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: TFSpacing.sm) {
@@ -180,20 +180,20 @@ struct TaskPreparationView: View {
                         }
                     }
                 } else {
-                    Text("Решение принимает владелец задачи.").foregroundStyle(.secondary)
+                    Text("Решение принимает владелец задачи.").foregroundStyle(Color.tfSub)
                 }
             } else {
                 Text("Подготовка ждёт уточнения, но конкретный вопрос не получен. Повторите подготовку, чтобы получить варианты решения.")
                 if isOwner { Button("Повторить подготовку") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } } }
             }
         } else if let preparation, preparation.canApproveStructure {
-            Text("Предложены дочерние задачи. Проверьте их результаты перед созданием.").foregroundStyle(.secondary)
+            Text("Предложены дочерние задачи. Проверьте их результаты перед созданием.").foregroundStyle(Color.tfSub)
             if let proposal = preparation.result?.card?.preparation {
                 ForEach(proposal.workstreams) { stream in
                     VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                        Text(stream.title).font(.headline)
-                        Text(stream.result).font(.subheadline)
-                        if let role = stream.role { Text(roles.first { $0.role == role }?.title ?? role).foregroundStyle(.secondary) }
+                        Text(stream.title).tfText(.title)
+                        Text(stream.result).tfText(.body)
+                        if let role = stream.role { Text(roles.first { $0.role == role }?.title ?? role).foregroundStyle(Color.tfSub) }
                     }
                 }
             }
@@ -206,10 +206,10 @@ struct TaskPreparationView: View {
                 .accessibilityIdentifier("preparation.approveStructure")
             }
         } else {
-            Text(statusDetail).foregroundStyle(.secondary)
+            Text(statusDetail).foregroundStyle(Color.tfSub)
             if preparation?.isPending == true { ProgressView() }
             if preparation?.status == "failed", let error = preparation?.error {
-                DisclosureGroup("Причина ошибки") { Text(error).font(.footnote) }
+                DisclosureGroup("Причина ошибки") { Text(error).tfText(.action) }
             }
             if isOwner && (preparation == nil || preparation?.status == "failed") {
                 Button("Подготовить план") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } }
