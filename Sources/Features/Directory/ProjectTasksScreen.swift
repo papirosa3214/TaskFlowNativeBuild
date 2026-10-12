@@ -125,9 +125,10 @@ struct ProjectTasksScreen: View {
             let scoped = source.filter { inScope($0) && $0.parentId == nil && hit($0) }
             return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
         }
-        var openTreeIDs = Set(source.lazy.filter { task in
-            task.status == .active || task.subtasks.contains { !$0.done }
-        }.map(\.id))
+        // Закрытая карточка уходит из списка целиком, даже если у неё остались
+        // неотмеченные шаги: сервер закрывает карточку сам, шаги при этом не
+        // отмечает, и она торчала в проекте зачёркнутой (владелец 12.10.2026).
+        var openTreeIDs = Set(source.lazy.filter { $0.status == .active }.map(\.id))
 
         // Поднимаем признак открытой работы по всей цепочке родителей. В
         // проектном списке остаются только корневые задачи, а потомки живут в
