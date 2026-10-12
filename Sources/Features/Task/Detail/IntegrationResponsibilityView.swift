@@ -52,11 +52,11 @@ struct IntegrationResponsibilityView: View {
             }
             if validationError {
                 Text("Назначьте ответственного за перенос изменений в основную ветку")
-                    .font(.caption).foregroundStyle(.red)
+                    .tfText(.meta).foregroundStyle(.red)
                     .accessibilityIdentifier("integration-owner-error")
             }
             if let error {
-                Text(error).font(.caption).foregroundStyle(.red)
+                Text(error).tfText(.meta).foregroundStyle(.red)
                 Button("Повторить") { Task { await load() } }
             }
         }

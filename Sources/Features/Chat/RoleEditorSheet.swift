@@ -167,7 +167,7 @@ struct RoleEditorSheet: View {
                 if !prompt.isEmpty {
                     Button("Вернуть исходную инструкцию", action: { prompt = "" })
                         .buttonStyle(.plain)
-                        .font(.system(size: 13, weight: .medium))
+                        .tfText(.action).fontWeight(.medium)
                         .foregroundStyle(Color.tfCoral)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }

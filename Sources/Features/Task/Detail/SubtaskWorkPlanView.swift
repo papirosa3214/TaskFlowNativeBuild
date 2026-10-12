@@ -14,7 +14,7 @@ struct SubtaskWorkPlanView: View {
         VStack(alignment: .leading, spacing: 10) {
             if let plan, plan.subtaskID == subtaskID {
                 Text("Выполнено \(plan.doneCount) из \(plan.items.count)")
-                    .font(.caption).foregroundStyle(Color.tfSub)
+                    .tfText(.meta).foregroundStyle(Color.tfSub)
                     .accessibilityIdentifier("work-plan.progress.\(subtaskID)")
                 ForEach(plan.items) { item in
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -24,7 +24,7 @@ struct SubtaskWorkPlanView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.title)
                             if item.state == .inProgress {
-                                Text("Сейчас").font(.caption).foregroundStyle(Color.tfBlue)
+                                Text("Сейчас").tfText(.meta).foregroundStyle(Color.tfBlue)
                             }
                         }
                     }
@@ -33,7 +33,7 @@ struct SubtaskWorkPlanView: View {
                     .accessibilityValue(item.state.label)
                     .accessibilityIdentifier("work-plan.item.\(item.id)")
                 }
-                if failed { Text("Не удалось обновить этапы").font(.caption).foregroundStyle(Color.tfSub) }
+                if failed { Text("Не удалось обновить этапы").tfText(.meta).foregroundStyle(Color.tfSub) }
             } else if loaded {
                 Text(failed ? "Не удалось загрузить этапы исполнителя" : "Исполнитель ещё не составил рабочие этапы")
                     .foregroundStyle(Color.tfSub)

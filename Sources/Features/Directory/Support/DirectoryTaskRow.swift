@@ -194,7 +194,10 @@ struct DirectoryTaskRow: View {
                 }
                 if task.agentState == .review, task.criticApproved == true { TFCriticApprovedMark() }
                 if let index {
-                    Text("#" + index).font(.system(.caption, design: .monospaced))
+                    // Кегль и вес — ступенью (было сырое `.system(.caption)` 12
+                    // regular, тогда как весь мета-ряд вокруг — `.caption` 11
+                    // medium): размер правится в шкале (LOCK-TYPOGRAPHY-UNIFY).
+                    Text("#" + index).tfText(.caption).monospaced()
                 }
                 if let agentLine, !agentLine.isEmpty {
                     Label(agentLine, systemImage: "cpu")

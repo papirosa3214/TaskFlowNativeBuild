@@ -181,7 +181,7 @@ struct PlanStepDetailSheet: View {
                             }
                             .accessibilityIdentifier("plan-submission-confirmed")
                             if let artifactId = receipt.artifactId {
-                                Text("Артефакт: " + artifactId).font(.caption).textSelection(.enabled)
+                                Text("Артефакт: " + artifactId).tfText(.meta).textSelection(.enabled)
                             }
                         } else if subtask?.done != true {
                             Text("Сдача основным сервером не подтверждена")
@@ -440,7 +440,7 @@ struct PlanStepEditorSheet: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(roleTitle(node.roleKey))
             Text(node.expectedResult)
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
                 .lineLimit(2)
         }

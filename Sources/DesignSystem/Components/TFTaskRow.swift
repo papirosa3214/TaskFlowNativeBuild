@@ -145,23 +145,16 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
         self.metadata = metadata()
     }
 
-    /// Название задачи — 16 pt вместо 15 pt ступени `.body` (владелец
-    /// 12.10.2026: на iPhone название и описание 13 pt выглядели одинаково,
-    /// «ну тогда шестнадцать сделай»).
-    ///
-    /// Свой `@ScaledMetric`, а не новая ступень `TFTextStyle`: это правится
-    /// одна строка сразу во всех списках, а добавление кейса в общий файл
-    /// типографики задевало бы его 342 вызова. Кривую масштабирования берём
-    /// системную — как у соседних ступеней (WCAG 1.4.4).
-    @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 16
-
+    /// Название задачи — ступень `.listTitle` (16 pt). Кегль живёт в
+    /// `Typography.swift`: раньше здесь стоял свой `@ScaledMetric`, и менять
+    /// размер приходилось в этом файле отдельно от общей шкалы — теперь
+    /// ступень общая, как у остального текста (LOCK-TYPOGRAPHY-SPEC).
     var body: some View {
         HStack(alignment: .center, spacing: TFSpacing.sm) {
             avatar
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: titleSize, weight: .regular))
-                    .kerning(-0.03)
+                    .tfText(.listTitle)
                     .foregroundStyle(isDone ? Color.tfSub : Color.tfText)
                     .strikethrough(isDone)
                     .lineLimit(1)

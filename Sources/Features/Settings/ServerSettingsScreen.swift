@@ -109,8 +109,8 @@ struct ServerSettingsScreen: View {
                             Text(model.snapshot?.settings.first { $0.key == entry.key }?.label ?? entry.key)
                             Text("\(readableLogValue(entry.oldValue, key: entry.key)) → \(readableLogValue(entry.newValue, key: entry.key))")
                                 .foregroundStyle(Color.tfSub)
-                            if let reason = entry.reason, !reason.isEmpty { Text(reason).font(.caption) }
-                            Text(entry.createdAt).font(.caption).foregroundStyle(Color.tfSub)
+                            if let reason = entry.reason, !reason.isEmpty { Text(reason).tfText(.meta) }
+                            Text(entry.createdAt).tfText(.meta).foregroundStyle(Color.tfSub)
                         }
                     }
                 }

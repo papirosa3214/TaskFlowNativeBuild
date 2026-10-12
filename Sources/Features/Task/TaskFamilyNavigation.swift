@@ -350,7 +350,7 @@ struct TaskFormScreen: View {
                 .fill(TaskFamilyEdgeTabs.fillColor)
                 .overlay { TaskFamilyTabOutline(openEdge: .leading, openInset: TaskFamilyEdgeTabs.seamOverlap).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                 .overlay {
-                    Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
+                    Image(systemName: "square.stack").tfText(.meta).foregroundStyle(Color.tfSub)
                         .padding(.leading, TaskFamilyEdgeTabs.seamOverlap)
                 }
                 .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
@@ -386,7 +386,7 @@ struct TaskFormScreen: View {
                                 Group {
                                     if (familyNumbers[member.id] ?? index) == 0 {
                                         Image(systemName: "square.stack")
-                                            .font(.caption)
+                                            .tfText(.meta)
                                             .foregroundStyle(Color.tfSub)
                                     } else {
                                         TaskFamilyChildMark(number: familyNumbers[member.id] ?? index)
@@ -511,7 +511,7 @@ struct TaskFamilyEdgeTabs: View {
                         .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                         .overlay {
                             if hovered == member.id {
-                                if (familyNumbers[member.id] ?? index) == 0 { Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub) }
+                                if (familyNumbers[member.id] ?? index) == 0 { Image(systemName: "square.stack").tfText(.meta).foregroundStyle(Color.tfSub) }
                                 else { TaskFamilyChildMark(number: familyNumbers[member.id] ?? index) }
                             }
                         }
@@ -581,7 +581,7 @@ struct TaskFamilyChildMark: View {
             Image(systemName: "arrow.triangle.branch")
             Text("\(number)")
         }
-        .font(.caption2)
+        .tfText(.caption)
         .foregroundStyle(Color.tfSub)
     }
 }
@@ -672,7 +672,7 @@ struct TaskFamilyParentTab: View {
                         .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
                 .overlay {
                     if hovered {
-                        Image(systemName: "square.stack").font(.caption).foregroundStyle(Color.tfSub)
+                        Image(systemName: "square.stack").tfText(.meta).foregroundStyle(Color.tfSub)
                     }
                 }
                 .frame(width: 32, alignment: .leading)

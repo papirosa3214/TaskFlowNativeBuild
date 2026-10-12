@@ -338,7 +338,11 @@ struct UpcomingListView: View {
         Text(UpcomingDate.formatFullDate(date))
             // Было 13pt/.semibold/tfSub (tfRed для сегодня) — просьба владельца
             // 03.09.2026: всем без исключения белым, покрупнее и пожирнее.
-            .font(.system(size: 15, weight: .bold))
+            // Кегль берём из шкалы (`.body` = 15), жирность — поверх ступени:
+            // так размер правится в `Typography.swift`, а не здесь
+            // (LOCK-TYPOGRAPHY-UNIFY).
+            .tfText(.body)
+            .fontWeight(.bold)
             .foregroundStyle(Color.tfText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TFSpacing.screenHorizontal)

@@ -60,7 +60,7 @@ struct RoleReplyMarkdown: View, Equatable {
             HStack(spacing: TFSpacing.sm) {
                 ProgressView()
                 Text(kind == .html ? "Собираю интерактив…" : "Готовлю виджет…")
-                    .font(.subheadline)
+                    .tfText(.body)
                     .foregroundStyle(Color.tfSub)
             }
             .padding(TFSpacing.md)
@@ -228,7 +228,7 @@ struct ChatTableView: View {
                         ForEach(Array(row.enumerated()), id: \.offset) { column, value in
                             cell(value, column: column,
                                  background: rowIndex.isMultiple(of: 2) ? Color.clear : Color.tfCard2.opacity(0.45))
-                                .font(.subheadline)
+                                .tfText(.body)
                         }
                     }
                 }

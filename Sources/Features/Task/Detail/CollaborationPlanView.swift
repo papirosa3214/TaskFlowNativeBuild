@@ -828,7 +828,7 @@ private struct CollaborationPlanGraph: View {
                     ForEach(attemptStarts) { entry in
                         if let place = places[entry.slotKey] {
                             Text(Self.attemptLabel(entry.iteration))
-                                .font(.system(size: 11, weight: .semibold))
+                                .tfText(.caption).fontWeight(.semibold)
                                 .foregroundStyle(Color.tfDim)
                                 .position(x: place.center.x, y: max(8, place.center.y - nodeHeight / 2 - 10))
                                 .accessibilityIdentifier("plan-attempt-\(entry.iteration)")
@@ -837,7 +837,10 @@ private struct CollaborationPlanGraph: View {
                     // Попытки кончились — «!» в конце последнего захода.
                     if let last = lastAttemptNode, let place = places[last.slotKey] {
                         Text("!")
-                            .font(.system(size: 18, weight: .bold))
+                            // Символ-предупреждение: кегль из шкалы (`.title` 17),
+                            // жирность поверх ступени (LOCK-TYPOGRAPHY-UNIFY).
+                            .tfText(.title)
+                            .fontWeight(.bold)
                             .foregroundStyle(Color.tfRed)
                             .position(x: place.center.x + nodeWidth, y: place.center.y)
                             .accessibilityIdentifier("plan-attempt-limit")
@@ -884,7 +887,7 @@ private struct CollaborationPlanGraph: View {
                 }
             }
             .foregroundStyle(stateColor(state))
-            .font(.caption2)
+            .tfText(.caption)
             .padding(3)
         }
         .frame(width: nodeWidth, height: nodeHeight)

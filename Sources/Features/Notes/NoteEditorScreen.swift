@@ -397,7 +397,7 @@ struct NoteTableBlock: View {
     private var rowHandleRail: some View {
         VStack(spacing: 0) {
             Image(systemName: "tablecells")
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfReadableTertiary)
                 .frame(width: Self.handleRailSize, height: Self.handleRailSize)
                 .accessibilityHidden(true)

@@ -14,7 +14,7 @@ struct AppDiagnosticsScreen: View {
                     .accessibilityIdentifier("diagnostics-collection")
                 LabeledContent("Приложение", value: snapshot.background ? "В фоне" : "Открыто")
                 Text("Счётчики с \(dateLabel(snapshot.saved.since))")
-                    .font(.caption).foregroundStyle(Color.tfSub)
+                    .tfText(.meta).foregroundStyle(Color.tfSub)
             } footer: {
                 Text("Это работа телефона, а не расход батареи в процентах. Работа моделей на сервере сюда не входит.")
             }
@@ -56,7 +56,7 @@ struct AppDiagnosticsScreen: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(event.text)
                         Text("\(dateLabel(event.date)) · \(event.background ? "Фон" : "Открыто")")
-                            .font(.caption).foregroundStyle(Color.tfSub)
+                            .tfText(.meta).foregroundStyle(Color.tfSub)
                     }
                 }
             }

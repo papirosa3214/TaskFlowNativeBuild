@@ -360,7 +360,7 @@ struct ChatVoiceComposer: View {
             } else if message.transcript == .pending {
                 HStack(spacing: 8) {
                     ProgressView().tint(.white)
-                    Text("Расшифровываю…").font(.footnote).foregroundStyle(.gray)
+                    Text("Расшифровываю…").tfText(.action).foregroundStyle(.gray)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

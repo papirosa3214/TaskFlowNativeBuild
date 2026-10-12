@@ -191,7 +191,6 @@ struct TodayListView: View {
             // основной цвет текста вместо приглушённого `section.color`.
             Text(section.title)
                 .tfText(.taskTitle)
-                .fontWeight(.semibold)
                 .foregroundStyle(Color.tfText)
         }
         .padding(.horizontal, TFSpacing.lg)

@@ -1132,7 +1132,7 @@ struct TaskCardContent: View {
         let role = viewModel.roles.first { "role_\($0.role)" == subtask.agentId }?.title ?? "Роль"
         return HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             Image(systemName: "play.circle.fill")
-                .font(.caption)
+                .tfText(.meta)
                 .foregroundStyle(Color.tfReadableSecondary)
                 .symbolEffect(.pulse, options: .repeating)
             Text(role)
@@ -1385,7 +1385,7 @@ struct TaskCardContent: View {
             }
         } label: {
             Image(systemName: activeEditors.contains(key) ? "checkmark" : "pencil")
-                .font(.footnote)
+                .tfText(.action)
                 .frame(width: 44, height: 44)
         }
         .buttonStyle(.plain)
@@ -1543,7 +1543,7 @@ struct TaskCardContent: View {
                         HStack {
                             Text(subtask.title).frame(maxWidth: .infinity, alignment: .leading)
                             Image(systemName: expandedWorkPlans.contains(subtask.id) ? "chevron.down" : "chevron.right")
-                                .font(.caption).foregroundStyle(Color.tfSub)
+                                .tfText(.meta).foregroundStyle(Color.tfSub)
                         }
                         .contentShape(Rectangle())
                     }
@@ -3023,7 +3023,7 @@ private struct LinkedTaskPicker: View {
                                         .foregroundStyle(Color.tfText)
                                         .lineLimit(2)
                                     Text(task.status == .completed ? "Выполнена" : "Открыта")
-                                        .font(.caption)
+                                        .tfText(.meta)
                                         .foregroundStyle(Color.tfReadableSecondary)
                                 }
                                 Spacer(minLength: TFSpacing.sm)

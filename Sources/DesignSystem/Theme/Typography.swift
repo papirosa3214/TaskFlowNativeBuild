@@ -96,9 +96,11 @@ public extension Text {
 }
 
 public enum TFTextStyle {
-    case titleLarge, taskTitle, title, input, body, row, action, meta, caption, micro
+    case titleLarge, taskTitle, title, input, body, listTitle, row, action, meta, caption, micro
 
     /// Базовый кегль ступени — то, что видно на дефолтном размере текста.
+    /// ЭТО ЕДИНСТВЕННОЕ МЕСТО в приложении, где заданы размеры текста:
+    /// поменял здесь — поменялось везде, где применён `.tfText(...)`.
     var baseSize: CGFloat {
         switch self {
         case .titleLarge: 28
@@ -106,6 +108,7 @@ public enum TFTextStyle {
         case .title: 17
         case .input: 16
         case .body: 15
+        case .listTitle: 16
         case .row: 14
         case .action: 13
         case .meta: 12
@@ -123,6 +126,7 @@ public enum TFTextStyle {
         case .title: .headline         // 17
         case .input: .callout          // 16
         case .body: .subheadline       // 15
+        case .listTitle: .subheadline  // 16 → та же кривая, что у названия в списке
         case .row: .footnote           // 13 → 14 близко
         case .action: .footnote        // 13
         case .meta: .caption           // 12
@@ -138,6 +142,7 @@ public enum TFTextStyle {
         case .title: .semibold
         case .input: .regular
         case .body: .regular
+        case .listTitle: .regular
         case .row: .regular
         case .action: .regular
         case .meta: .medium
@@ -153,6 +158,7 @@ public enum TFTextStyle {
         case .title: TFFont.titleTracking
         case .input: TFFont.inputTracking
         case .body: TFFont.bodyTracking
+        case .listTitle: TFFont.bodyTracking
         case .row: 0
         case .action: TFFont.actionTracking
         case .meta: TFFont.metaTracking
@@ -183,6 +189,8 @@ private struct TFTextStyleModifier: ViewModifier {
     @ScaledMetric(relativeTo: .caption2)   private var captionSize: CGFloat = 11
     @ScaledMetric(relativeTo: .caption2)   private var microSize: CGFloat = 10
 
+    @ScaledMetric(relativeTo: .subheadline) private var listTitleSize: CGFloat = 16
+
     private var scaledSize: CGFloat {
         switch style {
         case .titleLarge: titleLargeSize
@@ -190,6 +198,7 @@ private struct TFTextStyleModifier: ViewModifier {
         case .title: titleSize
         case .input: inputSize
         case .body: bodySize
+        case .listTitle: listTitleSize
         case .row: rowSize
         case .action: actionSize
         case .meta: metaSize

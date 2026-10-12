@@ -40,7 +40,7 @@ struct TeamAppearanceSheet: View {
                             }
                             if appearance == .noir, animated {
                                 Text("Ролики зациклены и идут без звука. У роли «Дизайнер» ролика нет — она остаётся статичной.")
-                                    .font(.caption)
+                                    .tfText(.meta)
                                     .foregroundStyle(Color.tfSub)
                             }
                         }
@@ -55,7 +55,7 @@ struct TeamAppearanceSheet: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Анимировать")
                             Text("Анимация есть только у комплекта «Гравюра».")
-                                .font(.caption)
+                                .tfText(.meta)
                                 .foregroundStyle(Color.tfSub)
                         }
                         Spacer()
@@ -76,7 +76,7 @@ struct TeamAppearanceSheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Настроить портреты")
                                 Text("Двигать и увеличивать картинку в кружке, выбрать своё фото, круг или квадрат.")
-                                    .font(.caption)
+                                    .tfText(.meta)
                                     .foregroundStyle(Color.tfSub)
                             }
                             Spacer()

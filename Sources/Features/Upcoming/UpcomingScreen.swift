@@ -588,7 +588,7 @@ public struct UpcomingScreen: View {
             HStack(spacing: 6) {
                 Text("Под выбранные фильтры ничего не подошло").tfText(.action).foregroundStyle(Color.tfDim)
                 Button("Сбросить фильтры") { filters = .empty }
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.tfRed)
+                    .tfText(.action).fontWeight(.medium).foregroundStyle(Color.tfRed)
             }
             .padding(.horizontal, TFSpacing.screenHorizontal).padding(.vertical, TFSpacing.sm)
         )

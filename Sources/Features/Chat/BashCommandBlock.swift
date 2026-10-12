@@ -22,7 +22,7 @@ struct BashCommandBlock: View {
             }
             if let result {
                 Text(result.outcome == "timeout" ? "Время ожидания истекло" : "Код завершения: \(result.exitCode.map(String.init) ?? "—")")
-                    .font(.caption)
+                    .tfText(.meta)
                     .accessibilityIdentifier("chat-command-result")
                 if !result.stdout.isEmpty { output(result.stdout) }
                 if !result.stderr.isEmpty { output(result.stderr) }
