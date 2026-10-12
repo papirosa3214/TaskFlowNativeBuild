@@ -28,6 +28,9 @@ final class SystemControlViewModel {
     /// Планировщик расписания (taskflow-scheduler) — независимая лампа.
     private(set) var scheduler: SchedulerRunState?
 
+    /// Сторож разбора заметок — вторая независимая лампа того же вида.
+    private(set) var kbTriage: KbTriageRunState?
+
     /// «Сначала проверка Reviewer» — общий маршрут новых карточек
     /// (раньше это был флаг на каждой карточке).
     private(set) var reviewerFirstDefault = true
@@ -51,6 +54,7 @@ final class SystemControlViewModel {
             isSystemOn = state.active
             nextScanAt = state.nextScanAt
             scheduler = state.scheduler
+            kbTriage = state.kbTriage
             isSystemStateKnown = true
         } catch {
             log.error("не удалось прочитать состояние системы: \(error.localizedDescription, privacy: .public)")
@@ -162,6 +166,23 @@ struct SystemControlSection: View {
                     titleStyle: .action,
                     verticalPadding: TFSpacing.xs
                 )
+                // «Разбор заметок» — второй фоновый автомат того же класса:
+                // сторож порога базы знаний заводит задачу, когда накопилось
+                // столько-то неразобранных заметок. Собран ТЕМ ЖЕ видом, что
+                // «Расписание» выше (лампа 7pt + значение справа), по прямому
+                // указанию владельца 12.10.2026: «точно так же организуй».
+                // Пока сервер старой версии, строки просто нет — как и у
+                // планировщика до его появления.
+                if let triage = viewModel.kbTriage {
+                    TFDivider(inset: rowDividerInset)
+                    TFListRow(
+                        icon: "tray.full", iconStyle: .plain,
+                        title: "Разбор заметок",
+                        trailing: AnyView(triageAccessory(triage)),
+                        titleStyle: .action,
+                        verticalPadding: TFSpacing.xs
+                    )
+                }
                 if viewModel.errorMessage != nil {
                     TFErrorBanner(viewModel.errorMessage)
                         .padding(.horizontal, TFSpacing.lg)
@@ -278,5 +299,44 @@ struct SystemControlSection: View {
             return viewModel.scheduler?.active == true ? Color.tfGreen : Color.tfDim
         }
         return Date().timeIntervalSince(last) > 15 * 60 ? Color.tfRed : Color.tfGreen
+    }
+
+    // MARK: Разбор заметок — тот же вид, что «Расписание»
+
+    /// Лампа и значение. Лампа: серая — состояние не прочитано, зелёная —
+    /// сторож жив и разбирать пока нечего, оранжевая — накопилось до порога
+    /// (задача заведена), красная — сторож молчит дольше двух проверок.
+    ///
+    /// Значение справа — «N из M»: сколько заметок ждёт разбора против порога.
+    /// Это ровно то, что владелец хочет видеть, не открывая базу знаний.
+    @ViewBuilder
+    private func triageAccessory(_ state: KbTriageRunState) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(triageLampColor(state))
+                .frame(width: 7, height: 7)
+            Text(triageText(state))
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+                .lineLimit(1)
+                .fixedSize()
+        }
+    }
+
+    private func triageText(_ state: KbTriageRunState) -> String {
+        let pending = state.pending ?? 0
+        guard let threshold = state.threshold else { return "\(pending)" }
+        return "\(pending) из \(threshold)"
+    }
+
+    private func triageLampColor(_ state: KbTriageRunState) -> Color {
+        guard state.lastCheckAt != nil else { return Color.tfDim }
+        guard state.active else { return Color.tfRed }
+        if let pending = state.pending, let threshold = state.threshold, pending >= threshold {
+            // Дошло до порога — задача на разбор уже заведена, но заметки
+            // никто не разобрал: это не поломка, но и не «всё хорошо».
+            return Color.tfOrange
+        }
+        return Color.tfGreen
     }
 }

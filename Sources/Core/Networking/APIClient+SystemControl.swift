@@ -44,6 +44,46 @@ public struct TaskIntakeSettings: Codable, Sendable {
 
 /// Планировщик (`taskflow-scheduler`) — отдельная лампа: он живёт независимо
 /// от будильника и делает расписание карточек и отложенные повторы.
+/// Сторож разбора заметок (`lib/kbTriageWatcher.ts` на сервере).
+///
+/// Задача владельца 12.10.2026: в «Состоянии системы» такие автоматы
+/// показываются одинаково. У планировщика — лампа и «Последний обход»,
+/// у разбора — лампа и «сколько заметок ждёт разбора из порога».
+public struct KbTriageRunState: Decodable, Sendable {
+    /// Сторож не молчит: последняя проверка не позже двух интервалов назад.
+    public let active: Bool
+    /// Когда сторож в последний раз смотрел счётчик.
+    public let lastCheckAt: Date?
+    /// Когда в последний раз заводилась задача на разбор (`nil` — не заводилась).
+    public let lastRaisedAt: Date?
+    /// Сколько заметок сейчас с временной меткой и без постоянной категории.
+    public let pending: Int?
+    /// Порог, при котором заводится задача — приходит с сервера, чтобы экран
+    /// не зашивал своё число и не разошёлся с настоящим.
+    public let threshold: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case active
+        case lastCheckAt = "last_check_at"
+        case lastRaisedAt = "last_raised_at"
+        case pending
+        case threshold
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // Все поля мягко: у серверов старее блока нет вовсе, а уронив экран
+        // из-за отсутствующей лампы, мы потеряли бы и тумблеры рядом.
+        active = (try? c.decode(Bool.self, forKey: .active)) ?? false
+        pending = try? c.decodeIfPresent(Int.self, forKey: .pending)
+        threshold = try? c.decodeIfPresent(Int.self, forKey: .threshold)
+        lastCheckAt = (try? c.decodeIfPresent(String.self, forKey: .lastCheckAt))
+            .flatMap { ISO8601DateFormatter.systemControl.date(from: $0) }
+        lastRaisedAt = (try? c.decodeIfPresent(String.self, forKey: .lastRaisedAt))
+            .flatMap { ISO8601DateFormatter.systemControl.date(from: $0) }
+    }
+}
+
 public struct SchedulerRunState: Decodable, Sendable {
     public let active: Bool
     public let lastRunAt: Date?
@@ -89,6 +129,10 @@ public struct SystemRunState: Decodable, Sendable {
     public let scanIntervalSec: Int?
     /// Планировщик расписания — у серверов старее поля нет.
     public let scheduler: SchedulerRunState?
+    /// Сторож разбора заметок — второй фоновый автомат того же класса, что и
+    /// планировщик. Владелец 12.10.2026: «точно так же организуй» — строка
+    /// «Разбор заметок» на экране состояния системы.
+    public let kbTriage: KbTriageRunState?
 
     enum CodingKeys: String, CodingKey {
         case active
@@ -96,6 +140,7 @@ public struct SystemRunState: Decodable, Sendable {
         case nextScanAt = "next_scan_at"
         case scanIntervalSec = "scan_interval_sec"
         case scheduler
+        case kbTriage = "kb_triage"
     }
 
     // Поля добавлены 16.09.2026 и отсутствуют у серверов старее — поэтому
@@ -107,6 +152,7 @@ public struct SystemRunState: Decodable, Sendable {
         enabled = try c.decode(Bool.self, forKey: .enabled)
         scanIntervalSec = try c.decodeIfPresent(Int.self, forKey: .scanIntervalSec)
         scheduler = try c.decodeIfPresent(SchedulerRunState.self, forKey: .scheduler)
+        kbTriage = try c.decodeIfPresent(KbTriageRunState.self, forKey: .kbTriage)
         if let raw = try c.decodeIfPresent(String.self, forKey: .nextScanAt) {
             nextScanAt = ISO8601DateFormatter.systemControl.date(from: raw)
         } else {
