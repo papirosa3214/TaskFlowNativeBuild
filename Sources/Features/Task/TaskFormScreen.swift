@@ -1314,16 +1314,13 @@ struct TaskCardContent: View {
 
     private func taskSectionHeader(_ title: String) -> some View {
         Text(title)
-            // Заголовок секции — ступень `title` (17 semibold). Было 20 pt:
-            // он был КРУПНЕЕ названия задачи над ним (LOCK-TYPOGRAPHY-SPEC,
-            // дефект Б). Дубль `.fontWeight(.semibold)` снят — он уже в ступени.
-            .tfText(.title)
-            .foregroundStyle(Color.tfText)
+            // Единый заголовок секции — как во всём приложении: 13 pt `tfSub`
+            // (`TFSectionHeader`). Владелец 12.10.2026: «заголовки как везде…
+            // меньшинство сделать как большинство». Было 17 semibold белым —
+            // на 4 pt крупнее общего заголовка секции.
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
             .textCase(nil)
-            // Без `.underline()` (владелец 28.09.2026: «полоска другого цвета
-            // под подзаголовком» — это она и была). Акцент держим
-            // `fontWeight(.semibold)` + `tfText(.title)`; рамок и линий
-            // карточка задачи не рисует.
     }
 
     /// Тапабельный заголовок секции-«аккордеона»: вся строка переключает

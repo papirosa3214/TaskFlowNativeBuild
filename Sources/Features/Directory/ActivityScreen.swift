@@ -50,7 +50,7 @@ struct ActivityScreen: View {
                 } else {
                     ForEach(groups, id: \.key) { group in
                         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                            Text(group.label).tfText(.action).fontWeight(.semibold).foregroundStyle(Color.tfSub)
+                            Text(group.label).tfText(.action).foregroundStyle(Color.tfSub)
                                 .padding(.horizontal, TFSpacing.screenHorizontal + 4)
                             VStack(spacing: TFSpacing.sm) {
                                 ForEach(group.tasks, id: \.id) { task in

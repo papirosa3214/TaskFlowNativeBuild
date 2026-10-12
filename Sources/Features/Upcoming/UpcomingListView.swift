@@ -336,14 +336,11 @@ struct UpcomingListView: View {
 
     private func dateHeader(_ date: String) -> some View {
         Text(UpcomingDate.formatFullDate(date))
-            // Было 13pt/.semibold/tfSub (tfRed для сегодня) — просьба владельца
-            // 03.09.2026: всем без исключения белым, покрупнее и пожирнее.
-            // Кегль берём из шкалы (`.body` = 15), жирность — поверх ступени:
-            // так размер правится в `Typography.swift`, а не здесь
-            // (LOCK-TYPOGRAPHY-UNIFY).
-            .tfText(.body)
-            .fontWeight(.bold)
-            .foregroundStyle(Color.tfText)
+            // Владелец 12.10.2026: «заголовки как везде». Единый заголовок
+            // секции приложения — 13 pt `tfSub` (TFSectionHeader); частное
+            // «покрупнее и пожирнее» от 03.09.2026 отменено.
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, 6)

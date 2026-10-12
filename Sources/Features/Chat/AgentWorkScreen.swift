@@ -119,7 +119,7 @@ struct AgentWorkScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(section.title) \(section.tasks.count)")
-                    .tfText(.action).fontWeight(.semibold)
+                    .tfText(.action)
                     .foregroundStyle(Color.tfText)
                 Text(section.hint)
                     .tfText(.meta)

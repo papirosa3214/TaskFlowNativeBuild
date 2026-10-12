@@ -110,7 +110,7 @@ struct SearchScreen: View {
     // MARK: - Секции результатов
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title).tfText(.action).fontWeight(.semibold).foregroundStyle(Color.tfSub)
+        Text(title).tfText(.action).foregroundStyle(Color.tfSub)
     }
 
     private func taskSection(_ tasks: [ApiTask]) -> some View {
