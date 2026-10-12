@@ -101,7 +101,12 @@ public extension TFFont {
     /// Кегль 11 — как `.caption` (шаг мета-строки), но `@ScaledMetric`
     /// обязателен: `Font.custom(_:size:)` не масштабируется под Dynamic Type,
     /// а строка задачи — текст, а не декорация (WCAG 1.4.4).
-    static let pixelStamp = Font.custom("Handjet", size: 11, relativeTo: .caption)
+    /// Кегль 12 — как ступень `.meta` (шаг мета-строки). Владелец 12.10.2026,
+    /// после приёмки на телефоне: «время что-то прям совсем миленькое… чуть-чуть
+    /// его надо увеличить». Было 11 (`.caption`) — цифры пиксельного шрифта на
+    /// нём читались с трудом. `@ScaledMetric` через `relativeTo` обязателен:
+    /// `Font.custom(_:size:)` не масштабируется под Dynamic Type (WCAG 1.4.4).
+    static let pixelStamp = Font.custom("Handjet", size: 12, relativeTo: .caption)
 }
 
 #Preview("Метка даты заведения") {
