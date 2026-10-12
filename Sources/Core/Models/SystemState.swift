@@ -28,13 +28,34 @@ struct SystemState: Decodable, Sendable {
         let work_seconds: Int
         let workers: [Worker]
 
+        /// Состояние починки; цвет строки задаёт экран (владелец 12.10.2026):
+        /// никого нет — красный, работают — зелёный, сдано и ждёт — синий,
+        /// исполнитель упёрся в блок — оранжевый.
+        enum Phase { case fixed, blocked, waiting, working, idle }
+
+        var phase: Phase {
+            if fixed { return .fixed }
+            if state == "blocked" { return .blocked }
+            if state == "review" { return .waiting }
+            if assignee_name != nil || state == "in_progress" { return .working }
+            return .idle
+        }
+
         var statusLine: String {
-            if fixed { return "Починено" }
-            // Исполнитель сдал работу, карточка ждёт приёмки — это уже не «ждёт исполнителя».
-            if state == "review" { return "Исполнитель сдал починку · ждёт приёмки" }
-            let names = workers.map(\.name)
-            if let who = assignee_name ?? names.first { return "Не починено · в работе: \(who)" }
-            return "Не починено · ждёт исполнителя"
+            switch phase {
+            case .fixed: "Починено"
+            case .blocked: "Исполнитель не справился · заблокировано"
+            case .waiting: "Исполнитель сдал починку · ждёт приёмки"
+            case .working: "Не починено · в работе" + (assignee_name.map { ": \($0)" } ?? "")
+            case .idle: "Не починено · ждёт исполнителя"
+            }
+        }
+
+        /// «Время работы: 7 мин · Архитектор» — кто работал, в той же строке.
+        var workLine: String? {
+            guard work_seconds > 0 else { return nil }
+            let names = workers.map(\.name).joined(separator: ", ")
+            return "Время работы: \(SystemState.duration(work_seconds))" + (names.isEmpty ? "" : " · \(names)")
         }
     }
 

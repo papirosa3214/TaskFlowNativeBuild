@@ -40,6 +40,7 @@ struct NotificationsScreen: View {
     @State private var dayCounts: (total: Int, alarms: Int)?
     @State private var systemStateError: String?
     @State private var isLoadingSystemState = false
+    @State private var showFeed = false
     private let serviceClient = ServiceNotificationsClient()
 
     private let apiClient = APIClient()
@@ -79,40 +80,6 @@ struct NotificationsScreen: View {
                         }
                     }
                 }
-
-                if let workers = systemState?.workers, !workers.isEmpty {
-                    sectionTitle("Кто работал")
-                    TFCard(padding: 0) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(workers.enumerated()), id: \.element.id) { idx, worker in
-                                summaryRow(worker.name, SystemState.duration(worker.seconds))
-                                if idx < workers.count - 1 { TFDivider() }
-                            }
-                        }
-                    }
-                }
-
-                TFCard(padding: 0) {
-                    NavigationLink {
-                        feedPage
-                    } label: {
-                        TFListRow(
-                            icon: "tray.full",
-                            iconStyle: .plain,
-                            title: "Все уведомления",
-                            subtitle: "Поток как есть: что пришло и когда",
-                            trailing: AnyView(
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color.tfDim)
-                            ),
-                            titleStyle: .body,
-                            verticalPadding: TFSpacing.md
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("system-state.feed")
-                }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.md)
@@ -125,16 +92,22 @@ struct NotificationsScreen: View {
         .tfNativeHeader("Состояние системы")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    Task { await loadSystemState() }
+                // Обновление — оттягиванием вниз, как везде; отдельной кнопки нет.
+                Menu {
+                    Button {
+                        showFeed = true
+                    } label: {
+                        Label("Все уведомления", systemImage: "tray.full")
+                    }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Image(systemName: "ellipsis")
                 }
-                .disabled(isLoadingSystemState)
-                .accessibilityLabel("Обновить")
+                .accessibilityLabel("Ещё")
+                .accessibilityIdentifier("system-state.menu")
             }
         }
         .navigationDestination(item: $route) { routeDestination($0) }
+        .navigationDestination(isPresented: $showFeed) { feedPage }
         .task { await loadSystemState() }
     }
 
@@ -163,10 +136,9 @@ struct NotificationsScreen: View {
                 Text(incident.title).tfText(.row).foregroundStyle(Color.tfText)
                     .lineLimit(2).multilineTextAlignment(.leading)
                 Text(incident.statusLine).tfText(.action)
-                    .foregroundStyle(incident.fixed ? Color.tfGreen : Color.tfRed)
-                if incident.work_seconds > 0 {
-                    Text("Время работы: \(SystemState.duration(incident.work_seconds))")
-                        .tfText(.meta).foregroundStyle(Color.tfDim)
+                    .foregroundStyle(phaseColor(incident.phase))
+                if let work = incident.workLine {
+                    Text(work).tfText(.meta).foregroundStyle(Color.tfDim)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -175,6 +147,15 @@ struct NotificationsScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TFTapRowStyle())
+    }
+
+    private func phaseColor(_ phase: SystemState.Incident.Phase) -> Color {
+        switch phase {
+        case .fixed, .working: .tfGreen
+        case .waiting: .tfBlue
+        case .blocked: .tfOrange
+        case .idle: .tfRed
+        }
     }
 
     // Склад: всё, что сыпется, как есть — сводки сервисов и лента сервера.
