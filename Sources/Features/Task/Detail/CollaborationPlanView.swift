@@ -452,7 +452,7 @@ public struct CollaborationPlanView: View {
                     }
                     Text("Дочерние вкладки в работе: \(plan.activeChildTaskIDs.count)")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
-                    Text("Номер на шаге — порядок: одинаковые идут параллельно, следующий ждёт предыдущий")
+                    Text("Сверху вниз — порядок работы; стоящие рядом идут параллельно")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
                 }
             }
@@ -539,6 +539,25 @@ public struct CollaborationPlanView: View {
                 return max(1, card.tabNumber)
             }
             let keys = Set(plan.nodes.map(laneKey)).sorted()
+            // Ступень дочерней: 1, если ничего не ждёт, иначе на одну ниже самой
+            // поздней из тех, кого ждёт. Одинаковая ступень — идут параллельно.
+            let waitsOf = Dictionary((plan.branchCards ?? []).map { (max(1, $0.tabNumber), $0.waitsForNumbers ?? []) },
+                                     uniquingKeysWith: { first, _ in first })
+            var levelMemo: [Int: Int] = [:]
+            func level(_ number: Int, _ path: Set<Int>) -> Int {
+                if let known = levelMemo[number] { return known }
+                guard !path.contains(number) else { return 1 }
+                let value = (waitsOf[number] ?? []).map { level($0, path.union([number])) + 1 }.max() ?? 1
+                levelMemo[number] = value
+                return value
+            }
+            let childKeys = keys.filter { $0 != 0 && $0 != finalLane }
+            let lastLevel = childKeys.map { level($0, []) }.max() ?? 0
+            func stage(_ key: Int) -> Int { key == 0 ? 0 : key == finalLane ? lastLevel + 1 : level(key, []) }
+            func column(_ key: Int) -> Int {
+                guard key != 0, key != finalLane else { return 0 }
+                return childKeys.filter { level($0, []) == level(key, []) }.firstIndex(of: key) ?? 0
+            }
             return plan.nodes.map { node in
                 let key = laneKey(node)
                 let subtask = subtaskFor(plan: plan, slot: node.slotKey)
@@ -560,7 +579,9 @@ public struct CollaborationPlanView: View {
                     iteration: node.iteration ?? 0,
                     lane: keys.firstIndex(of: key) ?? 0,
                     laneTitle: title,
-                    order: node.order ?? 1
+                    order: node.order ?? 1,
+                    stage: stage(key),
+                    column: column(key)
                 )
             }
         }
@@ -684,6 +705,9 @@ private struct CollaborationPlanGraph: View {
         var lane: Int? = nil
         var laneTitle: String? = nil
         var order: Int? = nil
+        /// Ступень сверху вниз и место в ней: параллельные карточки стоят рядом.
+        var stage: Int = 0
+        var column: Int = 0
 
         var id: String { slotKey }
     }
@@ -703,31 +727,67 @@ private struct CollaborationPlanGraph: View {
     var onTap: (String) -> Void = { _ in }
 
     private var isRing: Bool { entries.contains(where: \.isParticipant) }
-    /// Иерархия ветки: строки — карточки, колонки — номер порядка.
+    /// Иерархия ветки (владелец 12.10.2026): время идёт только сверху вниз.
+    /// Блок — карточка: подготовка родителя, дочерние, итог. Дочерние, которые
+    /// могут идти параллельно, стоят рядом; те, что ждут друг друга, — друг
+    /// под другом. Внутри блока шаги тоже сверху вниз, параллельные — рядом.
     private var isLanes: Bool { entries.contains { $0.lane != nil } }
-    private var laneLabelHeight: CGFloat { 20 }
-    private var laneGap: CGFloat { 12 }
-    private var laneRows: [(lane: Int, title: String, height: CGFloat)] {
-        Set(entries.compactMap(\.lane)).sorted().map { lane in
+    private var laneLabelHeight: CGFloat { 22 }
+    private var laneStepGap: CGFloat { 16 }
+    private var laneBlockGap: CGFloat { 6 }
+    private var laneStageGap: CGFloat { 20 }
+    private struct LaneBlock {
+        let lane: Int
+        let title: String
+        let stage: Int
+        let column: Int
+        let orders: [Int]
+        let maxParallel: Int
+    }
+    private var laneStages: [[LaneBlock]] {
+        let blocks = Set(entries.compactMap(\.lane)).sorted().map { lane -> LaneBlock in
             let items = entries.filter { $0.lane == lane }
-            let stack = Dictionary(grouping: items, by: { $0.order ?? 1 }).values.map(\.count).max() ?? 1
-            return (lane, items.first?.laneTitle ?? "", CGFloat(stack) * nodeHeight + CGFloat(stack - 1) * 14)
+            let byOrder = Dictionary(grouping: items, by: { $0.order ?? 1 })
+            return LaneBlock(lane: lane, title: items.first?.laneTitle ?? "", stage: items.first?.stage ?? 0,
+                             column: items.first?.column ?? 0, orders: byOrder.keys.sorted(),
+                             maxParallel: byOrder.values.map(\.count).max() ?? 1)
         }
+        return Dictionary(grouping: blocks, by: \.stage).sorted { $0.key < $1.key }
+            .map { $0.value.sorted { $0.column < $1.column } }
+    }
+    private func laneBlockWidth(_ block: LaneBlock) -> CGFloat {
+        // Узкая колонка — ровно под шаг: шесть параллельных дочерних должны
+        // помещаться на экране без прокрутки вбок.
+        CGFloat(block.maxParallel) * nodeWidth + CGFloat(block.maxParallel - 1) * 12
+    }
+    private func laneBlockHeight(_ block: LaneBlock) -> CGFloat {
+        laneLabelHeight + CGFloat(block.orders.count) * nodeHeight + CGFloat(max(0, block.orders.count - 1)) * laneStepGap
     }
     private var lanesWidth: CGFloat {
-        let columns = CGFloat(entries.compactMap(\.order).max() ?? 1)
-        return 24 + columns * nodeWidth + (columns - 1) * 28
+        24 + (laneStages.map { stage in
+            stage.map(laneBlockWidth).reduce(0, +) + CGFloat(stage.count - 1) * laneBlockGap
+        }.max() ?? 0)
     }
     private var lanesHeight: CGFloat {
-        laneRows.reduce(CGFloat(0)) { $0 + laneLabelHeight + $1.height + laneGap }
+        laneStages.map { $0.map(laneBlockHeight).max() ?? 0 }.reduce(0, +)
+            + CGFloat(max(0, laneStages.count - 1)) * laneStageGap + 8
     }
-    /// Подписи строк: «№2 Реализация · ждёт №1» над шагами карточки.
-    private var laneLabels: [(lane: Int, title: String, y: CGFloat)] {
+    /// Рамка блока каждой карточки и ширина, доступная её подписи.
+    private func laneFrames(width: CGFloat) -> [(block: LaneBlock, rect: CGRect, labelWidth: CGFloat)] {
+        var result: [(block: LaneBlock, rect: CGRect, labelWidth: CGFloat)] = []
         var y: CGFloat = 0
-        return laneRows.map { row in
-            defer { y += laneLabelHeight + row.height + laneGap }
-            return (row.lane, row.title, y + laneLabelHeight / 2)
+        for stage in laneStages {
+            let total = stage.map(laneBlockWidth).reduce(0, +) + CGFloat(stage.count - 1) * laneBlockGap
+            var x = max(12, (width - total) / 2)
+            for block in stage {
+                let w = laneBlockWidth(block)
+                result.append((block, CGRect(x: x, y: y, width: w, height: laneBlockHeight(block)),
+                               stage.count == 1 ? width - 24 : w))
+                x += w + laneBlockGap
+            }
+            y += (stage.map(laneBlockHeight).max() ?? 0) + laneStageGap
         }
+        return result
     }
     private var nodeHeight: CGFloat { isRing ? 64 : 56 }
     private var nodeWidth: CGFloat { isRing ? 64 : 56 }
@@ -913,12 +973,14 @@ private struct CollaborationPlanGraph: View {
                         }
                     }
 
-                    ForEach(laneLabels, id: \.lane) { label in
-                        Text(label.title)
+                    ForEach(laneFrames(width: canvasWidth), id: \.block.lane) { frame in
+                        // В узкой колонке остаётся только номер карточки («№3»).
+                        Text(frame.labelWidth < 90 ? String(frame.block.title.prefix { $0 != " " }) : frame.block.title)
                             .tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
-                            .frame(width: canvasWidth - 24, alignment: .leading)
-                            .position(x: canvasWidth / 2, y: label.y)
-                            .accessibilityIdentifier("plan-lane-\(label.lane)")
+                            .frame(width: frame.labelWidth, alignment: .center)
+                            .position(x: frame.labelWidth > frame.rect.width ? canvasWidth / 2 : frame.rect.midX,
+                                      y: frame.rect.minY + laneLabelHeight / 2 - 2)
+                            .accessibilityIdentifier("plan-lane-\(frame.block.lane)")
                     }
                     ForEach(entries) { entry in
                         if let place = places[entry.slotKey] {
@@ -1176,19 +1238,18 @@ private struct CollaborationPlanGraph: View {
     private func layout(width: CGFloat) -> [String: (center: CGPoint, width: CGFloat)] {
         if isLanes {
             var result: [String: (center: CGPoint, width: CGFloat)] = [:]
-            var y: CGFloat = 0
-            for row in laneRows {
-                y += laneLabelHeight
-                let columns = Dictionary(grouping: entries.filter { $0.lane == row.lane }, by: { $0.order ?? 1 })
-                for (order, items) in columns {
-                    for (index, item) in items.enumerated() {
+            for frame in laneFrames(width: width) {
+                let items = entries.filter { $0.lane == frame.block.lane }
+                for (row, order) in frame.block.orders.enumerated() {
+                    let group = items.filter { ($0.order ?? 1) == order }
+                    let rowWidth = CGFloat(group.count) * nodeWidth + CGFloat(group.count - 1) * 12
+                    for (index, item) in group.enumerated() {
                         result[item.slotKey] = (CGPoint(
-                            x: 12 + nodeWidth / 2 + CGFloat(order - 1) * (nodeWidth + 28),
-                            y: y + nodeHeight / 2 + CGFloat(index) * (nodeHeight + 14)
+                            x: frame.rect.midX - rowWidth / 2 + nodeWidth / 2 + CGFloat(index) * (nodeWidth + 12),
+                            y: frame.rect.minY + laneLabelHeight + nodeHeight / 2 + CGFloat(row) * (nodeHeight + laneStepGap)
                         ), nodeWidth)
                     }
                 }
-                y += row.height + laneGap
             }
             return result
         }
