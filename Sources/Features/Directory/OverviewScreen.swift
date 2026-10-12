@@ -86,7 +86,7 @@ struct OverviewScreen: View {
             NavigationLink {
                 RoleLoadScreen()
             } label: {
-                navigationRowBody(title: "Загрузка ролей", value: busyRoles.map { $0 > 0 ? "занято: \($0)" : "свободны" })
+                navigationRowBody(title: "Загрузка ролей", value: busyRoles.map { $0 > 0 ? "работает: \($0)" : "свободны" })
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("overview.role-load")
