@@ -776,6 +776,7 @@ private struct QuickAddProjectView: View {
             let created = await projectStore.create(
                 name: draft.name.trimmingCharacters(in: .whitespaces),
                 color: draft.colorHex,
+                withDocs: true,
                 knowledgeDatasetId: draft.datasetId
             )
             if created != nil {

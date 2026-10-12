@@ -146,7 +146,7 @@ struct NoteExtractedTasksSheetContent: View {
         defer { isBusy = false }
         var projectID = selectedProjectID
         if isCreatingNew {
-            guard let created = await projectStore.create(name: newProjectName.trimmingCharacters(in: .whitespaces)) else {
+            guard let created = await projectStore.create(name: newProjectName.trimmingCharacters(in: .whitespaces), withDocs: true) else {
                 errorMessage = "Не удалось создать задачи"
                 return
             }
