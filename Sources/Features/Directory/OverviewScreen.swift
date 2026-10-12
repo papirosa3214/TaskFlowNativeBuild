@@ -15,7 +15,8 @@ struct OverviewScreen: View {
     @State private var openIncidents: Int?
     @State private var busyRoles: Int?
     var body: some View {
-        VStack(spacing: TFSpacing.md) {
+        // Владелец 12.10.2026: разделы «прилипали» к карте — отступ 24 вместо 12.
+        VStack(spacing: TFSpacing.xl) {
             CompletionHeatmap(depth: reduceMotion ? 0 : depth)
             navigationSection
         }
