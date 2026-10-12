@@ -66,11 +66,10 @@ struct RoleLoadScreen: View {
 
     // Владелец 12.10.2026: цветов на графике стало много — подписать, что какой значит.
     private static let legendItems: [(Color, String)] = [
-        (.tfBlue, "Идёт сейчас"),
-        (.tfGreen, "Сдано"),
+        (.tfGreen, "Идёт сейчас"),
+        (.tfSub, "Завершено"),
         (.tfRed, "Сбой"),
         (.tfOrange, "Заблокировано или без исполнителя"),
-        (.tfDim, "Завершено без итога"),
         (.tfPurple, "Починка поломки"),
     ]
 
@@ -138,12 +137,12 @@ struct RoleLoadScreen: View {
                                 ForEach(row.attempts) { attempt in
                                     bar(data, title: attempt.task_title, taskID: attempt.task_id,
                                         start: attempt.started_at, end: attempt.ended_at ?? data.now,
-                                        color: attempt.service == true ? .tfPurple : attempt.active ? .tfBlue : tone(attempt.outcome), active: attempt.active)
+                                        color: attempt.service == true ? .tfPurple : attempt.active ? .tfGreen : tone(attempt.outcome), active: attempt.active)
                                 }
                                 ForEach(row.active) { slot in
                                     bar(data, title: slot.task_title, taskID: slot.task_id,
                                         start: slot.started_at ?? slot.heartbeat_at ?? data.now,
-                                        end: data.now, color: data.isService(taskID: slot.task_id) ? .tfPurple : .tfBlue, active: true)
+                                        end: data.now, color: data.isService(taskID: slot.task_id) ? .tfPurple : .tfGreen, active: true)
                                 }
                                 ForEach(row.open) { slot in
                                     Button { selectedTask = TaskRef(id: slot.id) } label: {
@@ -199,10 +198,10 @@ struct RoleLoadScreen: View {
     }
     private func tone(_ outcome: String?) -> Color {
         switch outcome {
-        case "done": .tfGreen
+        case "done": .tfSub
         case "failed": .tfRed
         case "blocked": .tfOrange
-        default: .tfDim
+        default: .tfSub
         }
     }
 }

@@ -160,6 +160,10 @@ public struct CollaborationPlanView: View {
                         guard let subtask else { return }
                         Task { await perform(control, on: subtask) }
                     } : nil,
+                    onSetPhase: isOwner && plan.branchTeam != nil && (node.taskId == nil || node.taskId == taskId) ? { phase in
+                        self.sheet = nil
+                        Task { await setPhase(node, phase, in: plan) }
+                    } : nil,
                     onRework: isOwner && allowsPlanChanges && plan.status == "approved" ? { remark in
                         self.sheet = nil
                         Task { await rework(node, remark: remark, in: plan) }
@@ -237,6 +241,21 @@ public struct CollaborationPlanView: View {
         // Идущий план владелец тоже дополняет: когда круги доработки исчерпаны,
         // сервер оставляет решение за ним (07.10.2026).
         return true
+    }
+
+    /// Перенос шага родителя между подготовкой и итогом (владелец 12.10.2026).
+    private func setPhase(_ node: ApiCollaborationPlanNode, _ phase: String, in plan: ApiCollaborationPlan) async {
+        guard !isApplying else { return }
+        isApplying = true
+        defer { isApplying = false }
+        do {
+            _ = try await api.setCollaborationPlanNodePhase(
+                taskId: taskId, planId: node.sourcePlanId ?? plan.id,
+                slot: node.sourceSlotKey ?? node.slotKey, phase: phase)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await load()
     }
 
     private func apply(_ op: ApiPlanOp, to plan: ApiCollaborationPlan) async {
@@ -433,9 +452,7 @@ public struct CollaborationPlanView: View {
                     }
                     Text("Дочерние вкладки в работе: \(plan.activeChildTaskIDs.count)")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
-                    Label("Родительская вкладка", systemImage: "house")
-                        .tfText(.caption).foregroundStyle(Color.tfSub)
-                    Text("Цифры — номера дочерних вкладок")
+                    Text("Номер на шаге — порядок: одинаковые идут параллельно, следующий ждёт предыдущий")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
                 }
             }
@@ -448,7 +465,7 @@ public struct CollaborationPlanView: View {
                 onTap: { slot in
                     // В суженном плане дочерней ключ узла — это его слот; в
                     // круговом графе ветки — роль, и слот ищется по роли.
-                    if focusTaskID != nil {
+                    if focusTaskID != nil || plan.branchTeam != nil {
                         sheet = .detail(planID: plan.id, slot: slot)
                         return
                     }
@@ -509,13 +526,42 @@ public struct CollaborationPlanView: View {
                 )
             }
         }
-        if let team = plan.branchTeam {
-            return team.map { member in
-                .init(slotKey: member.roleKey, roleKey: member.roleKey,
-                      title: graphTitle(for: member.roleKey), taskTitle: "team",
-                      state: member.executionState, badge: nil,
-                      taskNumbers: plan.tabNumbers(forRole: member.roleKey),
-                      tabStates: plan.tabStates(forRole: member.roleKey), isParticipant: true)
+        // Родитель ветки (владелец 12.10.2026): не круг по ролям, а иерархия
+        // по карточкам. Строка на карточку: сверху подготовка родителя, ниже
+        // дочерние, внизу итог родителя; колонка — номер порядка шага.
+        if plan.branchTeam != nil {
+            let cards = Dictionary((plan.branchCards ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let finalLane = Int.max
+            func laneKey(_ node: ApiCollaborationPlanNode) -> Int {
+                guard let id = node.taskId, id != taskId, let card = cards[id] else {
+                    return node.branchPhase == "before" ? 0 : finalLane
+                }
+                return max(1, card.tabNumber)
+            }
+            let keys = Set(plan.nodes.map(laneKey)).sorted()
+            return plan.nodes.map { node in
+                let key = laneKey(node)
+                let subtask = subtaskFor(plan: plan, slot: node.slotKey)
+                var title: String
+                if key == 0 { title = "Родитель · подготовка" }
+                else if key == finalLane { title = "Родитель · итог" }
+                else {
+                    title = "№\(key) \(node.taskTitle ?? "")"
+                    let waits = node.taskId.flatMap { cards[$0]?.waitsForNumbers } ?? []
+                    if !waits.isEmpty { title += " · ждёт " + waits.map { "№\($0)" }.joined(separator: ", ") }
+                }
+                return .init(
+                    slotKey: node.slotKey,
+                    roleKey: node.roleKey,
+                    title: graphTitle(for: node.roleKey),
+                    taskTitle: node.taskTitle,
+                    state: node.isSkipped ? "skipped" : node.executionState ?? baseState(for: subtask, plan: plan),
+                    badge: node.responsible == true ? "ответственный" : Self.badge(for: node),
+                    iteration: node.iteration ?? 0,
+                    lane: keys.firstIndex(of: key) ?? 0,
+                    laneTitle: title,
+                    order: node.order ?? 1
+                )
             }
         }
         return plan.nodes.map { node in
@@ -549,14 +595,7 @@ public struct CollaborationPlanView: View {
                 slots.contains($0.fromSlotKey) && slots.contains($0.toSlotKey)
             }
         }
-        guard plan.branchTeam != nil else { return plan.edges }
-        let roles = Dictionary(uniqueKeysWithValues: plan.nodes.map { ($0.slotKey, $0.roleKey) })
-        var seen = Set<String>()
-        return plan.edges.compactMap { edge in
-            guard let from = roles[edge.fromSlotKey], let to = roles[edge.toSlotKey], from != to,
-                  seen.insert("\(from):\(to)").inserted else { return nil }
-            return ApiCollaborationPlanEdge(fromSlotKey: from, toSlotKey: to, startCondition: edge.startCondition)
-        }
+        return plan.edges
     }
 
     /// Возвраты между ролями в общем плане ветки: ключ «кто вернул:кому»,
@@ -567,16 +606,7 @@ public struct CollaborationPlanView: View {
         // Дочерняя: возвраты рисуются дугой внутри строки попытки
         // (см. `rowReturns` у графа), словарём их не считаем.
         if focusTaskID != nil { return [:] }
-        guard plan.branchTeam != nil else { return [:] }
-        let nodes = Dictionary(plan.nodes.map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
-        var result: [String: Bool] = [:]
-        for edge in plan.edges {
-            guard let from = nodes[edge.fromSlotKey], let to = nodes[edge.toSlotKey], from.roleKey != to.roleKey,
-                  from.executionState == "returned", to.origin == "rework", !to.isSkipped else { continue }
-            let key = "\(from.roleKey):\(to.roleKey)"
-            result[key] = (result[key] ?? true) && ["accepted", "returned"].contains(to.executionState ?? "")
-        }
-        return result
+        return [:]
     }
 
     static func stateLabel(_ state: String) -> String {
@@ -650,6 +680,10 @@ private struct CollaborationPlanGraph: View {
         /// В цепочке попыток по нему узлы раскладываются друг за другом.
         var iteration: Int = 0
         var isParticipant = false
+        /// Иерархия ветки: строка карточки, её подпись и номер порядка шага.
+        var lane: Int? = nil
+        var laneTitle: String? = nil
+        var order: Int? = nil
 
         var id: String { slotKey }
     }
@@ -669,6 +703,32 @@ private struct CollaborationPlanGraph: View {
     var onTap: (String) -> Void = { _ in }
 
     private var isRing: Bool { entries.contains(where: \.isParticipant) }
+    /// Иерархия ветки: строки — карточки, колонки — номер порядка.
+    private var isLanes: Bool { entries.contains { $0.lane != nil } }
+    private var laneLabelHeight: CGFloat { 20 }
+    private var laneGap: CGFloat { 12 }
+    private var laneRows: [(lane: Int, title: String, height: CGFloat)] {
+        Set(entries.compactMap(\.lane)).sorted().map { lane in
+            let items = entries.filter { $0.lane == lane }
+            let stack = Dictionary(grouping: items, by: { $0.order ?? 1 }).values.map(\.count).max() ?? 1
+            return (lane, items.first?.laneTitle ?? "", CGFloat(stack) * nodeHeight + CGFloat(stack - 1) * 14)
+        }
+    }
+    private var lanesWidth: CGFloat {
+        let columns = CGFloat(entries.compactMap(\.order).max() ?? 1)
+        return 24 + columns * nodeWidth + (columns - 1) * 28
+    }
+    private var lanesHeight: CGFloat {
+        laneRows.reduce(CGFloat(0)) { $0 + laneLabelHeight + $1.height + laneGap }
+    }
+    /// Подписи строк: «№2 Реализация · ждёт №1» над шагами карточки.
+    private var laneLabels: [(lane: Int, title: String, y: CGFloat)] {
+        var y: CGFloat = 0
+        return laneRows.map { row in
+            defer { y += laneLabelHeight + row.height + laneGap }
+            return (row.lane, row.title, y + laneLabelHeight / 2)
+        }
+    }
     private var nodeHeight: CGFloat { isRing ? 64 : 56 }
     private var nodeWidth: CGFloat { isRing ? 64 : 56 }
     /// Изгиб пары «возврат — отработка»: малый, чтобы стрелки шли рядом.
@@ -715,13 +775,13 @@ private struct CollaborationPlanGraph: View {
             HStack(spacing: TFSpacing.xs) {
                 Text("\(ready.count) готов к старту")
                     .tfText(.action)
-                    .foregroundStyle(Color.tfGreen)
+                    .foregroundStyle(Color.tfSub)
                 Text("•")
                     .tfText(.action)
                     .foregroundStyle(Color.tfDim)
                 Text("\(entries.filter { $0.state == "active" }.count) в работе")
                     .tfText(.action)
-                    .foregroundStyle(Color.tfOrange)
+                    .foregroundStyle(Color.tfGreen)
             }
 
             GeometryReader { proxy in
@@ -733,7 +793,7 @@ private struct CollaborationPlanGraph: View {
                 // считаем ширину по самой длинной строке, иначе она уезжает
                 // за край и её номер обрезается.
                 let gridWidth: CGFloat = maxColumns * nodeWidth + max(0, maxColumns - 1) * columnGap
-                let canvasWidth: CGFloat = max(proxy.size.width, attemptRows ? widestAttemptRow : gridWidth)
+                let canvasWidth: CGFloat = max(proxy.size.width, isLanes ? lanesWidth : attemptRows ? widestAttemptRow : gridWidth)
                 let places = layout(width: canvasWidth)
                 let centers = places.mapValues { $0.center }
 
@@ -780,7 +840,7 @@ private struct CollaborationPlanGraph: View {
                                 context.stroke(link.head, with: .color(color), lineWidth: width)
                                 continue
                             }
-                            let horizontal = isLinear || (attemptRows && abs(fromCenter.y - toCenter.y) < 1)
+                            let horizontal = isLinear || ((attemptRows || isLanes) && abs(fromCenter.y - toCenter.y) < 1)
                             if isLinear, let a = levels[edge.fromSlotKey], let b = levels[edge.toSlotKey], b - a > 1 {
                                 // Связь через несколько шагов идёт дугой НАД цепочкой, а не сквозь аватарки.
                                 let lift = 8 + CGFloat(b - a - 1) * 6
@@ -853,6 +913,13 @@ private struct CollaborationPlanGraph: View {
                         }
                     }
 
+                    ForEach(laneLabels, id: \.lane) { label in
+                        Text(label.title)
+                            .tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
+                            .frame(width: canvasWidth - 24, alignment: .leading)
+                            .position(x: canvasWidth / 2, y: label.y)
+                            .accessibilityIdentifier("plan-lane-\(label.lane)")
+                    }
                     ForEach(entries) { entry in
                         if let place = places[entry.slotKey] {
                             Button { onTap(entry.slotKey) } label: {
@@ -906,7 +973,7 @@ private struct CollaborationPlanGraph: View {
                 initials: initials(for: entry.title),
                 // Отработавший шаг помечаем зелёным домиком: в графе сразу
                 // видно, что уже сделано, а что ещё в работе.
-                tint: state == "accepted" ? Color.tfGreen.opacity(0.28) : Color.tfCard2,
+                tint: state == "active" ? Color.tfGreen.opacity(0.28) : Color.tfCard2,
                 size: CGFloat(isRing ? TFAvatar.Size.ringNode.rawValue : TFAvatar.Size.node.rawValue),
                 role: entry.roleKey
             )
@@ -927,7 +994,7 @@ private struct CollaborationPlanGraph: View {
                 case "skipped":
                     Image(systemName: "minus")
                 case "ready":
-                    Circle().fill(Color.tfGreen).frame(width: 6, height: 6)
+                    Circle().fill(Color.tfSub).frame(width: 6, height: 6)
                 default:
                     EmptyView()
                 }
@@ -952,6 +1019,14 @@ private struct CollaborationPlanGraph: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .fixedSize(horizontal: false, vertical: true)
                     .offset(y: 17)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if isLanes, let order = entry.order {
+                Text(String(order))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, 3)
             }
         }
         .contentShape(Rectangle())
@@ -1074,7 +1149,7 @@ private struct CollaborationPlanGraph: View {
 
     /// Цепочка без ветвлений: на каждом уровне один шаг и все связи идут вперёд.
     private var isLinear: Bool {
-        guard entries.count > 1, !entries.contains(where: \.isParticipant) else { return false }
+        guard entries.count > 1, !isLanes, !entries.contains(where: \.isParticipant) else { return false }
         // Строки попыток раскладываются своим способом — по строке на попытку.
         if attemptRows { return false }
         let levelOf = levels
@@ -1084,6 +1159,7 @@ private struct CollaborationPlanGraph: View {
     }
 
     private var graphHeight: CGFloat {
+        if isLanes { return lanesHeight }
         if entries.contains(where: \.isParticipant) { return 300 }
         // Строки попыток: блок на заход, внутри блока возможны параллельные ветки.
         if attemptRows {
@@ -1098,6 +1174,24 @@ private struct CollaborationPlanGraph: View {
     }
 
     private func layout(width: CGFloat) -> [String: (center: CGPoint, width: CGFloat)] {
+        if isLanes {
+            var result: [String: (center: CGPoint, width: CGFloat)] = [:]
+            var y: CGFloat = 0
+            for row in laneRows {
+                y += laneLabelHeight
+                let columns = Dictionary(grouping: entries.filter { $0.lane == row.lane }, by: { $0.order ?? 1 })
+                for (order, items) in columns {
+                    for (index, item) in items.enumerated() {
+                        result[item.slotKey] = (CGPoint(
+                            x: 12 + nodeWidth / 2 + CGFloat(order - 1) * (nodeWidth + 28),
+                            y: y + nodeHeight / 2 + CGFloat(index) * (nodeHeight + 14)
+                        ), nodeWidth)
+                    }
+                }
+                y += row.height + laneGap
+            }
+            return result
+        }
         if entries.contains(where: \.isParticipant) {
             let radius = min(104, max(60, width / 2 - nodeWidth / 2 - 8))
             return Dictionary(uniqueKeysWithValues: entries.enumerated().map { index, entry in
@@ -1261,8 +1355,10 @@ private struct CollaborationPlanGraph: View {
 
     private func tabMarkerColor(_ state: String) -> Color {
         switch state {
-        case "accepted": .tfGreen
-        case "active", "blocked", "returned": .tfOrange
+        case "accepted": .tfSub
+        case "active": .tfGreen
+        case "blocked", "returned": .tfOrange
+        case "review": .tfBlue
         case "skipped": .tfDim
         default: .tfSub
         }
@@ -1270,11 +1366,14 @@ private struct CollaborationPlanGraph: View {
 
     private func stateColor(_ state: String) -> Color {
         switch state {
-        case "ready": .tfGreen
-        case "active": .tfOrange
+        // Единая палитра статусов (владелец 12.10.2026): в работе — зелёный,
+        // ждёт приёмки — синий, заблокировано — оранжевый, в очереди и
+        // выполнено — серый.
+        case "ready": .tfSub
+        case "active": .tfGreen
         case "blocked", "returned": .tfOrange
-        case "review": .tfSub
-        case "accepted": .tfGreen
+        case "review": .tfBlue
+        case "accepted": .tfSub
         case "skipped": .tfDim
         default: .tfSub
         }
@@ -1290,8 +1389,10 @@ private struct CollaborationPlanGraph: View {
     /// пустой. Галочки на аватарках владелец трогать не просил.
     private func taskNumbersColor(_ state: String) -> Color {
         switch state {
-        case "accepted": .tfGreen
-        case "active", "blocked", "returned": .tfOrange
+        case "accepted": .tfSub
+        case "active": .tfGreen
+        case "blocked", "returned": .tfOrange
+        case "review": .tfBlue
         case "skipped": .tfDim
         default: .tfSub
         }

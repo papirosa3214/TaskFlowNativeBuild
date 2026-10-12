@@ -47,6 +47,12 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
     /// Человекочитаемый отчёт этапа — заметка в папке документов задачи.
     public let resultDocument: PlanResultDocument?
     public let submissionReceipt: PlanSubmissionReceipt?
+    /// Номер порядка в графе (сервер, 12.10.2026): одинаковый — идут
+    /// параллельно, следующий — ждёт предыдущий.
+    public var order: Int? = nil
+    /// Группа шага родителя ветки: `before` — подготовка до дочерних,
+    /// `after` — итог после них.
+    public var branchPhase: String? = nil
 
     public var id: String { slotKey }
     public var isSkipped: Bool { skippedAt != nil }
@@ -70,6 +76,7 @@ public struct ApiCollaborationPlanNode: Codable, Sendable, Hashable, Identifiabl
         case waitingFor = "waiting_for"
         case resultDocument = "result_document"
         case submissionReceipt = "submission_receipt"
+        case order, branchPhase = "branch_phase"
     }
 }
 
@@ -166,7 +173,9 @@ public struct ApiBranchCard: Codable, Sendable, Hashable {
     public let id: String
     public let tabNumber: Int
     public var responsibleRole: String? = nil
-    enum CodingKeys: String, CodingKey { case id, tabNumber = "tab_number", responsibleRole = "responsible_role" }
+    /// Номера закладок карточек, которых эта ждёт (зависимости ветки).
+    public var waitsForNumbers: [Int]? = nil
+    enum CodingKeys: String, CodingKey { case id, tabNumber = "tab_number", responsibleRole = "responsible_role", waitsForNumbers = "waits_for_numbers" }
 }
 
 public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {

@@ -97,6 +97,15 @@ public extension APIClient {
     /// Правка живого плана (01.10.2026) — черновика или уже запущенного.
     /// `baseVersion` — версия, которую видел владелец: не совпала — сервер
     /// отвечает 409, и экран перечитывает план, не теряя введённого.
+    /// Группа шага родителя ветки: `before` — подготовка до дочерних, `after` — итог.
+    @discardableResult
+    func setCollaborationPlanNodePhase(taskId: String, planId: String, slot: String, phase: String) async throws -> ApiCollaborationPlan {
+        struct Body: Encodable { let phase: String }
+        let envelope: CollaborationPlanEnvelope = try await request(
+            .put, "/tasks/\(taskId)/collaboration-plans/\(planId)/nodes/\(slot)/phase", body: Body(phase: phase))
+        return envelope.plan
+    }
+
     @discardableResult
     func applyCollaborationPlanOps(taskId: String, planId: String, baseVersion: Int?, ops: [ApiPlanOp],
                                    reason: String? = nil, branchSnapshot: String? = nil) async throws -> ApiCollaborationPlan {

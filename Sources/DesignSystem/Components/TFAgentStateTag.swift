@@ -17,7 +17,8 @@ public enum TFAgentStateTag {
     public static func color(_ state: AgentState, stale: Bool) -> Color {
         if state == .inProgress, stale { return .tfCoral }
         switch state {
-        case .inProgress: return .tfTeal
+        // Единая палитра статусов (владелец 12.10.2026): в работе — зелёный.
+        case .inProgress: return .tfGreen
         case .blocked: return .tfOrange
         case .review: return .tfBlue
         case .todo: return .tfSub

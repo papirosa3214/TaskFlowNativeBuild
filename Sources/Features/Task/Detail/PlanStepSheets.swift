@@ -32,6 +32,9 @@ struct PlanStepDetailSheet: View {
     /// Точечные действия по шагу; nil — действий нет (не владелец или шаг
     /// ещё не заведён подзадачей).
     var onControl: ((PlanStepControl) -> Void)? = nil
+    /// Перенести шаг родителя ветки в подготовку (до дочерних) или в итог
+    /// (после них); nil — у шага группы нет.
+    var onSetPhase: ((String) -> Void)? = nil
     /// Вернуть сданную работу роли с замечанием владельца; nil — нельзя.
     var onRework: ((String) -> Void)? = nil
 
@@ -54,11 +57,12 @@ struct PlanStepDetailSheet: View {
          subtask: ApiSubtask?, roleTitle: @escaping (String) -> String, stateLabel: String,
          isEditable: Bool, onEdit: @escaping () -> Void, onSkip: @escaping (String) -> Void,
          onRemove: @escaping () -> Void, onControl: ((PlanStepControl) -> Void)? = nil,
-         onRework: ((String) -> Void)? = nil) {
+         onSetPhase: ((String) -> Void)? = nil, onRework: ((String) -> Void)? = nil) {
         self.node = node; self.assignments = assignments; self.onSelectAssignment = onSelectAssignment
         self.plan = plan; self.subtask = subtask; self.roleTitle = roleTitle; self.stateLabel = stateLabel
         self.isEditable = isEditable; self.onEdit = onEdit; self.onSkip = onSkip; self.onRemove = onRemove
         self.onControl = onControl
+        self.onSetPhase = onSetPhase
         self.onRework = onRework
         let key = "task.slot.\(node.taskId ?? plan.taskId).\(node.sourceSlotKey ?? node.slotKey)"
         _isLiveExpanded = State(initialValue: TaskCardDisclosureState.flag(key + ".live", default: false))
@@ -230,6 +234,14 @@ struct PlanStepDetailSheet: View {
                     Section {
                         Button { onEdit() } label: { Label("Изменить шаг", systemImage: "pencil") }
                             .accessibilityIdentifier("plan-step-edit")
+                        if let onSetPhase {
+                            let isPrep = node.branchPhase == "before"
+                            Button { onSetPhase(isPrep ? "after" : "before") } label: {
+                                Label(isPrep ? "Перенести в итог (после дочерних)" : "Перенести в подготовку (до дочерних)",
+                                      systemImage: "arrow.up.arrow.down")
+                            }
+                            .accessibilityIdentifier("plan-step-phase")
+                        }
                         if plan.status == "approved" || plan.branchSnapshot != nil {
                             Button { isSkipPromptOpen = true } label: { Label("Пропустить", systemImage: "forward") }
                                 .accessibilityIdentifier("plan-step-skip")
