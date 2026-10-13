@@ -2373,7 +2373,7 @@ struct TaskCardContent: View {
         ("research", "Исследование: исследователь → аналитик", "magnifyingglass"),
         ("delivery", "Доставка: архитектор → исполнитель → QA → критик", "shippingbox"),
         ("full_cycle", "Полный цикл: все роли", "person.3.fill"),
-        ("orchestrated", "Оркестратор: раздаёт работу команде", "person.3.sequence.fill"),
+        ("orchestrated", "Оркестратор: раздаёт работу команде", "point.3.filled.connected.trianglepath.dotted"),
     ]
 
     /// Явный выбор шаблона плана владельцем — LOCK-252, тот же паттерн
