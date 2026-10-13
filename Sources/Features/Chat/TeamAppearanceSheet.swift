@@ -8,6 +8,7 @@ import SwiftUI
 struct TeamAppearanceSheet: View {
     @AppStorage(TeamAvatarAppearance.storageKey) private var selected = "current"
     @AppStorage(TeamAvatarAnimation.storageKey) private var animated = false
+    @AppStorage(TeamAvatarSecretaryVariant.storageKey) private var secretaryVariant = TeamAvatarSecretaryVariant.classic.rawValue
     @Environment(\.dismiss) private var dismiss
     @State private var showRoles = false
     @State private var editingRole: String?
@@ -65,6 +66,46 @@ struct TeamAppearanceSheet: View {
                     .accessibilityIdentifier("team-avatar-animation-toggle")
                 } footer: {
                     Text("Выключено — везде статичные картинки. Включено — портреты ролей комплекта «Гравюра» играют зацикленный ролик.")
+                }
+
+                // Портретов у Секретаря в «Гравюре» два — прежний и новый.
+                // Выбор один на всё приложение, видим только у этого комплекта:
+                // в «Иллюстрации» и «Плакате» у роли по-прежнему один портрет.
+                if TeamAvatarAppearance(rawValue: selected) == .noir {
+                    Section {
+                        HStack(spacing: TFSpacing.lg) {
+                            ForEach(TeamAvatarSecretaryVariant.allCases) { variant in
+                                Button {
+                                    secretaryVariant = variant.rawValue
+                                } label: {
+                                    ZStack(alignment: .topTrailing) {
+                                        TFRolePortrait(role: "secretary",
+                                                       imageAsset: RoleAvatarAsset.imageName(
+                                                            for: "secretary", appearance: .noir,
+                                                            secretaryVariant: variant) ?? "",
+                                                       loopName: nil, side: 56)
+                                        if secretaryVariant == variant.rawValue {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .symbolRenderingMode(.palette)
+                                                .foregroundStyle(Color.tfRed, .white)
+                                                .offset(x: 5, y: -5)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("team-secretary-variant-" + variant.rawValue)
+                                .accessibilityValue(secretaryVariant == variant.rawValue ? "Выбран" : "Не выбран")
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    } header: {
+                        Text("Секретарь")
+                    }
+                    // Явный `id`: `List` кэширует ряд секций по их порядку, и
+                    // условная секция без него не появлялась при выборе
+                    // «Гравюры» — кнопка показывала «Выбран», а блока на экране
+                    // не было.
+                    .id("secretary-section-" + selected)
                 }
 
                 Section {

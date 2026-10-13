@@ -21,6 +21,15 @@ enum TeamAvatarAnimation {
     static let storageKey = "teamAvatarAnimated"
 }
 
+/// У роли «Секретарь» в комплекте «Гравюра» два портрета: прежний и новый
+/// мужской. Выбор владельца, один на всё приложение; по умолчанию прежний,
+/// чтобы установленная сборка не меняла картинку сама.
+enum TeamAvatarSecretaryVariant: String, CaseIterable, Identifiable {
+    case classic, male
+    static let storageKey = "teamAvatarSecretaryVariant"
+    var id: String { rawValue }
+}
+
 enum RoleAvatarAsset {
     /// Хвост имени ассета роли. `nil` — роль без вшитого портрета.
     private static func suffix(for role: String?) -> String? {
@@ -44,12 +53,31 @@ enum RoleAvatarAsset {
             ?? .current
     }
 
-    static func imageName(for role: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+    /// Сохранённый выбор портрета Секретаря; `nil` — читаем из `UserDefaults`.
+    private static func resolve(_ variant: TeamAvatarSecretaryVariant?) -> TeamAvatarSecretaryVariant {
+        variant
+            ?? TeamAvatarSecretaryVariant(rawValue: UserDefaults.standard.string(forKey: TeamAvatarSecretaryVariant.storageKey) ?? "classic")
+            ?? .classic
+    }
+
+    /// У Секретаря комплекта «Гравюра» два ассета, у остальных ролей — один.
+    /// Мужской вариант меняет и статичную картинку, и ролик: иначе при
+    /// включённой анимации кружок играл бы не тот портрет, что показан в
+    /// «Внешнем виде».
+    private static func noirSuffix(_ role: String?, _ suffix: String,
+                                   variant: TeamAvatarSecretaryVariant) -> String {
+        guard role == "secretary", variant == .male else { return suffix }
+        return suffix + "Male"
+    }
+
+    static func imageName(for role: String?, appearance: TeamAvatarAppearance? = nil,
+                          secretaryVariant: TeamAvatarSecretaryVariant? = nil) -> String? {
         guard let suffix = suffix(for: role) else { return nil }
         switch resolve(appearance) {
         case .current: return "RoleAvatar" + suffix
         case .previous: return "TeamPrevious" + suffix
-        case .noir: return "TeamNoir" + suffix
+        case .noir:
+            return "TeamNoir" + noirSuffix(role, suffix, variant: resolve(secretaryVariant))
         }
     }
 
@@ -71,23 +99,28 @@ enum RoleAvatarAsset {
     /// перерисованных портретов этого же комплекта, поэтому переключатель
     /// оживляет именно его. У «Гравюры» — прежние `RoleNoirLoop*`, их не
     /// трогаем. У «Плаката» роликов нет: там переключатель ничего не меняет.
-    static func loopName(for role: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+    static func loopName(for role: String?, appearance: TeamAvatarAppearance? = nil,
+                         secretaryVariant: TeamAvatarSecretaryVariant? = nil) -> String? {
         guard let role, loopRoles.contains(role), let suffix = suffix(for: role) else { return nil }
         switch resolve(appearance) {
         case .current: return "RoleLoop" + suffix
-        case .noir: return "RoleNoirLoop" + suffix
+        case .noir:
+            let name = noirSuffix(role, suffix, variant: resolve(secretaryVariant))
+            return "RoleNoirLoop" + name
         case .previous: return nil
         }
     }
 
-    static func imageName(forUserID userID: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+    static func imageName(forUserID userID: String?, appearance: TeamAvatarAppearance? = nil,
+                          secretaryVariant: TeamAvatarSecretaryVariant? = nil) -> String? {
         guard let role = role(forUserID: userID) else { return nil }
-        return imageName(for: role, appearance: appearance)
+        return imageName(for: role, appearance: appearance, secretaryVariant: secretaryVariant)
     }
 
-    static func loopName(forUserID userID: String?, appearance: TeamAvatarAppearance? = nil) -> String? {
+    static func loopName(forUserID userID: String?, appearance: TeamAvatarAppearance? = nil,
+                         secretaryVariant: TeamAvatarSecretaryVariant? = nil) -> String? {
         guard let role = role(forUserID: userID) else { return nil }
-        return loopName(for: role, appearance: appearance)
+        return loopName(for: role, appearance: appearance, secretaryVariant: secretaryVariant)
     }
 
     /// Роль по id учётки; `nil` — не наша роль (владелец, обычный человек).
