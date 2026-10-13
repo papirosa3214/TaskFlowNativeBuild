@@ -138,7 +138,9 @@ struct ProjectsScreen: View {
         }
         // Штатный pull-to-refresh (iOS 15+). Прокрути вниз и потяни — вызовет
         // projectStore.load(). Сегодня не трогаю по требованию владельца.
-        .refreshable { await projectStore.load() }
+        // Задачи тоже: фильтры по состоянию считаются по списку задач, и без
+        // него проект с только что перенесённой карточкой оставался скрытым.
+        .refreshable { async let projects: Void = projectStore.load(); async let tasks: Void = taskStore.load(silent: true); _ = await (projects, tasks) }
         }
         // Штатная SwiftUI-шапка. Системная стрелка назад добавляется стеком
         // навигации; пару кнопок группирует сам toolbar iOS.
