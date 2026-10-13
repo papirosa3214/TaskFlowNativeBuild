@@ -93,7 +93,6 @@ struct ActivityChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             header
-            segmentControl
             if chartType == .line {
                 lineView
             } else {
@@ -149,6 +148,8 @@ struct ActivityChart: View {
                 Text(periodSubtitle).tfText(.caption).foregroundStyle(Color.tfSub)
             }
             Spacer(minLength: 0)
+            // Вкладки — в правом углу шапки (владелец 13.10.2026), не отдельной строкой.
+            segmentControl
         }
     }
 
@@ -170,7 +171,7 @@ struct ActivityChart: View {
         .padding(2)
         .background(Color.tfCard2)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-        .frame(maxWidth: 200)
+        .fixedSize()
     }
 
     private func segmentButton(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
