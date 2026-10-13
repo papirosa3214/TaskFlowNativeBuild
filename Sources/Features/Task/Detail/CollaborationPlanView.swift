@@ -674,6 +674,7 @@ public struct CollaborationPlanView: View {
         case "manual": "Вручную"
         case "product_feature": "Продуктовая фича"
         case "bug_regression": "Баг или регрессия"
+        case "orchestrated": "Оркестратор"
         default: profile
         }
     }
