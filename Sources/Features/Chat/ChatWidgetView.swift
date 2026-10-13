@@ -354,14 +354,20 @@ private struct CardWidget: View {
                 }
             }
             if let link = data.object("link"), let raw = link.string("url"), let url = URL(string: raw) {
-                Button {
-                    openURL(url)
-                } label: {
-                    Label(link.string("title") ?? "Открыть", systemImage: "arrow.up.right.square")
-                        .frame(maxWidth: .infinity)
+                let label = Label(link.string("title") ?? "Открыть", systemImage: "arrow.up.right.square")
+                    .frame(maxWidth: .infinity)
+                // task://<id> — карточка внутри приложения (владелец 13.10.2026):
+                // система такую ссылку не знает, openURL молча ничего не делал.
+                if url.scheme == "task", let taskID = url.host ?? url.pathComponents.last, !taskID.isEmpty {
+                    NavigationLink(value: AppRoute.taskDetail(taskID: taskID)) { label }
+                        .buttonStyle(.bordered)
+                        .tint(Color.tfRed)
+                        .accessibilityIdentifier("widget-card-open-task")
+                } else {
+                    Button { openURL(url) } label: { label }
+                        .buttonStyle(.bordered)
+                        .tint(Color.tfRed)
                 }
-                .buttonStyle(.bordered)
-                .tint(Color.tfRed)
             }
         }
     }
