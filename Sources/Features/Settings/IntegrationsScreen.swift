@@ -258,6 +258,7 @@ struct IntegrationsScreen: View {
 
     @State private var viewModel = IntegrationsViewModel()
     @State private var isLinearOpen = false
+    @State private var isGmailOpen = false
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
@@ -288,6 +289,9 @@ struct IntegrationsScreen: View {
                             .accessibilityIdentifier("integrations.webhooks")
                             IntegrationAccordionCard(icon: "arrow.down.doc", asset: "IntegrationLinear", title: "Linear", subtitle: "Выбор задач и перенос структуры", badge: nil, isExpanded: $isLinearOpen, identifier: "integrations.linear") {
                                 LinearImportScreen(embedded: true)
+                            }
+                            IntegrationAccordionCard(icon: "envelope", title: "Gmail", subtitle: "Почта Секретаря: адреса и белый список", badge: nil, isExpanded: $isGmailOpen, identifier: "integrations.gmail") {
+                                GmailIntegrationCard()
                             }
                         }
                         appleSection
