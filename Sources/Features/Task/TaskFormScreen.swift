@@ -1494,8 +1494,20 @@ struct TaskCardContent: View {
 
     /// То же, но свёрнутая секция показывает `preview` — то, что сейчас в
     /// работе (LOCK-272). Выполнилось — строка уходит обратно под шеврон.
-    @ViewBuilder
+    /// Тип секции стирается здесь: без этого обобщённый тип всего списка
+    /// карточки снова дорос до переполнения стека в рантайме на iPhone
+    /// (падение 13.10.2026 при открытии любой задачи, как 15.09.2026).
     private func collapsibleSection<Content: View, Preview: View>(
+        _ section: TaskDetailSection,
+        title: String,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder preview: () -> Preview
+    ) -> AnyView {
+        AnyView(collapsibleSectionBody(section, title: title, content: content, preview: preview))
+    }
+
+    @ViewBuilder
+    private func collapsibleSectionBody<Content: View, Preview: View>(
         _ section: TaskDetailSection,
         title: String,
         @ViewBuilder content: () -> Content,
