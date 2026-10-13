@@ -14,6 +14,8 @@ struct TeamAppearanceSheet: View {
     @State private var editingRole: String?
     private let roles = ["researcher", "analyst", "builder", "architect", "code_orchestrator", "secretary", "critic_verifier", "qa", "designer"]
 
+    private var showsSecretaryVariants: Bool { selected == TeamAvatarAppearance.noir.rawValue }
+
     var body: some View {
         NavigationStack {
             List {
@@ -71,8 +73,15 @@ struct TeamAppearanceSheet: View {
                 // Портретов у Секретаря в «Гравюре» два — прежний и новый.
                 // Выбор один на всё приложение, видим только у этого комплекта:
                 // в «Иллюстрации» и «Плакате» у роли по-прежнему один портрет.
-                if TeamAvatarAppearance(rawValue: selected) == .noir {
-                    Section {
+                //
+                // Секция объявлена БЕЗ внешнего `if`: `List` запоминает набор
+                // секций при первом построении, и условная не появлялась потом
+                // даже при выбранной «Гравюре» (кнопка комплекта показывала
+                // «Выбран», блока на экране не было; `.id` на самой секции не
+                // помог). Поэтому условие живёт внутри наполнения и заголовка:
+                // пустые секция и заголовок не рисуются.
+                Section {
+                    if showsSecretaryVariants {
                         HStack(spacing: TFSpacing.lg) {
                             ForEach(TeamAvatarSecretaryVariant.allCases) { variant in
                                 Button {
@@ -98,14 +107,11 @@ struct TeamAppearanceSheet: View {
                             }
                             Spacer(minLength: 0)
                         }
-                    } header: {
+                    }
+                } header: {
+                    if showsSecretaryVariants {
                         Text("Секретарь")
                     }
-                    // Явный `id`: `List` кэширует ряд секций по их порядку, и
-                    // условная секция без него не появлялась при выборе
-                    // «Гравюры» — кнопка показывала «Выбран», а блока на экране
-                    // не было.
-                    .id("secretary-section-" + selected)
                 }
 
                 Section {
@@ -127,6 +133,11 @@ struct TeamAppearanceSheet: View {
                     .tint(.tfRed)
                 }
             }
+            // Смена комплекта перестраивает список целиком: `List` держит
+            // набор секций от первого построения, и секция выбора портрета
+            // Секретаря оставалась пустой при выбранной «Гравюре» (кнопка
+            // комплекта показывала «Выбран», блока на экране не было).
+            .id("appearance-list-" + selected)
             .navigationTitle("Внешний вид")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
