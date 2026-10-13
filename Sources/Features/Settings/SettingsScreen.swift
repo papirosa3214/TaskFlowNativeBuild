@@ -136,6 +136,11 @@ struct SettingsScreen: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.app-icon")
+            if session.currentUser?.role == .owner {
+                TFDivider(inset: rowDividerInset)
+                navRow(icon: "bell.badge", title: "Напоминания о просрочке", route: .escalationSettings)
+                    .accessibilityIdentifier("settings-escalation")
+            }
             TFDivider(inset: rowDividerInset)
             toggleRow(icon: "keyboard", title: "Своя клавиатура", isOn: $viewModel.isCustomKeyboardEnabled)
         }

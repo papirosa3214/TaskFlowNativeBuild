@@ -74,6 +74,8 @@ public enum AppRoute: Hashable {
     case providerDetail(providerID: String)
     /// LOCK-180: статус Pi Runtime из «Настройки → Сервер».
     case serverSettings
+    /// Напоминания о просрочке — правила сервера escalation, 13.10.2026.
+    case escalationSettings
     case runtimeStatus
     /// LOCK-181: сервисные учётки (`ApiUser` + API-токен), переехали из «Команды».
     case serviceAccounts
