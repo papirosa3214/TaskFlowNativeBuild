@@ -341,8 +341,8 @@ struct ChatVoiceComposer: View {
                 Circle().fill(.red).frame(width: 8, height: 8)
                 Text(recordingDuration).font(.callout.monospacedDigit()).foregroundStyle(.white)
             }
-            VoiceRecordingWaveformView(levels: voice.recorderWaveform, elapsed: recordingElapsed,
-                                       color: .white.opacity(0.35), peakColor: .white, maxHeight: 28)
+            VoiceRecordingWaveformView(level: recordingLevel, elapsed: recordingElapsed,
+                                       color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 28)
                 .frame(maxWidth: .infinity)
             Button(action: stopVoiceRecording) {
                 Image(systemName: "stop.fill")
@@ -369,7 +369,7 @@ struct ChatVoiceComposer: View {
     private var recordingComposer: some View {
         HStack(spacing: 16) {
             VoiceRecordingWaveformView(
-                levels: voice.recorderWaveform, elapsed: recordingElapsed,
+                level: recordingLevel, elapsed: recordingElapsed,
                 color: .red.mix(with: .black, by: 0.55), peakColor: .red
             )
                 .frame(maxWidth: .infinity)
@@ -517,6 +517,11 @@ struct ChatVoiceComposer: View {
     private var recordingElapsed: TimeInterval {
         guard case let .recording(elapsed, _) = voice.recordingState else { return 0 }
         return elapsed
+    }
+
+    private var recordingLevel: Double {
+        guard case let .recording(_, level) = voice.recordingState else { return 0 }
+        return level
     }
 
     private var recordingDuration: String {

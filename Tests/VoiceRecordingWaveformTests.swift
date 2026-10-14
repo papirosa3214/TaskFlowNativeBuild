@@ -7,6 +7,9 @@ final class VoiceRecordingWaveformTests: XCTestCase {
         // Рекордер выбросил первый уровень — столбик 1 остался из тех же соседей.
         XCTAssertEqual(VoiceRecordingWaveformView.bars(levels: [0.8, 0.5, 0.1], received: 4), [0: 0.8, 1: 0.5])
         XCTAssertTrue(VoiceRecordingWaveformView.bars(levels: [], received: 0).isEmpty)
+        // Пауза между слогами падает к точке, громкий слог — в полный рост.
+        XCTAssertLessThan(VoiceRecordingWaveformView.shaped(0.2), 0.1)
+        XCTAssertGreaterThan(VoiceRecordingWaveformView.shaped(0.7), 0.8)
     }
     func testAudioSamplePreservesSyllableRange() throws {
         let url = try XCTUnwrap(VoiceRecordingWaveformPreview.speechURL)
@@ -26,11 +29,11 @@ final class VoiceRecordingWaveformTests: XCTestCase {
         XCTAssertEqual(VoiceWaveform.recordingBarLevel(averageDecibels: -80, peakDecibels: -70), 0)
     }
     func testSilenceStaysFlatAndSpeechRetainsAmplitude() {
-        XCTAssertEqual(VoiceRecordingWaveformView.height(level: 0, maximum: 28), 2)
+        XCTAssertEqual(VoiceRecordingWaveformView.height(level: 0, maximum: 28), 3)
         XCTAssertEqual(VoiceRecordingWaveformView.height(level: 1, maximum: 28), 28)
         XCTAssertLessThan(VoiceRecordingWaveformView.height(level: 0.2, maximum: 28),
                           VoiceRecordingWaveformView.height(level: 0.8, maximum: 28))
-        XCTAssertEqual(VoiceRecordingWaveformView.height(level: -1, maximum: 28), 2)
+        XCTAssertEqual(VoiceRecordingWaveformView.height(level: -1, maximum: 28), 3)
         XCTAssertEqual(VoiceRecordingWaveformView.height(level: 4, maximum: 28), 28)
     }
 }

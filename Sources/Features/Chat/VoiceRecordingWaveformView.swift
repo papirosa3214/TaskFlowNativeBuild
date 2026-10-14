@@ -1,30 +1,42 @@
 import SwiftUI
 import AVFoundation
 
-/// Живая волна записи (владелец 14.10.2026): тонкие столбики по настоящей
+/// Живая волна записи (владелец 14.10.2026): столбики по настоящей
 /// громкости микрофона входят справа и уезжают влево, тишина и ещё не
 /// записанное — ряд точек. До этого волна была декоративной — случайный
 /// узор, который голос не слушал.
 struct VoiceRecordingWaveformView: View {
-    /// Последние уровни рекордера, 0…1, новый — в конце; приходят раз в 40 мс.
-    let levels: [Double]
+    /// Мгновенный уровень микрофона, 0…1. Берём его, а не `waveform`
+    /// рекордера: тот усреднён за 160 мс, и речь выходила ровным забором.
+    let level: Double
+    /// Время записи; меняется на каждом замере рекордера (раз в 40 мс).
     let elapsed: TimeInterval
     let color: Color
     let peakColor: Color
     var maxHeight: CGFloat = 28
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Сколько уровней пришло всего: рекордер хранит только хвост, а
-    /// столбик обязан собираться из одних и тех же соседних уровней.
+    @State private var history: [Double] = []
+    /// Сколько замеров пришло всего: история хранит только хвост, а
+    /// столбик обязан собираться из одних и тех же соседних замеров.
     @State private var received = 0
     @State private var lastLevelAt = Date()
-    private let barWidth: CGFloat = 2
+    private let barWidth: CGFloat = 3
     private let spacing: CGFloat = 2
 
     static let levelsPerBar = 2
     static let levelInterval: TimeInterval = 0.04
+    private static let historyLimit = 400
 
-    static func height(level: Double, maximum: Double, minimum: Double = 2) -> Double {
+    static func height(level: Double, maximum: Double, minimum: Double = 3) -> Double {
         minimum + min(1, max(0, level)) * max(0, maximum - minimum)
+    }
+
+    /// Уровень рекордера сжат корнем и почти не отличает громкий слог от
+    /// тихого. Возвращаем линейную амплитуду: паузы между слогами падают до
+    /// точек, ударные слоги встают в полный рост.
+    static func shaped(_ level: Double) -> Double {
+        let clamped = min(1, max(0, level))
+        return min(1, clamped * clamped * 1.8)
     }
 
     /// Столбики по сквозному номеру: каждый — самый громкий из своих
@@ -45,8 +57,8 @@ struct VoiceRecordingWaveformView: View {
         TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
             Canvas { context, size in
                 let pitch = barWidth + spacing
-                let bars = Self.bars(levels: levels, received: received)
-                // Между уровнями лента едет равномерно, а не шагами.
+                let bars = Self.bars(levels: history, received: received)
+                // Между замерами лента едет равномерно, а не шагами.
                 let sinceLevel = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
                 let fraction = min(1, max(0, sinceLevel / Self.levelInterval))
                 let progress = (Double(received) + fraction) / Double(Self.levelsPerBar)
@@ -55,7 +67,7 @@ struct VoiceRecordingWaveformView: View {
                     let x = size.width - CGFloat(progress - Double(bar)) * pitch
                     if x < -pitch { break }
                     let level = bars[bar] ?? 0
-                    let h = Self.height(level: level, maximum: Double(maxHeight))
+                    let h = Self.height(level: level, maximum: Double(maxHeight), minimum: Double(barWidth))
                     let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
                     let tint = color.mix(with: peakColor, by: level)
                     context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(tint))
@@ -65,8 +77,9 @@ struct VoiceRecordingWaveformView: View {
         }
         .frame(height: maxHeight)
         .clipped()
-        .onAppear { received = levels.count }
-        .onChange(of: levels) { _, _ in
+        .onChange(of: elapsed) { _, _ in
+            history.append(Self.shaped(level))
+            if history.count > Self.historyLimit { history.removeFirst(history.count - Self.historyLimit) }
             received += 1
             lastLevelAt = .now
         }
@@ -116,10 +129,10 @@ struct VoiceRecordingWaveformPreview: View {
             Text(finished ? "Аудиообразец прочитан" : "Чтение аудиообразца")
                 .accessibilityIdentifier("voice.preview.ready")
             Text("Голосовое сообщение")
-            VoiceRecordingWaveformView(levels: samples, elapsed: elapsed,
+            VoiceRecordingWaveformView(level: samples.last ?? 0, elapsed: elapsed,
                 color: .red.mix(with: .black, by: 0.55), peakColor: .red)
             Text("Расшифровка в текст")
-            VoiceRecordingWaveformView(levels: samples, elapsed: elapsed,
+            VoiceRecordingWaveformView(level: samples.last ?? 0, elapsed: elapsed,
                 color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 30)
                 .frame(width: 180)
         }
