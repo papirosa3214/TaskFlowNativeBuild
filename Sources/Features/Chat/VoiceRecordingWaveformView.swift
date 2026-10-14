@@ -20,6 +20,7 @@ struct VoiceRecordingWaveformView: View {
     /// столбик обязан собираться из одних и тех же соседних замеров.
     @State private var received = 0
     @State private var lastLevelAt = Date()
+    @State private var peak = VoiceRecordingWaveformView.quietestPeak
     private let barWidth: CGFloat = 3
     private let spacing: CGFloat = 2
 
@@ -31,13 +32,33 @@ struct VoiceRecordingWaveformView: View {
         minimum + min(1, max(0, level)) * max(0, maximum - minimum)
     }
 
-    /// Уровень рекордера сжат корнем и почти не отличает громкий слог от
-    /// тихого. Возвращаем линейную амплитуду: паузы между слогами падают до
-    /// точек, ударные слоги встают в полный рост.
-    static func shaped(_ level: Double) -> Double {
-        let clamped = min(1, max(0, level))
-        return min(1, clamped * clamped * 1.8)
+    /// Высота столбика по громкости ОТНОСИТЕЛЬНО недавнего пика, а не по
+    /// абсолютной шкале: микрофон телефона в режиме разговора даёт тихий
+    /// сигнал, и на абсолютной шкале речь едва отрывалась от точки
+    /// (владелец 14.10.2026: «хоть говори, хоть не говори — плоская»).
+    /// Пик медленно спадает, поэтому тихая речь через секунду-другую тоже
+    /// встаёт в рост; всё, что на 24 дБ тише пика, — точка.
+    static func normalized(level: Double, peak: Double) -> (value: Double, peak: Double) {
+        let decibels = Self.decibels(level: level)
+        let nextPeak = max(decibels, max(quietestPeak, peak - peakDecay))
+        let floor = max(nextPeak - 24, silence)
+        let position = min(1, max(0, (decibels - floor) / (nextPeak - floor)))
+        return (pow(position, 1.4), nextPeak)
     }
+
+    /// Обратно из уровня рекордера (корень из линейной амплитуды между
+    /// −55 и −6 дБ, см. `VoiceWaveform.recordingLevel`) в децибелы.
+    static func decibels(level: Double) -> Double {
+        let low = pow(10.0, -55.0 / 20)
+        let high = pow(10.0, -6.0 / 20)
+        let clamped = min(1, max(0, level))
+        return 20 * log10(low + clamped * clamped * (high - low))
+    }
+
+    static let quietestPeak = -42.0
+    static let silence = -52.0
+    /// Спад пика за один замер (40 мс): около 1,5 дБ в секунду.
+    static let peakDecay = 0.06
 
     /// Столбики по сквозному номеру: каждый — самый громкий из своих
     /// `levelsPerBar` соседних уровней. `received` — номер, следующий за
@@ -78,7 +99,9 @@ struct VoiceRecordingWaveformView: View {
         .frame(height: maxHeight)
         .clipped()
         .onChange(of: elapsed) { _, _ in
-            history.append(Self.shaped(level))
+            let next = Self.normalized(level: level, peak: peak)
+            peak = next.peak
+            history.append(next.value)
             if history.count > Self.historyLimit { history.removeFirst(history.count - Self.historyLimit) }
             received += 1
             lastLevelAt = .now

@@ -8,8 +8,16 @@ final class VoiceRecordingWaveformTests: XCTestCase {
         XCTAssertEqual(VoiceRecordingWaveformView.bars(levels: [0.8, 0.5, 0.1], received: 4), [0: 0.8, 1: 0.5])
         XCTAssertTrue(VoiceRecordingWaveformView.bars(levels: [], received: 0).isEmpty)
         // Пауза между слогами падает к точке, громкий слог — в полный рост.
-        XCTAssertLessThan(VoiceRecordingWaveformView.shaped(0.2), 0.1)
-        XCTAssertGreaterThan(VoiceRecordingWaveformView.shaped(0.7), 0.8)
+        // Тихая речь (около −40 дБ) встаёт в рост, тишина остаётся точкой.
+        let quietSpeech = 0.13
+        XCTAssertEqual(VoiceRecordingWaveformView.decibels(level: quietSpeech), -40, accuracy: 1.5)
+        let speech = VoiceRecordingWaveformView.normalized(level: quietSpeech, peak: VoiceRecordingWaveformView.quietestPeak)
+        XCTAssertGreaterThan(speech.value, 0.9)
+        XCTAssertEqual(VoiceRecordingWaveformView.normalized(level: 0, peak: speech.peak).value, 0)
+        // Слог на 10 дБ тише пика заметно ниже, но не точка.
+        let softer = VoiceRecordingWaveformView.normalized(level: 0.3, peak: -20)
+        XCTAssertGreaterThan(softer.value, 0.2)
+        XCTAssertLessThan(softer.value, 0.8)
     }
     func testAudioSamplePreservesSyllableRange() throws {
         let url = try XCTUnwrap(VoiceRecordingWaveformPreview.speechURL)
