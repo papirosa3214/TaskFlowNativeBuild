@@ -505,7 +505,9 @@ struct RoleThinkingWindow: View {
                 .fill(Color.tfStroke)
                 .frame(width: 2)
             ScrollView {
-                Text(visible)
+                // `код` и **жирное** — ярче приглушённого текста, чтобы главное
+                // сразу бросалось в глаза (владелец 14.10.2026, по образцу).
+                Text(Self.highlighted(visible))
                     .tfText(.caption)
                     .foregroundStyle(Color.tfSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -548,6 +550,27 @@ struct RoleThinkingWindow: View {
                 if animating != fade.isAnimating { fade.isAnimating = animating }
             }
         }
+    }
+
+    static func highlighted(_ text: String) -> AttributedString {
+        var result = AttributedString()
+        for (index, line) in text.components(separatedBy: "\n").enumerated() {
+            if index > 0 { result += AttributedString("\n") }
+            for run in MarkdownParser.parseInline(line) {
+                var piece = AttributedString(run.text)
+                if run.code {
+                    piece.font = .system(.caption, design: .monospaced)
+                    piece.foregroundColor = .tfText
+                } else if run.bold {
+                    piece.inlinePresentationIntent = .stronglyEmphasized
+                    piece.foregroundColor = .tfText
+                } else if run.italic {
+                    piece.inlinePresentationIntent = .emphasized
+                }
+                result += piece
+            }
+        }
+        return result
     }
 
     private func publish() {
