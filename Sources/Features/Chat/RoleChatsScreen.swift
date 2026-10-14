@@ -657,6 +657,9 @@ struct RoleChatRoomScreen: View {
     @State private var branchChat: RoleChat?
     @State private var isBranchPresented = false
     @State private var isBranching = false
+    /// Сообщение, которое только что скопировали: рядом со значком на
+    /// полторы секунды видна надпись «Скопировано» (владелец 14.10.2026).
+    @State private var copiedMessageID: String?
     @State private var contentsTargetID: String?
     @State private var realtime = RealtimeClient()
     @State private var roomEventRevision = 0
@@ -1815,6 +1818,17 @@ struct RoleChatRoomScreen: View {
                 .padding(.trailing, TFSpacing.sm)
             messageActionButton("doc.on.doc", label: "Скопировать сообщение") {
                 UIPasteboard.general.string = message.text
+                copiedMessageID = message.id
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    if copiedMessageID == message.id { copiedMessageID = nil }
+                }
+            }
+            if copiedMessageID == message.id {
+                Text("Скопировано")
+                    .tfText(.meta)
+                    .padding(.trailing, TFSpacing.sm)
+                    .accessibilityIdentifier("chat.message.copied")
             }
             messageActionButton("square.and.arrow.up", label: "Сохранить или поделиться") {
                 exportMessage(message)
