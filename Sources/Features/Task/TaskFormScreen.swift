@@ -625,6 +625,12 @@ struct TaskCardContent: View {
                             .tfText(.caption)
                             .foregroundStyle(Color.tfSub)
                     }
+                    if let completedText {
+                        Label(completedText, systemImage: "checkmark.circle.fill")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfGreen)
+                            .accessibilityIdentifier("task.completed")
+                    }
                     if let state = displayedAgentState {
                         // Те же слова и цвета, что в списках (владелец 07.10.2026).
                         let stale = parentBranchPlan == nil && viewModel.loadedTask?.agentStale == true
@@ -1971,6 +1977,14 @@ struct TaskCardContent: View {
     private var createdText: String? {
         guard let date = viewModel.loadedTask?.createdAtDate else { return nil }
         return "Создана \(TaskDateText.absoluteTime(date))"
+    }
+
+    /// Выполненная задача — с датой выполнения (владелец 14.10.2026: после
+    /// «Принять» не было видно, что задача выполнена и когда).
+    private var completedText: String? {
+        guard let task = viewModel.loadedTask, task.status == .completed,
+              let date = DateFormats.sqliteUTC(task.completedAt ?? task.updatedAt) else { return nil }
+        return "Выполнена \(TaskDateText.absoluteTime(date))"
     }
 
     private var attemptsExhausted: Bool {
