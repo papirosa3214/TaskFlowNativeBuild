@@ -211,8 +211,14 @@ struct ChatTableView: View {
     /// Шире — перенос строки внутри ячейки, а не бесконечная колонка.
     private static let maxCellWidth: CGFloat = 220
 
+    /// Выше — таблица листается внутри своего окошка, а не растягивает ленту.
+    private static let maxHeight: CGFloat = 360
+    @State private var contentHeight: CGFloat = 0
+
+    // Окошко (владелец 14.10.2026, по образцу): рамка стоит на месте,
+    // таблица листается внутри неё в обе стороны.
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView([.horizontal, .vertical], showsIndicators: false) {
             Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
                 // Модификатор на самом GridRow превратил бы строку в одну
                 // ячейку — фон задаётся каждой ячейке.
@@ -233,11 +239,13 @@ struct ChatTableView: View {
                     }
                 }
             }
-            .background(Color.tfCard)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-            .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .scrollBounceBehavior(.basedOnSize, axes: [.horizontal, .vertical])
+        .frame(height: contentHeight > 0 ? min(contentHeight, Self.maxHeight) : nil)
+        .background(Color.tfCard)
+        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 
     private func cell(_ text: String, column: Int, background: Color) -> some View {
@@ -258,3 +266,4 @@ struct ChatTableView: View {
 
 
 }
+
