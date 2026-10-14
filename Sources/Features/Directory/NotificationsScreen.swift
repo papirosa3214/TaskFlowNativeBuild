@@ -41,6 +41,23 @@ struct NotificationsScreen: View {
     @State private var systemStateError: String?
     @State private var isLoadingSystemState = false
     @State private var showFeed = false
+    /// Лента, открытая из «С тревогой», — только сводки с разбором.
+    @State private var feedAlarmsOnly = false
+    @State private var incidentFilter: IncidentFilter?
+
+    /// Какие поломки показать по тапу на счётчик (владелец 14.10.2026:
+    /// цифры были некликабельные, провалиться было некуда).
+    enum IncidentFilter: String, Identifiable, Hashable {
+        case all, fixed, open
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .all: "Поломки"
+            case .fixed: "Починено"
+            case .open: "Не починено"
+            }
+        }
+    }
     private let serviceClient = ServiceNotificationsClient()
 
     private let apiClient = APIClient()
@@ -53,18 +70,28 @@ struct NotificationsScreen: View {
 
                 TFCard(padding: 0) {
                     VStack(spacing: 0) {
-                        summaryRow("Уведомлений за сегодня", dayCounts.map { "\($0.total)" })
+                        summaryRow("Уведомлений за сегодня", dayCounts.map { "\($0.total)" }) {
+                            feedAlarmsOnly = false; showFeed = true
+                        }
                         TFDivider()
                         summaryRow("Из них с тревогой", dayCounts.map { "\($0.alarms)" },
-                                   tint: (dayCounts?.alarms ?? 0) > 0 ? .tfOrange : nil)
+                                   tint: (dayCounts?.alarms ?? 0) > 0 ? .tfOrange : nil) {
+                            feedAlarmsOnly = true; showFeed = true
+                        }
                         TFDivider()
-                        summaryRow("Поломок", systemState.map { "\($0.counts.total)" })
+                        summaryRow("Поломок", systemState.map { "\($0.counts.total)" }) {
+                            incidentFilter = .all
+                        }
                         TFDivider()
                         summaryRow("Починено", systemState.map { "\($0.counts.fixed)" },
-                                   tint: (systemState?.counts.fixed ?? 0) > 0 ? .tfGreen : nil)
+                                   tint: (systemState?.counts.fixed ?? 0) > 0 ? .tfGreen : nil) {
+                            incidentFilter = .fixed
+                        }
                         TFDivider()
                         summaryRow("Не починено", systemState.map { "\($0.counts.open)" },
-                                   tint: (systemState?.counts.open ?? 0) > 0 ? .tfRed : nil)
+                                   tint: (systemState?.counts.open ?? 0) > 0 ? .tfRed : nil) {
+                            incidentFilter = .open
+                        }
                     }
                 }
                 .accessibilityIdentifier("system-state.summary")
@@ -108,6 +135,7 @@ struct NotificationsScreen: View {
         }
         .navigationDestination(item: $route) { routeDestination($0) }
         .navigationDestination(isPresented: $showFeed) { feedPage }
+        .navigationDestination(item: $incidentFilter) { incidentsPage($0) }
         .task { await loadSystemState() }
     }
 
@@ -117,15 +145,55 @@ struct NotificationsScreen: View {
             .padding(.top, TFSpacing.sm)
     }
 
-    private func summaryRow(_ title: String, _ value: String?, tint: Color? = nil) -> some View {
-        HStack {
-            Text(title).tfText(.row).foregroundStyle(Color.tfText)
-            Spacer()
-            Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
+    private func summaryRow(_ title: String, _ value: String?, tint: Color? = nil,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).tfText(.row).foregroundStyle(Color.tfText)
+                Spacer()
+                Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.tfDim)
+            }
+            .padding(.horizontal, TFSpacing.md)
+            .padding(.vertical, TFSpacing.sm + 2)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, TFSpacing.md)
-        .padding(.vertical, TFSpacing.sm + 2)
+        .buttonStyle(TFTapRowStyle())
         .accessibilityElement(children: .combine)
+    }
+
+    /// Поломки по счётчику: все, починенные или ещё не починенные.
+    private func incidentsPage(_ filter: IncidentFilter) -> some View {
+        let all = systemState?.incidents ?? []
+        let items = switch filter {
+        case .all: all
+        case .fixed: all.filter(\.fixed)
+        case .open: all.filter { !$0.fixed }
+        }
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
+                if items.isEmpty {
+                    Text("Здесь пусто").tfText(.action).foregroundStyle(Color.tfSub)
+                        .frame(maxWidth: .infinity).padding(.top, TFSpacing.xl)
+                } else {
+                    TFCard(padding: 0) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(items.enumerated()), id: \.element.id) { idx, incident in
+                                incidentRow(incident)
+                                if idx < items.count - 1 { TFDivider() }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.top, TFSpacing.md)
+        }
+        .refreshable { await loadSystemState() }
+        .background(Color.tfBackground)
+        .tfNativeHeader(filter.title)
     }
 
     private func incidentRow(_ incident: SystemState.Incident) -> some View {
@@ -169,7 +237,7 @@ struct NotificationsScreen: View {
                 if isLoadingServiceTickets && serviceTickets.isEmpty {
                     ProgressView("Загрузка уведомлений")
                 }
-                ForEach(serviceTickets) { summary in
+                ForEach(feedAlarmsOnly ? serviceTickets.filter(\.hasTriage) : serviceTickets) { summary in
                     NotificationTicketCard(
                         summary: summary,
                         detail: serviceTicketDetails[summary.id],
@@ -182,7 +250,7 @@ struct NotificationsScreen: View {
                         }
                     )
                 }
-                if !visibleNotifications.isEmpty {
+                if !feedAlarmsOnly && !visibleNotifications.isEmpty {
                     TFCard(padding: 0) {
                         VStack(spacing: 0) {
                             ForEach(Array(visibleNotifications.enumerated()), id: \.element.id) { idx, n in
@@ -208,7 +276,7 @@ struct NotificationsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
-        .tfNativeHeader("Все уведомления")
+        .tfNativeHeader(feedAlarmsOnly ? "С тревогой" : "Все уведомления")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -259,8 +327,15 @@ struct NotificationsScreen: View {
         "auto_diagnostic_card", "agent_watch", "commented", "agent_state", "reviewed", "assigned",
     ]
 
+    /// Только система (владелец 14.10.2026): «Состояние системы» — про
+    /// работу .110, а не про задачи. Уведомление по задаче — одобрил, на
+    /// проверке, просрочено, план подготовлен, сторож по задаче — сюда не
+    /// идёт: работа видна в «Статистике» и в самой задаче. Поломка остаётся,
+    /// хотя у неё есть служебная карточка.
     private var visibleNotifications: [ApiNotification] {
-        notificationStore.notifications.filter { !Self.hiddenNotificationTypes.contains($0.type) }
+        notificationStore.notifications.filter {
+            !Self.hiddenNotificationTypes.contains($0.type) && ($0.taskId == nil || $0.type == "incident")
+        }
     }
 
     // MARK: - Строка уведомления
