@@ -33,6 +33,8 @@ struct BashCommandBlock: View {
         .padding(TFSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
+        // Вывод прошлого запуска возвращается после повторного открытия чата.
+        .onAppear { if result == nil && !running { result = OwnerCommandResultStore.load(command) } }
         .sheet(isPresented: $confirming) {
             NavigationStack {
                 Form {
@@ -48,7 +50,11 @@ struct BashCommandBlock: View {
                             error = nil
                             Task {
                                 defer { running = false }
-                                do { result = try await APIClient().runOwnerCommand(command) }
+                                do {
+                                    let fresh = try await APIClient().runOwnerCommand(command)
+                                    result = fresh
+                                    OwnerCommandResultStore.save(fresh, for: command)
+                                }
                                 catch { self.error = error.localizedDescription }
                             }
                         }
@@ -66,5 +72,45 @@ struct BashCommandBlock: View {
         ScrollView(.horizontal) {
             Text(text).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
         }
+    }
+}
+
+/// Последний вывод каждой команды на устройстве. Блок в ленте знает только
+/// текст команды, поэтому ключ — он: одна и та же команда в двух сообщениях
+/// показывает один и тот же последний результат.
+enum OwnerCommandResultStore {
+    private struct Entry: Codable {
+        let command: String
+        let result: OwnerCommandResult
+    }
+
+    private static let key = "chat.commandResults"
+    private static let limit = 40
+    private static let outputLimit = 20_000
+
+    static func load(_ command: String) -> OwnerCommandResult? {
+        entries().last { $0.command == command }?.result
+    }
+
+    static func save(_ result: OwnerCommandResult, for command: String) {
+        let stored = OwnerCommandResult(
+            outcome: result.outcome,
+            exitCode: result.exitCode,
+            stdout: String(result.stdout.prefix(outputLimit)),
+            stderr: String(result.stderr.prefix(outputLimit)),
+            durationMs: result.durationMs,
+            requestId: result.requestId,
+            error: result.error
+        )
+        var all = entries().filter { $0.command != command }
+        all.append(Entry(command: command, result: stored))
+        if all.count > limit { all.removeFirst(all.count - limit) }
+        guard let data = try? JSONEncoder().encode(all) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    private static func entries() -> [Entry] {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
+        return (try? JSONDecoder().decode([Entry].self, from: data)) ?? []
     }
 }

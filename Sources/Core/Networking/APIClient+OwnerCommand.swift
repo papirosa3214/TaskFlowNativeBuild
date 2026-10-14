@@ -1,6 +1,6 @@
 import Foundation
 
-struct OwnerCommandResult: Decodable, Sendable {
+struct OwnerCommandResult: Codable, Sendable {
     let outcome: String
     let exitCode: Int?
     let stdout: String
