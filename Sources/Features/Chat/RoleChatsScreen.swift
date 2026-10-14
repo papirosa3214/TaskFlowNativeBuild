@@ -1621,11 +1621,15 @@ struct RoleChatRoomScreen: View {
                 if let steps = message.steps, steps.hasDetails {
                     RoleLiveItemsList(items: steps.items)
                 }
-                if let taskID = message.taskID, taskID != chat.taskID {
-                    SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
-                } else if !message.text.isEmpty {
+                // Текст и карточка задачи — вместе, а не вместо: раньше
+                // карточка подменяла всё сообщение, и вопрос роли пропадал
+                // (владелец 14.10.2026: «приходит только виджет»).
+                if !message.text.isEmpty {
                     RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                         .equatable()
+                }
+                if let taskID = message.taskID, taskID != chat.taskID {
+                    SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 }
                 nonVoiceAttachments(message)
                 if isAgentReply(message) && !isSelecting { messageActions(message) }
@@ -1708,9 +1712,9 @@ struct RoleChatRoomScreen: View {
                 // Кроме чата самой задачи: его сообщения наследуют её
                 // task_id, и карточка подменяла КАЖДОЕ сообщение — текста не
                 // было видно вовсе (владелец 07.10.2026).
-                if let taskID = message.taskID, taskID != chat.taskID {
-                    SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
-                } else if !message.text.isEmpty && !hasAudio {
+                // Текст и карточка — вместе (владелец 14.10.2026): карточка
+                // больше не подменяет сообщение.
+                if !message.text.isEmpty && !hasAudio {
                     if mine {
                         Text(message.text)
                             .foregroundStyle(Color.tfText)
@@ -1720,6 +1724,9 @@ struct RoleChatRoomScreen: View {
                         RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                         .equatable()
                     }
+                }
+                if let taskID = message.taskID, taskID != chat.taskID {
+                    SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 }
                 if !mine && isAgentReply(message) && !isSelecting {
                     messageActions(message)
