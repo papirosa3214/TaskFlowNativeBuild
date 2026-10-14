@@ -167,12 +167,14 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// M с» над текстом. `nil` — ход без шагов или сообщение не от роли.
     public let steps: RoleChatSteps?
     public let reactions: [RoleChatReaction]?
+    /// Сдача этапа (14.10.2026): главное из отчёта роли, `nil` — обычный ответ.
+    public var handoff: RoleChatHandoff? = nil
     public var sequence: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case replyToMessageID = "reply_to_message_id"
         case replyToSenderName = "reply_to_sender_name"
-        case id, text, kind, attachments, steps, reactions, sequence
+        case id, text, kind, attachments, steps, reactions, sequence, handoff
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"
@@ -184,6 +186,19 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case taskTitle = "task_title"
         case quickReplies = "quick_replies"
         case isSessionMarker = "is_session_marker"
+    }
+}
+
+/// Сдача этапа в чате: выжимка отчёта роли и id полного документа.
+public struct RoleChatHandoff: Decodable, Sendable, Equatable {
+    public let noteID: String
+    public let stepTitle: String?
+    public let summary: String
+
+    enum CodingKeys: String, CodingKey {
+        case summary
+        case noteID = "note_id"
+        case stepTitle = "step_title"
     }
 }
 

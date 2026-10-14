@@ -1651,6 +1651,9 @@ struct RoleChatRoomScreen: View {
                     RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                         .equatable()
                 }
+                if let handoff = message.handoff {
+                    ChatHandoffCard(handoff: handoff)
+                }
                 if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 }
@@ -1749,6 +1752,9 @@ struct RoleChatRoomScreen: View {
                         RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                         .equatable()
                     }
+                }
+                if let handoff = message.handoff {
+                    ChatHandoffCard(handoff: handoff)
                 }
                 if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
