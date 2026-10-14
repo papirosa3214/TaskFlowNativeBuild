@@ -342,7 +342,7 @@ struct ChatVoiceComposer: View {
                 Text(recordingDuration).font(.callout.monospacedDigit()).foregroundStyle(.white)
             }
             VoiceRecordingWaveformView(level: recordingLevel, elapsed: recordingElapsed,
-                                       color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 28)
+                                       color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 30)
                 .frame(maxWidth: .infinity)
             Button(action: stopVoiceRecording) {
                 Image(systemName: "stop.fill")

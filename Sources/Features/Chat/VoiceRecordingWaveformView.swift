@@ -21,7 +21,9 @@ struct VoiceRecordingWaveformView: View {
     @State private var received = 0
     @State private var lastLevelAt = Date()
     @State private var peak = VoiceRecordingWaveformView.quietestPeak
-    private let barWidth: CGFloat = 3
+    // Рисунок — как у готовой волны после записи (`WaveformView`), владелец
+    // 14.10.2026: та же ширина палочек, тот же зазор, те же высоты.
+    private let barWidth: CGFloat = 2.5
     private let spacing: CGFloat = 2
 
     static let levelsPerBar = 2
@@ -60,6 +62,19 @@ struct VoiceRecordingWaveformView: View {
     /// Спад пика за один замер (40 мс): около 1,5 дБ в секунду.
     static let peakDecay = 0.06
 
+    /// Высота палочки — формула готовой волны: от 7 до 83 % высоты, не ниже 2 pt.
+    static func barHeight(level: Double, available: Double) -> Double {
+        max(2, available * (0.07 + min(0.9, max(0, level)) * 0.84))
+    }
+
+    /// Та же лепка, что у готовой волны: начало слога — высокая палочка,
+    /// продолжение — низкие.
+    static func sculpted(_ bars: [Int: Double]) -> [Int: Double] {
+        let order = bars.keys.sorted()
+        let values = VoiceWaveform.sculptedSamples(from: order.map { bars[$0] ?? 0 })
+        return Dictionary(uniqueKeysWithValues: zip(order, values))
+    }
+
     /// Столбики по сквозному номеру: каждый — самый громкий из своих
     /// `levelsPerBar` соседних уровней. `received` — номер, следующий за
     /// последним уровнем в `levels`.
@@ -78,7 +93,7 @@ struct VoiceRecordingWaveformView: View {
         TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
             Canvas { context, size in
                 let pitch = barWidth + spacing
-                let bars = Self.bars(levels: history, received: received)
+                let bars = Self.sculpted(Self.bars(levels: history, received: received))
                 // Между замерами лента едет равномерно, а не шагами.
                 let sinceLevel = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
                 let fraction = min(1, max(0, sinceLevel / Self.levelInterval))
@@ -88,7 +103,7 @@ struct VoiceRecordingWaveformView: View {
                     let x = size.width - CGFloat(progress - Double(bar)) * pitch
                     if x < -pitch { break }
                     let level = bars[bar] ?? 0
-                    let h = Self.height(level: level, maximum: Double(maxHeight), minimum: Double(barWidth))
+                    let h = Self.barHeight(level: level, available: Double(size.height))
                     let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
                     let tint = color.mix(with: peakColor, by: level)
                     context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(tint))
