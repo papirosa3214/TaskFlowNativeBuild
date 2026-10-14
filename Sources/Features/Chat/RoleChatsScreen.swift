@@ -832,7 +832,10 @@ struct RoleChatRoomScreen: View {
                     // mentionCandidates), только берётся по нажатию, а не по
                     // набору (владелец 11.10.2026: «ее все время от руки
                     // писать не охоту»).
-                    mentionCandidates: chat.members.filter { $0.id != session.currentUser?.id },
+                    // Вдвоём выбирать не из кого — кнопка появляется, когда
+                    // участников больше двух (владелец 14.10.2026).
+                    mentionCandidates: chat.members.count > 2
+                        ? chat.members.filter { $0.id != session.currentUser?.id } : [],
                     isResponding: !liveTurns.isEmpty || !typists.isEmpty,
                     isStopping: isStopping,
                     onStop: { Task { await stopTurns() } }
