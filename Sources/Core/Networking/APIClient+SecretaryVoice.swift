@@ -1,14 +1,14 @@
 import Foundation
 
-/// Ответ `POST /api/secretary/voice-token` (Задача 1 плана Супер Секретарь) —
-/// параметры комнаты LiveKit для голосового разговора с Секретарём.
+/// Ответ `POST /api/secretary/voice-token` (Задача 1 плана Супер Помощник владельца) —
+/// параметры комнаты LiveKit для голосового разговора с Помощником владельца.
 public struct SecretaryVoiceToken: Decodable, Sendable {
     public let url: String
     public let token: String
     public let room: String
 }
 
-/// Голоса Gemini Live для Секретаря. Список закрытый и совпадает с серверным
+/// Голоса Gemini Live для Помощника владельца. Список закрытый и совпадает с серверным
 /// (`secretary-voice.ts`) и воркером: незнакомое имя Gemini молча подменяет
 /// голосом по умолчанию.
 public enum SecretaryVoice: String, CaseIterable, Identifiable, Sendable {
@@ -27,7 +27,7 @@ public enum SecretaryVoice: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Образец «Привет! Я твой Секретарь. Чем помочь?» этим голосом — записан
+    /// Образец «Привет! Я твой Помощник владельца. Чем помочь?» этим голосом — записан
     /// один раз через Gemini Live, лежит в бандле (`Resources/SecretaryVoices`).
     public var sampleURL: URL? {
         Bundle.main.url(forResource: "secretary-voice-\(rawValue.lowercased())", withExtension: "m4a")

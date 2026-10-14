@@ -264,7 +264,7 @@ enum LiveActivityService {
     /// (avatar-claude и прочие), а сюда идёт только короткое имя. Незнакомое
     /// имя — нарисуется буква, как и раньше.
     private static func slug(from name: String?, userID: String? = nil) -> String? {
-        // Роли и Секретарь: портреты лежат в ассетах расширения под avatar-РОЛЬ.
+        // Роли и Помощник владельца: портреты лежат в ассетах расширения под avatar-РОЛЬ.
         if let userID {
             if userID == "u-secretary" { return "secretary" }
             if userID.hasPrefix("role_") {

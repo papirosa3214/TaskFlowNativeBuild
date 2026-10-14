@@ -14,7 +14,7 @@ final class RoleChatTests: XCTestCase {
     }
 
     func testOnlyReplyToCurrentTriggerCompletesLiveTurn() throws {
-        let turn = try decode(RoleChatLiveTurn.self, #"{"chat_id":"chat-secretary","user_id":"u-secretary","name":"Секретарь","started_at":"2026-10-11T14:20:50.900Z","trigger_message_id":"question-2","items":[]}"#)
+        let turn = try decode(RoleChatLiveTurn.self, #"{"chat_id":"chat-secretary","user_id":"u-secretary","name":"Помощник владельца","started_at":"2026-10-11T14:20:50.900Z","trigger_message_id":"question-2","items":[]}"#)
         let messages = try decode([RoleChatMessage].self, #"[{"id":"old","text":"Старый ответ","from_user_id":"u-secretary","created_at":"2026-10-11 14:20:51","is_session_marker":false,"reply_to_message_id":"question-1"},{"id":"current","text":"Ответ","from_user_id":"u-secretary","created_at":"2026-10-11 14:20:50","is_session_marker":false,"reply_to_message_id":"question-2"}]"#)
         XCTAssertFalse(turn.isCompleted(by: messages[0]))
         XCTAssertTrue(turn.isCompleted(by: messages[1]))
@@ -100,9 +100,9 @@ final class RoleChatTests: XCTestCase {
         let chat = try decode(RoleChat.self, #"""
         {"id":"chat-5","title":null,"kind":"direct","created_by":"owner-1",
          "members":[{"id":"owner-1","name":"Максим"},
-                    {"id":"role_secretary","name":"Секретарь"}]}
+                    {"id":"role_secretary","name":"Помощник владельца"}]}
         """#)
-        XCTAssertEqual(chat.displayTitle(excluding: "owner-1"), "Секретарь")
+        XCTAssertEqual(chat.displayTitle(excluding: "owner-1"), "Помощник владельца")
     }
 
     func testMessageDecodesServerAuthorFields() throws {

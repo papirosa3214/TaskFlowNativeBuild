@@ -290,7 +290,7 @@ struct IntegrationsScreen: View {
                             IntegrationAccordionCard(icon: "arrow.down.doc", asset: "IntegrationLinear", title: "Linear", subtitle: "Выбор задач и перенос структуры", badge: nil, isExpanded: $isLinearOpen, identifier: "integrations.linear") {
                                 LinearImportScreen(embedded: true)
                             }
-                            IntegrationAccordionCard(icon: "envelope", title: "Gmail", subtitle: "Почта Секретаря: адреса и белый список", badge: nil, isExpanded: $isGmailOpen, identifier: "integrations.gmail") {
+                            IntegrationAccordionCard(icon: "envelope", title: "Gmail", subtitle: "Почта Помощника владельца: адреса и белый список", badge: nil, isExpanded: $isGmailOpen, identifier: "integrations.gmail") {
                                 GmailIntegrationCard()
                             }
                         }

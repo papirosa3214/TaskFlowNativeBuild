@@ -39,7 +39,7 @@ final class ComposioIntegrationsViewModel {
         error = nil
         defer { loading = false }
         if fixture {
-            roles = [ComposioWorkspaceRole(id: "secretary", title: "Секретарь", active: true),
+            roles = [ComposioWorkspaceRole(id: "secretary", title: "Помощник владельца", active: true),
                      ComposioWorkspaceRole(id: "developer", title: "Разработчик", active: true),
                      ComposioWorkspaceRole(id: "reviewer", title: "Ревьюер", active: true)]
             policies = Dictionary(uniqueKeysWithValues: roles.map { ($0.id, ComposioAccessPolicy(enabled: false, toolkits: nil)) })

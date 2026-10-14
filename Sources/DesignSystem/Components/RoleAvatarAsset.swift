@@ -21,7 +21,7 @@ enum TeamAvatarAnimation {
     static let storageKey = "teamAvatarAnimated"
 }
 
-/// У роли «Секретарь» в комплекте «Гравюра» два портрета: прежний и новый
+/// У роли «Помощник владельца» в комплекте «Гравюра» два портрета: прежний и новый
 /// мужской. Выбор владельца, один на всё приложение; по умолчанию прежний,
 /// чтобы установленная сборка не меняла картинку сама.
 enum TeamAvatarSecretaryVariant: String, CaseIterable, Identifiable {
@@ -53,14 +53,14 @@ enum RoleAvatarAsset {
             ?? .current
     }
 
-    /// Сохранённый выбор портрета Секретаря; `nil` — читаем из `UserDefaults`.
+    /// Сохранённый выбор портрета Помощника владельца; `nil` — читаем из `UserDefaults`.
     private static func resolve(_ variant: TeamAvatarSecretaryVariant?) -> TeamAvatarSecretaryVariant {
         variant
             ?? TeamAvatarSecretaryVariant(rawValue: UserDefaults.standard.string(forKey: TeamAvatarSecretaryVariant.storageKey) ?? "classic")
             ?? .classic
     }
 
-    /// У Секретаря комплекта «Гравюра» два ассета, у остальных ролей — один.
+    /// У Помощника владельца комплекта «Гравюра» два ассета, у остальных ролей — один.
     /// Мужской вариант меняет и статичную картинку, и ролик: иначе при
     /// включённой анимации кружок играл бы не тот портрет, что показан в
     /// «Внешнем виде».

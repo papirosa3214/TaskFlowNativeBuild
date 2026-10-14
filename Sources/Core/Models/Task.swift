@@ -149,7 +149,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// «Автоматически» вместо выбранной роли.
     public let ownerSelectedRole: String?
     public let dispatchedRole: String?
-    /// Роль, подобранная при постановке (Секретарём) или диспетчером, до
+    /// Роль, подобранная при постановке (Помощником владельца) или диспетчером, до
     /// раздачи. Отдельно от `effectiveRole`: её показывает только карточка
     /// черновика в чате — там исполнитель виден ещё до запуска.
     public let machineSelectedRole: String?

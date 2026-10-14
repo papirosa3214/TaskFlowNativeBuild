@@ -162,7 +162,7 @@ public extension APIClient {
         guard response.deleted else { throw APIError.server(status: 409, message: "Сервер не подтвердил окончательное удаление.") }
     }
 
-    /// «✓ Запустить» на карточке Секретаря: сервер поднимает флаг дереву
+    /// «✓ Запустить» на карточке Помощника владельца: сервер поднимает флаг дереву
     /// черновика и отдаёт карточки с учётом очереди; личные дела не трогает.
     func startDraft(taskID: String) async throws {
         struct Response: Decodable { let ok: Bool }

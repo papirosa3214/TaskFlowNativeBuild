@@ -45,7 +45,7 @@ final class ServiceAccountsViewModel {
         if accounts.isEmpty { isLoading = true }
         defer { isLoading = false }
         do {
-            // Учётки ролей (`role_*`) и Секретаря — логины самих ролей, ключами
+            // Учётки ролей (`role_*`) и Помощника владельца — логины самих ролей, ключами
             // которых управляет сервер; им место на «Команде», не здесь.
             accounts = try await api.agents().filter {
                 $0.type == .ai && !$0.id.hasPrefix("role_") && $0.id != "u-secretary"

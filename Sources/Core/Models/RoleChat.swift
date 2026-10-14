@@ -155,11 +155,11 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let createdAt: String?
     public let attachments: [ApiChatAttachment]?
     /// Задача, которую роль создала этим ходом (владелец 25.09.2026,
-    /// docs/ПЛАН Супер Секретарь/, этап 2) — есть значение → вместо текста
+    /// docs/ПЛАН Супер Помощник владельца/, этап 2) — есть значение → вместо текста
     /// рисуется карточка (см. RoleChatsScreen).
     public let taskID: String?
     public let taskTitle: String?
-    /// Быстрые ответы (владелец 25.09.2026, docs/ПЛАН Супер Секретарь/) —
+    /// Быстрые ответы (владелец 25.09.2026, docs/ПЛАН Супер Помощник владельца/) —
     /// 2-4 коротких варианта, которые предложила роль вместо того, чтобы
     /// печатать руками. Только у последнего сообщения роли есть смысл.
     public let quickReplies: [String]?

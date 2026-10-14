@@ -74,7 +74,7 @@ enum AvatarCrop {
         case "builder": return "Разработчик"
         case "architect": return "Архитектор"
         case "code_orchestrator", "orchestrator": return "Оркестратор"
-        case "secretary": return "Секретарь"
+        case "secretary": return "Помощник владельца"
         case "critic_verifier": return "Критик"
         case "qa": return "QA"
         case "designer": return "Дизайнер"

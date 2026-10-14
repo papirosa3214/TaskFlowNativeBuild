@@ -15,7 +15,7 @@ public struct MailAccountList: Decodable, Sendable {
     public let items: [MailAccount]
 }
 
-/// Отправитель из белого списка: его письма Секретарь читает напрямую.
+/// Отправитель из белого списка: его письма Помощник владельца читает напрямую.
 public struct MailTrustedSender: Decodable, Identifiable, Sendable {
     public let address: String
     public var id: String { address }

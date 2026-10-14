@@ -2,8 +2,8 @@ import SwiftUI
 import AVFoundation
 import LiveKit
 
-/// Голосовой разговор с Секретарём через LiveKit (Задача 5 плана Супер
-/// Секретарь). Состояния `.speaking`/`.listening` запитаны событиями комнаты
+/// Голосовой разговор с Помощником владельца через LiveKit (Задача 5 плана Супер
+/// Помощник владельца). Состояния `.speaking`/`.listening` запитаны событиями комнаты
 /// через `RoomDelegate` (Задача 6). `.thinking` не используется отдельно —
 /// Gemini Live отвечает почти без паузы, различимой паузы «думает» на живой
 /// проверке не искали отдельного сигнала под неё (см. журнал плана).
@@ -19,7 +19,7 @@ enum SecretaryVoiceState: Equatable {
 @Observable
 final class SecretaryVoiceViewModel {
     var state: SecretaryVoiceState = .connecting
-    /// Громкость 0…1 — владельца (микрофон) и Секретаря (его дорожка).
+    /// Громкость 0…1 — владельца (микрофон) и Помощника владельца (его дорожка).
     var micLevel: Double = 0
     var agentLevel: Double = 0
 
@@ -48,7 +48,7 @@ final class SecretaryVoiceViewModel {
         await room.disconnect()
     }
 
-    /// Тап по кольцу — оборвать ответ Секретаря (RPC `interrupt` в воркере).
+    /// Тап по кольцу — оборвать ответ Помощника владельца (RPC `interrupt` в воркере).
     func interrupt() {
         guard state == .speaking, let agentIdentity else { return }
         Task { _ = try? await room.localParticipant.performRpc(destinationIdentity: agentIdentity, method: "interrupt", payload: "") }
@@ -188,7 +188,7 @@ struct SecretaryVoiceScreen: View {
                 .accessibilityElement()
                 .accessibilityLabel(accessibilityText)
                 .accessibilityAddTraits(viewModel.state == .speaking ? .isButton : [])
-                .accessibilityHint(viewModel.state == .speaking ? "Перебить Секретаря" : "")
+                .accessibilityHint(viewModel.state == .speaking ? "Перебить Помощника владельца" : "")
             caption
                 .frame(minHeight: 44, alignment: .top)
             Spacer()
@@ -233,8 +233,8 @@ struct SecretaryVoiceScreen: View {
     private var accessibilityText: String {
         switch viewModel.state {
         case .connecting: "Подключаюсь"
-        case .listening, .thinking: "Секретарь слушает"
-        case .speaking: "Секретарь говорит"
+        case .listening, .thinking: "Помощник владельца слушает"
+        case .speaking: "Помощник владельца говорит"
         case .failed(let message): "Не получилось: \(message)"
         }
     }

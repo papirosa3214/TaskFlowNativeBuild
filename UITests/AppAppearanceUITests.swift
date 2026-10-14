@@ -36,7 +36,7 @@ final class AppAppearanceUITests: XCTestCase {
         app.buttons["Обзор"].tap()
         capture(app, "light-overview-contrast")
         app.buttons["Чат"].tap()
-        XCTAssertTrue(app.staticTexts["Секретарь"].firstMatch.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Помощник владельца"].firstMatch.waitForExistence(timeout: 20))
         capture(app, "light-chats-contrast")
         app.terminate()
         app.launch()

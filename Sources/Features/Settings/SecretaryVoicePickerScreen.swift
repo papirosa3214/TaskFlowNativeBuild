@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Настройки → ИИ → «Голос Секретаря»: список голосов Gemini Live, у каждого
+/// Настройки → ИИ → «Голос Помощника владельца»: список голосов Gemini Live, у каждого
 /// ▶ — прослушать образец из бандла, тап по строке — выбрать. Выбор уходит
 /// в следующий голосовой разговор (`SecretaryVoiceViewModel.start`).
 struct SecretaryVoicePickerScreen: View {
@@ -20,7 +20,7 @@ struct SecretaryVoicePickerScreen: View {
                         }
                     }
                 }
-                Text("Секретарь говорит этим голосом в живом разговоре. Новый голос — со следующего звонка.")
+                Text("Помощник владельца говорит этим голосом в живом разговоре. Новый голос — со следующего звонка.")
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
                     .padding(.horizontal, TFSpacing.lg)
@@ -29,7 +29,7 @@ struct SecretaryVoicePickerScreen: View {
             .padding(.top, TFSpacing.sm)
             .padding(.bottom, TFSpacing.xl * 2)
         }
-        .tfNativeHeader("Голос Секретаря", displayMode: .inline)
+        .tfNativeHeader("Голос Помощника владельца", displayMode: .inline)
         .background(Color.tfBackground)
         .onDisappear { player.stop() }
     }

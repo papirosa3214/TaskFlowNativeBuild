@@ -12,7 +12,7 @@ import QuickLook
 /// непрочитанных, строки во всю ширину — без карточек и шевронов. Фон и
 /// шапку экрана правка НЕ трогает: владелец прямо сказал «фон не трогай».
 ///
-/// Отдельным блоком над списком — «Секретарь»: это прежний owner-канал
+/// Отдельным блоком над списком — «Помощник владельца»: это прежний owner-канал
 /// (надиктовка → карточка), но в списке он выглядит как обычный собеседник.
 /// Владелец 21.09.2026: «сделай его просто как отдельный вид участника», без
 /// подписей-подсказок.
@@ -28,7 +28,7 @@ struct RoleChatsScreen: View {
     @State private var realtime = RealtimeClient()
     private let api = APIClient()
 
-    /// Блок «Секретарь» кормится старым каналом `owner`: у новых чатов
+    /// Блок «Помощник владельца» кормится старым каналом `owner`: у новых чатов
     /// свой контракт (`GET /api/chats`), у него — `GET /chat` и `/chat/unread`.
     private struct SecretarySnapshot: Equatable {
         var preview: String
@@ -63,7 +63,7 @@ struct RoleChatsScreen: View {
                 } else {
                     if !projectsOnly {
                         secretaryBlock
-                        // Граница блока: «Секретарь» стоит особняком, а не первым
+                        // Граница блока: «Помощник владельца» стоит особняком, а не первым
                         // в общем списке (владелец 21.09.2026).
                         TFDivider()
                     }
@@ -150,11 +150,11 @@ struct RoleChatsScreen: View {
         } message: { Text(errorMessage ?? "") }
     }
 
-    // MARK: - Блок «Секретарь»
+    // MARK: - Блок «Помощник владельца»
 
     @ViewBuilder
     private var secretaryBlock: some View {
-        // Только владельцу: owner-канал — его разговор с секретарём, у
+        // Только владельцу: owner-канал — его разговор с помощником владельца, у
         // остальных учёток этого чата нет.
         if session.currentUser?.role == .owner {
             NavigationLink(value: AppRoute.roleChat(id: "chat-secretary")) {
@@ -165,7 +165,7 @@ struct RoleChatsScreen: View {
                         tint: Color.tfTeal,
                         userID: "u-secretary"
                     )),
-                    title: "Секретарь",
+                    title: "Помощник владельца",
                     preview: secretaryPreview,
                     time: ChatListTime.label(secretary?.createdAt),
                     unread: secretary?.unread ?? 0
@@ -293,7 +293,7 @@ struct RoleChatRoomLoader: View {
     }
 }
 
-/// Обёртка для блока «Секретарь». `ChatScreen` считает себя корневым экраном
+/// Обёртка для блока «Помощник владельца». `ChatScreen` считает себя корневым экраном
 /// вкладки «Чат»: его стрелка «назад» зовёт действие, которое кладёт
 /// `RootShellView` (сброс вкладки в «Обзор»). Здесь он открыт пушем из
 /// списка, поэтому свою стрелку он не рисует (`hidesOwnBackButton`), а
@@ -308,7 +308,7 @@ struct SecretaryChatScreen: View {
     }
 }
 
-/// Строка списка чатов — одна на все виды (роль, группа, секретарь):
+/// Строка списка чатов — одна на все виды (роль, группа, помощник владельца):
 /// аватар, имя, превью, время, бейдж непрочитанных. Строка во всю ширину,
 /// без карточки и шеврона — вид списка, а не меню настроек.
 private struct ChatListRow: View {
@@ -324,7 +324,7 @@ private struct ChatListRow: View {
         HStack(spacing: TFSpacing.sm) {
             // Аватар — украшение: имя стоит рядом текстом, и VoiceOver не
             // должен читать «Аватар: Q» перед ним. Без этого строка
-            // «Секретарь» озвучивалась дважды («Секретарь, Секретарь»).
+            // «Помощник владельца» озвучивалась дважды («Помощник владельца, Помощник владельца»).
             avatar.accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -627,7 +627,7 @@ struct RoleChatRoomScreen: View {
     /// Последнее сообщение, до которого чат уже отмечен прочитанным (LOCK-206).
     @State private var markedReadMessageID: String?
     /// Карточка задачи в сообщении (владелец 25.09.2026, этап 2 «Супер
-    /// Секретаря») — открывает её шторкой, тот же приём, что у ChatBubble.
+    /// Помощника владельца») — открывает её шторкой, тот же приём, что у ChatBubble.
     @State private var pendingTaskID: String?
     @State private var voice = RoleChatVoiceController()
     @State private var isFileImporterPresented = false
@@ -947,7 +947,7 @@ struct RoleChatRoomScreen: View {
                         NavigationLink(value: AppRoute.secretaryVoiceCall) {
                             Image(systemName: "waveform")
                         }
-                        .accessibilityLabel("Голосовой разговор с Секретарём")
+                        .accessibilityLabel("Голосовой разговор с Помощником владельца")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1573,7 +1573,7 @@ struct RoleChatRoomScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    /// Новая сессия (владелец 25.09.2026, docs/ПЛАН Супер Секретарь/):
+    /// Новая сессия (владелец 25.09.2026, docs/ПЛАН Супер Помощник владельца/):
     /// сбрасывает память роли, история остаётся — сервер сам вставляет
     /// метку-разделитель, которую здесь просто дописываем в ленту.
     private func newSession() async {
@@ -1742,7 +1742,7 @@ struct RoleChatRoomScreen: View {
                 }
                 nonVoiceAttachments(message)
                 // Карточка задачи (владелец 25.09.2026, этап 2 «Супер
-                // Секретаря») — раньше была только у Секретаря
+                // Помощника владельца») — раньше была только у Помощника владельца
                 // (ChatBubble.swift, message.fromUserId == secretaryID),
                 // здесь — для любой роли, отправитель не важен.
                 // Кроме чата самой задачи: его сообщения наследуют её
@@ -2002,7 +2002,7 @@ struct RoleChatRoomScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    /// Быстрые ответы (владелец 25.09.2026, docs/ПЛАН Супер Секретарь/) —
+    /// Быстрые ответы (владелец 25.09.2026, docs/ПЛАН Супер Помощник владельца/) —
     /// только у самого последнего сообщения, и только если оно не моё:
     /// собственный ответ снимает актуальность предложенных вариантов.
     /// Владелец 26.09.2026: модель иногда даёт 4 — обрезаем до 3, четвёртый

@@ -310,7 +310,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
     func testLiveEventCarriesTextAndSteps() {
         let event = parse(#"""
         {"type":"chats:live","chat_id":"chat-secretary","user_id":"u-secretary",
-         "turn":{"chat_id":"chat-secretary","user_id":"u-secretary","name":"Секретарь",
+         "turn":{"chat_id":"chat-secretary","user_id":"u-secretary","name":"Помощник владельца",
                  "started_at":"2026-09-27T09:00:00.000Z",
                  "items":[{"kind":"text","text":"Смотрю."},
                           {"kind":"step","id":"c1","tool":"read","detail":"~/a.txt",
@@ -321,7 +321,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
         }
         XCTAssertEqual(chatID, "chat-secretary")
         XCTAssertEqual(userID, "u-secretary")
-        XCTAssertEqual(turn.name, "Секретарь")
+        XCTAssertEqual(turn.name, "Помощник владельца")
         XCTAssertNotNil(turn.startDate)
         XCTAssertEqual(turn.items, [
             .text("Смотрю."),

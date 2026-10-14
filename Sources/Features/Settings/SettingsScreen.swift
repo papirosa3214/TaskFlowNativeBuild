@@ -157,7 +157,7 @@ struct SettingsScreen: View {
             navRow(icon: "iphone", title: "Приложение (телефон и сервер)", route: .voiceModels)
             TFDivider(inset: rowDividerInset)
             NavigationLink(value: AppRoute.secretaryVoicePicker) {
-                TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Секретаря",
+                TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Помощника владельца",
                           trailing: AnyView(secretaryVoiceValue), titleStyle: .action,
                           verticalPadding: TFSpacing.xs)
             }

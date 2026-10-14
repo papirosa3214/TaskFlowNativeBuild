@@ -92,7 +92,7 @@ public extension APIClient {
     }
 
     /// Новая сессия без удаления истории (владелец 25.09.2026, docs/ПЛАН
-    /// Супер Секретарь/): сбрасывает память роли в этом чате, история
+    /// Супер Помощник владельца/): сбрасывает память роли в этом чате, история
     /// остаётся — сервер сам кладёт видимую метку-разделитель.
     func newRoleChatSession(chatID: String, roleID: String) async throws -> RoleChatMessage {
         struct Body: Encodable { let role_id: String }

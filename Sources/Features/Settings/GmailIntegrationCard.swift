@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Содержимое карточки Gmail на экране «Интеграции»: подключённые адреса и
-/// белый список отправителей. Что Секретарь может делать с почтой, решает
+/// белый список отправителей. Что Помощник владельца может делать с почтой, решает
 /// сервер; здесь только список адресов.
 struct GmailIntegrationCard: View {
     @Environment(\.openURL) private var openURL
@@ -15,7 +15,7 @@ struct GmailIntegrationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Секретарь читает почту, готовит черновики, убирает письма в архив и спам. Отправляет только на эти адреса. Удалять письма и писать посторонним не может.")
+            Text("Помощник владельца читает почту, готовит черновики, убирает письма в архив и спам. Отправляет только на эти адреса. Удалять письма и писать посторонним не может.")
                 .tfText(.caption).foregroundStyle(Color.tfDim)
             TFErrorBanner(errorMessage, variant: .block)
 
@@ -44,7 +44,7 @@ struct GmailIntegrationCard: View {
 
             Text("Белый список отправителей").tfText(.body).foregroundStyle(Color.tfSub)
                 .padding(.top, TFSpacing.sm)
-            Text("Письма с этих адресов Секретарь читает напрямую. Письма остальных — только в пересказе. Свои подключённые адреса доверенные всегда.")
+            Text("Письма с этих адресов Помощник владельца читает напрямую. Письма остальных — только в пересказе. Свои подключённые адреса доверенные всегда.")
                 .tfText(.caption).foregroundStyle(Color.tfDim)
             ForEach(trusted) { sender in
                 row(title: sender.address, subtitle: nil, identifier: "gmail.trusted.\(sender.address)") {

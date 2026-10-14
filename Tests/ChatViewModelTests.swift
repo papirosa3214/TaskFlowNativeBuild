@@ -32,7 +32,7 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(snapshot.getBeforeValues[2], "old")
     }
 
-    /// Ответ Секретаря приходит событием `chat:new` — он обязан попасть в
+    /// Ответ Помощника владельца приходит событием `chat:new` — он обязан попасть в
     /// ленту открытого канала сразу, без перезахода на экран (владелец
     /// 19.09.2026). Ссылка на карточку (`task_title`) сохраняется.
     func testRealtimeSecretaryReplyAppearsInOwnerChannel() throws {
