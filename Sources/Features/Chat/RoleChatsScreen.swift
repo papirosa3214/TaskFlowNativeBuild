@@ -653,6 +653,8 @@ struct RoleChatRoomScreen: View {
     @State private var isDeleteSelectedConfirmOpen = false
     @State private var isClearChatConfirmOpen = false
     @State private var isDetailsPresented = false
+    @State private var isContentsPresented = false
+    @State private var contentsTargetID: String?
     @State private var realtime = RealtimeClient()
     @State private var roomEventRevision = 0
     @State private var refreshRevision = 0
@@ -845,6 +847,12 @@ struct RoleChatRoomScreen: View {
         .tint(Color.tfText)
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $isContentsPresented) {
+            RoleChatContentsSheet(messages: visibleMessages, currentUserID: session.currentUser?.id) { id in
+                isContentsPresented = false
+                contentsTargetID = id
+            }
+        }
         .toolbar {
             #if DEBUG
             if readingPreview {
@@ -933,6 +941,13 @@ struct RoleChatRoomScreen: View {
                         }
                         .accessibilityLabel("Голосовой разговор с Секретарём")
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { isContentsPresented = true } label: {
+                        Image(systemName: "list.bullet.indent")
+                    }
+                    .accessibilityLabel("Содержание чата")
+                    .accessibilityIdentifier("chat.contents")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -1287,6 +1302,13 @@ struct RoleChatRoomScreen: View {
                     followsChatBottom = chatIsNearBottom
                 }
             }
+            // Переход из «Содержания» к выбранному сообщению.
+            .onChange(of: contentsTargetID) { _, id in
+                guard let id else { return }
+                followsChatBottom = false
+                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .top) }
+                contentsTargetID = nil
+            }
             .onChange(of: messages.last?.id) { _, id in
                 if id != nil && messages.last?.fromUserID == session.currentUser?.id {
                     centersLatestReply = false
@@ -1616,7 +1638,8 @@ struct RoleChatRoomScreen: View {
                                      ? Color.tfRed : Color.tfDim)
             }
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                senderLine(message, color: Color.tfSub)
+                // Ответ роли подписан внизу (replyFooter), сверху — только чужой.
+                if !isAgentReply(message) { senderLine(message, color: Color.tfSub) }
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
                 if let steps = message.steps, steps.hasDetails {
                     RoleLiveItemsList(items: steps.items)
@@ -1686,7 +1709,9 @@ struct RoleChatRoomScreen: View {
                 //
                 // У голосового своя подложка — пузырь, поэтому там эта строка
                 // уезжает ВНУТРЬ пузыря, а не висит над ним отдельно.
-                if !hasAudio {
+                // У ответа роли подпись внизу, рядом с кнопками (владелец
+                // 14.10.2026, по образцу: кто ответил и за сколько — в конце).
+                if !hasAudio && (mine || !isAgentReply(message)) {
                     senderLine(message, color: Color.tfSub)
                 }
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
@@ -1771,6 +1796,9 @@ struct RoleChatRoomScreen: View {
         // Владелец 14.10.2026: значки были мелкие, пальцем не попасть;
         // реакции убраны — пользы от них не было.
         HStack(spacing: 0) {
+            replyFooter(message)
+                .padding(.leading, (TFHitTarget.min - 20) / 2)
+                .padding(.trailing, TFSpacing.sm)
             messageActionButton("doc.on.doc", label: "Скопировать сообщение") {
                 UIPasteboard.general.string = message.text
             }
@@ -1783,6 +1811,30 @@ struct RoleChatRoomScreen: View {
         // Значок встаёт вровень с левым краем текста, зона нажатия шире его.
         .padding(.leading, -(TFHitTarget.min - 20) / 2)
         .padding(.bottom, -TFSpacing.sm)
+    }
+
+    /// Подпись ответа роли внизу: иконка, имя, сколько думала, время.
+    private func replyFooter(_ message: RoleChatMessage) -> some View {
+        HStack(spacing: TFSpacing.xs) {
+            RoleChatAvatar(message: message, size: .sm)
+            Text(message.fromUserName ?? "Участник")
+                .tfText(.caption)
+            if let ms = message.steps?.durationMs, ms > 0 {
+                Text("· \(Self.turnDuration(ms))")
+                    .tfText(.caption)
+            }
+            if let time = ChatMessageTime.label(raw: message.createdAt) {
+                Text("· \(time)")
+                    .tfText(.caption)
+                    .opacity(0.7)
+            }
+        }
+        .lineLimit(1)
+    }
+
+    static func turnDuration(_ ms: Int) -> String {
+        let seconds = max(1, ms / 1000)
+        return seconds < 60 ? "\(seconds) с" : "\(seconds / 60) мин \(seconds % 60) с"
     }
 
     private func messageActionButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
