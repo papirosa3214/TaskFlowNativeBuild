@@ -31,11 +31,15 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertFalse(pacer.visibleItems.isEmpty)
     }
 
-    func testFinalAnswerIsAvailableImmediatelyAtCompletion() {
+    func testFinalAnswerDrainsSmoothlyWithinCompletionWindow() {
         var pacer = RoleLiveTextPacer()
         let text = String(repeating: "готовый ответ ", count: 1000)
         pacer.ingest([.text(text)])
         pacer.finish()
+        // Остаток не выскакивает разом, но и не ждёт дольше отведённого срока.
+        XCTAssertTrue(pacer.hasPendingText)
+        let ticks = Int(RoleLiveTextPacer.completionDrain / 0.016) + 2
+        for _ in 0..<ticks { pacer.advance(elapsed: 0.016) }
         XCTAssertFalse(pacer.hasPendingText)
         XCTAssertEqual(pacer.visibleItems, [.text(text)])
     }
@@ -150,7 +154,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
         pacer.ingest([.text("Смотрю доск")])
         // Первое слово успевает выйти, а хвост «доск» может дописаться — ждём.
         pacer.advance(elapsed: RoleLiveTextPacer.initialBuffer)
-        for _ in 0..<5 { pacer.advance(elapsed: 0.016) }
+        for _ in 0..<8 { pacer.advance(elapsed: 0.016) }
         XCTAssertEqual(pacer.visibleItems, [.text("Смотрю")])
         pacer.ingest([.text("Смотрю доску")])
         drain(&pacer)
@@ -233,9 +237,11 @@ final class RoleChatLiveTurnTests: XCTestCase {
         pacer.ingest([.text(String(repeating: "слово ", count: 300))])
         for _ in 0..<60 { pacer.advance(elapsed: 1.0 / 60) }
         guard case .text(let shown)? = pacer.visibleItems.first else { return XCTFail("Нет текста") }
-        XCTAssertGreaterThan(shown.count, 500)
+        // Ровный разгон: за секунду текст заметно продвинулся, но без рывка.
+        XCTAssertGreaterThan(shown.count, 150)
         XCTAssertLessThanOrEqual(pacer.rate, RoleLiveTextPacer.maxRate)
         pacer.finish()
+        for _ in 0..<60 { pacer.advance(elapsed: 0.016) }
         XCTAssertFalse(pacer.hasPendingText)
     }
 

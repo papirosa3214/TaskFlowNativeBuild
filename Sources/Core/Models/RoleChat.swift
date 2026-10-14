@@ -323,22 +323,31 @@ struct RoleLiveTextPacer {
     private var initialDelay: TimeInterval = Self.initialBuffer
     private var completionRemaining: TimeInterval?
 
-    /// После сдачи показываем остаток сразу: готовый ответ не стоит в очереди.
+    /// После сдачи остаток дописывается за `completionDrain`, а не
+    /// выскакивает разом: при запасе в `targetLag` это был бы заметный
+    /// скачок в конце ответа (владелец 14.10.2026: «ни задержек, ни рывков»).
     mutating func finish() {
         guard completionRemaining == nil else { return }
-        completionRemaining = 0
-        flush()
+        completionRemaining = Self.completionDrain
         initialDelay = 0
         actionWait = 0
     }
+    static let completionDrain: TimeInterval = 0.8
     /// Сколько очередь стоит без новых слов — недописанное сервером слово
     /// показываем, только если продолжения долго нет.
     private var stall: TimeInterval = 0
 
-    static let minRate: Double = 120
-    static let maxRate: Double = 1200
+    // Владелец 14.10.2026: текст должен идти ровно, как печать, без разгонов
+    // и остановок. Запас в 0,6 с перекрывает паузы сервера между снимками,
+    // а скорость меняется медленно — рывок «пачка пришла» в неё не проходит.
+    // До этого было 120…1200 зн/с при запасе 0,15 с: экран гнался за сетью.
+    static let minRate: Double = 60
+    static let maxRate: Double = 900
     /// На сколько секунд экран в среднем отстаёт от сервера.
-    static let targetLag: TimeInterval = 0.15
+    static let targetLag: TimeInterval = 0.6
+    /// За сколько секунд скорость подтягивается к нужной: разгон и торможение.
+    static let rateRise: TimeInterval = 1.2
+    static let rateFall: TimeInterval = 2.5
     /// Сколько ждать продолжения оборванного слова в конце снимка.
     static let tailWait: TimeInterval = 0.15
 
@@ -416,11 +425,12 @@ struct RoleLiveTextPacer {
         // Скорость тянется к «очередь уйдёт за targetLag», но плавно — без
         // скачков, из-за которых поток то бежит, то встаёт.
         let desired = min(Self.maxRate, max(Self.minRate, Double(pending) / Self.targetLag))
-        let blend = min(1, elapsed / 1.0)
         if let remaining = completionRemaining {
-            rate = max(Self.minRate, Double(pending) / max(remaining, 0.016))
+            // Дописываем остаток к сроку, не сбавляя уже набранной скорости.
+            rate = max(rate, Double(pending) / max(remaining, 0.016))
             actionWait = 0
         } else {
+            let blend = min(1, elapsed / (desired > rate ? Self.rateRise : Self.rateFall))
             rate += (desired - rate) * blend
         }
         budget += rate * elapsed
