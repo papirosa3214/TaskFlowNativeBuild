@@ -654,6 +654,9 @@ struct RoleChatRoomScreen: View {
     @State private var isClearChatConfirmOpen = false
     @State private var isDetailsPresented = false
     @State private var isContentsPresented = false
+    @State private var branchChat: RoleChat?
+    @State private var isBranchPresented = false
+    @State private var isBranching = false
     @State private var contentsTargetID: String?
     @State private var realtime = RealtimeClient()
     @State private var roomEventRevision = 0
@@ -847,6 +850,11 @@ struct RoleChatRoomScreen: View {
         .tint(Color.tfText)
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
+        // Ветка от сообщения — отдельный чат поверх основного; «назад»
+        // возвращает в основной разговор (владелец 14.10.2026).
+        .navigationDestination(isPresented: $isBranchPresented) {
+            if let branchChat { RoleChatRoomScreen(chat: branchChat) }
+        }
         .sheet(isPresented: $isContentsPresented) {
             RoleChatContentsSheet(messages: visibleMessages, currentUserID: session.currentUser?.id) { id in
                 isContentsPresented = false
@@ -1811,6 +1819,10 @@ struct RoleChatRoomScreen: View {
             messageActionButton("square.and.arrow.up", label: "Сохранить или поделиться") {
                 exportMessage(message)
             }
+            messageActionButton("arrow.triangle.branch", label: "Ответвление: обсудить в отдельном чате") {
+                Task { await openBranch(from: message) }
+            }
+            .disabled(isBranching)
         }
         .foregroundStyle(Color.tfSub)
         .buttonStyle(.plain)
@@ -1841,6 +1853,16 @@ struct RoleChatRoomScreen: View {
     static func turnDuration(_ ms: Int) -> String {
         let seconds = max(1, ms / 1000)
         return seconds < 60 ? "\(seconds) с" : "\(seconds / 60) мин \(seconds % 60) с"
+    }
+
+    private func openBranch(from message: RoleChatMessage) async {
+        guard !isBranching else { return }
+        isBranching = true
+        defer { isBranching = false }
+        do {
+            branchChat = try await api.createChatBranch(chatID: chat.id, messageID: message.id)
+            isBranchPresented = true
+        } catch { errorMessage = error.localizedDescription }
     }
 
     private func messageActionButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {

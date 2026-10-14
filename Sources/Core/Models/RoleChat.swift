@@ -25,9 +25,14 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     /// Название задачи, к которой привязан чат (`nil` — свободный). Нужно
     /// пометкой в строке списка: по ней видно, какой чат за какой задачей.
     public let taskTitle: String?
+    /// Ветка от сообщения (14.10.2026): из какого чата и от какого сообщения.
+    public var branchOfChatID: String? = nil
+    public var branchOfMessageID: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, title, kind, members
+        case branchOfChatID = "branch_of_chat_id"
+        case branchOfMessageID = "branch_of_message_id"
         case createdBy = "created_by"
         case taskID = "task_id"
         case projectID = "project_id"

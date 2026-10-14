@@ -41,6 +41,13 @@ public extension APIClient {
         return response.chat
     }
 
+    /// Ветка от сообщения: новый чат с теми же участниками и своей сессией роли.
+    func createChatBranch(chatID: String, messageID: String) async throws -> RoleChat {
+        struct Body: Encodable { let message_id: String }
+        let response: RoleChatEnvelope = try await request(.post, "/chats/\(chatID)/branch", body: Body(message_id: messageID))
+        return response.chat
+    }
+
     func roleChat(id: String) async throws -> RoleChat {
         let response: RoleChatEnvelope = try await request(.get, "/chats/\(id)")
         return response.chat
