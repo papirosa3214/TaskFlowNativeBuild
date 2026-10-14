@@ -203,7 +203,7 @@ struct ChatVoiceComposer: View {
             Divider()
             Toggle("Экспериментальное поле", isOn: $experimentalPromptBox)
         } label: {
-            Image(systemName: "paperclip").frame(width: 44, height: 44)
+            promptIcon("plus")
         }
         .accessibilityLabel("Добавить вложение")
         .accessibilityIdentifier("chat.attachment")
@@ -219,7 +219,10 @@ struct ChatVoiceComposer: View {
                 .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.white)
                 .accessibilityIdentifier("chat.message")
                 .padding(.horizontal, 10).padding(.top, 10)
-            HStack(spacing: 4) {
+            // Владелец 14.10.2026: значки собраны как в поле ввода Claude —
+            // слева «что добавить и кому», режим подписан словом, справа
+            // микрофон и одна круглая кнопка отправки.
+            HStack(spacing: 0) {
                 promptAttachmentMenu
                 if showsMentionButton { mentionButton }
                 if let workMode {
@@ -230,31 +233,63 @@ struct ChatVoiceComposer: View {
                             }
                         }
                     } label: {
-                        Image(systemName: workMode.wrappedValue.symbol).frame(width: 44, height: 44)
+                        HStack(spacing: 6) {
+                            Image(systemName: workMode.wrappedValue.symbol)
+                                .font(.system(size: 14, weight: .medium))
+                            Text(workMode.wrappedValue.title)
+                                .font(.system(size: 15))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                        // Зона нажатия — на всю высоту строки значков.
+                        .frame(height: 40)
+                        .contentShape(Rectangle())
                     }
+                    .padding(.leading, 4)
                     .accessibilityIdentifier("chat.mode")
                     .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
                 }
-                Spacer(minLength: 0)
-                if canSendText {
-                    actionButton("arrow.up", label: "Отправить", identifier: "chat.send", tint: .black, action: onSendText)
-                        .background(.white, in: Circle())
-                } else if isResponding, let onStop {
-                    actionButton("stop.fill", label: "Остановить ответ роли", identifier: "chat.stop", tint: .white, action: onStop)
-                        .disabled(isStopping)
+                Spacer(minLength: 8)
+                if isResponding, !canSendText, let onStop {
+                    Button(action: onStop) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .frame(width: 36, height: 36)
+                            .background(.white, in: Circle())
+                            .frame(width: 40, height: 40)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isStopping)
+                    .accessibilityLabel("Остановить ответ роли")
+                    .accessibilityIdentifier("chat.stop")
                 } else {
-                    Image(systemName: "mic.fill")
-                        .foregroundStyle(.black)
-                        .frame(width: 40, height: 40)
-                        .background(.white, in: Circle())
-                        .contentShape(Circle())
-                        .onTapGesture { startVoiceRecording() }
-                        .accessibilityLabel("Начать запись")
-                        .accessibilityIdentifier("chat.voice")
+                    if !canSendText {
+                        promptIcon("mic")
+                            .contentShape(Rectangle())
+                            .onTapGesture { startVoiceRecording() }
+                            .accessibilityLabel("Начать запись")
+                            .accessibilityIdentifier("chat.voice")
+                    }
+                    Button(action: onSendText) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(canSendText ? 1 : 0.25), in: Circle())
+                            .frame(width: 40, height: 40)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSendText)
+                    .accessibilityLabel("Отправить")
+                    .accessibilityIdentifier("chat.send")
                 }
-
             }
-            .foregroundStyle(.gray)
+            .foregroundStyle(Color.white.opacity(0.6))
         }
         .padding(8)
         .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
@@ -276,10 +311,17 @@ struct ChatVoiceComposer: View {
                 }
             }
         } label: {
-            Image(systemName: "at").frame(width: 44, height: 44)
+            promptIcon("at")
         }
         .accessibilityLabel("Выбрать адресата")
         .accessibilityIdentifier("chat.mention")
+    }
+
+    /// Значок нижней строки поля: один размер и одна зона нажатия у всех.
+    private func promptIcon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 19, weight: .regular))
+            .frame(width: 40, height: 40)
     }
 
     /// «@Имя » в конец черновика. Пробел в конце — как у набранного руками
@@ -293,28 +335,32 @@ struct ChatVoiceComposer: View {
     }
 
     private var promptRecordingComposer: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 8) {
+        // Одна строка в том же поле: время, волна на всю ширину, стоп.
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
                 Circle().fill(.red).frame(width: 8, height: 8)
-                Text(recordingDuration).font(.body.monospacedDigit().weight(.medium)).foregroundStyle(.white)
+                Text(recordingDuration).font(.callout.monospacedDigit()).foregroundStyle(.white)
             }
             VoiceRecordingWaveformView(levels: voice.recorderWaveform, elapsed: recordingElapsed,
-                                       color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 30)
-                .frame(width: 180, height: 36)
-            HStack {
-                Spacer()
-                Button(action: stopVoiceRecording) {
-                    Image(systemName: "stop.circle").font(.system(size: 25))
-                        .foregroundStyle(.red).frame(width: 44, height: 44)
-                        .background(.white, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Остановить запись")
+                                       color: .white.opacity(0.35), peakColor: .white, maxHeight: 28)
+                .frame(maxWidth: .infinity)
+            Button(action: stopVoiceRecording) {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .frame(width: 36, height: 36)
+                    .background(.white, in: Circle())
+                    .frame(width: 40, height: 40)
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Остановить запись")
         }
-        .padding(14)
+        .padding(.leading, 16).padding(.trailing, 8)
+        .frame(minHeight: 56)
+        .padding(.vertical, 8)
         .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.red, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12)))
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.vertical, 10)
         .transition(.opacity)

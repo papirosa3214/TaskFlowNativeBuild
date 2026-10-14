@@ -1,59 +1,75 @@
 import SwiftUI
 import AVFoundation
 
-/// Декоративная волна: непрерывная временная шкала, без переключения режимов.
+/// Живая волна записи (владелец 14.10.2026): тонкие столбики по настоящей
+/// громкости микрофона входят справа и уезжают влево, тишина и ещё не
+/// записанное — ряд точек. До этого волна была декоративной — случайный
+/// узор, который голос не слушал.
 struct VoiceRecordingWaveformView: View {
+    /// Последние уровни рекордера, 0…1, новый — в конце; приходят раз в 40 мс.
     let levels: [Double]
     let elapsed: TimeInterval
     let color: Color
     let peakColor: Color
     var maxHeight: CGFloat = 28
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var startedAt = Date()
-    private let barWidth: CGFloat = 3
+    /// Сколько уровней пришло всего: рекордер хранит только хвост, а
+    /// столбик обязан собираться из одних и тех же соседних уровней.
+    @State private var received = 0
+    @State private var lastLevelAt = Date()
+    private let barWidth: CGFloat = 2
     private let spacing: CGFloat = 2
 
-    static func height(level: Double, maximum: Double, minimum: Double = 3) -> Double {
+    static let levelsPerBar = 2
+    static let levelInterval: TimeInterval = 0.04
+
+    static func height(level: Double, maximum: Double, minimum: Double = 2) -> Double {
         minimum + min(1, max(0, level)) * max(0, maximum - minimum)
     }
 
-    static func travel(seconds: Double) -> Double { max(0, seconds) * 18 }
-
-    private static func noise(_ index: Int) -> Double {
-        let value = sin(Double(index) * 127.1 + 311.7) * 43758.5453
-        return value - floor(value)
-    }
-
-    static func decorativeLevel(index: Int) -> Double {
-        // Нерегулярные группы разной длины; соседние столбики тоже различаются.
-        let position = Double(index) / 11
-        let group = Int(floor(position))
-        let fraction = position - floor(position)
-        let smooth = fraction * fraction * (3 - 2 * fraction)
-        let envelope = noise(group) * (1 - smooth) + noise(group + 1) * smooth
-        return min(1, 0.06 + pow(envelope, 1.3) * (0.35 + noise(index + 913) * 0.65))
+    /// Столбики по сквозному номеру: каждый — самый громкий из своих
+    /// `levelsPerBar` соседних уровней. `received` — номер, следующий за
+    /// последним уровнем в `levels`.
+    static func bars(levels: [Double], received: Int) -> [Int: Double] {
+        var result: [Int: Double] = [:]
+        for (offset, level) in levels.enumerated() {
+            let absolute = received - levels.count + offset
+            guard absolute >= 0 else { continue }
+            let bar = absolute / levelsPerBar
+            result[bar] = max(result[bar] ?? 0, level)
+        }
+        return result
     }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
             Canvas { context, size in
                 let pitch = barWidth + spacing
-                let distance = reduceMotion ? 0 : Self.travel(seconds: timeline.date.timeIntervalSince(startedAt))
-                let first = Int(floor(distance / pitch))
-                let offset = CGFloat(distance.truncatingRemainder(dividingBy: Double(pitch)))
-                let count = max(1, Int(ceil(size.width / pitch)) + 2)
-                for slot in 0..<count {
-                    let level = Self.decorativeLevel(index: first + slot)
+                let bars = Self.bars(levels: levels, received: received)
+                // Между уровнями лента едет равномерно, а не шагами.
+                let sinceLevel = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
+                let fraction = min(1, max(0, sinceLevel / Self.levelInterval))
+                let progress = (Double(received) + fraction) / Double(Self.levelsPerBar)
+                var bar = Int(floor(progress))
+                while true {
+                    let x = size.width - CGFloat(progress - Double(bar)) * pitch
+                    if x < -pitch { break }
+                    let level = bars[bar] ?? 0
                     let h = Self.height(level: level, maximum: Double(maxHeight))
-                    let rect = CGRect(x: CGFloat(slot) * pitch - offset,
-                                      y: (size.height - h) / 2, width: barWidth, height: h)
+                    let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
                     let tint = color.mix(with: peakColor, by: level)
                     context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(tint))
+                    bar -= 1
                 }
             }
         }
         .frame(height: maxHeight)
         .clipped()
+        .onAppear { received = levels.count }
+        .onChange(of: levels) { _, _ in
+            received += 1
+            lastLevelAt = .now
+        }
         .accessibilityLabel("Звуковая волна записи")
         .accessibilityIdentifier("chat.voice.recording-wave")
     }
