@@ -32,7 +32,17 @@ final class TaskFormViewModel {
     /// String, продолжает работать без правок.
     var titleBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)]
     var title: String {
-        get { MarkdownEncoder.encode(titleBlocks) }
+        // Название без оформления — простым текстом (владелец 14.10.2026):
+        // кодировщик экранирует «.», «-», «(», «[», и любое сохранение
+        // карточки отправляло «веб\-приложения» вместо «веб-приложения» —
+        // слэши накопились в 36 названиях.
+        get {
+            if titleBlocks.count == 1, case .paragraph = titleBlocks[0].kind,
+               titleBlocks[0].runs.allSatisfy({ !$0.bold && !$0.italic && !$0.underline && !$0.strike && !$0.highlight && !$0.code && $0.linkHref == nil }) {
+                return titleBlocks[0].runs.map(\.text).joined()
+            }
+            return MarkdownEncoder.encode(titleBlocks)
+        }
         set {
             let parsed = MarkdownParser.parse(newValue)
             titleBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
