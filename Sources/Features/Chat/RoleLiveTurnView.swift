@@ -11,6 +11,38 @@ import SwiftUI
 // размышления — строкой «Думает…» с раскрываемым окошком вместо мелькающих
 // фраз; тап по шагу или размышлению открывает шторку с подробностями.
 
+/// Сколько работы роли показывать в ленте (владелец 14.10.2026). Одна
+/// настройка на все чаты, меняется в шторке «Чат».
+enum RoleWorkDetailLevel: String, CaseIterable, Identifiable {
+    case minimal, standard, detailed
+
+    static let storageKey = "chat.workDetailLevel"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .minimal: return "Минимум"
+        case .standard: return "Стандарт"
+        case .detailed: return "Подробно"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .minimal: return "Только ответ и строка «Работает»."
+        case .standard: return "Шаги и размышления строками, подробности — по нажатию."
+        case .detailed: return "Размышления сразу развёрнуты, команды и правки показаны целиком."
+        }
+    }
+
+    /// Что из хода попадает в ленту: в «Минимуме» — только текст.
+    func visible(_ items: [RoleChatLiveItem]) -> [RoleChatLiveItem] {
+        guard self == .minimal else { return items }
+        return items.filter { if case .text = $0 { return true }; return false }
+    }
+}
+
 /// Действие шага по имени инструмента с сервера. Сервер имя не
 /// интерпретирует — подпись и значок целиком на клиенте. Существительные, а
 /// не глаголы: одна и та же подпись годится и для идущего шага, и для
@@ -73,6 +105,8 @@ enum RoleLiveFormat {
 /// Строка шага: значок, действие, подпись (путь, команда, запрос).
 struct RoleLiveStepRow: View {
     let step: RoleChatLiveStep
+    /// false — подпись показана отдельным блоком ниже («Подробно»).
+    var showsDetail = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
@@ -82,7 +116,7 @@ struct RoleLiveStepRow: View {
             Text(RoleLiveStepKind.label(forTool: step.tool))
                 .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
-            if let detail = step.detail, !detail.isEmpty {
+            if showsDetail, let detail = step.detail, !detail.isEmpty {
                 Text(detail)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(Color.tfDim)
@@ -134,27 +168,42 @@ struct RoleLiveItemsList: View {
     var fade: RoleTextFade?
     var isStreaming = false
     @State private var detail: RoleLiveDetail?
+    @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     var body: some View {
+        let expanded = detailLevel == .detailed
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не текст: текст растёт каждые 150 мс, и id по нему
             // пересоздавал бы строку на каждом кадре.
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+            ForEach(Array(detailLevel.visible(items).enumerated()), id: \.offset) { index, item in
                 Group {
                     switch item {
                     case .text(let text):
                         RoleReplyMarkdown(text: text, color: textColor, fade: fade, isStreaming: isStreaming)
                     case .step(let step):
+                        let hasDetail = !(step.detail ?? "").isEmpty
                         Button { detail = .step(step) } label: {
-                            RoleLiveStepRow(step: step)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
+                            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                                RoleLiveStepRow(step: step, showsDetail: !(expanded && hasDetail))
+                                if expanded, hasDetail, let text = step.detail {
+                                    // «Подробно»: команда или путь целиком, окошком с кодом.
+                                    Text(text)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(Color.tfText)
+                                        .multilineTextAlignment(.leading)
+                                        .padding(TFSpacing.sm)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityHint("Показать подробности")
                     case .thinking(let thinking):
                         if thinking.isRunning {
-                            RoleThinkingLiveRow(thinking: thinking)
+                            RoleThinkingLiveRow(thinking: thinking, startsExpanded: expanded)
                         } else {
                             Button { detail = .thinking(thinking) } label: {
                                 RoleThinkingDoneRow(thinking: thinking)
@@ -163,6 +212,9 @@ struct RoleLiveItemsList: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityHint("Показать размышления")
+                            if expanded, !thinking.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                RoleThinkingWindow(text: thinking.text)
+                            }
                         }
                     }
                 }
@@ -221,6 +273,7 @@ struct RoleLiveTurnBubble: View {
     @State private var driver = RoleLivePacerDriver()
     @State private var visibleItems: [RoleChatLiveItem] = []
     @State private var fade = RoleTextFade()
+    @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
@@ -233,7 +286,7 @@ struct RoleLiveTurnBubble: View {
                 RoleLiveItemsList(items: pacesText ? visibleItems : turn.items, fade: pacesText && !reduceMotion ? fade : nil, isStreaming: !isComplete)
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
-            if turn.thinking != nil && turn.runningThinking == nil {
+            if turn.thinking != nil && turn.runningThinking == nil && detailLevel != .minimal {
                 RoleThinkingLiveRow(thinking: nil)
             }
             if isComplete {
@@ -282,7 +335,9 @@ struct RoleLiveTurnBubble: View {
 
     private func ingest(_ items: [RoleChatLiveItem]) {
         if !driver.isAnimating(now: .now) { driver.resetClock() }
-        driver.pacer.ingest(items)
+        // Скрытые шаги в очередь не идут: иначе текст вставал бы на паузу
+        // перед действием, которого в «Минимуме» не видно.
+        driver.pacer.ingest(detailLevel.visible(items))
         if isComplete { driver.pacer.finish() }
         if !seeded {
             seeded = true
@@ -349,7 +404,13 @@ final class RoleLivePacerDriver {
 struct RoleThinkingLiveRow: View {
     /// nil — сервер прислал только признак «думает».
     let thinking: RoleChatThinking?
-    @State private var isExpanded = false
+    @State private var isExpanded: Bool
+
+    /// `startsExpanded` — уровень «Подробно»: окошко с мыслями открыто сразу.
+    init(thinking: RoleChatThinking?, startsExpanded: Bool = false) {
+        self.thinking = thinking
+        _isExpanded = State(initialValue: startsExpanded)
+    }
 
     private var hasText: Bool {
         !(thinking?.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)

@@ -63,13 +63,52 @@ enum ChatDayLabel {
     /// сообщение». Строкой, чтобы не таскать по ленте `Date` и не зависеть от
     /// точности `startOfDay`.
     static func dayKey(raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        // Лента пересчитывается при каждом снимке живого ответа; без памяти
+        // это разбор даты у каждого сообщения истории на каждый снимок.
+        if let known = dayKeys.object(forKey: raw as NSString) { return known as String }
         guard let date = DateFormats.sqliteUTC(raw) else { return nil }
-        return dayKey(date)
+        let key = dayKey(date)
+        dayKeys.setObject(key as NSString, forKey: raw as NSString)
+        return key
     }
+
+    nonisolated(unsafe) private static let dayKeys = NSCache<NSString, NSString>()
 
     static func dayKey(_ date: Date) -> String {
         let comps = Calendar.autoupdatingCurrent.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
+    }
+
+    /// Подпись на полосе смены дня (владелец 14.10.2026: «полоса и дата»):
+    /// «Сегодня, 14 октября» / «Вчера, 13 октября» / «10 октября».
+    static func dividerTitle(raw: String?, now: Date = .now) -> String? {
+        guard let date = DateFormats.sqliteUTC(raw) else { return nil }
+        return dividerTitle(date, now: now)
+    }
+
+    static func dividerTitle(_ date: Date, now: Date = .now) -> String {
+        let calendar = Calendar.autoupdatingCurrent
+        let text = dayAndMonth(date, now: now)
+        if calendar.isDateInToday(date) { return "Сегодня, \(text)" }
+        if calendar.isDateInYesterday(date) { return "Вчера, \(text)" }
+        return text
+    }
+}
+
+/// Время сообщения в строке отправителя — «14:05» по часам устройства
+/// (владелец 14.10.2026: время нужно и у своих сообщений, и у ответов).
+enum ChatMessageTime {
+    private static let clock: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    static func label(raw: String?) -> String? {
+        guard let date = DateFormats.sqliteUTC(raw) else { return nil }
+        return clock.string(from: date)
     }
 }
 
@@ -97,28 +136,31 @@ enum ChatDayMarker {
     }
 }
 
-/// Плашка-разделитель: смена дня перед сообщением и закрытие сессии внизу
-/// ленты. Ровно тот же рисунок, что метка «Новая сессия» в комнате.
+/// Разделитель смены дня: полоса во всю ширину с датой по центру
+/// (владелец 14.10.2026 — до этого была серая пилюля без полосы и числа).
 struct ChatFeedDivider: View {
     let title: String
     var identifier: String = "chat.day-divider"
 
     var body: some View {
-        HStack {
-            Spacer()
+        HStack(spacing: TFSpacing.md) {
+            line
             Text(title)
                 .tfText(.caption)
                 .foregroundStyle(Color.tfDim)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, 4)
-                .background(Color.tfCard)
-                .clipShape(Capsule())
-            Spacer()
+                .fixedSize()
+            line
         }
-        // Плашка — одна цельная подпись: VoiceOver читает «Сегодня», а
+        // Разделитель — одна цельная подпись: VoiceOver читает дату, а
         // XCUITest находит её по идентификатору, а не по координатам.
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(Color.tfStroke)
+            .frame(height: 1)
     }
 }
 

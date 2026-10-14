@@ -1148,6 +1148,7 @@ struct RoleChatRoomScreen: View {
 
     private func messageScroll(viewportHeight: CGFloat) -> some View {
         let orderedFeed = feedItems
+        let dayDividers = dayDividerTitles(orderedFeed)
         return ScrollViewReader { proxy in
             ScrollView {
                 // Instantiate visible rows only: the measured 300-message history
@@ -1157,12 +1158,11 @@ struct RoleChatRoomScreen: View {
                         ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
                                                description: Text("Напишите первое сообщение."))
                     }
-                    // Перед первым сообщением нового дня — плашка даты
+                    // Перед первым сообщением нового дня — полоса с датой
                     // («когда заканчивается день», владелец 03.10.2026).
-                    ForEach(Array(orderedFeed.enumerated()), id: \.element.id) { index, item in
-                        let day = ChatDayLabel.label(raw: item.dateString)
-                        if index == 0 || day != ChatDayLabel.label(raw: orderedFeed[index - 1].dateString) {
-                            ChatFeedDivider(title: day ?? "")
+                    ForEach(orderedFeed) { item in
+                        if let title = dayDividers[item.id] {
+                            ChatFeedDivider(title: title)
                         }
                         if let turn = item.turn {
                             liveTurnRow(turn)
@@ -1211,14 +1211,6 @@ struct RoleChatRoomScreen: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .id(message.id)
-                    }
-                    // Плашка даты последнего сообщения — «сессия закрыта»:
-                    // видно сразу, когда переписка закончилась, даже если это
-                    // было вчера (владелец 03.10.2026). Стоит под последним
-                    // сообщением, а не под живым ходом и «печатает» — те
-                    // появляются и уходят, плашка должна висеть на месте.
-                    if let feedEndLabel {
-                        ChatFeedDivider(title: feedEndLabel, identifier: "chat.day.end")
                     }
                     if !visibleTypists.isEmpty {
                         if chat.kind != "group", let onlyUserID = visibleTypists.keys.first,
@@ -1341,15 +1333,19 @@ struct RoleChatRoomScreen: View {
     }
 
 
-    /// Индексы сообщений, перед которыми лента ставит плашку даты: первый
-    /// видимый и каждый, где день сменился (владелец 03.10.2026).
-    private var dayStarts: Set<Int> {
-        ChatDayMarker.dayStarts(in: visibleMessages, createdAt: \.createdAt)
-    }
-
-    /// Подпись закрывающей плашки внизу ленты — дата последнего сообщения.
-    private var feedEndLabel: String? {
-        ChatDayLabel.label(raw: visibleMessages.last?.createdAt)
+    /// Перед какими элементами ленты стоит полоса с датой: первый с датой и
+    /// каждый, где день сменился. Элемент без разбираемой даты (живой ход
+    /// без `startedAt`) дня не начинает и не прерывает — иначе после своего
+    /// сообщения появлялась лишняя «Сегодня» (владелец 14.10.2026).
+    private func dayDividerTitles(_ feed: [FeedItem]) -> [String: String] {
+        var result: [String: String] = [:]
+        var previousDay: String?
+        for item in feed {
+            guard let day = ChatDayLabel.dayKey(raw: item.dateString), day != previousDay else { continue }
+            previousDay = day
+            result[item.id] = ChatDayLabel.dividerTitle(raw: item.dateString)
+        }
+        return result
     }
 
     /// Вставить сообщение из сокета: новое — в конец, известное — заменить.
@@ -1762,33 +1758,31 @@ struct RoleChatRoomScreen: View {
     }
 
     private func messageActions(_ message: RoleChatMessage) -> some View {
-        HStack(spacing: TFSpacing.md) {
-            Menu {
-                ForEach(["👍", "❤️", "🎉", "🤔", "👎"], id: \.self) { emoji in
-                    Button(emoji) { Task { await react(to: message, emoji: emoji) } }
-                }
-            } label: { Image(systemName: "face.smiling") }
-            .accessibilityLabel("Реакция на сообщение")
-            Button { UIPasteboard.general.string = message.text } label: { Image(systemName: "doc.on.doc") }
-                .accessibilityLabel("Скопировать сообщение")
-            Button { exportMessage(message) } label: { Image(systemName: "square.and.arrow.down") }
-                .accessibilityLabel("Сохранить в Markdown")
-            ForEach(message.reactions ?? [], id: \.userID) { reaction in
-                Text(reaction.emoji).tfText(.meta)
+        // Владелец 14.10.2026: значки были мелкие, пальцем не попасть;
+        // реакции убраны — пользы от них не было.
+        HStack(spacing: 0) {
+            messageActionButton("doc.on.doc", label: "Скопировать сообщение") {
+                UIPasteboard.general.string = message.text
+            }
+            messageActionButton("square.and.arrow.up", label: "Сохранить или поделиться") {
+                exportMessage(message)
             }
         }
-        .tfText(.meta)
         .foregroundStyle(Color.tfSub)
         .buttonStyle(.plain)
-        .padding(.top, TFSpacing.xs)
+        // Значок встаёт вровень с левым краем текста, зона нажатия шире его.
+        .padding(.leading, -(TFHitTarget.min - 20) / 2)
+        .padding(.bottom, -TFSpacing.sm)
     }
 
-    private func react(to message: RoleChatMessage, emoji: String) async {
-        do {
-            let current = message.reactions?.first { $0.userID == session.currentUser?.id }
-            let updated = try await api.reactToRoleChatMessage(chatID: chat.id, messageID: message.id, emoji: current?.emoji == emoji ? nil : emoji)
-            if let index = messages.firstIndex(where: { $0.id == updated.id }) { messages[index] = updated }
-        } catch { errorMessage = error.localizedDescription }
+    private func messageActionButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .regular))
+                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(label)
     }
 
     private func exportMessage(_ message: RoleChatMessage) {
@@ -1863,6 +1857,13 @@ struct RoleChatRoomScreen: View {
             Text(message.fromUserName ?? "Участник")
                 .tfText(.meta)
                 .foregroundStyle(color)
+            // Время — и у своих, и у ответов (владелец 14.10.2026). У
+            // сообщения «в пути» его ещё нет.
+            if let time = ChatMessageTime.label(raw: message.createdAt) {
+                Text(time)
+                    .tfText(.caption)
+                    .foregroundStyle(color.opacity(0.7))
+            }
         }
     }
 
@@ -2170,6 +2171,7 @@ private struct RoleChatDetailsSheet: View {
     @State private var isBusy = false
     @State private var errorMessage: String?
     @State private var isDeleteChatConfirmOpen = false
+    @AppStorage(RoleWorkDetailLevel.storageKey) private var workDetailLevel = RoleWorkDetailLevel.standard
     private let api = APIClient()
 
     init(chat: RoleChat, onChanged: @escaping (RoleChat) -> Void, onDeleted: @escaping () -> Void) {
@@ -2211,6 +2213,20 @@ private struct RoleChatDetailsSheet: View {
                     ForEach(chat.members) { member in
                         memberRow(member)
                     }
+                }
+                // Одна настройка на все чаты (владелец 14.10.2026).
+                Section {
+                    Picker("Показ работы роли", selection: $workDetailLevel) {
+                        ForEach(RoleWorkDetailLevel.allCases) { level in
+                            Text(level.title).tag(level)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } header: {
+                    Text("Показ работы роли")
+                } footer: {
+                    Text(workDetailLevel.explanation)
                 }
             }
             .navigationTitle("Чат")

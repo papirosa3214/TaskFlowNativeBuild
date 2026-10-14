@@ -165,11 +165,11 @@ struct ChatScreen: View {
                             .padding(.top, TFSpacing.md)
                     }
 
-                    // Перед первым сообщением нового дня — плашка даты
+                    // Перед первым сообщением нового дня — полоса с датой
                     // («когда заканчивается день», владелец 03.10.2026).
                     ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
                         if dayStarts.contains(index) {
-                            ChatFeedDivider(title: ChatDayLabel.label(raw: message.createdAt) ?? "")
+                            ChatFeedDivider(title: ChatDayLabel.dividerTitle(raw: message.createdAt) ?? "")
                         }
                         ChatBubble(
                             message: message,
@@ -179,14 +179,6 @@ struct ChatScreen: View {
                                 && message.fromUserId != viewModel.currentUserId
                         )
                         .id(message.id)
-                    }
-
-                    // Плашка даты последнего сообщения — «сессия закрыта»
-                    // (владелец 03.10.2026): сразу видно, когда переписка
-                    // закончилась. Выше «печатает…»: та строка то появляется,
-                    // то уходит, а плашка должна висеть на месте.
-                    if let feedEndLabel {
-                        ChatFeedDivider(title: feedEndLabel, identifier: "chat.day.end")
                     }
 
                     TypingLine(typists: viewModel.visibleTypists)
@@ -225,11 +217,6 @@ struct ChatScreen: View {
     /// каждый, где день сменился (владелец 03.10.2026).
     private var dayStarts: Set<Int> {
         ChatDayMarker.dayStarts(in: viewModel.messages, createdAt: \.createdAt)
-    }
-
-    /// Подпись закрывающей плашки внизу ленты — дата последнего сообщения.
-    private var feedEndLabel: String? {
-        ChatDayLabel.label(raw: viewModel.messages.last?.createdAt)
     }
 
     /// Строка остатка провайдера в меню: «minimax — работает».
