@@ -190,6 +190,42 @@ struct WidgetEmptyNote: View {
     }
 }
 
+// MARK: - Загрузка
+
+/// Скелетон блока на время, пока ответ роли дописывается (визуальный язык §5.2).
+/// Спиннер внутри виджета запрещён, мигания и градиента нет, геометрия та же,
+/// что у `WidgetCard`, — иначе блок прыгает в момент появления данных.
+/// Подпись не рисуем: она и была причиной, по которой состояние выглядело как
+/// «виджет готовится», а не как «данные едут».
+struct WidgetSkeletonCard: View {
+    private let rows: [(ratio: CGFloat, height: CGFloat)] = [
+        (0.45, 12), (1.0, 10), (1.0, 10), (0.6, 10),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                bar(ratio: row.ratio, height: row.height)
+            }
+        }
+        .padding(TFSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.xl))
+        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Виджет готовится")
+    }
+
+    /// Полоса на всю ширину блока, короткая — по `ratio` от левого края.
+    private func bar(ratio: CGFloat, height: CGFloat) -> some View {
+        Capsule()
+            .fill(Color.tfCard2)
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .scaleEffect(x: ratio, y: 1, anchor: .leading)
+    }
+}
+
 // MARK: - Формат
 
 enum WidgetFormat {

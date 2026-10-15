@@ -119,7 +119,7 @@ struct BarsListWidget: View {
             WidgetTitle(title: data.string("title"), note: data.string("note"))
             let items = Array(data.array("items").prefix(6))
             if items.isEmpty {
-                WidgetEmptyNote(text: "Просрочек нет")
+                WidgetEmptyNote(text: "Данных пока нет")
             } else {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {
                     ForEach(Array(items.enumerated()), id: \.offset) { _, item in
@@ -291,7 +291,7 @@ struct LadderWidget: View {
             }
             let steps = Array(data.array("steps").prefix(6))
             if steps.isEmpty {
-                WidgetEmptyNote(text: "Компонентов нет")
+                WidgetEmptyNote(text: "Шагов нет")
             } else {
                 VStack(spacing: TFSpacing.sm) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { _, step in

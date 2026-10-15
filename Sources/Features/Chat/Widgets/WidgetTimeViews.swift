@@ -182,6 +182,11 @@ struct CalendarGridWidget: View {
         WidgetCard(title: nil) {
             WidgetTitle(title: WidgetFormat.month(data.string("month")), note: data.string("title"))
             CalendarGridBody(data: data, weekdays: weekdays, columns: columns, ink: WidgetInk(scheme))
+            // Пустая сетка осмысленна («в этом месяце ничего не было»), но без
+            // подписи её не отличить от неотрисованного блока (галерея §Т2).
+            if data.array("cells").isEmpty {
+                WidgetEmptyNote(text: "Событий нет")
+            }
         }
     }
 }
@@ -286,8 +291,14 @@ struct HeatmapWidget: View {
     var body: some View {
         WidgetCard(title: nil) {
             WidgetTitle(title: data.string("title"), note: data.string("unit"))
-            HeatmapGrid(data: data, ink: WidgetInk(scheme))
-            HeatmapLegend(data: data, ink: WidgetInk(scheme))
+            // Без ячеек карта молча рисует сетку нулей: владелец видит «пустую
+            // карту», а это «в этом периоде ничего не было» (галерея §Т5).
+            if data.array("cells").isEmpty {
+                WidgetEmptyNote(text: "Активности не было")
+            } else {
+                HeatmapGrid(data: data, ink: WidgetInk(scheme))
+                HeatmapLegend(data: data, ink: WidgetInk(scheme))
+            }
         }
     }
 }

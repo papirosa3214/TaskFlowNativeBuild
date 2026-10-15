@@ -16,18 +16,22 @@ struct CompareWidget: View {
     var body: some View {
         WidgetCard(title: nil) {
             WidgetTitle(title: data.string("title"), note: data.string("subject"))
-            CompareSide(side: data.object("left"), unit: data.string("unit"), isCheaper: isCheaper(.left)) { open(side: data.object("left")) }
-            Divider().overlay(Color.tfStroke)
-            CompareSide(side: data.object("right"), unit: data.string("unit"), isCheaper: isCheaper(.right)) { open(side: data.object("right")) }
-            if let leftValue, let rightValue {
-                CompareDifferenceBar(left: leftValue, right: rightValue, ink: WidgetInk(scheme))
-            }
-            if let verdict = data.string("verdict") {
-                // Вердикт — обычным цветом текста, не зелёным: насыщенный зелёный
-                // текст в тёмной теме проходит контраст только крупным (§1.7).
-                Text(verdict)
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
+            if leftValue == nil || rightValue == nil {
+                WidgetEmptyNote(text: "Данных пока нет")
+            } else {
+                CompareSide(side: data.object("left"), unit: data.string("unit"), isCheaper: isCheaper(.left)) { open(side: data.object("left")) }
+                Divider().overlay(Color.tfStroke)
+                CompareSide(side: data.object("right"), unit: data.string("unit"), isCheaper: isCheaper(.right)) { open(side: data.object("right")) }
+                if let leftValue, let rightValue {
+                    CompareDifferenceBar(left: leftValue, right: rightValue, ink: WidgetInk(scheme))
+                }
+                if let verdict = data.string("verdict") {
+                    // Вердикт — обычным цветом текста, не зелёным: насыщенный зелёный
+                    // текст в тёмной теме проходит контраст только крупным (§1.7).
+                    Text(verdict)
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                }
             }
         }
     }

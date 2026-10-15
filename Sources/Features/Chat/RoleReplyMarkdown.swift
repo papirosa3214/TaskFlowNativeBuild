@@ -57,15 +57,22 @@ struct RoleReplyMarkdown: View, Equatable {
         case .html(let html):
             ChatHTMLView(html: html, allowsCommands: allowsCommands && fade == nil)
         case .pending(let kind):
-            HStack(spacing: TFSpacing.sm) {
-                ProgressView()
-                Text(kind == .html ? "Собираю интерактив…" : "Готовлю виджет…")
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfSub)
+            if kind == .widget {
+                // Скелетон, а не «Готовлю виджет…»: визуальный язык §5.2 прямо
+                // запрещает спиннер внутри виджета и требует геометрию итогового
+                // блока, иначе при появлении данных карточка прыгает.
+                WidgetSkeletonCard()
+            } else {
+                HStack(spacing: TFSpacing.sm) {
+                    ProgressView()
+                    Text("Собираю интерактив…")
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfSub)
+                }
+                .padding(TFSpacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.xl))
             }
-            .padding(TFSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.xl))
         }
     }
 
