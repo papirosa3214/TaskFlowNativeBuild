@@ -7,24 +7,111 @@ import SwiftUI
 /// роль берёт готовыми из `taskflow_weather`.
 ///
 /// Разбор нестрогий: число может прийти строкой и наоборот, незнакомое поле
-/// пропускается. Непонятный тип или битый JSON — не пустое место, а карточка
-/// с исходным текстом.
+/// пропускается. Непонятный тип — не пустое место и не «виджет не разобран»,
+/// а текст из тех же полей (`WidgetTextFallback`): старый клиент новых типов не
+/// знает, и заглушка выглядела для владельца поломкой.
+///
+/// Реестр `type → компонент` — в `widget(for:)`: парсер про типы не знает,
+/// добавление типа это одна запись здесь плюс компонент в `Widgets/`.
 struct ChatWidgetView: View {
     let json: String
 
     var body: some View {
         if let data = WidgetData.parse(json) {
-            switch data.string("type") ?? "" {
-            case "weather": WeatherWidget(data: data)
-            case "metrics": MetricsWidget(data: data)
-            case "progress": ProgressWidget(data: data)
-            case "checklist": ChecklistWidget(data: data)
-            case "card": CardWidget(data: data)
-            case "chart": ChartWidget(data: data)
-            default: UnknownWidget(raw: json)
+            widget(for: data)
+        } else {
+            WidgetTextFallback(json: json, note: "Блок не разобран")
+        }
+    }
+
+    @ViewBuilder
+    private func widget(for data: WidgetData) -> some View {
+        let type = data.string("type") ?? ""
+        switch type {
+        case "weather": WeatherWidget(data: data)
+        case "metrics": metricsWidget(data)
+        case "progress": progressWidget(data)
+        case "checklist": checklistWidget(data)
+        case "card": cardWidget(data)
+        case "chart": chartWidget(data)
+        case "status_board": StatusBoardWidget(data: data)
+        case "bars_list": BarsListWidget(data: data)
+        case "chain": ChainWidget(data: data)
+        case "ladder": LadderWidget(data: data)
+        case "timeline": TimelineWidget(data: data)
+        case "calendar_grid": CalendarGridWidget(data: data)
+        case "heatmap": HeatmapWidget(data: data)
+        case "compare": CompareWidget(data: data)
+        default: WidgetTextFallback(json: json, note: "Виджет этого типа пока не рисуется")
+        }
+    }
+
+    // MARK: Компоновки К1–К6 поверх шести действующих типов
+
+    /// Ветка включается наличием НОВЫХ полей, а не флагом: старый блок без них
+    /// уходит в прежний вид и рисуется ровно как раньше.
+    @ViewBuilder
+    private func metricsWidget(_ data: WidgetData) -> some View {
+        let items = data.array("items")
+        if data.string("layout") == "strip" {
+            WidgetCard(title: data.string("title")) { MetricsStripWidget(items: items) }
+        } else if items.contains(where: { $0.string("tone") != nil || $0.string("icon") != nil }) {
+            WidgetCard(title: data.string("title")) { MetricsTilesWidget(items: items) }
+        } else {
+            MetricsWidget(data: data)
+        }
+    }
+
+    @ViewBuilder
+    private func checklistWidget(_ data: WidgetData) -> some View {
+        let items = data.array("items")
+        let hasNewFields = data.bool("rows") == true
+            || items.contains(where: { $0.string("tone") != nil || $0.string("meta") != nil || $0.number("progress") != nil })
+        if hasNewFields {
+            WidgetCard(title: data.string("title")) { ChecklistRowsWidget(items: items) }
+        } else {
+            ChecklistWidget(data: data)
+        }
+    }
+
+    @ViewBuilder
+    private func progressWidget(_ data: WidgetData) -> some View {
+        if let milestone = data.object("milestone") {
+            WidgetCard(title: data.string("title")) {
+                ProgressMilestoneWidget(items: data.array("items"), milestone: milestone)
             }
         } else {
-            UnknownWidget(raw: json)
+            ProgressWidget(data: data)
+        }
+    }
+
+    @ViewBuilder
+    private func chartWidget(_ data: WidgetData) -> some View {
+        if data.string("layout") == "bars" || data.bool("horizontal") == true {
+            WidgetCard(title: data.string("title")) {
+                ChartBarsWidget(points: barPoints(data))
+            }
+        } else {
+            ChartWidget(data: data)
+        }
+    }
+
+    @ViewBuilder
+    private func cardWidget(_ data: WidgetData) -> some View {
+        CardWidget(data: data, ribbon: ribbonTone(data))
+    }
+
+    /// Лента статуса (К5) — только если тон из смысловой таблицы: произвольную
+    /// строку цветом не красим.
+    private func ribbonTone(_ data: WidgetData) -> WidgetTone? {
+        guard let raw = data.string("tone"), WidgetTone(rawValue: raw.lowercased()) != nil else { return nil }
+        return WidgetTone(raw)
+    }
+
+    private func barPoints(_ data: WidgetData) -> [ChartBarPoint] {
+        data.array("points").enumerated().compactMap { index, item in
+            guard let value = item.number("y") else { return nil }
+            return ChartBarPoint(id: index, label: item.string("x") ?? "\(index + 1)", value: value)
         }
     }
 }
@@ -85,7 +172,9 @@ struct WidgetData {
 
 // MARK: - Общая подложка
 
-private struct WidgetCard<Content: View>: View {
+/// Подложка виджета. Не `private`: ею пользуются все восемь новых типов и
+/// компоновки из `Widgets/`.
+struct WidgetCard<Content: View>: View {
     var title: String?
     @ViewBuilder var content: Content
 
@@ -217,7 +306,7 @@ enum WeatherSymbol {
     }
 }
 
-// MARK: - Метрики
+// MARK: - Метрики (старый вид)
 
 private struct MetricsWidget: View {
     let data: WidgetData
@@ -254,7 +343,7 @@ private struct MetricsWidget: View {
     }
 }
 
-// MARK: - Прогресс
+// MARK: - Прогресс (старый вид)
 
 private struct ProgressWidget: View {
     let data: WidgetData
@@ -284,7 +373,7 @@ private struct ProgressWidget: View {
     }
 }
 
-// MARK: - Чек-лист
+// MARK: - Чек-лист (старый вид)
 
 /// Отметки ставятся прямо в чате — локально, для себя: сервер про них не
 /// знает (виджет — часть ответа роли, а не задача трекера).
@@ -321,10 +410,15 @@ private struct ChecklistWidget: View {
 
 private struct CardWidget: View {
     let data: WidgetData
+    /// К5: лента статуса, когда блок принёс смысловой тон.
+    var ribbon: WidgetTone?
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         WidgetCard(title: nil) {
+            if let ribbon {
+                WidgetToneRibbon(tone: ribbon)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 if let title = data.string("title") {
                     Text(title).tfText(.title).foregroundStyle(Color.tfText)
@@ -373,7 +467,7 @@ private struct CardWidget: View {
     }
 }
 
-// MARK: - График
+// MARK: - График (старый вид)
 
 private struct ChartWidget: View {
     let data: WidgetData
@@ -409,25 +503,6 @@ private struct ChartWidget: View {
             }
             .chartYAxisLabel(data.string("unit") ?? "")
             .frame(height: 180)
-        }
-    }
-}
-
-// MARK: - Не разобрали
-
-private struct UnknownWidget: View {
-    let raw: String
-
-    var body: some View {
-        WidgetCard(title: nil) {
-            Label("Виджет не разобран", systemImage: "exclamationmark.triangle")
-                .tfText(.body)
-                .foregroundStyle(Color.tfSub)
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(raw)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Color.tfSub)
-            }
         }
     }
 }
