@@ -2114,10 +2114,26 @@ struct TaskCardContent: View {
                     // заполняет `CollaborationPlanView.load()`).
                     if let taskID {
                         if let planId = pendingPlanApprovalId {
+                            // Владелец 16.10.2026 (caecdeee): черновик собран по
+                            // шаблону и не занимает написанные подзадачи — после
+                            // «Утвердить» они остаются пустыми. В таком случае
+                            // сначала предлагаем собрать план из них.
+                            if orphanSubtaskCount > 0 {
+                                Button {
+                                    Task { await suggestCollaborationPlanFromSubtasks(taskId: taskID) }
+                                } label: {
+                                    Label("Собрать план из подзадач (\(orphanSubtaskCount))", systemImage: "wand.and.stars")
+                                }
+                                .disabled(isSuggestingCollaborationPlan || !viewModel.canUsePlan)
+                            }
                             Button {
                                 Task { await approveCollaborationPlan(taskId: taskID, planId: planId) }
                             } label: {
-                                Label("Утвердить план совместной работы", systemImage: "checkmark.circle")
+                                if orphanSubtaskCount > 0 {
+                                    Label("Утвердить план подготовки — \(orphanSubtaskCount) подзадач без исполнителей", systemImage: "checkmark.circle")
+                                } else {
+                                    Label("Утвердить план совместной работы", systemImage: "checkmark.circle")
+                                }
                             }
                             .disabled(isApprovingCollaborationPlan || !viewModel.canUsePlan || viewModel.collaborationPlanState.draftPlan?.nodes.contains(where: { $0.requiresChoice == true && $0.workChoice == nil }) == true)
                         }
@@ -2334,6 +2350,14 @@ struct TaskCardContent: View {
     /// Утверждение черновика плана совместной работы — LOCK-249, кнопка в
     /// меню «Ещё». Сервер сам материализует slots и стартует корневые узлы
     /// графа; здесь только вызов и перезагрузка `CollaborationPlanView`.
+    /// Открытые подзадачи вне плана, если черновик не занимает ни одной из
+    /// них (собран по шаблону). Ноль — выбора не нужно.
+    private var orphanSubtaskCount: Int {
+        guard let draft = viewModel.collaborationPlanState.draftPlan,
+              !draft.nodes.contains(where: { $0.sourceSubtaskId != nil }) else { return 0 }
+        return viewModel.subtasks.filter { !$0.done && $0.collaborationPlanId == nil }.count
+    }
+
     private func approveCollaborationPlan(taskId: String, planId: String) async {
         isApprovingCollaborationPlan = true
         do {
