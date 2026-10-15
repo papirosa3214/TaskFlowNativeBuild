@@ -60,11 +60,12 @@ preview обязан включать настоящий проверяемый 
 - Сборка (DerivedData и пакеты — внутри корня, иначе песочница не пустит):
 
 ```bash
-xcodegen generate && xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator -scmProvider system -IDEPackageSupportDisableManifestSandbox=YES -destination 'platform=iOS Simulator,id=9FF78D89-EE84-4914-AA56-D0A72D1AF43A' -derivedDataPath .worktrees/_derived build
+xcodegen generate && xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator -scmProvider system -IDEPackageSupportDisableManifestSandbox=YES -destination 'platform=iOS Simulator,id=9FF78D89-EE84-4914-AA56-D0A72D1AF43A' -derivedDataPath .worktrees/_derived 'OTHER_SWIFT_FLAGS=$(inherited) -disable-sandbox' build
 ```
 
-  `-IDEPackageSupportDisableManifestSandbox=YES` отключает только вложенную
-  песочницу SwiftPM: macOS не даёт запустить её внутри песочницы хоста. Наружная
+  `-IDEPackageSupportDisableManifestSandbox=YES` и `-disable-sandbox` отключают
+  только вложенные песочницы SwiftPM и макросов Swift: macOS не даёт запустить
+  их внутри песочницы хоста. Проверено 16.10.2026: BUILD SUCCEEDED за ~7 мин. Наружная
   песочница остаётся.
 - Результат — коммит в ветку `roles/<task_id>` и `git push` (операция хоста
   `git_push`): работа уходит в общий репозиторий, вливает её владелец.
