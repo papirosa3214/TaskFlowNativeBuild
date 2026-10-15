@@ -45,3 +45,26 @@ preview обязан включать настоящий проверяемый 
 Полный обязательный порядок, экономный цикл сборок и команды —
 `AGENT-CYCLE.md`, раздел 7 «Приёмка на устройстве» (указание владельца
 11.10.2026). Для правок только документации запуск приложения не требуется.
+
+## Роли TaskFlow на маке: хост и песочница (с 15.10.2026)
+
+Роль-разработчик по задачам проекта «TaskFlow Native iOS» работает на маке через
+хост `taskflow-host` (машина `macbook`), а не в отдельной копии
+`~/Проекты/TaskFlowDeveloper` — та упразднена вместе со ssh-шлюзом.
+
+- Рабочая копия роли — git worktree этого репозитория в `.worktrees/<task_id>`,
+  ветка `roles/<task_id>`, создаётся от текущего `main`. Отдельной копии,
+  отстающей от main, больше нет.
+- Команды идут под `sandbox-exec`: доступен только этот репозиторий; домашний
+  каталог, ключи и соседние проекты закрыты. Симулятор — только iPhone Air iOS 27.
+- Сборка (DerivedData и пакеты — внутри корня, иначе песочница не пустит):
+
+```bash
+xcodegen generate && xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator -scmProvider system -IDEPackageSupportDisableManifestSandbox=YES -destination 'platform=iOS Simulator,id=9FF78D89-EE84-4914-AA56-D0A72D1AF43A' -derivedDataPath .worktrees/_derived build
+```
+
+  `-IDEPackageSupportDisableManifestSandbox=YES` отключает только вложенную
+  песочницу SwiftPM: macOS не даёт запустить её внутри песочницы хоста. Наружная
+  песочница остаётся.
+- Результат — коммит в ветку `roles/<task_id>` и `git push` (операция хоста
+  `git_push`): работа уходит в общий репозиторий, вливает её владелец.
