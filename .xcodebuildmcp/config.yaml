@@ -1,2 +1,10 @@
 schemaVersion: 1
 enabledWorkflows: ["simulator", "ui-automation", "debugging"]
+# Единственный симулятор проекта — iPhone Air iOS 27 (как телефон владельца).
+# Другие не загружать. Единственный исходник — этот репозиторий;
+# ~/Проекты/TaskFlowDeveloper устарел и не используется (15.10.2026).
+sessionDefaults:
+  projectPath: /Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj
+  scheme: TaskFlow
+  simulatorId: 9FF78D89-EE84-4914-AA56-D0A72D1AF43A
+  derivedDataPath: /Users/max/Проекты/TaskFlowNativeBuild/build_sim
