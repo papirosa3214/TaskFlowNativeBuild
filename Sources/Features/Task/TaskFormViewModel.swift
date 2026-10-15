@@ -350,11 +350,37 @@ final class TaskFormViewModel {
     private func reloadTaskQuietly() async {
         guard let taskID else { return }
         guard let fresh = try? await apiClient.task(id: taskID) else { return }
+        if let old = originalTask { adoptServerChanges(from: old, to: fresh) }
         originalTask = fresh
         await loadExecutionStatus()
         subtasks = fresh.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
         childTasks = fresh.children ?? []
         await syncLiveActivity(with: fresh)
+    }
+
+    /// Поле, которое владелец не трогал (равно прежнему `originalTask`), берём
+    /// с сервера. Иначе `saveEdit` сравнил бы старое поле со свежим
+    /// `originalTask`, увидел «правку» и автосохранением откатил чужое
+    /// изменение — так 16.10.2026 карточку дважды возвращало в старый проект.
+    /// Сравнение — то же, что в `saveEdit`, поле за полем.
+    func adoptServerChanges(from old: ApiTask, to fresh: ApiTask) {
+        if title.trimmingCharacters(in: .whitespacesAndNewlines) == old.title { title = fresh.title }
+        if (taskDescription.isEmpty ? nil : taskDescription) == old.description { taskDescription = fresh.description ?? "" }
+        if dueDate.map(Self.dueDateString) == old.dueDate { dueDate = fresh.dueDateAsDate }
+        let startStr = startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
+        if startStr == old.startTime {
+            startMinutes = fresh.startTime.flatMap(DateFormats.localTimeComponents).map { $0.hour * 60 + $0.minute }
+        }
+        if durationMin == old.durationMin { durationMin = fresh.durationMin }
+        if projectId == old.projectId { projectId = fresh.projectId }
+        if priority.rawValue == old.priority { priority = TaskPriority(rawValue: fresh.priority) ?? .low }
+        if selectedLabelIds == Set(old.labels.map(\.id)) { selectedLabelIds = Set(fresh.labels.map(\.id)) }
+        if assigneeId == old.assigneeId { assigneeId = fresh.assigneeId }
+        if requiresReviewerReview == old.requiresReviewerReview { requiresReviewerReview = fresh.requiresReviewerReview }
+        if runRepeat == (old.runRepeat ?? "none") { runRepeat = fresh.runRepeat ?? "none" }
+        if repeatUntil.map({ Self.dayFormatter.string(from: $0) }) == old.repeatUntil {
+            repeatUntil = fresh.repeatUntil.flatMap { Self.dayFormatter.date(from: $0) }
+        }
     }
 
     /// Островок идёт за карточкой, пока приложение открыто: перезапрос задачи
