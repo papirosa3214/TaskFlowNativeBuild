@@ -42,4 +42,25 @@ public extension APIClient {
         if !attachmentIds.isEmpty { body["attachment_ids"] = .strings(attachmentIds) }
         return try await request(.post, "/tasks/\(taskId)/comments", body: body)
     }
+
+    /// Правка 9: выбрать машину выполнения шага. nil — вернуть на сервер.
+    /// Отдельный маршрут, а не PATCH: те же правила доступа и запрет после
+    /// старта шага, что и у выбора модели (см. owner-controls.ts).
+    func setSubtaskHost(id: String, hostId: String?) async throws {
+        let body: [String: JSONValue] = ["host_id": hostId.map { .string($0) } ?? .null]
+        let _: SubtaskHostResponse = try await request(.put, "/subtasks/\(id)/host", body: body)
+    }
+}
+
+/// Ответ `PUT /subtasks/:id/host`. Хотим ровно эти поля — лишние сервер может
+/// добавить, а лишние у нас сломали бы декодирование.
+public struct SubtaskHostResponse: Decodable, Sendable {
+    public let ok: Bool
+    public let subtaskId: String?
+    public let hostId: String?
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case subtaskId = "subtask_id"
+        case hostId = "host_id"
+    }
 }

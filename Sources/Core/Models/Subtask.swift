@@ -33,6 +33,8 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
     /// это подзадачи»); у обычных шагов оба поля nil.
     public let collaborationPlanId: String?
     public let planNodeKey: String?
+    /// Правка 9: машина, на которой выполняется шаг. nil — локально на сервере.
+    public let hostId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -47,6 +49,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         case state
         case collaborationPlanId = "collaboration_plan_id"
         case planNodeKey = "plan_node_key"
+        case hostId = "host_id"
     }
 
     public init(from decoder: Decoder) throws {
@@ -65,13 +68,15 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         state = try c.decodeIfPresent(SubtaskState.self, forKey: .state)
         collaborationPlanId = try c.decodeIfPresent(String.self, forKey: .collaborationPlanId)
         planNodeKey = try c.decodeIfPresent(String.self, forKey: .planNodeKey)
+        hostId = try c.decodeIfPresent(String.self, forKey: .hostId)
     }
 
     public init(
         id: String, taskId: String?, title: String, done: Bool, position: Int?,
         agentState: AgentState?, agentId: String?, agentHeartbeatAt: String?,
         result: String?, agentSessionId: String?, state: SubtaskState?,
-        collaborationPlanId: String? = nil, planNodeKey: String? = nil, agentStale: Bool? = nil
+        collaborationPlanId: String? = nil, planNodeKey: String? = nil, agentStale: Bool? = nil,
+        hostId: String? = nil
     ) {
         self.id = id; self.taskId = taskId; self.title = title; self.done = done
         self.position = position; self.agentState = agentState; self.agentId = agentId
@@ -79,6 +84,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         self.agentHeartbeatAt = agentHeartbeatAt; self.result = result
         self.agentSessionId = agentSessionId; self.state = state
         self.collaborationPlanId = collaborationPlanId; self.planNodeKey = planNodeKey
+        self.hostId = hostId
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -95,6 +101,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(result, forKey: .result)
         try c.encodeIfPresent(agentSessionId, forKey: .agentSessionId)
         try c.encodeIfPresent(state, forKey: .state)
+        try c.encodeIfPresent(hostId, forKey: .hostId)
         try c.encodeIfPresent(collaborationPlanId, forKey: .collaborationPlanId)
         try c.encodeIfPresent(planNodeKey, forKey: .planNodeKey)
     }

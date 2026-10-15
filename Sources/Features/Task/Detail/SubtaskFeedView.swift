@@ -9,6 +9,9 @@ struct SubtaskFeedView: View {
     var onToggleDone: (ApiSubtask) -> Void
     var onSubmitReply: (ApiSubtask, String) -> Void
     var onAccept: (ApiSubtask) -> Void
+    /// Правка 9: реестр машин для выбора места выполнения шага.
+    var machines: [RemoteMachineOption] = []
+    var onSelectHost: (ApiSubtask, String?) -> Void = { _, _ in }
 
     @State private var expandedId: String?
     @State private var replyingId: String?
@@ -106,6 +109,9 @@ struct SubtaskFeedView: View {
             if let result = subtask.displayResult, !result.isEmpty {
                 Text(result).tfText(.action).foregroundStyle(Color.tfSub)
             }
+            // Место выполнения — владельческая настройка, как и модель шага:
+            // роль сама машину не выбирает.
+            SubtaskHostPicker(subtask: subtask, machines: machines, onSelect: { onSelectHost(subtask, $0) })
             if replyingId == subtask.id {
                 replyForm(subtask)
             } else if isOwner {
