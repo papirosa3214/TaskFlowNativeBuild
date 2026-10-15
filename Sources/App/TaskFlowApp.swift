@@ -43,7 +43,9 @@ struct TaskFlowApp: App {
         WindowGroup {
             Group {
                 #if DEBUG
-                if ProcessInfo.processInfo.environment["TASKFLOW_VOICE_HISTORY_PREVIEW"] == "1" {
+                if let gallery = ProcessInfo.processInfo.environment["TASKFLOW_WIDGET_GALLERY_PREVIEW"] {
+                    WidgetStateGalleryScreen(kind: gallery)
+                } else if ProcessInfo.processInfo.environment["TASKFLOW_VOICE_HISTORY_PREVIEW"] == "1" {
                     VoiceRecordingWaveformPreview()
                 } else if ProcessInfo.processInfo.environment["TASKFLOW_DIAGNOSTICS_PREVIEW"] == "1" {
                     AppDiagnosticsPreview()
