@@ -1402,6 +1402,7 @@ struct TaskCardContent: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("task-card.\(taskID ?? "new").section.\(section.rawValue)")
             .accessibilityHint(expanded ? "Свернуть" : "Развернуть")
+            .hintAnchor("task.section.\(section.rawValue)")
             if let key = sectionEditKey(section), armedEditors.contains(key) || activeEditors.contains(key) {
                 editorButton(key)
             }
@@ -2018,6 +2019,7 @@ struct TaskCardContent: View {
                     .foregroundStyle(Color.tfText)
             }
             .accessibilityLabel("Работа")
+            .hintAnchor(HintAnchorID.taskWorkMenu)
         }
         ToolbarItem(placement: .topBarTrailing) {
             // Подготовка ждёт владельца — системная отметка на «Ещё»

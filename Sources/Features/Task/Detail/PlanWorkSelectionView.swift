@@ -66,6 +66,7 @@ struct PlanWorkSelectionView: View {
             }.font(.body).foregroundStyle(Color.tfText)
         }.buttonStyle(.plain).disabled(saving)
             .accessibilityIdentifier("plan-choice.\(node.slotKey).\(value)")
+            .hintAnchor(HintAnchorID.planWorkChoice)
     }
 
     private func save(_ node: ApiCollaborationPlanNode, choice: String?) {

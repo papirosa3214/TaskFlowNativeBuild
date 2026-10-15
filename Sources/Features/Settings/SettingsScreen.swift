@@ -122,6 +122,8 @@ struct SettingsScreen: View {
                 titleStyle: .action,
                 verticalPadding: TFSpacing.xs
             )
+            TFDivider(inset: rowDividerInset)
+            HintsSettingsSection(dividerInset: rowDividerInset)
             if viewModel.isBiometryAvailable {
                 TFDivider(inset: rowDividerInset)
                 toggleRow(icon: viewModel.biometryKind == .faceID ? "faceid" : "touchid", title: viewModel.biometryLabel, isOn: $viewModel.isBiometryEnabled)

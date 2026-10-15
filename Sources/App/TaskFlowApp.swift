@@ -135,6 +135,8 @@ struct RootView: View {
             }
         }
         .task {
+            // Окно режима подсказок поверх листов и шапок (LOCK-HINTS-ONBOARDING).
+            HintOverlayWindow.install()
             await session.bootstrap()
         }
         .onChange(of: session.isAuthenticated, initial: true) { _, isAuthenticated in
