@@ -74,6 +74,19 @@ targets:
       # Расширение с виджетом: без явной зависимости xcodegen не вложит его
       # в бандл приложения, и Live Activity не за что будет зацепиться.
       - target: TaskFlowWidgets
+    # Сторож дизайн-системы (LOCK-DESIGN-SYSTEM-GUARD-20261016): не даёт
+    # собрать приложение, если правка в Sources/ нарисована мимо
+    # Sources/DesignSystem/ — голый `Toggle`, системный цвет текста
+    # (`.primary`/`.secondary`/`.tertiary`), сырой кегль на `Text`, своя
+    # красная кнопка. Смотрит ТОЛЬКО правки (`git diff HEAD` плюс новые
+    # файлы), поэтому старая несоответствующая разметка сборку не роняет.
+    # Правила и замены — в `Tools/design-system-guard.py`.
+    # `/usr/bin/python3` — системный: python3 из Homebrew в шаге сборки не в PATH.
+    preBuildScripts:
+      - name: Сторож дизайн-системы
+        basedOnDependencyAnalysis: false
+        script: |
+          /usr/bin/python3 "$SRCROOT/Tools/design-system-guard.py" --diff HEAD
     info:
       path: Resources/Info.plist
       properties:

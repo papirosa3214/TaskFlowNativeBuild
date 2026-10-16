@@ -112,11 +112,14 @@ struct JevSettingsScreen: View {
     private func scenario(_ title: String, id: String, enabled: Bool, description: String,
                           patch: @escaping (Bool) -> JevSettingsPatch) -> some View {
         Section {
-            Toggle(isOn: Binding(get: { enabled }, set: { value in Task { await save(patch(value), updateDraft: false) } })) {
+            HStack {
                 Text(title).tfText(.body).foregroundStyle(Color.tfText)
+                Spacer()
+                TFToggle(isOn: Binding(get: { enabled }, set: { value in Task { await save(patch(value), updateDraft: false) } }))
+                    .accessibilityLabel(title)
+                    .accessibilityIdentifier("jev-scenario-\(id)")
             }
             .disabled(busy || settings?.hasApiKey != true)
-            .accessibilityIdentifier("jev-scenario-\(id)")
         } footer: { Text(description).tfText(.action).foregroundStyle(Color.tfSub) }
     }
 
