@@ -1,0 +1,141 @@
+{
+  "schema": "xcodebuildmcp.output.test-result",
+  "schemaVersion": "3",
+  "didError": true,
+  "error": "Tests failed",
+  "data": {
+    "request": {
+      "scheme": "TaskFlow",
+      "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+      "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+      "platform": "iOS Simulator",
+      "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+      "onlyTesting": [
+        "TaskFlowUITests/TaskChatEdgeUITests"
+      ],
+      "skipTesting": []
+    },
+    "summary": {
+      "status": "FAILED",
+      "durationMs": 35220,
+      "target": "simulator"
+    },
+    "artifacts": {
+      "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-16T19-05-45-632Z_pid85076_4c0fb429.log"
+    },
+    "diagnostics": {
+      "warnings": [
+        {
+          "message": "main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Settings/GoogleIntegrationsAPI.swift:126"
+        },
+        {
+          "message": "result of 'try?' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Chat/ChatViewModel.swift:334"
+        },
+        {
+          "message": "result of 'try?' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Chat/ChatViewModel.swift:340"
+        },
+        {
+          "message": "'onChange(of:perform:)' was deprecated in iOS 17.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Coordination/CoordinationScreen.swift:81"
+        },
+        {
+          "message": "immutable value 'onRework' was never used; consider replacing with '_' or removing it [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/Detail/PlanStepSheets.swift:221"
+        },
+        {
+          "message": "main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Markdown/BlockDocumentEditor.swift:319"
+        },
+        {
+          "message": "'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Core/Session/SessionStore.swift:25"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1428"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1607"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1822"
+        },
+        {
+          "message": "result of call to 'acquire' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/DesignSystem/Components/TFRolePortrait.swift:143"
+        },
+        {
+          "message": "variable 'shot' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/Heatmap3DUITests.swift:48"
+        },
+        {
+          "message": "initialization of immutable value 'app' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/CoverageTests.swift:33"
+        },
+        {
+          "message": "variable 'found' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/E2ETests.swift:41"
+        },
+        {
+          "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/RoleStepLineSnapshotTests.swift:18"
+        },
+        {
+          "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/RoleStepLineSnapshotTests.swift:23"
+        },
+        {
+          "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/RoleStepLineSnapshotTests.swift:28"
+        },
+        {
+          "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:64"
+        },
+        {
+          "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:79"
+        },
+        {
+          "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:95"
+        },
+        {
+          "message": "'assertSnapshot(of:as:named:record:timeout:fileID:file:testName:line:column:)' is deprecated: Use overload with 'record: SnapshotTestingConfiguration.Record?' [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/SnapshotTests/TaskRowSnapshotTests.swift:101"
+        },
+        {
+          "message": "'CommandURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/OwnerCommandTests.swift:4"
+        },
+        {
+          "message": "'SystemControlURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/SystemControlViewModelTests.swift:137"
+        },
+        {
+          "message": "'PreparationFallbackURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/TaskPreparationReplyTests.swift:48"
+        },
+        {
+          "message": "'ReplyURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/TaskPreparationReplyTests.swift:61"
+        }
+      ],
+      "errors": [
+        {
+          "message": "cannot assign to property: 'check' is a 'let' constant",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/ServiceTicketPresentationTests.swift:199"
+        },
+        {
+          "message": "|               `- error: cannot assign to property: 'check' is a 'let' constant"
+        }
+      ],
+      "testFailures": []
+    }
+  }
+}

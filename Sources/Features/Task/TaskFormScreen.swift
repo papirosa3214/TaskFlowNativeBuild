@@ -500,7 +500,7 @@ struct TaskCardContent: View {
             set: { if !$0 { openedTaskChatID = nil } }
         )) {
             if let chatID = openedTaskChatID {
-                NavigationStack { RoleChatRoomLoader(chatID: chatID) }
+                TaskChatSheet(chatID: chatID)
             }
         }
     }
