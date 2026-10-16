@@ -19,7 +19,23 @@ final class HintCenterTests: XCTestCase {
         center.report(anchor: HintAnchorID.systemSummary, frame: frame)
         XCTAssertEqual(center.active?.step, "summary")
         center.next()
+        // Второй шаг — «Как читать сводку»: он объясняет новый смысл корзин
+        // после правки 16.10.2026 (владелец может не заметить изменения).
+        XCTAssertEqual(center.active?.step, "reading")
+        XCTAssertFalse(center.completed.contains("system-summary"))
+        center.next()
         XCTAssertTrue(center.completed.contains("system-summary"))
+    }
+
+    /// Второй шаг сводки обязан объяснять, чем «Тревоги» отличаются от
+    /// «Поломок» — иначе новое поведение нечем узнать.
+    func testSystemSummaryExplainsWarningBucketMeaning() {
+        let step = HintScenarios.systemSummary.steps["reading"]
+        XCTAssertEqual(step?.anchor, HintAnchorID.systemSummary)
+        let text = try? XCTUnwrap(step?.text)
+        XCTAssertTrue(text?.contains("Тревоги") ?? false)
+        XCTAssertTrue(text?.contains("формально") ?? false)
+        XCTAssertTrue(text?.contains("подробности не пришли") ?? false)
     }
 
     func testJevHintCompletes() {

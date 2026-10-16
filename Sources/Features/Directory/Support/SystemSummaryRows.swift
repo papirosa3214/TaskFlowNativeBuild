@@ -31,7 +31,10 @@ struct SystemSummaryItem: Identifiable {
     }
     let id: String
     let title: String
-    let area: String
+    /// `nil` — подпись нечего рисовать: её не было или она была заглушкой
+    /// («Сервер» у трёх проверок из шестнадцати). Пустой подписью строка
+    /// выглядит полнее, но содержательно не добавляет ничего.
+    let area: String?
     let message: String
     let kind: Kind
     let taskID: String?
@@ -44,14 +47,24 @@ struct SystemSummaryItem: Identifiable {
                 $0.key == check.incidentKey || check.diagnosticTaskIDs?.contains($0.id) == true
             }
             if let incident, !represented.insert(incident.id).inserted { continue }
+            // Свою карточку поломки проверка уже представлена — её состояние
+            // и есть факт, статус проверки вторичен.
             let kind: Kind
             if let incident { kind = incident.fixed ? .repaired : .broken }
             else if check.status == "error" { kind = .broken }
             else if check.status != "ok" { kind = .warning }
+            // `status: ok` с текстом об отказе (за 12–16.10 это «Проверка
+            // сервиса»: вчера error, сегодня ok при том же тексте). Помещать
+            // в «Работает в штатном режиме» значит показать зелёную галочку на
+            // противоречии; в «Тревоги» — потому что формально прошла, а
+            // фактически нет, и почему пока не ясно.
+            else if ServiceTicketPresentation.contradictsSuccess(check.message) { kind = .warning }
             else { kind = check.recovered == true ? .repaired : .normal }
             let status = incident.map { "\($0.statusLine)" + ($0.workLine.map { "\n" + $0 } ?? "") }
+            let message = ([ServiceTicketPresentation.readable(check), status].compactMap { $0 }
+                .joined(separator: "\n"))
             rows.append(Self(id: incident?.id ?? "check-\(index)", title: check.name,
-                             area: check.area, message: [check.message, status].compactMap { $0 }.joined(separator: "\n"),
+                             area: ServiceTicketPresentation.readableArea(check), message: message,
                              kind: kind, taskID: incident?.id ?? check.diagnosticTaskIDs?.first))
         }
         for incident in incidents where !represented.contains(incident.id) {
@@ -104,7 +117,11 @@ struct SystemSummaryInformationRow: View {
             Image(systemName: item.kind.icon).foregroundStyle(item.kind.color)
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
                 Text(item.title).tfText(.body).foregroundStyle(Color.tfText)
-                Text(item.area).tfText(.caption).foregroundStyle(Color.tfDim)
+                // Подпись рисуется, только когда несёт смысл: заглушка «Сервер»
+                // — это шум без содержания (владелец 16.10.2026).
+                if let area = item.area {
+                    Text(area).tfText(.caption).foregroundStyle(Color.tfDim)
+                }
                 Text(item.message).tfText(.row).foregroundStyle(Color.tfSub)
             }
             Spacer(minLength: 0)

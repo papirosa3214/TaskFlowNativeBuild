@@ -23,9 +23,11 @@ enum HintScenarios {
     static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary]
 
     static let systemSummary = HintScenario(
-        id: "system-summary", title: "Состояние системы", start: "summary",
-        steps: ["summary": HintStep(anchor: HintAnchorID.systemSummary, title: "Общая сводка",
-            text: "Здесь сразу раскрыты поломки, тревоги, починенные механизмы и то, что работает штатно. Нажмите строку проблемы, чтобы открыть связанную задачу. Список рабочих карточек находится в меню «…» → «Карточки работ».", next: nil)])
+            id: "system-summary", title: "Состояние системы", start: "summary",
+            steps: ["summary": HintStep(anchor: HintAnchorID.systemSummary, title: "Общая сводка",
+                text: "Здесь сразу раскрыты поломки, тревоги, починенные механизмы и то, что работает штатно. Нажмите строку проблемы, чтобы открыть связанную задачу. Список рабочих карточек находится в меню «…» → «Карточки работ».", next: "reading"),
+                    "reading": HintStep(anchor: HintAnchorID.systemSummary, title: "Как читать сводку",
+                text: "Строки разложены по факту, а не по тексту сторожевого скрипта. «Поломки» — подтверждённый отказ, «Тревоги» — проверка прошла формально, но текст говорит об отказе, «Починено» — восстановилось само, «Работает в штатном режиме» — всё штатно. Если строка помечена «подробности не пришли», сторож не прислал продолжения. Нажатие на строку с поломкой открывает связанную рабочую карточку.", next: nil)])
 
     static let jev = HintScenario(
         id: "jev", title: "Оценщик JEV", start: "connection",
