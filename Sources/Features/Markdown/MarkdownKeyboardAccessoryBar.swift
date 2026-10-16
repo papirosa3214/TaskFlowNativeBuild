@@ -201,10 +201,8 @@ struct MarkdownKeyboardAccessoryBar: View {
             tapHaptic()
             host.dismissKeyboard()
         } label: {
-            Image(systemName: "keyboard.chevron.compact.down")
-                .font(.system(size: 18))
+            TFKeyboardDismissLabel()
                 .foregroundStyle(Color.tfText)
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
         }
         .buttonStyle(TFTapScaleStyle())
         .accessibilityLabel("Скрыть клавиатуру")
@@ -221,19 +219,8 @@ struct MarkdownKeyboardAccessoryBar: View {
             tapHaptic()
             Task { await host.toggleDictation() }
         } label: {
-            if host.isRecordingDictation {
-                VoiceBarsView(
-                    level: host.dictationLevel,
-                    color: Color.tfRed.mix(with: .black, by: 0.55), peakColor: Color.tfRed,
-                    barWidth: 3, spacing: 2, maxHeight: 20, isSmooth: true
-                )
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            } else {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Color.tfText)
-                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            }
+            TFDictationLabel(isRecording: host.isRecordingDictation, level: host.dictationLevel)
+                .foregroundStyle(Color.tfText)
         }
         .buttonStyle(TFTapScaleStyle())
     }

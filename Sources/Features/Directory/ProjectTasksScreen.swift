@@ -82,9 +82,6 @@ struct ProjectTasksScreen: View {
         showsAllProjects ? "all-projects.filter" : "project.filter.\(projectID ?? "none")"
     }
 
-    private struct TaskRef: Identifiable {
-        let id: String
-    }
     @State private var showNewTask = false
 
     /// На проектах владелец — создатель проекта (он же владелец трекера).
@@ -267,16 +264,7 @@ struct ProjectTasksScreen: View {
             if taskStore.tasks.isEmpty { await taskStore.load() }
             await refreshRelationshipTasks()
         }
-        .sheet(item: Binding(
-            get: { pendingDetail.map(TaskRef.init) },
-            set: { pendingDetail = $0?.id }
-        )) { ref in
-            NavigationStack { TaskFormScreen(taskID: ref.id) }
-                .presentationDetents([.medium, .large])
-                .presentationContentInteraction(.resizes)
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Color.tfSheetBackground)
-        }
+        .taskCardSheet(taskID: $pendingDetail)
         .onChange(of: pendingDetail) { previous, current in
             if previous != nil, current == nil {
                 Task { await refreshRelationshipTasks() }

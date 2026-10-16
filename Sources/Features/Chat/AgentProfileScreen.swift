@@ -46,17 +46,9 @@ struct AgentProfileScreen: View {
             await viewModel.load()
             await viewModel.loadModelsIfNeeded()
         }
-        .sheet(item: Binding(
-            get: { sheetTaskID.map(TaskRef.init) },
-            set: { sheetTaskID = $0?.id }
-        )) { ref in
-            NavigationStack { TaskFormScreen(taskID: ref.id) }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
+        .taskCardSheet(taskID: $sheetTaskID)
     }
 
-    private struct TaskRef: Identifiable { let id: String }
 
     // MARK: - Шапка профиля
 

@@ -131,9 +131,6 @@ struct ChatBubble: View {
     @State private var isShowingExtractedTasks = false
     @State private var extractErrorMessage: String?
 
-    private struct TaskRef: Identifiable {
-        let id: String
-    }
 
     // Аватар раньше показывался только у чужих сообщений (веб 1:1) — просьба
     // владельца 03.09.2026: «надо, чтобы она была тоже с его стороны, моя —
@@ -231,14 +228,7 @@ struct ChatBubble: View {
             }
         }
         .padding(.horizontal, TFSpacing.lg)
-        .sheet(item: Binding(
-            get: { pendingTaskID.map(TaskRef.init) },
-            set: { pendingTaskID = $0?.id }
-        )) { ref in
-            NavigationStack { TaskFormScreen(taskID: ref.id) }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
+        .taskCardSheet(taskID: $pendingTaskID)
         .sheet(isPresented: $isShowingExtractedTasks) {
             TFBottomSheetContent(title: "Задачи из файла", onClose: { isShowingExtractedTasks = false }) {
                 NoteExtractedTasksSheetContent(tasks: extractedTasks) {

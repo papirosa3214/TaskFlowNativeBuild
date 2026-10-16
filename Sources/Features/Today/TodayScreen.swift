@@ -175,17 +175,7 @@ struct TodayScreen: View {
             }
         }
         .navigationDestination(item: $route) { routeDestination($0) }
-        .sheet(item: $sheetTaskID) { wrapped in
-            NavigationStack {
-                TaskFormScreen(taskID: wrapped.id)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible) // родной хендл шторки, свой больше не рисуем
-            // Промежуточный тон между tfBackground (#171717) и tfCard (#242424,
-            // цвет внутренних карточек) — контраст карточек к фону шторки был
-            // слишком жёсткий. Общие токены не трогаю — они на весь интерфейс.
-            .presentationBackground(Color.tfSheetBackground)
-        }
+        .taskCardSheet(item: $sheetTaskID)
         .task { await vm.loadAgentsIfNeeded() }
         .tfBottomSheet(isPresented: $rescheduleOpen, title: "Срок") {
             RescheduleSheetContent(

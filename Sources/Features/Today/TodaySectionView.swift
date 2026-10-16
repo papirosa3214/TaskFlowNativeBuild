@@ -113,11 +113,7 @@ struct TodaySectionView: View {
             }
         }
         .task { await vm.loadAgentsIfNeeded() }
-        .sheet(item: $sheetTaskID) { wrapped in
-            NavigationStack { TaskFormScreen(taskID: wrapped.id) }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
+        .taskCardSheet(item: $sheetTaskID)
         .tfBottomSheet(isPresented: $rescheduleOpen, title: "Срок") {
             RescheduleSheetContent(
                 taskIds: rescheduleTaskIDs ?? rescheduleTask.map { [$0.id] } ?? c.overdueTasks.map(\.id),

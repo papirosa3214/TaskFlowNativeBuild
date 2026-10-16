@@ -841,6 +841,25 @@ final class TaskFormViewModel {
         }
     }
 
+    /// Выбрать родителя для этой карточки (владелец 16.10.2026: у уже
+    /// созданной карточки родителя выбрать было нельзя — только у новой).
+    func setParent(_ task: ApiTask) async -> Bool {
+        guard let taskID else {
+            parentId = task.id
+            parentTitle = task.title
+            parentTask = task
+            return true
+        }
+        do {
+            _ = try await apiClient.patchTask(id: taskID, fields: ["parent_id": .string(task.id)])
+            await loadIfNeeded()
+            return true
+        } catch {
+            saveErrorMessage = Self.message(error)
+            return false
+        }
+    }
+
     func unlinkFromParent() async {
         guard parentId != nil else { return }
         guard let taskID else {

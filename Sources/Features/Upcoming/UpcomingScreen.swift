@@ -182,15 +182,7 @@ public struct UpcomingScreen: View {
         }
         .sheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
         // Любая существующая задача открывает одну и ту же интерактивную карточку.
-        .sheet(isPresented: Binding(
-            get: { pushedTaskID != nil }, set: { if !$0 { pushedTaskID = nil } }
-        )) {
-            if let id = pushedTaskID {
-                NavigationStack { routeDestination(.taskDetail(taskID: id)) }
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
-        }
+        .taskCardSheet(taskID: $pushedTaskID)
         .sheet(isPresented: $createTaskOpen) {
             NavigationStack { TaskFormScreen() }
                 .presentationDetents([.medium, .large])

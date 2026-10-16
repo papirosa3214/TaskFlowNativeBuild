@@ -145,9 +145,7 @@ struct RootShellView: View {
                     NavigationStack {
                         TaskFormScreen(taskID: id)
                     }
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Color.tfSheetBackground)
+                    .taskCardSheetPresentation()
                 }
             }
             #endif

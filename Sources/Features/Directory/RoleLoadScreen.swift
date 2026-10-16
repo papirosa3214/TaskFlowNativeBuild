@@ -47,12 +47,7 @@ struct RoleLoadScreen: View {
                 .accessibilityIdentifier("role-load.period-menu")
             }
         }
-        .sheet(item: $selectedTask) { ref in
-            NavigationStack { TaskFormScreen(taskID: ref.id) }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Color.tfSheetBackground)
-        }
+        .taskCardSheet(item: $selectedTask)
         .task(id: "\(window):\(scenePhase):\(realtime.connectionRevision):\(realtime.rolesRevision):\(realtime.jobsRevision)") {
             guard scenePhase == .active else { return }
             await load()

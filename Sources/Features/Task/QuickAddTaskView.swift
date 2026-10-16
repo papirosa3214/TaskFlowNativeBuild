@@ -26,6 +26,7 @@ struct QuickAddTaskView: View {
     @FocusState private var isSubtaskFocused: Bool
     @State private var isDueDatePopoverPresented = false
     @State private var isAttachmentsPopoverPresented = false
+    @State private var dictation = DictationEngine.shared
 
     // 15.09.2026: тип экрана стирается на границе — та же защита, что
     // спасла карточку задачи. Форма растёт секциями, и без разрыва
@@ -146,8 +147,35 @@ struct QuickAddTaskView: View {
                 subtaskDraftRows
             }
 
+            // «Скрыть клавиатуру» и «диктовка» закреплены по краям, ярлыки
+            // листаются между ними — как надстройка большой карточки
+            // (владелец 16.10.2026). Вид кнопок общий: `TFKeyboardControls`.
             HStack(spacing: TFSpacing.xs) {
+                Button {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                } label: {
+                    TFKeyboardDismissLabel().foregroundStyle(Color.tfText)
+                }
+                .buttonStyle(TFTapScaleStyle())
+                .accessibilityLabel("Скрыть клавиатуру")
+                .accessibilityIdentifier("quickadd.keyboard.dismiss")
+
                 toolsScroll(systemAppearance: systemAppearance)
+
+                Button {
+                    Task { await toggleDictation() }
+                } label: {
+                    TFDictationLabel(
+                        isRecording: dictation.recordingState == .recording,
+                        isTranscribing: dictation.recordingState == .transcribing,
+                        level: dictation.currentLevel
+                    )
+                    .foregroundStyle(Color.tfText)
+                }
+                .buttonStyle(TFTapScaleStyle())
+                .disabled(dictation.recordingState == .transcribing)
+                .accessibilityLabel("Голосовой ввод")
+                .accessibilityIdentifier("quickadd.keyboard.dictation")
 
                 if viewModel.isSaveEnabled {
                     primaryActionButton(systemAppearance: systemAppearance)
@@ -177,10 +205,25 @@ struct QuickAddTaskView: View {
         }
     }
 
-    /// Собственной диктовки здесь нет: владелец использует системный микрофон
-    /// клавиатуры, а дальнейшая обработка полученного текста одинакова. Кнопка
-    /// отправки появляется только для непустого названия; её вид полностью
-    /// системный и компактный на iOS 26.
+    /// Диктовка (с 16.10.2026, как в большой карточке): текст дописывается в
+    /// поле, где стоит курсор — описание, новый шаг или название.
+    private func toggleDictation() async {
+        switch dictation.recordingState {
+        case .idle, .failed:
+            await dictation.startRecording()
+        case .recording:
+            guard let text = await dictation.stopRecordingAndTranscribe() else { return }
+            func add(_ old: String) -> String { old.isEmpty ? text : old + (old.hasSuffix(" ") ? "" : " ") + text }
+            if isDescriptionFocused { viewModel.taskDescription = add(viewModel.taskDescription) }
+            else if isSubtaskFocused { newSubtaskTitle = add(newSubtaskTitle) }
+            else { viewModel.title = add(viewModel.title) }
+        case .transcribing:
+            break
+        }
+    }
+
+    /// Кнопка отправки появляется только для непустого названия; её вид
+    /// полностью системный и компактный на iOS 26.
     @ViewBuilder
     private func primaryActionButton(systemAppearance: Bool) -> some View {
         if #available(iOS 26.0, *), systemAppearance {

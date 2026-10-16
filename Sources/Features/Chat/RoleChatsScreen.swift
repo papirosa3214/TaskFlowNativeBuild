@@ -601,9 +601,6 @@ private struct CreateRoleChatScreen: View {
     }
 }
 
-/// `.sheet(item:)` требует `Identifiable` — `String` сам по себе не годится.
-private struct RoomTaskRef: Identifiable { let id: String }
-
 /// Своё сообщение, которое уже видно в ленте, но сервер его ещё не принял
 /// (или не принял совсем — `failed`). Как в мессенджерах: пузырь появляется
 /// сразу по нажатию «Отправить», без ожидания сети.
@@ -1161,14 +1158,7 @@ struct RoleChatRoomScreen: View {
             if !RoleChatWorkMode.available(in: chat).contains(workMode) { workMode = .work }
         }
         .onDisappear { voice.cancel(); player.stop() }
-        .sheet(item: Binding(
-            get: { pendingTaskID.map(RoomTaskRef.init) },
-            set: { pendingTaskID = $0?.id }
-        )) { ref in
-            NavigationStack { TaskFormScreen(taskID: ref.id) }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
+        .taskCardSheet(taskID: $pendingTaskID)
     }
 
     private var messageScroll: some View {

@@ -104,15 +104,7 @@ struct AgentWorkScreen: View {
         .background(Color.tfBackground)
         .tfNativeHeader("Работа агентов")
         .task { await loadRoleProfiles() }
-        .sheet(item: $sheetTaskID) { ref in
-            NavigationStack { TaskFormScreen(taskID: ref.id) }
-                // Те же детенты, что у карточки из проекта и с «Сегодня»:
-                // без них шторка открывалась сразу на весь экран, и половинного
-                // состояния у неё не было вовсе.
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Color.tfSheetBackground)
-        }
+        .taskCardSheet(item: $sheetTaskID)
     }
 
     private func sectionView(_ section: Section) -> some View {

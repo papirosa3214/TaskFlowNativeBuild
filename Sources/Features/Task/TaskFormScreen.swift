@@ -73,6 +73,9 @@ struct TaskCardContent: View {
     @State private var isDeleteConfirmationPresented = false
     @State private var linkedTaskNavigation: LinkedTaskNavigation?
     @State private var isExistingTaskPickerPresented = false
+    /// Что делает выбор в списке задач: выбранная станет дочерней или родителем.
+    @State private var linkedPickerMode: LinkedPickerMode = .child
+    private enum LinkedPickerMode { case child, parent }
     @State private var linkedTaskQuickAddViewModel: TaskFormViewModel?
     @State private var expandedLinkedTaskViewModel: TaskFormViewModel?
     /// Тексты шагов, которые правят прямо сейчас (id шага → набранное).
@@ -296,7 +299,11 @@ struct TaskCardContent: View {
                 LinkedTaskPicker(
                     tasks: taskStore.tasks,
                     excludedIDs: linkedTaskExcludedIDs,
-                    onSelect: { task in await viewModel.linkExistingTask(task) }
+                    onSelect: { task in
+                        linkedPickerMode == .parent
+                            ? await viewModel.setParent(task)
+                            : await viewModel.linkExistingTask(task)
+                    }
                 )
             }
             .fullScreenCover(isPresented: linkedTaskQuickAddPresented, onDismiss: {
@@ -520,9 +527,14 @@ struct TaskCardContent: View {
             // после Lock 1: «как были два отдельных шарика, так и есть»).
             // Рядом друг с другом система объединяет их в одну капсулу —
             // тот же визуальный язык, что у Markdown-панели.
-            ToolbarItemGroup(placement: .keyboard) {
-                taskKeyboardDismissButton
-                taskKeyboardDictationButton
+            // Пока поверх открыта короткая карточка из «Связанных задач», эта
+            // надстройка не нужна: она вылезала над клавиатурой короткой
+            // лишней пилюлей (владелец 16.10.2026) — у короткой свои кнопки.
+            if linkedTaskQuickAddViewModel == nil {
+                ToolbarItemGroup(placement: .keyboard) {
+                    taskKeyboardDismissButton
+                    taskKeyboardDictationButton
+                }
             }
             // Владелец 11.10.2026: экран «Задача не найдена» (заход по ссылке
             // из серверной сводки) был тупиком — при `taskID != nil`
@@ -1119,21 +1131,45 @@ struct TaskCardContent: View {
                 }
         }
 
-        if viewModel.parentTask == nil, viewModel.childTasks.isEmpty {
-            if viewModel.isEditing {
+        // Владелец 16.10.2026: два пути связи — дать этой карточке дочернюю
+        // (создать новую или привязать существующую) и выбрать ей родителя.
+        if viewModel.isEditing {
+            Button {
+                startLinkedTaskQuickAdd()
+            } label: {
+                Text("Создать дочернюю задачу")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfDim)
+            }
+            .accessibilityIdentifier("task-card.links.create-child")
+            Button {
+                linkedPickerMode = .child
+                isExistingTaskPickerPresented = true
+            } label: {
+                Text("Привязать существующую как дочернюю")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfDim)
+            }
+            .accessibilityIdentifier("task-card.links.link-child")
+            if viewModel.parentTask == nil {
                 Button {
-                    startLinkedTaskQuickAdd()
+                    linkedPickerMode = .parent
+                    isExistingTaskPickerPresented = true
                 } label: {
-                    Text("Добавить связанную задачу")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfDim)
-                }
-            } else {
-                Button { isExistingTaskPickerPresented = true } label: {
                     Text("Выбрать родительскую задачу")
                         .tfText(.action)
                         .foregroundStyle(Color.tfDim)
                 }
+                .accessibilityIdentifier("task-card.links.choose-parent")
+            }
+        } else if viewModel.parentTask == nil, viewModel.childTasks.isEmpty {
+            Button {
+                linkedPickerMode = .parent
+                isExistingTaskPickerPresented = true
+            } label: {
+                Text("Выбрать родительскую задачу")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfDim)
             }
         }
     }
@@ -1366,11 +1402,10 @@ struct TaskCardContent: View {
 
     private func taskSectionHeader(_ title: String) -> some View {
         Text(title)
-            // Заголовок секции — как во всём приложении: 13 pt `tfSub`
-            // (ступень `.action`, большинство заголовков секций). Владелец
-            // 12.10.2026: «заголовки по той же самой логике» — то есть как
-            // заголовки остальных списков, а не крупнее основного текста.
-            .tfText(.action)
+            // Шрифт, кегль и жирность — как у заголовка экрана проекта
+            // (`.title`, 17 pt, `.headline`). Владелец 16.10.2026, после
+            // сведения типографики; цвет не трогали — по-прежнему `tfSub`.
+            .tfText(.title)
             .foregroundStyle(Color.tfSub)
             .textCase(nil)
     }
@@ -2288,7 +2323,7 @@ struct TaskCardContent: View {
             Label("Сохранить как шаблон", systemImage: "doc.on.doc")
         }
         if taskID != nil {
-            Button { isExistingTaskPickerPresented = true } label: {
+            Button { linkedPickerMode = .child; isExistingTaskPickerPresented = true } label: {
                 Label("Связать существующую задачу", systemImage: "link.badge.plus")
             }
         }
@@ -2489,9 +2524,7 @@ struct TaskCardContent: View {
         Button {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         } label: {
-            Image(systemName: "keyboard.chevron.compact.down")
-                .font(.system(size: 18))
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+            TFKeyboardDismissLabel()
         }
         .accessibilityLabel("Скрыть клавиатуру")
     }
@@ -2503,22 +2536,11 @@ struct TaskCardContent: View {
         Button {
             Task { await toggleDictation() }
         } label: {
-            switch dictation.recordingState {
-            case .recording:
-                VoiceBarsView(
-                    level: dictation.currentLevel,
-                    color: Color.tfRed.mix(with: .black, by: 0.55), peakColor: Color.tfRed,
-                    barWidth: 3, spacing: 2, maxHeight: 20, isSmooth: true
-                )
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            case .transcribing:
-                ProgressView()
-                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            default:
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 18))
-                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            }
+            TFDictationLabel(
+                isRecording: dictation.recordingState == .recording,
+                isTranscribing: dictation.recordingState == .transcribing,
+                level: dictation.currentLevel
+            )
         }
         .disabled(dictation.recordingState == .transcribing)
         .accessibilityLabel("Голосовой ввод")

@@ -15,9 +15,6 @@ struct LabelTasksScreen: View {
 
     @State private var pendingTaskID: String?
 
-    private struct TaskRef: Identifiable {
-        let id: String
-    }
 
     private var label: ApiLabel? {
         labelStore.labels.first { $0.id == labelID }
@@ -92,15 +89,7 @@ struct LabelTasksScreen: View {
             if labelStore.labels.isEmpty { await labelStore.load() }
             if taskStore.tasks.isEmpty { await taskStore.load() }
         }
-        .sheet(item: Binding(
-            get: { pendingTaskID.map(TaskRef.init) },
-            set: { pendingTaskID = $0?.id }
-        )) { ref in
-            NavigationStack { TaskFormScreen(taskID: ref.id) }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Color.tfSheetBackground)
-        }
+        .taskCardSheet(taskID: $pendingTaskID)
     }
 
     // MARK: - Строка задачи: точка-переключатель + контент, БЕЗ свайпа (spec §10)
