@@ -1651,6 +1651,7 @@ struct RoleChatRoomScreen: View {
                 if !message.text.isEmpty {
                     RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                         .equatable()
+                        .roleMessageReveal(text: message.text, messageID: message.id)
                 }
                 if let handoff = message.handoff {
                     ChatHandoffCard(handoff: handoff)
@@ -1752,6 +1753,7 @@ struct RoleChatRoomScreen: View {
                         // виджетами и артефактами — раньше здесь были звёздочки.
                         RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
                         .equatable()
+                        .roleMessageReveal(text: message.text, messageID: message.id)
                     }
                 }
                 if let handoff = message.handoff {
