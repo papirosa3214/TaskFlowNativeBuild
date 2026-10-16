@@ -66,6 +66,7 @@ struct NotificationsScreen: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
                 TFErrorBanner(systemStateError, variant: .inline)
+                TFErrorBanner(serviceTicketsError, variant: .inline)
                 TFErrorBanner(openTaskError, variant: .inline)
 
                 TFCard(padding: 0) {
@@ -92,9 +93,25 @@ struct NotificationsScreen: View {
                                    tint: (systemState?.counts.open ?? 0) > 0 ? .tfRed : nil) {
                             incidentFilter = .open
                         }
+                        TFDivider()
+                        if let summary = dailySummary {
+                            NotificationTicketDetailSheet(
+                                summary: summary,
+                                detail: serviceTicketDetails[summary.id],
+                                onOpenTask: { taskId in Task { await openTaskFromTicket(taskId) } },
+                                onTapResolutionItem: { item in
+                                    guard let taskId = item.taskId ?? serviceTicketDetails[summary.id]?.diagnosticTaskId else { return }
+                                    resolutionSheetItem = item
+                                    resolutionSheetTaskId = taskId
+                                }, scrolls: false)
+                        } else if isLoadingServiceTickets {
+                            ProgressView("Загрузка сводки").padding(TFSpacing.lg)
+                        }
+
                     }
                 }
                 .accessibilityIdentifier("system-state.summary")
+                .hintAnchor(HintAnchorID.systemSummary)
 
                 if let state = systemState, !state.incidents.isEmpty {
                     sectionTitle("Поломки")
@@ -112,7 +129,7 @@ struct NotificationsScreen: View {
             .padding(.top, TFSpacing.md)
             .padding(.bottom, TFSpacing.xl)
         }
-        .refreshable { await loadSystemState() }
+        .refreshable { await loadSystemState(); await loadServiceTickets() }
         .background(Color.tfBackground)
         // Владелец 12.10.2026: «это уже не уведомление, а состояние системы».
         // Первый экран — сводка за сегодня, поток уведомлений — внутри.
@@ -133,10 +150,19 @@ struct NotificationsScreen: View {
                 .accessibilityIdentifier("system-state.menu")
             }
         }
+        .sheet(item: $resolutionSheetItem) { item in
+            ServiceTicketResolutionSheet(item: item, taskId: resolutionSheetTaskId ?? "", onSubmitted: {
+                resolutionSheetItem = nil; resolutionSheetTaskId = nil
+            })
+        }
         .taskCardNavigation(route: $route)
         .navigationDestination(isPresented: $showFeed) { feedPage }
         .navigationDestination(item: $incidentFilter) { incidentsPage($0) }
-        .task { await loadSystemState() }
+        .task { await loadSystemState(); await loadServiceTickets() }
+    }
+
+    private var dailySummary: ServiceTicketSummary? {
+        serviceTickets.first { $0.id.hasPrefix("digest/") }
     }
 
     private func sectionTitle(_ text: String) -> some View {
@@ -237,7 +263,7 @@ struct NotificationsScreen: View {
                 if isLoadingServiceTickets && serviceTickets.isEmpty {
                     ProgressView("Загрузка уведомлений")
                 }
-                ForEach(feedAlarmsOnly ? serviceTickets.filter(\.hasTriage) : serviceTickets) { summary in
+                ForEach(feedAlarmsOnly ? serviceTickets.filter(\.hasTriage) : serviceTickets.filter { $0.id != dailySummary?.id }) { summary in
                     NotificationTicketCard(
                         summary: summary,
                         detail: serviceTicketDetails[summary.id],
@@ -295,16 +321,7 @@ struct NotificationsScreen: View {
             await notificationStore.load()
             await loadServiceTickets()
         }
-        .sheet(item: $resolutionSheetItem) { item in
-            ServiceTicketResolutionSheet(
-                item: item,
-                taskId: resolutionSheetTaskId ?? "",
-                onSubmitted: {
-                    resolutionSheetItem = nil
-                    resolutionSheetTaskId = nil
-                }
-            )
-        }
+
     }
 
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }

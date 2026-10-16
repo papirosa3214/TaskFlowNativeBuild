@@ -107,6 +107,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         VoiceModelsScreen()
     case .secretaryVoicePicker:
         SecretaryVoicePickerScreen()
+    case .jevSettings:
+        JevSettingsScreen()
     case .runtimeProviders:
         RuntimeProvidersScreen()
     case .providerDetail(let providerID):

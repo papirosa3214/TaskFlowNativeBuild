@@ -12,6 +12,7 @@ struct NotificationTicketDetailSheet: View {
     let detail: ServiceTicketDetail?
     let onOpenTask: (String) -> Void
     let onTapResolutionItem: (ServiceTicketResolutionItem) -> Void
+    var scrolls = true
 
     @State private var diagnosticTasks: [String: ApiTask] = [:]
     @State private var diagnosticTaskErrors: [String: String] = [:]
@@ -25,7 +26,25 @@ struct NotificationTicketDetailSheet: View {
 
 
     var body: some View {
-        ScrollView {
+        Group {
+            if scrolls { ScrollView { summaryContent } }
+            else { summaryContent }
+        }
+        .task(id: diagnosticTaskIDs.joined(separator: ",")) {
+            for taskId in diagnosticTaskIDs {
+                do { diagnosticTasks[taskId] = try await apiClient.task(id: taskId) }
+                catch {
+                    if case .notFound = (error as? APIError) {
+                        missingTaskIDs.insert(taskId)
+                    } else {
+                        diagnosticTaskErrors[taskId] = "Не удалось загрузить карточку диагностики"
+                    }
+                }
+            }
+        }
+    }
+
+    private var summaryContent: some View {
             VStack(alignment: .leading, spacing: TFSpacing.lg) {
                 ServiceTicketStatusCounts(summary: summary)
 
@@ -52,19 +71,6 @@ struct NotificationTicketDetailSheet: View {
             }
             .padding(TFSpacing.lg)
         }
-        .task(id: diagnosticTaskIDs.joined(separator: ",")) {
-            for taskId in diagnosticTaskIDs {
-                do { diagnosticTasks[taskId] = try await apiClient.task(id: taskId) }
-                catch {
-                    if case .notFound = (error as? APIError) {
-                        missingTaskIDs.insert(taskId)
-                    } else {
-                        diagnosticTaskErrors[taskId] = "Не удалось загрузить карточку диагностики"
-                    }
-                }
-            }
-        }
-    }
 
     private var diagnosticTaskIDs: [String] {
         var ids = summary.links.compactMap { link -> String? in

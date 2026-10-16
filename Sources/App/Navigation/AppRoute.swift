@@ -71,6 +71,7 @@ public enum AppRoute: Hashable {
     /// LOCK-179: серверный AI — провайдеры и модели Pi (`/api/runtime/*`).
     /// Локальные модели остаются на `.voiceModels` («На устройстве»).
     case runtimeProviders
+    case jevSettings
     case providerDetail(providerID: String)
     /// LOCK-180: статус Pi Runtime из «Настройки → Сервер».
     case serverSettings

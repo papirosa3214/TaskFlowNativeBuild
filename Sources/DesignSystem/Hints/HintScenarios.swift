@@ -4,6 +4,8 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let systemSummary = "system.summary"
+    static let jevConnection = "jev.connection"
     static let chatDictation = "chat.dictation"
     static let roleActions = "role.live-actions"
     static let chatMembersMenu = "chat.members-menu"
@@ -18,7 +20,17 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions, chatDictation]
+    static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary]
+
+    static let systemSummary = HintScenario(
+        id: "system-summary", title: "Состояние системы", start: "summary",
+        steps: ["summary": HintStep(anchor: HintAnchorID.systemSummary, title: "Общая сводка",
+            text: "Счётчики уведомлений и поломок, ошибки и успешные проверки собраны здесь сразу в раскрытом виде. Нажмите число поломок, чтобы открыть их список, или «Все уведомления» в меню, чтобы посмотреть историю событий.", next: nil)])
+
+    static let jev = HintScenario(
+        id: "jev", title: "Оценщик JEV", start: "connection",
+        steps: ["connection": HintStep(anchor: HintAnchorID.jevConnection, title: "Подключение JEV",
+            text: "Сохраните адрес API, модель и ключ, затем нажмите «Проверить подключение». Ниже выберите, где использовать оценщик. Настройки общие с вебом; если JEV выключен, не отвечает или не уверен, работа продолжается как без него.", next: nil)])
 
     static let chatDictation = HintScenario(
         id: "chat-dictation", title: "Диктовка в черновик", start: "dictation",

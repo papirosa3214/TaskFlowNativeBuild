@@ -154,6 +154,11 @@ struct SettingsScreen: View {
     /// `VoiceModelsScreen` — локальные модели; теперь это разные пункты.
     private var aiSection: some View {
         section(title: "Искусственный интеллект", isExpanded: $aiExpanded) {
+            if session.currentUser?.role == .owner {
+                navRow(icon: "checkmark.shield", title: "Оценщик JEV", route: .jevSettings)
+                    .accessibilityIdentifier("settings-jev")
+                TFDivider(inset: rowDividerInset)
+            }
             navRow(icon: "cpu", title: "Агенты (модели и провайдеры)", route: .runtimeProviders)
             TFDivider(inset: rowDividerInset)
             navRow(icon: "iphone", title: "Приложение (телефон и сервер)", route: .voiceModels)

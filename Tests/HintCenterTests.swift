@@ -13,6 +13,24 @@ final class HintCenterTests: XCTestCase {
 
     private func makeCenter() -> HintCenter { HintCenter(defaults: defaults, scenarios: [HintScenarios.taskPlan]) }
 
+    func testSystemSummaryHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.systemSummary])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.systemSummary, frame: frame)
+        XCTAssertEqual(center.active?.step, "summary")
+        center.next()
+        XCTAssertTrue(center.completed.contains("system-summary"))
+    }
+
+    func testJevHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.jev])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.jevConnection, frame: frame)
+        XCTAssertEqual(center.active?.step, "connection")
+        center.next()
+        XCTAssertTrue(center.completed.contains("jev"))
+    }
+
     func testRoleActionHintCompletesWithoutChangingWork() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleActions])
         center.start("role-actions")
