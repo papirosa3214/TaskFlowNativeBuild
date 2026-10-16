@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let chatDictation = "chat.dictation"
     static let roleActions = "role.live-actions"
     static let chatMembersMenu = "chat.members-menu"
     /// Кнопка «Работа» (два человечка) в шапке карточки задачи.
@@ -17,7 +18,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions]
+    static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions, chatDictation]
+
+    static let chatDictation = HintScenario(
+        id: "chat-dictation", title: "Диктовка в черновик", start: "dictation",
+        steps: ["dictation": HintStep(anchor: HintAnchorID.chatDictation, title: "Диктуйте и редактируйте",
+            text: "Микрофон доступен и после набора текста или выбора адресата через @. После остановки записи расшифровка добавляется в поле: её можно поправить руками или дополнить следующей диктовкой. Сообщение уходит только по кнопке отправки.", next: nil)])
 
     static let roleActions = HintScenario(
         id: "role-actions", title: "Действия и навыки роли", start: "actions",

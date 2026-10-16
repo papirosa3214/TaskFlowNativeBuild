@@ -1,6 +1,16 @@
 import SwiftUI
 import UIKit
 
+/// Append recognized speech to the current draft without replacing mentions or manual edits.
+enum ChatDictationDraft {
+    static func appending(_ transcript: String, to draft: String) -> String {
+        let words = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return draft }
+        guard !draft.isEmpty else { return words }
+        return draft + (draft.last?.isWhitespace == true ? "" : " ") + words
+    }
+}
+
 enum ChatComposerKeyboardDismissGesture {
     static func shouldDismiss(translation: CGSize) -> Bool {
         translation.height >= 38 && translation.height > abs(translation.width) * 1.2
@@ -22,9 +32,6 @@ struct ChatVoiceComposer: View {
     @Bindable var voice: RoleChatVoiceController
     let onAttachmentSource: (ChatAttachmentSource) -> Void
     let onSendText: () -> Void
-    /// Отправка уже набранного текста (используется, когда голосовое поле
-    /// в экспериментальном режиме отправляет расшифровку, а не голос).
-    var onSendTranscribedText: ((String) -> Void)? = nil
     let onSendVoice: (VoiceMessage) async -> Bool
     let onDiscardVoice: (VoiceMessage) -> Void
     var workMode: Binding<RoleChatWorkMode>? = nil
@@ -67,7 +74,11 @@ struct ChatVoiceComposer: View {
     var body: some View {
         ZStack {
             // Поле не удаляется при морфинге, поэтому клавиатура остаётся на месте.
-            if experimentalPromptBox { promptComposer } else { idleComposer }
+            if experimentalPromptBox {
+                promptComposer
+                    .allowsHitTesting(!isRecording && preview == nil)
+                    .accessibilityHidden(isRecording || preview != nil)
+            } else { idleComposer }
             if isRecording {
                 if experimentalPromptBox { promptRecordingComposer } else { recordingComposer }
             }
@@ -122,7 +133,7 @@ struct ChatVoiceComposer: View {
                     .accessibilityIdentifier("chat.stop")
                 } else {
                     Menu {
-                        Toggle("Экспериментальное поле", isOn: $experimentalPromptBox)
+                        Toggle("Диктовка в текст", isOn: $experimentalPromptBox)
                         Button { onAttachmentSource(.photo) } label: {
                             Label("Фото", systemImage: "photo.on.rectangle")
                         }
@@ -201,7 +212,7 @@ struct ChatVoiceComposer: View {
             Button { onAttachmentSource(.file) } label: { Label("Файл", systemImage: "doc") }
             Button { onAttachmentSource(.camera) } label: { Label("Камера", systemImage: "camera") }
             Divider()
-            Toggle("Экспериментальное поле", isOn: $experimentalPromptBox)
+            Toggle("Диктовка в текст", isOn: $experimentalPromptBox)
         } label: {
             promptIcon("plus")
         }
@@ -215,7 +226,7 @@ struct ChatVoiceComposer: View {
                 .lineLimit(2...5)
                 .textInputAutocapitalization(.sentences)
                 .focused($isTextFieldFocused)
-                .onSubmit(onSendText)
+                .onSubmit { if !isRecording && preview == nil { onSendText() } }
                 .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.white)
                 .accessibilityIdentifier("chat.message")
                 .padding(.horizontal, 10).padding(.top, 10)
@@ -252,6 +263,13 @@ struct ChatVoiceComposer: View {
                     .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
                 }
                 Spacer(minLength: 8)
+                Button(action: startVoiceRecording) {
+                    promptIcon("mic").contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Начать диктовку")
+                .accessibilityIdentifier("chat.voice")
+                .hintAnchor(HintAnchorID.chatDictation)
                 if isResponding, !canSendText, let onStop {
                     Button(action: onStop) {
                         Image(systemName: "stop.fill")
@@ -267,13 +285,6 @@ struct ChatVoiceComposer: View {
                     .accessibilityLabel("Остановить ответ роли")
                     .accessibilityIdentifier("chat.stop")
                 } else {
-                    if !canSendText {
-                        promptIcon("mic")
-                            .contentShape(Rectangle())
-                            .onTapGesture { startVoiceRecording() }
-                            .accessibilityLabel("Начать запись")
-                            .accessibilityIdentifier("chat.voice")
-                    }
                     Button(action: onSendText) {
                         Image(systemName: "arrow.up")
                             .font(.system(size: 17, weight: .semibold))
@@ -409,6 +420,10 @@ struct ChatVoiceComposer: View {
                     Text("Расшифровываю…").tfText(.action).foregroundStyle(.gray)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text("Не удалось распознать речь. Черновик сохранён — удалите запись и попробуйте ещё раз.")
+                    .font(.callout).foregroundStyle(.gray)
+                    .accessibilityIdentifier("chat.voice.transcription-error")
             }
             HStack(spacing: 12) {
                 Button(action: discardPreview) {
@@ -431,7 +446,7 @@ struct ChatVoiceComposer: View {
                     ProgressView().frame(width: 40, height: 40)
                 } else {
                     Button(action: sendPreview) {
-                        Image(systemName: "arrow.up")
+                        Image(systemName: "square.and.pencil")
                             .font(.system(size: 20, weight: .medium))
                             .foregroundStyle(.black)
                             .frame(width: 40, height: 40)
@@ -439,8 +454,9 @@ struct ChatVoiceComposer: View {
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Отправить")
+                    .accessibilityLabel("Редактировать текст")
                     .accessibilityIdentifier("chat.voice.send")
+                    .disabled(readyTranscript(message)?.isEmpty != false)
                 }
             }
             .foregroundStyle(.white)
@@ -541,6 +557,9 @@ struct ChatVoiceComposer: View {
         // После смены ветки повторно удерживаем фокус того же поля.
         DispatchQueue.main.async { isTextFieldFocused = true }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TASKFLOW_DICTATION_PREVIEW"] == "1" { return }
+        #endif
         Task {
             await voice.start()
             guard voice.phase == .recording else {
@@ -553,6 +572,17 @@ struct ChatVoiceComposer: View {
     }
 
     private func stopVoiceRecording() {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TASKFLOW_DICTATION_PREVIEW"] == "1", isRecording {
+            let message = VoiceMessage(audioURL: FileManager.default.temporaryDirectory.appendingPathComponent("dictation-preview.wav"), duration: 1)
+            isRecording = false
+            preview = message
+            let result: TranscriptState = ProcessInfo.processInfo.environment["TASKFLOW_DICTATION_PREVIEW_FAIL"] == "1"
+                ? .failed : .ready("Проверка диктовки.")
+            Task { await receiveTranscription(result, for: message) }
+            return
+        }
+        #endif
         guard voice.phase == .recording else { return }
         isTextFieldFocused = true
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
@@ -562,11 +592,36 @@ struct ChatVoiceComposer: View {
         guard let message = preview else { return }
         Task {
             let transcript = await voice.transcribe(message)
-            guard preview?.id == message.id else { return }
-            preview?.transcript = transcript
-            voice.complete()
-            if sendAfterTranscription { await deliverPreview() }
+            await receiveTranscription(transcript, for: message)
         }
+    }
+
+    private func receiveTranscription(_ transcript: TranscriptState, for message: VoiceMessage) async {
+        guard preview?.id == message.id else { return }
+        preview?.transcript = transcript
+        voice.complete()
+        if experimentalPromptBox {
+            if case .ready(let words) = transcript, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                placeTranscriptInDraft(words, from: message)
+            }
+            return
+        }
+        if sendAfterTranscription { await deliverPreview() }
+    }
+
+    private func placeTranscriptInDraft(_ words: String, from message: VoiceMessage) {
+        guard preview?.id == message.id else { return }
+        text = ChatDictationDraft.appending(words, to: text)
+        sendAfterTranscription = false
+        isSendingVoice = false
+        player.stop()
+        voice.complete()
+        withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
+            preview = nil
+        }
+        onDiscardVoice(message)
+        try? VoiceRecorder.cancelRecordingFile(at: message.audioURL)
+        isTextFieldFocused = true
     }
 
     private func discardPreview() {
@@ -583,6 +638,7 @@ struct ChatVoiceComposer: View {
 
     private func sendPreview() {
         guard let preview else { return }
+        if experimentalPromptBox, preview.transcript == .pending { return }
         if preview.transcript == .pending {
             sendAfterTranscription = true
             isSendingVoice = true
@@ -595,23 +651,12 @@ struct ChatVoiceComposer: View {
         guard let message = preview else { return }
         isSendingVoice = true
 
-        // Владелец 10.10.2026: «в рамках этого экспериментального поля
-        // отправляется не голос, а сразу текст». Голосовое сообщение в чат
-        // уходит только в старом режиме — там галочка выключена.
-        if experimentalPromptBox, let transcript = readyTranscript(message), !transcript.isEmpty {
-            sendAfterTranscription = false
-            withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
-                preview = nil
-            }
+        // Dictation becomes an editable draft. Sending remains the ordinary text action.
+        if experimentalPromptBox {
             isSendingVoice = false
-            player.stop()
-            voice.complete()
-            if let onSendTranscribedText {
-                onSendTranscribedText(transcript)
-            } else {
-                // Запасной путь: кладём в поле и отправляем как обычный текст.
-                text = transcript
-                onSendText()
+            sendAfterTranscription = false
+            if let transcript = readyTranscript(message), !transcript.isEmpty {
+                placeTranscriptInDraft(transcript, from: message)
             }
             return
         }
@@ -659,6 +704,7 @@ extension View {
 /// Exercises the production composer and renderer without a server session.
 struct AgentChatComposerPreview: View {
     @State private var text = ""
+    @State private var sentText = ""
     @State private var mode: RoleChatWorkMode = .work
     @State private var voice = RoleChatVoiceController()
     @State private var responding = ProcessInfo.processInfo.environment["TASKFLOW_PROMPT_BOX_PREVIEW"] != "1"
@@ -692,8 +738,11 @@ struct AgentChatComposerPreview: View {
                     .padding()
                     if playbackComplete { Text("Ответ показан").accessibilityIdentifier("chat.preview.complete") }
                 }
+                if ProcessInfo.processInfo.environment["TASKFLOW_DICTATION_PREVIEW"] == "1", !sentText.isEmpty {
+                    Text(sentText).accessibilityIdentifier("chat.preview.sent-text")
+                }
                 ChatVoiceComposer(text: $text, placeholder: "Сообщение", canSendText: !text.isEmpty,
-                                  voice: voice, onAttachmentSource: { _ in }, onSendText: { text = "" },
+                                  voice: voice, onAttachmentSource: { _ in }, onSendText: { sentText = text; text = "" },
                                   onSendVoice: { _ in false }, onDiscardVoice: { _ in },
                                   workMode: $mode, availableModes: RoleChatWorkMode.allCases,
                                   mentionCandidates: [RoleChatMember(id: "preview-role", name: "Архитектор", avatarColor: nil, avatarURL: nil, initials: nil, roleKey: "architect")],

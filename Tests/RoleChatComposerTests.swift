@@ -2,6 +2,20 @@ import XCTest
 @testable import TaskFlow
 
 final class RoleChatComposerTests: XCTestCase {
+    func testDictationPreservesMentionAndManualDraft() {
+        XCTAssertEqual(ChatDictationDraft.appending("  проверь задачу  ", to: "@Архитектор "), "@Архитектор проверь задачу")
+        XCTAssertEqual(ChatDictationDraft.appending("продолжение", to: "Ручной текст"), "Ручной текст продолжение")
+    }
+    func testRepeatedDictationPreservesEditsAndWhitespace() {
+        let first = ChatDictationDraft.appending("Первое.", to: "@Архитектор ")
+        XCTAssertEqual(ChatDictationDraft.appending("Второе.", to: first + " Правка."), "@Архитектор Первое. Правка. Второе.")
+        XCTAssertEqual(ChatDictationDraft.appending("Продолжение", to: "Абзац\n"), "Абзац\nПродолжение")
+    }
+    func testEmptyDictationCannotEraseDraft() {
+        XCTAssertEqual(ChatDictationDraft.appending(" \n ", to: "@Архитектор черновик"), "@Архитектор черновик")
+        XCTAssertEqual(ChatDictationDraft.appending("текст", to: ""), "текст")
+    }
+
     func testDeepResearchRequiresResearcherAndKeepsBackwardCompatibility() throws {
         let decoder = JSONDecoder()
         let plain = try decoder.decode(RoleChat.self, from: Data(#"{"id":"c","kind":"direct","created_by":"u","members":[{"id":"role_builder","name":"Разработчик"}]}"#.utf8))

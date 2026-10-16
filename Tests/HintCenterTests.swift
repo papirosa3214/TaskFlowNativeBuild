@@ -22,6 +22,15 @@ final class HintCenterTests: XCTestCase {
         XCTAssertNil(center.active)
     }
 
+    func testDictationHintExplainsEditableDraft() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.chatDictation])
+        center.start("chat-dictation")
+        XCTAssertEqual(center.active?.step, "dictation")
+        XCTAssertTrue(center.currentStep?.text.contains("поправить руками") == true)
+        center.next()
+        XCTAssertNil(center.active)
+    }
+
     func testDisabledModeNeverStarts() {
         let center = makeCenter()
         center.report(anchor: HintAnchorID.taskWorkMenu, frame: frame)

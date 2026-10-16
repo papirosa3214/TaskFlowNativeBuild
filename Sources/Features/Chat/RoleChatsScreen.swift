@@ -810,12 +810,6 @@ struct RoleChatRoomScreen: View {
                         }
                     },
                     onSendText: { Task { await send() } },
-                    onSendTranscribedText: { transcript in
-                        // Голосовое поле в экспериментальном режиме: уходит
-                        // текст расшифровки, а не голосовое сообщение.
-                        draft = transcript
-                        Task { await send() }
-                    },
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in },
                     workMode: $workMode,
