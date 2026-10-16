@@ -48,7 +48,7 @@ XcodeBuildMCP workspace: `/Users/max/Library/Developer/XcodeBuildMCP/workspaces/
 Целевой запуск: `xcodebuildmcp simulator test --project-path /Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj --scheme TaskFlow --simulator-id 9FF78D89-EE84-4914-AA56-D0A72D1AF43A --derived-data-path /Users/max/Проекты/TaskFlowNativeBuild/build_sim --extra-args -only-testing:TaskFlowUITests/TaskCardUnifyUITests/testCardDismissalReturnsToSource -parallel-testing-enabled NO --progress false --output json`.
 
 ## Ограничения и оставшаяся приёмка
-Физический iPhone Air iOS 27.0.1, ID B752C915-688A-5FE2-B7A2-CD355FCD8D47: два device list показали disconnected/isAvailable=false. Установка и физическая приёмка не выполнены. REVIEW означает готовность исходников к просмотру, а не полную физическую приёмку.
+Владелец 16.10.2026 разрешил не проводить проверки через iPhone в рамках этой задачи и взял физическую проверку на себя. Она не блокирует завершение работы агента; установка и тесты на iPhone не проводились. Исходники и отчёт отправлены в GitHub и Gitea. Строки остаются REVIEW для приёмки владельцем. Доработок кода по согласованному плану не осталось.
 
 Каждый экран-источник отдельно не обходился: подключения проверены по исходникам и сборке, поведение — на общем компоненте. Реальная запись диктовки и сохранение связей на сервере этим тестом не проверяются. На кадре 04 виден системный первый экран клавиатуры «Speed up your typing»; обычная раскладка клавиатуры этим кадром не подтверждена. Проверки производительности и утверждений о FPS/нагрузке нет.
 
