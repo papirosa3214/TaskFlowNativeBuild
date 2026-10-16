@@ -237,7 +237,7 @@ struct RootShellView: View {
             case "expand":
                 expandedDraft = QuickAddDraft(viewModel: TaskFormViewModel(taskID: nil))
             case "task" where parts.count == 2:
-                paths[selectedTab, default: NavigationPath()].append(AppRoute.taskDetail(taskID: parts[1]))
+                debugTaskSheetID = parts[1]
             case "tasksheet" where parts.count == 2:
                 debugTaskSheetID = parts[1]
             case "notifications": paths[selectedTab, default: NavigationPath()].append(AppRoute.notifications)

@@ -1025,7 +1025,7 @@ struct RoleChatRoomScreen: View {
         }
         .safeAreaInset(edge: .top) {
             if let taskID = chat.taskID {
-                NavigationLink(value: AppRoute.taskDetail(taskID: taskID)) {
+                TaskCardLink(taskID: taskID) {
                     Label { Text("Задача чата").foregroundStyle(Color.tfText) } icon: { Image(systemName: "checklist").foregroundStyle(Color.tfRed) }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(TFSpacing.md)

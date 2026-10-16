@@ -289,12 +289,13 @@ struct TaskCardContent: View {
 
     private var formNavigationBody: some View {
         formPresentationBody
-            .navigationDestination(item: $linkedTaskNavigation) { destination in
-                switch destination {
-                case .detail(let id):
-                    TaskFormScreen(taskID: id)
-                }
-            }
+            .taskCardSheet(taskID: Binding(
+                get: {
+                    if case .detail(let id) = linkedTaskNavigation { return id }
+                    return nil
+                },
+                set: { if $0 == nil { linkedTaskNavigation = nil } }
+            ))
             .sheet(isPresented: $isExistingTaskPickerPresented) {
                 LinkedTaskPicker(
                     tasks: taskStore.tasks,

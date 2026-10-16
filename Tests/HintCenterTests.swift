@@ -73,4 +73,14 @@ final class HintCenterTests: XCTestCase {
         center.isEnabled = false
         XCTAssertNil(center.currentStep)
     }
+    func testLinkedTasksScenarioCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.taskLinks])
+        center.isEnabled = true
+        center.report(anchor: "task.section.linkedTasks", frame: frame)
+        XCTAssertEqual(center.active?.step, "links")
+        XCTAssertEqual(center.currentStep?.anchor, "task.section.linkedTasks")
+        center.next()
+        XCTAssertNil(center.currentStep)
+        XCTAssertTrue(center.completed.contains("task-links"))
+    }
 }

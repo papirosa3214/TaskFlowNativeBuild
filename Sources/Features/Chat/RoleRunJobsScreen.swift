@@ -94,7 +94,7 @@ struct RoleRunJobsScreen: View {
 
     private func row(_ job: RoleRunJob) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            NavigationLink(value: AppRoute.taskDetail(taskID: job.taskId)) {
+            TaskCardLink(taskID: job.taskId) {
                 VStack(alignment: .leading, spacing: TFSpacing.xs) {
                     HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
                         Text(taskTitle(job.taskId))

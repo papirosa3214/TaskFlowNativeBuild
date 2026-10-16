@@ -42,3 +42,41 @@ extension View {
 }
 
 private struct TaskCardSheetID: Identifiable { let id: String }
+
+/// Ссылки на карточки используют ту же шторку, сохраняя экран-источник.
+struct TaskCardLink<Label: View>: View {
+    let taskID: String
+    @ViewBuilder let label: () -> Label
+    @State private var presentedID: String?
+
+    var body: some View {
+        Button { presentedID = taskID } label: { label() }
+            .taskCardSheet(taskID: $presentedID)
+    }
+}
+
+extension View {
+    /// Задача — шторка; остальные маршруты экрана остаются навигацией.
+    func taskCardNavigation(route: Binding<AppRoute?>) -> some View {
+        navigationDestination(item: Binding<AppRoute?>(
+            get: {
+                if case .taskDetail = route.wrappedValue { return nil }
+                return route.wrappedValue
+            },
+            set: { value in
+                if case .taskDetail = route.wrappedValue { return }
+                route.wrappedValue = value
+            }
+        )) { routeDestination($0) }
+        .taskCardSheet(taskID: Binding(
+            get: {
+                if case .taskDetail(let id) = route.wrappedValue { return id }
+                return nil
+            },
+            set: { value in
+                if let value { route.wrappedValue = .taskDetail(taskID: value) }
+                else if case .taskDetail = route.wrappedValue { route.wrappedValue = nil }
+            }
+        ))
+    }
+}

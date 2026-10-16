@@ -49,7 +49,7 @@ struct SearchScreen: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: "Задачи, проекты, метки"
         )
-        .navigationDestination(item: $route) { routeDestination($0) }
+        .taskCardNavigation(route: $route)
         .onAppear { fieldFocused = true }
         // Дебаунс 300мс на САМ запрос (не на отображение вводимого текста):
         // `.task(id:)` перезапускает и автоматически отменяет предыдущий

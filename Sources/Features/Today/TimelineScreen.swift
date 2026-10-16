@@ -54,7 +54,7 @@ struct TimelineScreen: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .gesture(swipeGesture)
-        .navigationDestination(item: $route) { routeDestination($0) }
+        .taskCardNavigation(route: $route)
         .task {
             agents = (try? await apiClient.agents()) ?? []
             await taskStore.load()

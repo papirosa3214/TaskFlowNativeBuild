@@ -1,0 +1,59 @@
+{
+  "schema": "xcodebuildmcp.output.test-result",
+  "schemaVersion": "3",
+  "didError": true,
+  "error": "Tests failed",
+  "data": {
+    "request": {
+      "scheme": "TaskFlow",
+      "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+      "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+      "platform": "iOS Simulator",
+      "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+      "onlyTesting": [
+        "TaskFlowUITests/TaskCardUnifyUITests"
+      ],
+      "skipTesting": []
+    },
+    "summary": {
+      "status": "FAILED",
+      "durationMs": 54199,
+      "counts": {
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0
+      },
+      "target": "simulator"
+    },
+    "artifacts": {
+      "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-16T00-09-08-880Z_pid13189_fadc2d5a.log",
+      "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_sim_2026-10-16T00-09-08-881Z_pid13189_4fbf07c4.xcresult",
+      "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-16T00-09-08-881Z_pid13189_501568d9.xctestproducts"
+    },
+    "diagnostics": {
+      "warnings": [],
+      "errors": [],
+      "testFailures": [
+        {
+          "suite": "TaskCardUnifyUITests",
+          "test": "testUnifiedCardAndQuickAdd",
+          "message": "Failed to swipe down \"task.content.caecdeee-02e2-43e8-8510-8da6b78cc860\" CollectionView: No matches found for first query match sequence: `Descendants matching type Any` -> `Elements matching predicate '\"task.content.caecdeee-02e2-43e8-8510-8da6b78cc860\" IN identifiers'`, given input App element pid: 14065",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/TaskCardUnifyUITests.swift:62"
+        },
+        {
+          "suite": "TaskCardUnifyUITests",
+          "test": "testUnifiedCardAndQuickAdd()",
+          "message": "Failed to swipe down \"task.content.caecdeee-02e2-43e8-8510-8da6b78cc860\" CollectionView: No matches found for first query match sequence: `Descendants matching type Any` -> `Elements matching predicate '\"task.content.caecdeee-02e2-43e8-8510-8da6b78cc860\" IN identifiers'`, given input App element pid: 14065"
+        }
+      ]
+    },
+    "testCases": [
+      {
+        "suite": "TaskCardUnifyUITests",
+        "test": "testUnifiedCardAndQuickAdd",
+        "status": "failed",
+        "durationMs": 35344
+      }
+    ]
+  }
+}

@@ -239,7 +239,7 @@ struct LinearImportScreen: View {
                                 .padding(.horizontal, TFSpacing.lg)
                                 .accessibilityIdentifier("linear.preview.relation.\(row.id)")
                             if row.item.action == "update", let taskID = row.item.taskID {
-                                NavigationLink(value: AppRoute.taskDetail(taskID: taskID)) {
+                                TaskCardLink(taskID: taskID) {
                                     Label("Открыть в TaskFlow", systemImage: "doc.text")
                                         .tfText(.action).foregroundStyle(Color.tfSub)
                                 }
@@ -269,7 +269,7 @@ struct LinearImportScreen: View {
                 VStack(spacing: 0) {
                     ForEach(result.taskIDs) { task in
                         let source = model.importedPreview?.items.first { $0.id == task.sourceID }
-                        NavigationLink(value: AppRoute.taskDetail(taskID: task.taskID)) {
+                        TaskCardLink(taskID: task.taskID) {
                             TFListRow(icon: "doc.text", iconStyle: .plain,
                                       title: source.map { "\($0.identifier) · \(task.title)" } ?? task.title,
                                       subtitle: source.map { item in

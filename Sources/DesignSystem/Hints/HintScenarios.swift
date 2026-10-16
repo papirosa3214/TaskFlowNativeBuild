@@ -15,7 +15,19 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [taskPlan]
+    static let all: [HintScenario] = [taskPlan, taskLinks]
+
+    static let taskLinks = HintScenario(
+        id: "task-links",
+        title: "Связанные задачи",
+        start: "links",
+        steps: [
+            "links": HintStep(
+                anchor: "task.section.linkedTasks",
+                title: "Связать карточки",
+                text: "Раскрой раздел. Можно создать новую дочернюю задачу или привязать существующую как дочернюю. Если родителя ещё нет, здесь же можно выбрать родительскую задачу. В короткой карточке кнопки по краям ряда ярлыков скрывают клавиатуру и включают диктовку.",
+                next: nil),
+        ])
 
     static let taskPlan = HintScenario(
         id: "task-plan",

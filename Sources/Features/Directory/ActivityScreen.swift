@@ -79,7 +79,7 @@ struct ActivityScreen: View {
                 filterMenu
             }
         }
-        .navigationDestination(item: $route) { routeDestination($0) }
+        .taskCardNavigation(route: $route)
     }
 
     // MARK: - Строка выполненной задачи

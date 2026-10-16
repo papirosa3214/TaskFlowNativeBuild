@@ -133,7 +133,7 @@ struct NotificationsScreen: View {
                 .accessibilityIdentifier("system-state.menu")
             }
         }
-        .navigationDestination(item: $route) { routeDestination($0) }
+        .taskCardNavigation(route: $route)
         .navigationDestination(isPresented: $showFeed) { feedPage }
         .navigationDestination(item: $incidentFilter) { incidentsPage($0) }
         .task { await loadSystemState() }
