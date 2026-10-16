@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let chatCoordination = "chat.coordination"
     static let systemSummary = "system.summary"
     static let jevConnection = "jev.connection"
     static let chatDictation = "chat.dictation"
@@ -20,7 +21,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary]
+    static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
+
+    static let chatCoordination = HintScenario(
+        id: "chat-coordination", title: "Обращения к коллегам", start: "coordination",
+        steps: ["coordination": HintStep(anchor: HintAnchorID.chatCoordination, title: "Кого подключила роль",
+            text: "В исходном чате видно, кому роль задала вопрос, ожидает ли он обработки и что происходит с ответом. Раскройте строку, чтобы прочитать вопрос и полученный ответ. Пока обращение не завершено, можно попросить его остановить. Вопрос, уже переданный в рабочую сессию, отдельно от работы остановить нельзя — приложение сообщит об этом.", next: nil)])
 
     static let systemSummary = HintScenario(
             id: "system-summary", title: "Состояние системы", start: "summary",

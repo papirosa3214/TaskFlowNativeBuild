@@ -112,6 +112,11 @@ public extension APIClient {
         return response.stopped
     }
 
+    func stopRoleCoordination(chatID: String, messageID: String) async throws {
+        struct Result: Decodable { let stopped: Int }
+        let _: Result = try await request(.post, "/chats/\(chatID)/coordination/\(messageID)/stop", body: [String: String]())
+    }
+
     /// Сервер использует тот же raw-upload, что `/chat/attachments`.
     func uploadRoleChatAttachment(fileName: String, data: Data, mime: String) async throws -> ApiChatAttachment {
         struct Envelope: Decodable { let attachment: ApiChatAttachment }

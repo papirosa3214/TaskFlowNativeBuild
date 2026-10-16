@@ -174,12 +174,13 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let reactions: [RoleChatReaction]?
     /// Сдача этапа (14.10.2026): главное из отчёта роли, `nil` — обычный ответ.
     public var handoff: RoleChatHandoff? = nil
+    public var coordination: RoleChatCoordination? = nil
     public var sequence: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case replyToMessageID = "reply_to_message_id"
         case replyToSenderName = "reply_to_sender_name"
-        case id, text, kind, attachments, steps, reactions, sequence, handoff
+        case id, text, kind, attachments, steps, reactions, sequence, handoff, coordination
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"
@@ -191,6 +192,26 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case taskTitle = "task_title"
         case quickReplies = "quick_replies"
         case isSessionMarker = "is_session_marker"
+    }
+}
+
+public struct RoleChatCoordination: Decodable, Sendable {
+    public let requesterName: String
+    public let recipientName: String
+    public let question: String
+    public let status: String
+    public let activity: String
+    public let createdAt: String
+    public let lastActivityAt: String
+    public let answer: String?
+    public let terminal: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case requesterName = "requester_name"
+        case recipientName = "recipient_name"
+        case createdAt = "created_at"
+        case lastActivityAt = "last_activity_at"
+        case question, status, activity, answer, terminal
     }
 }
 

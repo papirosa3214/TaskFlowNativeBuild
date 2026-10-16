@@ -1578,7 +1578,12 @@ struct RoleChatRoomScreen: View {
 
     @ViewBuilder
     private func messageRow(_ message: RoleChatMessage) -> some View {
-        if message.isSessionMarker {
+        if let coordination = message.coordination {
+            RoleCoordinationCard(coordination: coordination) {
+                try await api.stopRoleCoordination(chatID: chat.id, messageID: message.id)
+            }
+            .hintAnchor(HintAnchorID.chatCoordination)
+        } else if message.isSessionMarker {
             sessionMarkerRow(message)
         } else if isFlatReply(message) {
             flatReplyRow(message)
