@@ -45,6 +45,13 @@ struct TaskLiveActivityView: View {
         .accessibilityIdentifier("plan-slot-live-content")
         .task(id: "\(taskID):\(subtaskID ?? "")") {
             live = nil
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["TASKFLOW_ACTION_LABELS_PREVIEW"] == "1" {
+                live = TaskLiveTurn.previewActions(taskID: taskID, subtaskID: subtaskID)
+                loaded = true
+                return
+            }
+            #endif
             realtime.onEvent = { event in
                 if case .taskLive(let turn) = event,
                    turn.taskID == taskID, turn.subtaskID == subtaskID {
@@ -54,6 +61,9 @@ struct TaskLiveActivityView: View {
             realtime.connect()
         }
         .task(id: "\(taskID):\(subtaskID ?? ""):\(scenePhase):\(realtime.revision(for: taskID)):\(realtime.activityRevisions[taskID] ?? 0)") {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["TASKFLOW_ACTION_LABELS_PREVIEW"] == "1" { return }
+            #endif
             guard scenePhase == .active else { return }
             await restoreSnapshot()
         }

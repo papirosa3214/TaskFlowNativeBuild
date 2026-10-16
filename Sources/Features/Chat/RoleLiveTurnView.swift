@@ -113,10 +113,10 @@ struct RoleLiveStepRow: View {
             icon
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: 16)
-            Text(RoleLiveStepKind.label(forTool: step.tool))
+            Text(RoleActionPresentation.forStep(step).title)
                 .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
-            if showsDetail, let detail = step.detail, !detail.isEmpty {
+            if showsDetail, let detail = RoleActionPresentation.forStep(step).skillName ?? step.detail, !detail.isEmpty {
                 Text(detail)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(Color.tfDim)
@@ -126,17 +126,18 @@ struct RoleLiveStepRow: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+        .accessibilityIdentifier("role-action-" + step.id)
     }
 
     @ViewBuilder
     private var icon: some View {
         switch step.status {
         case .running:
-            Image(systemName: RoleLiveStepKind.symbol(forTool: step.tool))
+            Image(systemName: RoleActionPresentation.forStep(step).symbol)
                 .foregroundStyle(Color.tfSub)
                 .symbolEffect(.pulse, options: .repeating)
         case .done:
-            Image(systemName: RoleLiveStepKind.symbol(forTool: step.tool))
+            Image(systemName: RoleActionPresentation.forStep(step).symbol)
                 .foregroundStyle(Color.tfDim)
         case .error:
             Image(systemName: "exclamationmark.triangle")
@@ -151,7 +152,7 @@ struct RoleLiveStepRow: View {
         case .done: status = "готово"
         case .error: status = "ошибка"
         }
-        return [RoleLiveStepKind.label(forTool: step.tool), step.detail, status]
+        return [RoleActionPresentation.forStep(step).title, RoleActionPresentation.forStep(step).skillName ?? step.detail, status]
             .compactMap { $0 }
             .joined(separator: ", ")
     }
@@ -299,6 +300,7 @@ struct RoleLiveTurnBubble: View {
                         .tfText(.caption)
                         .foregroundStyle(Color.tfDim)
                 }
+                .hintAnchor(HintAnchorID.roleActions)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -668,7 +670,7 @@ struct RoleLiveDetailSheet: View {
     private var title: String {
         switch detail {
         case .thinking: return "Размышления"
-        case .step(let step): return RoleLiveStepKind.label(forTool: step.tool)
+        case .step(let step): return RoleActionPresentation.forStep(step).title
         }
     }
 

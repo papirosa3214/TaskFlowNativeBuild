@@ -147,12 +147,17 @@ struct AgentTraceView: View {
         .onDisappear { persist(); realtime.disconnect(); realtime.onEvent = nil }
     }
 
+    private func presentation(_ span: AgentTraceSpan) -> RoleActionPresentation {
+        RoleActionPresentation.forStep(RoleChatLiveStep(id: span.id, tool: span.label, detail: span.detail,
+            status: RoleChatLiveStep.Status(rawValue: span.status) ?? .running, resultReceived: span.resultReceived))
+    }
+
     private func shortLabel(_ span: AgentTraceSpan) -> String {
-        span.label == "Размышление" ? "Мысль" : RoleLiveStepKind.label(forTool: span.label.lowercased())
+        span.label == "Размышление" ? "Мысль" : presentation(span).title
     }
 
     private func symbol(_ span: AgentTraceSpan) -> String {
-        span.label == "Размышление" ? "brain" : RoleLiveStepKind.symbol(forTool: span.label.lowercased())
+        span.label == "Размышление" ? "brain" : presentation(span).symbol
     }
 
     private func durationBar(_ span: AgentTraceSpan, run: AgentTraceRun, cursor: Date, duration: Double) -> some View {

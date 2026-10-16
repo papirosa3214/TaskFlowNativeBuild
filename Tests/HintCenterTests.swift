@@ -13,6 +13,15 @@ final class HintCenterTests: XCTestCase {
 
     private func makeCenter() -> HintCenter { HintCenter(defaults: defaults, scenarios: [HintScenarios.taskPlan]) }
 
+    func testRoleActionHintCompletesWithoutChangingWork() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleActions])
+        center.start("role-actions")
+        XCTAssertEqual(center.active?.step, "actions")
+        XCTAssertTrue(center.currentStep?.text.contains("Навык подключён") == true)
+        center.next()
+        XCTAssertNil(center.active)
+    }
+
     func testDisabledModeNeverStarts() {
         let center = makeCenter()
         center.report(anchor: HintAnchorID.taskWorkMenu, frame: frame)

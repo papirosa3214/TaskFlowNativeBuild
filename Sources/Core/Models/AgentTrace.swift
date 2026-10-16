@@ -8,6 +8,8 @@ struct AgentTraceSpan: Codable, Equatable, Identifiable {
     var status: String
     /// Метки времени activity обозначают событие, а не длительность.
     var isEvent: Bool = false
+    var detail: String? = nil
+    var resultReceived: Bool? = nil
 
     func state(at date: Date) -> String {
         if date < start { return "Ожидает" }
@@ -33,7 +35,7 @@ struct AgentTraceRun: Codable, Equatable, Identifiable {
             case .step(let step):
                 guard let start = RoleChatTime.date(step.startedAt) else { continue }
                 spans.append(AgentTraceSpan(id: step.id, label: step.tool, start: start,
-                    end: RoleChatTime.date(step.endedAt), status: step.status.rawValue))
+                    end: RoleChatTime.date(step.endedAt), status: step.status.rawValue, detail: step.detail, resultReceived: step.resultReceived))
             case .thinking(let thought):
                 guard let start = RoleChatTime.date(thought.startedAt) else { continue }
                 spans.append(AgentTraceSpan(id: thought.id, label: "Размышление", start: start,

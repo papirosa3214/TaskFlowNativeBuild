@@ -408,25 +408,8 @@ private struct RoleChatTypingLine: View {
 /// Подпись/иконка по имени инструмента с сервера — сервер имя не
 /// интерпретирует, это целиком презентационная таблица клиента.
 enum RoleStepPresentation {
-    static func label(forTool tool: String) -> String {
-        switch tool {
-        case "read": return "Читает"
-        case "edit", "write": return "Правит"
-        case "bash": return "Выполняет команду"
-        case "grep", "glob": return "Ищет"
-        default: return "Работает"
-        }
-    }
-
-    static func symbol(forTool tool: String) -> String {
-        switch tool {
-        case "read": return "doc.text"
-        case "edit", "write": return "pencil.line"
-        case "bash": return "bolt"
-        case "grep", "glob": return "magnifyingglass"
-        default: return "gearshape"
-        }
-    }
+    static func label(forTool tool: String) -> String { RoleActionPresentation.forTool(tool).title }
+    static func symbol(forTool tool: String) -> String { RoleActionPresentation.forTool(tool).symbol }
 }
 
 /// Строка «роль делает шаг прямо сейчас» — замена `RoleChatTypingLine`
@@ -728,7 +711,11 @@ struct RoleChatRoomScreen: View {
         try! JSONDecoder().decode([RoleChatMessage].self, from: Data(#"[{"id":"previous","is_session_marker":false,"text":"Расскажи о результате","from_user_id":"preview-owner","created_at":"2026-10-10T18:00:00Z"},{"id":"finished","is_session_marker":false,"text":"Ответ начинается здесь. Короткий готовый результат.","from_user_id":"role_researcher","created_at":"2026-10-10T18:01:00Z"}]"#.utf8))
     }
     private static func readingPreviewTurn(long: Bool) -> RoleChatLiveTurn {
-        RoleChatLiveTurn(chatID: "reading-preview", userID: "role_researcher", name: "Исследователь", startedAt: nil,
+        if ProcessInfo.processInfo.environment["TASKFLOW_ACTION_LABELS_PREVIEW"] == "1" {
+            return RoleChatLiveTurn(chatID: "reading-preview", userID: "role_researcher", name: "Исследователь", startedAt: nil,
+                items: RoleActionPreview.items, thinking: nil)
+        }
+        return         RoleChatLiveTurn(chatID: "reading-preview", userID: "role_researcher", name: "Исследователь", startedAt: nil,
             items: [.text(long ? "Ответ начинается здесь. " + String(repeating: "Подробное пояснение результата. ", count: 60) + "КОНЕЦ ДЛИННОГО ОТВЕТА" : "Ответ начинается здесь. Короткое пояснение.")], thinking: nil)
     }
     #endif

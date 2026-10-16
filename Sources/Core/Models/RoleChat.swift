@@ -589,15 +589,18 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
     public let status: Status
     public let startedAt: String?
     public let endedAt: String?
+    /// False when the client merely stopped animating a running step.
+    public let resultReceived: Bool
 
     public init(id: String, tool: String, detail: String?, status: Status,
-                startedAt: String? = nil, endedAt: String? = nil) {
+                startedAt: String? = nil, endedAt: String? = nil, resultReceived: Bool? = nil) {
         self.id = id
         self.tool = tool
         self.detail = detail
         self.status = status
         self.startedAt = startedAt
         self.endedAt = endedAt
+        self.resultReceived = resultReceived ?? (status != .running)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -620,6 +623,7 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
         // а не роняем весь снимок хода.
         let raw = try container.decodeIfPresent(String.self, forKey: .status) ?? "running"
         status = Status(rawValue: raw) ?? .running
+        resultReceived = status != .running
         startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
         endedAt = try container.decodeIfPresent(String.self, forKey: .endedAt)
     }
@@ -688,7 +692,7 @@ extension RoleChatLiveTurn {
             case .step(let step):
                 return .step(RoleChatLiveStep(id: step.id, tool: step.tool, detail: step.detail,
                     status: step.status == .running ? .done : step.status,
-                    startedAt: step.startedAt, endedAt: step.endedAt ?? end))
+                    startedAt: step.startedAt, endedAt: step.endedAt ?? end, resultReceived: step.resultReceived))
             }
         }
         return Self(chatID: chatID, userID: userID, name: name, startedAt: startedAt,
