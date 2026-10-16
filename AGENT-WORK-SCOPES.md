@@ -691,3 +691,5 @@
 
 
 | LOCK-CHAT-VISIBILITY-20261016 | REVIEW | CHAT-VISIBILITY | Карточка обращений к коллегам в исходном чате | AGENT-WORK-SCOPES.md, Sources/Core/Models/RoleChat.swift, Sources/Features/Chat/RoleChatsScreen.swift, Sources/Features/Chat/RoleCoordinationCard.swift, Sources/Core/Networking/APIClient+RoleChats.swift, Sources/DesignSystem/Hints/HintScenarios.swift, docs/2026-10-16-chat-visibility.md | Владелец подтвердил, без запуска ролей и широких тестов | Codex | Simulator arm64 и iPhone BUILD SUCCEEDED; установлен и обычный запуск выполнен. Серверная проверка событий без моделей |
+
+| LOCK-CHAT-LIST-SPACING-20261016 | REVIEW | CHAT-LIST-SPACING | Уплотнить строки списка чатов без изменения аватарок | AGENT-WORK-SCOPES.md, Sources/Features/Chat/RoleChatsScreen.swift (только ChatListRow vertical padding), docs/2026-10-16-chat-list-spacing.md | Владелец уточнил: в списке чатов | Codex | Вертикальные отступы 12→8 pt; iPhone BUILD SUCCEEDED; размер аватарок сохранён |

@@ -356,7 +356,7 @@ private struct ChatListRow: View {
             }
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
-        .padding(.vertical, TFSpacing.md)
+        .padding(.vertical, TFSpacing.sm)
         .contentShape(Rectangle())
         // Строка целиком — одна единица для VoiceOver: без этого он читает
         // аватар, имя, превью и время как четыре отдельных элемента.
