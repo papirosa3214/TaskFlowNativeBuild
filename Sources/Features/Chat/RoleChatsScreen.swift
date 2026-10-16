@@ -547,6 +547,7 @@ private struct CreateRoleChatScreen: View {
                                 }
                             }
                         }
+                        .accessibilityIdentifier("chat.create.member.\(role.role)")
                     }
                 } header: {
                     Text("Роли")
@@ -584,7 +585,7 @@ private struct CreateRoleChatScreen: View {
     private func loadRoles() async {
         do {
             // Только роли с учёткой могут быть участниками серверного чата.
-            roles = try await api.roles().filter { $0.accountID?.hasPrefix("role_") == true }
+            roles = try await api.roles().filter(\.canJoinChat)
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -2282,7 +2283,7 @@ private struct RoleChatDetailsSheet: View {
     /// серверной учёткой — иначе отвечать в чате ей нечем.
     private var availableRoles: [RoleProfile] {
         roles.filter { profile in
-            guard let account = profile.accountID, account.hasPrefix("role_") else { return false }
+            guard profile.canJoinChat, let account = profile.accountID else { return false }
             return !chat.members.contains { $0.id == account }
         }
     }
@@ -2303,10 +2304,17 @@ private struct RoleChatDetailsSheet: View {
                             .foregroundStyle(Color.tfSub)
                     }
                 }
-                Section("Участники") {
+                Section {
                     ForEach(chat.members) { member in
                         memberRow(member)
                     }
+                } header: {
+                    Text("Участники")
+                } footer: {
+                    Text(chat.kind == "direct"
+                        ? "Личный чат: можно писать без @."
+                        : "Групповой чат: выберите собеседника через @.")
+                        .accessibilityIdentifier("chat.details.addressing")
                 }
                 // Одна настройка на все чаты (владелец 14.10.2026).
                 Section {
@@ -2363,6 +2371,8 @@ private struct RoleChatDetailsSheet: View {
                             Image(systemName: "ellipsis")
                         }
                         .accessibilityLabel("Ещё")
+                        .accessibilityIdentifier("chat.details.menu")
+                        .hintAnchor(HintAnchorID.chatMembersMenu)
                     }
                 }
             }

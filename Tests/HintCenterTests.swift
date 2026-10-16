@@ -83,4 +83,12 @@ final class HintCenterTests: XCTestCase {
         XCTAssertNil(center.currentStep)
         XCTAssertTrue(center.completed.contains("task-links"))
     }
+    func testChatMembersScenarioCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.chatMembers])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.chatMembersMenu, frame: frame)
+        XCTAssertEqual(center.active?.step, "members")
+        center.next()
+        XCTAssertTrue(center.completed.contains("chat-members"))
+    }
 }

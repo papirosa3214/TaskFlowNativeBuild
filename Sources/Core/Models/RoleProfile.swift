@@ -126,6 +126,12 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
     /// По умолчанию `true`, чтобы старые ответы без `enabled` не теряли роли.
     public var isEnabled: Bool { enabled ?? true }
 
+    /// Серверная учётка может иметь любой ID: у помощника это u-secretary.
+    public var canJoinChat: Bool {
+        isEnabled && accountID.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } == true
+    }
+
+
     /// Политика моделей в терминах `AgentProfile`.
     public var modelPolicy: AgentModelPolicy {
         AgentModelPolicy(primary: model ?? "", fallbacks: fallbacks)
