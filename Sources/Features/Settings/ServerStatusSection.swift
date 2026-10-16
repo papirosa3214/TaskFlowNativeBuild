@@ -210,7 +210,7 @@ struct ServerStatusSection: View {
             get: { viewModel.agentServiceError != nil },
             set: { if !$0 { viewModel.agentServiceError = nil } }
         )) {
-            Button("OK", role: .cancel) { viewModel.agentServiceError = nil }
+            Button("Понятно", role: .cancel) { viewModel.agentServiceError = nil }
         } message: {
             Text(viewModel.agentServiceError ?? "")
         }

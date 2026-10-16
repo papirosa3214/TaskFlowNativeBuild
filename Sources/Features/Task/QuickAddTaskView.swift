@@ -45,7 +45,7 @@ struct QuickAddTaskView: View {
             get: { viewModel.saveErrorMessage != nil },
             set: { if !$0 { viewModel.saveErrorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) { viewModel.saveErrorMessage = nil }
+            Button("Понятно", role: .cancel) { viewModel.saveErrorMessage = nil }
         } message: {
             Text(viewModel.saveErrorMessage ?? "")
         }

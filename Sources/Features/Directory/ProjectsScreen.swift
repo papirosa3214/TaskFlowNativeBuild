@@ -510,7 +510,7 @@ private struct QuickAddProjectView: View {
             get: { projectStore.errorMessage != nil },
             set: { if !$0 { projectStore.errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) { projectStore.errorMessage = nil }
+            Button("Понятно", role: .cancel) { projectStore.errorMessage = nil }
         } message: {
             Text(projectStore.errorMessage ?? "")
         }

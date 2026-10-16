@@ -205,7 +205,7 @@ struct RootShellView: View {
             get: { resumeStuckMessage != nil },
             set: { if !$0 { resumeStuckMessage = nil } }
         )) {
-            Button("OK", role: .cancel) { resumeStuckMessage = nil }
+            Button("Понятно", role: .cancel) { resumeStuckMessage = nil }
         } message: {
             Text(resumeStuckMessage ?? "")
         }

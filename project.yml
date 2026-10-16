@@ -75,18 +75,24 @@ targets:
       # в бандл приложения, и Live Activity не за что будет зацепиться.
       - target: TaskFlowWidgets
     # Сторож дизайн-системы (LOCK-DESIGN-SYSTEM-GUARD-20261016): не даёт
-    # собрать приложение, если правка в Sources/ нарисована мимо
+    # собрать приложение, если в Sources/ есть правка, нарисованная мимо
     # Sources/DesignSystem/ — голый `Toggle`, системный цвет текста
     # (`.primary`/`.secondary`/`.tertiary`), сырой кегль на `Text`, своя
-    # красная кнопка. Смотрит ТОЛЬКО правки (`git diff HEAD` плюс новые
-    # файлы), поэтому старая несоответствующая разметка сборку не роняет.
-    # Правила и замены — в `Tools/design-system-guard.py`.
+    # красная кнопка.
+    #
+    # Смотрит ЛОКАЛЬНУЮ ПАПКУ целиком, а не `git diff`: в рабочем цикле
+    # правка коммитится до сборки, diff пустой, и гейт молчал бы.
+    #
+    # `Tools/design-system-baseline.txt` — снимок нарушений на момент
+    # включения (44 штуки, ждут чистки). Роняет сборку только то, чего в
+    # снимке не было, то есть новое нарушение. Починил старое — убери
+    # строку из снимка: снимок должен только уменьшаться.
     # `/usr/bin/python3` — системный: python3 из Homebrew в шаге сборки не в PATH.
     preBuildScripts:
       - name: Сторож дизайн-системы
         basedOnDependencyAnalysis: false
         script: |
-          /usr/bin/python3 "$SRCROOT/Tools/design-system-guard.py" --diff HEAD
+          /usr/bin/python3 "$SRCROOT/Tools/design-system-guard.py" --folder
     info:
       path: Resources/Info.plist
       properties:

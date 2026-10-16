@@ -61,7 +61,7 @@ struct RoleRunJobsScreen: View {
             get: { actionError != nil },
             set: { if !$0 { actionError = nil } }
         )) {
-            Button("OK", role: .cancel) { actionError = nil }
+            Button("Понятно", role: .cancel) { actionError = nil }
         } message: {
             Text(actionError ?? "")
         }

@@ -69,7 +69,7 @@ struct ProjectTopicsScreen: View {
             }
         }
         .alert("Не удалось загрузить темы", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("ОК") { errorMessage = nil }
+            Button("Понятно") { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
     }
 
@@ -108,7 +108,7 @@ struct ProjectChatPicker: View {
                 catch { errorMessage = error.localizedDescription }
             }
             .alert("Не удалось открыть группу", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-                Button("ОК") { errorMessage = nil }
+                Button("Понятно") { errorMessage = nil }
             } message: { Text(errorMessage ?? "") }
         }
     }

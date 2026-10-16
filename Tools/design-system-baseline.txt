@@ -1,0 +1,57 @@
+# Базовый снимок сторожа дизайн-системы: нарушения, которые уже были в коде
+# на момент его включения (16.10.2026). Сборку они НЕ роняют — иначе проект
+# стал бы несобираемым до конца чистки, — но печатаются всегда как список работы.
+#
+# Формат: путь<TAB>правило<TAB>строка кода (табуляция обязательна).
+# Номер строки не хранится намеренно: он сдвигается от чужой правки выше по
+# файлу, и снимок по номерам ложно объявил бы старое нарушение новым.
+#
+# Починил нарушение — УБЕРИ его строку отсюда. Снимок должен только уменьшаться.
+# Перегенерировать (только осознанно, для новых правил):
+#   python3 Tools/design-system-guard.py --write-baseline
+Sources/DesignSystem/Components/TFAvatar.swift	text-font-size	.font(.system(size: side * 0.43, weight: .semibold))
+Sources/DesignSystem/Hints/HintOverlay.swift	system-text-color	.font(.footnote).foregroundStyle(.secondary)
+Sources/DesignSystem/Navigation/TFTabBar.swift	text-font-size	.font(.system(size: size * (day > 9 ? 0.34 : 0.38), weight: .heavy))
+Sources/DesignSystem/Navigation/TFTabDrawIcon.swift	text-font-size	.font(.system(size: size * (day > 9 ? 0.34 : 0.38), weight: .heavy))
+Sources/Features/Chat/AgentRow.swift	text-font-size	.font(.system(size: size * 0.4, weight: .semibold))
+Sources/Features/Chat/AgentWorkTaskRow.swift	text-font-size	.font(.system(size: size * 0.43, weight: .semibold))
+Sources/Features/Chat/ChatVoiceComposer.swift	system-text-color	.foregroundStyle(.primary)
+Sources/Features/Chat/ChatVoiceComposer.swift	raw-toggle	Toggle("Диктовка в текст", isOn: $experimentalPromptBox)
+Sources/Features/Chat/ChatVoiceComposer.swift	system-text-color	.foregroundStyle(.primary)
+Sources/Features/Chat/ChatVoiceComposer.swift	raw-toggle	Toggle("Диктовка в текст", isOn: $experimentalPromptBox)
+Sources/Features/Chat/ChatVoiceComposer.swift	text-font-size	.font(.system(size: 15))
+Sources/Features/Chat/ChatVoiceComposer.swift	system-text-color	.foregroundStyle(.primary)
+Sources/Features/Chat/ChatWidgetView.swift	text-font-size	.font(.system(size: 56, weight: .thin))
+Sources/Features/Chat/MemoryScreen.swift	raw-toggle	Toggle("Закрепить — всегда в задании", isOn: $pinned)
+Sources/Features/Coordination/ActionBar.swift	text-font-size	.font(.system(size: 14, weight: .semibold))
+Sources/Features/Coordination/ActionBar.swift	text-font-size	.font(.system(size: 12))
+Sources/Features/Coordination/ActionBar.swift	text-font-size	.font(.system(size: 12))
+Sources/Features/Coordination/CoordinationScreen.swift	text-font-size	.font(.system(size: 13))
+Sources/Features/Coordination/CoordinationScreen.swift	system-text-color	Text(label).font(.caption).foregroundStyle(.secondary)
+Sources/Features/Coordination/CoordinationScreen.swift	text-font-size	Text(value).font(.system(size: 13)).foregroundStyle(Color.tfText)
+Sources/Features/Coordination/ReasonStrip.swift	text-font-size	.font(.system(size: 15, weight: .semibold))
+Sources/Features/Coordination/ReasonStrip.swift	text-font-size	.font(.system(size: 12))
+Sources/Features/Coordination/ReasonStrip.swift	text-font-size	.font(.system(size: 11, weight: .medium))
+Sources/Features/Coordination/ResolutionGraph.swift	text-font-size	.font(.system(size: 13, weight: .semibold))
+Sources/Features/Coordination/ResolutionGraph.swift	text-font-size	.font(.system(size: 12))
+Sources/Features/Coordination/StreamWindow.swift	text-font-size	.font(.system(size: 13, weight: .semibold))
+Sources/Features/Coordination/StreamWindow.swift	text-font-size	.font(.system(size: 11, weight: .bold))
+Sources/Features/Coordination/StreamWindow.swift	text-font-size	.font(.system(size: 11, weight: .medium))
+Sources/Features/Directory/CompletionHeatmap.swift	text-font-size	.font(.system(size: 34, weight: .semibold, design: .rounded))
+Sources/Features/Directory/NotificationsScreen.swift	text-font-size	Text(n.actorInitials ?? "?").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+Sources/Features/Directory/WeeklySummarySheet.swift	system-text-color	Section { Text("Обновлено: " + summary.generated_at).font(.caption).foregroundStyle(.secondary) }
+Sources/Features/Settings/ServiceAccountsScreen.swift	bespoke-button	Button { Task { _ = await viewModel.saveToken(account.id) } } label: {
+Sources/Features/Settings/WebhooksScreen.swift	system-text-color	} else { Text("Запуск оркестратора не подтверждён").foregroundStyle(.secondary) }
+Sources/Features/Settings/WebhooksScreen.swift	raw-toggle	Toggle("Включён", isOn: $enabled)
+Sources/Features/Settings/WebhooksScreen.swift	raw-toggle	Toggle(event.1, isOn: Binding(get: { selected.contains(event.0) }, set: {
+Sources/Features/Task/Detail/CollaborationPlanView.swift	text-font-size	.font(.system(size: 11, weight: .semibold))
+Sources/Features/Task/Detail/SubtaskHostPicker.swift	system-text-color	.foregroundStyle(.secondary)
+Sources/Features/Task/Detail/SubtaskHostPicker.swift	system-text-color	.foregroundStyle(.secondary)
+Sources/Features/Task/Detail/SubtaskHostPicker.swift	system-text-color	.foregroundStyle(.secondary)
+Sources/Features/Task/Detail/SubtaskHostPicker.swift	system-text-color	.foregroundStyle(.secondary)
+Sources/Features/Task/QuickAddTaskView.swift	raw-toggle	Toggle(label.name, isOn: Binding(
+Sources/Features/Task/TaskFormScreen.swift	alert-generic-title	.alert("Ошибка", isPresented: Binding(
+Sources/Features/Task/TaskFormScreen.swift	alert-ok-button	Button("OK") { errorMessage = nil }
+Sources/Features/Today/TodayScreen.swift	raw-toggle	Toggle(isOn: Binding(
+Sources/Features/Upcoming/UpcomingTaskChip.swift	text-font-size	.font(.system(size: titleSize))
+Sources/Features/Upcoming/UpcomingTaskChip.swift	text-font-size	.font(.system(size: timeSize))
