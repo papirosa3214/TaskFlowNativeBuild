@@ -851,7 +851,7 @@ struct RoleChatRoomScreen: View {
         }
         .toolbar {
             #if DEBUG
-            if readingPreview {
+            if readingPreview && ProcessInfo.processInfo.environment["TASKFLOW_MEMBER_SWIPE_PREVIEW"] != "1" {
                 if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_CORRECTNESS_PREVIEW"] == "1" {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Сигнал конца") {
@@ -2264,7 +2264,12 @@ private struct RoleChatDetailsSheet: View {
         self.onDeleted = onDeleted
     }
 
-    private var isCreator: Bool { chat.createdBy == session.currentUser?.id }
+    private var isCreator: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TASKFLOW_MEMBER_SWIPE_PREVIEW"] == "1" { return true }
+        #endif
+        return chat.createdBy == session.currentUser?.id
+    }
     private var isOwner: Bool { session.currentUser?.role == .owner }
 
     /// Роли, которых в чате ещё нет: участником может быть только роль с
@@ -2381,12 +2386,41 @@ private struct RoleChatDetailsSheet: View {
                 if titleChanged { Task { await saveTitle() } }
             }
             .task {
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["TASKFLOW_MEMBER_SWIPE_PREVIEW"] == "1" { return }
+                #endif
                 roles = (try? await api.roles()) ?? []
             }
         }
     }
 
     private func memberRow(_ member: RoleChatMember) -> some View {
+        let canRemove = isCreator && member.id != session.currentUser?.id
+        return Group {
+            if canRemove {
+                DirectorySwipeRow(onDelete: { Task { await removeMember(member) } },
+                    deleteIcon: "trash", deleteLabel: "Удалить из чата",
+                    deleteIdentifier: "chat.member.remove." + member.id) {
+                    memberContent(member)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                }
+                .buttonStyle(.plain)
+            } else {
+                memberContent(member)
+            }
+        }
+        .contextMenu {
+            if canRemove {
+                Button(role: .destructive) {
+                    Task { await removeMember(member) }
+                } label: {
+                    Label("Удалить из чата", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private func memberContent(_ member: RoleChatMember) -> some View {
         HStack(spacing: TFSpacing.md) {
             RoleMemberAvatar(member: member, size: .lg)
             VStack(alignment: .leading, spacing: 2) {
@@ -2397,29 +2431,7 @@ private struct RoleChatDetailsSheet: View {
             }
             Spacer(minLength: TFSpacing.sm)
         }
-        // Удаление — по зажатию: всплывает контекстное меню. Никаких значков в
-        // строке (владелец 21.09.2026: «по зажатию, чтоб выплывало контекстное
-        // окно… а не крестики, какие-то иконки рисовать»). Свайп оставлен
-        // вторым, невидимым путём — он ничего не рисует.
         .contentShape(Rectangle())
-        .contextMenu {
-            if isCreator, member.id != session.currentUser?.id {
-                Button(role: .destructive) {
-                    Task { await removeMember(member) }
-                } label: {
-                    Label("Удалить из чата", systemImage: "trash")
-                }
-            }
-        }
-        .swipeActions(edge: .trailing) {
-            if isCreator, member.id != session.currentUser?.id {
-                Button(role: .destructive) {
-                    Task { await removeMember(member) }
-                } label: {
-                    Label("Удалить", systemImage: "trash")
-                }
-            }
-        }
     }
 
     /// Сервер отвечает обновлённым чатом — им и обновляем экран, и отдаём

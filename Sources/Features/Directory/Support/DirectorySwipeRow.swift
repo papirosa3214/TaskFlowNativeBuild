@@ -12,8 +12,11 @@ import UIKit
 // Используется строкой проекта (`ProjectsScreen`) — свайп влево «Изменить»
 // (`#007AFF`), вправо «Удалить» (`#FF3B30`).
 struct DirectorySwipeRow<Content: View>: View {
-    let onEdit: () -> Void
+    var onEdit: (() -> Void)? = nil
     let onDelete: () -> Void
+    var deleteIcon = "archivebox"
+    var deleteLabel = "В архив"
+    var deleteIdentifier = "directory.swipe.delete"
     /// Скругление строки и панели действий под ней. По умолчанию `lg` — как у
     /// строки-ряда (метки); «Проекты» с 08.09.2026 показывают карточку
     /// (`ProjectCard`, радиус `xl`), и клип обязан совпадать с ней, иначе
@@ -58,24 +61,28 @@ struct DirectorySwipeRow<Content: View>: View {
         ZStack {
             HStack(spacing: 0) {
                 Button(action: { close(); onDelete() }) {
-                    Image(systemName: "archivebox")
+                    Image(systemName: deleteIcon)
                         .font(.system(size: 20, weight: .regular))
                         .foregroundStyle(.white)
                 }
                 .frame(width: panelWidth(forOpening: offsetX > 0, shift: offsetX))
                 .frame(maxHeight: .infinity)
                 .background(Color.tfSwipeDelete)
+                .accessibilityLabel(deleteLabel)
+                .accessibilityIdentifier(deleteIdentifier)
                 .opacity(offsetX > 0 ? 1 : 0)
                 Spacer(minLength: 0)
-                Button(action: { close(); onEdit() }) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 20, weight: .regular))
-                        .foregroundStyle(.white)
+                if let onEdit {
+                    Button(action: { close(); onEdit() }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 20, weight: .regular))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: panelWidth(forOpening: offsetX < 0, shift: -offsetX))
+                    .frame(maxHeight: .infinity)
+                    .background(Color.tfSwipeEdit)
+                    .opacity(offsetX < 0 ? 1 : 0)
                 }
-                .frame(width: panelWidth(forOpening: offsetX < 0, shift: -offsetX))
-                .frame(maxHeight: .infinity)
-                .background(Color.tfSwipeEdit)
-                .opacity(offsetX < 0 ? 1 : 0)
             }
             .frame(maxHeight: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -115,7 +122,7 @@ struct DirectorySwipeRow<Content: View>: View {
         // доезжает со своей скоростью, рука быстрая или медленная — без разницы.
         withAnimation(TFRowSwipe.settleAnimation()) {
             if settledOffset == 0 {
-                if finalOffset < -openPx || velocity < -openVelocity {
+                if onEdit != nil && (finalOffset < -openPx || velocity < -openVelocity) {
                     settledOffset = -actionWidth
                 } else if finalOffset > openPx || velocity > openVelocity {
                     settledOffset = actionWidth
@@ -137,6 +144,7 @@ struct DirectorySwipeRow<Content: View>: View {
     }
 
     private func clamp(_ raw: CGFloat) -> CGFloat {
+        if onEdit == nil, raw < 0 { return 0 }
         if raw > actionWidth {
             let over = raw - actionWidth
             return actionWidth + (over * 30) / (30 + over)
