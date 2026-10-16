@@ -658,6 +658,8 @@ struct RoleChatRoomScreen: View {
     @State private var liveTurns: [String: RoleChatLiveTurn] = [:]
     @State private var restoredTurnIDs: Set<String> = []
     @State private var endedTurnIDs: Set<String> = []
+    /// Final messages stay in the paced queue until their text/actions are shown.
+    @State private var completingTurns: [String: RoleChatLiveTurn] = [:]
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
     @State private var pendingOutgoing: [PendingOutgoing] = []
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
@@ -1304,12 +1306,16 @@ struct RoleChatRoomScreen: View {
 
     /// Живой ход виден и в группе: у каждого ответа своя подпись роли.
     private var visibleLiveTurns: [RoleChatLiveTurn] {
-        return Array(liveTurns.values)
+        return (Array(liveTurns.values) + Array(completingTurns.values))
             .filter { !$0.items.isEmpty || $0.thinking != nil }
             .sorted { ($0.startDate ?? .distantFuture, $0.playbackID) < ($1.startDate ?? .distantFuture, $1.playbackID) }
     }
 
-    private var visibleMessages: [RoleChatMessage] { messages }
+    private var visibleMessages: [RoleChatMessage] {
+        messages.filter { message in
+            !completingTurns.values.contains { $0.isCompleted(by: message) }
+        }
+    }
 
     private struct FeedItem: Identifiable {
         let id: String
@@ -1377,6 +1383,8 @@ struct RoleChatRoomScreen: View {
             if let author = message.fromUserID, !mine {
                 if let turn = liveTurns[author] {
                     if turn.isCompleted(by: message) {
+                        completingTurns[turn.playbackID] = turn.completed(with: message)
+                        endedTurnIDs.insert(turn.playbackID)
                         liveTurns[author] = nil
                         restoredTurnIDs.remove(turn.playbackID)
                         typists[author] = nil
@@ -1465,7 +1473,11 @@ struct RoleChatRoomScreen: View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             replyContext(messageID: turn.triggerMessageID, sender: nil)
             RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
-                               startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID))
+                               startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID),
+                               onPlaybackComplete: {
+                                   completingTurns[turn.playbackID] = nil
+                                   endedTurnIDs.remove(turn.playbackID)
+                               })
                 .id(turn.playbackID)
         }
     }

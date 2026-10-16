@@ -369,9 +369,14 @@ struct RoleLiveTextPacer {
     /// скачок в конце ответа (владелец 14.10.2026: «ни задержек, ни рывков»).
     mutating func finish() {
         guard completionRemaining == nil else { return }
-        completionRemaining = Self.completionDrain
+        let pendingActions = target.indices.filter {
+            if case .text = target[$0] { return false }
+            return !revealedActions.contains($0)
+        }.count
+        completionRemaining = max(Self.completionDrain,
+            Double(pendingCharacters) / Self.maxRate
+            + Double(pendingActions) * Self.actionInterval + actionWait + Self.tailWait)
         initialDelay = 0
-        actionWait = 0
     }
     static let completionDrain: TimeInterval = 0.8
     /// Сколько очередь стоит без новых слов — недописанное сервером слово
@@ -430,6 +435,12 @@ struct RoleLiveTextPacer {
         target = items
         texts = nextTexts
         visibleCharacters = next
+        // A final REST/socket payload can add text after the end signal.
+        // Recompute its drain budget instead of flushing it on the old deadline.
+        if completionRemaining != nil {
+            completionRemaining = nil
+            finish()
+        }
     }
 
     var pendingCharacters: Int {
@@ -468,8 +479,7 @@ struct RoleLiveTextPacer {
         let desired = min(Self.maxRate, max(Self.minRate, Double(pending) / Self.targetLag))
         if let remaining = completionRemaining {
             // Дописываем остаток к сроку, не сбавляя уже набранной скорости.
-            rate = max(rate, Double(pending) / max(remaining, 0.016))
-            actionWait = 0
+            rate = min(Self.maxRate, max(rate, Double(pending) / max(remaining, 0.016)))
         } else {
             let blend = min(1, elapsed / (desired > rate ? Self.rateRise : Self.rateFall))
             rate += (desired - rate) * blend
@@ -730,7 +740,8 @@ extension RoleChatLiveTurn {
 
     func completed(with message: RoleChatMessage) -> Self {
         Self(chatID: chatID, userID: userID, name: name, startedAt: startedAt,
-             items: (message.steps?.items ?? []) + (message.text.isEmpty ? [] : [.text(message.text)]), thinking: nil)
+             items: (message.steps?.items ?? []) + (message.text.isEmpty ? [] : [.text(message.text)]), thinking: nil,
+             triggerMessageID: triggerMessageID)
     }
 }
 

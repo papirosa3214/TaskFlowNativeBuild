@@ -340,7 +340,10 @@ struct RoleLiveTurnBubble: View {
         // Скрытые шаги в очередь не идут: иначе текст вставал бы на паузу
         // перед действием, которого в «Минимуме» не видно.
         driver.pacer.ingest(detailLevel.visible(items))
-        if isComplete { driver.pacer.finish() }
+        if isComplete {
+            completionReported = false
+            driver.pacer.finish()
+        }
         if !seeded {
             seeded = true
             if startsWithSnapshot { driver.pacer.flush() }
