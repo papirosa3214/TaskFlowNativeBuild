@@ -25,7 +25,7 @@ enum HintScenarios {
     static let systemSummary = HintScenario(
         id: "system-summary", title: "Состояние системы", start: "summary",
         steps: ["summary": HintStep(anchor: HintAnchorID.systemSummary, title: "Общая сводка",
-            text: "Счётчики уведомлений и поломок, ошибки и успешные проверки собраны здесь сразу в раскрытом виде. Нажмите число поломок, чтобы открыть их список, или «Все уведомления» в меню, чтобы посмотреть историю событий.", next: nil)])
+            text: "Здесь сразу раскрыты поломки, тревоги, починенные механизмы и то, что работает штатно. Нажмите строку проблемы, чтобы открыть связанную задачу. Список рабочих карточек находится в меню «…» → «Карточки работ».", next: nil)])
 
     static let jev = HintScenario(
         id: "jev", title: "Оценщик JEV", start: "connection",

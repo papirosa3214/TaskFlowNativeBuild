@@ -70,60 +70,16 @@ struct NotificationsScreen: View {
                 TFErrorBanner(openTaskError, variant: .inline)
 
                 TFCard(padding: 0) {
-                    VStack(spacing: 0) {
-                        summaryRow("Уведомлений за сегодня", dayCounts.map { "\($0.total)" }) {
-                            feedAlarmsOnly = false; showFeed = true
-                        }
-                        TFDivider()
-                        summaryRow("Из них с тревогой", dayCounts.map { "\($0.alarms)" },
-                                   tint: (dayCounts?.alarms ?? 0) > 0 ? .tfOrange : nil) {
-                            feedAlarmsOnly = true; showFeed = true
-                        }
-                        TFDivider()
-                        summaryRow("Поломок", systemState.map { "\($0.counts.total)" }) {
-                            incidentFilter = .all
-                        }
-                        TFDivider()
-                        summaryRow("Починено", systemState.map { "\($0.counts.fixed)" },
-                                   tint: (systemState?.counts.fixed ?? 0) > 0 ? .tfGreen : nil) {
-                            incidentFilter = .fixed
-                        }
-                        TFDivider()
-                        summaryRow("Не починено", systemState.map { "\($0.counts.open)" },
-                                   tint: (systemState?.counts.open ?? 0) > 0 ? .tfRed : nil) {
-                            incidentFilter = .open
-                        }
-                        TFDivider()
-                        if let summary = dailySummary {
-                            NotificationTicketDetailSheet(
-                                summary: summary,
-                                detail: serviceTicketDetails[summary.id],
-                                onOpenTask: { taskId in Task { await openTaskFromTicket(taskId) } },
-                                onTapResolutionItem: { item in
-                                    guard let taskId = item.taskId ?? serviceTicketDetails[summary.id]?.diagnosticTaskId else { return }
-                                    resolutionSheetItem = item
-                                    resolutionSheetTaskId = taskId
-                                }, scrolls: false)
-                        } else if isLoadingServiceTickets {
-                            ProgressView("Загрузка сводки").padding(TFSpacing.lg)
-                        }
-
+                    SystemSummaryRows(items: summaryItems) { taskId in
+                        Task { await openTaskFromTicket(taskId) }
                     }
                 }
                 .accessibilityIdentifier("system-state.summary")
                 .hintAnchor(HintAnchorID.systemSummary)
-
-                if let state = systemState, !state.incidents.isEmpty {
-                    sectionTitle("Поломки")
-                    TFCard(padding: 0) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(state.incidents.enumerated()), id: \.element.id) { idx, incident in
-                                incidentRow(incident)
-                                if idx < state.incidents.count - 1 { TFDivider() }
-                            }
-                        }
-                    }
+                if isLoadingServiceTickets && dailySummary == nil {
+                    ProgressView("Загрузка сводки")
                 }
+
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.md)
@@ -141,7 +97,7 @@ struct NotificationsScreen: View {
                     Button {
                         showFeed = true
                     } label: {
-                        Label("Все уведомления", systemImage: "tray.full")
+                        Label("Карточки работ", systemImage: "tray.full")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -159,6 +115,10 @@ struct NotificationsScreen: View {
         .navigationDestination(isPresented: $showFeed) { feedPage }
         .navigationDestination(item: $incidentFilter) { incidentsPage($0) }
         .task { await loadSystemState(); await loadServiceTickets() }
+    }
+
+    private var summaryItems: [SystemSummaryItem] {
+        SystemSummaryItem.compose(checks: dailySummary?.checks ?? [], incidents: systemState?.incidents ?? [])
     }
 
     private var dailySummary: ServiceTicketSummary? {
@@ -254,74 +214,28 @@ struct NotificationsScreen: View {
 
     // Склад: всё, что сыпется, как есть — сводки сервисов и лента сервера.
     private var feedPage: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
-                TFErrorBanner(notificationStore.errorMessage, variant: .inline)
-                TFErrorBanner(markAllErrorMessage, variant: .inline)
-                TFErrorBanner(serviceTicketsError, variant: .inline)
+        let linked = summaryItems.filter { $0.taskID != nil }
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
                 TFErrorBanner(openTaskError, variant: .inline)
-                if isLoadingServiceTickets && serviceTickets.isEmpty {
-                    ProgressView("Загрузка уведомлений")
+                if linked.isEmpty {
+                    Text("Карточек работ пока нет").tfText(.body).foregroundStyle(Color.tfSub)
                 }
-                ForEach(feedAlarmsOnly ? serviceTickets.filter(\.hasTriage) : serviceTickets.filter { $0.id != dailySummary?.id }) { summary in
-                    NotificationTicketCard(
-                        summary: summary,
-                        detail: serviceTicketDetails[summary.id],
-                        onOpenTask: { taskId in Task { await openTaskFromTicket(taskId) } },
-                        onTapResolutionItem: { item in
-                            let fallbackTaskId = serviceTicketDetails[summary.id]?.diagnosticTaskId
-                            guard let taskId = item.taskId ?? fallbackTaskId else { return }
-                            resolutionSheetItem = item
-                            resolutionSheetTaskId = taskId
-                        }
-                    )
-                }
-                if !feedAlarmsOnly && !visibleNotifications.isEmpty {
-                    TFCard(padding: 0) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(visibleNotifications.enumerated()), id: \.element.id) { idx, n in
-                                notificationRow(n)
-                                if idx < visibleNotifications.count - 1 { TFDivider() }
-                            }
-                        }
+                ForEach(linked) { item in
+                    Button {
+                        guard let taskId = item.taskID else { return }
+                        Task { await openTaskFromTicket(taskId) }
+                    } label: {
+                        TFCard { SystemSummaryInformationRow(item: item) }
                     }
-                }
-                if serviceTickets.isEmpty && visibleNotifications.isEmpty && !isLoadingServiceTickets
-                    && serviceTicketsError == nil {
-                    // Пустое состояние было вообще без типографики — рисовалось
-                    // системным 17 pt primary (LOCK-TYPOGRAPHY-SPEC, дефект Г).
-                    // Кегль и цвет — из шкалы и палитры, как у соседних подписей.
-                    Text("Уведомлений пока нет")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfDim)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(TFTapRowStyle())
                 }
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.top, TFSpacing.md)
-            .padding(.bottom, TFSpacing.xl)
+            .padding(TFSpacing.screenHorizontal)
         }
         .background(Color.tfBackground)
-        .tfNativeHeader(feedAlarmsOnly ? "С тревогой" : "Все уведомления")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    Task { await markAllRead() }
-                } label: {
-                    Text("Прочитать все")
-                }
-                .disabled(isMarkingAllRead || allRead)
-            }
-        }
-        .refreshable {
-            await notificationStore.load()
-            await loadServiceTickets()
-        }
-        .task {
-            await notificationStore.load()
-            await loadServiceTickets()
-        }
-
+        .tfNativeHeader("Карточки работ")
+        .refreshable { await loadSystemState(); await loadServiceTickets() }
     }
 
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }

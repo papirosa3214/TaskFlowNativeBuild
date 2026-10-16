@@ -34,6 +34,15 @@ public struct ServiceTicketCheck: Codable, Sendable, Hashable {
     public let area: String
     public let status: String
     public let message: String
+    public var diagnosticTaskIDs: [String]? = nil
+    public var incidentKey: String? = nil
+    public var recovered: Bool? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case name, area, status, message, recovered
+        case diagnosticTaskIDs = "diagnostic_task_ids"
+        case incidentKey = "incident_key"
+    }
 }
 
 public struct ServiceTicketInboxResponse: Decodable, Sendable {
