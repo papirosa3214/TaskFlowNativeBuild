@@ -61,7 +61,13 @@ struct NoteExtractedTasksSheetContent: View {
 
                 TFErrorBanner(errorMessage)
 
-                TFButton(confirmButtonTitle, isEnabled: canConfirm) {
+                // 16.10.2026 (LOCK-UI-DRIFT-KNOWN): `variant: .primary` проставлен явно.
+                // Красный здесь законен — это подтверждение действия («Создать»),
+                // такой же образец, как «Сохранить» в `EditProfileSheet` и
+                // `TemplatesScreen`. Раньше вариант не был указан, и скан не мог
+                // отличить подтверждение от действия по умолчанию, из-за чего
+                // кнопка попадала в находки.
+                TFButton(confirmButtonTitle, variant: .primary, isEnabled: canConfirm) {
                     Task { await confirm() }
                 }
             }

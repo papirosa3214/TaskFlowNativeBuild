@@ -26,6 +26,7 @@ struct EscalationSettingsScreen: View {
                 }
             }
         }
+        .tfScreenBackground()
         .tfNativeHeader("Напоминания о просрочке")
         .accessibilityIdentifier("escalation-settings-screen")
         .task { await model.load() }

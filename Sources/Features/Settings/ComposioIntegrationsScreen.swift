@@ -243,7 +243,7 @@ private struct ComposioServiceScreen: View {
                                       subtitle: toolkit.noAuth ? "Авторизация не требуется" : toolkit.connected ? "Общий аккаунт TaskFlow подключён" : "Подключите общий аккаунт TaskFlow")
                         }
                         if !toolkit.connected && !toolkit.noAuth {
-                            TFButton("Подключить аккаунт", icon: "link", isEnabled: !model.loading && !model.saving) {
+                            TFButton("Подключить аккаунт", icon: "link", variant: .secondary, isEnabled: !model.loading && !model.saving) {
                                 Task { if let url = await model.connect(toolkit.slug) { openURL(url) } }
                             }.accessibilityIdentifier("composio.connect")
                         }

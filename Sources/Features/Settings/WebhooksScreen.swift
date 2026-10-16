@@ -44,6 +44,7 @@ struct WebhooksScreen: View {
                 }
             }
         }
+        .tfScreenBackground()
         .tfNativeHeader("Вебхуки")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

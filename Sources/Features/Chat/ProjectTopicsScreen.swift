@@ -33,6 +33,12 @@ struct ProjectTopicsScreen: View {
             }
         }
          .tint(Color.tfText)
+        // 16.10.2026 (LOCK-UI-DRIFT-KNOWN): корневой `List` рисует свой
+        // системный фон, а не фон приложения — на тёмной теме это более
+        // чёрное поле, чем `tfBackground`. Тот же дефект, что был у
+        // «Параметров сервера» и «Диагностики», закрыт 16.10.2026 общим
+        // модификатором `TFScreenBackground`.
+        .tfScreenBackground()
         .navigationTitle(group.title ?? "Проект")
         .toolbar {
             ToolbarItem(placement: .principal) {

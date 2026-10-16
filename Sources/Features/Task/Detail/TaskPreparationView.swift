@@ -81,9 +81,16 @@ struct TaskPreparationView: View {
                 if isLoading {
                     ProgressView("Загружаю подготовку…")
                 } else if let errorMessage {
+                    // 16.10.2026 (LOCK-UI-DRIFT-KNOWN): системная кнопка в потоке
+                    // экрана всегда синяя, а кнопки приложения серые. Заголовок и
+                    // текст ошибки оставлены как есть — это не баннер ошибки, а
+                    // состояние экрана; меняется только действие.
                     Text("Не удалось загрузить подготовку").tfText(.title)
                     Text(errorMessage).foregroundStyle(Color.tfSub)
-                    Button("Повторить загрузку") { Task { await load() } }
+                    TFButton("Повторить загрузку", icon: "arrow.clockwise", variant: .secondary) {
+                        Task { await load() }
+                    }
+                    .accessibilityIdentifier("preparation.retry")
                 } else {
                     current
                 }
@@ -158,7 +165,12 @@ struct TaskPreparationView: View {
                 if isOwner {
                     if choices.isEmpty {
                         Text("Для этого вопроса готовые варианты пока не получены.").foregroundStyle(Color.tfSub)
-                        Button("Повторить подготовку") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } }
+                        // 16.10.2026 (LOCK-UI-DRIFT-KNOWN): кнопка приложения
+                        // вместо системной синей.
+                        TFButton("Повторить подготовку", icon: "arrow.clockwise", variant: .secondary) {
+                            Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } }
+                        }
+                        .accessibilityIdentifier("preparation.retryQuestion")
                     } else {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: TFSpacing.sm) {
                             ForEach(choices) { choice in
@@ -184,7 +196,12 @@ struct TaskPreparationView: View {
                 }
             } else {
                 Text("Подготовка ждёт уточнения, но конкретный вопрос не получен. Повторите подготовку, чтобы получить варианты решения.")
-                if isOwner { Button("Повторить подготовку") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } } }
+                if isOwner {
+                    TFButton("Повторить подготовку", icon: "arrow.clockwise", variant: .secondary) {
+                        Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } }
+                    }
+                    .accessibilityIdentifier("preparation.retryNoQuestion")
+                }
             }
         } else if let preparation, preparation.canApproveStructure {
             Text("Предложены дочерние задачи. Проверьте их результаты перед созданием.").foregroundStyle(Color.tfSub)

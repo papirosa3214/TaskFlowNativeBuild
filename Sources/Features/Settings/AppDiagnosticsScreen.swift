@@ -72,6 +72,7 @@ struct AppDiagnosticsScreen: View {
         }
         .foregroundStyle(Color.tfText)
         .tint(Color.tfText)
+        .tfScreenBackground()
         .tfNativeHeader("Диагностика")
         .accessibilityIdentifier("app-diagnostics-screen")
         .task(id: scenePhase) {

@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "45D5E1B8-ED5C-4E88-A60E-77D9F6B60992.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "member-delete-swipe_0_E5685543-4389-4E60-B4F1-9DDC8219481A.png",
+        "timestamp" : 1792143432.747
+      }
+    ],
+    "testIdentifier" : "ChatMemberSwipeUITests/testMemberUsesBrandedDeleteSwipe()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ChatMemberSwipeUITests/testMemberUsesBrandedDeleteSwipe"
+  }
+]

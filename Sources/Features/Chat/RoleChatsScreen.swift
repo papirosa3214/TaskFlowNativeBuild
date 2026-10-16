@@ -2390,19 +2390,9 @@ private struct RoleChatDetailsSheet: View {
 
     private func memberRow(_ member: RoleChatMember) -> some View {
         let canRemove = isCreator && member.id != session.currentUser?.id
-        return Group {
-            if canRemove {
-                DirectorySwipeRow(onDelete: { Task { await removeMember(member) } },
-                    deleteIcon: "trash", deleteLabel: "Удалить из чата",
-                    deleteIdentifier: "chat.member.remove." + member.id) {
-                    memberContent(member)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground))
-                }
-                .buttonStyle(.plain)
-            } else {
-                memberContent(member)
-            }
-        }
+        return memberContent(member)
+        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+        .accessibilityIdentifier("chat.member." + member.id)
         .contextMenu {
             if canRemove {
                 Button(role: .destructive) {
@@ -2416,7 +2406,7 @@ private struct RoleChatDetailsSheet: View {
 
     private func memberContent(_ member: RoleChatMember) -> some View {
         HStack(spacing: TFSpacing.md) {
-            RoleMemberAvatar(member: member, size: .lg)
+            RoleMemberAvatar(member: member, size: .node)
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.name).foregroundStyle(Color.tfText)
                 if member.id == chat.createdBy {

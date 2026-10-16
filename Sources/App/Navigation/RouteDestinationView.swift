@@ -121,6 +121,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         RuntimeStatusScreen()
     case .serviceAccounts:
         ServiceAccountsScreen()
+    case .remoteMachines:
+        RemoteMachinesScreen()
     case .agentProfile(let id):
         AgentProfileScreen(roleID: id)
     case .roleChat(let id):

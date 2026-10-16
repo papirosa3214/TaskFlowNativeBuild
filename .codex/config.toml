@@ -30,3 +30,7 @@ args = [
     "maksim",
     "cd ~/Проекты/New-Todoist && graft mcp",
 ]
+
+[mcp_servers.xcode]
+command = "xcrun"
+args = ["mcpbridge"]

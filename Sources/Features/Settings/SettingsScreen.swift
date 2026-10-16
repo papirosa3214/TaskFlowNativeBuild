@@ -214,6 +214,18 @@ struct SettingsScreen: View {
             RuntimeStatusRow()
             TFDivider(inset: rowDividerInset)
             navRow(icon: "person.badge.key", title: "Сервер MCP", route: .serviceAccounts)
+            TFDivider(inset: rowDividerInset)
+            // Правка 8 плана taskflow-mac-host: удалённые машины-хосты.
+            // Только владельцу: завести и отозвать машину может он, и реестр
+            // машин (`server/src/routes/hosts.ts`) тоже закрыт authOrApiToken.
+            if session.currentUser?.role == .owner {
+                // 16.10.2026, LOCK-REMOTE-MACHINES-ROW: пункт с шевроном и
+                // переходом на свой экран, как «Параметры» и «Сервер MCP».
+                // До этого здесь стоял блок с машинами прямо в потоке, и его
+                // ошибка загрузки с «Повторить» выкатывалась прямо сюда.
+                navRow(icon: "desktopcomputer", title: "Удалённые машины", route: .remoteMachines)
+                    .accessibilityIdentifier("settings-remote-machines")
+            }
         }
     }
 

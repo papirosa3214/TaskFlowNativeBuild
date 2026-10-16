@@ -61,6 +61,7 @@ struct RoleChainSheet: View {
                         : "После основной — первая, затем вторая…")
                 }
             }
+            .tfScreenBackground()
             .navigationTitle(profile.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

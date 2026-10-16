@@ -1,0 +1,268 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Расхождения оформления — один экран</title>
+<style>
+  :root{
+    /* Реальные токены проекта, Color+Palette.swift (тёмная тема) */
+    --bg:#171717; --card:#242424; --card2:#2b2b2b;
+    --text:#ffffff; --sub:#a6a6a6; --dim:#949494;
+    --stroke:rgba(255,255,255,0.09);
+    --red:#e44332; --redSolid:#d63a28; --coral:#ff6b6b; --blue:#4a9fd8;
+    --sysblue:#0a84ff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+    padding:28px 22px 56px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:26px;font-weight:700;margin:0 0 6px;letter-spacing:-0.2px}
+  .lead{color:var(--sub);margin:0 0 22px;max-width:74ch;font-size:14px}
+  .note{
+    background:var(--card2);border:1px solid var(--stroke);border-radius:14px;
+    padding:14px 16px;margin:0 0 26px;color:var(--sub);font-size:13.5px;
+  }
+  .note b{color:var(--text)}
+
+  h2{font-size:17px;font-weight:600;margin:34px 0 12px;letter-spacing:-0.1px}
+  h2 .n{color:var(--dim);font-weight:400}
+
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:16px;overflow:hidden}
+  th{
+    text-align:left;font-size:12px;font-weight:600;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.06em;
+    padding:11px 14px;border-bottom:1px solid var(--stroke);white-space:nowrap;
+  }
+  td{padding:12px 14px;border-bottom:1px solid var(--stroke);vertical-align:top;font-size:14px}
+  tr:last-child td{border-bottom:none}
+  code{
+    font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+    background:var(--card2);padding:2px 6px;border-radius:6px;color:var(--text);
+  }
+  .file{color:var(--sub);font-size:12.5px}
+
+  /* ── Витрина кнопок ─────────────────────────────── */
+  .stage{
+    background:var(--bg);border:1px solid var(--stroke);border-radius:18px;
+    padding:20px;margin:0 0 14px;
+  }
+  .lane{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.lane{grid-template-columns:1fr}}
+  .lane>div>header{
+    font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    margin:0 0 10px;display:flex;align-items:center;gap:7px;
+  }
+  .lane header.ok{color:var(--sub)}
+  .lane header.bad{color:var(--coral)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .dot.ok{background:var(--sub)}
+  .dot.bad{background:var(--coral)}
+
+  /* Системная кнопка iOS — как её рисует UIKit при дефолтном tint */
+  .sysbtn{
+    display:block;width:100%;margin:0 0 9px;padding:11px 16px;
+    background:transparent;border:none;border-radius:10px;
+    color:var(--sysblue);font:600 15px/1.2 inherit;text-align:center;
+    cursor:default;
+  }
+  .sysbtn:active{background:rgba(10,132,255,.15)}
+  .sysbtn.red{color:var(--redSolid)}
+
+  /* TFButton .secondary — как в приложении */
+  .tfbtn{
+    display:block;width:100%;margin:0 0 9px;padding:12px 16px;
+    background:var(--card2);border:1px solid var(--stroke);border-radius:12px;
+    color:var(--text);font:600 15px/1.2 inherit;text-align:center;cursor:default;
+  }
+  /* TFButton .primary — красная заливка, законная только для подтверждения */
+  .tfbtn.primary{background:var(--redSolid);border-color:transparent;color:#fff}
+
+  .row-label{font-size:12px;color:var(--dim);margin:0 0 4px;font-family:ui-monospace,Menlo,monospace}
+  .ctx{
+    font-size:12.5px;color:var(--sub);margin:14px 0 0;padding-top:12px;
+    border-top:1px solid var(--stroke);
+  }
+  .swatch{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--sub)}
+  .chip{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid var(--stroke)}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin:20px 0 0;padding:14px 16px;
+    background:var(--card);border-radius:14px;border:1px solid var(--stroke)}
+  .callout{
+    border-left:3px solid var(--coral);background:rgba(255,107,107,.07);
+    padding:13px 16px;border-radius:0 12px 12px 0;margin:20px 0 0;font-size:13.5px;color:var(--sub)
+  }
+  .callout b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Расхождения оформления — всё на одном экране</h1>
+  <p class="lead">
+    Слева — как должно быть: компоненты приложения. Справа — как стоит в коде
+    сейчас. Все примеры сняты с реальных мест, цвета — реальные токены из
+    <code>Color+Palette.swift</code>, тёмная тема. Разметка подписана именем файла
+    и строкой, чтобы каждое расхождение можно было проверить по коду.
+  </p>
+
+  <div class="note">
+    <b>Что показывает этот экран.</b> Пять кнопок-«Повторить» в обычном потоке
+    экрана уехали в системный синий, потому что вместо <code>TFButton</code> стоит
+    обычный <code>Button</code>. Ошибка при этом обычно обёрнута в баннер — то есть
+    сообщение оформлено, а действие под ним нет. Ещё одна карточка: список без
+    фона приложения, и одна кнопка подтверждения, где красный законен и ничего
+    менять не надо.
+  </div>
+
+  <!-- ── 1. Синяя «Повторить» ───────────────────────── -->
+  <h2>1. Кнопка «Повторить» — <span class="n">5 мест в потоке экрана</span></h2>
+
+  <div class="stage">
+    <div class="lane">
+      <div>
+        <header><span class="dot ok"></span>Как в приложении — TFButton(.secondary)</header>
+
+        <div class="row-label">RemoteMachinesSection.swift:206 — эталон, уже исправлено</div>
+        <button class="tfbtn">↻ Повторить</button>
+        <button class="tfbtn" style="opacity:.5">Повторить</button>
+
+        <div class="row-label" style="margin-top:16px">TFButton(.primary) — законно для подтверждения</div>
+        <button class="tfbtn primary">Сохранить</button>
+      </div>
+
+      <div>
+        <header><span class="dot bad"></span>Как сейчас — системный Button, синий</header>
+
+        <div class="row-label">TaskPreparationView.swift:86 — «Повторить загрузку»</div>
+        <button class="sysbtn">Повторить загрузку</button>
+
+        <div class="row-label">TaskPreparationView.swift:161 — «Повторить подготовку», варианты не пришли</div>
+        <button class="sysbtn">Повторить подготовку</button>
+
+        <div class="row-label">TaskPreparationView.swift:187 — «Повторить подготовку», вопрос не получен</div>
+        <button class="sysbtn">Повторить подготовку</button>
+
+        <div class="row-label">IntegrationResponsibilityView.swift:60 — «Повторить»</div>
+        <button class="sysbtn">Повторить</button>
+
+        <div class="row-label">WeeklySummarySheet.swift:27 — «Повторить» в шторке сводки</div>
+        <button class="sysbtn">Повторить</button>
+
+        <div class="row-label">RoleChatsScreen.swift:1433 — «Повторить» у неотправленного</div>
+        <button class="sysbtn">Повторить</button>
+
+        <div class="row-label">RoleChatsScreen.swift:1228 — «Повторить отправку», голосовое</div>
+        <button class="sysbtn">Повторить отправку</button>
+
+        <p class="ctx">
+          Рядом в коде стоит <code>Label(«Не отправлено», systemImage: "exclamationmark.circle")</code>
+          красным и <code>Button("Убрать", role: .destructive)</code> — то есть рядом уже
+          два других цвета, а между ними синяя кнопка. В одном блоке три разных
+          согласия об одном действии.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="swatch"><span class="chip" style="background:var(--card2)"></span>TFButton .secondary — #2b2b2b + рамка</span>
+    <span class="swatch"><span class="chip" style="background:var(--redSolid)"></span>TFButton .primary — #d63a28, только подтверждение</span>
+    <span class="swatch"><span class="chip" style="background:var(--sysblue)"></span>Системный Button — #0a84ff, в приложении не используется</span>
+    <span class="swatch"><span class="chip" style="background:var(--coral)"></span>tfCoral #ff6b6b — баннер ошибки</span>
+  </div>
+
+  <!-- ── 2. Баннер + кнопка вместе ─────────────────── -->
+  <h2>2. Ошибка загрузки — <span class="n">текст и действие оформлены по-разному</span></h2>
+
+  <div class="stage">
+    <div class="lane">
+      <div>
+        <header><span class="dot ok"></span>Эталон: баннер + серая кнопка</header>
+        <div class="row-label">RemoteMachinesSection.swift — после правки 16.10</div>
+        <div style="background:rgba(255,107,107,.12);border-radius:12px;padding:12px;margin-bottom:11px;
+                    display:flex;gap:9px;align-items:flex-start">
+          <span style="color:var(--coral);font-size:16px;line-height:1.2">ⓘ</span>
+          <span style="font-size:13.5px;color:var(--coral)">не удалось прочитать список машин</span>
+        </div>
+        <button class="tfbtn">↻ Повторить</button>
+      </div>
+
+      <div>
+        <header><span class="dot bad"></span>Было и осталось в других местах</header>
+        <div class="row-label">TaskPreparationView.swift:82–86, IntegrationResponsibilityView:59</div>
+        <div style="margin-bottom:11px">
+          <div style="font-size:17px;font-weight:600;margin-bottom:5px">Не удалось загрузить подготовку</div>
+          <div style="font-size:13.5px;color:var(--sub)">подробности ошибки серым текстом</div>
+        </div>
+        <button class="sysbtn">Повторить загрузку</button>
+        <p class="ctx">
+          Заголовок и текст ошибки — обычный <code>Text</code> с ручным цветом,
+          без баннера <code>TFErrorBanner</code>, который в проекте уже есть.
+          Так выглядит «оформлено не всё»: сообщение приложения, действие системы.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. Фон экрана ──────────────────────────────── -->
+  <h2>3. Фон экрана — <span class="n">один экран без общего фона</span></h2>
+
+  <div class="stage">
+    <div class="lane">
+      <div>
+        <header><span class="dot ok"></span>Эталон: tfBackground + карточки светлее</header>
+        <div class="row-label">Settings → Сервер MCP, после правки 16.10</div>
+        <div style="background:var(--bg);border-radius:14px;padding:13px">
+          <div style="color:var(--sub);font-size:12.5px;margin-bottom:8px">ПАРАМЕТРЫ СЕРВЕРА</div>
+          <div style="background:var(--card);border-radius:11px;padding:11px 13px;font-size:14px">
+            Тишина перед автоперезапуском
+          </div>
+        </div>
+        <p class="ctx">
+          Замер кадра: подложка <code>rgb(23,23,23)</code> = <code>#171717</code> =
+          <code>tfBackground</code>. Карточки <code>#242424</code>.
+        </p>
+      </div>
+
+      <div>
+        <header><span class="dot bad"></span>ProjectTopicsScreen.swift:12 — корневой List без фона</header>
+        <div class="row-label">Чаты → темы проекта</div>
+        <div style="background:#000;border-radius:14px;padding:13px">
+          <div style="color:var(--sub);font-size:12.5px;margin-bottom:8px">ТЕМЫ ПРОЕКТА</div>
+          <div style="background:var(--card);border-radius:11px;padding:11px 13px;font-size:14px">
+            Общее обсуждение
+          </div>
+        </div>
+        <p class="ctx">
+          Подложка <code>#000</code> против <code>#171717</code> в остальном
+          приложении. Разница 23 пункта — глазом на кадре не ловится, сканом
+          ловится всегда.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>Что важно в этой витрине.</b> Разница между правильной и неправильной
+    версией фона — 23 пункта в канале. Именно поэтому такие вещи доходят до
+    телефона: их не видно на глаз, пока не поставишь два экрана рядом. Скан
+    находит их за секунды, и теперь он запускается в цикле приёмки.
+  </div>
+
+  <h2>Итого по этому экрану</h2>
+  <table>
+    <thead><tr><th>Что показано</th><th>Мест</th><th>Видно глазом</th></tr></thead>
+    <tbody>
+      <tr><td>Синяя «Повторить» в потоке экрана</td><td>5</td><td>да, сразу бросается</td></tr>
+      <tr><td>Ошибка оформлена текстом, действие — кнопкой системы</td><td>3</td><td>да, но только рядом с другим экраном</td></tr>
+      <tr><td>Экран без общего фона</td><td>1</td><td>нет — 23 пункта разницы</td></tr>
+      <tr><td>Красная кнопка подтверждения</td><td>1</td><td>да, и это норма — менять не надо</td></tr>
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>

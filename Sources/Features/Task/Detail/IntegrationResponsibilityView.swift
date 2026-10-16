@@ -56,8 +56,15 @@ struct IntegrationResponsibilityView: View {
                     .accessibilityIdentifier("integration-owner-error")
             }
             if let error {
-                Text(error).tfText(.meta).foregroundStyle(.red)
-                Button("Повторить") { Task { await load() } }
+                // 16.10.2026 (LOCK-UI-DRIFT-KNOWN): системная кнопка в потоке
+                // экрана всегда синяя, а кнопки приложения серые. Сообщение —
+                // общим баннером, действие — кнопкой приложения.
+                TFErrorBanner(error, variant: .block)
+                    .accessibilityIdentifier("integration-load-error")
+                TFButton("Повторить", icon: "arrow.clockwise", variant: .secondary) {
+                    Task { await load() }
+                }
+                .accessibilityIdentifier("integration-retry")
             }
         }
         .task(id: "\(taskID)-\(reloadToken)") { await load() }

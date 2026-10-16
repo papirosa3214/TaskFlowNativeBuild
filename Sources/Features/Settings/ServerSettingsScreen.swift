@@ -86,6 +86,7 @@ struct ServerSettingsScreen: View {
                 .accessibilityIdentifier("server-settings-diagnostics")
             }
         }
+        .tfScreenBackground()
         .tfNativeHeader("Параметры сервера")
         .accessibilityIdentifier("server-settings-screen")
         .task { await model.load() }

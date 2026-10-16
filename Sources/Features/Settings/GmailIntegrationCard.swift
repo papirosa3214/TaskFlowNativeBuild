@@ -33,7 +33,7 @@ struct GmailIntegrationCard: View {
                 .autocorrectionDisabled()
                 .keyboardType(.emailAddress)
                 .accessibilityIdentifier("gmail.newAddress")
-            TFButton("Добавить и авторизовать", icon: "link", isEnabled: !busy) {
+            TFButton("Добавить и авторизовать", icon: "link", variant: .secondary, isEnabled: !busy) {
                 Task { await connect() }
             }
             .accessibilityIdentifier("gmail.connect")

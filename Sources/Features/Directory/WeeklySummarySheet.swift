@@ -24,7 +24,17 @@ struct WeeklySummarySheet: View {
         NavigationStack {
             List {
                 if busy { ProgressView("Загрузка сводки…") }
-                if let error { Section { Text(error); Button("Повторить") { Task { await load() } } } }
+                // 16.10.2026 (LOCK-UI-DRIFT-KNOWN): системная кнопка в потоке
+                // экрана всегда синяя, а в приложении кнопки серые. Текст ошибки
+                // — тоже обычным `Text`, без общего баннера.
+                if let error {
+                    Section {
+                        TFErrorBanner(error, variant: .block)
+                        TFButton("Повторить", icon: "arrow.clockwise", variant: .secondary) {
+                            Task { await load() }
+                        }
+                    }
+                }
                 if let summary {
                     Section("Продуктивность · \(Int(summary.productivity_score))%") {
                         Text(summary.greeting)

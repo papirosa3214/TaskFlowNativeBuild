@@ -244,6 +244,11 @@ struct RootShellView: View {
             case "projects": paths[selectedTab, default: NavigationPath()].append(AppRoute.projects)
             case "alltasks": paths[selectedTab, default: NavigationPath()].append(AppRoute.allTasks)
             case "settings": paths[selectedTab, default: NavigationPath()].append(AppRoute.settings)
+            // 16.10.2026, LOCK-UI-DRIFT-GATE: строка «Параметры» в настройках
+            // показывается только владельцу, а обход экранов (UIStyleGateUITests)
+            // должен снимать её независимо от того, под кем симулятор вошёл.
+            // Роут открывает маршрут напрямую — DEBUG, в релиз не попадает.
+            case "serversettings": paths[selectedTab, default: NavigationPath()].append(AppRoute.serverSettings)
             case "notes": paths[selectedTab, default: NavigationPath()].append(AppRoute.notes)
             case "noteeditor" where parts.count == 2:
                 paths[selectedTab, default: NavigationPath()].append(AppRoute.noteEditor(noteID: parts[1]))
@@ -324,7 +329,24 @@ struct RootShellView: View {
 
     /// Root-owned controls participate in UIKit's interactive navigation transition.
     /// Pushed destinations cover them instead of recreating them after the pop.
+    @ViewBuilder
     private var rootTabControls: some View {
+        // 16.10.2026, владелец (кадр с телефона): на панели быстрого создания
+        // нижняя навигация оставалась под формой, поднималась вместе с
+        // клавиатурой и просвечивала сквозь прозрачный фон. Причина — не в
+        // самой панели: `fullScreenCover` тут прозрачный (LOCK-140, этого
+        // требует оформление), и всё, что лежит ПОД ним, остаётся видимым и
+        // продолжает жить по safe area окна, которое клавиатура сжимает.
+        // Поэтому на время панели таббар и меню «+» просто не рисуются —
+        // под формой остаётся только содержимое экрана.
+        if quickAddDraft != nil {
+            EmptyView()
+        } else {
+            tabControlsContent
+        }
+    }
+
+    private var tabControlsContent: some View {
         ZStack(alignment: .bottom) {
             if isCreateMenuOpen {
                 // Подложка ловит тап мимо и закрывает меню БЕЗ затемнения
