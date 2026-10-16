@@ -1,0 +1,64 @@
+{
+  "schema": "xcodebuildmcp.output.test-result",
+  "schemaVersion": "3",
+  "didError": false,
+  "error": null,
+  "data": {
+    "request": {
+      "scheme": "TaskFlow",
+      "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+      "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+      "platform": "iOS Simulator",
+      "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+      "onlyTesting": [
+        "TaskFlowUITests/ChatReadabilityUITests"
+      ],
+      "skipTesting": []
+    },
+    "summary": {
+      "status": "SUCCEEDED",
+      "durationMs": 37725,
+      "counts": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "target": "simulator"
+    },
+    "artifacts": {
+      "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-16T03-52-08-655Z_pid53980_8763fff3.log",
+      "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_sim_2026-10-16T03-52-08-655Z_pid53980_dcc80c8e.xcresult",
+      "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-16T03-52-08-655Z_pid53980_a87c2101.xctestproducts"
+    },
+    "diagnostics": {
+      "warnings": [
+        {
+          "message": "'CommandURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/OwnerCommandTests.swift:4"
+        },
+        {
+          "message": "'SystemControlURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/SystemControlViewModelTests.swift:137"
+        },
+        {
+          "message": "'PreparationFallbackURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/TaskPreparationReplyTests.swift:48"
+        },
+        {
+          "message": "'ReplyURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/TaskPreparationReplyTests.swift:61"
+        }
+      ],
+      "errors": [],
+      "testFailures": []
+    },
+    "testCases": [
+      {
+        "suite": "ChatReadabilityUITests",
+        "test": "testGroupReplyAppearance",
+        "status": "passed",
+        "durationMs": 14955
+      }
+    ]
+  }
+}

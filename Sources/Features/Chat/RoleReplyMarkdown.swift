@@ -181,11 +181,22 @@ struct RoleReplyMarkdown: View, Equatable {
     }
 
     private func inline(_ runs: [RichRun], fade: RoleTextFade?) -> some View {
-        Text(Self.attributed(runs))
-            .foregroundStyle(color)
+        Self.readableText(runs, color: color)
             .roleReveal(fade)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// У выделения два отличия, как в образце владельца: насыщенность и цвет.
+    /// Вес задаётся на Text, чтобы сохранить унаследованный размер заголовка
+    /// и Dynamic Type; разметка кода, ссылок и курсива остаётся у прогона.
+    private static func readableText(_ runs: [RichRun], color: Color) -> Text {
+        runs.reduce(Text("")) { result, run in
+            let piece = Text(attributed([run]))
+                .fontWeight(run.bold ? .heavy : nil)
+                .foregroundColor(run.bold ? color : color.opacity(0.8))
+            return Text("\(result)\(piece)")
+        }
     }
 
     /// Прогоны с марками → `AttributedString`: жирный/курсив/код/зачёркнутый

@@ -1,0 +1,81 @@
+{
+  "schema": "xcodebuildmcp.output.build-run-result",
+  "schemaVersion": "2",
+  "didError": false,
+  "error": null,
+  "data": {
+    "request": {
+      "scheme": "TaskFlow",
+      "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+      "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+      "platform": "iOS Simulator",
+      "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A"
+    },
+    "summary": {
+      "status": "SUCCEEDED",
+      "durationMs": 56811,
+      "target": "simulator"
+    },
+    "artifacts": {
+      "appPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim/Build/Products/Debug-iphonesimulator/TaskFlow.app",
+      "bundleId": "com.maksim.taskflow.native",
+      "processId": 52777,
+      "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+      "buildLogPath": "/Users/max/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/build_run_sim_2026-10-16T03-50-04-887Z_pid50684_30845129.log",
+      "runtimeLogPath": "/Users/max/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/com.maksim.taskflow.native_2026-10-16T03-50-57-578Z_helperpid52735_ownerpid50684_36d17934.log",
+      "osLogPath": "/Users/max/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/com.maksim.taskflow.native_oslog_2026-10-16T03-51-01-630Z_helperpid52931_ownerpid50684_92cf0449.log"
+    },
+    "diagnostics": {
+      "warnings": [
+        {
+          "message": "main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Markdown/BlockDocumentEditor.swift:319"
+        },
+        {
+          "message": "'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Core/Session/SessionStore.swift:25"
+        },
+        {
+          "message": "immutable value 'onRework' was never used; consider replacing with '_' or removing it [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/Detail/PlanStepSheets.swift:221"
+        },
+        {
+          "message": "result of call to 'acquire' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/DesignSystem/Components/TFRolePortrait.swift:143"
+        },
+        {
+          "message": "'onChange(of:perform:)' was deprecated in iOS 17.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Coordination/CoordinationScreen.swift:81"
+        },
+        {
+          "message": "main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Settings/GoogleIntegrationsAPI.swift:126"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1428"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1607"
+        },
+        {
+          "message": "application of result builder 'ViewBuilder' disabled by explicit 'return' statement",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Task/TaskFormScreen.swift:1822"
+        },
+        {
+          "message": "result of 'try?' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Chat/ChatViewModel.swift:334"
+        },
+        {
+          "message": "result of 'try?' is unused [#NoUsage]",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/Sources/Features/Chat/ChatViewModel.swift:340"
+        }
+      ],
+      "errors": []
+    }
+  },
+  "nextSteps": [
+    "Stop app in simulator: xcodebuildmcp simulator stop --simulator-id 9FF78D89-EE84-4914-AA56-D0A72D1AF43A --bundle-id com.maksim.taskflow.native"
+  ]
+}

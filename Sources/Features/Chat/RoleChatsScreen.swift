@@ -1606,11 +1606,12 @@ struct RoleChatRoomScreen: View {
         }
     }
 
-    /// Ответ роли в 1:1-чате — плоским текстом по фону, как в окне Claude
-    /// Code (владелец 27.09.2026, LOCK-230). Облачка остаются у сообщений
-    /// владельца, у голосовых и во всех групповых чатах.
+    /// Ответы ролей — по всей ширине в личных и групповых чатах.
+    /// Свои сообщения, голосовые и сообщения других людей в группе — в пузырях.
+    /// Это только оформление: состав чата и правила адресации не меняются.
     private func isFlatReply(_ message: RoleChatMessage) -> Bool {
-        guard chat.kind != "group", message.fromUserID != session.currentUser?.id else { return false }
+        guard message.fromUserID != session.currentUser?.id else { return false }
+        guard chat.kind != "group" || isAgentReply(message) else { return false }
         return !(message.attachments?.contains { $0.isVoiceRecording } ?? false)
     }
 
