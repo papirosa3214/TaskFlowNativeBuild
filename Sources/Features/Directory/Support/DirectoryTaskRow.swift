@@ -219,6 +219,7 @@ struct DirectoryTaskRow: View {
             }
         }
         .buttonStyle(TFTapRowStyle())
+        .accessibilityIdentifier("directory.task.\(task.id)")
     }
 
 

@@ -1,0 +1,81 @@
+{
+  "schema": "xcodebuildmcp.output.test-result",
+  "schemaVersion": "3",
+  "didError": true,
+  "error": "Tests failed",
+  "data": {
+    "request": {
+      "scheme": "TaskFlow",
+      "projectPath": "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+      "derivedDataPath": "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+      "platform": "iOS Simulator",
+      "simulatorId": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+      "onlyTesting": [
+        "TaskFlowUITests/TaskCardRefreshGestureUITests/testCalendarInboxCardGestures"
+      ],
+      "skipTesting": []
+    },
+    "summary": {
+      "status": "FAILED",
+      "durationMs": 56099,
+      "counts": {
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0
+      },
+      "target": "simulator"
+    },
+    "artifacts": {
+      "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-16T00-44-01-902Z_pid67971_015b440e.log",
+      "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_sim_2026-10-16T00-44-01-902Z_pid67971_cf0de4a1.xcresult",
+      "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-16T00-44-01-902Z_pid67971_a8bd8ec0.xctestproducts"
+    },
+    "diagnostics": {
+      "warnings": [],
+      "errors": [],
+      "testFailures": [
+        {
+          "suite": "TaskCardRefreshGestureUITests",
+          "test": "testCalendarInboxCardGestures",
+          "message": "XCTAssertEqual failed: (\"refresh:inherited\") is not equal to (\"refresh:none\") - В карточку Входящих попало обновление от родительского календаря",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/TaskCardRefreshGestureUITests.swift:100"
+        },
+        {
+          "suite": "TaskCardRefreshGestureUITests",
+          "test": "testCalendarInboxCardGestures",
+          "message": "XCTAssertEqual failed: (\"XCTWaiterResult(rawValue: 2)\") is not equal to (\"XCTWaiterResult(rawValue: 1)\") - Карточка Входящих не раскрывается",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/TaskCardRefreshGestureUITests.swift:86"
+        },
+        {
+          "suite": "TaskCardRefreshGestureUITests",
+          "test": "testCalendarInboxCardGestures",
+          "message": "XCTAssertEqual failed: (\"XCTWaiterResult(rawValue: 2)\") is not equal to (\"XCTWaiterResult(rawValue: 1)\") - Карточка Входящих не закрывается",
+          "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/TaskCardRefreshGestureUITests.swift:98"
+        },
+        {
+          "suite": "TaskCardRefreshGestureUITests",
+          "test": "testCalendarInboxCardGestures()",
+          "message": "XCTAssertEqual failed: (\"XCTWaiterResult(rawValue: 2)\") is not equal to (\"XCTWaiterResult(rawValue: 1)\") - Карточка Входящих не закрывается"
+        },
+        {
+          "suite": "TaskCardRefreshGestureUITests",
+          "test": "testCalendarInboxCardGestures()",
+          "message": "XCTAssertEqual failed: (\"XCTWaiterResult(rawValue: 2)\") is not equal to (\"XCTWaiterResult(rawValue: 1)\") - Карточка Входящих не раскрывается"
+        },
+        {
+          "suite": "TaskCardRefreshGestureUITests",
+          "test": "testCalendarInboxCardGestures()",
+          "message": "XCTAssertEqual failed: (\"refresh:inherited\") is not equal to (\"refresh:none\") - В карточку Входящих попало обновление от родительского календаря"
+        }
+      ]
+    },
+    "testCases": [
+      {
+        "suite": "TaskCardRefreshGestureUITests",
+        "test": "testCalendarInboxCardGestures",
+        "status": "failed",
+        "durationMs": 34836
+      }
+    ]
+  }
+}

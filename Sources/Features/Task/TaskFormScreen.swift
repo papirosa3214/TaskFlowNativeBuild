@@ -16,6 +16,9 @@ extension TaskCardContent: Equatable {
 }
 
 struct TaskCardContent: View {
+    #if DEBUG
+    @Environment(\.refresh) private var inheritedRefreshAction
+    #endif
     let taskID: String?
     /// Карточка открыта ПУШЕМ в навигационный стек, а не листом (см.
     /// `TaskFormScreen.isPushedInNavigationStack`). Лист сворачивается свайпом
@@ -1056,6 +1059,9 @@ struct TaskCardContent: View {
         .listRowSeparator(.hidden)
         .listSectionSeparator(.hidden)
         .accessibilityIdentifier("task.content.\(taskID ?? "draft")")
+        #if DEBUG
+        .accessibilityValue(inheritedRefreshAction == nil ? "refresh:none" : "refresh:inherited")
+        #endif
         // Карточка получалась полосатой: промежутки и заголовки секций шли на
         // нашем фоне, а сами строки — на системном чёрном, и это било в глаза
         // (владелец 09.09.2026: «текст задачи, текст описания — чёрный, он

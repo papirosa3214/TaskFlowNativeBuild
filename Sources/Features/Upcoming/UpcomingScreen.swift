@@ -148,10 +148,9 @@ public struct UpcomingScreen: View {
     @ViewBuilder private var bodyContent: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .refreshable {
-            await taskStore.load(silent: true)
-            await projectStore.load()
-        }
+        // Refresh задаётся у конкретной прокрутки ниже. На всей content
+        // он попадал в TodaySectionView и его шторку карточки, где List
+        // перехватывал свайпы ради pull-to-refresh (16.10.2026).
         // Заголовок всегда `.inline` (мелкий по центру); в списке «Сегодня»
         // это название текущей вкладки. Крупный `.large` тянулся из времён
         // доски, где сжатие при скролле нативно не получалось (LOCK-153/154);
@@ -237,6 +236,7 @@ public struct UpcomingScreen: View {
                         threeDayStart = UpcomingDate.addDays(threeDayStart, direction * 3)
                     }
                 )
+                .refreshable { await refreshPlanner() }
             case .week:
                 UpcomingWeekView(
                     monday: gridMonday, byDate: byDate,
@@ -246,6 +246,7 @@ public struct UpcomingScreen: View {
                     onPrevWeek: { gridMonday = UpcomingDate.addDays(gridMonday, -7) },
                     onNextWeek: { gridMonday = UpcomingDate.addDays(gridMonday, 7) }
                 )
+                .refreshable { await refreshPlanner() }
             case .month:
                 UpcomingMonthView(
                     initialMonday: monthGridInitialMonday,
@@ -254,8 +255,14 @@ public struct UpcomingScreen: View {
                     onDayTap: { openDay = $0 },
                     onVisibleMonthChange: { y, m in gridMonth = (y, m) }
                 )
+                .refreshable { await refreshPlanner() }
             }
         }
+    }
+
+    private func refreshPlanner() async {
+        await taskStore.load(silent: true)
+        await projectStore.load()
     }
 
     /// Нативная шторка — тот же приём, что `TodayScreen.sheetTaskID`: свой

@@ -242,6 +242,7 @@ struct RootShellView: View {
                 debugTaskSheetID = parts[1]
             case "notifications": paths[selectedTab, default: NavigationPath()].append(AppRoute.notifications)
             case "projects": paths[selectedTab, default: NavigationPath()].append(AppRoute.projects)
+            case "alltasks": paths[selectedTab, default: NavigationPath()].append(AppRoute.allTasks)
             case "settings": paths[selectedTab, default: NavigationPath()].append(AppRoute.settings)
             case "notes": paths[selectedTab, default: NavigationPath()].append(AppRoute.notes)
             case "noteeditor" where parts.count == 2:

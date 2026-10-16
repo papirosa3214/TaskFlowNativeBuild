@@ -212,6 +212,10 @@ struct TodaySectionView: View {
                 },
                 showsDayHeader: false
             )
+            .refreshable {
+                await taskStore.load(silent: true)
+                await projectStore.load()
+            }
         }
     }
 
