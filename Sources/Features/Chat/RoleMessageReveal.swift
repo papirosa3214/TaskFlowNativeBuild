@@ -25,11 +25,6 @@ struct RoleMessageReveal<Content: View>: View {
     @State private var fade: RoleTextFade?
     @State private var finished = false
 
-    /// Долгую речь не растягиваем на десятки секунд: чем длиннее текст, тем
-    /// быстрее идёт проявление, но нижняя граница остаётся читаемой.
-    private static let minimumLag: TimeInterval = 0.9
-    private static let maximumLag: TimeInterval = 2.6
-
     var body: some View {
         content()
             .roleReveal(fade)
@@ -46,7 +41,8 @@ struct RoleMessageReveal<Content: View>: View {
         guard !finished, !text.isEmpty else { return }
         finished = true
         let length = Double(max(text.count, 1))
-        let lag = min(Self.maximumLag, max(Self.minimumLag, length / 90))
+        let lag = min(RoleMessageRevealTiming.maximumLag,
+                      max(RoleMessageRevealTiming.minimumLag, length / 90))
         let rate = min(RoleLiveTextPacer.maxRate, max(RoleLiveTextPacer.minRate, length / lag))
         fade = RoleTextFade(rate: rate, lastRevealAt: .now, isAnimating: true)
         // Держим анимацию, пока идёт проявление, потом отпускаем отрисовку:
@@ -65,4 +61,13 @@ extension View {
     func roleMessageReveal(text: String, messageID: String) -> some View {
         RoleMessageReveal(text: text, messageID: messageID) { self }
     }
+}
+
+/// Темп проявления держим вне обобщённого вида: Swift не разрешает статические
+/// хранимые свойства в generic-типах.
+private enum RoleMessageRevealTiming {
+    /// Долгую речь не растягиваем на десятки секунд: чем длиннее текст, тем
+    /// быстрее идёт проявление, но нижняя граница остаётся читаемой.
+    static let minimumLag: TimeInterval = 0.9
+    static let maximumLag: TimeInterval = 2.6
 }
