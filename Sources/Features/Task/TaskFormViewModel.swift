@@ -247,15 +247,21 @@ final class TaskFormViewModel {
             childTasks = task.children ?? []
             ancestorTaskIDs.removeAll()
             parentTask = nil
+            // Вся цепочка предков пришла с задачей — подниматься по дереву
+            // отдельными запросами больше не нужно. Раньше здесь был цикл с
+            // запросом на каждого предка: на глубокой карточке это 5–15 запросов
+            // подряд, и карточка открывалась долго (владелец 17.10.2026).
             if let parentId = task.parentId {
-                var nextAncestorID: String? = parentId
-                while let ancestorID = nextAncestorID, !ancestorTaskIDs.contains(ancestorID) {
-                    ancestorTaskIDs.insert(ancestorID)
-                    guard let ancestor = try? await apiClient.task(id: ancestorID) else { break }
-                    if ancestorID == parentId { parentTask = ancestor }
-                    nextAncestorID = ancestor.parentId
+                for ancestor in task.ancestors ?? [] {
+                    ancestorTaskIDs.insert(ancestor.id)
                 }
-                parentTitle = parentTask?.title
+                parentTitle = task.ancestors?.first { $0.id == parentId }?.title
+                // Полная задача родителя — один запрос. Раньше на каждый предка
+                // шёл отдельный запрос по очереди (5–15 на глубокой карточке),
+                // и карточка открывалась долго (владелец 17.10.2026); теперь
+                // цепочка приходит с задачей, а родитель тянется один раз.
+                parentTask = try? await apiClient.task(id: parentId)
+                if parentTitle == nil { parentTitle = parentTask?.title }
             } else {
                 parentTask = nil
                 parentTitle = nil
