@@ -35,6 +35,13 @@ struct TodayListView: View {
     /// её не вычислить, а константой брать нельзя — замер показал 122pt там,
     /// где «безопасная зона плюс навбар» давали 113pt.
     var pinEdge: CGFloat = 0
+    /// true (по умолчанию) — свайп строки работает откуда угодно. false —
+    /// свайп строки НЕ начинается в зоне `horizontalEdgeExclusion` от
+    /// краёв экрана; в этой зоне место занимает свайп переключения
+    /// вкладок. Включается только в экране «Обзор/Сегодня».
+    var swipeExcludedFromEdges: Bool = false
+    /// 0 по умолчанию — никаких «зон исключения» от краёв.
+    var horizontalEdgeExclusion: CGFloat = 16
 
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
@@ -142,6 +149,7 @@ struct TodayListView: View {
                             onOpen: { onOpen(task) },
                             onDelete: { onDelete(task) },
                             swipeAction: swipeAction,
+                            swipeExcludedFromEdges: swipeExcludedFromEdges,
                             onSwipeAction: {
                                 guard let swipeAction else { return }
                                 Task { await perform(swipeAction, for: task) }

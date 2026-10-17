@@ -17,6 +17,20 @@ struct TodayTaskRow: View {
     let onOpen: () -> Void
     let onDelete: () -> Void
     let swipeAction: TodayTaskSwipeAction?
+    /// true (по умолчанию) — свайп строки работает откуда угодно, включая
+    /// от самого края экрана. false — свайп строки НЕ начинается в зоне
+    /// `horizontalEdgeExclusion` от левого/правого края экрана. В текущей
+    /// итерации правило ОТКЛЮЧЕНО у всех вызовов: 17.10.2026 владелец
+    /// попросил не ломать обычный отступ задач от края экрана. Если
+    /// когда-нибудь правило вернётся — оно должно применяться ТОЛЬКО к
+    /// этим трём вкладкам и НЕ через боковые полоски поверх `ScrollView`
+    /// (иначе задачи «съезжают» от края).
+    var swipeExcludedFromEdges: Bool = false
+    /// Ширина «зоны исключения» от краёв экрана в пунктах. 0 по умолчанию
+    /// — свайп строки работает от самого края. В `TodaySectionView` для
+    /// трёх вкладок списка «Обзор/Сегодня» ставится `16`
+    /// (LOCK-TODAY-LIST-TAB-SWIPE-20261017).
+    var horizontalEdgeExclusion: CGFloat = 16
     let onSwipeAction: () -> Void
 
     private let actionWidth: CGFloat = TFRowActionWidth
@@ -94,7 +108,8 @@ struct TodayTaskRow: View {
                     HorizontalPan(
                         onBegin: { UIImpactFeedbackGenerator(style: .soft).impactOccurred() },
                         onChange: { dx in dragOffset = dx },
-                        onEnd: { dx, velocity in settle(dx: dx, velocity: velocity) }
+                        onEnd: { dx, velocity in settle(dx: dx, velocity: velocity) },
+                        disallowEdgeInset: swipeExcludedFromEdges ? horizontalEdgeExclusion : 0
                     )
                 )
         }

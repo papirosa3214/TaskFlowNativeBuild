@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Типографика — шкала из 10 ступеней, spec/DESIGN-TOKENS.md §2.
+// Типографика — шкала ступеней, spec/DESIGN-TOKENS.md §2.
 // Гарнитура одна системная (San Francisco = `Font.system` на native, свой шрифт не заводим).
 //
 // НЕ перенесено с веба сознательно:
@@ -202,7 +202,7 @@ public extension Text {
 }
 
 public enum TFTextStyle {
-    case titleLarge, taskTitle, title, input, body, listTitle, row, action, meta, caption, micro
+    case titleLarge, taskTitle, title, input, body, listTitle, row, action, meta, caption, micro, heatmapCount
 
     /// Базовый кегль ступени — то, что видно на дефолтном размере текста.
     /// ЭТО ЕДИНСТВЕННОЕ МЕСТО в приложении, где заданы размеры текста:
@@ -220,6 +220,7 @@ public enum TFTextStyle {
         case .meta: 12
         case .caption: 11
         case .micro: 10
+        case .heatmapCount: 34
         }
     }
 
@@ -238,6 +239,7 @@ public enum TFTextStyle {
         case .meta: .caption           // 12
         case .caption: .caption2       // 11
         case .micro: .caption2         // 11 → 10 близко
+        case .heatmapCount: .title
         }
     }
 
@@ -254,6 +256,14 @@ public enum TFTextStyle {
         case .meta: .medium
         case .caption: .medium
         case .micro: .medium
+        case .heatmapCount: .semibold
+        }
+    }
+
+    var design: Font.Design {
+        switch self {
+        case .heatmapCount: .rounded
+        default: .default
         }
     }
 
@@ -270,6 +280,7 @@ public enum TFTextStyle {
         case .meta: TFFont.metaTracking
         case .caption: TFFont.captionTracking
         case .micro: TFFont.microTracking
+        case .heatmapCount: 0
         }
     }
 }
@@ -294,6 +305,7 @@ private struct TFTextStyleModifier: ViewModifier {
     @ScaledMetric(relativeTo: .caption)    private var metaSize: CGFloat = 12
     @ScaledMetric(relativeTo: .caption2)   private var captionSize: CGFloat = 11
     @ScaledMetric(relativeTo: .caption2)   private var microSize: CGFloat = 10
+    @ScaledMetric(relativeTo: .title)      private var heatmapCountSize: CGFloat = 34
 
     @ScaledMetric(relativeTo: .subheadline) private var listTitleSize: CGFloat = 16
 
@@ -310,12 +322,13 @@ private struct TFTextStyleModifier: ViewModifier {
         case .meta: metaSize
         case .caption: captionSize
         case .micro: microSize
+        case .heatmapCount: heatmapCountSize
         }
     }
 
     func body(content: Content) -> some View {
         content
-            .font(.system(size: scaledSize, weight: style.weight))
+            .font(.system(size: scaledSize, weight: style.weight, design: style.design))
             .tracking(style.tracking)
     }
 }

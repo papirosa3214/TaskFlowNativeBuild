@@ -616,9 +616,13 @@ struct TaskCardContent: View {
                                 // Название задачи — основной текст карточки, 16 pt
                                 // (владелец 12.10.2026: «название не 17, а где-то
                                 // 16, и все остальные основные текста тоже»).
+                                // Цвет как у описания: `tfText` на светлой теме,
+                                // `tfSub` на тёмной. Владелец 17.10.2026: «сделай
+                                // точно таким же шрифтом, размером и всем, как
+                                // в описании задачи».
                                 baseFontOverride: UIFontMetrics(forTextStyle: .callout)
                                     .scaledFont(for: .systemFont(ofSize: 16, weight: .regular)),
-                                textColor: UIColor(Color.tfText),
+                                textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub),
                                 requestsFocus: activeEditors.contains("title"),
                                 onEdit: { scheduleSave() }
                             )
@@ -1425,11 +1429,14 @@ struct TaskCardContent: View {
 
     private func taskSectionHeader(_ title: String) -> some View {
         Text(title)
-            // Шрифт, кегль и жирность — как у заголовка экрана проекта
-            // (`.title`, 17 pt, `.headline`). Владелец 16.10.2026, после
-            // сведения типографики; цвет не трогали — по-прежнему `tfSub`.
+            // Шрифт, кегль и жирность — `.tfText(.title)` (PT Sans Narrow,
+            // 17 pt, bold), как у названия проекта в `ProjectCard.swift`
+            // и у заголовка экрана в `TFNavBarTitleFont.title`. Цвет
+            // теперь тоже `tfText` (белый), как у названия проекта —
+            // владелец 17.10.2026 попросил, чтобы подзаголовки карточки
+            // и названия проектов в списке выглядели одинаково.
             .tfText(.title)
-            .foregroundStyle(Color.tfSub)
+            .foregroundStyle(Color.tfText)
             .textCase(nil)
     }
 

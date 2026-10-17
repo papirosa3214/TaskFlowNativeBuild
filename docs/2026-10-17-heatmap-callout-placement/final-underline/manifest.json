@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "BF23E018-7387-4B41-9195-747D3937A788.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "overview-heatmap-selected-day_0_2EEE4AAC-E3BB-43AC-BD6E-8A34C3D34245.png",
+        "timestamp" : 1792234881.745
+      }
+    ],
+    "testIdentifier" : "Heatmap3DUITests/testSelectingHeatmapDayShowsItsCount()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/Heatmap3DUITests/testSelectingHeatmapDayShowsItsCount"
+  }
+]

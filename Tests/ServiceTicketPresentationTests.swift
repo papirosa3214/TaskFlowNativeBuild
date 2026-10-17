@@ -194,7 +194,10 @@ final class ServiceTicketPresentationTests: XCTestCase {
 
     /// Восстановленная проверка остаётся «Починено», а не «Тревоги».
     func test_recoveredCheckStaysRepaired() {
-        let check = ServiceTicketCheck(name: "Xray Bots", area: "Проверяет доступность",
+        // 17.10.2026: было `let` — тест не компилировался, из-за чего весь
+        // таргет TaskFlowTests (и UI-тесты схемы, он тянет этот таргет) не
+        // собирался. Сломан коммитом 9b0c17a3. Правка только этого файла.
+        var check = ServiceTicketCheck(name: "Xray Bots", area: "Проверяет доступность",
                                        status: "ok", message: "Соединение работает; доступность подтверждена.")
         check.recovered = true
         let rows = SystemSummaryItem.compose(checks: [check], incidents: [])

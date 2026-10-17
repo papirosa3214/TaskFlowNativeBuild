@@ -716,7 +716,8 @@ struct RoleChatRoomScreen: View {
           "checks": [{"label": "Доступность источников", "status": "passed", "detail": "Все три доступны"}],
           "limitations": [{"type": "text", "text": "Один источник обновляется с задержкой."}],
           "materials": [{"kind": "document", "title": "Исходная спецификация", "ref": "docs/spec.md"}]
-        }}
+        }},
+        {"type": "text", "text": "Виджет из ответа:\n```widget\n{\"type\":\"card\",\"title\":\"Проверочный виджет\",\"body\":\"Отрисован внутри JSON-ответа чата.\"}\n```"}
       ],
       "artifacts": [],
       "plan_artifact": null,

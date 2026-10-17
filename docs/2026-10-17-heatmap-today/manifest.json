@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "E632D3A3-2821-447E-8C97-C27E29C73F49.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "overview-3d-record_0_1A756510-79E5-4695-9550-FCC0FE231CE4.png",
+        "timestamp" : 1792233547.802
+      }
+    ],
+    "testIdentifier" : "Heatmap3DUITests/testRecordBadgeFillsTheEmptyCornerOnlyWhenExpanded()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/Heatmap3DUITests/testRecordBadgeFillsTheEmptyCornerOnlyWhenExpanded"
+  }
+]

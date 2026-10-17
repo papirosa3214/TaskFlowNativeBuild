@@ -103,10 +103,13 @@ struct CompletionHeatmap: View {
     var depth: CGFloat = 0
     @Environment(TaskStore.self) private var store
     @State private var selected: Date?
+    @State private var selectedPoint: CGPoint?
+    @State private var selectedObstacles: [CGRect] = []
     @State private var sceneWidth: CGFloat = 0
     @Environment(RealtimeClient.self) private var realtime
     @State private var days = CompletionCalendar.initialDays
     @State private var archiveError = false
+    @State private var historyLoaded = false
     private var historyRevision: String {
         "\(realtime.connectionRevision):" + realtime.taskRevisions.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: ",")
     }
@@ -130,7 +133,7 @@ struct CompletionHeatmap: View {
                     Text("Рекорд дня")
                         .font(.caption2).foregroundStyle(Color.tfSub)
                     Text("\(day.count)")
-                        .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        .tfText(.heatmapCount)
                         .foregroundStyle(Color.tfRed)
                     Text(day.shortLabel)
                         .font(.caption2).foregroundStyle(Color.tfSub)
@@ -140,6 +143,30 @@ struct CompletionHeatmap: View {
                 .accessibilityIdentifier("overview.heatmap.record")
                 .opacity(eased)
                 .offset(y: 10 * (1 - eased))
+            }
+        }
+    }
+
+    private var todayBadge: some View {
+        Group {
+            if let day = days.first(where: { Calendar.current.isDateInToday($0.date) }), historyLoaded, depth > 0.42 {
+                let appear = min(1, max(0, (depth - 0.42) / 0.33))
+                let eased = appear * appear * (3 - 2 * appear)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("Сегодня")
+                        .font(.caption2).foregroundStyle(Color.tfSub)
+                    Text("\(day.count)")
+                        .tfText(.heatmapCount)
+                        .foregroundStyle(day.shade)
+                    Text(day.shortLabel)
+                        .font(.caption2).foregroundStyle(Color.tfSub)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Сегодня, на проверку: \(day.count), \(day.shortLabel)")
+                .accessibilityIdentifier("overview.heatmap.today")
+                .opacity(eased)
+                .offset(y: 10 * (1 - eased))
+                .offset(y: -10)
             }
         }
     }
@@ -165,8 +192,19 @@ struct CompletionHeatmap: View {
             }.frame(height: 16 * (1 - HeatmapExpansion.cameraEase(depth)))
                 .opacity(1 - HeatmapExpansion.cameraEase(depth))
             GeometryReader { geometry in
-                HeatmapScene(values: values, depth: depth, selected: $selected)
-                    .frame(width: geometry.size.width, height: geometry.size.width * 7 / 26 + depth * 120)
+                let sceneSize = CGSize(width: geometry.size.width, height: geometry.size.width * 7 / 26 + depth * 120)
+                ZStack(alignment: .topLeading) {
+                    HeatmapScene(values: values, depth: depth, selected: $selected, selectedPoint: $selectedPoint, selectedObstacles: $selectedObstacles)
+                        .frame(width: sceneSize.width, height: sceneSize.height)
+                    if let date = selected,
+                       let day = values.first(where: { $0.date == date }),
+                       let point = selectedPoint {
+                        HeatmapDayCallout(day: day, anchor: point, sceneSize: sceneSize, obstacles: selectedObstacles)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    }
+                }
+                .frame(width: sceneSize.width, height: sceneSize.height)
+                .animation(.easeOut(duration: 0.16), value: selected)
             }
                 .frame(height: sceneWidth * 7 / 26 + depth * 120)
                 .overlay(alignment: .bottomLeading) {
@@ -174,6 +212,11 @@ struct CompletionHeatmap: View {
                     // и бейдж внутри неё не попадал в дерево доступности.
                     recordBadge
                         .padding(.leading, 2).padding(.bottom, 8)
+                        .allowsHitTesting(false)
+                }
+                .overlay(alignment: .topTrailing) {
+                    todayBadge
+                        .padding(.trailing, 2).padding(.top, 8)
                         .allowsHitTesting(false)
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sceneWidth = $0 }
@@ -189,12 +232,6 @@ struct CompletionHeatmap: View {
             }.font(.caption2).foregroundStyle(Color.tfSub)
             if archiveError {
                 Button("История недоступна · Повторить") { Task { await loadArchive() } }.font(.caption)
-            }
-        }
-        .popover(isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } })) {
-            if let day = values.first(where: { $0.date == selected }) {
-                Text(day.date.formatted(date: .abbreviated, time: .omitted) + " · на проверку \(day.count)")
-                    .padding().presentationCompactAdaptation(.popover)
             }
         }
         .task(id: historyRevision) { await loadArchive() }
@@ -213,9 +250,114 @@ struct CompletionHeatmap: View {
                 DateFormats.sqliteUTC(entry.submitted_at).map { (entry.task_id, $0) }
             })
             days = CompletionCalendar.days(dates: Array(reviewDates.values))
+            historyLoaded = true
             archiveError = false
         } catch is CancellationError { }
         catch { archiveError = true }
+    }
+}
+
+private struct HeatmapDayCallout: View {
+    let day: CompletionDay
+    let anchor: CGPoint
+    let sceneSize: CGSize
+    let obstacles: [CGRect]
+
+    private var labelSize: CGSize {
+        let dateWidth = CGFloat(day.shortLabel.count) * 8
+        let countWidth = CGFloat(String(day.count).count) * 14 + 8
+        return CGSize(width: max(dateWidth, countWidth), height: 48)
+    }
+
+    private var underlineWidth: CGFloat { CGFloat(String(day.count).count) * 14 + 8 }
+
+    private var candidateCenters: [CGPoint] {
+        let halfWidth = labelSize.width / 2
+        let halfHeight = labelSize.height / 2
+        let minX = min(halfWidth + 4, sceneSize.width / 2)
+        let maxX = max(minX, sceneSize.width - halfWidth - 4)
+        let minY = min(halfHeight + 4, sceneSize.height / 2)
+        let maxY = max(minY, sceneSize.height - halfHeight - 4)
+        let anchorX = min(max(anchor.x, minX), maxX)
+        let aboveY = min(max(anchor.y - halfHeight - 10, minY), maxY)
+        let belowY = min(max(anchor.y + halfHeight + 10, minY), maxY)
+        let xs = [minX, (minX + maxX) / 2, maxX, anchorX]
+        let ys = [minY, (minY + maxY) / 2, maxY, aboveY, belowY]
+        return xs.flatMap { x in ys.map { CGPoint(x: x, y: $0) } }
+    }
+
+    private var center: CGPoint {
+        let reserved = [
+            CGRect(x: 0, y: max(0, sceneSize.height - 84), width: min(142, sceneSize.width), height: 84),
+            CGRect(x: max(0, sceneSize.width - 112), y: 0, width: min(112, sceneSize.width), height: 92),
+            CGRect(x: 0, y: max(0, sceneSize.height - 26), width: sceneSize.width, height: 26)
+        ]
+        func score(_ point: CGPoint) -> CGFloat {
+            let rect = CGRect(
+                x: point.x - labelSize.width / 2,
+                y: point.y - labelSize.height / 2,
+                width: labelSize.width,
+                height: labelSize.height
+            )
+            let overlapArea = obstacles.reduce(CGFloat.zero) { total, obstacle in
+                let intersection = rect.intersection(obstacle)
+                return total + (intersection.isNull ? 0 : intersection.width * intersection.height)
+            }
+            let reservedOverlap = reserved.reduce(CGFloat.zero) { total, zone in
+                let intersection = rect.intersection(zone)
+                return total + (intersection.isNull ? 0 : intersection.width * intersection.height)
+            }
+            let distance = hypot(point.x - anchor.x, point.y - anchor.y)
+            return reservedOverlap * 10_000 + overlapArea * 100 + distance
+        }
+        return candidateCenters.min { score($0) < score($1) } ?? CGPoint(x: sceneSize.width / 2, y: sceneSize.height / 2)
+    }
+
+    private var underlineRect: CGRect {
+        CGRect(x: center.x - underlineWidth / 2, y: center.y + labelSize.height / 2 - 5,
+               width: underlineWidth, height: 1)
+    }
+
+    private var underlineAnchor: CGPoint {
+        CGPoint(
+            x: anchor.x <= center.x ? underlineRect.minX : underlineRect.maxX,
+            y: underlineRect.midY
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Path { path in
+                path.move(to: anchor)
+                path.addLine(to: underlineAnchor)
+                path.addLine(to: CGPoint(
+                    x: anchor.x <= center.x ? underlineRect.maxX : underlineRect.minX,
+                    y: underlineRect.midY
+                ))
+            }
+            .stroke(day.shade, style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
+
+            Circle()
+                .fill(day.shade)
+                .frame(width: 7, height: 7)
+                .overlay(Circle().stroke(Color.tfBackground, lineWidth: 1.5))
+                .position(anchor)
+
+            VStack(alignment: .center, spacing: 0) {
+                Text(day.shortLabel)
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfSub)
+                    .accessibilityIdentifier("overview.heatmap.selection.date")
+                Text("\(day.count)")
+                    .tfText(.taskTitle)
+                    .foregroundStyle(day.shade)
+                    .accessibilityIdentifier("overview.heatmap.selection.count")
+            }
+            .frame(width: labelSize.width, height: labelSize.height, alignment: .center)
+            .position(center)
+        }
+        .frame(width: sceneSize.width, height: sceneSize.height)
+        .allowsHitTesting(false)
     }
 }
 
@@ -224,6 +366,9 @@ private struct HeatmapScene: View, Animatable {
     let values: [CompletionDay]
     var depth: CGFloat
     @Binding var selected: Date?
+    @Binding var selectedPoint: CGPoint?
+    @Binding var selectedObstacles: [CGRect]
+    @State private var sceneSize: CGSize = .zero
     var animatableData: CGFloat {
         get { depth }
         set { depth = newValue }
@@ -233,6 +378,30 @@ private struct HeatmapScene: View, Animatable {
         Path { path in
             path.addLines(points)
             path.closeSubpath()
+        }
+    }
+    private func contains(_ point: CGPoint, in cell: (day: CompletionDay, week: Int, row: Int, top: [CGPoint], base: [CGPoint])) -> Bool {
+        if polygon(cell.top).contains(point) { return true }
+        guard depth > 0.001 else { return false }
+        let right = polygon([cell.top[1], cell.top[2], cell.base[2], cell.base[1]])
+        let front = polygon([cell.top[2], cell.top[3], cell.base[3], cell.base[2]])
+        return right.contains(point) || front.contains(point)
+    }
+    private func anchor(for date: Date, in size: CGSize) -> CGPoint? {
+        guard let cell = cells(in: size).first(where: { $0.day.date == date }) else { return nil }
+        let count = CGFloat(cell.top.count)
+        return CGPoint(
+            x: cell.top.reduce(CGFloat.zero) { $0 + $1.x } / count,
+            y: cell.top.reduce(CGFloat.zero) { $0 + $1.y } / count
+        )
+    }
+    private func towerBounds(in size: CGSize) -> [CGRect] {
+        cells(in: size).compactMap { cell in
+            guard cell.day.count > 0 else { return nil }
+            let points = cell.top + cell.base
+            guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
+                  let minY = points.map(\.y).min(), let maxY = points.map(\.y).max() else { return nil }
+            return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY).insetBy(dx: -3, dy: -3)
         }
     }
     private func cells(in size: CGSize) -> [(day: CompletionDay, week: Int, row: Int, top: [CGPoint], base: [CGPoint])] {
@@ -334,12 +503,27 @@ private struct HeatmapScene: View, Animatable {
         .contentShape(Rectangle())
         .overlay {
             GeometryReader { geometry in
-                Color.clear.contentShape(Rectangle()).onTapGesture { location in
-                    if let cell = cells(in: geometry.size).reversed().first(where: { polygon($0.top).contains(location) }),
-                       cell.day.date <= Calendar.current.startOfDay(for: .now) {
-                        selected = cell.day.date
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { sceneSize = $0 }
+                    .onTapGesture { location in
+                        let hit = cells(in: geometry.size).reversed().first(where: { contains(location, in: $0) })
+                        guard let cell = hit, !cell.day.isFuture else {
+                            selected = nil
+                            selectedPoint = nil
+                            selectedObstacles = []
+                            return
+                        }
+                        if selected == cell.day.date {
+                            selected = nil
+                            selectedPoint = nil
+                            selectedObstacles = []
+                        } else {
+                            selected = cell.day.date
+                            selectedPoint = anchor(for: cell.day.date, in: geometry.size)
+                            selectedObstacles = towerBounds(in: geometry.size)
+                        }
                     }
-                }
             }
         }
         .accessibilityRepresentation {
@@ -349,13 +533,26 @@ private struct HeatmapScene: View, Animatable {
                     .accessibilityValue(depth > 0.99 ? "Объёмная" : depth < 0.01 ? "Плоская" : "Переход")
                 Text(depth > 0.99 ? "Месяцы вдоль нижнего края карты" : "Месяцы над картой")
                     .accessibilityIdentifier("overview.heatmap.month-position")
-                ForEach(0..<182, id: \.self) { slot in
-                    let day = values[(slot % 26) * 7 + slot / 26]
-                    Button { selected = day.date } label: {
-                        Text(day.accessibilityLabel)
+                Grid(horizontalSpacing: 3, verticalSpacing: 3) {
+                    ForEach(0..<7, id: \.self) { row in
+                        GridRow {
+                            ForEach(0..<26, id: \.self) { week in
+                                let slot = week * 7 + row
+                                let day = values[(slot % 26) * 7 + slot / 26]
+                                Button {
+                                    selected = day.date
+                                    selectedPoint = anchor(for: day.date, in: sceneSize)
+                                    selectedObstacles = towerBounds(in: sceneSize)
+                                } label: {
+                                    Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .contentShape(Rectangle())
+                                }
+                                .disabled(day.isFuture)
+                                .accessibilityLabel(day.accessibilityLabel)
+                                .accessibilityIdentifier("overview.heatmap.cell.\(slot)")
+                            }
+                        }
                     }
-                    .disabled(day.isFuture)
-                    .accessibilityIdentifier("overview.heatmap.cell.\(slot)")
                 }
             }
         }

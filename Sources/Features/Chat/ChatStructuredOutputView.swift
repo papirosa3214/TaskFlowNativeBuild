@@ -61,7 +61,7 @@ struct ChatStructuredOutputView: View {
         switch block.type {
         case "text":
             if let text = block.text, !text.isEmpty {
-                MarkdownDocumentRenderer(markdown: text)
+                RoleReplyMarkdown(text: text)
                     .accessibilityIdentifier("chat.structured-output.text")
             }
         case "heading":

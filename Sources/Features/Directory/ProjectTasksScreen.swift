@@ -250,7 +250,7 @@ struct ProjectTasksScreen: View {
                             }
                         }
                     } label: {
-                        Image(systemName: filter == .open ? "ellipsis.circle" : "ellipsis.circle.fill")
+                        Image(systemName: "ellipsis")
                     }
                     .accessibilityLabel("Фильтр и действия")
                 }

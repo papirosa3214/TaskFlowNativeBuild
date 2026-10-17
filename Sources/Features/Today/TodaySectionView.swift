@@ -51,6 +51,35 @@ struct TodaySectionView: View {
         return pinnedSectionTitle.isEmpty ? listTab.title : pinnedSectionTitle
     }
 
+    /// Свайп «влево/вправо» по ленте — переключение вкладки списка
+    /// («Входящие» / «Ждут вас» / «Сегодня»). Жест висит через
+    /// `simultaneousGesture` на самом `ScrollView` и ловит свайп по
+    /// всей ширине ленты. Конфликт со свайпом строки (принять/архив)
+    /// разруливается на стороне `HorizontalPan` (`directionBias: 2.0`,
+    /// `directionLockPx: 10` в `Sources/DesignSystem/Components/HorizontalPan.swift`):
+    /// если палец идёт по строке, её UIKit-распознаватель срабатывает
+    /// раньше `DragGesture` и забирает касание. Числа порогов —
+    /// `|dx| > |dy| * 2.0` и `|dx| ≥ 80`, чтобы вертикальная прокрутка
+    /// выигрывала по умолчанию. На границах (`inbox` свайп влево,
+    /// `today` свайп вправо) — игнор. Анимация `easeInOut 0.2 c`.
+    /// Свайп строки в этих трёх вкладках работает от самого края
+    /// экрана, как и во всём проекте, — никаких «зон исключения».
+    private var tabSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onEnded { value in
+                let dx = value.translation.width
+                let dy = value.translation.height
+                guard abs(dx) >= 80, abs(dx) > abs(dy) * 2.0 else { return }
+                let all = TodayListTab.allCases
+                guard let cur = all.firstIndex(where: { $0.rawValue == listTabRaw }) else { return }
+                let next = dx < 0 ? cur + 1 : cur - 1
+                guard all.indices.contains(next) else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    listTabRaw = all[next].rawValue
+                }
+            }
+    }
+
     private var computation: TodayComputation {
         // Разовые фильтры — свои у экрана, состав раздела — общий с
         // диапазонами и приходит параметрами (LOCK-111).
@@ -80,10 +109,44 @@ struct TodaySectionView: View {
                 // меняет её содержимое. Второго уровня прокрутки здесь нет
                 // намеренно: именно вложенные прокрутки доски ломали
                 // системное затухание у шапки.
-                ScrollView {
-                    listContent(c: c)
+                //
+                // Свайп у края экрана (влево/вправо) переключает вкладку
+                // списка — по аналогии с `UpcomingWeekView.swipeGesture`,
+                // только горизонталь должна явно преобладать, чтобы не
+                // конфликтовать с собственным свайпом строки (принять/
+                // архив), который ловит `HorizontalPanRecognizer` внутри
+                // `TodayTaskRow`. Те же числа, что в
+                // `Sources/DesignSystem/Components/HorizontalPan.swift` —
+                // `directionBias: 2.0`, чтобы вертикальная прокрутка
+                // выигрывала по умолчанию. Жест вешается через
+                // `simultaneousGesture`, чтобы не перехватывать нативный
+                // pull-to-refresh сверху.
+                // Обычный `ScrollView` — задачи внутри идут с родным
+                // горизонтальным отступом от края экрана, никаких боковых
+                // `Color.clear`-полос поверх. 17.10.2026 владелец попросил
+                // не ломать «обычный отступ задач в проектах»: любые
+                // боковые полоски сдвигали содержимое от края. Свайп
+                // переключения вкладок повешен через `simultaneousGesture`
+                // на сам `ScrollView` и ловит жест по всей ширине ленты.
+                // Свайп строки (принять/архив) не задет: `HorizontalPan`
+                // ловит жест по строке (`directionBias: 2.0`,
+                // `directionLockPx: 10` в `HorizontalPan.swift`) раньше
+                // `DragGesture` вкладок и забирает касание.
+                // Под `ScrollView` лежит `TodayEmptyIllustration` подложкой:
+                // раньше она стояла ПЕРВЫМ элементом внутри `ScrollView`
+                // и проглатывала тапы в своей зоне, из-за чего свайп
+                // переключения вкладок «из Сегодня вправо» не срабатывал
+                // на пустой ленте.
+                ZStack {
+                    if c.trueEmpty && listTab == .today {
+                        TodayEmptyIllustration()
+                    }
+                    ScrollView {
+                        listContent(c: c)
+                    }
+                    .refreshable { await taskStore.load(silent: true) }
+                    .simultaneousGesture(tabSwipeGesture)
                 }
-                .refreshable { await taskStore.load(silent: true) }
                 // Высота, на которой заголовок секции прилипает к шапке.
                 // Изнутри прокрутки её не видно (там безопасная зона уже
                 // нулевая), поэтому меряем снаружи и отдаём списку.
@@ -136,18 +199,13 @@ struct TodaySectionView: View {
     @ViewBuilder
     private func listContent(c: TodayComputation) -> some View {
         VStack(spacing: 0) {
-            // Иллюстрация «совсем пусто» — только на сегодняшней вкладке:
-            // на «Входящих» и «Ждут вас» своя пустота со своим текстом.
-            if c.trueEmpty && listTab == .today {
-                TodayEmptyIllustration()
-            } else {
-                if taskStore.isLoading && taskStore.tasks.isEmpty {
-                    TFLoading(.block)
-                }
-                TFErrorBanner(taskStore.errorMessage, variant: .inline)
-                    .padding(.horizontal, TFSpacing.lg)
+            if taskStore.isLoading && taskStore.tasks.isEmpty {
+                TFLoading(.block)
+            }
+            TFErrorBanner(taskStore.errorMessage, variant: .inline)
+                .padding(.horizontal, TFSpacing.lg)
 
-                TodayListView(
+            TodayListView(
                     tab: listTab,
                     waitingTasks: c.waitingTasks,
                     overdueTasks: c.overdueTasks,
@@ -169,9 +227,9 @@ struct TodaySectionView: View {
                         // присвоенный `@State` в этом же проходе ещё старый.
                         onTitleChange(title.isEmpty ? listTab.title : title)
                     },
-                    pinEdge: pinEdge
+                    pinEdge: pinEdge,
+                    swipeExcludedFromEdges: true
                 )
-            }
         }
         .padding(.bottom, TFSpacing.lg)
     }

@@ -151,6 +151,14 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
     /// мешает прокрутке; после решения в пользу горизонтали — забирает
     /// касание себе целиком.
     private(set) var decided = false
+    /// Зона «от края», в которой жест НЕ начинается. 0 — по умолчанию,
+    /// строки работают как раньше, откуда угодно. >0 — касание, начатое
+    /// в пределах `disallowEdgeInset` от левого или правого края
+    /// `view.bounds`, проваливается сразу (см. `touchesBegan`).
+    /// Включается в `TodaySectionView` для трёх вкладок списка
+    /// «Обзор/Сегодня» (LOCK-TODAY-LIST-TAB-SWIPE-20261017), чтобы
+    /// место у краёв занял свайп переключения вкладок.
+    var disallowEdgeInset: CGFloat = 0
     /// Прокрутка, приглушённая на время жеста, чтобы вернуть ей `isScrollEnabled`.
     private weak var lockedScrollView: UIScrollView?
 
@@ -204,6 +212,17 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
         decided = false
         if let touch = touches.first {
             startLocation = touch.location(in: view)
+            // Касание, начатое в зоне `disallowEdgeInset` от края,
+            // проваливается сразу — место у краёв занимает другой жест
+            // (свайп переключения вкладок в `TodaySectionView`).
+            if disallowEdgeInset > 0,
+               let host = view,
+               host.bounds.width > 0 {
+                let x = startLocation.x
+                if x <= disallowEdgeInset || x >= host.bounds.width - disallowEdgeInset {
+                    state = .failed
+                }
+            }
         }
     }
 
@@ -265,6 +284,11 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
     var onChange: (CGFloat) -> Void
     /// Итог жеста: смещение и скорость по X (px/с).
     var onEnd: (CGFloat, CGFloat) -> Void
+    /// 0 — по умолчанию, строки работают откуда угодно. >0 — касание,
+    /// начатое в пределах `disallowEdgeInset` от края `view.bounds`,
+    /// проваливается немедленно. Включается только в экране
+    /// «Обзор/Сегодня» для трёх вкладок списка.
+    var disallowEdgeInset: CGFloat = 0
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
         Coordinator()
@@ -272,6 +296,7 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
 
     func makeUIGestureRecognizer(context: Context) -> HorizontalPanRecognizer {
         let recognizer = HorizontalPanRecognizer()
+        recognizer.disallowEdgeInset = disallowEdgeInset
         recognizer.delegate = context.coordinator
         return recognizer
     }
