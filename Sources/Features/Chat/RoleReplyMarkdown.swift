@@ -221,7 +221,15 @@ struct RoleReplyMarkdown: View, Equatable {
             // обычном тексте идёт на ступень выше — токеном `.listTitle` (16
             // против 14 у строки), а не своей цифрой: кривая масштабирования
             // и Dynamic Type остаются системными.
-            if run.bold, liftBold { piece = piece.font(TFFont.listTitle) }
+            if run.bold, liftBold {
+                piece = piece.font(TFFont.listTitle).foregroundColor(color)
+            } else if liftBold {
+                // Обычный текст чуть тише жирного — буквально на 5%: полностью
+                // приглушать нельзя, владелец уже возвращал серый основной текст
+                // (17.10.2026), но на его фоне жирное снова сливалось. Теперь
+                // разница есть и видна, и основной текст остаётся читаемым.
+                piece = piece.foregroundColor(color.opacity(0.94))
+            }
             return Text("\(result)\(piece)")
         }
     }
