@@ -200,14 +200,18 @@ struct RoleReplyMarkdown: View, Equatable {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// У выделения два отличия, как в образце владельца: насыщенность и цвет.
+    /// Выделение — ТОЛЬКО весом, цвет у основного текста и жирного один
+    /// (владелец 17.10.2026: «основной текст серый, жирный чуть ярже, но не
+    /// вообще разные уровни текста»). Раньше основной текст рисовался как
+    /// `color.opacity(0.65)` — это и был серый, и жирный на его фоне читался
+    /// как другой уровень текста. Теперь оба `color`, различает вес.
     /// Вес задаётся на Text, чтобы сохранить унаследованный размер заголовка
     /// и Dynamic Type; разметка кода, ссылок и курсива остаётся у прогона.
     private static func readableText(_ runs: [RichRun], color: Color) -> Text {
         runs.reduce(Text("")) { result, run in
             let piece = Text(attributed([run]))
-                .fontWeight(run.bold ? .heavy : nil)
-                .foregroundColor(run.bold ? color : color.opacity(0.65))
+                .fontWeight(run.bold ? .bold : nil)
+                .foregroundColor(color)
             return Text("\(result)\(piece)")
         }
     }

@@ -730,23 +730,70 @@ struct RoleTextFade: Equatable {
 
 /// Retain each glyph's first appearance across word batches, pauses and reflow.
 /// This reference lives in the modifier's State and does not publish draw ticks.
+///
+/// Владелец 17.10.2026 («окна скачет, что-то моргает»): проходить по всем
+/// глифам на каждом кадре было нельзя — на длинном ответе это десятки тысяч
+/// итераций × 60–120 Гц, и лента мигала. Поэтому проявившиеся глифы
+/// отбрасываются разом: `revealedUpTo` — сколько глифов уже проявились
+/// полностью, а `appearanceTimes` хранит только непроявившийся хвост.
+/// Инвариант: `revealedUpTo + appearanceTimes.count == count`.
 final class RoleTextRevealHistory {
-    private var appearedAt: [Date] = []
+    /// Времена появления ещё не проявившихся глифов (хвост).
+    private var appearanceTimes: [Date] = []
+    private var animated = true
+
+    /// Число глифов, проявившихся полностью (или не анимировались вовсе).
+    private(set) var revealedUpTo = 0
 
     func record(count: Int, now: Date, rate: Double, animated: Bool) {
-        if count < appearedAt.count { appearedAt.removeLast(appearedAt.count - count) }
-        let previous = appearedAt.count
-        if count > previous {
-            for index in previous..<count {
-                appearedAt.append(animated ? now.addingTimeInterval(-Double(count - index - 1) / max(rate, 1)) : .distantPast)
+        self.animated = animated
+        guard count > 0 else { revealedUpTo = 0; appearanceTimes = []; return }
+        if !animated {
+            // Не анимируем: всё видно сразу, хвоста нет.
+            revealedUpTo = count
+            appearanceTimes = []
+            return
+        }
+        // Инвариант `revealedUpTo + appearanceTimes.count <= count` держим жёстко:
+        // всё, что выходит за пределы текста, — проявившийся глиф, хвост обрезаем
+        // с начала и прибавляем к `revealedUpTo`. Смысл тот же, что у старого кода
+        // при укорочении текста: показанное начало остаётся показанным.
+        let overflow = revealedUpTo + appearanceTimes.count - count
+        if overflow > 0 {
+            let drop = min(overflow, appearanceTimes.count)
+            appearanceTimes.removeFirst(drop)
+            revealedUpTo -= drop
+        }
+        // Хвост, доживший до конца проявления, оседает разом — с этого момента
+        // по уже показанным глифам больше не ходим.
+        let settled = appearanceTimes.prefix { now.timeIntervalSince($0) >= RoleTextFade.duration }.count
+        if settled > 0 {
+            appearanceTimes.removeFirst(settled)
+            revealedUpTo += settled
+        }
+        // Новая порция текста: ДОБАВЛЯЕМ `pending` глифов в конец хвоста.
+        // Верхняя граница — хвост плюс новая порция, а не сама порция:
+        // пока хвост ещё не осел, текст в чате растёт кадрами, и диапазон
+        // `appearanceTimes.count..<pending` оказывался вывернут (lowerBound >
+        // upperBound) → EXC_BREAKPOINT, то есть вылет приложения.
+        let pending = count - revealedUpTo - appearanceTimes.count
+        if pending > 0 {
+            for offset in 0..<pending {
+                appearanceTimes.append(
+                    now.addingTimeInterval(-Double(pending - offset - 1) / max(rate, 1))
+                )
             }
         }
-        if !animated { appearedAt = Array(repeating: .distantPast, count: count) }
     }
 
+    /// Прозрачность глифа по ЕГО индексу во всём тексте (0-based).
+    /// Глифы до `revealedUpTo` проявились целиком — их не трогаем; анимируется
+    /// только хвост, то есть та порция текста, что пришла последней.
     func opacity(at index: Int, now: Date) -> Double {
-        guard appearedAt.indices.contains(index) else { return 1 }
-        let t = min(1, max(0, now.timeIntervalSince(appearedAt[index]) / RoleTextFade.duration))
+        guard animated, index >= revealedUpTo else { return 1 }
+        let tailIndex = index - revealedUpTo
+        guard appearanceTimes.indices.contains(tailIndex) else { return 1 }
+        let t = min(1, max(0, now.timeIntervalSince(appearanceTimes[tailIndex]) / RoleTextFade.duration))
         return t * t * (3 - 2 * t)
     }
 }
@@ -757,7 +804,6 @@ struct RoleRevealRenderer: TextRenderer {
     var history: RoleTextRevealHistory
 
     func draw(layout: Text.Layout, in ctx: inout GraphicsContext) {
-        AppDiagnostics.shared.increment(.draws)
         var total = 0
         for line in layout { for run in line { total += run.count } }
         history.record(count: total, now: now, rate: fade.rate, animated: fade.isAnimating)
@@ -766,7 +812,7 @@ struct RoleRevealRenderer: TextRenderer {
             var lineCount = 0
             for run in line { lineCount += run.count }
             // Строка целиком проявилась — рисуем одним вызовом.
-            if (index..<(index + lineCount)).allSatisfy({ history.opacity(at: $0, now: now) >= 1 }) {
+            if index >= history.revealedUpTo {
                 ctx.draw(line)
                 index += lineCount
                 continue
