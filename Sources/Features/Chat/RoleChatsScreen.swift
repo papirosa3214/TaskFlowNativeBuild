@@ -1862,6 +1862,7 @@ struct RoleChatRoomScreen: View {
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands)
                 .equatable()
+                .roleMessageReveal(text: message.text, messageID: message.id)
         }
     }
 
