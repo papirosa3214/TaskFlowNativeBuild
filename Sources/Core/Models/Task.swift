@@ -24,6 +24,25 @@ public enum AgentState: String, Codable, Sendable, Hashable {
 /// `ApiTask` — spec/API.md §3.4. Приоритет — обычный `Int` 1...4 (сервер не
 /// именует уровни текстом, меньше = важнее); сопоставление в цвет/подпись —
 /// дело UI-слоя (`TaskPriority` в `DesignSystem`), Core от него не зависит.
+/// Предок задачи в цепочке `ancestors`: нужен экрану карточки, чтобы
+/// показать родителя и его название без дополнительных запросов.
+public struct ApiTaskAncestor: Codable, Identifiable, Sendable, Hashable {
+    public let id: String
+    public let title: String
+    public let parentId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title
+        case parentId = "parent_id"
+    }
+
+    public init(id: String, title: String, parentId: String? = nil) {
+        self.id = id
+        self.title = title
+        self.parentId = parentId
+    }
+}
+
 public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let id: String
     public let title: String
@@ -124,6 +143,11 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let subtasks: [ApiSubtask]
     /// Только `GET /api/tasks/:id` — дочерние задачи (`parent_id` = этот id).
     public let children: [ApiTask]?
+    /// Только `GET /api/tasks/:id` — вся цепочка предков от корня к
+    /// непосредственному родителю. Приходит одним запросом: раньше клиент
+    /// поднимался по дереву и запрашивал задачу на каждого предка по очереди,
+    /// из-за чего карточка открывалась долго (владелец 17.10.2026).
+    public let ancestors: [ApiTaskAncestor]?
     /// Только `GET /api/tasks/:id`.
     public let comments: [ApiComment]?
     /// Только `GET /api/tasks/:id`.
