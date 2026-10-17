@@ -138,7 +138,7 @@ struct RoleReplyMarkdown: View, Equatable {
         case .paragraph:
             inline(block.runs, fade: fade)
         case .heading(let level):
-            inline(block.runs, fade: fade)
+            inline(block.runs, fade: fade, liftBold: false)
                 .font(level <= 1 ? .title3.weight(.semibold) : .headline)
                 .padding(.top, TFSpacing.xs)
         case .bulletItem:
@@ -193,8 +193,11 @@ struct RoleReplyMarkdown: View, Equatable {
         .padding(.leading, CGFloat(block.level) * TFSpacing.lg)
     }
 
-    private func inline(_ runs: [RichRun], fade: RoleTextFade?) -> some View {
-        Self.readableText(runs, color: color)
+    /// `liftBold` — увеличивать ли жирное на ступень. В обычном тексте да,
+    /// в заголовках нет: там жирное и так крупное, и лишний шаг вверх
+    /// сбивал бы уровень (владелец 17.10.2026: жирное сливалось с текстом).
+    private func inline(_ runs: [RichRun], fade: RoleTextFade?, liftBold: Bool = true) -> some View {
+        Self.readableText(runs, color: color, liftBold: liftBold)
             .roleReveal(fade)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -207,11 +210,18 @@ struct RoleReplyMarkdown: View, Equatable {
     /// как другой уровень текста. Теперь оба `color`, различает вес.
     /// Вес задаётся на Text, чтобы сохранить унаследованный размер заголовка
     /// и Dynamic Type; разметка кода, ссылок и курсива остаётся у прогона.
-    private static func readableText(_ runs: [RichRun], color: Color) -> Text {
+    private static func readableText(_ runs: [RichRun], color: Color, liftBold: Bool = true) -> Text {
         runs.reduce(Text("")) { result, run in
-            let piece = Text(attributed([run]))
+            var piece = Text(attributed([run]))
                 .fontWeight(run.bold ? .bold : nil)
                 .foregroundColor(color)
+            // Жирьём выделение не читалось: кегль был как у соседних слов,
+            // и на телефоне выделение сливалось с текстом (владелец
+            // 17.10.2026: «как будто бы и не выделяешь»). Поэтому жирное в
+            // обычном тексте идёт на ступень выше — токеном `.listTitle` (16
+            // против 14 у строки), а не своей цифрой: кривая масштабирования
+            // и Dynamic Type остаются системными.
+            if run.bold, liftBold { piece = piece.font(TFFont.listTitle) }
             return Text("\(result)\(piece)")
         }
     }
