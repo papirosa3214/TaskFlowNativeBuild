@@ -20,11 +20,6 @@ struct RoleMessageReveal<Content: View>: View {
     /// Отметка сообщения: переезд ячейки на другое сообщение не должен
     /// переигрывать анимацию.
     let messageID: String
-    /// Проявлять ли именно это сообщение. Владелец 17.10.2026 пожаловался,
-    /// что лента «скачет вверх, остаётся пустота»: проявление старых
-    /// сообщений при прокрутке дёргало автопривязку к низу. Поэтому
-    /// анимируется только новое сообщение, и только когда лента внизу.
-    var animate: Bool = true
     @ViewBuilder let content: () -> Content
 
     @State private var fade: RoleTextFade?
@@ -43,7 +38,7 @@ struct RoleMessageReveal<Content: View>: View {
     }
 
     private func startIfNeeded() {
-        guard animate, !finished, !text.isEmpty else { return }
+        guard !finished, !text.isEmpty else { return }
         finished = true
         let length = Double(max(text.count, 1))
         let lag = min(RoleMessageRevealTiming.maximumLag,
@@ -63,8 +58,8 @@ struct RoleMessageReveal<Content: View>: View {
 extension View {
     /// Оборачивает только текст ответа роли — вложения и карточки идут рядом
     /// и появляются сразу.
-    func roleMessageReveal(text: String, messageID: String, animate: Bool = true) -> some View {
-        RoleMessageReveal(text: text, messageID: messageID, animate: animate) { self }
+    func roleMessageReveal(text: String, messageID: String) -> some View {
+        RoleMessageReveal(text: text, messageID: messageID) { self }
     }
 }
 
