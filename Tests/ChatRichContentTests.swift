@@ -15,6 +15,29 @@ final class ChatRichContentTests: XCTestCase {
         XCTAssertEqual(ChatRichContent.split(text, isStreaming: false), [.html("<button>Готово</button>")])
     }
 
+    func testStructuredJSONBlockIsSeparatedFromSurroundingText() {
+        let json = #"{"version":1,"kind":"message","blocks":[{"type":"text","text":"Готово"}]}"#
+        let text = "Сводка:\n```tf-json\n\(json)\n```"
+        XCTAssertEqual(ChatRichContent.split(text), [.markdown("Сводка:"), .structuredJSON(json)])
+    }
+
+    func testUnfinishedStructuredJSONBlockStaysPendingWhileStreaming() {
+        XCTAssertEqual(ChatRichContent.split("Собираю результат:\n```tf-json\n{\"version\":1"), [
+            .markdown("Собираю результат:"),
+            .structuredJSONStreaming("{\"version\":1"),
+        ])
+    }
+
+    func testStreamingStructuredJSONExposesPartialTextBlock() {
+        let partial = #"{"version":1,"kind":"message","blocks":[{"type":"text","text":"Живой текст: \"готово"#
+        XCTAssertEqual(ChatStructuredJSONStreamParser.partialText(in: partial), "Живой текст: \"готово")
+    }
+
+    func testStreamingStructuredJSONDoesNotExposeIncompleteEscape() {
+        let partial = #"{"version":1,"kind":"message","blocks":[{"type":"text","text":"Текст заканчивается слэшем\"#
+        XCTAssertEqual(ChatStructuredJSONStreamParser.partialText(in: partial), "Текст заканчивается слэшем")
+    }
+
     func testPlainMarkdownStaysOneSegment() {
         XCTAssertEqual(ChatRichContent.split("**Привет**\n\n- пункт"), [.markdown("**Привет**\n\n- пункт")])
     }

@@ -1,0 +1,50 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "260D6281-31AD-4BD4-8F82-14078205D9EF.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "structured-output-invalid_0_621D8C96-1854-4916-958C-95BD2EBBA56E.png",
+        "timestamp" : 1792197021.457
+      }
+    ],
+    "testIdentifier" : "StructuredRoleOutputPreviewUITests/testMalformedStructuredJSONRemainsVisibleAsAnError()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/StructuredRoleOutputPreviewUITests/testMalformedStructuredJSONRemainsVisibleAsAnError"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "3DCC9304-E550-40FB-A037-4180EBEF76F6.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "structured-output-bottom_0_FCFAB3D5-2A6F-453F-BABE-28EDA7E0ACDD.png",
+        "timestamp" : 1792197032.774
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "BC4F1AC8-9EEE-4DDB-A1A0-4DEBAA974AFC.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "structured-output-table_0_045E33BC-E62D-4F50-BBA4-CAF295939922.png",
+        "timestamp" : 1792197030.551
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "34BDDA85-388D-4404-B079-9F0480A4E8C8.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "structured-output-top_0_A01EE86E-6D98-4E37-AB6A-8C2F1AF1BBD9.png",
+        "timestamp" : 1792197028.233
+      }
+    ],
+    "testIdentifier" : "StructuredRoleOutputPreviewUITests/testStructuredJSONPreviewRendersChatBlocks()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/StructuredRoleOutputPreviewUITests/testStructuredJSONPreviewRendersChatBlocks"
+  }
+]

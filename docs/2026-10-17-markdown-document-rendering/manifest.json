@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "1C395318-320A-45AA-8CB1-439ACAC8B877.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "markdown-document-preview_0_C5858C88-8C99-49EE-8459-E5DD03067995.png",
+        "timestamp" : 1792232667.764
+      }
+    ],
+    "testIdentifier" : "MarkdownDocumentRendererUITests/testMarkdownDocumentPreviewRendersLongTableCellAndFollowingRow()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/MarkdownDocumentRendererUITests/testMarkdownDocumentPreviewRendersLongTableCellAndFollowingRow"
+  }
+]

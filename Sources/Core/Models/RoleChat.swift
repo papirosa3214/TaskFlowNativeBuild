@@ -152,6 +152,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let replyToMessageID: String?
     public let replyToSenderName: String?
     public let text: String
+    /// Структурированный ответ роли, который сервер отдаёт рядом с текстом.
+    /// `text` остаётся резервом для сообщений без контракта и старой истории.
+    public let roleEnvelope: JSONValue?
     public let createdAt: String?
     public let attachments: [ApiChatAttachment]?
     /// Задача, которую роль создала этим ходом (владелец 25.09.2026,
@@ -177,10 +180,18 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public var coordination: RoleChatCoordination? = nil
     public var sequence: Int? = nil
 
+    /// JSON для renderer чата. Серверное поле должно быть объектом конверта.
+    public var roleEnvelopeJSON: String? {
+        guard let roleEnvelope, case .object = roleEnvelope,
+              let data = try? JSONEncoder().encode(roleEnvelope) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     enum CodingKeys: String, CodingKey {
         case replyToMessageID = "reply_to_message_id"
         case replyToSenderName = "reply_to_sender_name"
         case id, text, kind, attachments, steps, reactions, sequence, handoff, coordination
+        case roleEnvelope = "role_envelope"
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
         case fromUserName = "from_user_name"

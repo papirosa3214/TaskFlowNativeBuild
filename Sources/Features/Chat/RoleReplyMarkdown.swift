@@ -54,6 +54,10 @@ struct RoleReplyMarkdown: View, Equatable {
             ChatTableView(table: table, color: color)
         case .widget(let json):
             ChatWidgetView(json: json)
+        case .structuredJSON(let json):
+            ChatStructuredOutputView(json: json)
+        case .structuredJSONStreaming(let json):
+            ChatStructuredOutputView(json: json, isStreaming: true)
         case .html(let html):
             ChatHTMLView(html: html, allowsCommands: allowsCommands && fade == nil)
         case .pending(let kind):
@@ -62,6 +66,15 @@ struct RoleReplyMarkdown: View, Equatable {
                 // запрещает спиннер внутри виджета и требует геометрию итогового
                 // блока, иначе при появлении данных карточка прыгает.
                 WidgetSkeletonCard()
+            } else if kind == .structuredJSON {
+                WidgetCard(title: "Структурированный ответ") {
+                    HStack(spacing: TFSpacing.sm) {
+                        ProgressView()
+                        Text("Собираю блоки ответа…")
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
             } else {
                 HStack(spacing: TFSpacing.sm) {
                     ProgressView()
@@ -194,7 +207,7 @@ struct RoleReplyMarkdown: View, Equatable {
         runs.reduce(Text("")) { result, run in
             let piece = Text(attributed([run]))
                 .fontWeight(run.bold ? .heavy : nil)
-                .foregroundColor(run.bold ? color : color.opacity(0.8))
+                .foregroundColor(run.bold ? color : color.opacity(0.65))
             return Text("\(result)\(piece)")
         }
     }
@@ -233,30 +246,50 @@ struct ChatTableView: View {
     private static let maxHeight: CGFloat = 360
     @State private var contentHeight: CGFloat = 0
 
+    /// Одинаковая ширина ячейки во всех строках столбца. Длинное содержимое
+    /// ограничивается сверху, чтобы переносить текст, а не раздувать таблицу.
+    private var columnWidths: [CGFloat] {
+        table.header.indices.map { column in
+            let widest = ([table.header] + table.rows)
+                .compactMap { $0.indices.contains(column) ? $0[column] : nil }
+                .map(\.count)
+                .max() ?? 0
+            return min(max(88, CGFloat(widest) * 10 + TFSpacing.md * 2), Self.maxCellWidth)
+        }
+    }
+
     // Окошко (владелец 14.10.2026, по образцу): рамка стоит на месте,
     // таблица листается внутри неё в обе стороны.
     var body: some View {
         ScrollView([.horizontal, .vertical], showsIndicators: false) {
-            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                // Модификатор на самом GridRow превратил бы строку в одну
-                // ячейку — фон задаётся каждой ячейке.
-                GridRow {
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
-                        cell(title, column: column, background: Color.tfCard2)
+                        cell(title, column: column, width: columnWidths[column])
                             .font(.subheadline.weight(.semibold))
                     }
                 }
+                .background(Color.tfCard2)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+                }
+
                 ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
-                    Divider().gridCellUnsizedAxes(.horizontal)
-                    GridRow {
+                    HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(row.enumerated()), id: \.offset) { column, value in
-                            cell(value, column: column,
-                                 background: rowIndex.isMultiple(of: 2) ? Color.clear : Color.tfCard2.opacity(0.45))
+                            if column < columnWidths.count {
+                                cell(value, column: column, width: columnWidths[column])
                                 .tfText(.body)
+                            }
                         }
+                    }
+                    .background(rowIndex.isMultiple(of: 2) ? Color.clear : Color.tfCard2.opacity(0.45))
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Color.tfStroke.opacity(0.7)).frame(height: TFBorder.width)
                     }
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .scrollBounceBehavior(.basedOnSize, axes: [.horizontal, .vertical])
@@ -266,20 +299,17 @@ struct ChatTableView: View {
         .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 
-    private func cell(_ text: String, column: Int, background: Color) -> some View {
+    private func cell(_ text: String, column: Int, width: CGFloat) -> some View {
         let alignment = column < table.alignments.count ? table.alignments[column] : .leading
         return Text(RoleReplyMarkdown.attributed(MarkdownParser.parseInline(text)))
             .foregroundStyle(color)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
+            .frame(width: max(1, width - TFSpacing.md * 2), alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: Self.maxCellWidth,
-                   alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .padding(.horizontal, TFSpacing.md)
             .padding(.vertical, TFSpacing.sm)
-            .frame(maxWidth: .infinity, maxHeight: .infinity,
+            .frame(width: width,
                    alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
-            .background(background)
-            .gridColumnAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
     }
 
 

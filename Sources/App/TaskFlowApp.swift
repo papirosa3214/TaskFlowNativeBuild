@@ -53,6 +53,13 @@ struct TaskFlowApp: App {
                     NavigationStack { RoleChatRoomScreen(chat: RoleChatRoomScreen.readingPreviewChat) }
                 } else if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_COMPOSER_PREVIEW"] == "1" {
                     AgentChatComposerPreview()
+                } else if ProcessInfo.processInfo.environment["TASKFLOW_MARKDOWN_DOCUMENT_PREVIEW"] == "1" {
+                    NavigationStack {
+                        MarkdownDocumentPreviewScreen(
+                            previewMarkdown: MarkdownDocumentPreviewFixture.sample,
+                            title: "Предпросмотр документа"
+                        )
+                    }
                 } else {
                     RootView()
                 }

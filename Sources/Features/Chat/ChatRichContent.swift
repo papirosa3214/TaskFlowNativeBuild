@@ -11,6 +11,7 @@ import Foundation
 ///   • `markdown` — обычный текст, дальше его разбирает `MarkdownParser`;
 ///   • `table` — таблица GitHub-вида (`| a | b |` + строка `|---|---|`);
 ///   • `widget` — блок ```widget с JSON: нативная карточка (`ChatWidgetView`);
+///   • `structuredJSON` — блок ```tf-json с конвертом для нативной отрисовки;
 ///   • `html` — блок ```html: живой интерактивный артефакт (`ChatHTMLView`);
 ///   • `pending` — такой блок ещё дописывается (идущий ответ), вместо сырого
 ///     JSON/HTML показываем заглушку.
@@ -18,12 +19,15 @@ enum ChatRichSegment: Equatable {
     case markdown(String)
     case table(ChatTable)
     case widget(String)
+    case structuredJSON(String)
+    case structuredJSONStreaming(String)
     case html(String)
     case pending(ChatPendingKind)
 }
 
 enum ChatPendingKind: Equatable {
     case widget
+    case structuredJSON
     case html
 }
 
@@ -40,6 +44,7 @@ enum ChatRichContent {
     /// Языки блоков кода, которые рисуются артефактом, а не кодом.
     static let htmlLanguages: Set<String> = ["html", "artifact"]
     static let widgetLanguages: Set<String> = ["widget", "tf-widget"]
+    static let structuredJSONLanguages: Set<String> = ["tf-json"]
 
     static func split(_ text: String, isStreaming: Bool = true) -> [ChatRichSegment] {
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
@@ -68,13 +73,22 @@ enum ChatRichContent {
                 let body = lines[(i + 1)..<min(j, lines.count)].joined(separator: "\n")
                 let special: ChatPendingKind? = htmlLanguages.contains(language)
                     ? .html
-                    : widgetLanguages.contains(language) ? .widget : nil
+                    : widgetLanguages.contains(language) ? .widget
+                    : structuredJSONLanguages.contains(language) ? .structuredJSON : nil
                 if let special {
                     flush()
                     if !closed && isStreaming {
-                        segments.append(.pending(special))
+                        if special == .structuredJSON {
+                            segments.append(.structuredJSONStreaming(body))
+                        } else {
+                            segments.append(.pending(special))
+                        }
                     } else {
-                        segments.append(special == .html ? .html(body) : .widget(body))
+                        switch special {
+                        case .html: segments.append(.html(body))
+                        case .widget: segments.append(.widget(body))
+                        case .structuredJSON: segments.append(.structuredJSON(body))
+                        }
                     }
                     i = closed ? j + 1 : lines.count
                     continue
@@ -164,7 +178,75 @@ enum ChatRichContent {
         switch segment {
         case .markdown(let text): return text.count + 1
         case .table(let table): return (table.header + table.rows.flatMap { $0 }).reduce(0) { $0 + $1.count }
-        case .widget, .html, .pending: return 0
+        case .widget, .structuredJSON, .structuredJSONStreaming, .html, .pending: return 0
         }
+    }
+}
+
+/// Extracts the current `text` block from an incomplete JSON response without
+/// treating the rest of the document as valid. The complete document is still
+/// decoded normally when the stream ends.
+enum ChatStructuredJSONStreamParser {
+    private static let textType = try! NSRegularExpression(pattern: #""type"\s*:\s*"text""#)
+    private static let textField = try! NSRegularExpression(pattern: #""text"\s*:\s*""#)
+
+    static func partialText(in json: String) -> String? {
+        let outputKey = json.range(of: #""output""#) ?? json.range(of: #""blocks""#)
+        guard let outputKey,
+              let arrayStart = json[outputKey.upperBound...].firstIndex(of: "[") else { return nil }
+        let searchRange = NSRange(arrayStart..<json.endIndex, in: json)
+        guard let typeMatch = textType.firstMatch(in: json, range: searchRange),
+              let typeRange = Range(typeMatch.range, in: json),
+              let fieldMatch = textField.firstMatch(in: json, range: NSRange(typeRange.upperBound..<json.endIndex, in: json)),
+              let fieldRange = Range(fieldMatch.range, in: json) else { return nil }
+
+        return decodeStringPrefix(in: json, openingQuote: json.index(before: fieldRange.upperBound))
+    }
+
+    private static func decodeStringPrefix(in json: String, openingQuote: String.Index) -> String? {
+        guard json[openingQuote] == "\"" else { return nil }
+        var cursor = json.index(after: openingQuote)
+        var encoded = ""
+
+        while cursor < json.endIndex {
+            let character = json[cursor]
+            if character == "\"" {
+                return decodeJSONString(encoded)
+            }
+            if character == "\\" {
+                let slash = cursor
+                cursor = json.index(after: cursor)
+                guard cursor < json.endIndex else { break }
+                let escape = json[cursor]
+                if escape == "u" {
+                    cursor = json.index(after: cursor)
+                    var digits = 0
+                    while cursor < json.endIndex, digits < 4, json[cursor].isHexDigit {
+                        cursor = json.index(after: cursor)
+                        digits += 1
+                    }
+                    guard digits == 4 else { break }
+                    encoded += String(json[slash..<cursor])
+                } else if "\\\"/bfnrt".contains(escape) {
+                    let end = json.index(after: cursor)
+                    encoded += String(json[slash..<end])
+                    cursor = end
+                } else {
+                    break
+                }
+                continue
+            }
+            guard character.unicodeScalars.allSatisfy({ $0.value >= 0x20 }) else { break }
+            encoded.append(character)
+            cursor = json.index(after: cursor)
+        }
+
+        return decodeJSONString(encoded)
+    }
+
+    private static func decodeJSONString(_ encoded: String) -> String? {
+        let source = "\"\(encoded)\""
+        guard let data = source.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(String.self, from: data)
     }
 }

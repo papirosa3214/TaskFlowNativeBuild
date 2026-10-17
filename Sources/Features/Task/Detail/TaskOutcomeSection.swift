@@ -14,6 +14,8 @@ struct TaskOutcomeContent: View {
     let onToast: (String) -> Void
     /// Открыть документ (заметку) — шторкой поверх карточки.
     let onOpenDocument: (String) -> Void
+    /// Открыть отдельный read-only предпросмотр Markdown.
+    let onPreviewDocument: (String, String) -> Void
     /// Чат этой задачи: ответ владельца на результат роли уходит туда. nil —
     /// чата нет, поле ответа не показываем.
     var replyChatID: String? = nil
@@ -79,6 +81,11 @@ struct TaskOutcomeContent: View {
                 }
                 .buttonStyle(.plain)
                 Menu {
+                    Button {
+                        onPreviewDocument(document.id, document.title)
+                    } label: {
+                        Label("Предпросмотр", systemImage: "doc.text.magnifyingglass")
+                    }
                     Button {
                         Task { await pushToKnowledge(document) }
                     } label: {

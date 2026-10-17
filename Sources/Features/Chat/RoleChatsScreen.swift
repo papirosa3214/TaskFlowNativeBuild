@@ -697,6 +697,61 @@ struct RoleChatRoomScreen: View {
         }
         return try! JSONDecoder().decode(RoleChat.self, from: Data(#"{"id":"reading-preview","title":"Исследователь","kind":"direct","created_by":"preview-owner","members":[{"id":"role_researcher","name":"Исследователь","role_key":"researcher"}]}"#.utf8))
     }
+
+    private static let structuredOutputPreviewJSON = #"""
+    {
+      "schema_version": 1,
+      "ok": true,
+      "output": [
+        {"type": "text", "text": "Сверил **план с текущим состоянием**. Ниже — короткий итог и ход проверки."},
+        {"type": "heading", "text": "Проверка результата"},
+        {"type": "status", "title": "Проверка источников", "code": "passed", "text": "Все три источника доступны"},
+        {"type": "table", "title": "Сверка этапов", "columns": ["Этап", "Статус", "Заметка"], "rows": [["Сверка", "Готово", "Длинная ячейка для проверки переноса текста на несколько строк внутри одной строки таблицы без наложения на соседние данные"], ["Итог", "В работе", "Следующая строка"]]},
+        {"type": "progress", "title": "Готовность", "current": 3, "total": 4, "label": "3 из 4 проверок", "unit": "этапа"},
+        {"type": "chart", "title": "Результаты по дням", "kind": "bar", "unit": "проверок", "points": [{"label": "Пн", "value": 4}, {"label": "Вт", "value": 7}, {"label": "Ср", "value": 5}]},
+        {"type": "diagram", "title": "Ход работы", "kind": "chain", "items": [{"label": "Вход", "state": "done"}, {"label": "Анализ", "state": "done"}, {"label": "Проверка", "state": "in_progress"}, {"label": "Передача", "state": "queued"}]},
+        {"type": "report", "report_kind": "intermediate", "sections": {
+          "result": [{"type": "text", "text": "Подтвердил основной вывод."}],
+          "work": [{"type": "list", "items": ["Сверены три источника.", "Сопоставлены этапы плана."]}],
+          "checks": [{"label": "Доступность источников", "status": "passed", "detail": "Все три доступны"}],
+          "limitations": [{"type": "text", "text": "Один источник обновляется с задержкой."}],
+          "materials": [{"kind": "document", "title": "Исходная спецификация", "ref": "docs/spec.md"}]
+        }}
+      ],
+      "artifacts": [],
+      "plan_artifact": null,
+      "error": null,
+      "next_hint": "После проверки оформить итоговый отчёт.",
+      "needs_human": false
+    }
+    """#
+
+    private static var structuredOutputPreviewMessages: [RoleChatMessage] {
+        let block: String
+        if ProcessInfo.processInfo.environment["TASKFLOW_STRUCTURED_OUTPUT_INVALID_PREVIEW"] == "1" {
+            block = "```tf-json\n{\"schema_version\":1,\"ok\":true,\"output\":[{\"type\":\"report\"}\n```"
+        } else {
+            block = "```tf-json\n\(structuredOutputPreviewJSON)\n```"
+        }
+        let envelope = (try? JSONSerialization.jsonObject(with: Data(structuredOutputPreviewJSON.utf8))) as? [String: Any]
+        let serverEnvelope: [String: Any] = [
+            "contract": "role.v1", "ok": true,
+            "output": "Это фактический формат ответа сервера сегодня. Старые сообщения и текущие роли продолжают читаться.",
+            "artifacts": [], "error": NSNull(), "next_hint": NSNull(), "needs_human": false
+        ]
+        let serverAnswer: [String: Any] = ["id": "structured-server-answer", "text": "Это фактический формат ответа сервера сегодня.", "role_envelope": serverEnvelope, "from_user_id": "role_researcher", "from_user_name": "Исследователь", "created_at": "2026-10-17T10:00:01Z", "sequence": 2, "reply_to_message_id": "structured-question", "is_session_marker": false]
+        var answer: [String: Any] = ["id": "structured-answer", "text": block, "from_user_id": "role_researcher", "from_user_name": "Исследователь", "created_at": "2026-10-17T10:00:02Z", "sequence": 3, "reply_to_message_id": "structured-question", "is_session_marker": false]
+        if ProcessInfo.processInfo.environment["TASKFLOW_STRUCTURED_OUTPUT_INVALID_PREVIEW"] != "1", let envelope {
+            answer["role_envelope"] = envelope
+        }
+        let rows: [[String: Any]] = [
+            ["id": "structured-question", "text": "Покажи, как выглядит структурированный результат.", "from_user_id": "preview-owner", "created_at": "2026-10-17T10:00:00Z", "sequence": 1, "is_session_marker": false],
+            serverAnswer,
+            answer
+        ]
+        return try! JSONDecoder().decode([RoleChatMessage].self, from: JSONSerialization.data(withJSONObject: rows))
+    }
+
     private static func correctnessMessages(stress: Bool = false) -> [RoleChatMessage] {
         let rows: [[String: Any]] = stress ? (0..<300).map { index in
             ["id": "history-\(index)", "text": "Сообщение \(index). " + String(repeating: "Подробный текст результата для проверки прокрутки. ", count: 6),
@@ -729,8 +784,11 @@ struct RoleChatRoomScreen: View {
         _workMode = State(initialValue: RoleChatWorkMode.available(in: chat).contains(mode) ? mode : .work)
         #if DEBUG
         if readingPreview {
-            _messages = State(initialValue: Array(Self.readingPreviewMessages.prefix(1)))
-            if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_ORDER_PREVIEW"] == "1" {
+            let structuredOutputPreview = ProcessInfo.processInfo.environment["TASKFLOW_STRUCTURED_OUTPUT_PREVIEW"] == "1"
+            _messages = State(initialValue: structuredOutputPreview ? Self.structuredOutputPreviewMessages : Array(Self.readingPreviewMessages.prefix(1)))
+            if structuredOutputPreview {
+                _liveTurns = State(initialValue: [:])
+            } else if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_ORDER_PREVIEW"] == "1" {
                 _liveTurns = State(initialValue: [
                     "role_code_orchestrator": RoleChatLiveTurn(chatID:"reading-preview",userID:"role_code_orchestrator",name:"Оркестратор",startedAt:"2026-10-10T18:00:01Z",items:[.text("ПЕРВЫЙ ОТВЕТ ОРКЕСТРАТОРА")],thinking:nil),
                     "role_architect": RoleChatLiveTurn(chatID:"reading-preview",userID:"role_architect",name:"Архитектор",startedAt:"2026-10-10T18:00:02Z",items:[.text("ВТОРОЙ ОТВЕТ АРХИТЕКТОРА")],thinking:nil)
@@ -738,14 +796,14 @@ struct RoleChatRoomScreen: View {
             } else {
                 _liveTurns = State(initialValue: ["role_researcher": Self.readingPreviewTurn(long: false)])
             }
-            if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_CORRECTNESS_PREVIEW"] == "1" {
+            if !structuredOutputPreview && ProcessInfo.processInfo.environment["TASKFLOW_CHAT_CORRECTNESS_PREVIEW"] == "1" {
                 _messages = State(initialValue: Self.correctnessMessages())
                 _liveTurns = State(initialValue: [
                     "role_code_orchestrator": RoleChatLiveTurn(chatID: "reading-preview", userID: "role_code_orchestrator", name: "Оркестратор", startedAt: "2026-10-11T14:20:51.500Z", items: [.text("```widget\n{\"type\":\"card\""), .text("```html\n<button>Готовый интерактив")], thinking: nil, triggerMessageID: "question-1"),
                     "role_architect": RoleChatLiveTurn(chatID: "reading-preview", userID: "role_architect", name: "Архитектор", startedAt: "2026-10-11T14:20:51.700Z", items: [.text("ВТОРОЙ ОТВЕТ")], thinking: nil, triggerMessageID: "question-2")
                 ])
             }
-            if ProcessInfo.processInfo.environment["TASKFLOW_CHAT_STRESS_PREVIEW"] == "1" {
+            if !structuredOutputPreview && ProcessInfo.processInfo.environment["TASKFLOW_CHAT_STRESS_PREVIEW"] == "1" {
                 _messages = State(initialValue: Self.correctnessMessages(stress: true))
                 _liveTurns = State(initialValue: [:])
             }
@@ -1443,6 +1501,7 @@ struct RoleChatRoomScreen: View {
             replyToMessageID: nil,
             replyToSenderName: nil,
             text: pending.text,
+            roleEnvelope: nil,
             createdAt: nil,
             attachments: pending.attachments,
             taskID: nil,
@@ -1648,10 +1707,8 @@ struct RoleChatRoomScreen: View {
                 // Текст и карточка задачи — вместе, а не вместо: раньше
                 // карточка подменяла всё сообщение, и вопрос роли пропадал
                 // (владелец 14.10.2026: «приходит только виджет»).
-                if !message.text.isEmpty {
-                    RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
-                        .equatable()
-                        .roleMessageReveal(text: message.text, messageID: message.id)
+                if !message.text.isEmpty || message.roleEnvelopeJSON != nil {
+                    roleMessageContent(message, allowsCommands: session.currentUser?.role == .owner && !isSelecting)
                 }
                 if let handoff = message.handoff {
                     ChatHandoffCard(handoff: handoff)
@@ -1744,16 +1801,13 @@ struct RoleChatRoomScreen: View {
                 // было видно вовсе (владелец 07.10.2026).
                 // Текст и карточка — вместе (владелец 14.10.2026): карточка
                 // больше не подменяет сообщение.
-                if !message.text.isEmpty && !hasAudio {
+                if (!message.text.isEmpty || message.roleEnvelopeJSON != nil) && !hasAudio {
                     if mine {
                         Text(message.text)
                             .foregroundStyle(Color.tfText)
                     } else {
-                        // В группе ответы ролей тоже с разметкой, таблицами,
-                        // виджетами и артефактами — раньше здесь были звёздочки.
-                        RoleReplyMarkdown(text: message.text, allowsCommands: session.currentUser?.role == .owner && isAgentReply(message) && !isSelecting)
-                        .equatable()
-                        .roleMessageReveal(text: message.text, messageID: message.id)
+                        // В группе ответ роли использует тот же разбор контракта.
+                        roleMessageContent(message, allowsCommands: session.currentUser?.role == .owner && !isSelecting)
                     }
                 }
                 if let handoff = message.handoff {
@@ -1799,6 +1853,17 @@ struct RoleChatRoomScreen: View {
 
     private func isAgentReply(_ message: RoleChatMessage) -> Bool {
         message.fromUserID?.hasPrefix("role_") == true || message.fromUserID == "u-secretary" || chat.members.contains { $0.id == message.fromUserID && $0.roleKey != nil }
+    }
+
+    @ViewBuilder
+    private func roleMessageContent(_ message: RoleChatMessage, allowsCommands: Bool) -> some View {
+        if isAgentReply(message), let json = message.roleEnvelopeJSON {
+            ChatStructuredOutputView(json: json)
+        } else {
+            RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands)
+                .equatable()
+                .roleMessageReveal(text: message.text, messageID: message.id)
+        }
     }
 
     private func messageActions(_ message: RoleChatMessage) -> some View {

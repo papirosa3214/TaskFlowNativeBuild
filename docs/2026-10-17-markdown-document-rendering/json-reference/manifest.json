@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "3678403D-A9D2-450E-8A29-F95391FD2350.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "structured-role-output-server-and-v1-blocks_0_94BBBC2E-13B5-405D-ACBF-23FDB2E68AFC.png",
+        "timestamp" : 1792232719.039
+      }
+    ],
+    "testIdentifier" : "StructuredRoleOutputPreviewUITests/testServerEnvelopeAndTypedBlocksRenderInRoleChat()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/StructuredRoleOutputPreviewUITests/testServerEnvelopeAndTypedBlocksRenderInRoleChat"
+  }
+]

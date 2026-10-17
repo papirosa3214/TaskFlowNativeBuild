@@ -71,6 +71,8 @@ struct TaskCardContent: View {
     @State private var replaceAttachmentTarget: ApiAttachment?
     /// Открытый отчёт: показываем его документ-зеркало.
     @State private var openedReportNoteID: String?
+    @State private var openedReportPreviewNoteID: String?
+    @State private var openedReportPreviewTitle = "Документ"
 
     private enum AttachmentSource { case phone, knowledge }
     @State private var isDeleteConfirmationPresented = false
@@ -492,6 +494,16 @@ struct TaskCardContent: View {
                 NavigationStack { NoteEditorScreen(noteID: noteID) }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { openedReportPreviewNoteID != nil },
+            set: { if !$0 { openedReportPreviewNoteID = nil } }
+        )) {
+            if let noteID = openedReportPreviewNoteID {
+                NavigationStack {
+                    MarkdownDocumentPreviewScreen(noteID: noteID, title: openedReportPreviewTitle)
+                }
+            }
+        }
         // Переписка по задаче — шторкой поверх карточки: карточка сама открыта
         // шторкой, и переход по маршруту в ней некому обработать (владелец
         // 07.10.2026: строка «Чат по задаче» была видна, но никуда не вела).
@@ -902,6 +914,10 @@ struct TaskCardContent: View {
                         roleTitle: { key in viewModel.roles.first { $0.role == key }?.title ?? key },
                         onToast: { toast = TaskToastMessage($0) },
                         onOpenDocument: { openedReportNoteID = $0 },
+                        onPreviewDocument: { noteID, title in
+                            openedReportPreviewTitle = title
+                            openedReportPreviewNoteID = noteID
+                        },
                         replyChatID: viewModel.taskChats.first?.id,
                         subtaskID: { slot in viewModel.subtasks.first { $0.planNodeKey == slot }?.id }
                     )
