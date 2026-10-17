@@ -2467,18 +2467,19 @@ struct TaskCardContent: View {
         isSuggestingCollaborationPlan = false
     }
 
-    /// Шаблоны сервера, доступные для явного выбора (LOCK-252) — тот же
-    /// набор строк `profile`, что в PROFILES на сервере (task-collaboration-plans.ts),
-    /// без "manual" (внутренний тег умной параллелизации, не пользовательский
-    /// выбор) и без "product_feature" (нужны отдельные булевы флаги — вне
-    /// этой правки). Подписи называют роли конвейера, чтобы владелец видел,
-    /// что получит, не запоминая, что стоит за словом «Доставка».
+    /// Согласованные пакеты: роли, задания и навыки этапов сохраняет сервер.
+    /// Manual — индивидуальный план из подзадач, не пункт каталога.
     private static let collaborationPlanTemplates: [(profile: String, title: String, icon: String)] = [
         ("single_executor", "Один исполнитель", "person.fill"),
         ("research", "Исследование: исследователь → аналитик", "magnifyingglass"),
         ("delivery", "Доставка: архитектор → исполнитель → QA → критик", "shippingbox"),
         ("full_cycle", "Полный цикл: все роли", "person.3.fill"),
         ("orchestrated", "Оркестратор: раздаёт работу команде", "point.3.filled.connected.trianglepath.dotted"),
+        ("product_feature", "Продуктовая фича", "sparkles"),
+        ("bug_regression", "Баг или регрессия", "ladybug"),
+        ("ux_concept", "UX-концепция", "pencil.and.outline"),
+        ("api_integration", "API-интеграция", "arrow.left.arrow.right"),
+        ("audit", "Аудит", "checkmark.shield"),
     ]
 
     /// Явный выбор шаблона плана владельцем — LOCK-252, тот же паттерн
