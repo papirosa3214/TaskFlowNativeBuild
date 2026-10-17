@@ -1862,7 +1862,11 @@ struct RoleChatRoomScreen: View {
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands)
                 .equatable()
-                .roleMessageReveal(text: message.text, messageID: message.id)
+                // Анимируем только новое сообщение и только когда лента внизу:
+                // иначе проявление старых строк при прокрутке дёргает
+                // автопривязку к низу (жалоба владельца 17.10.2026).
+                .roleMessageReveal(text: message.text, messageID: message.id,
+                                   animate: followsChatBottom && message.id == messages.last?.id)
         }
     }
 
