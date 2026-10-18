@@ -584,36 +584,51 @@ struct TaskCardContent: View {
             // ссылке в чате: свайпа вниз у пуша нет, а «×» по старому
             // условию не рисовался. Теперь «×» есть всегда, где карточку
             // нельзя закрыть свайпом.
-            if !viewModel.isEditing || viewModel.notFound || isPushedInNavigationStack {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        pendingSaveTask?.cancel()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("Закрыть")
-                }
-            }
             if viewModel.isEditing {
+                // «×» — только там, где карточку нельзя закрыть свайпом:
+                // несуществующая задача или пуш (у пуша свайпа вниз нет).
+                if viewModel.notFound || isPushedInNavigationStack {
+                    closeToolbarItem
+                }
                 editingToolbarItems
             } else {
-                if viewModel.showAiButton {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        aiStructureButton
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
+                // Создание (владелец 18.10.2026: «привести вот это безобразие
+                // к единообразию с уже существующей карточкой»). Вместо «×» —
+                // обычная системная галочка, она и есть «Готово»; вместо
+                // здоровенной плашки «Структурировать с AI» — то же системное
+                // «…», что у существующей карточки. «×» остаётся только у
+                // пуша: там нет свайпа вниз и это единственный выход, не
+                // сохраняя задачу.
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
                         Task { await submit() }
                     } label: {
-                        Text(viewModel.isSaving ? "Сохранение…" : "Готово")
-                            .fontWeight(.semibold)
+                        Image(systemName: "checkmark")
                     }
                     .tint(Color.tfRed)
                     .disabled(!viewModel.isSaveEnabled)
+                    .accessibilityLabel("Готово")
+                }
+                if isPushedInNavigationStack {
+                    closeToolbarItem
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    moreMenu
                 }
             }
+    }
+
+    /// «×» — выход из карточки, которую нельзя закрыть свайпом.
+    private var closeToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                pendingSaveTask?.cancel()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .accessibilityLabel("Закрыть")
+        }
     }
 
     @ViewBuilder private var headerSection: some View {
@@ -2372,13 +2387,17 @@ struct TaskCardContent: View {
         // Закрепление переехало сюда из строки списка проекта
         // (владелец 11.09.2026): «закреплять я буду в самой карточке,
         // через три точки, а не рисовать скрепки в каждой строке».
-        Button {
-            Task { await viewModel.togglePinned(taskStore: taskStore) }
-        } label: {
-            Label(
-                viewModel.pinned ? "Открепить задачу" : "Закрепить задачу",
-                systemImage: viewModel.pinned ? "pin.slash" : "pin"
-            )
+        // В создании задачи закреплять нечего — `togglePinned` молча
+        // выходит без задачи, поэтому пункт здесь не показываем.
+        if taskID != nil {
+            Button {
+                Task { await viewModel.togglePinned(taskStore: taskStore) }
+            } label: {
+                Label(
+                    viewModel.pinned ? "Открепить задачу" : "Закрепить задачу",
+                    systemImage: viewModel.pinned ? "pin.slash" : "pin"
+                )
+            }
         }
         Menu {
             Button { isAttachmentPickerPresented = true } label: {
@@ -2392,13 +2411,16 @@ struct TaskCardContent: View {
         }
         // Островок: вывести и убрать тем же пунктом (владелец 01.10.2026:
         // «до сих пор висит задача, а я не знаю, как её убрать»).
-        if isInDynamicIsland {
-            Button { removeFromDynamicIsland() } label: {
-                Label("Убрать из Dynamic Island", systemImage: "bolt.slash")
-            }
-        } else {
-            Button { outputDynamicIsland() } label: {
-                Label("Вывести в Dynamic Island", systemImage: "bolt.badge.a")
+        // Без сохранённой задачи выводить нечего — в создании скрыт.
+        if taskID != nil {
+            if isInDynamicIsland {
+                Button { removeFromDynamicIsland() } label: {
+                    Label("Убрать из Dynamic Island", systemImage: "bolt.slash")
+                }
+            } else {
+                Button { outputDynamicIsland() } label: {
+                    Label("Вывести в Dynamic Island", systemImage: "bolt.badge.a")
+                }
             }
         }
         if viewModel.taskID != nil {
@@ -2417,10 +2439,14 @@ struct TaskCardContent: View {
             }
         }
 
-        Divider()
+        // «В архив» — действие над уже существующей задачей: в создании
+        // архивировать нечего, пункт не показываем.
+        if taskID != nil {
+            Divider()
 
-        Button("В архив", systemImage: "archivebox") {
-            isDeleteConfirmationPresented = true
+            Button("В архив", systemImage: "archivebox") {
+                isDeleteConfirmationPresented = true
+            }
         }
     }
 
@@ -2674,34 +2700,6 @@ struct TaskCardContent: View {
     }
 
     // MARK: - Тело
-
-    private var aiStructureButton: some View {
-        Button {
-            Task { await viewModel.structureWithAI() }
-        } label: {
-            HStack(spacing: TFSpacing.sm) {
-                if viewModel.aiStructureStatus.isProcessing {
-                    ProgressView()
-                    Text("Структурирую…").tfText(.body).fontWeight(.semibold)
-                } else {
-                    Image(systemName: "sparkles").font(.system(size: 14, weight: .semibold))
-                    Text("Структурировать с AI").tfText(.body).fontWeight(.semibold)
-                }
-            }
-            // Была фиолетово-розовая заливка градиентом — просьба владельца
-            // 03.09.2026: причесать под лаконичный стиль «Моделей и голосов»
-            // (без цветных плашек), тот же нейтральный `tfCard2`, что у
-            // «Сегодня»/«Завтра» в `DueDateFieldView`.
-            .foregroundStyle(Color.tfText)
-            .padding(.horizontal, TFSpacing.lg)
-            .padding(.vertical, TFSpacing.sm)
-            .background(Color.tfCard2)
-            .clipShape(Capsule())
-        }
-        .buttonStyle(TFTapScaleStyle())
-        .disabled(viewModel.aiStructureStatus.isProcessing)
-        .accessibilityLabel(viewModel.aiStructureStatus.isProcessing ? "AI структурирует задачу" : "Структурировать задачу с AI")
-    }
 
     /// Шаги — одинаково в создании и в готовой задаче. Владелец 11.09.2026:
     /// «просто тапаю и редактирую, как саму задачу, как описание» — никаких
