@@ -50,7 +50,14 @@ public struct TFPillTabBar<Content: View>: View {
         TabView(selection: selectionBinding) {
             ForEach(items.indices, id: \.self) { index in
                 SwiftUI.Tab(value: index) {
+                    // Акцент панели задан `.tint(Color.tfRed)` на `TabView`, а
+                    // тинт — значение окружения: без этой строки его наследует
+                    // содержимое вкладки, и красными становятся пункты тулбара
+                    // («…» в шапке), меню и тумблеры внутри экранов (владелец
+                    // 18.10.2026). Снимаем тинт на границе вкладки: панель
+                    // остаётся красной, содержимое рисует система, как раньше.
                     content(index)
+                        .tint(nil)
                         .background {
                             TabBarItemImagePairInstaller(
                                 images: items.map { tabImages(for: $0) }
@@ -74,8 +81,12 @@ public struct TFPillTabBar<Content: View>: View {
             .accessibilityIdentifier("tab.add")
         }
         .tabViewStyle(.tabBarOnly)
-        // Акцент приложения: выбранный ярлык с подписью красится в него сразу,
-        // когда линза до него доходит.
+        // Акцент панели: выбранный ярлык с подписью красится в него сразу,
+        // когда линза до него доходит. НЕ СНИМАТЬ: без него система на каждой
+        // перерисовке панели (прокрутка, обновление) возвращает свой синий —
+        // ярлык красный сразу после тапа и синий после прокрутки (владелец
+        // 18.10.2026). Тинт наследуется содержимым вкладок, поэтому внутри
+        // вкладки он снимается — см. `content(index).tint(nil)` ниже.
         .tint(Color.tfRed)
         .overlay(alignment: .bottomTrailing) { createButtonOverlay }
     }
