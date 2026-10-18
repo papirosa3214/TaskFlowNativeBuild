@@ -85,7 +85,9 @@ struct TodayListView: View {
                     } header: {
                         // Единственная секция вкладки заголовка не получает:
                         // он дублировал бы название самой вкладки в шапке.
-                        if visible.count > 1 {
+                        // Исключение — секции, которым подпись нужна всегда
+                        // (см. `TodayListSection.showsHeader`).
+                        if section.showsHeader(among: visible) {
                             header(section)
                                 .background(sectionTopReader(section))
                         }
@@ -217,6 +219,17 @@ struct TodayListSection: Identifiable, Equatable {
     let tasks: [ApiTask]
     /// Строки рисуются «просроченными» — красная дата, как было на доске.
     let marksOverdue: Bool
+    /// Заголовок секции нужен даже тогда, когда она в ленте единственная.
+    /// Владелец 18.10.2026: «Предстоящие» — подзаголовок вкладки «Сегодня»,
+    /// ровно как «Просрочено» во вкладке «Ждут вас»; без подзаголовка задачи
+    /// стояли прямо под названием вкладки и читались как сегодняшние.
+    let alwaysShowsHeader: Bool
+
+    /// Единственная секция вкладки заголовок не получает: он дублировал бы
+    /// название самой вкладки в шапке. Секции с `alwaysShowsHeader` — всегда.
+    func showsHeader(among visible: [TodayListSection]) -> Bool {
+        visible.count > 1 || alwaysShowsHeader
+    }
 
     static func == (lhs: TodayListSection, rhs: TodayListSection) -> Bool {
         lhs.id == rhs.id && lhs.tasks.map(\.id) == rhs.tasks.map(\.id)
@@ -241,20 +254,25 @@ struct TodayListSection: Identifiable, Equatable {
             // «Входящие — это и есть без даты, они не распределены»
             // (владелец 15.09.2026).
             all = [.init(id: "pool", title: "Входящие", icon: nil,
-                         color: .tfSub, tasks: pool, marksOverdue: false)]
+                         color: .tfSub, tasks: pool, marksOverdue: false,
+                         alwaysShowsHeader: false)]
         case .attention:
             all = [
                 .init(id: "waiting", title: "Ждут вас", icon: nil,
-                      color: .tfSub, tasks: waiting, marksOverdue: false),
+                      color: .tfSub, tasks: waiting, marksOverdue: false,
+                      alwaysShowsHeader: false),
                 .init(id: "overdue", title: "Просрочено", icon: nil,
-                      color: .tfRed, tasks: overdue, marksOverdue: true)
+                      color: .tfRed, tasks: overdue, marksOverdue: true,
+                      alwaysShowsHeader: false)
             ]
         case .today:
             all = [
                 .init(id: "today", title: TodayDate.formatDueLabel(todayDate), icon: nil,
-                      color: .tfSub, tasks: today, marksOverdue: false),
+                      color: .tfSub, tasks: today, marksOverdue: false,
+                      alwaysShowsHeader: false),
                 .init(id: "upcoming", title: "Предстоящие", icon: nil,
-                      color: .tfSub, tasks: upcoming, marksOverdue: false)
+                      color: .tfSub, tasks: upcoming, marksOverdue: false,
+                      alwaysShowsHeader: true)
             ]
         }
         return all.filter { !$0.tasks.isEmpty }

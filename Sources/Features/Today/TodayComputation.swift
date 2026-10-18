@@ -124,11 +124,17 @@ struct TodayComputation {
         assigneeOptions = TodayFilterEngine.assigneeOptions(allTasks)
 
         let truePartition = plannerPartition
-        // Иллюстрация «пусто» живёт только в «Списке», а он с 09.09.2026
-        // показывает ровно сегодняшний день — поэтому и пустота считается по
-        // сегодняшним задачам, а не по всему разделу (раньше в счёт шли ещё
-        // «Просрочено» и «Ждут вас», но их в списке больше нет).
-        let isTrulyEmpty = !isLoading && !isError && truePartition.todayTasks.isEmpty
+        // Иллюстрация «пусто» живёт только в «Списке», а вкладка «Сегодня»
+        // показывает две секции — сегодняшний день и «Предстоящие» (18.10.2026,
+        // до этого в списке был ровно сегодняшний день, и пустота считалась по
+        // нему одному). Считать пустоту по одним сегодняшним задачам нельзя:
+        // на пустом «Сегодня» иллюстрация «Чёткое видение грядущего дня»
+        // оставалась под лентой и висела рядом с реальными будущими задачами
+        // (жалоба владельца 18.10.2026). «Просрочено» и «Ждут вас» в этой
+        // вкладке не рисуются и в счёт не входят.
+        let isTrulyEmpty = !isLoading && !isError
+            && truePartition.todayTasks.isEmpty
+            && rawUpcomingAll.isEmpty
         trueEmpty = isTrulyEmpty
         filteredEmpty = !isTrulyEmpty && !isLoading && !isError && todayTasks.isEmpty
 

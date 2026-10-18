@@ -60,6 +60,54 @@ final class TodayListSectionTests: XCTestCase {
         XCTAssertEqual(result.map(\.id), ["overdue"])
     }
 
+    /// Сценарий владельца 18.10.2026: на сегодня задач нет, в «Предстоящих»
+    /// есть. Иллюстрация «Чёткое видение грядущего дня» ложилась под ленту
+    /// и висела рядом с будущими задачами: `trueEmpty` считал только
+    /// сегодняшний день.
+    func testTodayTabNotTrulyEmptyWhenOnlyUpcomingHasTasks() {
+        let soon = TestTaskFactory.makeTask(id: "soon", dueDate: "2026-09-02")
+        let computation = TodayComputation(
+            allTasks: [soon], currentUser: nil, agents: [],
+            filters: .empty, today: date,
+            activeHourDate: date, isLoading: false, isError: false
+        )
+
+        XCTAssertTrue(computation.todayTasks.isEmpty)
+        XCTAssertEqual(computation.upcomingTasks.map(\.id), ["soon"])
+        XCTAssertFalse(computation.trueEmpty, "заглушка не должна рисоваться при непустых «Предстоящих»")
+    }
+
+    /// Настоящая пустота — когда задач нет вообще: ни на сегодня, ни впереди.
+    func testTodayTabTrulyEmptyWithoutAnyTasks() {
+        let computation = TodayComputation(
+            allTasks: [], currentUser: nil, agents: [],
+            filters: .empty, today: date,
+            activeHourDate: date, isLoading: false, isError: false
+        )
+
+        XCTAssertTrue(computation.trueEmpty)
+    }
+
+    /// «Предстоящие» — подзаголовок вкладки «Сегодня», как «Просрочено» во
+    /// вкладке «Ждут вас». Когда сегодняшний день пуст, «Предстоящие»
+    /// остаётся единственной секцией, и подпись всё равно нужна: без неё
+    /// задачи стоят под названием вкладки и читаются как сегодняшние.
+    func testUpcomingSectionKeepsHeaderWhenItIsTheOnlySection() {
+        let result = sections(tab: .today, upcoming: [task("soon")])
+
+        XCTAssertEqual(result.map(\.id), ["upcoming"])
+        XCTAssertTrue(result[0].showsHeader(among: result))
+    }
+
+    /// Единственная секция вкладки без «Предстоящих» заголовок не получает:
+    /// он дублировал бы название самой вкладки в шапке. Правило не трогаем.
+    func testSingleDaySectionStaysWithoutHeader() {
+        let result = sections(tab: .today, today: [task("today")])
+
+        XCTAssertEqual(result.map(\.id), ["today"])
+        XCTAssertFalse(result[0].showsHeader(among: result))
+    }
+
     private func sections(
         tab: TodayListTab,
         waiting: [ApiTask] = [],
