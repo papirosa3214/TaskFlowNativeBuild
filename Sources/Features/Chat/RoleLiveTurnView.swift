@@ -395,7 +395,11 @@ final class RoleLivePacerDriver {
         let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
         let before = pacer.lastPresentationAt
         pacer.advance(elapsed: min(seconds, 0.1))
-        return pacer.lastPresentationAt != before
+        let grew = pacer.lastPresentationAt != before
+        // Счётчик перерисовок текста до 18.10.2026 нигде не увеличивался и
+        // показывал застрявшее число — считаем именно рост видимого текста.
+        if grew { AppDiagnostics.shared.increment(.draws) }
+        return grew
     }
 
     func isAnimating(now: Date) -> Bool {

@@ -6,6 +6,7 @@ import UIKit
 final class AppDiagnostics: @unchecked Sendable {
     static let shared = AppDiagnostics()
     static let storageKey = "app.activityDiagnostics.v1"
+    static let baselineKey = "app.activityDiagnostics.baseline.v1"
 
     enum Work: String, Codable, CaseIterable, Sendable {
         case reply, thinking, socket, watchdog, location, http
@@ -21,7 +22,7 @@ final class AppDiagnostics: @unchecked Sendable {
         }
     }
 
-    enum Counter: String, Codable, Sendable {
+    enum Counter: String, Codable, CaseIterable, Sendable {
         case ticks, updates, draws, wakes, sleeps, messages, reconnects, watchdogChecks, requests, bytes, locationEvents
     }
 
@@ -39,11 +40,23 @@ final class AppDiagnostics: @unchecked Sendable {
         var events: [Entry] = []
     }
 
+    /// Точка отсчёта: снимок счётчиков в момент, когда приложение вернулось на
+    /// экран. Нужна, чтобы отчёт и экран показывали прирост за текущий сеанс, а
+    /// не только накопленный итог за недели (владелец 18.10.2026: «понимать,
+    /// что вот сейчас что-то растёт»). Отдельный ключ, а не поле `Saved`, чтобы
+    /// старый сохранённый снимок читался без изменений.
+    struct Baseline: Codable, Sendable {
+        var at: Date
+        var totals: [String: Int] = [:]
+        var backgroundTotals: [String: Int] = [:]
+    }
+
     struct Snapshot: Sendable {
         let saved: Saved
         let active: [Work: Int]
         let background: Bool
         let lastEventAt: Date?
+        let baseline: Baseline
         func count(_ counter: Counter, backgroundOnly: Bool = false) -> Int {
             (backgroundOnly ? saved.backgroundTotals : saved.totals)[counter.rawValue, default: 0]
         }
@@ -53,6 +66,7 @@ final class AppDiagnostics: @unchecked Sendable {
     private let lock = NSLock()
     private let defaults: UserDefaults?
     private var saved: Saved
+    private var baseline: Baseline
     private var active: [UUID: Work] = [:]
     private var background = false
     private var lastEventAt: Date?
@@ -65,6 +79,13 @@ final class AppDiagnostics: @unchecked Sendable {
            let restored = try? JSONDecoder().decode(Saved.self, from: data) {
             saved = restored
         } else { saved = Saved() }
+        if let data = defaults?.data(forKey: Self.baselineKey),
+           let restored = try? JSONDecoder().decode(Baseline.self, from: data) {
+            baseline = restored
+        } else {
+            // Отчёта ещё не было — отсчёт с начала сбора счётчиков.
+            baseline = Baseline(at: saved.since)
+        }
     }
 
     @discardableResult
@@ -102,6 +123,9 @@ final class AppDiagnostics: @unchecked Sendable {
         guard background != value else { return }
         background = value
         eventLocked(value ? "Приложение ушло в фон" : "Приложение открыто")
+        // Возврат на экран — начало нового отсчёта: в отчёте видно, сколько
+        // стоило то, что владелец делал в приложении в этот раз.
+        if !value { markBaselineLocked() }
         checkpointLocked(force: true)
     }
 
@@ -109,7 +133,10 @@ final class AppDiagnostics: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         var counts: [Work: Int] = [:]
         for work in active.values { counts[work, default: 0] += 1 }
-        return Snapshot(saved: saved, active: counts, background: background, lastEventAt: lastEventAt)
+        return Snapshot(
+            saved: saved, active: counts, background: background,
+            lastEventAt: lastEventAt, baseline: baseline
+        )
     }
 
     func checkpoint() {
@@ -123,6 +150,14 @@ final class AppDiagnostics: @unchecked Sendable {
         eventLocked("Счётчики сброшены")
         // Active work remains registered so a reset cannot hide a running loop.
         checkpointLocked(force: true)
+        markBaselineLocked()
+    }
+
+    /// Отметить начало отсчёта по текущему состоянию счётчиков.
+    private func markBaselineLocked() {
+        baseline = Baseline(at: Date(), totals: saved.totals, backgroundTotals: saved.backgroundTotals)
+        guard let defaults, let data = try? JSONEncoder().encode(baseline) else { return }
+        defaults.set(data, forKey: Self.baselineKey)
     }
 
     private func incrementLocked(_ counter: Counter, by amount: Int = 1) {
@@ -150,6 +185,8 @@ final class AppDiagnostics: @unchecked Sendable {
         setBackground(UIApplication.shared.applicationState == .background)
         lock.lock()
         eventLocked("Диагностика запущена")
+        // Новый запуск — новый отсчёт для прироста в отчёте.
+        markBaselineLocked()
         checkpointLocked(force: true)
         lock.unlock()
         let center = NotificationCenter.default
@@ -164,19 +201,10 @@ final class AppDiagnostics: @unchecked Sendable {
         })
     }
 
+    /// Текст для «Поделиться». Разбор — в `DiagnosticsReport`: он же считает
+    /// скорости, метки и группы, чтобы отчёт читался сам, без разбора цифр.
     func report() -> String {
         let data = snapshot()
-        var lines = ["Диагностика приложения", "Сбор с: \(data.saved.since.formatted())",
-                     "Это счётчики работы приложения, а не расход батареи."]
-        for work in Work.allCases { lines.append("\(work.title): \(data.active[work, default: 0])") }
-        let labels: [(Counter, String)] = [(.ticks, "Такты очереди"), (.updates, "Обновления содержимого"), (.draws, "Отрисовки текста"),
-            (.wakes, "Пробуждения"), (.sleeps, "Засыпания"), (.messages, "Сообщения соединений"),
-            (.requests, "Запросы"), (.reconnects, "Переподключения"), (.watchdogChecks, "Проверки соединения"), (.bytes, "Получено байт"), (.locationEvents, "События геопозиции")]
-        for (counter, label) in labels {
-            lines.append("\(label): \(data.count(counter)), в фоне: \(data.count(counter, backgroundOnly: true))")
-        }
-        lines.append("Последние события:")
-        for event in data.saved.events { lines.append("\(event.date.formatted()) · \(event.background ? "Фон" : "Открыто") · \(event.text)") }
-        return lines.joined(separator: "\n")
+        return DiagnosticsReport(snapshot: data).text(events: data.saved.events)
     }
 }
