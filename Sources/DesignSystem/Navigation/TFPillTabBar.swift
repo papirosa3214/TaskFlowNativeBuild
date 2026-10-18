@@ -9,7 +9,6 @@ public struct TFPillTabBar<Content: View>: View {
     let onSelect: (Int) -> Void
     let onCreateTap: () -> Void
     private let content: (Int) -> Content
-    @State private var calendarDay = Calendar.current.component(.day, from: Date())
     private let isTabBarVisible: Bool
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -79,9 +78,6 @@ public struct TFPillTabBar<Content: View>: View {
         // когда линза до него доходит.
         .tint(Color.tfRed)
         .overlay(alignment: .bottomTrailing) { createButtonOverlay }
-        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
-            calendarDay = Calendar.current.component(.day, from: Date())
-        }
     }
 
     /// Круг «+» живёт вместе с панелью: когда системный таббар скрыт
@@ -126,9 +122,7 @@ public struct TFPillTabBar<Content: View>: View {
 
     @ViewBuilder
     private func tabIcon(_ item: TFTabItem) -> some View {
-        if item.showsTodayDate {
-            todayCalendarIcon(isSelected: false)
-        } else if let symbols = symbols(for: item.icon) {
+        if let symbols = symbols(for: item.icon) {
             if let image = tabSymbol(named: symbols.outline) {
                 Image(uiImage: image)
             }
@@ -137,24 +131,11 @@ public struct TFPillTabBar<Content: View>: View {
         }
     }
 
-    private func todayCalendarIcon(isSelected: Bool, outlineColor: Color = .white) -> Image {
-        // Перерисовать UIImage в день смены календаря.
-        let _ = calendarDay
-        let renderer = ImageRenderer(content: TFTodayDateIcon(
-            size: TFTabBarMetrics.iconSize,
-            isSelected: isSelected,
-            outlineColor: outlineColor
-        ))
-        renderer.scale = displayScale
-        guard let image = renderer.uiImage else { return Image("TabIconPlanning") }
-        // Календарь и число — разного цвета, поэтому сохраняем результат без template tint.
-        return Image(uiImage: image).renderingMode(.original)
-    }
-
     private func symbols(for icon: String) -> (outline: String, filled: String)? {
         switch icon {
         case "TabIconHome": ("house", "house.fill")
         case "TabIconProjects": ("folder", "folder.fill")
+        case "TabIconPlanning", "TabIconToday": ("calendar", "calendar")
         case "TabIconChat": ("ellipsis.bubble", "ellipsis.bubble.fill")
         default: nil
         }
@@ -175,16 +156,6 @@ public struct TFPillTabBar<Content: View>: View {
     }
 
     private func tabImages(for item: TFTabItem) -> (normal: UIImage, selected: UIImage)? {
-        if item.showsTodayDate {
-            let normal = ImageRenderer(content: TFTodayDateIcon(size: TFTabBarMetrics.iconSize))
-            let selected = ImageRenderer(content: TFTodayDateIcon(size: TFTabBarMetrics.iconSize, isSelected: true))
-            guard let normalImage = normal.uiImage,
-                  let selectedImage = selected.uiImage else { return nil }
-            return (
-                normalImage.withRenderingMode(.alwaysOriginal),
-                selectedImage.withRenderingMode(.alwaysOriginal)
-            )
-        }
         guard let symbols = symbols(for: item.icon),
               let normal = tabSymbol(named: symbols.outline),
               let selected = tabSymbol(named: symbols.filled) else { return nil }
