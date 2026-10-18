@@ -1,0 +1,285 @@
+{
+  "screenshot": "screens/notes.png",
+  "screen": {
+    "px": [
+      1260,
+      2736
+    ],
+    "pt": [
+      420,
+      912
+    ],
+    "mm": [
+      69.6,
+      151.1
+    ],
+    "mm_per_pt": 0.16565
+  },
+  "background_rgb": [
+    23,
+    23,
+    23
+  ],
+  "theme": "dark",
+  "accent_button": null,
+  "accent_button_blobs": 0,
+  "tab_bar": {
+    "x_pt": 29.7,
+    "y_pt": 784.0,
+    "x_mm": 4.9,
+    "y_mm": 129.9,
+    "w_pt": 272.3,
+    "h_pt": 123.3,
+    "w_mm": 45.1,
+    "h_mm": 20.4,
+    "right_mm": null,
+    "bottom_mm": 0.8
+  },
+  "text_bands": [
+    {
+      "x_pt": 54.0,
+      "y_pt": 31.0,
+      "x_mm": 8.9,
+      "y_mm": 5.1,
+      "w_pt": 334.0,
+      "h_pt": 15.0,
+      "w_mm": 55.3,
+      "h_mm": 2.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 35.0,
+      "y_pt": 81.0,
+      "x_mm": 5.8,
+      "y_mm": 13.4,
+      "w_pt": 238.0,
+      "h_pt": 18.0,
+      "w_mm": 39.4,
+      "h_mm": 3.0,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 35.0,
+      "y_pt": 136.0,
+      "x_mm": 5.8,
+      "y_mm": 22.5,
+      "w_pt": 12.0,
+      "h_pt": 4.0,
+      "w_mm": 2.0,
+      "h_mm": 0.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 34.0,
+      "y_pt": 141.0,
+      "x_mm": 5.6,
+      "y_mm": 23.4,
+      "w_pt": 14.0,
+      "h_pt": 3.0,
+      "w_mm": 2.3,
+      "h_mm": 0.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 35.0,
+      "y_pt": 145.0,
+      "x_mm": 5.8,
+      "y_mm": 24.0,
+      "w_pt": 16.0,
+      "h_pt": 7.0,
+      "w_mm": 2.7,
+      "h_mm": 1.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 190.0,
+      "x_mm": 13.4,
+      "y_mm": 31.5,
+      "w_pt": 8.0,
+      "h_pt": 1.0,
+      "w_mm": 1.3,
+      "h_mm": 0.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 192.0,
+      "x_mm": 13.4,
+      "y_mm": 31.8,
+      "w_pt": 290.0,
+      "h_pt": 11.0,
+      "w_mm": 48.0,
+      "h_mm": 1.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 80.0,
+      "y_pt": 241.0,
+      "x_mm": 13.3,
+      "y_mm": 39.9,
+      "w_pt": 113.0,
+      "h_pt": 11.0,
+      "w_mm": 18.7,
+      "h_mm": 1.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 80.0,
+      "y_pt": 293.0,
+      "x_mm": 13.3,
+      "y_mm": 48.5,
+      "w_pt": 280.0,
+      "h_pt": 14.0,
+      "w_mm": 46.4,
+      "h_mm": 2.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 80.0,
+      "y_pt": 345.0,
+      "x_mm": 13.3,
+      "y_mm": 57.1,
+      "w_pt": 281.0,
+      "h_pt": 11.0,
+      "w_mm": 46.5,
+      "h_mm": 1.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 80.0,
+      "y_pt": 397.0,
+      "x_mm": 13.3,
+      "y_mm": 65.8,
+      "w_pt": 290.0,
+      "h_pt": 13.0,
+      "w_mm": 48.0,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 80.0,
+      "y_pt": 450.0,
+      "x_mm": 13.3,
+      "y_mm": 74.5,
+      "w_pt": 282.0,
+      "h_pt": 12.0,
+      "w_mm": 46.7,
+      "h_mm": 2.0,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 501.0,
+      "x_mm": 13.4,
+      "y_mm": 83.0,
+      "w_pt": 288.0,
+      "h_pt": 13.0,
+      "w_mm": 47.7,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 80.0,
+      "y_pt": 554.0,
+      "x_mm": 13.3,
+      "y_mm": 91.8,
+      "w_pt": 292.0,
+      "h_pt": 13.0,
+      "w_mm": 48.4,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 80.0,
+      "y_pt": 605.0,
+      "x_mm": 13.3,
+      "y_mm": 100.2,
+      "w_pt": 283.0,
+      "h_pt": 14.0,
+      "w_mm": 46.9,
+      "h_mm": 2.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 657.0,
+      "x_mm": 13.4,
+      "y_mm": 108.8,
+      "w_pt": 283.0,
+      "h_pt": 14.0,
+      "w_mm": 46.9,
+      "h_mm": 2.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 709.0,
+      "x_mm": 13.4,
+      "y_mm": 117.4,
+      "w_pt": 284.0,
+      "h_pt": 14.0,
+      "w_mm": 47.0,
+      "h_mm": 2.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 764.0,
+      "x_mm": 13.4,
+      "y_mm": 126.6,
+      "w_pt": 270.0,
+      "h_pt": 11.0,
+      "w_mm": 44.7,
+      "h_mm": 1.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 813.0,
+      "x_mm": 13.4,
+      "y_mm": 134.7,
+      "w_pt": 282.0,
+      "h_pt": 14.0,
+      "w_mm": 46.7,
+      "h_mm": 2.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 81.0,
+      "y_pt": 865.0,
+      "x_mm": 13.4,
+      "y_mm": 143.3,
+      "w_pt": 282.0,
+      "h_pt": 14.0,
+      "w_mm": 46.7,
+      "h_mm": 2.3,
+      "right_mm": null,
+      "bottom_mm": null
+    }
+  ],
+  "text_bands_count": 20,
+  "name": "notes",
+  "debug_route": "notes",
+  "device": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+  "remeasured_without_capture": true
+}

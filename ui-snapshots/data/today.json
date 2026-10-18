@@ -1,0 +1,112 @@
+{
+  "screenshot": "screens/today.png",
+  "screen": {
+    "px": [
+      1260,
+      2736
+    ],
+    "pt": [
+      420,
+      912
+    ],
+    "mm": [
+      69.6,
+      151.1
+    ],
+    "mm_per_pt": 0.16565
+  },
+  "background_rgb": [
+    23,
+    23,
+    23
+  ],
+  "theme": "dark",
+  "accent_button": null,
+  "accent_button_rejected": {
+    "why": "область не круг или не размер кнопки",
+    "d_mm": 19.4,
+    "round": 0.75,
+    "x_mm": 50.1,
+    "y_mm": 132.9
+  },
+  "accent_button_blobs": 1,
+  "tab_bar": {
+    "x_pt": 20.7,
+    "y_pt": 788.0,
+    "x_mm": 3.4,
+    "y_mm": 130.5,
+    "w_pt": 281.3,
+    "h_pt": 103.3,
+    "w_mm": 46.6,
+    "h_mm": 17.1,
+    "right_mm": null,
+    "bottom_mm": 3.4
+  },
+  "text_bands": [
+    {
+      "x_pt": 54.0,
+      "y_pt": 31.0,
+      "x_mm": 8.9,
+      "y_mm": 5.1,
+      "w_pt": 334.0,
+      "h_pt": 15.0,
+      "w_mm": 55.3,
+      "h_mm": 2.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 78.0,
+      "y_pt": 84.0,
+      "x_mm": 12.9,
+      "y_mm": 13.9,
+      "w_pt": 211.0,
+      "h_pt": 13.0,
+      "w_mm": 35.0,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 56.0,
+      "y_pt": 131.0,
+      "x_mm": 9.3,
+      "y_mm": 21.7,
+      "w_pt": 302.0,
+      "h_pt": 12.0,
+      "w_mm": 50.0,
+      "h_mm": 2.0,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 56.0,
+      "y_pt": 844.0,
+      "x_mm": 9.3,
+      "y_mm": 139.8,
+      "w_pt": 322.0,
+      "h_pt": 19.0,
+      "w_mm": 53.3,
+      "h_mm": 3.1,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 50.0,
+      "y_pt": 871.0,
+      "x_mm": 8.3,
+      "y_mm": 144.3,
+      "w_pt": 242.0,
+      "h_pt": 7.0,
+      "w_mm": 40.1,
+      "h_mm": 1.2,
+      "right_mm": null,
+      "bottom_mm": null
+    }
+  ],
+  "text_bands_count": 5,
+  "name": "today",
+  "debug_route": "today",
+  "device": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+  "remeasured_without_capture": true
+}

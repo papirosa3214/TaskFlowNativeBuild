@@ -144,7 +144,8 @@ struct SettingsScreen: View {
                     .accessibilityIdentifier("settings-escalation")
             }
             TFDivider(inset: rowDividerInset)
-            toggleRow(icon: "keyboard", title: "Своя клавиатура", isOn: $viewModel.isCustomKeyboardEnabled)
+            toggleRow(icon: "rectangle.bottomhalf.filled", title: "Системный таббар",
+                      isOn: $viewModel.isPillTabBarEnabled, toggleIdentifier: "settings.pillTabBar")
         }
     }
 
@@ -285,10 +286,18 @@ struct SettingsScreen: View {
             .foregroundStyle(Color.tfDim)
     }
 
-    private func toggleRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
+    private func toggleRow(icon: String, title: String, isOn: Binding<Bool>, toggleIdentifier: String? = nil) -> some View {
         TFListRow(
             icon: icon, iconStyle: .plain, title: title,
-            trailing: AnyView(TFToggle(isOn: isOn)),
+            trailing: AnyView(
+                Group {
+                    if let toggleIdentifier {
+                        TFToggle(isOn: isOn).accessibilityIdentifier(toggleIdentifier)
+                    } else {
+                        TFToggle(isOn: isOn)
+                    }
+                }
+            ),
             titleStyle: .action,
             verticalPadding: TFSpacing.xs
         )

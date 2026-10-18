@@ -1,0 +1,166 @@
+{
+  "screenshot": "screens/projects.png",
+  "screen": {
+    "px": [
+      1260,
+      2736
+    ],
+    "pt": [
+      420,
+      912
+    ],
+    "mm": [
+      69.6,
+      151.1
+    ],
+    "mm_per_pt": 0.16565
+  },
+  "background_rgb": [
+    23,
+    23,
+    23
+  ],
+  "theme": "dark",
+  "accent_button": null,
+  "accent_button_blobs": 0,
+  "tab_bar": null,
+  "text_bands": [
+    {
+      "x_pt": 55.0,
+      "y_pt": 31.0,
+      "x_mm": 9.1,
+      "y_mm": 5.1,
+      "w_pt": 333.0,
+      "h_pt": 15.0,
+      "w_mm": 55.2,
+      "h_mm": 2.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 35.0,
+      "y_pt": 82.0,
+      "x_mm": 5.8,
+      "y_mm": 13.6,
+      "w_pt": 218.0,
+      "h_pt": 17.0,
+      "w_mm": 36.1,
+      "h_mm": 2.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 73.0,
+      "y_pt": 147.0,
+      "x_mm": 12.1,
+      "y_mm": 24.4,
+      "w_pt": 261.0,
+      "h_pt": 12.0,
+      "w_mm": 43.2,
+      "h_mm": 2.0,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 203.0,
+      "x_mm": 2.8,
+      "y_mm": 33.6,
+      "w_pt": 178.0,
+      "h_pt": 13.0,
+      "w_mm": 29.5,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 244.0,
+      "x_mm": 3.0,
+      "y_mm": 40.4,
+      "w_pt": 248.0,
+      "h_pt": 9.0,
+      "w_mm": 41.1,
+      "h_mm": 1.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 305.0,
+      "x_mm": 2.8,
+      "y_mm": 50.5,
+      "w_pt": 156.0,
+      "h_pt": 13.0,
+      "w_mm": 25.8,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 346.0,
+      "x_mm": 3.0,
+      "y_mm": 57.3,
+      "w_pt": 233.0,
+      "h_pt": 9.0,
+      "w_mm": 38.6,
+      "h_mm": 1.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 407.0,
+      "x_mm": 2.8,
+      "y_mm": 67.4,
+      "w_pt": 185.0,
+      "h_pt": 13.0,
+      "w_mm": 30.6,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 448.0,
+      "x_mm": 3.0,
+      "y_mm": 74.2,
+      "w_pt": 233.0,
+      "h_pt": 9.0,
+      "w_mm": 38.6,
+      "h_mm": 1.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 509.0,
+      "x_mm": 2.8,
+      "y_mm": 84.3,
+      "w_pt": 225.0,
+      "h_pt": 16.0,
+      "w_mm": 37.3,
+      "h_mm": 2.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 550.0,
+      "x_mm": 3.0,
+      "y_mm": 91.1,
+      "w_pt": 233.0,
+      "h_pt": 9.0,
+      "w_mm": 38.6,
+      "h_mm": 1.5,
+      "right_mm": null,
+      "bottom_mm": null
+    }
+  ],
+  "text_bands_count": 11,
+  "name": "projects",
+  "debug_route": "projects",
+  "device": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+  "remeasured_without_capture": true
+}

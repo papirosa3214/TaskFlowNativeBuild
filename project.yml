@@ -91,6 +91,9 @@ targets:
     preBuildScripts:
       - name: Сторож дизайн-системы
         basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/Tools/design-system-guard.py
+          - $(SRCROOT)/Tools/design-system-baseline.txt
         script: |
           /usr/bin/python3 "$SRCROOT/Tools/design-system-guard.py" --folder
     info:

@@ -1,0 +1,118 @@
+{
+  "screenshot": "screens/alltasks.png",
+  "screen": {
+    "px": [
+      1260,
+      2736
+    ],
+    "pt": [
+      420,
+      912
+    ],
+    "mm": [
+      69.6,
+      151.1
+    ],
+    "mm_per_pt": 0.16565
+  },
+  "background_rgb": [
+    23,
+    23,
+    23
+  ],
+  "theme": "dark",
+  "accent_button": null,
+  "accent_button_blobs": 0,
+  "tab_bar": null,
+  "text_bands": [
+    {
+      "x_pt": 54.0,
+      "y_pt": 31.0,
+      "x_mm": 8.9,
+      "y_mm": 5.1,
+      "w_pt": 334.0,
+      "h_pt": 15.0,
+      "w_mm": 55.3,
+      "h_mm": 2.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 35.0,
+      "y_pt": 82.0,
+      "x_mm": 5.8,
+      "y_mm": 13.6,
+      "w_pt": 220.0,
+      "h_pt": 17.0,
+      "w_mm": 36.4,
+      "h_mm": 2.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 35.0,
+      "y_pt": 147.0,
+      "x_mm": 5.8,
+      "y_mm": 24.4,
+      "w_pt": 363.0,
+      "h_pt": 14.0,
+      "w_mm": 60.1,
+      "h_mm": 2.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 235.0,
+      "x_mm": 3.0,
+      "y_mm": 38.9,
+      "w_pt": 378.0,
+      "h_pt": 11.0,
+      "w_mm": 62.6,
+      "h_mm": 1.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 94.0,
+      "y_pt": 300.0,
+      "x_mm": 15.6,
+      "y_mm": 49.7,
+      "w_pt": 305.0,
+      "h_pt": 15.0,
+      "w_mm": 50.5,
+      "h_mm": 2.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 384.0,
+      "x_mm": 3.0,
+      "y_mm": 63.6,
+      "w_pt": 261.0,
+      "h_pt": 2.0,
+      "w_mm": 43.2,
+      "h_mm": 0.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 387.0,
+      "x_mm": 3.0,
+      "y_mm": 64.1,
+      "w_pt": 381.0,
+      "h_pt": 11.0,
+      "w_mm": 63.1,
+      "h_mm": 1.8,
+      "right_mm": null,
+      "bottom_mm": null
+    }
+  ],
+  "text_bands_count": 7,
+  "name": "alltasks",
+  "debug_route": "alltasks",
+  "device": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+  "remeasured_without_capture": true
+}

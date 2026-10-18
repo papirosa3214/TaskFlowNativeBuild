@@ -63,6 +63,8 @@ struct TaskCardContent: View {
     @State private var replyingSubtask: ApiSubtask?
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
+    @State private var previewAttachmentURL: URL?
+    @State private var openingTaskAttachmentIDs: Set<String> = []
     @State private var isAttachmentPickerPresented = false
     /// Выбор документа из базы знаний (второй источник у «Прикрепить файл»).
     @State private var isKnowledgePickerPresented = false
@@ -456,6 +458,12 @@ struct TaskCardContent: View {
             }
         }
         .taskToast($toast)
+        .quickLookPreview($previewAttachmentURL)
+        .onChange(of: previewAttachmentURL) { oldURL, newURL in
+            if newURL == nil, let oldURL {
+                try? FileManager.default.removeItem(at: oldURL.deletingLastPathComponent())
+            }
+        }
         // Подготовка вынесена из карточки в шторку из «Ещё» (владелец 07.10.2026);
         // события WebSocket обновляют подготовку и план на карточке.
         .background {
@@ -1021,9 +1029,7 @@ struct TaskCardContent: View {
             if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
                 collapsibleSection(.attachments, title: "Вложения") {
                     ForEach(viewModel.attachments.uploaded) { attachment in
-                        Label(attachment.fileName, systemImage: "paperclip")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
+                        taskAttachmentButton(attachment, identifierPrefix: "task.attachment.open")
                             .contextMenu {
                                 Button { replaceAttachment(from: .phone, target: attachment) } label: {
                                     Label("Заменить с iPhone", systemImage: "iphone")
@@ -1983,20 +1989,60 @@ struct TaskCardContent: View {
             if let attachments = comment.attachments, !attachments.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(attachments) { attachment in
-                        if attachment.mime?.hasPrefix("image/") == true {
-                            ChatAttachmentImage(
-                                attachmentId: attachment.id,
-                                fileName: attachment.fileName
-                            )
-                        } else {
-                            Label(attachment.fileName, systemImage: "paperclip")
-                                .tfText(.meta)
-                                .foregroundStyle(Color.tfSub)
-                        }
+                        taskAttachmentButton(attachment, identifierPrefix: "task.comment.attachment.open")
                     }
                 }
                 .padding(.top, 4)
             }
+        }
+    }
+
+    private func taskAttachmentButton(_ attachment: ApiAttachment, identifierPrefix: String) -> some View {
+        Button {
+            Task { await openTaskAttachment(attachment) }
+        } label: {
+            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                if attachment.mime?.hasPrefix("image/") == true {
+                    ChatAttachmentImage(attachmentId: attachment.id, fileName: attachment.fileName)
+                }
+                HStack(spacing: TFSpacing.sm) {
+                    Label(attachment.fileName, systemImage: attachment.mime?.hasPrefix("image/") == true ? "photo" : "paperclip")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    if openingTaskAttachmentIDs.contains(attachment.id) {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.up.right")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("\(identifierPrefix).\(attachment.id)")
+        .accessibilityLabel("Открыть вложение \(attachment.fileName)")
+        .disabled(openingTaskAttachmentIDs.contains(attachment.id))
+    }
+
+    private func openTaskAttachment(_ attachment: ApiAttachment) async {
+        guard openingTaskAttachmentIDs.insert(attachment.id).inserted else { return }
+        defer { openingTaskAttachmentIDs.remove(attachment.id) }
+        do {
+            let data = try await APIClient().downloadAttachment(id: attachment.id)
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("taskflow-task-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let safeName = URL(fileURLWithPath: attachment.fileName).lastPathComponent
+            let url = directory.appendingPathComponent(safeName.isEmpty ? "attachment" : safeName)
+            try data.write(to: url, options: .atomic)
+            previewAttachmentURL = url
+        } catch {
+            toast = TaskToastMessage("Не удалось открыть вложение: \(error.localizedDescription)")
         }
     }
 

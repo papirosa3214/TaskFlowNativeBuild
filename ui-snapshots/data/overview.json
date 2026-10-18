@@ -1,0 +1,227 @@
+{
+  "screenshot": "screens/overview.png",
+  "screen": {
+    "px": [
+      1260,
+      2736
+    ],
+    "pt": [
+      420,
+      912
+    ],
+    "mm": [
+      69.6,
+      151.1
+    ],
+    "mm_per_pt": 0.16565
+  },
+  "background_rgb": [
+    23,
+    23,
+    23
+  ],
+  "theme": "dark",
+  "accent_button": {
+    "x_pt": 337.0,
+    "y_pt": 829.0,
+    "x_mm": 55.8,
+    "y_mm": 137.3,
+    "w_pt": 62.0,
+    "h_pt": 61.3,
+    "w_mm": 10.3,
+    "h_mm": 10.2,
+    "right_mm": 3.5,
+    "bottom_mm": 3.6,
+    "center_pt": [
+      368.0,
+      859.7
+    ],
+    "center_mm": [
+      61.0,
+      142.4
+    ],
+    "d_mm": 10.3,
+    "round": 0.99,
+    "rgb": [
+      255,
+      255,
+      255
+    ]
+  },
+  "accent_button_blobs": 2,
+  "tab_bar": {
+    "x_pt": 20.7,
+    "y_pt": 829.3,
+    "x_mm": 3.4,
+    "y_mm": 137.4,
+    "w_pt": 281.3,
+    "h_pt": 62.0,
+    "w_mm": 46.6,
+    "h_mm": 10.3,
+    "right_mm": null,
+    "bottom_mm": 3.4
+  },
+  "text_bands": [
+    {
+      "x_pt": 55.0,
+      "y_pt": 31.0,
+      "x_mm": 9.1,
+      "y_mm": 5.1,
+      "w_pt": 333.0,
+      "h_pt": 15.0,
+      "w_mm": 55.2,
+      "h_mm": 2.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 179.0,
+      "y_pt": 84.0,
+      "x_mm": 29.7,
+      "y_mm": 13.9,
+      "w_pt": 61.0,
+      "h_pt": 13.0,
+      "w_mm": 10.1,
+      "h_mm": 2.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 320.0,
+      "x_mm": 2.8,
+      "y_mm": 53.0,
+      "w_pt": 195.0,
+      "h_pt": 20.0,
+      "w_mm": 32.3,
+      "h_mm": 3.3,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 210.0,
+      "y_pt": 367.0,
+      "x_mm": 34.8,
+      "y_mm": 60.8,
+      "w_pt": 8.0,
+      "h_pt": 3.0,
+      "w_mm": 1.3,
+      "h_mm": 0.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 371.0,
+      "x_mm": 2.8,
+      "y_mm": 61.5,
+      "w_pt": 204.0,
+      "h_pt": 16.0,
+      "w_mm": 33.8,
+      "h_mm": 2.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 169.0,
+      "y_pt": 417.0,
+      "x_mm": 28.0,
+      "y_mm": 69.1,
+      "w_pt": 8.0,
+      "h_pt": 3.0,
+      "w_mm": 1.3,
+      "h_mm": 0.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 421.0,
+      "x_mm": 3.0,
+      "y_mm": 69.7,
+      "w_pt": 161.0,
+      "h_pt": 16.0,
+      "w_mm": 26.7,
+      "h_mm": 2.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 471.0,
+      "x_mm": 2.8,
+      "y_mm": 78.0,
+      "w_pt": 268.0,
+      "h_pt": 17.0,
+      "w_mm": 44.4,
+      "h_mm": 2.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 17.0,
+      "y_pt": 522.0,
+      "x_mm": 2.8,
+      "y_mm": 86.5,
+      "w_pt": 152.0,
+      "h_pt": 16.0,
+      "w_mm": 25.2,
+      "h_mm": 2.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 116.0,
+      "y_pt": 568.0,
+      "x_mm": 19.2,
+      "y_mm": 94.1,
+      "w_pt": 8.0,
+      "h_pt": 3.0,
+      "w_mm": 1.3,
+      "h_mm": 0.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 18.0,
+      "y_pt": 572.0,
+      "x_mm": 3.0,
+      "y_mm": 94.8,
+      "w_pt": 140.0,
+      "h_pt": 16.0,
+      "w_mm": 23.2,
+      "h_mm": 2.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 117.0,
+      "y_pt": 843.0,
+      "x_mm": 19.4,
+      "y_mm": 139.6,
+      "w_pt": 261.0,
+      "h_pt": 22.0,
+      "w_mm": 43.2,
+      "h_mm": 3.6,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 105.0,
+      "y_pt": 871.0,
+      "x_mm": 17.4,
+      "y_mm": 144.3,
+      "w_pt": 187.0,
+      "h_pt": 7.0,
+      "w_mm": 31.0,
+      "h_mm": 1.2,
+      "right_mm": null,
+      "bottom_mm": null
+    }
+  ],
+  "text_bands_count": 13,
+  "name": "overview",
+  "debug_route": "(стартовый экран)",
+  "device": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+  "remeasured_without_capture": true
+}

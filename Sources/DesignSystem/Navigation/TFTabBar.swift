@@ -39,7 +39,8 @@ public struct TFTabItem: Identifiable {
     }
 }
 
-/// Значок календаря с числом сегодняшнего дня.
+/// Значок календаря с числом сегодняшнего дня. Рисуется нативно в SwiftUI,
+/// чтобы шаблонное tint-преобразование иконки не съедало контраст цифры.
 ///
 /// Число берётся у системного календаря и обновляется по `NSCalendarDayChanged`
 /// — штатному уведомлению о смене суток. Таймер на полночь (как в вебе) здесь
@@ -47,19 +48,58 @@ public struct TFTabItem: Identifiable {
 /// число не застревает на вчерашнем, если телефон пролежал ночь в кармане.
 struct TFTodayDateIcon: View {
     let size: CGFloat
+    var isSelected = false
+    var outlineColor: Color = .white
     @State private var day = Calendar.current.component(.day, from: Date())
 
     var body: some View {
         ZStack {
-            Image("TabIconToday")
-                .resizable()
-                .scaledToFit()
-                .frame(width: size, height: size)
+            if isSelected {
+                RoundedRectangle(cornerRadius: size * 2 / 24)
+                    .fill(Color.tfRed)
+                    .frame(width: size * 18 / 24, height: size * 16 / 24)
+                    .offset(y: size / 24)
+
+                Rectangle()
+                    .fill(Color.tfBackground)
+                    .frame(width: size * 18 / 24, height: size * 1.25 / 24)
+                    .offset(y: -size * 2 / 24)
+
+                HStack(spacing: size * 6 / 24) {
+                    Capsule().fill(Color.tfBackground)
+                        .frame(width: size * 1.75 / 24, height: size * 4 / 24)
+                    Capsule().fill(Color.tfBackground)
+                        .frame(width: size * 1.75 / 24, height: size * 4 / 24)
+                }
+                .offset(y: -size * 7 / 24)
+            } else {
+                RoundedRectangle(cornerRadius: size * 2 / 24)
+                    .stroke(outlineColor, lineWidth: size / 12)
+                    .frame(width: size * 18 / 24, height: size * 16 / 24)
+                    .offset(y: size / 24)
+
+                Rectangle()
+                    .fill(outlineColor)
+                    .frame(width: size * 18 / 24, height: size / 12)
+                    .offset(y: -size * 2 / 24)
+
+                HStack(spacing: size * 6 / 24) {
+                    Capsule().stroke(outlineColor, lineWidth: size / 16)
+                        .frame(width: size * 1.75 / 24, height: size * 4 / 24)
+                    Capsule().stroke(outlineColor, lineWidth: size / 16)
+                        .frame(width: size * 1.75 / 24, height: size * 4 / 24)
+                }
+                .offset(y: -size * 7 / 24)
+            }
+
             Text("\(day)")
                 .font(.system(size: size * (day > 9 ? 0.34 : 0.38), weight: .heavy))
                 .monospacedDigit()
+                .foregroundStyle(isSelected ? Color.black : outlineColor)
                 .offset(y: size * 0.13)
+                .zIndex(1)
         }
+        .frame(width: size, height: size)
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             day = Calendar.current.component(.day, from: Date())
         }

@@ -1350,13 +1350,18 @@ struct RoleChatRoomScreen: View {
             .onChange(of: contentsTargetID) { _, id in
                 guard let id else { return }
                 followsChatBottom = false
-                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .top) }
+                let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
+                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(feedID, anchor: .top) }
                 contentsTargetID = nil
             }
-            .onChange(of: messages.last?.id) { _, id in
-                if id != nil && messages.last?.fromUserID == session.currentUser?.id {
-                    centersLatestReply = false
-                    followsChatBottom = true
+            .onChange(of: feedItems.last?.id) { _, id in
+                guard id != nil, followsChatBottom else { return }
+                // Scroll after SwiftUI has inserted the new tail row. This
+                // covers assistant messages too; the old handler only watched
+                // the owner's messages and left replies below the viewport.
+                Task { @MainActor in
+                    await Task.yield()
+                    guard followsChatBottom else { return }
                     proxy.scrollTo("chat-bottom", anchor: .bottom)
                 }
             }
@@ -1386,12 +1391,12 @@ struct RoleChatRoomScreen: View {
     }
     private var feedItems: [FeedItem] {
         let history = visibleMessages.enumerated().map { index, message in
-            return FeedItem(id: message.id,
+            return FeedItem(id: feedItemID(for: message),
                 dateString: message.createdAt, position: index, message: message, turn: nil,
                 date: RoleChatTime.date(message.createdAt) ?? .distantPast)
         }
         let live = visibleLiveTurns.enumerated().map { index, turn in
-            FeedItem(id: turn.playbackID, dateString: turn.startedAt,
+            FeedItem(id: feedItemID(for: turn), dateString: turn.startedAt,
                 position: messages.count + index, message: nil, turn: turn,
                 date: turn.startDate ?? .distantFuture)
         }
@@ -1403,6 +1408,22 @@ struct RoleChatRoomScreen: View {
             ordered.insert(item, at: insertion)
         }
         return ordered
+    }
+
+    /// Keep the same row identity while a live reply becomes its saved message.
+    /// Replacing `playbackID` with the server message ID made LazyVStack tear
+    /// down one variable-height row and insert another at the same position,
+    /// which could reset the reader's scroll anchor during completion.
+    private func feedItemID(for message: RoleChatMessage) -> String {
+        guard let author = message.fromUserID, let trigger = message.replyToMessageID else {
+            return message.id
+        }
+        return "reply:\(author):\(trigger)"
+    }
+
+    private func feedItemID(for turn: RoleChatLiveTurn) -> String {
+        guard let trigger = turn.triggerMessageID else { return turn.playbackID }
+        return "reply:\(turn.userID):\(trigger)"
     }
 
 

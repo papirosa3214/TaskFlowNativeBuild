@@ -26,18 +26,30 @@ final class SettingsViewModel {
     }
 
     /// Своя экранная клавиатура (`Sources/Keyboard/`, пишет другой
-    /// исполнитель) — ключ и дефолт (ВЫКЛЮЧЕНО, системная клавиатура
-    /// остаётся) зафиксированы здесь, поскольку раздел «Пользовательские
+    /// исполнитель) — ключ зафиксирован здесь, поскольку раздел «Пользовательские
     /// настройки» — моя территория. Имя ключа — в отчёт оркестратору, чтобы
-    /// исполнитель клавиатуры читал/писал именно его через
-    /// `UserDefaults.standard`, а не заводил свой параллельный.
+    /// исполнитель клавиатуры читал/писал именно его через `UserDefaults.standard`,
+    /// а не заводил свой параллельный.
+    ///
+    /// 18.10.2026, владелец: строку тумблера «Своя клавиатура» в настройках
+    /// заменили на «Таббар-пилюля» — клавиатура в приложении не показывалась, а
+    /// ручка была пустой. Свойство и ключ остались: клавиатура по-прежнему
+    /// читает их напрямую, минуя этот экран.
     var isCustomKeyboardEnabled: Bool {
         didSet { UserDefaults.standard.set(isCustomKeyboardEnabled, forKey: Self.customKeyboardKey) }
+    }
+
+    /// Системный TabView Apple вместо прежнего таббара (владелец 18.10.2026).
+    /// Ключ общий с `RootShellView` — панель переключается на лету, без
+    /// перезапуска приложения.
+    var isPillTabBarEnabled: Bool {
+        didSet { UserDefaults.standard.set(isPillTabBarEnabled, forKey: Self.pillTabBarKey) }
     }
 
     var errorMessage: String?
 
     static let customKeyboardKey = "taskflow_custom_keyboard_enabled"
+    static let pillTabBarKey = "taskflow_tabbar_pill_enabled"
     private static let biometryKey = "taskflow_settings_biometry_enabled"
 
     init(apiClient: APIClient = APIClient()) {
@@ -46,6 +58,13 @@ final class SettingsViewModel {
         // Своя клавиатура по умолчанию выключена: пока она не проверена на
         // живом телефоне, системная остаётся основной.
         isCustomKeyboardEnabled = UserDefaults.standard.bool(forKey: Self.customKeyboardKey)
+        // Пилюля — по умолчанию: владелец 18.10.2026 просил именно её. Ключа в
+        // UserDefaults ещё нет → тумблер новый, показываем пилюлю.
+        if let stored = UserDefaults.standard.object(forKey: Self.pillTabBarKey) as? Bool {
+            isPillTabBarEnabled = stored
+        } else {
+            isPillTabBarEnabled = true
+        }
         detectBiometry()
     }
 

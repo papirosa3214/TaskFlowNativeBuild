@@ -1,0 +1,220 @@
+{
+  "screenshot": "screens/settings.png",
+  "screen": {
+    "px": [
+      1260,
+      2736
+    ],
+    "pt": [
+      420,
+      912
+    ],
+    "mm": [
+      69.6,
+      151.1
+    ],
+    "mm_per_pt": 0.16565
+  },
+  "background_rgb": [
+    36,
+    36,
+    36
+  ],
+  "theme": "dark",
+  "accent_button": null,
+  "accent_button_rejected": {
+    "why": "область не круг или не размер кнопки",
+    "d_mm": 19.4,
+    "round": 0.93,
+    "x_mm": 50.1,
+    "y_mm": 132.9
+  },
+  "accent_button_blobs": 1,
+  "tab_bar": {
+    "x_pt": 0.0,
+    "y_pt": 795.3,
+    "x_mm": 0.0,
+    "y_mm": 131.7,
+    "w_pt": 302.0,
+    "h_pt": 105.3,
+    "w_mm": 50.0,
+    "h_mm": 17.4,
+    "right_mm": null,
+    "bottom_mm": 1.9
+  },
+  "text_bands": [
+    {
+      "x_pt": 54.0,
+      "y_pt": 31.0,
+      "x_mm": 8.9,
+      "y_mm": 5.1,
+      "w_pt": 334.0,
+      "h_pt": 15.0,
+      "w_mm": 55.3,
+      "h_mm": 2.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 35.0,
+      "y_pt": 81.0,
+      "x_mm": 5.8,
+      "y_mm": 13.4,
+      "w_pt": 229.0,
+      "h_pt": 18.0,
+      "w_mm": 37.9,
+      "h_mm": 3.0,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 118.0,
+      "y_pt": 173.0,
+      "x_mm": 19.5,
+      "y_mm": 28.7,
+      "w_pt": 261.0,
+      "h_pt": 18.0,
+      "w_mm": 43.2,
+      "h_mm": 3.0,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 85.0,
+      "y_pt": 299.0,
+      "x_mm": 14.1,
+      "y_mm": 49.5,
+      "w_pt": 298.0,
+      "h_pt": 19.0,
+      "w_mm": 49.4,
+      "h_mm": 3.1,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 86.0,
+      "y_pt": 348.0,
+      "x_mm": 14.2,
+      "y_mm": 57.6,
+      "w_pt": 279.0,
+      "h_pt": 19.0,
+      "w_mm": 46.2,
+      "h_mm": 3.1,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 86.0,
+      "y_pt": 397.0,
+      "x_mm": 14.2,
+      "y_mm": 65.8,
+      "w_pt": 279.0,
+      "h_pt": 19.0,
+      "w_mm": 46.2,
+      "h_mm": 3.1,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 86.0,
+      "y_pt": 451.0,
+      "x_mm": 14.2,
+      "y_mm": 74.7,
+      "w_pt": 293.0,
+      "h_pt": 9.0,
+      "w_mm": 48.5,
+      "h_mm": 1.5,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 86.0,
+      "y_pt": 502.0,
+      "x_mm": 14.2,
+      "y_mm": 83.2,
+      "w_pt": 169.0,
+      "h_pt": 7.0,
+      "w_mm": 28.0,
+      "h_mm": 1.2,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 85.0,
+      "y_pt": 544.0,
+      "x_mm": 14.1,
+      "y_mm": 90.1,
+      "w_pt": 298.0,
+      "h_pt": 19.0,
+      "w_mm": 49.4,
+      "h_mm": 3.1,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 85.0,
+      "y_pt": 646.0,
+      "x_mm": 14.1,
+      "y_mm": 107.0,
+      "w_pt": 85.0,
+      "h_pt": 10.0,
+      "w_mm": 14.1,
+      "h_mm": 1.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 85.0,
+      "y_pt": 695.0,
+      "x_mm": 14.1,
+      "y_mm": 115.1,
+      "w_pt": 200.0,
+      "h_pt": 12.0,
+      "w_mm": 33.1,
+      "h_mm": 2.0,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 86.0,
+      "y_pt": 745.0,
+      "x_mm": 14.2,
+      "y_mm": 123.4,
+      "w_pt": 207.0,
+      "h_pt": 11.0,
+      "w_mm": 34.3,
+      "h_mm": 1.8,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 86.0,
+      "y_pt": 794.0,
+      "x_mm": 14.2,
+      "y_mm": 131.5,
+      "w_pt": 184.0,
+      "h_pt": 10.0,
+      "w_mm": 30.5,
+      "h_mm": 1.7,
+      "right_mm": null,
+      "bottom_mm": null
+    },
+    {
+      "x_pt": 86.0,
+      "y_pt": 892.0,
+      "x_mm": 14.2,
+      "y_mm": 147.8,
+      "w_pt": 98.0,
+      "h_pt": 9.0,
+      "w_mm": 16.2,
+      "h_mm": 1.5,
+      "right_mm": null,
+      "bottom_mm": null
+    }
+  ],
+  "text_bands_count": 14,
+  "name": "settings",
+  "debug_route": "settings",
+  "device": "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+  "remeasured_without_capture": true
+}

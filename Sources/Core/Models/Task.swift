@@ -239,7 +239,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case creatorInitials = "creator_initials"
         case projectName = "project_name"
         case projectColor = "project_color"
-        case labels, subtasks, children, comments, events, chats, attachments
+        case labels, subtasks, children, ancestors, comments, events, chats, attachments
         case attemptLadder = "attempt_ladder"
         case role
         case ownerSelectedRole = "owner_selected_role"
@@ -307,6 +307,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         labels = try c.decodeIfPresent([ApiLabel].self, forKey: .labels) ?? []
         subtasks = try c.decodeIfPresent([ApiSubtask].self, forKey: .subtasks) ?? []
         children = try c.decodeIfPresent([ApiTask].self, forKey: .children)
+        ancestors = try c.decodeIfPresent([ApiTaskAncestor].self, forKey: .ancestors)
         comments = try c.decodeIfPresent([ApiComment].self, forKey: .comments)
         events = try c.decodeIfPresent([ApiTaskEvent].self, forKey: .events)
         chats = try c.decodeIfPresent([ApiTaskChat].self, forKey: .chats)
@@ -378,6 +379,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encode(labels, forKey: .labels)
         try c.encode(subtasks, forKey: .subtasks)
         try c.encodeIfPresent(children, forKey: .children)
+        try c.encodeIfPresent(ancestors, forKey: .ancestors)
         try c.encodeIfPresent(comments, forKey: .comments)
         try c.encodeIfPresent(events, forKey: .events)
         try c.encodeIfPresent(attachments, forKey: .attachments)

@@ -38,7 +38,7 @@ struct RootShellView: View {
             switch self {
             case .overview: "Обзор"
             case .projects: "Проекты"
-            case .upcoming: "Планирование"
+            case .upcoming: "План"
             case .chat: "Чат"
             }
         }
@@ -93,6 +93,10 @@ struct RootShellView: View {
     /// после первого захода на «Сегодня» в текущий календарный день и не
     /// появляется заново до полуночи, даже если список задач изменился.
     @AppStorage("taskflow_today_badge_seen_date") private var todayBadgeSeenDate: String = ""
+    /// Нижняя панель «пилюлей» (LOCK-TABBAR-PILL-20261018) или нынешний таббар.
+    /// Тумблер «Таббар-пилюля» в настройках; по умолчанию пилюля — этого просил
+    /// владелец 18.10.2026. Ключ общий с `SettingsViewModel`.
+    @AppStorage(SettingsViewModel.pillTabBarKey) private var isPillTabBarEnabled = true
     #if DEBUG
     /// Debug-роут `tasksheet:<id>` открывает ту же единую карточку, что и приложение.
     @State private var debugTaskSheetID: String?
@@ -100,11 +104,21 @@ struct RootShellView: View {
 
     @ViewBuilder
     private var mainTabContent: some View {
-        switch selectedTab {
-        case .overview: navigationStack(for: .overview)
-        case .projects: navigationStack(for: .projects)
-        case .upcoming: navigationStack(for: .upcoming)
-        case .chat: navigationStack(for: .chat)
+        if isPillTabBarEnabled {
+            TFPillTabBar(items: tabItems, selectedIndex: selectedIndexBinding,
+                         isCreateMenuOpen: isCreateMenuOpen,
+                         isTabBarVisible: quickAddDraft == nil && (paths[selectedTab]?.isEmpty ?? true),
+                         onSelect: handleTabSelection,
+                         onCreateTap: { isCreateMenuOpen.toggle() }) { index in
+                if let tab = Tab(rawValue: index) { navigationStack(for: tab) }
+            }
+        } else {
+            switch selectedTab {
+            case .overview: navigationStack(for: .overview)
+            case .projects: navigationStack(for: .projects)
+            case .upcoming: navigationStack(for: .upcoming)
+            case .chat: navigationStack(for: .chat)
+            }
         }
     }
 
@@ -341,6 +355,16 @@ struct RootShellView: View {
         // под формой остаётся только содержимое экрана.
         if quickAddDraft != nil {
             EmptyView()
+        } else if isPillTabBarEnabled {
+            if isCreateMenuOpen {
+                ZStack(alignment: .bottom) {
+                    Color.black.opacity(0.0001)
+                        .ignoresSafeArea()
+                        .onTapGesture { isCreateMenuOpen = false }
+                    TFCreateMenu(items: createMenuItems)
+                        .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar)
+                }
+            }
         } else {
             tabControlsContent
         }
@@ -367,33 +391,37 @@ struct RootShellView: View {
                         items: tabItems,
                         selectedIndex: selectedIndexBinding,
                         isCreateMenuOpen: isCreateMenuOpen,
-                        onSelect: { index in
-                            guard let tab = Tab(rawValue: index) else { return }
-                            // Повторный тап по УЖЕ активной вкладке возвращает в её
-                            // корень — как в родных приложениях. Без этого из
-                            // «Проектов» нельзя было вернуться в «Обзор» тапом по
-                            // самой вкладке: она уже выбрана, ничего не менялось.
-                            if tab == selectedTab {
-                                paths[tab] = NavigationPath()
-                            } else {
-                                selectedTab = tab
-                            }
-                        },
+                        onSelect: handleTabSelection,
                         onCreateTap: { isCreateMenuOpen.toggle() }
                     )
                 }
         }
     }
 
+    /// Выбор вкладки — общий для обоих видов нижней панели (пилюля и таббар).
+    private func handleTabSelection(_ index: Int) {
+        guard let tab = Tab(rawValue: index) else { return }
+        isCreateMenuOpen = false
+        // Повторный тап по УЖЕ активной вкладке возвращает в её корень — как в
+        // родных приложениях. Без этого из «Проектов» нельзя было вернуться в
+        // «Обзор» тапом по самой вкладке: она уже выбрана, ничего не менялось.
+        if tab == selectedTab {
+            paths[tab] = NavigationPath()
+        } else {
+            selectedTab = tab
+        }
+    }
+
     private func navigationStack(for tab: Tab) -> some View {
         NavigationStack(path: pathBinding(for: tab)) {
             GeometryReader { viewport in
-                routeDestination(tab.route, reservesTabBarSpace: true)
+                routeDestination(tab.route, reservesTabBarSpace: !isPillTabBarEnabled)
                     .frame(width: viewport.size.width, height: viewport.size.height, alignment: .top)
                     .overlay(alignment: .bottom) { rootTabControls }
             }
             .navigationDestination(for: AppRoute.self) { routeDestination($0, reservesTabBarSpace: false) }
         }
+        .toolbar(isPillTabBarEnabled && (quickAddDraft != nil || !(paths[tab]?.isEmpty ?? true)) ? .hidden : .automatic, for: .tabBar)
     }
 
     private func pathBinding(for tab: Tab) -> Binding<NavigationPath> {
