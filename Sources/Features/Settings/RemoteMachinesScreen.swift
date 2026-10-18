@@ -82,7 +82,9 @@ struct RemoteMachinesScreen: View {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.machines.enumerated()), id: \.element.id) { index, машина in
                         if index > 0 { TFDivider(inset: TFSpacing.lg + 40 + TFSpacing.md) }
-                        MachineRow(машина: машина)
+                        MachineRow(машина: машина) {
+                            Task { await viewModel.отключить(машина) }
+                        }
                             .padding(.vertical, TFSpacing.xs)
                             .accessibilityIdentifier("remote-machines-row-\(машина.name)")
                     }
@@ -140,6 +142,10 @@ struct RemoteMachinesScreen: View {
 /// ей нужен тот же вид, а правило проекта: одна правка — одно место.
 struct MachineRow: View {
     let машина: RemoteMachine
+    /// Действие «убрать запись». Владелец 18.10.2026: удалить машину из
+    /// настроек было нечем, поэтому в списке навсегда висели отозванные
+    /// тестовые записи. Зажатие строки открывает меню — как он и просил.
+    var onRemove: (() -> Void)?
 
     var body: some View {
         HStack(spacing: TFSpacing.md) {
@@ -165,6 +171,15 @@ struct MachineRow: View {
                     .foregroundStyle(Color.tfSub)
             }
         }
+        .contentShape(Rectangle())
+        .contextMenu {
+            if let onRemove {
+                Button(role: .destructive, action: onRemove) {
+                    Label(машина.revokedAt == nil ? "Отключить и убрать запись" : "Убрать запись", systemImage: "trash")
+                }
+            }
+        }
+        .accessibilityHint(машина.revokedAt == nil ? "Удерживайте, чтобы отключить" : "Удерживайте, чтобы убрать запись")
     }
 
     /// «на связи» / «нет связи» — словами, а не только цветом: индикатор
