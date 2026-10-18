@@ -23,6 +23,8 @@ final class TaskFormViewModel {
     let collaborationPlanState: CollaborationPlanState
     var taskID: String?
     private let apiClient: APIClient
+    @ObservationIgnored private var activityLoad: Task<Void, Never>?
+    @ObservationIgnored private var activityRequestedRevision: Int?
 
     /// AST-форма названия для `BlockDocumentEditor` — ровно тот же редактор
     /// и тот же приём, что уже у описания ниже (владелец 30.09.2026:
@@ -237,9 +239,9 @@ final class TaskFormViewModel {
         if showLoading { isLoadingTask = true }
         defer { if showLoading { isLoadingTask = false } }
         do {
+            async let status: Void = loadExecutionStatus()
             let task = try await apiClient.task(id: taskID)
             originalTask = task
-            await loadExecutionStatus()
             title = task.title
             taskDescription = task.description ?? ""
             subtasks = task.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
@@ -281,6 +283,7 @@ final class TaskFormViewModel {
             creatorName = task.creatorName
             creatorId = task.creatorId
             attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID, existing: task.attachments ?? [])
+            await status
         } catch let error as APIError {
             if case .notFound = error { notFound = true } else { loadErrorMessage = Self.message(error) }
         } catch {
@@ -345,9 +348,10 @@ final class TaskFormViewModel {
     }
 
     /// Тянут вниз — обновляем и задачу, и строку активности.
-    func refresh() async {
-        await reloadTaskQuietly()
-        await loadActivity()
+    func refresh(activityRevision: Int? = nil) async {
+        async let card: Void = reloadTaskQuietly()
+        async let activity: Void = loadActivity(revision: activityRevision)
+        _ = await (card, activity)
     }
 
     /// Перезапрос задачи без спиннера и без перетирания того, что владелец
@@ -420,20 +424,35 @@ final class TaskFormViewModel {
         }
     }
 
-    func loadActivity() async {
-        guard let taskID else {
-            NSLog("[TFACT] taskID пуст")
+    /// Несколько наблюдателей разделяют запрос. Новая ревизия во время
+    /// загрузки требует завершающего запроса, чтобы не потерять событие.
+    func loadActivity(revision: Int? = nil) async {
+        guard let taskID else { return }
+        if let revision { activityRequestedRevision = max(activityRequestedRevision ?? revision, revision) }
+        if let activityLoad {
+            await activityLoad.value
             return
         }
-        // Сервер проверяет актуальную аренду; клиент не скрывает поток по устаревшему снимку карточки.
-        do {
-            let fresh = try await apiClient.taskActivity(taskId: taskID)
-            activity = fresh
-            NSLog("[TFACT] ok text=\(fresh.text ?? "nil") actions=\(fresh.actions.count) active=\(fresh.isActive)")
-        } catch {
-            activity = .idle
-            NSLog("[TFACT] ошибка: \(error)")
+        let load = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.activityLoad = nil }
+            repeat {
+                let requestedRevision = self.activityRequestedRevision
+                do {
+                    let fresh = try await self.apiClient.taskActivity(taskId: taskID)
+                    guard !Task.isCancelled else { return }
+                    if requestedRevision != self.activityRequestedRevision { continue }
+                    self.activity = fresh
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    if requestedRevision != self.activityRequestedRevision { continue }
+                    self.activity = .idle
+                }
+                return
+            } while !Task.isCancelled
         }
+        activityLoad = load
+        await load.value
     }
 
     /// Исполнители — роли (`GET /api/roles`), не учётки. Ошибка — та же общая
@@ -992,5 +1011,51 @@ final class TaskFormViewModel {
 
     private static func message(_ error: Error) -> String {
         (error as? APIError)?.errorDescription ?? error.localizedDescription
+    }
+}
+
+/// Начальная загрузка уже получила снимок карточки. Перечитываем его только
+/// после изменения релевантной ревизии или возвращения из фона.
+struct TaskCardRefreshState {
+    struct Snapshot {
+        var connectionRevision: Int
+        var taskRevisions: [String: Int]
+        var activityRevision: Int
+    }
+    private var cardSnapshot: Snapshot?
+    private var activityRevision: Int?
+    private var cardResumed = false
+    private var activityResumed = false
+
+    mutating func begin(_ snapshot: Snapshot) {
+        cardSnapshot = snapshot
+        activityRevision = snapshot.activityRevision
+        cardResumed = false
+        activityResumed = false
+    }
+
+    mutating func cardNeedsRefresh(_ snapshot: Snapshot, taskIDs: Set<String>, ready: Bool, active: Bool) -> Bool {
+        guard active else {
+            if ready { cardResumed = true }
+            return false
+        }
+        guard ready, let previous = cardSnapshot else { return false }
+        let changed = cardResumed || snapshot.connectionRevision != previous.connectionRevision
+            || taskIDs.contains { snapshot.taskRevisions[$0, default: 0] != previous.taskRevisions[$0, default: 0] }
+        cardSnapshot = snapshot
+        cardResumed = false
+        return changed
+    }
+
+    mutating func activityNeedsRefresh(_ snapshot: Snapshot, ready: Bool, active: Bool) -> Bool {
+        guard active else {
+            if ready { activityResumed = true }
+            return false
+        }
+        guard ready, let previous = activityRevision else { return false }
+        let changed = activityResumed || snapshot.activityRevision != previous
+        activityRevision = snapshot.activityRevision
+        activityResumed = false
+        return changed
     }
 }

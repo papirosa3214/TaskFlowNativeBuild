@@ -5,7 +5,6 @@ import SwiftUI
 /// При открытии, восстановлении связи и событии перечитывается снимок подготовки.
 struct TaskPreparationPoller: View {
     let taskID: String
-    let onChange: () async -> Void
     /// Чего автомат ждёт от владельца (`nil` — ничего): по этому «Ещё» в шапке
     /// получает отметку, а пункт «Подготовка» — подпись (владелец 07.10.2026).
     let onWaiting: (String?) -> Void
@@ -36,7 +35,6 @@ struct TaskPreparationPoller: View {
         } else {
             onWaiting(nil)
         }
-        await onChange()
     }
 }
 

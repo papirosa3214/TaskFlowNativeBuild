@@ -136,6 +136,7 @@ struct TaskCardContent: View {
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
     /// «Убрать», а не второй раз «Вывести».
     @State private var isInDynamicIsland = false
+    @State private var refreshState = TaskCardRefreshState()
     @State private var isEditorReady = false
     @State private var pendingSaveTask: Task<Void, Never>?
 
@@ -248,10 +249,19 @@ struct TaskCardContent: View {
         return plan
     }
 
-    private var familyStateRevision: String {
-        let ids = Set(([taskID].compactMap { $0 }) + viewModel.childTasks.map(\.id)
+    private var familyTaskIDs: Set<String> {
+        Set(([taskID].compactMap { $0 }) + viewModel.childTasks.map(\.id)
             + (parentBranchPlan?.branchCards?.map(\.id) ?? []))
-        return ids.sorted().map { "\($0):\(realtime.revision(for: $0))" }.joined(separator: "|")
+    }
+
+    private var familyStateRevision: String {
+        familyTaskIDs.sorted().map { "\($0):\(realtime.revision(for: $0))" }.joined(separator: "|")
+    }
+
+    private var refreshSnapshot: TaskCardRefreshState.Snapshot {
+        .init(connectionRevision: realtime.connectionRevision,
+              taskRevisions: realtime.taskRevisions,
+              activityRevision: realtime.activityRevisions[taskID ?? "", default: 0])
     }
 
     /// Только отображение ветки: не меняет состояние карточки и права запуска.
@@ -269,17 +279,23 @@ struct TaskCardContent: View {
         formNavigationBody
             .task { await loadScreen() }
             .task(id: "\(scenePhase):\(isEditorReady):\(familyStateRevision)") {
-                guard scenePhase == .active, isEditorReady, taskID != nil else { return }
-                await viewModel.refresh()
+                guard taskID != nil else { return }
+                let snapshot = refreshSnapshot
+                guard refreshState.cardNeedsRefresh(snapshot, taskIDs: familyTaskIDs,
+                                                     ready: isEditorReady, active: scenePhase == .active) else { return }
+                await viewModel.refresh(activityRevision: snapshot.activityRevision)
                 collaborationPlanReloadToken += 1
                 if let taskID, !viewModel.childTasks.isEmpty, viewModel.parentTask == nil {
                     await viewModel.collaborationPlanState.load(taskID: taskID, reloadToken: collaborationPlanReloadToken, force: true, isOwner: isOwner)
                 }
                 refreshDynamicIslandState()
             }
-            .task(id: "\(scenePhase):\(isEditorReady):\(realtime.activityRevisions[taskID ?? ""] ?? 0)") {
-                guard scenePhase == .active, isEditorReady else { return }
-                await viewModel.loadActivity()
+            .task(id: "\(scenePhase):\(isEditorReady):\(refreshSnapshot.activityRevision)") {
+                guard taskID != nil else { return }
+                let snapshot = refreshSnapshot
+                guard refreshState.activityNeedsRefresh(snapshot, ready: isEditorReady,
+                                                         active: scenePhase == .active) else { return }
+                await viewModel.loadActivity(revision: snapshot.activityRevision)
             }
             .modifier(FocusDictationTargetModifier(
                 isTitleFocused: isTitleFocused,
@@ -444,10 +460,7 @@ struct TaskCardContent: View {
         // события WebSocket обновляют подготовку и план на карточке.
         .background {
             if let taskID = viewModel.taskID {
-                TaskPreparationPoller(taskID: taskID) {
-                    await viewModel.refresh()
-                    collaborationPlanReloadToken += 1
-                } onWaiting: { preparationWaiting = $0 }
+                TaskPreparationPoller(taskID: taskID, onWaiting: { preparationWaiting = $0 })
             }
         }
         .tfBottomSheet(isPresented: $isPreparationPresented, title: "Подготовка") {
@@ -2855,14 +2868,16 @@ struct TaskCardContent: View {
     }
 
     private func loadScreen() async {
-        await viewModel.loadIfNeeded(showLoading: viewModel.loadedTask == nil)
-        await viewModel.loadRoles()
-        if taskStore.tasks.isEmpty { await taskStore.load() }
-        if projectStore.projects.isEmpty { await projectStore.load() }
-        if labelStore.labels.isEmpty { await labelStore.load() }
+        refreshState.begin(refreshSnapshot)
+        async let card: Void = viewModel.loadIfNeeded(showLoading: viewModel.loadedTask == nil)
+        async let roles: Void = viewModel.loadRoles()
+        async let tasks: Void = loadTasksIfNeeded()
+        async let projects: Void = loadProjectsIfNeeded()
+        async let labels: Void = loadLabelsIfNeeded()
+        async let activity: Void = viewModel.loadActivity(revision: refreshSnapshot.activityRevision)
+        async let reports: Void = viewModel.loadReports()
+        _ = await (card, roles, tasks, projects, labels, activity, reports)
         if viewModel.startDictation { titleFocus.blockID = viewModel.titleBlocks.first?.id }
-        await viewModel.loadActivity()
-        await viewModel.loadReports()
         refreshDynamicIslandState()
         isEditorReady = true
         onSwitchAvailable(switchFamily)
@@ -2875,6 +2890,18 @@ struct TaskCardContent: View {
                 onFamilyLoaded(members)
             }
         }
+    }
+
+    private func loadTasksIfNeeded() async {
+        if taskStore.tasks.isEmpty { await taskStore.load() }
+    }
+
+    private func loadProjectsIfNeeded() async {
+        if projectStore.projects.isEmpty { await projectStore.load() }
+    }
+
+    private func loadLabelsIfNeeded() async {
+        if labelStore.labels.isEmpty { await labelStore.load() }
     }
 
     private func submit() async {
