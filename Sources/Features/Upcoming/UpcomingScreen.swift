@@ -402,7 +402,7 @@ public struct UpcomingScreen: View {
         } label: {
             TFPlannerToolbarIcon(
                 systemName: "line.3.horizontal.decrease",
-                tint: filters.isActive ? .tfRed : .tfSub
+                tint: filters.isActive ? .tfRed : .tfText
             )
         }
         .accessibilityLabel("Фильтры")
@@ -435,7 +435,7 @@ public struct UpcomingScreen: View {
             }
             .pickerStyle(.inline)
         } label: {
-            TFPlannerToolbarIcon(systemName: "calendar")
+            TFPlannerToolbarIcon(systemName: "calendar", tint: .tfText)
         }
         .accessibilityLabel("Выбрать раздел планирования")
         .accessibilityIdentifier("planner.view-switcher")
@@ -468,7 +468,7 @@ public struct UpcomingScreen: View {
                 }
             }
         } label: {
-            TFPlannerToolbarIcon(systemName: listTabIcon, tint: .tfSub)
+            TFPlannerToolbarIcon(systemName: listTabIcon, tint: .tfText)
         }
         .tfPlannerWideControl()
         .accessibilityLabel("Вкладка: \(listTab.title)")

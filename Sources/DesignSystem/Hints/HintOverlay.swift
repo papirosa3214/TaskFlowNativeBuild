@@ -6,6 +6,7 @@ import UIKit
 /// приложение, поэтому подсвеченный элемент можно нажать как обычно.
 final class HintOverlayWindow: UIWindow {
     private static var window: HintOverlayWindow?
+    private var allowsTouchesOutsideHintCard = false
 
     @MainActor
     static func install() {
@@ -23,7 +24,13 @@ final class HintOverlayWindow: UIWindow {
         self.window = window
     }
 
+    @MainActor
+    static func setDocumentPresented(_ isPresented: Bool) {
+        window?.allowsTouchesOutsideHintCard = isPresented
+    }
+
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if allowsTouchesOutsideHintCard { return super.hitTest(point, with: event) }
         let card = MainActor.assumeIsolated { HintCenter.shared.currentStep == nil ? .zero : HintCenter.shared.cardFrame }
         guard card.contains(point) else { return nil }
         return super.hitTest(point, with: event)
@@ -32,6 +39,8 @@ final class HintOverlayWindow: UIWindow {
 
 struct HintOverlayView: View {
     @State private var center = HintCenter.shared
+    @State private var documentMarkdown: String?
+    @State private var documentError: String?
 
     var body: some View {
         GeometryReader { proxy in
@@ -45,6 +54,18 @@ struct HintOverlayView: View {
             }
         }
         .ignoresSafeArea()
+        .sheet(isPresented: Binding(
+            get: { documentMarkdown != nil || documentError != nil },
+            set: {
+                if !$0 {
+                    documentMarkdown = nil
+                    documentError = nil
+                    HintOverlayWindow.setDocumentPresented(false)
+                }
+            }
+        )) {
+            HintDocumentSheet(markdown: documentMarkdown, error: documentError)
+        }
     }
 
     private func dim(size: CGSize, hole: CGRect?) -> some View {
@@ -61,6 +82,15 @@ struct HintOverlayView: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text(step.title).font(.headline)
             Text(step.text).font(.body).fixedSize(horizontal: false, vertical: true)
+            if let resource = step.documentationResource {
+                Button {
+                    openDocumentation(resource)
+                } label: {
+                    Label("Открыть инструкцию", systemImage: "doc.text")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("hint.documentation.\(resource)")
+            }
             if step.anchor != nil && hole == nil {
                 Text("Элемент появится, когда откроешь нужный экран.")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -90,11 +120,52 @@ struct HintOverlayView: View {
         .position(x: size.width / 2, y: cardY(hole: hole, size: size))
     }
 
+    private func openDocumentation(_ resource: String) {
+        HintOverlayWindow.setDocumentPresented(true)
+        guard let url = Bundle.main.url(forResource: resource, withExtension: "md"),
+              let markdown = try? String(contentsOf: url, encoding: .utf8) else {
+            documentError = "Не удалось открыть инструкцию. Повтори попытку позже."
+            return
+        }
+        documentMarkdown = markdown
+    }
+
     /// Карточка — под элементом, если он в верхней половине, иначе над ним.
     private func cardY(hole: CGRect?, size: CGSize) -> CGFloat {
         guard let hole else { return size.height * 0.62 }
         return hole.midY < size.height / 2
             ? min(hole.maxY + 130, size.height - 140)
             : max(hole.minY - 130, 140)
+    }
+}
+
+private struct HintDocumentSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let markdown: String?
+    let error: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if let markdown {
+                    MarkdownDocumentRenderer(markdown: markdown)
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                        .padding(.vertical, TFSpacing.lg)
+                } else {
+                    Text(error ?? "Документ недоступен")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .padding(TFSpacing.lg)
+                }
+            }
+            .tfScreenBackground()
+            .navigationTitle("Инструкция")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") { dismiss() }
+                }
+            }
+        }
     }
 }

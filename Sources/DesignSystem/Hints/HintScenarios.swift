@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let roleExternalApps = "role.external-apps"
     static let chatCoordination = "chat.coordination"
     static let systemSummary = "system.summary"
     static let jevConnection = "jev.connection"
@@ -21,7 +22,15 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
+    static let all: [HintScenario] = [externalApps, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
+
+    static let externalApps = HintScenario(
+        id: "external-apps", title: "Внешние приложения Помощника владельца", start: "access",
+        steps: [
+            "access": HintStep(anchor: HintAnchorID.roleExternalApps, title: "Подключения и возможности",
+                text: "Здесь показаны Gmail с подключёнными адресами и доступ Помощника владельца к Things 3. Эти же сведения используются в Настройках → Интеграции. Нажми «Показать возможности», чтобы прочитать доступные действия из каталога инструментов. Статус Things «Доступен» означает, что проверка чтения через Mac прошла успешно.",
+                documentationResource: "2026-10-18-role-external-apps")
+        ])
 
     static let chatCoordination = HintScenario(
         id: "chat-coordination", title: "Обращения к коллегам", start: "coordination",

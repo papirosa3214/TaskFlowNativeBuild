@@ -262,8 +262,8 @@ struct IntegrationsScreen: View {
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
-    /// Адрес моста Things — тот же ключ читает `ThingsBridgeAPI`.
-    @AppStorage(ThingsBridgeAPI.addressKey) private var thingsBridgeAddress = ""
+    @State private var externalApps = ExternalAppAccessStore.shared
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isGoogleTasksOpen = false // веб-дефолт: этот аккордеон открыт сразу
     @State private var isGoogleCalOpen = false
 
@@ -290,7 +290,7 @@ struct IntegrationsScreen: View {
                             IntegrationAccordionCard(icon: "arrow.down.doc", asset: "IntegrationLinear", title: "Linear", subtitle: "Выбор задач и перенос структуры", badge: nil, isExpanded: $isLinearOpen, identifier: "integrations.linear") {
                                 LinearImportScreen(embedded: true)
                             }
-                            IntegrationAccordionCard(icon: "envelope", title: "Gmail", subtitle: "Почта Помощника владельца: адреса и белый список", badge: nil, isExpanded: $isGmailOpen, identifier: "integrations.gmail") {
+                            IntegrationAccordionCard(icon: "envelope", title: "Gmail", subtitle: externalApps.gmailDetail, badge: externalApps.gmailStatus, badgeColor: externalApps.accounts.contains(where: \.connected) ? .tfTeal : .tfSub, isExpanded: $isGmailOpen, identifier: "integrations.gmail") {
                                 GmailIntegrationCard()
                             }
                         }
@@ -305,9 +305,12 @@ struct IntegrationsScreen: View {
             }
         }
         .tfNativeHeader("Интеграции")
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await externalApps.refresh() } }
+        }
         .task {
             viewModel.loadAppleState()
-            await viewModel.loadThingsBridge()
+            await externalApps.refresh()
             await viewModel.loadGoogleStatus()
         }
     }
@@ -412,37 +415,20 @@ struct IntegrationsScreen: View {
         }
     }
 
-    // MARK: - Things 3 на MacBook
+    // MARK: - Things 3: то же подключение, что в профиле Помощника владельца
 
     private var thingsSection: some View {
         integrationGroup("MacBook") {
             IntegrationAccordionCard(
                 icon: "checkmark.square", asset: "IntegrationThings", title: "Things 3",
-                subtitle: viewModel.thingsBridgeAvailable ? "Область TaskFlow · ручная синхронизация" : "Мост MacBook не найден",
-                badge: viewModel.thingsBridgeAvailable ? "В сети" : nil,
+                subtitle: externalApps.thingsDetail,
+                badge: externalApps.thingsStatus,
+                badgeColor: externalApps.thingsReadable ? .tfTeal : .tfSub,
                 isExpanded: $isThingsOpen
             ) {
-                Text("Синхронизируются только проекты в области TaskFlow. Удаление не зеркалится.")
-                    .tfText(.caption).foregroundStyle(Color.tfSub)
-
-                // Адрес MacBook приезжает по DHCP и время от времени
-                // меняется. Раньше он был вшит в код, и каждая смена стоила
-                // правки исходника; теперь его вбивает владелец.
-                TFTextField("Адрес MacBook", text: $thingsBridgeAddress, icon: "network")
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .onSubmit { Task { await viewModel.loadThingsBridge() } }
-                // Порт печатается строкой: подстановка `Int` в `Text` уходит
-                // в локализованный формат и превращает 8765 в «8 765».
-                Text("Можно просто адрес — порт \(String(ThingsBridgeAPI.defaultPort)) подставится сам. Пусто — \(ThingsBridgeAPI.defaultAddress).")
-                    .tfText(.caption).foregroundStyle(Color.tfDim)
-
-                TFButton(
-                    viewModel.isThingsSyncing ? "Синхронизация..." : "Синхронизировать сейчас",
-                    icon: "arrow.triangle.2.circlepath", variant: .secondary, isEnabled: !viewModel.isThingsSyncing
-                ) {
-                    Task { await viewModel.syncThings(taskStore: taskStore, projectStore: projectStore) }
+                ExternalAppAccessDetails(app: "things")
+                TFButton(externalApps.loading ? "Проверка…" : "Обновить доступность", icon: "arrow.clockwise", variant: .secondary, isEnabled: !externalApps.loading) {
+                    Task { await externalApps.refresh() }
                 }
             }
         }
@@ -598,6 +584,7 @@ private struct IntegrationAccordionCard<Content: View>: View {
     let title: String
     let subtitle: String
     let badge: String?
+    var badgeColor: Color = .tfTeal
     @Binding var isExpanded: Bool
     var identifier: String = ""
     @ViewBuilder let content: () -> Content
@@ -609,7 +596,7 @@ private struct IntegrationAccordionCard<Content: View>: View {
             } label: {
                 TFListRow(icon: icon, iconStyle: asset.map { .asset($0) } ?? .plain, title: title, subtitle: subtitle,
                     trailing: AnyView(HStack(spacing: TFSpacing.sm) {
-                        if let badge { Text(badge).tfText(.caption).foregroundStyle(Color.tfTeal) }
+                        if let badge { Text(badge).tfText(.caption).foregroundStyle(badgeColor) }
                         Image(systemName: "chevron.right")
                             .font(.system(size: 13)).foregroundStyle(Color.tfDim)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))

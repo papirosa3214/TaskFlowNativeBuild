@@ -11,6 +11,16 @@ final class HintCenterTests: XCTestCase {
         defaults = UserDefaults(suiteName: "hints-test-\(UUID().uuidString)")
     }
 
+    func testExternalAppsHintCompletesAndLinksDocumentation() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.externalApps])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.roleExternalApps, frame: frame)
+        XCTAssertEqual(center.active?.step, "access")
+        XCTAssertEqual(center.currentStep?.documentationResource, "2026-10-18-role-external-apps")
+        center.next()
+        XCTAssertTrue(center.completed.contains("external-apps"))
+    }
+
     private func makeCenter() -> HintCenter { HintCenter(defaults: defaults, scenarios: [HintScenarios.taskPlan]) }
 
     func testSystemSummaryHintCompletes() {

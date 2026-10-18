@@ -109,7 +109,7 @@ struct RootShellView: View {
                          isCreateMenuOpen: isCreateMenuOpen,
                          isTabBarVisible: quickAddDraft == nil && (paths[selectedTab]?.isEmpty ?? true),
                          onSelect: handleTabSelection,
-                         onCreateTap: { isCreateMenuOpen.toggle() }) { index in
+                         onCreateTap: { openQuickAddTask() }) { index in
                 if let tab = Tab(rawValue: index) { navigationStack(for: tab) }
             }
         } else {
@@ -294,8 +294,10 @@ struct RootShellView: View {
         )
     }
 
-    /// Центральный «+» — один вход в создание трёх сущностей. Каждый пункт
-    /// открывает форму сразу, а не соответствующий раздел приложения.
+    /// Меню создания прежней панели (`TFTabBar`, тумблер «Таббар-пилюля»
+    /// выключен): «+» пилюли меню больше не показывает и сразу открывает
+    /// короткое окно создания задачи (владелец 18.10.2026).
+    /// Каждый пункт открывает форму сразу, а не соответствующий раздел.
     private var createMenuItems: [TFCreateMenuItem] {
         var items: [TFCreateMenuItem] = [
             TFCreateMenuItem(icon: "checkmark", title: "Задача") {
@@ -303,8 +305,7 @@ struct RootShellView: View {
                 // полноэкранным бланком: владелец так и просил — нажал «плюс»,
                 // написал название, сохранил. Полная форма остаётся за кнопкой
                 // «развернуть» внутри самой панели.
-                isCreateMenuOpen = false
-                quickAddDraft = QuickAddDraft(viewModel: TaskFormViewModel(taskID: nil))
+                openQuickAddTask()
             },
             TFCreateMenuItem(icon: "book", title: "Заметка") {
                 openCreateMenuTarget(.noteCreate)
@@ -321,6 +322,14 @@ struct RootShellView: View {
             })
         }
         return items
+    }
+
+    /// «+» открывает короткое окно создания задачи сразу, без меню создания
+    /// (владелец 18.10.2026: «убрать уже вот эту панельку… а исключительно одно
+    /// действие сразу же открывается короткое окно создания задачи»).
+    private func openQuickAddTask() {
+        isCreateMenuOpen = false
+        quickAddDraft = QuickAddDraft(viewModel: TaskFormViewModel(taskID: nil))
     }
 
     private func resumeStuckSteps() async {
@@ -356,15 +365,10 @@ struct RootShellView: View {
         if quickAddDraft != nil {
             EmptyView()
         } else if isPillTabBarEnabled {
-            if isCreateMenuOpen {
-                ZStack(alignment: .bottom) {
-                    Color.black.opacity(0.0001)
-                        .ignoresSafeArea()
-                        .onTapGesture { isCreateMenuOpen = false }
-                    TFCreateMenu(items: createMenuItems)
-                        .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar)
-                }
-            }
+            // В «пилюле» «+» открывает короткое окно создания задачи сразу:
+            // меню создания владелец убрал 18.10.2026 — «исключительно одно
+            // действие сразу же открывается короткое окно создания задачи».
+            EmptyView()
         } else {
             tabControlsContent
         }

@@ -96,6 +96,10 @@ struct AgentProfileScreen: View {
                 }
             }
 
+            if profile.role == "secretary" {
+                ExternalAppAccessSection()
+            }
+
             section(title: "Возможности") {
                 toolsRow(profile)
                 if isToolsExpanded && !profile.tools.isEmpty {

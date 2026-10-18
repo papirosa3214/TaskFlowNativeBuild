@@ -25,6 +25,8 @@ struct HintStep: Equatable {
     var next: String? = nil
     /// Нажатие на подсвеченный элемент само ведёт к `next`.
     var advancesOnTap: Bool = false
+    /// Имя Markdown-файла в ресурсах приложения, доступного из этой подсказки.
+    var documentationResource: String? = nil
 }
 
 struct HintBranch: Equatable, Identifiable {

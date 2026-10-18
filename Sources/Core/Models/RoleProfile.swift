@@ -99,6 +99,8 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
     /// Необязательное намеренно: поле появилось позже списка `tools`, и
     /// обязательное уронило бы разбор всего ответа роли на старом сервере.
     public let toolsDetail: [RoleToolDetail]?
+    /// Операции внутри общего taskflow; без отдельного списка для внешних приложений.
+    public let operationsDetail: [RoleToolDetail]?
     public let permissions: String?
     /// Primary-модель роли (`role-routing.yaml:models`).
     public let model: String?
@@ -147,6 +149,7 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case role, title, status, problems, prompt, skills, tools, permissions, model, fallbacks
         case toolsDetail = "tools_detail"
+        case operationsDetail = "operations_detail"
         case accountID = "account_id"
         case statusTitle = "status_title"
         case runtimeReady = "runtime_ready"

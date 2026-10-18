@@ -5,7 +5,8 @@ import SwiftUI
 /// сервер; здесь только список адресов.
 struct GmailIntegrationCard: View {
     @Environment(\.openURL) private var openURL
-    @State private var accounts: [MailAccount] = []
+    @State private var externalApps = ExternalAppAccessStore.shared
+    private var accounts: [MailAccount] { externalApps.accounts }
     @State private var trusted: [MailTrustedSender] = []
     @State private var newAddress = ""
     @State private var newTrusted = ""
@@ -15,8 +16,7 @@ struct GmailIntegrationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Помощник владельца читает почту, готовит черновики, убирает письма в архив и спам. Отправляет только на эти адреса. Удалять письма и писать посторонним не может.")
-                .tfText(.caption).foregroundStyle(Color.tfDim)
+            ExternalAppAccessDetails(app: "gmail", showsAccounts: false)
             TFErrorBanner(errorMessage, variant: .block)
 
             ForEach(accounts) { account in
@@ -90,9 +90,8 @@ struct GmailIntegrationCard: View {
 
     private func load() async {
         await run {
-            async let fetchedAccounts = api.mailAccounts()
             async let fetchedTrusted = api.mailTrustedSenders()
-            accounts = try await fetchedAccounts.items
+            await externalApps.reloadMail()
             trusted = try await fetchedTrusted.items
         }
     }
@@ -112,7 +111,7 @@ struct GmailIntegrationCard: View {
         defer { busy = false }
         do {
             try await action()
-            if let refreshed = try? await api.mailAccounts() { accounts = refreshed.items }
+            await externalApps.reloadMail()
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? "Не удалось выполнить действие с почтой."
         }
