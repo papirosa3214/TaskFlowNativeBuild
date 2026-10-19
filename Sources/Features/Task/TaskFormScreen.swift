@@ -135,6 +135,8 @@ struct TaskCardContent: View {
     @State private var isTaskTitleExpanded = true
     /// Итог карточки — секция «Итог» (LOCK-273). nil — не загружен или пуст.
     @State private var outcome: ApiTaskOutcome?
+    /// Строка очереди автослияния для «Итога». nil — нет строки или нет доступа.
+    @State private var mergeRow: ApiMergeQueue.Row?
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
     /// «Убрать», а не второй раз «Вывести».
     @State private var isInDynamicIsland = false
@@ -905,76 +907,85 @@ struct TaskCardContent: View {
     // устройстве. AnyView разрывает цепочку: дальше вглубь тип не растёт.
     private var nativeTaskDetail: AnyView { AnyView(nativeTaskDetailBody) }
 
-    private var nativeTaskDetailBody: some View {
-        List {
-            aiStructureStatusSection
+    // Тело списка карточки разрезано на три куска (LOCK-MERGE-STATUS-20261019):
+    // одним выражением `List` упирался в предел разбора типов, и любая новая
+    // строка ломала компиляцию в другом месте файла. Каждый кусок
+    // проверяется отдельно; порядок секций не менялся.
+    @ViewBuilder private var cardTopSections: some View {
+        aiStructureStatusSection
 
-            if let message = viewModel.saveErrorMessage {
-                Section {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                        .listRowSeparator(.hidden)
-                }
-                .listRowSeparator(.hidden)
-                .listSectionSeparator(.hidden)
+        if let message = viewModel.saveErrorMessage {
+            Section {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+                    .listRowSeparator(.hidden)
             }
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
+        }
 
-            headerSection
+        headerSection
 
-            collapsibleSection(.description, title: "Описание") {
-                // Тот же редактор, что в заметке: те же строки блоков, та же
-                // лента над клавиатурой, тот же Enter/Backspace. Владелец
-                // 13.09.2026 — «один единый формат с заметками».
-                BlockDocumentEditor(
-                    blocks: $viewModel.taskDescriptionBlocks,
-                    focus: descriptionFocus,
-                    placeholder: "Описание",
-                    // Описание — основной текст карточки, 16 pt как и название
-                    // (владелец 12.10.2026). Было `.footnote` = 13.
-                    baseFontOverride: UIFontMetrics(forTextStyle: .callout)
-                        .scaledFont(for: .systemFont(ofSize: 16, weight: .regular)),
-                    textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub),
-                    requestsFocus: activeEditors.contains("description"),
-                    onEdit: { scheduleSave() }
-                )
-                .id(activeEditors.contains("description"))
-                .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("description"), identifier: "description", text: viewModel.taskDescription, arm: { armedEditors.insert("description") }))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .listRowSeparator(.hidden)
+        collapsibleSection(.description, title: "Описание") {
+            // Тот же редактор, что в заметке: те же строки блоков, та же
+            // лента над клавиатурой, тот же Enter/Backspace. Владелец
+            // 13.09.2026 — «один единый формат с заметками».
+            BlockDocumentEditor(
+                blocks: $viewModel.taskDescriptionBlocks,
+                focus: descriptionFocus,
+                placeholder: "Описание",
+                // Описание — основной текст карточки, 16 pt как и название
+                // (владелец 12.10.2026). Было `.footnote` = 13.
+                baseFontOverride: UIFontMetrics(forTextStyle: .callout)
+                    .scaledFont(for: .systemFont(ofSize: 16, weight: .regular)),
+                textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub),
+                requestsFocus: activeEditors.contains("description"),
+                onEdit: { scheduleSave() }
+            )
+            .id(activeEditors.contains("description"))
+            .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("description"), identifier: "description", text: viewModel.taskDescription, arm: { armedEditors.insert("description") }))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowSeparator(.hidden)
+        }
+
+        collapsibleSection(.details, title: "Сведения") {
+            detailsContent.modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("details"), identifier: "details", text: "\(nativeDueText), \(viewModel.priority.label), метки: \(nativeLabelsText), исполнитель: \(selectedRoleTitle)", arm: { armedEditors.insert("details") }))
+            if let id = viewModel.taskID {
+                IntegrationResponsibilityView(taskID: id, reloadToken: collaborationPlanReloadToken, validationError: $integrationValidationError)
             }
+        }
 
-            collapsibleSection(.details, title: "Сведения") {
-                detailsContent.modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("details"), identifier: "details", text: "\(nativeDueText), \(viewModel.priority.label), метки: \(nativeLabelsText), исполнитель: \(selectedRoleTitle)", arm: { armedEditors.insert("details") }))
-                if let id = viewModel.taskID {
-                    IntegrationResponsibilityView(taskID: id, reloadToken: collaborationPlanReloadToken, validationError: $integrationValidationError)
-                }
+        // Дочерняя ветки: показываем её собственный граф — свой план, если
+        // он есть, иначе её шаги из общего плана корня (сужение делает сам
+        // граф по `task_id`). Под графом — переход к родителю.
+        if let parentID = viewModel.executionStatus?.branchRootTaskId, parentID != taskID {
+            collapsibleSection(.collaborationPlan, title: "План совместной работы") {
+                childBranchPlan(parentID)
+            } preview: {
+                childBranchPlan(parentID)
             }
-
-            // Дочерняя ветки: показываем её собственный граф — свой план, если
-            // он есть, иначе её шаги из общего плана корня (сужение делает сам
-            // граф по `task_id`). Под графом — переход к родителю.
-            if let parentID = viewModel.executionStatus?.branchRootTaskId, parentID != taskID {
+        } else if let taskID = viewModel.taskID {
+            if hasCollaborationPlan {
                 collapsibleSection(.collaborationPlan, title: "План совместной работы") {
-                    childBranchPlan(parentID)
+                    CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
+                        .listRowSeparator(.hidden)
                 } preview: {
-                    childBranchPlan(parentID)
-                }
-            } else if let taskID = viewModel.taskID {
-                if hasCollaborationPlan {
-                    collapsibleSection(.collaborationPlan, title: "План совместной работы") {
-                        CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
-                            .listRowSeparator(.hidden)
-                    } preview: {
-                        ForEach(runningSubtasks.filter { $0.collaborationPlanId != nil }) { subtask in
-                            planNodeInWorkRow(subtask)
-                        }
+                    ForEach(runningSubtasks.filter { $0.collaborationPlanId != nil }) { subtask in
+                        planNodeInWorkRow(subtask)
                     }
                 }
             }
+        }
+    }
 
-            // Итог: вердикт, что сдала каждая роль, документы, код (LOCK-273).
-            if let outcome, !outcome.isEmpty {
-                collapsibleSection(.outcome, title: "Итог") {
+    @ViewBuilder private var outcomeSection: some View {
+        // Итог: вердикт, что сдала каждая роль, документы, код (LOCK-273).
+        // Секция есть и тогда, когда итога нет, а строка автослияния есть:
+        // слитая карточка без отчёта иначе не показала бы, что с переносом.
+        let hasOutcome = outcome.map { !$0.isEmpty } ?? false
+        if hasOutcome || mergeRow != nil {
+            collapsibleSection(.outcome, title: "Итог") {
+                if let outcome, hasOutcome {
                     TaskOutcomeContent(
                         outcome: outcome,
                         roleTitle: outcomeRoleTitle,
@@ -985,147 +996,164 @@ struct TaskCardContent: View {
                         subtaskID: { slot in viewModel.subtasks.first { $0.planNodeKey == slot }?.id }
                     )
                 }
-            }
-
-            collapsibleSection(.subtasks, title: "Подзадачи") {
-                subtasksContent
-            } preview: {
-                // Свёрнутая секция показывает идущие шаги (LOCK-272), и ряд
-                // иконок в ней тоже нужен: после снятия стрима под шагом это
-                // единственный признак, что агент работает, — без него свёрнутая
-                // секция выглядела бы как просто список без движения.
-                taskActivityChips
-                    .listRowSeparator(.hidden)
-                ForEach(runningSubtasks) { subtask in
-                    nativeSubtaskRow(subtask)
+                if let mergeRow {
+                    OutcomeMergeRow(
+                        row: mergeRow,
+                        onToast: { toast = TaskToastMessage($0) },
+                        onChanged: { await loadMergeRow() }
+                    )
                 }
             }
+        }
+    }
 
-            // У несохранённой задачи связывать нечего — секция появляется
-            // вместе с самой задачей. Исключение — создание дочерней:
-            // родитель уже известен и должен быть виден до сохранения.
-            collapsibleSection(.linkedTasks, title: "Связанные задачи") {
-                linkedTasksContent
-            } preview: {
-                if let parent = viewModel.parentTask, Self.isInWork(parent) {
-                    linkedTaskRow(parent, relation: "Родительская")
-                }
-                ForEach(viewModel.childTasks.filter(Self.isInWork)) { child in
-                    linkedTaskRow(child, relation: "Дочерняя")
-                }
+    @ViewBuilder private var cardBottomSections: some View {
+        collapsibleSection(.subtasks, title: "Подзадачи") {
+            subtasksContent
+        } preview: {
+            // Свёрнутая секция показывает идущие шаги (LOCK-272), и ряд
+            // иконок в ней тоже нужен: после снятия стрима под шагом это
+            // единственный признак, что агент работает, — без него свёрнутая
+            // секция выглядела бы как просто список без движения.
+            taskActivityChips
+                .listRowSeparator(.hidden)
+            ForEach(runningSubtasks) { subtask in
+                nativeSubtaskRow(subtask)
             }
+        }
 
-            // Лента идёт сразу после связанных задач — это завершающий блок
-            // основного сценария карточки.
-            collapsibleSection(.journal, title: "Лента активности") {
-                    // Было — Enter отправлял комментарий (11.09.2026:
-                    // «хочу написать комментарий, не работает»), и клавиша
-                    // Return рисовалась синей «Отправить». Владелец
-                    // 30.09.2026 переопределил это явно: «Интер не
-                    // отправляет сообщения ни в одном месте приложения,
-                    // Интер делает только новую строку» — тот же принцип,
-                    // что уже в `ChatVoiceComposer.swift` (21.09.2026).
-                    // Теперь Enter — обычный перенос строки, отправка —
-                    // только явной кнопкой. Кнопке нужен `.borderless`,
-                    // иначе `List` отдаёт ей тап по всей строке, включая поле.
-                    // Владелец 30.09.2026: «вся карточка как описание» —
-                    // тот же `BlockDocumentEditor`, что у названия и
-                    // описания. `onSubmit`/Enter здесь нет вообще — Enter
-                    // просто новый блок, отправка только кнопкой.
-                    HStack(alignment: .bottom) {
-                        BlockDocumentEditor(
-                            blocks: $viewModel.commentBlocks,
-                            focus: commentFocus,
-                            placeholder: "Комментарий",
-                            textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub)
+        // У несохранённой задачи связывать нечего — секция появляется
+        // вместе с самой задачей. Исключение — создание дочерней:
+        // родитель уже известен и должен быть виден до сохранения.
+        collapsibleSection(.linkedTasks, title: "Связанные задачи") {
+            linkedTasksContent
+        } preview: {
+            if let parent = viewModel.parentTask, Self.isInWork(parent) {
+                linkedTaskRow(parent, relation: "Родительская")
+            }
+            ForEach(viewModel.childTasks.filter(Self.isInWork)) { child in
+                linkedTaskRow(child, relation: "Дочерняя")
+            }
+        }
+
+        // Лента идёт сразу после связанных задач — это завершающий блок
+        // основного сценария карточки.
+        collapsibleSection(.journal, title: "Лента активности") {
+                // Было — Enter отправлял комментарий (11.09.2026:
+                // «хочу написать комментарий, не работает»), и клавиша
+                // Return рисовалась синей «Отправить». Владелец
+                // 30.09.2026 переопределил это явно: «Интер не
+                // отправляет сообщения ни в одном месте приложения,
+                // Интер делает только новую строку» — тот же принцип,
+                // что уже в `ChatVoiceComposer.swift` (21.09.2026).
+                // Теперь Enter — обычный перенос строки, отправка —
+                // только явной кнопкой. Кнопке нужен `.borderless`,
+                // иначе `List` отдаёт ей тап по всей строке, включая поле.
+                // Владелец 30.09.2026: «вся карточка как описание» —
+                // тот же `BlockDocumentEditor`, что у названия и
+                // описания. `onSubmit`/Enter здесь нет вообще — Enter
+                // просто новый блок, отправка только кнопкой.
+                HStack(alignment: .bottom) {
+                    BlockDocumentEditor(
+                        blocks: $viewModel.commentBlocks,
+                        focus: commentFocus,
+                        placeholder: "Комментарий",
+                        textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub)
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("Отправить") { Task { await viewModel.sendComment() } }
+                        .buttonStyle(.borderless)
+                        .disabled(
+                            !viewModel.isEditing
+                            || viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        Button("Отправить") { Task { await viewModel.sendComment() } }
-                            .buttonStyle(.borderless)
-                            .disabled(
-                                !viewModel.isEditing
-                                || viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            )
-                    }
-                    ForEach(viewModel.journalEntries) { entry in
-                        nativeJournalRow(entry)
-                            .listRowSeparator(.hidden)
-                    }
-            }
-
-            // Чаты, привязанные к задаче. Секция только ПЕРЕХОДИТ в переписку:
-            // свой чат внутри карточки не заводится и не рисуется — для этого есть
-            // отдельный экран (владелец 21.09.2026: «заводить прям чат прямо в
-            // карточке не надо, надо чтобы просто переходил»). Появляется только
-            // когда чат уже привязан — со стороны чата.
-            if !viewModel.taskChats.isEmpty {
-                collapsibleSection(.chatByTask, title: "Чат по задаче") {
-                    chatByTaskContent
                 }
-            }
-
-            if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
-                collapsibleSection(.attachments, title: "Вложения") {
-                    ForEach(viewModel.attachments.uploaded) { attachment in
-                        taskAttachmentButton(attachment, identifierPrefix: "task.attachment.open")
-                            .contextMenu {
-                                Button { replaceAttachment(from: .phone, target: attachment) } label: {
-                                    Label("Заменить с iPhone", systemImage: "iphone")
-                                }
-                                Button { replaceAttachment(from: .knowledge, target: attachment) } label: {
-                                    Label("Заменить из базы знаний", systemImage: "books.vertical")
-                                }
-                                Button(role: .destructive) {
-                                    Task { await viewModel.attachments.removeUploaded(attachment) }
-                                } label: {
-                                    Label("Удалить", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions {
-                                Button(role: .destructive) {
-                                    Task { await viewModel.attachments.removeUploaded(attachment) }
-                                } label: {
-                                    Label("Удалить", systemImage: "trash")
-                                }
-                            }
-                    }
-                    ForEach(viewModel.attachments.pending) { attachment in
-                        Label(attachment.fileName, systemImage: "paperclip")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
-                            .swipeActions {
-                                Button(role: .destructive) {
-                                    viewModel.attachments.removePending(attachment)
-                                } label: {
-                                    Label("Удалить", systemImage: "trash")
-                                }
-                            }
-                    }
+                ForEach(viewModel.journalEntries) { entry in
+                    nativeJournalRow(entry)
+                        .listRowSeparator(.hidden)
                 }
-            }
+        }
 
-            // Отчёты — «зеркало» документов из папки проекта: сам файл лежит
-            // в документации, здесь название, автор и время; тап открывает
-            // документ. Владелец 20.09.2026.
-            if !viewModel.reports.isEmpty {
-                collapsibleSection(.reports, title: "Отчёты") {
-                    ForEach(viewModel.reports) { report in
-                        Button {
-                            if let noteID = report.noteID { openedReportNoteID = noteID }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Label(report.title, systemImage: "doc.text")
-                                    .tfText(.action)
-                                    .foregroundStyle(Color.tfText)
-                                Text(reportSubtitle(report))
-                                    .tfText(.caption)
-                                    .foregroundStyle(Color.tfDim)
+        // Чаты, привязанные к задаче. Секция только ПЕРЕХОДИТ в переписку:
+        // свой чат внутри карточки не заводится и не рисуется — для этого есть
+        // отдельный экран (владелец 21.09.2026: «заводить прям чат прямо в
+        // карточке не надо, надо чтобы просто переходил»). Появляется только
+        // когда чат уже привязан — со стороны чата.
+        if !viewModel.taskChats.isEmpty {
+            collapsibleSection(.chatByTask, title: "Чат по задаче") {
+                chatByTaskContent
+            }
+        }
+
+        if !viewModel.attachments.uploaded.isEmpty || !viewModel.attachments.pending.isEmpty {
+            collapsibleSection(.attachments, title: "Вложения") {
+                ForEach(viewModel.attachments.uploaded) { attachment in
+                    taskAttachmentButton(attachment, identifierPrefix: "task.attachment.open")
+                        .contextMenu {
+                            Button { replaceAttachment(from: .phone, target: attachment) } label: {
+                                Label("Заменить с iPhone", systemImage: "iphone")
+                            }
+                            Button { replaceAttachment(from: .knowledge, target: attachment) } label: {
+                                Label("Заменить из базы знаний", systemImage: "books.vertical")
+                            }
+                            Button(role: .destructive) {
+                                Task { await viewModel.attachments.removeUploaded(attachment) }
+                            } label: {
+                                Label("Удалить", systemImage: "trash")
                             }
                         }
-                        .buttonStyle(.plain)
-                    }
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                Task { await viewModel.attachments.removeUploaded(attachment) }
+                            } label: {
+                                Label("Удалить", systemImage: "trash")
+                            }
+                        }
+                }
+                ForEach(viewModel.attachments.pending) { attachment in
+                    Label(attachment.fileName, systemImage: "paperclip")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                viewModel.attachments.removePending(attachment)
+                            } label: {
+                                Label("Удалить", systemImage: "trash")
+                            }
+                        }
                 }
             }
+        }
+
+        // Отчёты — «зеркало» документов из папки проекта: сам файл лежит
+        // в документации, здесь название, автор и время; тап открывает
+        // документ. Владелец 20.09.2026.
+        if !viewModel.reports.isEmpty {
+            collapsibleSection(.reports, title: "Отчёты") {
+                ForEach(viewModel.reports) { report in
+                    Button {
+                        if let noteID = report.noteID { openedReportNoteID = noteID }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(report.title, systemImage: "doc.text")
+                                .tfText(.action)
+                                .foregroundStyle(Color.tfText)
+                            Text(reportSubtitle(report))
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfDim)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var nativeTaskDetailBody: some View {
+        List {
+            cardTopSections
+            outcomeSection
+            cardBottomSections
 
         }
         // Владелец 07.09.2026: «размести все элементы плоско, без лишних
@@ -2610,6 +2638,13 @@ struct TaskCardContent: View {
     private func loadOutcome() async {
         guard let taskID = viewModel.taskID else { outcome = nil; return }
         outcome = try? await APIClient().taskOutcome(taskId: taskID)
+        await loadMergeRow()
+    }
+
+    /// Нет доступа или нет строки — молча: карточка от автослияния не зависит.
+    private func loadMergeRow() async {
+        guard let taskID = viewModel.taskID else { mergeRow = nil; return }
+        mergeRow = (try? await APIClient().mergeQueue())?.row(forTask: taskID)
     }
 
     private func removeFromDynamicIsland() {
