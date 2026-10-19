@@ -528,6 +528,7 @@ struct RoleThinkingWindow: View {
                 // сразу бросалось в глаза (владелец 14.10.2026, по образцу).
                 Text(Self.highlighted(visible))
                     .tfText(.caption)
+                    .italic()
                     .foregroundStyle(Color.tfSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -713,6 +714,7 @@ struct RoleLiveDetailSheet: View {
         switch detail {
         case .thinking(let thinking):
             RoleReplyMarkdown(text: thinking.text, color: .tfText)
+                .italic()
                 .textSelection(.enabled)
         case .step(let step):
             if let detail = step.detail, !detail.isEmpty {
