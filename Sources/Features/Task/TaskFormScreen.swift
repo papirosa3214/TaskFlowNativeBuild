@@ -761,6 +761,32 @@ struct TaskCardContent: View {
         titleBlockDivider.offset(y: 15)
     }
 
+    /// Уход со шага плана сохраняет его название. Тело обработчика вынесено
+    /// из `body`: разбор типа у экрана карточки и без того на пределе, и
+    /// лишние строки замыкания уводили компилятор за разумное время.
+    private func onSubtaskFocusChange(previous: String?, current: String?) {
+        if let current { dictationTarget = .subtask(current) }
+        guard let previous,
+              let subtask = viewModel.subtasks.first(where: { $0.id == previous })
+        else { return }
+        commitSubtaskTitle(subtask)
+    }
+
+    /// Название роли по ключу — вынесено из места вызова: разбор типа в
+    /// `body` этой карточки и без того на пределе, и лишнее замыкание в
+    /// вызове уводило компилятор за разумное время.
+    private func outcomeRoleTitle(_ key: String) -> String {
+        viewModel.roles.first { $0.role == key }?.title ?? key
+    }
+
+    /// Предпросмотр документа из «Итога» — тоже метод, а не замыкание в
+    /// вызове: вызов `TaskOutcomeContent` и так переполнен, и разбор типа
+    /// не справлялся.
+    private func outcomePreviewDocument(noteID: String, title: String) {
+        openedReportPreviewTitle = title
+        openedReportPreviewNoteID = noteID
+    }
+
     /// Чип «Сведения» — владелец 28.09.2026: срок/проект/приоритет/метки
     /// сжаты в один ряд ярлычков вместо четырёх полноширинных строк.
     @ViewBuilder
@@ -951,13 +977,10 @@ struct TaskCardContent: View {
                 collapsibleSection(.outcome, title: "Итог") {
                     TaskOutcomeContent(
                         outcome: outcome,
-                        roleTitle: { key in viewModel.roles.first { $0.role == key }?.title ?? key },
+                        roleTitle: outcomeRoleTitle,
                         onToast: { toast = TaskToastMessage($0) },
                         onOpenDocument: { openedReportNoteID = $0 },
-                        onPreviewDocument: { noteID, title in
-                            openedReportPreviewTitle = title
-                            openedReportPreviewNoteID = noteID
-                        },
+                        onPreviewDocument: outcomePreviewDocument,
                         replyChatID: viewModel.taskChats.first?.id,
                         subtaskID: { slot in viewModel.subtasks.first { $0.planNodeKey == slot }?.id }
                     )
@@ -1146,11 +1169,7 @@ struct TaskCardContent: View {
         // Ушли из строки шага — сохранили её название. Тот же принцип, что
         // у названия задачи выше: отдельной кнопки «сохранить» нет.
         .onChange(of: focusedSubtaskID) { previous, current in
-            if let current { dictationTarget = .subtask(current) }
-            guard let previous,
-                  let subtask = viewModel.subtasks.first(where: { $0.id == previous })
-            else { return }
-            commitSubtaskTitle(subtask)
+            onSubtaskFocusChange(previous: previous, current: current)
         }
         // Системный List сохраняет свою структуру, но между подряд идущими
         // свёрнутыми заголовками оставляет примерно вдвое меньше воздуха.
