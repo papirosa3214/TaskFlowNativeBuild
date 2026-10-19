@@ -64,6 +64,24 @@ final class TaskFormViewModel {
             taskDescriptionBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
         }
     }
+
+    /// Описание с сервера в том виде, в каком его соберёт редактор.
+    /// Разбор и сборка не точь-в-точь (экранирование `-` и `.`, таблицы),
+    /// поэтому сырое серверное описание с собранным напрямую не сравнивать:
+    /// иначе любое открытие карточки выглядит правкой — свежее описание
+    /// отбрасывается, а своё старое уходит на сервер
+    /// (LOCK-DESC-ROUNDTRIP-20261019, владелец 19.10.2026).
+    static func editorForm(_ markdown: String?) -> String? {
+        guard let markdown, !markdown.isEmpty else { return nil }
+        let parsed = MarkdownParser.parse(markdown)
+        let encoded = MarkdownEncoder.encode(parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed)
+        return encoded.isEmpty ? nil : encoded
+    }
+
+    /// Описание в полях совпадает с серверным — владелец его не правил.
+    func descriptionMatches(_ serverDescription: String?) -> Bool {
+        (taskDescription.isEmpty ? nil : taskDescription) == Self.editorForm(serverDescription)
+    }
     var subtaskDrafts: [SubtaskDraft] = [] // режим create
     var subtasks: [ApiSubtask] = []        // режим edit — с сервера
     var dueDate: Date?
@@ -375,7 +393,7 @@ final class TaskFormViewModel {
     /// Сравнение — то же, что в `saveEdit`, поле за полем.
     func adoptServerChanges(from old: ApiTask, to fresh: ApiTask) {
         if title.trimmingCharacters(in: .whitespacesAndNewlines) == old.title { title = fresh.title }
-        if (taskDescription.isEmpty ? nil : taskDescription) == old.description { taskDescription = fresh.description ?? "" }
+        if descriptionMatches(old.description) { taskDescription = fresh.description ?? "" }
         if dueDate.map(Self.dueDateString) == old.dueDate { dueDate = fresh.dueDateAsDate }
         let startStr = startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
         if startStr == old.startTime {
@@ -938,7 +956,7 @@ final class TaskFormViewModel {
         var fields: [String: JSONValue] = [:]
         if trimmedTitle != originalTask.title { fields["title"] = .string(trimmedTitle) }
         let desc = taskDescription.isEmpty ? nil : taskDescription
-        if desc != originalTask.description { fields["description"] = desc.map { JSONValue.string($0) } ?? .null }
+        if !descriptionMatches(originalTask.description) { fields["description"] = desc.map { JSONValue.string($0) } ?? .null }
         let dueStr = dueDate.map(Self.dueDateString)
         if dueStr != originalTask.dueDate { fields["due_date"] = dueStr.map { JSONValue.string($0) } ?? .null }
         let startStr = startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }

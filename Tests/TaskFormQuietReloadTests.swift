@@ -34,4 +34,29 @@ final class TaskFormQuietReloadTests: XCTestCase {
         XCTAssertEqual(viewModel.title, "Виджеты — пишу сейчас")
         XCTAssertEqual(viewModel.projectId, "p-mine")
     }
+
+    /// LOCK-DESC-ROUNDTRIP-20261019: редактор собирает описание не точь-в-точь
+    /// (экранирует `-` и `.`), и сырое описание с сервера никогда не совпадало
+    /// с собранным. Итог — открытая карточка считала описание своей правкой:
+    /// свежее с сервера отбрасывала, а своё старое отправляла обратно.
+    func testUntouchedDescriptionFollowsServer() {
+        let old = TestTaskFactory.makeTask(id: "t1", description: "Папка TaskFlow-Web-Desktop. Готово.")
+        let fresh = TestTaskFactory.makeTask(id: "t1", description: "Новое: TaskFlow-Web-Desktop. Готово.")
+        let viewModel = TaskFormViewModel(taskID: nil, apiClient: APIClient())
+        viewModel.taskDescription = old.description ?? ""
+
+        viewModel.adoptServerChanges(from: old, to: fresh)
+
+        XCTAssertTrue(viewModel.taskDescription.contains("Новое"))
+    }
+
+    func testOpenedDescriptionIsNotAnEdit() {
+        let server = "Папка TaskFlow-Web-Desktop. Готово."
+        let viewModel = TaskFormViewModel(taskID: nil, apiClient: APIClient())
+        viewModel.taskDescription = server
+
+        XCTAssertTrue(viewModel.descriptionMatches(server))
+        viewModel.taskDescription = "Правка владельца"
+        XCTAssertFalse(viewModel.descriptionMatches(server))
+    }
 }
