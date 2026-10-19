@@ -224,9 +224,22 @@ private struct DocumentTableView: View {
                         .padding(.horizontal, TFSpacing.md)
                         .padding(.vertical, TFSpacing.sm)
                         .frame(width: columnWidths[column], alignment: .leading)
+                        // Вертикальные линии между столбцами — той же
+                        // толщины и цвета, что горизонтальные между строками
+                        // (владелец 19.10.2026). У последнего столбца линии
+                        // нет: справа его закрывает рамка таблицы.
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .overlay(alignment: .trailing) {
+                            if column < columnWidths.count - 1 {
+                                Rectangle()
+                                    .fill(isHeader ? Color.tfStroke : Color.tfStroke.opacity(0.7))
+                                    .frame(width: TFBorder.width)
+                            }
+                        }
                 }
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
