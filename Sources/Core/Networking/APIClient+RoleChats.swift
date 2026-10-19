@@ -6,6 +6,8 @@ private struct RoleChatMessagesEnvelope: Decodable { let messages: [RoleChatMess
 private struct RoleChatMessageEnvelope: Decodable { let message: RoleChatMessage }
 private struct RoleChatLiveEnvelope: Decodable { let turns: [RoleChatLiveTurn] }
 
+private struct RoleChatChecklistEnvelope: Decodable { let checklist_state: [ChecklistItemState] }
+
 private struct CreateRoleChatBody: Encodable {
     let title: String?
     let kind: String
@@ -72,6 +74,24 @@ public extension APIClient {
         }
         let response: RoleChatMessageEnvelope = try await request(.post, "/chats/\(chatID)/messages/\(messageID)/reaction", body: Body(emoji: emoji))
         return response.message
+    }
+
+    /// Отметка пункта checklist-виджета — один POST, ровно как у реакции
+    /// (карточка 21842242). Сервер проверяет, что такой пункт есть в тексте
+    /// сообщения, и отдаёт состояние всего сообщения: перерисовывать по
+    /// ответу, отдельный GET не нужен.
+    func setRoleChatChecklistItem(chatID: String, messageID: String, item: ChecklistItemState) async throws -> [ChecklistItemState] {
+        struct Body: Encodable {
+            let widget_key: String
+            let item_key: String
+            let done: Bool
+        }
+        let response: RoleChatChecklistEnvelope = try await request(
+            .post,
+            "/chats/\(chatID)/messages/\(messageID)/checklist",
+            body: Body(widget_key: item.widgetKey, item_key: item.itemKey, done: item.done)
+        )
+        return response.checklist_state
     }
 
     func roleChatLive(id: String) async throws -> [RoleChatLiveTurn] {

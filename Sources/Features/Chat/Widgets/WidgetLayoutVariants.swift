@@ -77,6 +77,8 @@ private struct MetricsDelta: View {
 /// вторичная величина справа, поэтому строка перестаёт быть просто пунктом.
 struct ChecklistRowsWidget: View {
     let items: [WidgetData]
+    /// nil — виджет вне переписки: отметка локальная (галерея, превью).
+    var binding: ChatWidgetView.ChecklistBinding?
     @Environment(\.colorScheme) private var scheme
     @State private var toggled: Set<Int> = []
 
@@ -86,19 +88,27 @@ struct ChecklistRowsWidget: View {
                 ChecklistStatusRow(item: item,
                                    ink: WidgetInk(scheme),
                                    isDone: isDone(index: index, item: item),
-                                   toggle: { toggle(index) })
+                                   toggle: { toggle(index: index, item: item) })
             }
+            ChecklistSyncNotice(failure: binding?.failure())
         }
     }
 
+    /// В переписке — по состоянию сообщения с сервера, иначе по-старому,
+    /// локально (галерея виджетов, превью).
     private func isDone(index: Int, item: WidgetData) -> Bool {
-        ((item.bool("done") ?? false) != toggled.contains(index))
+        if let binding { return binding.isDone(index, item) }
+        return ((item.bool("done") ?? false) != toggled.contains(index))
     }
 
-    private func toggle(_ index: Int) {
-        withAnimation(.snappy(duration: TFDuration.base)) {
-            if toggled.contains(index) { toggled.remove(index) } else { toggled.insert(index) }
+    private func toggle(index: Int, item: WidgetData) {
+        guard let binding else {
+            withAnimation(.snappy(duration: TFDuration.base)) {
+                if toggled.contains(index) { toggled.remove(index) } else { toggled.insert(index) }
+            }
+            return
         }
+        binding.toggle(index, item)
     }
 }
 
