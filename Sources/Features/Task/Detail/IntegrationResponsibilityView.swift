@@ -83,6 +83,10 @@ struct IntegrationResponsibilityView: View {
     }
     private func load() async {
         do { state = try await api.integrationResponsibility(taskID: taskID); error = nil }
+        // Отмена — не сбой: обновление карточки перезапускает загрузку, и
+        // прерванный запрос показывался красной плашкой «CancellationError»
+        // (владелец 20.10.2026). Свежий запрос уже идёт следом.
+        catch is CancellationError {}
         catch { self.error = error.localizedDescription }
     }
     private func select(_ mode: String, _ id: String?) {
