@@ -1916,6 +1916,13 @@ struct RoleChatRoomScreen: View {
     }
 
     private func messageActions(_ message: RoleChatMessage) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            if let usage = message.steps?.usage { RoleTurnUsageRow(usage: usage) }
+            messageActionRow(message)
+        }
+    }
+
+    private func messageActionRow(_ message: RoleChatMessage) -> some View {
         // Владелец 14.10.2026: значки были мелкие, пальцем не попасть;
         // реакции убраны — пользы от них не было.
         HStack(spacing: 0) {

@@ -269,15 +269,48 @@ public struct RoleChatHandoff: Decodable, Sendable, Equatable {
 public struct RoleChatSteps: Decodable, Sendable, Equatable {
     public let durationMs: Int
     public let items: [RoleChatLiveItem]
+    /// Расход хода: токены, кэш, цена (сервер с 19.10.2026; старые — nil).
+    public let usage: RoleTurnUsage?
 
     enum CodingKeys: String, CodingKey {
-        case items
+        case items, usage
         case durationMs = "duration_ms"
     }
 
     public var stepCount: Int { items.filter(\.isStep).count }
     /// Есть что показать свёрнутой строкой: шаги или размышления.
     public var hasDetails: Bool { items.contains { !$0.isText } }
+}
+
+/// Расход хода роли — строка под ответом в чате. `input` — без кэша.
+public struct RoleTurnUsage: Decodable, Sendable, Equatable {
+    public let input: Int
+    public let output: Int
+    public let cacheRead: Int
+    public let cacheWrite: Int
+    public let costUSD: Double?
+    public let generationMs: Int?
+    public let model: String?
+
+    enum CodingKeys: String, CodingKey {
+        case input, output, model
+        case cacheRead = "cache_read"
+        case cacheWrite = "cache_write"
+        case costUSD = "cost_usd"
+        case generationMs = "generation_ms"
+    }
+
+    /// Токенов в секунду на генерации; nil — время не замерено.
+    public var tokensPerSecond: Double? {
+        guard let ms = generationMs, ms > 0, output > 0 else { return nil }
+        return Double(output) / (Double(ms) / 1000)
+    }
+
+    /// Доля входа, прочитанная из кэша, 0…1; nil — входа нет.
+    public var cacheHitRatio: Double? {
+        let total = input + cacheRead + cacheWrite
+        return total > 0 ? Double(cacheRead) / Double(total) : nil
+    }
 }
 
 /// Элемент хода роли — кусок текста, шаг (вызов инструмента) или
