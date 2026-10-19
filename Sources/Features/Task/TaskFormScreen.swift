@@ -930,6 +930,16 @@ struct TaskCardContent: View {
             // Тот же редактор, что в заметке: те же строки блоков, та же
             // лента над клавиатурой, тот же Enter/Backspace. Владелец
             // 13.09.2026 — «один единый формат с заметками».
+            // Описание с таблицами, ```widget, ```tf-json и ```html вне правки
+            // рисуется тем же рендером, что ответ роли в чате (владелец
+            // 19.10.2026: «как везде в приложении»); карандаш — снова редактор.
+            if viewModel.isEditing, !activeEditors.contains("description"),
+               TaskDescriptionRichPreview.hasRichContent(viewModel.taskDescription) {
+                TaskDescriptionRichPreview(text: viewModel.taskDescription)
+                    .modifier(CardTextEditGate(enabled: false, identifier: "description", text: viewModel.taskDescription, arm: { armedEditors.insert("description") }))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .listRowSeparator(.hidden)
+            } else {
             BlockDocumentEditor(
                 blocks: $viewModel.taskDescriptionBlocks,
                 focus: descriptionFocus,
@@ -946,6 +956,7 @@ struct TaskCardContent: View {
             .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("description"), identifier: "description", text: viewModel.taskDescription, arm: { armedEditors.insert("description") }))
             .frame(maxWidth: .infinity, alignment: .leading)
             .listRowSeparator(.hidden)
+            }
         }
 
         collapsibleSection(.details, title: "Сведения") {
