@@ -52,6 +52,10 @@ struct AgentsScreen: View {
                             editorMode = .create
                         }
                         .accessibilityIdentifier("team-add-member")
+                        Button("Найти агентов", systemImage: "arrow.triangle.2.circlepath") {
+                            Task { await viewModel.refreshExternalAgents() }
+                        }
+                        .accessibilityIdentifier("team-find-agents")
                     }
                     Button("Внешний вид", systemImage: "person.crop.circle") { showAppearance = true }
                         .accessibilityIdentifier("team-appearance-open")

@@ -84,6 +84,13 @@ public extension APIClient {
     /// сервер требует, чтобы хотя бы одно было передано (иначе `422`).
     /// `enabled: false` отключает роль — она пропадает из работы и из
     /// списка без `?all=1`.
+    /// `POST /api/external-agents/refresh` — только владелец. Сервер ищет на
+    /// машине установленных внешних агентов (Claude Code, Codex, …) и заводит
+    /// найденных участниками команды со своей учёткой и иконкой.
+    func refreshExternalAgents() async throws {
+        try await requestVoid(.post, "/external-agents/refresh", body: [String: String]())
+    }
+
     func patchRole(
         role: String,
         title: String? = nil,

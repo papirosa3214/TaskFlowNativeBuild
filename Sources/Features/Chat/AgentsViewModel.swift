@@ -178,6 +178,17 @@ final class AgentsViewModel {
         await patchRole(role: role, title: nil, summary: nil, prompt: .keep, enabled: enabled)
     }
 
+    /// «Найти агентов»: сервер сам заводит установленных внешних агентов
+    /// участниками, затем список перечитывается.
+    func refreshExternalAgents() async {
+        do {
+            try await api.refreshExternalAgents()
+            await load()
+        } catch {
+            listErrorMessage = Self.message(for: error)
+        }
+    }
+
     private static func message(for error: Error) -> String {
         (error as? APIError)?.errorDescription ?? error.localizedDescription
     }

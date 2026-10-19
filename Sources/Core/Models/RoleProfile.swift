@@ -121,8 +121,15 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
     /// `?all=1` (LOCK-205): владелец видит отключённые, чтобы было что
     /// включить обратно. `nil` — для прежних ответов без этого поля.
     public let enabled: Bool?
+    /// Чем исполняется: `pi` — внутренняя роль, иначе внешний агент
+    /// (`claude-code`, …) в своём окружении. `nil` у прежних серверов.
+    public let runtime: String?
 
     public var id: String { role }
+
+    /// Внешний агент (Claude Code и т. п.): своя модель и инструменты,
+    /// поэтому строки модели Pi у него нет.
+    public var isExternalAgent: Bool { (runtime ?? "pi") != "pi" }
 
     /// Удобный флаг для UI: включать в список, отдавать «живым» исполнителям.
     /// По умолчанию `true`, чтобы старые ответы без `enabled` не теряли роли.
@@ -158,6 +165,6 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
         case attemptPolicy = "attempt_policy"
         case currentTask = "current_task"
         case lastActivity = "last_activity"
-        case summary, enabled
+        case summary, enabled, runtime
     }
 }

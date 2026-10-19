@@ -88,8 +88,10 @@ struct AgentProfileScreen: View {
             section(title: "Роль") {
                 currentRow(profile)
                 rowDivider
-                modelRow(profile)
-                rowDivider
+                if !profile.isExternalAgent {
+                    modelRow(profile)
+                    rowDivider
+                }
                 instructionsRow(profile)
                 if isInstructionsExpanded && !profile.prompt.isEmpty {
                     instructionsBlock(profile.prompt)
