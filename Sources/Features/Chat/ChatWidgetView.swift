@@ -15,13 +15,32 @@ import SwiftUI
 /// добавление типа это одна запись здесь плюс компонент в `Widgets/`.
 struct ChatWidgetView: View {
     let json: String
+    /// Номер блока виджета в сообщении строкой — тем же порядком, каким блоки
+    /// считает сервер. Нужен, когда у блока нет своего `id`/`key`. Вне чата
+    /// (галерея виджетов, превью) — nil.
+    var widgetKey: String? = nil
+    /// Контекст сообщения для отправки отметки checklist. nil — виджет не из
+    /// переписки (галерея, превью): отметка остаётся локальной, как раньше.
+    var checklist: ChecklistSyncContext? = nil
+
+    @State private var sync: ChecklistMessageSync?
 
     var body: some View {
-        if let data = WidgetData.parse(json) {
-            widget(for: data)
-        } else {
-            WidgetTextFallback(json: json, note: "Блок не разобран")
+        Group {
+            if let data = WidgetData.parse(json) {
+                widget(for: data)
+            } else {
+                WidgetTextFallback(json: json, note: "Блок не разобран")
+            }
         }
+    }
+
+    /// Связь виджета с отметками сообщения: виджет спрашивает «отмечен ли
+    /// пункт» и «переключи», а ключи, отправка и разбор отказа живут здесь.
+    struct ChecklistBinding {
+        let isDone: (Int, WidgetData) -> Bool
+        let toggle: (Int, WidgetData) -> Void
+        let failure: () -> String?
     }
 
     @ViewBuilder
@@ -67,11 +86,52 @@ struct ChatWidgetView: View {
         let items = data.array("items")
         let hasNewFields = data.bool("rows") == true
             || items.contains(where: { $0.string("tone") != nil || $0.string("meta") != nil || $0.number("progress") != nil })
+        let binding = checklistBinding(for: data)
         if hasNewFields {
-            WidgetCard(title: data.string("title")) { ChecklistRowsWidget(items: items) }
+            WidgetCard(title: data.string("title")) { ChecklistRowsWidget(items: items, binding: binding) }
         } else {
-            ChecklistWidget(data: data)
+            ChecklistWidget(data: data, binding: binding)
         }
+    }
+
+    /// nil — виджет не из переписки: отметка остаётся локальной. Иначе виджет
+    /// спрашивает состояние у сервера и отправляет нажатие туда же (карточка
+    /// 21842242: иначе роль отметку не видит, а после перезапуска она теряется).
+    private func checklistBinding(for data: WidgetData) -> ChecklistBinding? {
+        guard let checklist else { return nil }
+        let key = ChecklistKey.widget(data, position: widgetKey)
+        let sync = sync
+        let state: (Int, WidgetData) -> Bool = { index, item in
+            let itemKey = ChecklistKey.item(item, index: index)
+            if let sync {
+                return sync.done(widgetKey: key, itemKey: itemKey,
+                                 inBlock: item.bool("done") ?? false)
+            }
+            // Синхронизации ещё нет — рисуем то, что уже знаем с сервера.
+            return checklist.seed.first { $0.widgetKey == key && $0.itemKey == itemKey }?.done
+                ?? item.bool("done") ?? false
+        }
+        return ChecklistBinding(
+            isDone: state,
+            toggle: { index, item in
+                let itemKey = ChecklistKey.item(item, index: index)
+                let current = state(index, item)
+                Task { @MainActor in
+                    await ensureSync()?.toggle(widgetKey: key, itemKey: itemKey, to: !current)
+                }
+            },
+            failure: { sync?.failure }
+        )
+    }
+
+    /// Создаётся лениво, по первому нажатию: до него виджет рисует сохранённое
+    /// состояние сообщения, а объект синхронизации не нужен.
+    private func ensureSync() -> ChecklistMessageSync? {
+        guard let checklist else { return nil }
+        if let sync { return sync }
+        let created = ChecklistMessageSync(seed: checklist.seed, send: checklist.send)
+        sync = created
+        return created
     }
 
     @ViewBuilder
@@ -375,20 +435,21 @@ private struct ProgressWidget: View {
 
 // MARK: - Чек-лист (старый вид)
 
-/// Отметки ставятся прямо в чате — локально, для себя: сервер про них не
-/// знает (виджет — часть ответа роли, а не задача трекера).
+/// Отметки ставятся прямо в чате и уходят на сервер: роль читает их
+/// операцией `taskflow_checklist_state`, а состояние переживает перезапуск
+/// приложения. Вне переписки (галерея виджетов, превью) отметка локальная.
 private struct ChecklistWidget: View {
     let data: WidgetData
+    /// nil — виджет вне переписки (галерея, превью): отметка локальная.
+    var binding: ChatWidgetView.ChecklistBinding?
     @State private var toggled: Set<Int> = []
 
     var body: some View {
         WidgetCard(title: data.string("title")) {
             ForEach(Array(data.array("items").enumerated()), id: \.offset) { index, item in
-                let done = (item.bool("done") ?? false) != toggled.contains(index)
+                let done = isDone(index: index, item: item)
                 Button {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        if toggled.contains(index) { toggled.remove(index) } else { toggled.insert(index) }
-                    }
+                    toggle(index: index, item: item)
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
                         Image(systemName: done ? "checkmark.circle.fill" : "circle")
@@ -400,8 +461,42 @@ private struct ChecklistWidget: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .sensoryFeedback(.selection, trigger: toggled)
+                .sensoryFeedback(.selection, trigger: done)
+                .accessibilityLabel(item.string("text") ?? "Пункт")
+                .accessibilityValue(done ? "Отмечен" : "Не отмечен")
             }
+            ChecklistSyncNotice(failure: binding?.failure())
+        }
+    }
+
+    /// С перепиской — по состоянию сообщения (оно пришло с сервера, поэтому
+    /// отметка переживает перезапуск). Без переписки — по-старому, локально.
+    private func isDone(index: Int, item: WidgetData) -> Bool {
+        if let binding { return binding.isDone(index, item) }
+        return (item.bool("done") ?? false) != toggled.contains(index)
+    }
+
+    private func toggle(index: Int, item: WidgetData) {
+        guard let binding else {
+            withAnimation(.snappy(duration: 0.2)) {
+                if toggled.contains(index) { toggled.remove(index) } else { toggled.insert(index) }
+            }
+            return
+        }
+        binding.toggle(index, item)
+    }
+}
+
+/// Честный текст под checklist: сервер отметку не принял. Молчаливый откат
+/// выглядел бы как «отметка сработала».
+struct ChecklistSyncNotice: View {
+    let failure: String?
+
+    var body: some View {
+        if let failure {
+            Label(failure, systemImage: "exclamationmark.triangle")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfRed)
         }
     }
 }

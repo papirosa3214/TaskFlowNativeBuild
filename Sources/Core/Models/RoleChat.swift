@@ -176,6 +176,10 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public let steps: RoleChatSteps?
     public let reactions: [RoleChatReaction]?
     /// Сдача этапа (14.10.2026): главное из отчёта роли, `nil` — обычный ответ.
+    /// Отметки пунктов checklist-виджета, сохранённые на сервере (карточка
+    /// 21842242): клиент их шлёт, сервер хранит и отдаёт и клиенту, и роли.
+    /// Пустой массив — отметок не было, сам блок виджета остаётся в тексте.
+    public var checklistState: [ChecklistItemState]? = nil
     public var handoff: RoleChatHandoff? = nil
     public var coordination: RoleChatCoordination? = nil
     public var sequence: Int? = nil
@@ -191,6 +195,7 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case replyToMessageID = "reply_to_message_id"
         case replyToSenderName = "reply_to_sender_name"
         case id, text, kind, attachments, steps, reactions, sequence, handoff, coordination
+        case checklistState = "checklist_state"
         case roleEnvelope = "role_envelope"
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
@@ -203,6 +208,27 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case taskTitle = "task_title"
         case quickReplies = "quick_replies"
         case isSessionMarker = "is_session_marker"
+    }
+}
+
+/// Отметка одного пункта checklist-виджета. Ключи те же, что и в самом
+/// виджете: `key`/`id` пункта, иначе его номер строкой — так сервер ищет
+/// пункт в тексте сообщения, а не в записи клиента.
+public struct ChecklistItemState: Decodable, Sendable, Equatable {
+    public let widgetKey: String
+    public let itemKey: String
+    public let done: Bool
+
+    public init(widgetKey: String, itemKey: String, done: Bool) {
+        self.widgetKey = widgetKey
+        self.itemKey = itemKey
+        self.done = done
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case widgetKey = "widget_key"
+        case itemKey = "item_key"
+        case done
     }
 }
 

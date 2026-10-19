@@ -6,6 +6,9 @@ import SwiftUI
 struct ChatStructuredOutputView: View {
     let json: String
     var isStreaming = false
+    /// Контекст сообщения для отметок checklist-виджета внутри конверта
+    /// (карточка 21842242); nil — конверт не из переписки.
+    var checklist: ChecklistSyncContext? = nil
 
     private var document: StructuredOutputEnvelope? {
         guard let data = json.data(using: .utf8) else { return nil }
@@ -22,7 +25,7 @@ struct ChatStructuredOutputView: View {
                             blockView(block)
                         }
                     case .text(let text):
-                        RoleReplyMarkdown(text: text)
+                        RoleReplyMarkdown(text: text, checklist: checklist)
                     }
                 } else if let error = document.error {
                     errorBlock(error)
@@ -45,7 +48,7 @@ struct ChatStructuredOutputView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("chat.structured-output")
         } else if isStreaming, let partialText = ChatStructuredJSONStreamParser.partialText(in: json) {
-            RoleReplyMarkdown(text: partialText, isStreaming: true)
+            RoleReplyMarkdown(text: partialText, isStreaming: true, checklist: checklist)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("chat.structured-output.streaming-text")
         } else if isStreaming {
@@ -61,7 +64,7 @@ struct ChatStructuredOutputView: View {
         switch block.type {
         case "text":
             if let text = block.text, !text.isEmpty {
-                RoleReplyMarkdown(text: text)
+                RoleReplyMarkdown(text: text, checklist: checklist)
                     .accessibilityIdentifier("chat.structured-output.text")
             }
         case "heading":

@@ -1873,16 +1873,36 @@ struct RoleChatRoomScreen: View {
         }
     }
 
+    /// Отметки checklist-виджета уходят на сервер (карточка 21842242): роль
+    /// читает их операцией `taskflow_checklist_state`, а состояние приходит с
+    /// сервера — поэтому отметка переживает перезапуск приложения. Контекст
+    /// только там, где блок виджета есть: у сообщения без него отправлять
+    /// нечего.
+    private func checklistContext(for message: RoleChatMessage) -> ChecklistSyncContext? {
+        guard message.text.contains("```widget") || message.roleEnvelopeJSON?.contains("```widget") == true
+        else { return nil }
+        let chatID = chat.id
+        let messageID = message.id
+        return ChecklistSyncContext(
+            chatID: chatID,
+            messageID: messageID,
+            seed: message.checklistState ?? []
+        ) { item in
+            try await api.setRoleChatChecklistItem(chatID: chatID, messageID: messageID, item: item)
+        }
+    }
+
     private func isAgentReply(_ message: RoleChatMessage) -> Bool {
         message.fromUserID?.hasPrefix("role_") == true || message.fromUserID == "u-secretary" || chat.members.contains { $0.id == message.fromUserID && $0.roleKey != nil }
     }
 
     @ViewBuilder
     private func roleMessageContent(_ message: RoleChatMessage, allowsCommands: Bool) -> some View {
+        let checklist = checklistContext(for: message)
         if isAgentReply(message), let json = message.roleEnvelopeJSON {
-            ChatStructuredOutputView(json: json)
+            ChatStructuredOutputView(json: json, checklist: checklist)
         } else {
-            RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands)
+            RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist)
                 .equatable()
                 // Анимируем только новое сообщение и только когда лента внизу:
                 // иначе проявление старых строк при прокрутке дёргает

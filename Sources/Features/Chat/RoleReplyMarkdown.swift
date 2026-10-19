@@ -15,6 +15,11 @@ struct RoleReplyMarkdown: View, Equatable {
     /// Проявление хвоста у идущего ответа (30.09.2026); nil — готовый текст.
     var fade: RoleTextFade?
     var isStreaming = false
+    /// Контекст сообщения для отметок checklist-виджета (карточка 21842242).
+    /// nil — ответ не из переписки (карточка задачи, превью): виджет рисуется,
+    /// но отметка никуда не уходит. В сравнении (`==`) не участвует: ключи и
+    /// отправка привязаны к сообщению, а не к тексту куска.
+    var checklist: ChecklistSyncContext? = nil
 
     var body: some View {
         let segments = ChatRichContent.split(text, isStreaming: isStreaming)
@@ -28,7 +33,7 @@ struct RoleReplyMarkdown: View, Equatable {
             // проявляется по всему тексту, а не у каждого куска отдельно.
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-                    segmentView(segment, fade: fade)
+                    segmentView(segment, fade: fade, widgetKey: widgetKey(in: segments, at: index))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -45,19 +50,30 @@ struct RoleReplyMarkdown: View, Equatable {
         return result
     }
 
+    /// Номер блока виджета в сообщении — тем же порядком, каким их считает
+    /// сервер: счёт идёт по блокам ```widget, а не по кускам ответа. Без
+    /// контекста переписки (nil) не нужен.
+    private func widgetKey(in segments: [ChatRichSegment], at segmentIndex: Int) -> String? {
+        guard checklist != nil else { return nil }
+        let widgetBlocks = segments.prefix(segmentIndex).filter {
+            if case .widget = $0 { return true } else { return false }
+        }
+        return String(widgetBlocks.count)
+    }
+
     @ViewBuilder
-    private func segmentView(_ segment: ChatRichSegment, fade: RoleTextFade?) -> some View {
+    private func segmentView(_ segment: ChatRichSegment, fade: RoleTextFade?, widgetKey: String?) -> some View {
         switch segment {
         case .markdown(let part):
             RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: fade)
         case .table(let table):
             ChatTableView(table: table, color: color)
         case .widget(let json):
-            ChatWidgetView(json: json)
+            ChatWidgetView(json: json, widgetKey: widgetKey, checklist: checklist)
         case .structuredJSON(let json):
-            ChatStructuredOutputView(json: json)
+            ChatStructuredOutputView(json: json, checklist: checklist)
         case .structuredJSONStreaming(let json):
-            ChatStructuredOutputView(json: json, isStreaming: true)
+            ChatStructuredOutputView(json: json, isStreaming: true, checklist: checklist)
         case .html(let html):
             ChatHTMLView(html: html, allowsCommands: allowsCommands && fade == nil)
         case .pending(let kind):
