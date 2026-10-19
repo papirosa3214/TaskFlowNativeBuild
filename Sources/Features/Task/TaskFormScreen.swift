@@ -647,6 +647,16 @@ struct TaskCardContent: View {
                         // урезаны, раз просили «точно как описание, без
                         // ограничений».
                         HStack(alignment: .top, spacing: TFSpacing.sm) {
+                            if viewModel.isEditing, !activeEditors.contains("title"),
+                               !viewModel.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                // Тот же вид, что у описания (владелец 19.10.2026).
+                                TaskDescriptionRichPreview(text: viewModel.title)
+                                    .contentShape(Rectangle())
+                                    .simultaneousGesture(TapGesture().onEnded { armedEditors.insert("title") })
+                                    .accessibilityIdentifier("task.arm.title")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .listRowSeparator(.hidden)
+                            } else {
                             BlockDocumentEditor(
                                 blocks: $viewModel.titleBlocks,
                                 focus: titleFocus,
@@ -668,6 +678,7 @@ struct TaskCardContent: View {
                             .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("title"), identifier: "title", text: viewModel.title, arm: { armedEditors.insert("title") }))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .listRowSeparator(.hidden)
+                            }
                             if armedEditors.contains("title") || activeEditors.contains("title") {
                                 editorButton("title")
                             }
@@ -933,8 +944,11 @@ struct TaskCardContent: View {
             // Описание с таблицами, ```widget, ```tf-json и ```html вне правки
             // рисуется тем же рендером, что ответ роли в чате (владелец
             // 19.10.2026: «как везде в приложении»); карандаш — снова редактор.
+            // Владелец 19.10.2026: название, описание и лента — одним видом.
+            // В режиме чтения всегда рендер чата, а не только когда есть таблица:
+            // иначе описание без таблицы рисовалось редактором другим шрифтом.
             if viewModel.isEditing, !activeEditors.contains("description"),
-               TaskDescriptionRichPreview.hasRichContent(viewModel.taskDescription) {
+               !viewModel.taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 // Не через `CardTextEditGate`: его прозрачная кнопка поверх
                 // забирала и свайпы — таблица в описании не листалась вбок
                 // (владелец 19.10.2026). Тап ловится вместе с прокруткой.
@@ -2056,7 +2070,9 @@ struct TaskCardContent: View {
                     Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
             }
-            Text(comment.text).tfText(.action).foregroundStyle(Color.tfSub)
+            // Тот же вид, что название и описание (владелец 19.10.2026):
+            // таблицы, JSON-блоки и разметка рисуются, а не сырым текстом.
+            TaskDescriptionRichPreview(text: comment.text)
             // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
             // текст, и приложенные кадры в приложении не показывались
             // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
