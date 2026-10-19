@@ -935,8 +935,13 @@ struct TaskCardContent: View {
             // 19.10.2026: «как везде в приложении»); карандаш — снова редактор.
             if viewModel.isEditing, !activeEditors.contains("description"),
                TaskDescriptionRichPreview.hasRichContent(viewModel.taskDescription) {
+                // Не через `CardTextEditGate`: его прозрачная кнопка поверх
+                // забирала и свайпы — таблица в описании не листалась вбок
+                // (владелец 19.10.2026). Тап ловится вместе с прокруткой.
                 TaskDescriptionRichPreview(text: viewModel.taskDescription)
-                    .modifier(CardTextEditGate(enabled: false, identifier: "description", text: viewModel.taskDescription, arm: { armedEditors.insert("description") }))
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(TapGesture().onEnded { armedEditors.insert("description") })
+                    .accessibilityIdentifier("task.arm.description")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .listRowSeparator(.hidden)
             } else {
