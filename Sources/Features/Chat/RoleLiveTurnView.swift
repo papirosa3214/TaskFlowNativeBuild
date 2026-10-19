@@ -180,7 +180,7 @@ struct RoleLiveItemsList: View {
                 Group {
                     switch item {
                     case .text(let text):
-                        RoleReplyMarkdown(text: text, color: textColor, fade: fade, isStreaming: isStreaming)
+                        RoleReplyMarkdown(text: RoleTranslator.shared.display(text), color: textColor, fade: fade, isStreaming: isStreaming)
                     case .step(let step):
                         let hasDetail = !(step.detail ?? "").isEmpty
                         Button { detail = .step(step) } label: {
@@ -225,6 +225,16 @@ struct RoleLiveItemsList: View {
         .sheet(item: $detail) { detail in
             RoleLiveDetailSheet(detail: detail)
         }
+        .modifier(RoleTranslationHost(texts: finishedTexts))
+    }
+
+    /// Реплики, которые уже не растут: у идущего хода последняя ещё пишется.
+    private var finishedTexts: [String] {
+        let texts = items.compactMap { item -> String? in
+            if case .text(let text) = item { return text }; return nil
+        }
+        let lastIsText = items.last.map { if case .text = $0 { return true }; return false } ?? false
+        return isStreaming && lastIsText ? Array(texts.dropLast()) : texts
     }
 
     private static func isAction(_ item: RoleChatLiveItem) -> Bool {

@@ -2390,6 +2390,7 @@ private struct RoleChatDetailsSheet: View {
     @State private var errorMessage: String?
     @State private var isDeleteChatConfirmOpen = false
     @AppStorage(RoleWorkDetailLevel.storageKey) private var workDetailLevel = RoleWorkDetailLevel.standard
+    @AppStorage(RoleTranslator.autoKey) private var autoTranslate = false
     private let api = APIClient()
 
     init(chat: RoleChat, onChanged: @escaping (RoleChat) -> Void, onDeleted: @escaping () -> Void) {
@@ -2457,6 +2458,17 @@ private struct RoleChatDetailsSheet: View {
                     Text("Показ работы роли")
                 } footer: {
                     Text(workDetailLevel.explanation)
+                }
+                Section {
+                    HStack {
+                        Text("Переводить работу ролей сразу")
+                        Spacer()
+                        TFToggle(isOn: $autoTranslate)
+                    }
+                        .onChange(of: autoTranslate) { _, on in RoleTranslator.shared.isOn = on }
+                        .accessibilityIdentifier("chat.details.autoTranslate")
+                } footer: {
+                    Text("Английские реплики ролей показываются по-русски. Переводит iPhone, без сервера; кнопка «Перевести» в ленте работает и без этой настройки.")
                 }
             }
             .navigationTitle("Чат")
