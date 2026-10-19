@@ -52,11 +52,11 @@ struct SubtaskHostPicker: View {
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: выбранная == nil ? "server.rack" : "desktopcomputer")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.tfSub)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Где выполнять")
                             .tfText(.meta)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.tfSub)
                         Text(заголовок)
                             .tfText(.body)
                             .foregroundStyle(Color.tfText)
@@ -65,7 +65,7 @@ struct SubtaskHostPicker: View {
                     if доступен {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
                 .contentShape(Rectangle())
@@ -110,7 +110,7 @@ struct SubtaskHostPicker: View {
                         .foregroundStyle(online ? Color.tfText : Color.secondary)
                     Text(подпись)
                         .tfText(.meta)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.tfSub)
                 }
                 Spacer()
             }

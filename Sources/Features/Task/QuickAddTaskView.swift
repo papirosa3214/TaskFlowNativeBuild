@@ -412,7 +412,7 @@ struct QuickAddTaskView: View {
 
             Menu {
                 ForEach(labelStore.labels) { label in
-                    Toggle(label.name, isOn: Binding(
+                    Toggle(label.name, isOn: Binding(  // design-system-guard: ignore — пункт меню с галочкой, не тумблер
                         get: { viewModel.selectedLabelIds.contains(label.id) },
                         set: { selected in
                             if selected { viewModel.selectedLabelIds.insert(label.id) }

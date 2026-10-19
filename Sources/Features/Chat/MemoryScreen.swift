@@ -336,7 +336,12 @@ struct MemoryEditorSheet: View {
                             ForEach(roles) { role in Text(role.title).tag(role.key) }
                         }
                     }
-                    Toggle("Закрепить — всегда в задании", isOn: $pinned)
+                    HStack {
+                        Text("Закрепить — всегда в задании")
+                        Spacer()
+                        TFToggle(isOn: $pinned)
+                            .accessibilityLabel("Закрепить — всегда в задании")
+                    }
                 } footer: {
                     Text("Закреплённое роль получает в каждом задании. Остальное — когда оно близко к теме.")
                 }

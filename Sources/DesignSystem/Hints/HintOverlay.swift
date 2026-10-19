@@ -93,7 +93,7 @@ struct HintOverlayView: View {
             }
             if step.anchor != nil && hole == nil {
                 Text("Элемент появится, когда откроешь нужный экран.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Color.tfSub)
             }
             ForEach(step.branches) { branch in
                 Button(branch.title) { center.choose(branch) }

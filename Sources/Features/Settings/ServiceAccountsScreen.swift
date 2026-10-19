@@ -540,7 +540,7 @@ struct ServiceAccountsScreen: View {
                     set: { viewModel.updateTokenDraft(account.id, value: $0) }
                 ), icon: "key.fill")
                 HStack(spacing: TFSpacing.sm) {
-                    Button { Task { _ = await viewModel.saveToken(account.id) } } label: {
+                    Button { Task { _ = await viewModel.saveToken(account.id) } } label: {  // design-system-guard: ignore — две компактные кнопки в строку, TFButton полноширинная
                         Text("Сохранить")
                             .tfText(.row).fontWeight(.semibold)
                             .foregroundStyle(.white)

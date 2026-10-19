@@ -57,7 +57,7 @@ public struct ActionBar: View {
                 Image(systemName: symbol(for: action))
                     .font(.system(size: 14, weight: .semibold))
                 Text(action.label)
-                    .font(.system(size: 14, weight: .semibold))
+                    .tfText(.row).fontWeight(.semibold)
             }
             .foregroundStyle(.white)
             .padding(.horizontal, TFSpacing.md)
@@ -75,14 +75,14 @@ public struct ActionBar: View {
             Image(systemName: "exclamationmark.shield")
                 .foregroundStyle(Color.orange)
             Text("Сервер обновился, обновите приложение")
-                .font(.system(size: 12))
+                .tfText(.meta).fontWeight(.regular)
                 .foregroundStyle(Color.tfText)
         }
     }
 
     private var noActionLabel: some View {
         Text("Нет действия для этого шага")
-            .font(.system(size: 12))
+            .tfText(.meta).fontWeight(.regular)
             .foregroundStyle(Color.tfSub)
             .accessibilityIdentifier("coord.action.none")
     }

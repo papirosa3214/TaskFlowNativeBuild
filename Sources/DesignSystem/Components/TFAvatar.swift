@@ -195,7 +195,7 @@ public struct TFAvatar: View {
                         // Пропорция 0.43 от спек — считается от РАСТУЩЕЙ стороны,
                         // поэтому инициалы увеличиваются вместе с кружком.
                         Text(initials)
-                            .font(.system(size: side * 0.43, weight: .semibold))
+                            .font(.system(size: side * 0.43, weight: .semibold))  // design-system-guard: ignore — инициалы растут вместе с кружком
                             .foregroundStyle(.white)
                     }
             }

@@ -1093,7 +1093,7 @@ private struct CollaborationPlanGraph: View {
         .overlay(alignment: .topLeading) {
             if isLanes, let order = entry.order {
                 Text(String(order))
-                    .font(.system(size: 11, weight: .semibold))
+                    .tfText(.caption).fontWeight(.semibold)
                     .foregroundStyle(Color.tfSub)
                     .padding(.horizontal, 3)
             }

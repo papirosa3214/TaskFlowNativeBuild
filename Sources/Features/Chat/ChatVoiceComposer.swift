@@ -123,7 +123,7 @@ struct ChatVoiceComposer: View {
                     Button(action: onStop) {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.tfText)
                             .frame(width: composerHeight, height: composerHeight)
                             .voiceCircleSurface()
                     }
@@ -133,7 +133,7 @@ struct ChatVoiceComposer: View {
                     .accessibilityIdentifier("chat.stop")
                 } else {
                     Menu {
-                        Toggle("Диктовка в текст", isOn: $experimentalPromptBox)
+                        Toggle("Диктовка в текст", isOn: $experimentalPromptBox)  // design-system-guard: ignore — пункт меню с галочкой, не тумблер
                         Button { onAttachmentSource(.photo) } label: {
                             Label("Фото", systemImage: "photo.on.rectangle")
                         }
@@ -146,7 +146,7 @@ struct ChatVoiceComposer: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.tfText)
                             .frame(width: composerHeight, height: composerHeight)
                             .voiceCircleSurface()
                     }
@@ -212,7 +212,7 @@ struct ChatVoiceComposer: View {
             Button { onAttachmentSource(.file) } label: { Label("Файл", systemImage: "doc") }
             Button { onAttachmentSource(.camera) } label: { Label("Камера", systemImage: "camera") }
             Divider()
-            Toggle("Диктовка в текст", isOn: $experimentalPromptBox)
+            Toggle("Диктовка в текст", isOn: $experimentalPromptBox)  // design-system-guard: ignore — пункт меню с галочкой, не тумблер
         } label: {
             promptIcon("plus")
         }
@@ -248,7 +248,7 @@ struct ChatVoiceComposer: View {
                             Image(systemName: workMode.wrappedValue.symbol)
                                 .font(.system(size: 14, weight: .medium))
                             Text(workMode.wrappedValue.title)
-                                .font(.system(size: 15))
+                                .tfText(.body)
                                 .lineLimit(1)
                         }
                         .padding(.horizontal, 10)
@@ -481,7 +481,7 @@ struct ChatVoiceComposer: View {
             Button(action: discardPreview) {
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.tfText)
                     .frame(width: composerHeight, height: composerHeight)
                     .voiceCircleSurface()
             }

@@ -210,7 +210,7 @@ public struct StreamMessageRow: View {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(text)
-                    .font(.system(size: 13))
+                    .tfText(.action)
                     .foregroundStyle(Color.tfText)
                 MessageDeliveryChip(state: delivery, queuedMinutes: queuedMinutes)
             }
@@ -260,8 +260,8 @@ public struct ResolutionDetailsSheet: View {
     }
     private func detailRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.system(size: 13)).foregroundStyle(Color.tfText)
+            Text(label).font(.caption).foregroundStyle(Color.tfSub)
+            Text(value).tfText(.action).foregroundStyle(Color.tfText)
         }
     }
 }

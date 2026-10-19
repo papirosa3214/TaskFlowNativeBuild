@@ -93,7 +93,7 @@ struct TFTodayDateIcon: View {
             }
 
             Text("\(day)")
-                .font(.system(size: size * (day > 9 ? 0.34 : 0.38), weight: .heavy))
+                .font(.system(size: size * (day > 9 ? 0.34 : 0.38), weight: .heavy))  // design-system-guard: ignore — число дня внутри значка вкладки, доля от размера значка
                 .monospacedDigit()
                 .foregroundStyle(isSelected ? Color.black : outlineColor)
                 .offset(y: size * 0.13)

@@ -170,10 +170,10 @@ public struct GraphNodeLabel: View {
         let title = node.resolution?.causeEnum.title ?? "Нет данных"
         VStack(alignment: .leading, spacing: 2) {
             Text(role)
-                .font(.system(size: 13, weight: .semibold))
+                .tfText(.action).fontWeight(.semibold)
                 .foregroundStyle(Color.tfText)
             Text(title)
-                .font(.system(size: 12))
+                .tfText(.meta).fontWeight(.regular)
                 .foregroundStyle(Color.tfSub)
         }
     }

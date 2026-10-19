@@ -3328,11 +3328,11 @@ private struct LinkedTaskPicker: View {
             .navigationTitle("Связать задачу")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Поиск задач")
-            .alert("Ошибка", isPresented: Binding(
+            .alert("Связь не создана", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )) {
-                Button("OK") { errorMessage = nil }
+                Button("Понятно") { errorMessage = nil }
             } message: {
                 Text(errorMessage ?? "")
             }

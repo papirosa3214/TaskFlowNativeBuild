@@ -34,11 +34,11 @@ public struct ReasonStrip: View {
                 causeIcon
                 VStack(alignment: .leading, spacing: 2) {
                     Text(titleText)
-                        .font(.system(size: 15, weight: .semibold))
+                        .tfText(.body).fontWeight(.semibold)
                         .foregroundStyle(Color.tfText)
                         .lineLimit(1)
                     Text(subtitleText)
-                        .font(.system(size: 12))
+                        .tfText(.meta).fontWeight(.regular)
                         .foregroundStyle(Color.tfSub)
                         .lineLimit(1)
                 }
@@ -126,7 +126,7 @@ public struct AssigneeChip: View {
 
     public var body: some View {
         Text(label)
-            .font(.system(size: 11, weight: .medium))
+            .tfText(.caption)
             .foregroundStyle(Color.tfText)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)

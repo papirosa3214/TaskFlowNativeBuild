@@ -71,12 +71,12 @@ public struct StreamWindow<RowContent: View>: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.tfSub)
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .tfText(.action).fontWeight(.semibold)
                 .foregroundStyle(Color.tfText)
             Spacer(minLength: 4)
             if unread > 0 {
                 Text("\(unread)")
-                    .font(.system(size: 11, weight: .bold))
+                    .tfText(.caption).fontWeight(.bold)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -134,7 +134,7 @@ public struct MessageDeliveryChip: View {
             Image(systemName: symbol(for: state))
                 .font(.system(size: 11, weight: .semibold))
             Text(text)
-                .font(.system(size: 11, weight: .medium))
+                .tfText(.caption)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 2)

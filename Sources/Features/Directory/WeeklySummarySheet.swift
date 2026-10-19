@@ -45,7 +45,7 @@ struct WeeklySummarySheet: View {
                     items("Главные победы недели", summary.accomplishments)
                     items("Долги и хвосты", summary.missed_or_overdue)
                     items("Фокус на следующую неделю", summary.next_week_focus)
-                    Section { Text("Обновлено: " + summary.generated_at).font(.caption).foregroundStyle(.secondary) }
+                    Section { Text("Обновлено: " + summary.generated_at).font(.caption).foregroundStyle(Color.tfSub) }
                 }
             }
             .navigationTitle("Сводка недели")

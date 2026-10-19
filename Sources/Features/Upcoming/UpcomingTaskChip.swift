@@ -83,7 +83,7 @@ struct UpcomingDayListRow: View {
                 .frame(width: checkboxSize, height: checkboxSize)
 
                 Text(task.title)
-                    .font(.system(size: titleSize))
+                    .font(.system(size: titleSize))  // design-system-guard: ignore — кегль считается от высоты плашки в сетке часов
                     .foregroundStyle(isDone ? Color.tfSub : Color.tfText)
                     .strikethrough(isDone)
                     .lineLimit(1)
@@ -91,7 +91,7 @@ struct UpcomingDayListRow: View {
 
                 if let range = UpcomingDate.formatTimeRange(task.startTime, task.durationMin) {
                     Text(range)
-                        .font(.system(size: timeSize))
+                        .font(.system(size: timeSize))  // design-system-guard: ignore — кегль считается от высоты плашки в сетке часов
                         .monospacedDigit()
                         .foregroundStyle(Color.tfDim)
                 }

@@ -207,7 +207,7 @@ private struct WeatherWidget: View {
                     Text(data.string("location") ?? "Погода")
                         .tfText(.title)
                     Text(temperature(data.number("temperature")))
-                        .font(.system(size: 56, weight: .thin))
+                        .font(.system(size: 56, weight: .thin))  // design-system-guard: ignore — крупная цифра температуры в виджете, вне шкалы текста
                         .monospacedDigit()
                 }
                 Spacer()

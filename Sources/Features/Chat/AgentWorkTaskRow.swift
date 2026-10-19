@@ -61,7 +61,7 @@ private struct AgentWorkAvatarView: View {
             .frame(width: size, height: size)
             .overlay {
                 Text(initials)
-                    .font(.system(size: size * 0.43, weight: .semibold))
+                    .font(.system(size: size * 0.43, weight: .semibold))  // design-system-guard: ignore — инициалы растут вместе с кружком
                     .foregroundStyle(.white)
             }
     }

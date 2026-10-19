@@ -258,7 +258,7 @@ struct TodayScreen: View {
 
             Divider()
 
-            Toggle(isOn: Binding(
+            Toggle(isOn: Binding(  // design-system-guard: ignore — пункт меню с галочкой, не тумблер
                 get: { vm.filters.showCompleted },
                 set: { vm.filters.showCompleted = $0 }
             )) {
