@@ -409,7 +409,9 @@ private struct StructuredOutputEnvelope: Decodable {
         output = try values.decode(StructuredOutputContent.self, forKey: .output)
         error = try values.decodeIfPresent(StructuredOutputError.self, forKey: .error)
         nextHint = try values.decodeIfPresent(String.self, forKey: .nextHint)
-        needsHuman = try values.decode(Bool.self, forKey: .needsHuman)
+        // В описании карточки роль пишет конверт сама и `needs_human` часто
+        // опускает; без поля — решение владельца не нужно (владелец 19.10.2026).
+        needsHuman = try values.decodeIfPresent(Bool.self, forKey: .needsHuman) ?? false
 
         let rawArtifacts = try values.decodeIfPresent([JSONValue].self, forKey: .artifacts) ?? []
         artifacts = rawArtifacts.compactMap { value in
