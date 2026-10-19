@@ -132,7 +132,7 @@ struct ExternalAppAccessSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Внешние приложения").tfText(.title).foregroundStyle(Color.tfText)
+            SettingsCapsLabel("Внешние приложения")
                 .padding(.horizontal, TFSpacing.screenHorizontal)
             TFCard(padding: TFSpacing.md) {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {

@@ -46,6 +46,13 @@ import os
 import re
 import subprocess
 import sys
+import importlib.util
+from pathlib import Path
+
+_heading_spec = importlib.util.spec_from_file_location("screen_heading_guard", Path(__file__).with_name("screen-heading-guard.py"))
+_heading_module = importlib.util.module_from_spec(_heading_spec)
+_heading_spec.loader.exec_module(_heading_module)
+scan_screen_headings = _heading_module.scan_screen_headings
 
 IGNORE_MARK = "design-system-guard: ignore"
 
@@ -66,6 +73,12 @@ BASELINE_HEADER = """# Базовый снимок сторожа дизайн-�
 # Пары «что ищем — чем заменить». Правило error роняет сборку, warn только
 # сообщает.
 RULES = [
+    {
+        "id": "screen-heading-consistency",
+        "severity": "error",
+        "title": "разный стиль заголовков одного уровня внутри экрана",
+        "fix": "сверь соседние разделы указанного экрана: используй общий компонент без переопределения шрифта, цвета и регистра; детали в Tools/screen-heading-scopes.json",
+    },
     {
         "id": "raw-toggle",
         "severity": "error",
@@ -449,6 +462,7 @@ def main() -> int:
                 continue
             for rule_id in check_line(existing, new_lines, index):
                 findings.append((args.new_file, index + 1, rule_id, new_lines[index].strip()))
+        findings.extend(scan_screen_headings(root, overrides={existing: new_text}, affected={existing}))
         return render(findings)
 
     if args.folder:
@@ -456,6 +470,7 @@ def main() -> int:
         findings = []
         for path in sorted(walk_sources(root)):
             findings.extend(scan_file(path))
+        findings.extend(scan_screen_headings(root))
         return render(findings, baseline)
 
     if args.diff is not None:
@@ -465,6 +480,7 @@ def main() -> int:
             findings.extend(scan_file(path, only_lines=lineset))
         for path in untracked:
             findings.extend(scan_file(path))
+        findings.extend(scan_screen_headings(root, affected=set(added) | set(untracked)))
         return render(findings)
 
     if args.paths:
@@ -472,11 +488,13 @@ def main() -> int:
         for path in args.paths:
             full = path if os.path.isabs(path) else os.path.join(root, path)
             findings.extend(scan_file(full))
+        findings.extend(scan_screen_headings(root, affected={os.path.abspath(path if os.path.isabs(path) else os.path.join(root, path)) for path in args.paths}))
         return render(findings)
 
     findings = []
     for path in sorted(walk_sources(root)):
         findings.extend(scan_file(path))
+    findings.extend(scan_screen_headings(root))
     return render(findings)
 
 
