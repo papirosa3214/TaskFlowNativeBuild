@@ -1546,7 +1546,7 @@ struct TaskCardContent: View {
             // теперь тоже `tfText` (белый), как у названия проекта —
             // владелец 17.10.2026 попросил, чтобы подзаголовки карточки
             // и названия проектов в списке выглядели одинаково.
-            .tfText(.title)
+            .tfText(.taskTitle) // 20 pt: владелец 19.10.2026 — подзаголовки на 2–3 pt крупнее
             .foregroundStyle(Color.tfText)
             .textCase(nil)
     }
