@@ -36,6 +36,8 @@ struct ChatVoiceComposer: View {
     let onDiscardVoice: (VoiceMessage) -> Void
     var workMode: Binding<RoleChatWorkMode>? = nil
     var availableModes: [RoleChatWorkMode] = [.work, .plan]
+    /// Пилюля модели рядом с режимом; nil или пустой список — не рисуется.
+    var modelChoice: ChatModelChoice? = nil
     /// Роли, которым можно написать в этом чате — для кнопки-собачки.
     /// Владелец 11.10.2026: «чтобы я мог точечно писать, сразу же выбрать,
     /// кому я хочу написать из агентов… ее все время от руки писать не охоту».
@@ -183,6 +185,15 @@ struct ChatVoiceComposer: View {
                     .accessibilityIdentifier("chat.mode")
                     .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
                 }
+                if let modelChoice, modelChoice.isAvailable {
+                    ChatModelMenu(choice: modelChoice) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(Color.tfReadableSecondary)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.plain)
+                }
                 if canSendText {
                     actionButton("paperplane.fill", label: "Отправить", identifier: "chat.send", tint: Color.tfRed, action: onSendText)
                 } else {
@@ -261,6 +272,24 @@ struct ChatVoiceComposer: View {
                     .padding(.leading, 4)
                     .accessibilityIdentifier("chat.mode")
                     .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
+                }
+                if let modelChoice, modelChoice.isAvailable {
+                    // Тот же вид, что у пилюли режима слева от неё.
+                    ChatModelMenu(choice: modelChoice) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 14, weight: .medium))
+                            Text(modelChoice.title)
+                                .tfText(.body)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                        .frame(height: 40)
+                        .contentShape(Rectangle())
+                    }
+                    .padding(.leading, 4)
                 }
                 Spacer(minLength: 8)
                 Button(action: startVoiceRecording) {

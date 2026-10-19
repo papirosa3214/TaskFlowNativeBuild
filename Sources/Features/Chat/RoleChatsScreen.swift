@@ -665,6 +665,7 @@ struct RoleChatRoomScreen: View {
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
     @State private var isStopping = false
     @State private var workMode: RoleChatWorkMode = .work
+    @State private var modelChoice = ChatModelChoice()
     /// Автопрокрутка работает, пока владелец читает конец ленты. Ручной
     /// скролл отключает её до возвращения к низу.
     @State private var followsChatBottom = true
@@ -875,6 +876,7 @@ struct RoleChatRoomScreen: View {
                     onDiscardVoice: { _ in },
                     workMode: $workMode,
                     availableModes: RoleChatWorkMode.available(in: chat),
+                    modelChoice: modelChoice,
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
                     // что у подсказок при наборе «@» (RoleChatsScreen
                     // mentionCandidates), только берётся по нажатию, а не по
@@ -1200,6 +1202,7 @@ struct RoleChatRoomScreen: View {
         .onChange(of: chat.members.map(\.id)) { _, _ in
             if !RoleChatWorkMode.available(in: chat).contains(workMode) { workMode = .work }
         }
+        .task(id: chat.members.map(\.id)) { await modelChoice.load(chat: chat) }
         .onDisappear { voice.cancel(); player.stop() }
         .taskCardSheet(taskID: $pendingTaskID)
     }
@@ -2195,7 +2198,8 @@ struct RoleChatRoomScreen: View {
         }
         do {
             let message = try await api.sendRoleChatMessage(chatID: chat.id, text: pending.text,
-                                                            attachmentIDs: pending.attachments.map(\.id), mode: pending.mode)
+                                                            attachmentIDs: pending.attachments.map(\.id), mode: pending.mode,
+                                                            model: modelChoice.selected)
             withAnimation(.snappy(duration: 0.25)) {
                 pendingOutgoing.removeAll { $0.id == pendingID }
                 if !messages.contains(where: { $0.id == message.id }) {
@@ -2341,7 +2345,7 @@ struct RoleChatRoomScreen: View {
             let text: String
             if case .ready(let recognized) = message.transcript { text = recognized }
             else { text = "" }
-            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode)
+            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, model: modelChoice.selected)
             if !messages.contains(where: { $0.id == sent.id }) { messages.append(sent) }
             pendingVoices.removeAll { $0.id == id }
             pendingVoiceModes[id] = nil

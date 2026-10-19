@@ -88,10 +88,13 @@ struct AgentProfileScreen: View {
             section(title: "Роль") {
                 currentRow(profile)
                 rowDivider
-                if !profile.isExternalAgent {
+                if profile.isExternalAgent {
+                    // Своя модель агента; выбрать другую можно пилюлей в чате.
+                    infoRow(icon: "cpu", title: "Модель", subtitle: "своя модель агента", value: profile.model ?? "по умолчанию")
+                } else {
                     modelRow(profile)
-                    rowDivider
                 }
+                rowDivider
                 instructionsRow(profile)
                 if isInstructionsExpanded && !profile.prompt.isEmpty {
                     instructionsBlock(profile.prompt)

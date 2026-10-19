@@ -5,6 +5,18 @@ import Foundation
 
 private struct RolesEnvelope: Decodable { let roles: [RoleProfile] }
 
+/// Модель для пилюли в окне ввода чата.
+public struct RoleModelOption: Decodable, Identifiable, Hashable {
+    public let id: String
+    public let title: String
+}
+
+/// `GET /api/roles/:role/models` — список и текущая модель роли.
+public struct RoleModels: Decodable {
+    public let current: String?
+    public let models: [RoleModelOption]
+}
+
 public extension APIClient {
 
     /// `GET /api/roles` — только включённые роли.
@@ -87,6 +99,10 @@ public extension APIClient {
     /// `POST /api/external-agents/refresh` — только владелец. Сервер ищет на
     /// машине установленных внешних агентов (Claude Code, Codex, …) и заводит
     /// найденных участниками команды со своей учёткой и иконкой.
+    func roleModels(role: String) async throws -> RoleModels {
+        try await request(.get, "/roles/\(role)/models")
+    }
+
     func refreshExternalAgents() async throws {
         try await requestVoid(.post, "/external-agents/refresh", body: [String: String]())
     }
