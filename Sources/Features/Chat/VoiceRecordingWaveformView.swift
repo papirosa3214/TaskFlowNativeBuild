@@ -27,7 +27,9 @@ struct VoiceRecordingWaveformView: View {
     private let barWidth: CGFloat = 2.5
     private let spacing: CGFloat = 2
 
-    static let levelsPerBar = 2
+    /// 3 замера по 40 мс = столбик раз в 120 мс: лента 50 pt/с, а не 125
+    /// (владелец 20.10.2026: «слишком быстро, толстые колбасы»).
+    static let levelsPerBar = 3
     /// Сколько замеров (по 40 мс) в начале записи пропускать: щелчок старта.
     static let startClickSamples = 8
     static let levelInterval: TimeInterval = 0.04
@@ -141,15 +143,17 @@ struct VoiceRecordingWaveformView: View {
         let values = Self.normalizedHistory(amplitudes)
         TimelineView(.animation(paused: reduceMotion)) { timeline in
             Canvas { context, size in
-                let slots = 48
-                let gap: CGFloat = 2
-                let width = max(1, (size.width - gap * CGFloat(slots - 1)) / CGFloat(slots))
+                // Тонкие капсулы 3 pt с зазором 3 pt; координаты по пикселям
+                // экрана (1/3 pt) — все капсулы одной ширины.
+                let width: CGFloat = 3
+                let gap: CGFloat = 3
                 let pitch = width + gap
+                let slots = Int(size.width / pitch) + 1
                 let sinceSample = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
                 let barInterval = Self.levelInterval * Double(Self.levelsPerBar)
                 let shift = CGFloat(min(1, max(0, sinceSample / barInterval))) * pitch
                 for (index, level) in values.suffix(slots + 1).reversed().enumerated() {
-                    let x = size.width - width - CGFloat(index) * pitch - shift + pitch
+                    let x = ((size.width - width - CGFloat(index) * pitch - shift + pitch) * 3).rounded() / 3
                     if x < -pitch { break }
                     let h = max(2, size.height * CGFloat(0.07 + min(0.9, level) * 0.84))
                     let rect = CGRect(x: x, y: (size.height - h) / 2, width: width, height: h)
