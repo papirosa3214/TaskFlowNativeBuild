@@ -15,7 +15,8 @@ struct VoiceRecordingWaveformView: View {
     let peakColor: Color
     var maxHeight: CGFloat = 28
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var history: [Double] = []
+    /// Линейная амплитуда по столбикам — как RMS по корзинам у огибающей файла.
+    @State private var amplitudes: [Double] = []
     /// Сколько замеров пришло всего: история хранит только хвост, а
     /// столбик обязан собираться из одних и тех же соседних замеров.
     @State private var received = 0
@@ -74,6 +75,19 @@ struct VoiceRecordingWaveformView: View {
     /// Сколько децибел ниже пика ещё рисуется столбиком, а не точкой.
     static let dynamicRange = 18.0
 
+    /// Уровень рекордера → линейная амплитуда; тише порога тишины — ноль.
+    static func amplitude(level: Double) -> Double {
+        let db = decibels(level: level)
+        return db > silence ? pow(10, db / 20) : 0
+    }
+
+    /// Нормировка как у `VoiceWaveform.envelope`: делим на самый громкий
+    /// столбик, но не ниже уровня обычной речи — тишина не раздувается в рост.
+    static func normalizedHistory(_ amplitudes: [Double]) -> [Double] {
+        let peak = max(amplitudes.max() ?? 0, pow(10, quietestPeak / 20))
+        return amplitudes.map { min(1, $0 / peak) }
+    }
+
     /// Высота палочки — формула готовой волны: от 7 до 83 % высоты, не ниже 2 pt.
     static func barHeight(level: Double, available: Double) -> Double {
         max(2, available * (0.07 + min(0.9, max(0, level)) * 0.84))
@@ -107,38 +121,26 @@ struct VoiceRecordingWaveformView: View {
         return result
     }
 
+    /// Владелец 20.10.2026: «одна волна, а не две». Живая волна рисуется ТЕМ ЖЕ
+    /// `WaveformView`, что и готовая серая после записи: 48 капсул, «лепка»
+    /// всплесков, нормировка по самому громкому месту записи. Отличие только
+    /// в данных (микрофон на лету вместо файла) и цвете.
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
-            Canvas { context, size in
-                let pitch = barWidth + spacing
-                let bars = Self.smoothed(Self.bars(levels: history, received: received))
-                // Между замерами лента едет равномерно, а не шагами.
-                let sinceLevel = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
-                let fraction = min(1, max(0, sinceLevel / Self.levelInterval))
-                let progress = (Double(received) + fraction) / Double(Self.levelsPerBar)
-                var bar = Int(floor(progress))
-                while true {
-                    let x = size.width - CGFloat(progress - Double(bar)) * pitch
-                    if x < -pitch { break }
-                    let level = bars[bar] ?? 0
-                    let h = Self.barHeight(level: level, available: Double(size.height))
-                    let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
-                    let tint = color.mix(with: peakColor, by: level)
-                    context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(tint))
-                    bar -= 1
+        WaveformView(levels: Self.normalizedHistory(amplitudes), color: peakColor)
+            .frame(height: maxHeight)
+            .onChange(of: elapsed) { _, _ in
+                let amplitude = Self.amplitude(level: level)
+                // Столбик — самый громкий из `levelsPerBar` замеров, как корзина
+                // огибающей файла.
+                if received % Self.levelsPerBar == 0 {
+                    amplitudes.append(amplitude)
+                    if amplitudes.count > Self.historyLimit { amplitudes.removeFirst(amplitudes.count - Self.historyLimit) }
+                } else if let last = amplitudes.indices.last {
+                    amplitudes[last] = max(amplitudes[last], amplitude)
                 }
+                received += 1
+                lastLevelAt = .now
             }
-        }
-        .frame(height: maxHeight)
-        .clipped()
-        .onChange(of: elapsed) { _, _ in
-            let next = Self.normalized(level: level, peak: peak)
-            peak = next.peak
-            history.append(next.value)
-            if history.count > Self.historyLimit { history.removeFirst(history.count - Self.historyLimit) }
-            received += 1
-            lastLevelAt = .now
-        }
         .accessibilityLabel("Звуковая волна записи")
         .accessibilityIdentifier("chat.voice.recording-wave")
     }
