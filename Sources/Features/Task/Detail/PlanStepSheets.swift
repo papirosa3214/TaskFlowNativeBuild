@@ -92,10 +92,6 @@ struct PlanStepDetailSheet: View {
                             TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".live")
                         })) {
                             if isLiveExpanded {
-                                // Над лентой, а не в ней: лента прокручена
-                                // вниз, и кнопка внутри уезжала за край
-                                // (владелец 20.10.2026 её не нашёл).
-                                RoleTranslateSwitch()
                                 ScrollView(.vertical) {
                                     TaskLiveActivityView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -104,6 +100,11 @@ struct PlanStepDetailSheet: View {
                                 .defaultScrollAnchor(.bottom)
                                 .scrollBounceBehavior(.basedOnSize)
                                 .accessibilityIdentifier("plan-slot-live-window")
+                                // Перевод — значком в правом нижнем углу, на
+                                // строке «Работает · …», где справа пусто:
+                                // отдельная строка давала отступы и черту
+                                // (владелец 20.10.2026).
+                                .overlay(alignment: .bottomTrailing) { RoleTranslateSwitch() }
                             }
                         } label: {
                             LabeledContent("Состояние") {

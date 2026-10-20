@@ -92,14 +92,14 @@ struct RoleTranslateSwitch: View {
         Button {
             translator.isOn.toggle()
         } label: {
-            Label(translator.isOn ? "Оригинал" : "Перевести", systemImage: "translate")
-                .tfText(.meta)
-                .foregroundStyle(Color.tfSub)
-                .frame(minHeight: 44)
+            // Только значок: включённый перевод — ярким, выключенный — тусклым.
+            Image(systemName: "translate")
+                .font(.footnote)
+                .foregroundStyle(translator.isOn ? Color.tfText : Color.tfDim)
+                .frame(width: 44, height: 44, alignment: .bottomTrailing)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .trailing)
         .accessibilityLabel(translator.isOn ? "Показать оригинал" : "Перевести на русский")
         .accessibilityIdentifier("role-translate-switch")
     }
