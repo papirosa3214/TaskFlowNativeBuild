@@ -1,8 +1,9 @@
 import SwiftUI
 import PhotosUI
 
-/// Шторка «Изменить» профиля. Переделана 20.10.2026 по просьбе владельца —
-/// «по-человечески»: фото, имя, логин и пароль в одном месте.
+/// Экран «Профиль» (Настройки → строка профиля). 20.10.2026 владелец:
+/// «по-человечески» и «по нашим лекалам» — отдельный экран по шеврону, как
+/// остальные пункты Настроек, вместо шторки: фото, имя, логин, пароль.
 ///
 /// Раньше здесь было только имя: нативный `updateProfile` не умел логин и
 /// пароль и к тому же читал ответ сервера как голого пользователя, хотя
@@ -12,9 +13,9 @@ import PhotosUI
 /// Фото меняется сразу, без «Сохранить» — как и тапом по аватарке в строке
 /// профиля; «Убрать фото» живёт здесь (владелец 03.09.2026).
 ///
-/// ⚠️ `SettingsViewModel` — параметром, не `@Environment`: внутри шторки
-/// `@Environment(SettingsViewModel.self)` падал в рантайме iOS 26.5.
-struct EditProfileSheet: View {
+/// `SettingsViewModel` — параметром, не `@Environment`: так было и в шторке,
+/// где `@Environment(SettingsViewModel.self)` падал в рантайме iOS 26.5.
+struct EditProfileScreen: View {
     let user: ApiUser
     let avatarURLOverride: String?
     let settings: SettingsViewModel
@@ -46,23 +47,23 @@ struct EditProfileSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.lg) {
-            Text("Профиль")
-                .tfText(.title)
-                .foregroundStyle(Color.tfText)
-                .frame(maxWidth: .infinity)
-            photoBlock
-            TFErrorBanner(errorMessage, variant: .block)
-            ProfileNameLoginFields(name: $name, login: $login)
-            ProfilePasswordFields(current: $currentPassword, new: $newPassword, repeated: $repeatPassword)
-            HStack(spacing: TFSpacing.md) {
-                TFButton("Отмена", variant: .secondary) { dismiss() }
+        ScrollView {
+            VStack(alignment: .leading, spacing: TFSpacing.xl) {
+                photoBlock
+                TFErrorBanner(errorMessage, variant: .block)
+                ProfileNameLoginFields(name: $name, login: $login)
+                ProfilePasswordFields(current: $currentPassword, new: $newPassword, repeated: $repeatPassword)
                 TFButton(isSaving ? "Сохранение…" : "Сохранить", variant: .primary, isEnabled: canSave) {
                     Task { await save() }
                 }
+                .accessibilityIdentifier("profile.save")
             }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.vertical, TFSpacing.lg)
         }
-        .padding(.bottom, TFSpacing.xl)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color.tfBackground)
+        .tfNativeHeader("Профиль")
         .onChange(of: pickerItem) { _, item in
             Task { await uploadPhoto(item) }
         }
@@ -77,7 +78,7 @@ struct EditProfileSheet: View {
                     initials: user.initials ?? "?",
                     tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned),
                     urlPath: avatarURL,
-                    portrait: true,
+                    portrait: false,
                     zoomable: false
                 )
             }
@@ -177,7 +178,7 @@ private struct ProfileNameLoginFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Имя и вход")
+            Text("Имя и вход").tfSectionDisplay(style: .taskTitle)
             TFFieldGroup {
                 TFTextField("Имя", text: $name, icon: "person")
                     .textContentType(.name)
@@ -200,7 +201,7 @@ private struct ProfilePasswordFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Сменить пароль")
+            Text("Пароль").tfSectionDisplay(style: .taskTitle)
             TFFieldGroup {
                 ProfileSecureField(placeholder: "Текущий пароль", text: $current, contentType: .password)
                 TFFieldDivider()
@@ -256,97 +257,45 @@ fileprivate func avatarJPEG(from raw: Data) -> Data? {
     return resized.jpegData(compressionQuality: 0.85)
 }
 
-/// Кружок аватарки в шапке профиля — тап открывает `PhotosPicker` (смена
-/// фото), рядом кнопка «Изменить» (имя + убрать фото, шторка выше).
-///
-/// «Убрать фото» раньше была тут же отдельной кнопкой — просьба владельца
-/// 03.09.2026, см. комментарий у `EditProfileSheet`: перенесена внутрь
-/// правки, здесь остался только прямой тап по самой аватарке (загрузка).
+/// Строка профиля в Настройках. 20.10.2026 владелец: аватарка квадратная,
+/// как везде в приложении; имя крупным капсом подзаголовков; почта обычным
+/// текстом; вместо пилюли «Изменить» — шеврон, тап по строке открывает
+/// `EditProfileScreen` (переход даёт обёртывающий `NavigationLink`).
+/// Фото меняется на экране профиля.
 struct ProfileAccountRow: View {
     let user: ApiUser
     let avatarURLOverride: String?
-    let onEdit: () -> Void
-    let onAvatarChanged: (String?) -> Void
-
-    @Environment(SettingsViewModel.self) private var settings
-    @State private var pickerItem: PhotosPickerItem?
-    @State private var isBusy = false
-    @State private var errorMessage: String?
 
     private var avatarURL: String? { avatarURLOverride ?? user.avatarUrl }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            HStack(spacing: TFSpacing.md) {
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    avatarView
-                }
-                .disabled(isBusy)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(user.name)
+        HStack(spacing: TFSpacing.md) {
+            TFAvatar(
+                size: .profile,
+                initials: user.initials ?? "?",
+                tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned),
+                urlPath: avatarURL,
+                portrait: false,
+                zoomable: false
+            )
+            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                Text(user.name)
+                    .tfSectionDisplay(style: .taskTitle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if let email = user.email {
+                    Text(email)
                         .tfText(.body)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.tfText)
-                    if let email = user.email {
-                        Text(email)
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                Spacer()
-                Button("Изменить", action: onEdit)
-                    .buttonStyle(.plain)
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfText)
-                    .padding(.horizontal, TFSpacing.sm)
-                    .padding(.vertical, TFSpacing.xs)
-                    .background(Color.tfCard2)
-                    .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
             }
-            TFErrorBanner(errorMessage)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.tfDim)
         }
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.md)
-        .onChange(of: pickerItem) { _, newItem in
-            Task { await upload(newItem) }
-        }
-    }
-
-    @ViewBuilder
-    private var avatarView: some View {
-        // Раньше здесь был `AsyncImage(URL(string: "/api/avatars/…"))`: адрес
-        // относительный, без сервера, картинка не грузилась и всегда рисовалась
-        // буква (владелец 06.10.2026: «почему М»). `TFAvatar` сам дописывает
-        // адрес сервера и кеширует.
-        TFAvatar(
-            size: .profile,
-            initials: user.initials ?? "?",
-            tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned),
-            urlPath: avatarURL,
-            portrait: true,
-            zoomable: false
-        )
-    }
-
-    private func upload(_ item: PhotosPickerItem?) async {
-        guard let item else { return }
-        errorMessage = nil
-        isBusy = true
-        defer { isBusy = false }
-        do {
-            guard let raw = try await item.loadTransferable(type: Data.self) else { return }
-            guard let data = avatarJPEG(from: raw) else {
-                errorMessage = "Не удалось прочитать картинку"
-                return
-            }
-            let url = try await settings.uploadAvatar(data: data, mime: "image/jpeg")
-            onAvatarChanged(url)
-        } catch {
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
-        }
+        .contentShape(Rectangle())
     }
 }

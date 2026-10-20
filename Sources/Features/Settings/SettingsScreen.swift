@@ -16,7 +16,6 @@ struct SettingsScreen: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel = SettingsViewModel()
     @State private var profileOverride: ApiUser?
-    @State private var isEditProfilePresented = false
     @AppStorage("settings.user.expanded") private var userSettingsExpanded = true
     @AppStorage("settings.ai.expanded") private var aiExpanded = true
     @AppStorage(SecretaryVoice.storageKey) private var secretaryVoice = SecretaryVoice.default.rawValue
@@ -41,17 +40,6 @@ struct SettingsScreen: View {
         .tfNativeHeader("Настройки")
         .background(Color.tfBackground)
         .environment(viewModel)
-        .tfBottomSheet(isPresented: $isEditProfilePresented) {
-            if let user = displayedUser {
-                EditProfileSheet(
-                    user: user,
-                    avatarURLOverride: profileOverride?.avatarUrl,
-                    settings: viewModel,
-                    onSaved: { updated in profileOverride = updated },
-                    onAvatarChanged: { newURL in patchAvatarURL(newURL, baseUser: user) }
-                )
-            }
-        }
         .tfBottomSheet(isPresented: $appIconSheetOpen) {
             AppIconPickerSheet(selection: $appIcon) { appIconSheetOpen = false }
         }
@@ -63,12 +51,21 @@ struct SettingsScreen: View {
     private var accountSection: some View {
         Group {
             if let user = displayedUser {
-                ProfileAccountRow(
-                    user: user,
-                    avatarURLOverride: profileOverride?.avatarUrl,
-                    onEdit: { isEditProfilePresented = true },
-                    onAvatarChanged: { newURL in patchAvatarURL(newURL, baseUser: user) }
-                )
+                // Владелец 20.10.2026: профиль — отдельный экран по шеврону,
+                // как остальные пункты, а не шторка.
+                NavigationLink {
+                    EditProfileScreen(
+                        user: user,
+                        avatarURLOverride: profileOverride?.avatarUrl,
+                        settings: viewModel,
+                        onSaved: { updated in profileOverride = updated },
+                        onAvatarChanged: { newURL in patchAvatarURL(newURL, baseUser: user) }
+                    )
+                } label: {
+                    ProfileAccountRow(user: user, avatarURLOverride: profileOverride?.avatarUrl)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.profile")
             } else {
                 TFListRow(icon: "person", iconStyle: .plain, title: "Аккаунт")
             }
@@ -231,18 +228,18 @@ struct SettingsScreen: View {
         Button(role: .destructive) {
             session.logout()
         } label: {
+            // Владелец 20.10.2026: шрифт и отступ подзаголовков разделов,
+            // цвет обычный — не красный.
             HStack {
                 Text("Выйти")
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfRed)
+                    .tfSectionDisplay(style: .taskTitle)
                 Spacer()
             }
-            .padding(.horizontal, TFSpacing.lg)
-            .frame(minHeight: TFField.height)
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TFTapRowStyle())
-        .padding(.horizontal, TFSpacing.screenHorizontal)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Общие строители строк
