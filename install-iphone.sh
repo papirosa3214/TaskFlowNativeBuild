@@ -16,7 +16,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-DEVICE_ID="B752C915-688A-5FE2-B7A2-CD355FCD8D47"
+DEVICE_ID="00008150-001545400144401C"
 
 шаг() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 
@@ -43,5 +43,12 @@ xcodebuild \
 xcrun devicectl device install app --device "$DEVICE_ID" \
   build_device/Build/Products/Debug-iphoneos/TaskFlow.app
 
-printf '\n\033[32m✓ Готово — задачник на телефоне.\033[0m\n'
+шаг "Запускаю на телефоне"
+# Телефон должен быть разблокирован и доверен: иначе запуск падает
+# «FBSOpenApplicationErrorDomain error 7» (устройство Locked).
+if xcrun devicectl device process launch --device "$DEVICE_ID" com.maksim.taskflow.native; then
+  printf '\n\033[32m✓ Готово — задачник на телефоне и запущен.\033[0m\n'
+else
+  printf '\n\033[33m! Установлено, но не запустилось: разблокируй телефон и открой «Задачник» руками.\033[0m\n'
+fi
 printf 'Следующий раз понадобится примерно через неделю.\n'
