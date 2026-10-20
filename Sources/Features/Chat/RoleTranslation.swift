@@ -19,7 +19,13 @@ final class RoleTranslator {
     var isOn = UserDefaults.standard.bool(forKey: RoleTranslator.autoKey)
     private(set) var translations: [String: String] = [:]
     @ObservationIgnored private var englishCache: [String: Bool] = [:]
-    @ObservationIgnored private var failed: Set<String> = []
+    /// Когда текст не удалось перевести. Не навсегда: окно скачивания языка
+    /// могло закрыться на полуслове — через `retryAfter` пробуем снова.
+    @ObservationIgnored private var failedAt: [String: Date] = [:]
+    private static let retryAfter: TimeInterval = 30
+    /// Идёт перевод (или окно скачивания языка) — новый не начинаем: иначе
+    /// перезапуск закрывал окно скачивания, и оно мелькало (20.10.2026).
+    @ObservationIgnored var isTranslating = false
 
     /// Что показать вместо текста: перевод, если он включён и уже готов.
     func display(_ text: String) -> String {
@@ -36,12 +42,18 @@ final class RoleTranslator {
     }
 
     func untranslated(_ texts: [String]) -> [String] {
-        texts.filter { translations[$0] == nil && !failed.contains($0) && isEnglish($0) }
+        texts.filter { text in
+            guard translations[text] == nil, isEnglish(text) else { return false }
+            guard let failed = failedAt[text] else { return true }
+            return Date().timeIntervalSince(failed) > Self.retryAfter
+        }
     }
 
     func translate(_ texts: [String], with session: TranslationSession) async {
         let todo = Array(Set(untranslated(texts)))
         guard !todo.isEmpty else { return }
+        isTranslating = true
+        defer { isTranslating = false }
         let requests = todo.enumerated().map { index, text in
             TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
         }
@@ -51,8 +63,8 @@ final class RoleTranslator {
                 translations[todo[index]] = response.targetText
             }
         } catch {
-            // Нет языкового пакета или отказ — не дёргать переводчик снова.
-            failed.formUnion(todo)
+            // Языковой пакет не скачан или окно закрыто — повторим позже.
+            for text in todo { failedAt[text] = Date() }
         }
     }
 }
@@ -69,12 +81,18 @@ struct RoleTranslationHost: ViewModifier {
         content
             .translationTask(configuration) { session in
                 await translator.translate(texts, with: session)
+                // Пока шёл перевод, лента могла вырасти — догоняем.
+                if rerun { rerun = false; refresh() }
             }
             .onChange(of: "\(translator.isOn)|\(texts.count)", initial: true) { refresh() }
     }
 
+    @State private var rerun = false
+
     private func refresh() {
         guard translator.isOn, !translator.untranslated(texts).isEmpty else { return }
+        // Не перезапускать посреди перевода: это закрывало окно скачивания.
+        if translator.isTranslating { rerun = true; return }
         if configuration == nil {
             configuration = .init(source: Locale.Language(identifier: "en"), target: Locale.Language(identifier: "ru"))
         } else {
