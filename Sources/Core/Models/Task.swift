@@ -62,6 +62,13 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let archivedAt: String?
     public var isArchived: Bool { archivedAt != nil }
     public let agentState: AgentState?
+    /// Состояние ветки по дочерним карточкам (сервер, `branch_agent_state`):
+    /// родитель ждёт, пока работают дочерние, но в списках он тоже «в работе»
+    /// — как в шапке карточки (владелец 20.10.2026).
+    public var branchAgentState: AgentState? = nil
+    /// Что показывать подписью в строках списков: своё состояние, а если его
+    /// нет — состояние ветки.
+    public var listAgentState: AgentState? { agentState ?? branchAgentState }
     public let agentHeartbeatAt: String?
     public let position: Int?
     public let agentSessionId: String?
@@ -202,6 +209,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case completedAt = "completed_at"
         case archivedAt = "archived_at"
         case agentState = "agent_state"
+        case branchAgentState = "branch_agent_state"
         case agentHeartbeatAt = "agent_heartbeat_at"
         case position
         case agentSessionId = "agent_session_id"
@@ -264,6 +272,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         completedAt = try c.decodeIfPresent(String.self, forKey: .completedAt)
         archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt)
         agentState = try c.decodeIfPresent(AgentState.self, forKey: .agentState)
+        branchAgentState = try? c.decodeIfPresent(AgentState.self, forKey: .branchAgentState)
         agentHeartbeatAt = try c.decodeIfPresent(String.self, forKey: .agentHeartbeatAt)
         position = try c.decodeIfPresent(Int.self, forKey: .position)
         agentSessionId = try c.decodeIfPresent(String.self, forKey: .agentSessionId)
@@ -339,6 +348,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(completedAt, forKey: .completedAt)
         try c.encodeIfPresent(agentState, forKey: .agentState)
+        try c.encodeIfPresent(branchAgentState, forKey: .branchAgentState)
         try c.encodeIfPresent(agentHeartbeatAt, forKey: .agentHeartbeatAt)
         try c.encodeIfPresent(position, forKey: .position)
         try c.encodeIfPresent(agentSessionId, forKey: .agentSessionId)

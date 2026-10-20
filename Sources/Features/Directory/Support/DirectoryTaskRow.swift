@@ -280,12 +280,12 @@ struct DirectoryTaskRow: View {
 /// чужой файл), те же тексты/цвета AGENT-PROTOCOL.md.
 enum DirectoryAgentStateTag {
     static func text(_ task: ApiTask) -> String? {
-        guard let state = task.agentState else { return nil }
+        guard let state = task.listAgentState else { return nil }
         return TFAgentStateTag.text(state, stale: task.agentStale == true)
     }
 
     static func color(_ task: ApiTask) -> Color {
-        guard let state = task.agentState else { return .tfTeal }
+        guard let state = task.listAgentState else { return .tfTeal }
         return TFAgentStateTag.color(state, stale: task.agentStale == true)
     }
 }
