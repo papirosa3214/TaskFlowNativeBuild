@@ -1,30 +1,19 @@
 import SwiftUI
 import PhotosUI
 
-/// Шторка правки профиля — веб-аналог `EditProfileModal.tsx`. Веб форма
-/// шлёт `{name, email, password, currentPassword}` на `PUT /auth/profile`,
-/// но нативный `APIClient.updateProfile(name:avatarColor:)`
-/// (`Core/Networking/APIClient+Auth.swift`, чужой файл) поддерживает ТОЛЬКО
-/// `name`/`avatarColor` — смены логина/пароля там нет. Это гэп Core, не
-/// делаю вид, что смена email/пароля работает: поля для них здесь НЕ
-/// заведены (честнее, чем нерабочие текстовые поля), отмечено в отчёте.
+/// Шторка «Изменить» профиля. Переделана 20.10.2026 по просьбе владельца —
+/// «по-человечески»: фото, имя, логин и пароль в одном месте.
 ///
-/// «Убрать фото» раньше висело ОТДЕЛЬНОЙ кнопкой прямо в строке профиля,
-/// рядом с «Изменить» — просьба владельца 03.09.2026: «если у меня есть
-/// кнопка изменить, зачем тогда рядышком убрать фото — я проваливаюсь и
-/// какие-то манипуляции делаю, там и должны быть». Перенесено сюда, внутрь
-/// «Изменить»: тап по аватарке в строке профиля по-прежнему меняет фото
-/// напрямую (стандартный жест — тапнуть на свою же фотку), а «убрать» —
-/// действие правки, значит внутри правки.
+/// Раньше здесь было только имя: нативный `updateProfile` не умел логин и
+/// пароль и к тому же читал ответ сервера как голого пользователя, хотя
+/// `PUT /auth/profile` отдаёт `{user, token}`. Теперь клиент шлёт всё, что
+/// шлёт веб (`EditProfileModal.tsx`), и сохраняет свежий токен.
 ///
-/// ⚠️ Живой креш при открытии этой шторки (даже на коде ДО сегодняшних
-/// правок, проверено — временно откатывал файл и переигрывал тап):
-/// `@Environment(SettingsViewModel.self)` внутри `.sheet`-контента падал
-/// глубоко в SwiftUI (`EnvironmentValues.subscript.getter` →
-/// `_assertionFailure`, ни одного кадра нашего кода в трейсе) — похоже на
-/// баг рантайма iOS 26.5 (Observation + `.sheet`), не в этом файле. Обход:
-/// `SettingsViewModel` явным параметром конструктора вместо `@Environment`
-/// — `SettingsScreen` его и так уже держит в `@State`.
+/// Фото меняется сразу, без «Сохранить» — как и тапом по аватарке в строке
+/// профиля; «Убрать фото» живёт здесь (владелец 03.09.2026).
+///
+/// ⚠️ `SettingsViewModel` — параметром, не `@Environment`: внутри шторки
+/// `@Environment(SettingsViewModel.self)` падал в рантайме iOS 26.5.
 struct EditProfileSheet: View {
     let user: ApiUser
     let avatarURLOverride: String?
@@ -35,8 +24,13 @@ struct EditProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
+    @State private var login: String
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var repeatPassword = ""
+    @State private var pickerItem: PhotosPickerItem?
     @State private var isSaving = false
-    @State private var isRemovingAvatar = false
+    @State private var isPhotoBusy = false
     @State private var errorMessage: String?
 
     private var avatarURL: String? { avatarURLOverride ?? user.avatarUrl }
@@ -48,54 +42,97 @@ struct EditProfileSheet: View {
         self.onSaved = onSaved
         self.onAvatarChanged = onAvatarChanged
         _name = State(initialValue: user.name)
+        _login = State(initialValue: user.email ?? "")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.lg) {
-            Text("Редактировать профиль")
+            Text("Профиль")
                 .tfText(.title)
                 .foregroundStyle(Color.tfText)
-
+                .frame(maxWidth: .infinity)
+            photoBlock
             TFErrorBanner(errorMessage, variant: .block)
-
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text("Имя пользователя")
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
-                TFTextField("Ваше имя", text: $name, icon: "person")
-            }
-
-            if avatarURL != nil {
-                Button {
-                    Task { await removeAvatar() }
-                } label: {
-                    HStack(spacing: TFSpacing.sm) {
-                        Image(systemName: "photo.badge.xmark")
-                        Text(isRemovingAvatar ? "Убираю…" : "Убрать фото профиля")
-                    }
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfCoral)
-                }
-                .buttonStyle(TFTapFadeStyle())
-                .disabled(isRemovingAvatar || isSaving)
-            }
-
+            ProfileNameLoginFields(name: $name, login: $login)
+            ProfilePasswordFields(current: $currentPassword, new: $newPassword, repeated: $repeatPassword)
             HStack(spacing: TFSpacing.md) {
                 TFButton("Отмена", variant: .secondary) { dismiss() }
-                TFButton(isSaving ? "Сохранение…" : "Сохранить", variant: .primary, isEnabled: !isSaving && !name.trimmingCharacters(in: .whitespaces).isEmpty) {
+                TFButton(isSaving ? "Сохранение…" : "Сохранить", variant: .primary, isEnabled: canSave) {
                     Task { await save() }
                 }
             }
         }
         .padding(.bottom, TFSpacing.xl)
+        .onChange(of: pickerItem) { _, item in
+            Task { await uploadPhoto(item) }
+        }
+    }
+
+    /// Крупная аватарка по центру, под ней «Сменить фото» и «Убрать фото».
+    private var photoBlock: some View {
+        VStack(spacing: TFSpacing.sm) {
+            PhotosPicker(selection: $pickerItem, matching: .images) {
+                TFAvatar(
+                    size: .profile,
+                    initials: user.initials ?? "?",
+                    tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned),
+                    urlPath: avatarURL,
+                    portrait: true,
+                    zoomable: false
+                )
+            }
+            .accessibilityLabel("Сменить фото")
+            HStack(spacing: TFSpacing.lg) {
+                PhotosPicker(selection: $pickerItem, matching: .images) {
+                    Text(isPhotoBusy ? "Загружаю…" : "Сменить фото")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfRed)
+                        .frame(minHeight: 44)
+                }
+                if avatarURL != nil {
+                    Button {
+                        Task { await removePhoto() }
+                    } label: {
+                        Text("Убрать фото")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(TFTapFadeStyle())
+                }
+            }
+            .disabled(isPhotoBusy || isSaving)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
+    private var trimmedLogin: String { login.trimmingCharacters(in: .whitespaces).lowercased() }
+
+    private var canSave: Bool {
+        guard !isSaving, !trimmedName.isEmpty, !trimmedLogin.isEmpty else { return false }
+        return trimmedName != user.name
+            || trimmedLogin != (user.email ?? "").lowercased()
+            || !newPassword.isEmpty
     }
 
     private func save() async {
         errorMessage = nil
+        if !newPassword.isEmpty {
+            if newPassword.count < 4 { errorMessage = "Новый пароль — минимум 4 символа"; return }
+            if newPassword != repeatPassword { errorMessage = "Пароли не совпадают"; return }
+            if currentPassword.isEmpty { errorMessage = "Чтобы сменить пароль, введите текущий"; return }
+        }
         isSaving = true
         defer { isSaving = false }
         do {
-            let updated = try await settings.saveProfile(name: name.trimmingCharacters(in: .whitespaces), avatarColor: nil)
+            let updated = try await settings.saveProfile(
+                name: trimmedName,
+                avatarColor: nil,
+                email: trimmedLogin,
+                password: newPassword.isEmpty ? nil : newPassword,
+                currentPassword: newPassword.isEmpty ? nil : currentPassword
+            )
             onSaved(updated)
             dismiss()
         } catch {
@@ -103,10 +140,27 @@ struct EditProfileSheet: View {
         }
     }
 
-    private func removeAvatar() async {
+    private func uploadPhoto(_ item: PhotosPickerItem?) async {
+        guard let item else { return }
         errorMessage = nil
-        isRemovingAvatar = true
-        defer { isRemovingAvatar = false }
+        isPhotoBusy = true
+        defer { isPhotoBusy = false; pickerItem = nil }
+        do {
+            guard let raw = try await item.loadTransferable(type: Data.self),
+                  let data = avatarJPEG(from: raw) else {
+                errorMessage = "Не удалось прочитать картинку"
+                return
+            }
+            onAvatarChanged(try await settings.uploadAvatar(data: data, mime: "image/jpeg"))
+        } catch {
+            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func removePhoto() async {
+        errorMessage = nil
+        isPhotoBusy = true
+        defer { isPhotoBusy = false }
         do {
             try await settings.deleteAvatar()
             onAvatarChanged("")
@@ -114,6 +168,92 @@ struct EditProfileSheet: View {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
     }
+}
+
+/// Имя и логин — одна карточка с разделителем, как группы полей задачи.
+private struct ProfileNameLoginFields: View {
+    @Binding var name: String
+    @Binding var login: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            SettingsCapsLabel("Имя и вход")
+            TFFieldGroup {
+                TFTextField("Имя", text: $name, icon: "person")
+                    .textContentType(.name)
+                TFFieldDivider()
+                TFTextField("Логин (почта)", text: $login, icon: "envelope")
+                    .textContentType(.username)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+        }
+    }
+}
+
+/// Смена пароля: текущий, новый, повтор. Пустые поля — пароль не меняется.
+private struct ProfilePasswordFields: View {
+    @Binding var current: String
+    @Binding var new: String
+    @Binding var repeated: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            SettingsCapsLabel("Сменить пароль")
+            TFFieldGroup {
+                ProfileSecureField(placeholder: "Текущий пароль", text: $current, contentType: .password)
+                TFFieldDivider()
+                ProfileSecureField(placeholder: "Новый пароль", text: $new, contentType: .newPassword)
+                TFFieldDivider()
+                ProfileSecureField(placeholder: "Повторите новый", text: $repeated, contentType: .newPassword)
+            }
+            Text("Не меняете пароль — оставьте поля пустыми.")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfDim)
+        }
+    }
+}
+
+/// Скрытое поле в той же геометрии, что `TFTextField` (у него скрытого
+/// режима нет): иконка-замок, отступы и высота поля из токенов.
+private struct ProfileSecureField: View {
+    let placeholder: String
+    @Binding var text: String
+    let contentType: UITextContentType
+
+    @ScaledMetric(relativeTo: .callout) private var minHeight: CGFloat = TFField.height
+    @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = TFIconSize.sm
+
+    var body: some View {
+        HStack(spacing: TFField.iconTextGap) {
+            Image(systemName: "lock")
+                .font(.system(size: iconSize))
+                .foregroundStyle(Color.tfDim)
+            SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
+                .tfText(.input)
+                .foregroundStyle(Color.tfText)
+                .textContentType(contentType)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityLabel(placeholder)
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .frame(minHeight: minHeight)
+    }
+}
+
+/// Фото из галереи → JPEG не крупнее 1024 px: сервер принимает до 5 МБ
+/// png/jpeg/webp/gif, а галерея отдаёт HEIC и большие кадры.
+fileprivate func avatarJPEG(from raw: Data) -> Data? {
+    guard let image = UIImage(data: raw) else { return nil }
+    let longSide = max(image.size.width, image.size.height)
+    let scale = longSide > 1024 ? 1024 / longSide : 1
+    let target = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+    let resized = UIGraphicsImageRenderer(size: target).image { _ in
+        image.draw(in: CGRect(origin: .zero, size: target))
+    }
+    return resized.jpegData(compressionQuality: 0.85)
 }
 
 /// Кружок аватарки в шапке профиля — тап открывает `PhotosPicker` (смена
@@ -199,20 +339,8 @@ struct ProfileAccountRow: View {
         defer { isBusy = false }
         do {
             guard let raw = try await item.loadTransferable(type: Data.self) else { return }
-            // Сервер принимает png/jpeg/webp/gif до 5 МБ; из галереи приходит HEIC и
-            // большие файлы — перекодируем в JPEG не крупнее 1024 px.
-            guard let image = UIImage(data: raw) else {
+            guard let data = avatarJPEG(from: raw) else {
                 errorMessage = "Не удалось прочитать картинку"
-                return
-            }
-            let longSide = max(image.size.width, image.size.height)
-            let scale = longSide > 1024 ? 1024 / longSide : 1
-            let target = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-            let resized = UIGraphicsImageRenderer(size: target).image { _ in
-                image.draw(in: CGRect(origin: .zero, size: target))
-            }
-            guard let data = resized.jpegData(compressionQuality: 0.85) else {
-                errorMessage = "Не удалось подготовить картинку"
                 return
             }
             let url = try await settings.uploadAvatar(data: data, mime: "image/jpeg")

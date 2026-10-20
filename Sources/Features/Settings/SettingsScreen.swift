@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// `/settings` — spec/SCREENS-2.md §6. Дерево настроек: профиль, тема/
-/// биометрия/иконка, ИИ, общие разделы-переходы, сервер, выход.
+/// биометрия/иконка/шаблоны/метки, ИИ и команда, сервер с интеграциями, выход.
 ///
 /// Шапка — `SettingsHeaderChrome` (своя композиция, не `TFScreenHeader`):
 /// см. комментарий в файле компонента — веб держит здесь `variant="large"`
@@ -20,7 +20,6 @@ struct SettingsScreen: View {
     @AppStorage("settings.user.expanded") private var userSettingsExpanded = true
     @AppStorage("settings.ai.expanded") private var aiExpanded = true
     @AppStorage(SecretaryVoice.storageKey) private var secretaryVoice = SecretaryVoice.default.rawValue
-    @AppStorage("settings.general.expanded") private var generalExpanded = true
     @AppStorage("settings.server.expanded") private var serverExpanded = true
 
     var body: some View {
@@ -30,7 +29,6 @@ struct SettingsScreen: View {
                     accountSection
                     userSettingsSection
                     aiSection
-                    generalSection
                     serverSection
                     signOutSection
                 }
@@ -146,6 +144,11 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             toggleRow(icon: "rectangle.bottomhalf.filled", title: "Системный таббар",
                       isOn: $viewModel.isPillTabBarEnabled, toggleIdentifier: "settings.pillTabBar")
+            // Владелец 20.10.2026: «Шаблоны задач» и «Метки» — из «Общих» сюда.
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "bookmark", title: "Шаблоны задач", route: .templates)
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "tag", title: "Метки", route: .labels)
         }
     }
 
@@ -155,6 +158,9 @@ struct SettingsScreen: View {
     /// `VoiceModelsScreen` — локальные модели; теперь это разные пункты.
     private var aiSection: some View {
         section(title: "Искусственный интеллект", isExpanded: $aiExpanded) {
+            // Владелец 20.10.2026: «Команда» — из «Общих» сюда.
+            navRow(icon: "person.3.fill", title: "Команда", route: .agents)
+            TFDivider(inset: rowDividerInset)
             if session.currentUser?.role == .owner {
                 navRow(icon: "checkmark.shield", title: "Оценщик JEV", route: .jevSettings)
                     .accessibilityIdentifier("settings-jev")
@@ -179,19 +185,6 @@ struct SettingsScreen: View {
         HStack(spacing: TFSpacing.sm) {
             Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
             chevron
-        }
-    }
-
-    @ViewBuilder
-    private var generalSection: some View {
-        section(title: "Общие", isExpanded: $generalExpanded) {
-            navRow(icon: "bookmark", title: "Шаблоны задач", route: .templates)
-            TFDivider(inset: rowDividerInset)
-            navRow(icon: "tag", title: "Метки", route: .labels)
-            TFDivider(inset: rowDividerInset)
-            navRow(icon: "person.3.fill", title: "Команда", route: .agents)
-            TFDivider(inset: rowDividerInset)
-            navRow(icon: "link", title: "Интеграции", route: .integrations)
         }
     }
 
@@ -227,6 +220,9 @@ struct SettingsScreen: View {
                 navRow(icon: "desktopcomputer", title: "Удалённые машины", route: .remoteMachines)
                     .accessibilityIdentifier("settings-remote-machines")
             }
+            // Владелец 20.10.2026: «Интеграции» — из «Общих» сюда.
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "link", title: "Интеграции", route: .integrations)
         }
     }
 
@@ -254,9 +250,10 @@ struct SettingsScreen: View {
     private func section<Content: View>(title: String, isExpanded: Binding<Bool>, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             Button { isExpanded.wrappedValue.toggle() } label: {
+                // Владелец 20.10.2026: подзаголовки — крупным шрифтом
+                // разделов «Обзора» (`tfSectionDisplay(style: .taskTitle)`).
                 Text(title)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfSub)
+                    .tfSectionDisplay(style: .taskTitle)
                     .padding(.horizontal, TFSpacing.screenHorizontal)
                     .contentShape(Rectangle())
             }

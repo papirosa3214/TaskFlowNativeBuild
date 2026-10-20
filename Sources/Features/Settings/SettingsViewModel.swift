@@ -88,8 +88,17 @@ final class SettingsViewModel {
     /// отображения — до следующего перезапуска приложения (новый
     /// `bootstrap()` подтянет актуальное с сервера). Гэп — в отчёт
     /// оркестратору: стоило бы завести `SessionStore.refreshProfile()`.
-    func saveProfile(name: String, avatarColor: String?) async throws -> ApiUser {
-        try await apiClient.updateProfile(name: name, avatarColor: avatarColor)
+    func saveProfile(
+        name: String,
+        avatarColor: String?,
+        email: String? = nil,
+        password: String? = nil,
+        currentPassword: String? = nil
+    ) async throws -> ApiUser {
+        try await apiClient.updateProfile(
+            name: name, avatarColor: avatarColor, email: email,
+            password: password, currentPassword: currentPassword
+        )
     }
 
     func uploadAvatar(data: Data, mime: String) async throws -> String {

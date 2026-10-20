@@ -51,10 +51,24 @@ public extension APIClient {
         return response.api_token
     }
 
-    func updateProfile(name: String? = nil, avatarColor: String? = nil) async throws -> ApiUser {
+    /// `PUT /auth/profile` отвечает `{user, token}` (`server/src/routes/auth.ts`),
+    /// как вход, — не голым пользователем. 20.10.2026: добавлены логин и
+    /// пароль; свежий токен кладётся в связку ключей, как у веба.
+    func updateProfile(
+        name: String? = nil,
+        avatarColor: String? = nil,
+        email: String? = nil,
+        password: String? = nil,
+        currentPassword: String? = nil
+    ) async throws -> ApiUser {
         var body: [String: JSONValue] = [:]
         if let name { body["name"] = .string(name) }
         if let avatarColor { body["avatar_color"] = .string(avatarColor) }
-        return try await request(.put, "/auth/profile", body: body)
+        if let email { body["email"] = .string(email) }
+        if let password { body["password"] = .string(password) }
+        if let currentPassword { body["currentPassword"] = .string(currentPassword) }
+        let response: AuthResponse = try await request(.put, "/auth/profile", body: body)
+        KeychainService.shared.token = response.token
+        return response.user
     }
 }
