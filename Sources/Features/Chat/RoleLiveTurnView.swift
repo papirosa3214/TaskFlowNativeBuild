@@ -172,60 +172,76 @@ struct RoleLiveItemsList: View {
     @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     var body: some View {
-        let expanded = detailLevel == .detailed
+        let visible = detailLevel.visible(items)
+        let segments = RoleLiveSegment.split(visible, grouping: detailLevel == .standard)
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не текст: текст растёт каждые 150 мс, и id по нему
             // пересоздавал бы строку на каждом кадре.
-            ForEach(Array(detailLevel.visible(items).enumerated()), id: \.offset) { index, item in
-                Group {
-                    switch item {
-                    case .text(let text):
-                        RoleReplyMarkdown(text: RoleTranslator.shared.display(text), color: textColor, fade: fade, isStreaming: isStreaming)
-                    case .step(let step):
-                        let hasDetail = !(step.detail ?? "").isEmpty
-                        Button { detail = .step(step) } label: {
-                            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                                RoleLiveStepRow(step: step, showsDetail: !(expanded && hasDetail))
-                                if expanded, hasDetail, let text = step.detail {
-                                    // «Подробно»: команда или путь целиком, окошком с кодом.
-                                    Text(text)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(Color.tfText)
-                                        .multilineTextAlignment(.leading)
-                                        .padding(TFSpacing.sm)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Показать подробности")
-                    case .thinking(let thinking):
-                        if thinking.isRunning {
-                            RoleThinkingLiveRow(thinking: thinking, startsExpanded: expanded)
-                        } else {
-                            Button { detail = .thinking(thinking) } label: {
-                                RoleThinkingDoneRow(thinking: thinking)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Показать размышления")
-                            if expanded, !thinking.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                RoleThinkingWindow(text: thinking.text)
-                            }
-                        }
+            ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                switch segment {
+                case .single(let item):
+                    itemView(item)
+                case .actions(let group):
+                    // «Стандарт» (владелец 20.10.2026): подряд идущие шаги и
+                    // размышления — одной строкой, тап раскрывает весь список.
+                    RoleActionGroup(items: group, isLive: isStreaming && index == segments.count - 1) { item in
+                        itemView(item)
                     }
                 }
-                .modifier(RoleItemAppearance(animate: fade?.isAnimating == true && Self.isAction(item)))
             }
         }
         .sheet(item: $detail) { detail in
             RoleLiveDetailSheet(detail: detail)
         }
         .modifier(RoleTranslationHost(texts: finishedTexts))
+    }
+
+    @ViewBuilder
+    private func itemView(_ item: RoleChatLiveItem) -> some View {
+        let expanded = detailLevel == .detailed
+        Group {
+            switch item {
+            case .text(let text):
+                RoleReplyMarkdown(text: RoleTranslator.shared.display(text), color: textColor, fade: fade, isStreaming: isStreaming)
+            case .step(let step):
+                let hasDetail = !(step.detail ?? "").isEmpty
+                Button { detail = .step(step) } label: {
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        RoleLiveStepRow(step: step, showsDetail: !(expanded && hasDetail))
+                        if expanded, hasDetail, let text = step.detail {
+                            // «Подробно»: команда или путь целиком, окошком с кодом.
+                            Text(text)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(Color.tfText)
+                                .multilineTextAlignment(.leading)
+                                .padding(TFSpacing.sm)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Показать подробности")
+            case .thinking(let thinking):
+                if thinking.isRunning {
+                    RoleThinkingLiveRow(thinking: thinking, startsExpanded: expanded)
+                } else {
+                    Button { detail = .thinking(thinking) } label: {
+                        RoleThinkingDoneRow(thinking: thinking)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Показать размышления")
+                    if expanded, !thinking.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        RoleThinkingWindow(text: thinking.text)
+                    }
+                }
+            }
+        }
+        .modifier(RoleItemAppearance(animate: fade?.isAnimating == true && Self.isAction(item)))
     }
 
     /// Реплики и законченные размышления, которые уже не растут: у идущего
