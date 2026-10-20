@@ -272,6 +272,9 @@ struct RootShellView: View {
             case "today": selectedTab = .upcoming
             case "upcoming": selectedTab = .upcoming
             case "chat": selectedTab = .chat
+            case "rolechat" where parts.count == 2:
+                selectedTab = .chat
+                paths[.chat, default: NavigationPath()].append(AppRoute.roleChat(id: parts[1]))
             case "agents": paths[selectedTab, default: NavigationPath()].append(AppRoute.agents)
             case "models": paths[selectedTab, default: NavigationPath()].append(AppRoute.runtimeProviders)
             default: break
