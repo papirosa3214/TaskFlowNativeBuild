@@ -442,7 +442,7 @@ struct RoleStepLine: View {
 }
 
 /// Аватар участника чата — фото, если оно есть у учётки, иначе инициалы.
-private struct RoleMemberAvatar: View {
+struct RoleMemberAvatar: View {
     let member: RoleChatMember
     var size: TFAvatar.Size = .xl
 
@@ -671,6 +671,10 @@ struct RoleChatRoomScreen: View {
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
     @State private var isStopping = false
     @State private var workMode: RoleChatWorkMode = .work
+    /// Столбец участников справа (владелец 20.10.2026) — помнит, открыт ли.
+    @AppStorage("chat.membersRail.open") private var isMembersRailOpen = false
+    @State private var railRoles: [RoleProfile] = []
+    @State private var noticeMessage: String?
     @State private var modelChoice = ChatModelChoice()
     /// Автопрокрутка работает, пока владелец читает конец ленты. Ручной
     /// скролл отключает её до возвращения к низу.
@@ -843,6 +847,11 @@ struct RoleChatRoomScreen: View {
     private var composerRoom: some View {
         VStack(spacing: 0) {
             messageScroll
+                // Только свободное место между шапкой и полем ввода
+                // (владелец 20.10.2026): на кнопки и композер не заходит.
+                .overlay(alignment: .trailing) {
+                    if !isSelecting { membersRail }
+                }
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
             }
@@ -1057,6 +1066,12 @@ struct RoleChatRoomScreen: View {
                             Button { Task { await newSession() } } label: {
                                 Label("Новая сессия", systemImage: "arrow.triangle.2.circlepath")
                             }
+                            compactMenuItem
+                            ShareLink(item: RoleChatTranscript(title: chat.displayTitle(excluding: session.currentUser?.id),
+                                                               messages: visibleMessages),
+                                      preview: SharePreview("Чат")) {
+                                Label("Экспорт", systemImage: "square.and.arrow.up")
+                            }
                         }
                         if session.currentUser?.role == .owner {
                             Section {
@@ -1164,6 +1179,10 @@ struct RoleChatRoomScreen: View {
             Button("Повторить") { Task { await refresh() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
+        .alert(noticeMessage ?? "", isPresented: Binding(
+            get: { noticeMessage != nil },
+            set: { if !$0 { noticeMessage = nil } }
+        )) { Button("Готово", role: .cancel) { noticeMessage = nil } }
         .sheet(isPresented: $isDetailsPresented) {
             RoleChatDetailsSheet(chat: chat, onChanged: { updated in
                 chat = updated
@@ -1653,6 +1672,55 @@ struct RoleChatRoomScreen: View {
     /// Новая сессия (владелец 25.09.2026, docs/ПЛАН Супер Помощник владельца/):
     /// сбрасывает память роли, история остаётся — сервер сам вставляет
     /// метку-разделитель, которую здесь просто дописываем в ленту.
+    /// «Сжать» (владелец 20.10.2026). В чате с несколькими ролями — выбор роли.
+    @ViewBuilder private var compactMenuItem: some View {
+        let roles = chat.others(excluding: session.currentUser?.id).filter { $0.roleKey != nil }
+        if roles.count > 1 {
+            Menu {
+                ForEach(roles) { member in
+                    Button(member.name) { Task { await compact(member) } }
+                }
+            } label: { Label("Сжать сессию", systemImage: "arrow.down.right.and.arrow.up.left") }
+        } else if let member = roles.first {
+            Button { Task { await compact(member) } } label: {
+                Label("Сжать сессию", systemImage: "arrow.down.right.and.arrow.up.left")
+            }
+        }
+    }
+
+    private func compact(_ member: RoleChatMember) async {
+        do {
+            try await api.compactRoleChatSession(chatID: chat.id, roleID: member.id)
+            noticeMessage = "Сессия «\(member.name)» сжата."
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    private var membersRail: some View {
+        let canManage = chat.createdBy == session.currentUser?.id
+        return RoleChatMembersRail(
+            members: chat.members.filter { $0.id != session.currentUser?.id },
+            addable: railRoles.filter { profile in
+                guard profile.canJoinChat, let account = profile.accountID else { return false }
+                return !chat.members.contains { $0.id == account }
+            },
+            canManage: canManage,
+            isOpen: $isMembersRailOpen,
+            onMention: { member in
+                let needsSpace = !draft.isEmpty && !draft.hasSuffix(" ")
+                draft += (needsSpace ? " " : "") + "@\(member.name) "
+            },
+            onAdd: { id in Task { await changeMembers { try await api.addRoleChatMember(chatID: chat.id, memberID: id) } } },
+            onRemove: { member in Task { await changeMembers { try await api.removeRoleChatMember(chatID: chat.id, memberID: member.id) } } }
+        )
+        .task(id: canManage) {
+            if canManage && railRoles.isEmpty { railRoles = (try? await api.roles()) ?? [] }
+        }
+    }
+
+    private func changeMembers(_ change: () async throws -> RoleChat) async {
+        do { chat = try await change() } catch { errorMessage = error.localizedDescription }
+    }
+
     private func newSession() async {
         guard let roleID = chat.others(excluding: session.currentUser?.id).first?.id else { return }
         do {

@@ -122,6 +122,14 @@ public extension APIClient {
         return response.message
     }
 
+    /// «Сжать» (владелец 20.10.2026): сжать сессию роли в этом чате. Лента
+    /// не меняется; роль продолжит ту же сессию, только короче.
+    func compactRoleChatSession(chatID: String, roleID: String) async throws {
+        struct Body: Encodable { let role_id: String }
+        struct Result: Decodable { let ok: Bool }
+        let _: Result = try await request(.post, "/chats/\(chatID)/compact", body: Body(role_id: roleID))
+    }
+
     /// Остановить идущий ход роли (или всех ролей, если `roleID == nil`).
     /// Написанное ролью до остановки сервер кладёт в чат обычным ответом.
     @discardableResult
