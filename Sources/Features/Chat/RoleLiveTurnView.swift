@@ -731,18 +731,41 @@ struct RoleLiveDetailSheet: View {
                 .italic()
                 .textSelection(.enabled)
         case .step(let step):
-            if let detail = step.detail, !detail.isEmpty {
-                Text(detail)
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(Color.tfText)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Text("Подробностей у шага нет.")
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfSub)
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                if let detail = step.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(Color.tfText)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                // Владелец 20.10.2026: «нет точного вызова команды, нет точного
+                // ответа» — показываем оба, чтобы разбирать сбой самому.
+                if let args = step.args, !args.isEmpty { ioSection("Вызов", args, id: "role.step.args") }
+                if let output = step.output, !output.isEmpty { ioSection("Ответ", output, id: "role.step.output") }
+                if (step.detail ?? "").isEmpty, (step.args ?? "").isEmpty, (step.output ?? "").isEmpty {
+                    Text("Подробностей у шага нет.")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                }
             }
         }
+    }
+}
+
+private func ioSection(_ title: String, _ text: String, id: String) -> some View {
+    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+        Text(title)
+            .tfText(.meta)
+            .foregroundStyle(Color.tfSub)
+        Text(text)
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(Color.tfText)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(TFSpacing.sm)
+            .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
+            .accessibilityIdentifier(id)
     }
 }
 

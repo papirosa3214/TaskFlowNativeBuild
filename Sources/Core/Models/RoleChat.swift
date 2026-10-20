@@ -696,6 +696,10 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
     public let endedAt: String?
     /// False when the client merely stopped animating a running step.
     public let resultReceived: Bool
+    /// Точные аргументы вызова и ответ инструмента (сервер с 20.10.2026):
+    /// владелец разбирает сбой шага сам. У старых снимков — nil.
+    public var args: String? = nil
+    public var output: String? = nil
 
     public init(id: String, tool: String, detail: String?, status: Status,
                 startedAt: String? = nil, endedAt: String? = nil, resultReceived: Bool? = nil) {
@@ -709,7 +713,7 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, tool, detail, status
+        case id, tool, detail, status, args, output
         case startedAt = "started_at"
         case endedAt = "ended_at"
     }
@@ -731,6 +735,8 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
         resultReceived = status != .running
         startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
         endedAt = try container.decodeIfPresent(String.self, forKey: .endedAt)
+        args = try container.decodeIfPresent(String.self, forKey: .args)
+        output = try container.decodeIfPresent(String.self, forKey: .output)
     }
 }
 
@@ -797,9 +803,12 @@ extension RoleChatLiveTurn {
                 return .thinking(RoleChatThinking(id: thought.id, text: thought.text, isRunning: false,
                     startedAt: thought.startedAt, endedAt: thought.endedAt ?? end))
             case .step(let step):
-                return .step(RoleChatLiveStep(id: step.id, tool: step.tool, detail: step.detail,
+                var ended = RoleChatLiveStep(id: step.id, tool: step.tool, detail: step.detail,
                     status: step.status == .running ? .done : step.status,
-                    startedAt: step.startedAt, endedAt: step.endedAt ?? end, resultReceived: step.resultReceived))
+                    startedAt: step.startedAt, endedAt: step.endedAt ?? end, resultReceived: step.resultReceived)
+                ended.args = step.args
+                ended.output = step.output
+                return .step(ended)
             }
         }
         return Self(chatID: chatID, userID: userID, name: name, startedAt: startedAt,
