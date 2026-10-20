@@ -1,0 +1,429 @@
+--- before/things3.ts
++++ /Users/max/.local/share/taskflow-host/src/operations/things3.ts
+@@ -1,68 +1,169 @@
+ import { execFile } from "node:child_process";
++import { readFileSync } from "node:fs";
+ import os from "node:os";
++import path from "node:path";
+ import { BadArgsError, type OperationContext, requireString } from "./types.js";
+ 
+-/**
+- * Things3 для роли, которая крутится на .110.
+- *
+- * Зачем: Things3 — macOS-приложение, роль на сервере к нему не достаётся ни
+- * как. Но хост на маке уже умеет отвечать на операции шлюза, и логика доступа
+- * к Things3 уже написана один раз — `things_mcp_server.py`. Вторая копия
+- * была бы дублированием, которое рано или поздно разойдётся с оригиналом,
+- * поэтому операция зовёт именно его.
+- *
+- * Что отдаём наружу: `{ tool, arguments }` — тем же словами, что и сам MCP,
+- * чтобы описание инструмента у роли и у скрипта не расходились.
+- */
++/** Source of truth shared with the Things MCP implementation. */
++const CONTRACT_PATH = path.join(os.homedir(), ".hermes", "scripts", "things_tools_contract.json");
++const SCRIPT = path.join(os.homedir(), ".hermes", "scripts", "things_mcp_server.py");
++const PYTHON = path.join(os.homedir(), ".hermes", "mcp", ".venv", "bin", "python3");
+ 
+-/** Инструменты `things_mcp_server.TOOLS` — на 18.10.2026 ровно эти. */
+-export const ДОСТУПНЫЕ_ИНСТРУМЕНТЫ = [
+-  "things_today",
+-  "things_inbox",
+-  "things_upcoming",
+-  "things_anytime",
+-  "things_someday",
+-  "things_search",
+-  "things_projects",
+-  "things_areas",
+-  "things_add",
+-  "things_complete",
+-  "things_show",
+-] as const;
++export interface JsonSchema {
++  type?: string | string[];
++  properties?: Record<string, JsonSchema>;
++  required?: string[];
++  items?: JsonSchema;
++  enum?: unknown[];
++}
+ 
+-export type ThingsTool = (typeof ДОСТУПНЫЕ_ИНСТРУМЕНТЫ)[number];
++export interface ThingsToolDefinition {
++  name: string;
++  description?: string;
++  inputSchema: JsonSchema;
++}
+ 
+-/** Имя приходит от модели — проверяем по списку, а не по регулярке. */
++export interface ThingsToolsContract {
++  version: number;
++  tools: ThingsToolDefinition[];
++}
++
++export type ThingsTool = string;
++
++const isRecord = (value: unknown): value is Record<string, unknown> =>
++  typeof value === "object" && value !== null && !Array.isArray(value);
++
++const isSchema = (value: unknown): value is JsonSchema => {
++  if (!isRecord(value)) return false;
++  if (value.type !== undefined && typeof value.type !== "string" &&
++      (!Array.isArray(value.type) || value.type.some((type) => typeof type !== "string"))) return false;
++  if (value.required !== undefined &&
++      (!Array.isArray(value.required) || value.required.some((name) => typeof name !== "string"))) return false;
++  if (value.enum !== undefined && !Array.isArray(value.enum)) return false;
++  if (value.properties !== undefined &&
++      (!isRecord(value.properties) || Object.values(value.properties).some((schema) => !isSchema(schema)))) return false;
++  if (value.items !== undefined && !isSchema(value.items)) return false;
++  return true;
++};
++
++/** Read and structurally validate the shared contract on every operation. */
++export function loadThingsToolsContract(): ThingsToolsContract {
++  let parsed: unknown;
++  try {
++    parsed = JSON.parse(readFileSync(CONTRACT_PATH, "utf8"));
++  } catch (error) {
++    throw new Error(`Не удалось прочитать контракт Things ${CONTRACT_PATH}: ${error instanceof Error ? error.message : String(error)}`);
++  }
++  if (!isRecord(parsed) || parsed.version !== 1 || !Array.isArray(parsed.tools)) {
++    throw new Error("Контракт Things должен содержать version: 1 и массив tools");
++  }
++  const seen = new Set<string>();
++  const tools: ThingsToolDefinition[] = [];
++  for (const candidate of parsed.tools) {
++    if (!isRecord(candidate) || typeof candidate.name !== "string" || !candidate.name.trim() ||
++        !isSchema(candidate.inputSchema)) {
++      throw new Error("В контракте Things найдено некорректное описание инструмента");
++    }
++    if (seen.has(candidate.name)) throw new Error(`В контракте Things повторяется инструмент «${candidate.name}»`);
++    seen.add(candidate.name);
++    tools.push({
++      name: candidate.name,
++      ...(typeof candidate.description === "string" ? { description: candidate.description } : {}),
++      inputSchema: candidate.inputSchema,
++    });
++  }
++  return { version: 1, tools };
++}
++
++function toolDefinition(name: string, contract = loadThingsToolsContract()): ThingsToolDefinition {
++  const tool = contract.tools.find((candidate) => candidate.name === name);
++  if (!tool) {
++    throw new BadArgsError(`«${name}» — не инструмент Things3. Доступны: ${contract.tools.map(({ name: toolName }) => toolName).join(", ")}`);
++  }
++  return tool;
++}
++
+ export function проверитьИмя(имя: string): ThingsTool {
+-  if (!(ДОСТУПНЫЕ_ИНСТРУМЕНТЫ as readonly string[]).includes(имя)) {
+-    throw new BadArgsError(
+-      `«${имя}» — не инструмент Things3. Доступны: ${ДОСТУПНЫЕ_ИНСТРУМЕНТЫ.join(", ")}`,
+-    );
++  return toolDefinition(имя).name;
++}
++
++function matchesType(value: unknown, type: string): boolean {
++  switch (type) {
++    case "object": return isRecord(value);
++    case "array": return Array.isArray(value);
++    case "string": return typeof value === "string";
++    case "number": return typeof value === "number" && Number.isFinite(value);
++    case "integer": return typeof value === "number" && Number.isInteger(value);
++    case "boolean": return typeof value === "boolean";
++    case "null": return value === null;
++    default: throw new Error(`Контракт Things использует неподдерживаемый JSON Schema type «${type}»`);
+   }
+-  return имя as ThingsTool;
+ }
+ 
+-const СКРИПТ = "~/.hermes/scripts/things_mcp_server.py";
+-const PYTHON = "~/.hermes/mcp/.venv/bin/python3";
++function validateValue(value: unknown, schema: JsonSchema, at: string): void {
++  const types = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
++  if (types.length > 0 && !types.some((type) => matchesType(value, type))) {
++    throw new BadArgsError(`${at}: ожидался тип ${types.join(" или ")}`);
++  }
++  if (schema.enum && !schema.enum.some((allowed) => JSON.stringify(allowed) === JSON.stringify(value))) {
++    throw new BadArgsError(`${at}: значение не входит в enum контракта`);
++  }
++  if (schema.required || schema.properties) {
++    if (!isRecord(value)) throw new BadArgsError(`${at}: ожидался объект`);
++    for (const key of schema.required ?? []) {
++      if (!(key in value) || value[key] === undefined) throw new BadArgsError(`${at}.${key}: обязательное поле`);
++    }
++    for (const [key, childSchema] of Object.entries(schema.properties ?? {})) {
++      if (key in value) validateValue(value[key], childSchema, `${at}.${key}`);
++    }
++  }
++  if (schema.items !== undefined) {
++    if (!Array.isArray(value)) throw new BadArgsError(`${at}: ожидался массив`);
++    value.forEach((item, index) => validateValue(item, schema.items!, `${at}[${index}]`));
++  }
++}
+ 
+-/**
+- * Мост к скрипту. Отдельная функция, а не прямое `execFile` внутри
+- * операции: тест подставляет заглушку и не трогает живой Things3 (решение
+- * владельца 18.10.2026), а в бою подставляется настоящий вызов.
+- */
++export function validateThingsToolArguments(name: string, args: Record<string, unknown>): void {
++  const definition = toolDefinition(name);
++  validateValue(args, definition.inputSchema, "arguments");
++}
++
++function responseText(content: unknown): string {
++  if (!Array.isArray(content)) return "";
++  return content
++    .filter((part): part is Record<string, unknown> => isRecord(part) && part.type === "text" && typeof part.text === "string")
++    .map((part) => part.text as string)
++    .join("\n");
++}
++
++/** Parse the MCP tools/call response and preserve both protocol and tool errors. */
++export function parseMcpCallResponse(stdout: string): string {
++  const lines = stdout.split("\n").filter(Boolean);
++  for (let index = lines.length - 1; index >= 0; index -= 1) {
++    let message: unknown;
++    try {
++      message = JSON.parse(lines[index]!);
++    } catch {
++      continue;
++    }
++    if (!isRecord(message) || message.id !== 2) continue;
++    if (isRecord(message.error)) {
++      const error = typeof message.error.message === "string" ? message.error.message : JSON.stringify(message.error);
++      throw new Error(`Things3 вернул ошибку MCP: ${error}`);
++    }
++    if (!isRecord(message.result)) throw new Error("Things3 вернул некорректный ответ MCP");
++    const text = responseText(message.result.content);
++    if (message.result.isError === true) throw new Error(`Things3 вернул ошибку инструмента: ${text || "неизвестная ошибка"}`);
++    return text;
++  }
++  throw new Error("Things3 не ответил на вызов");
++}
++
++/** MCP adapter used by the host. Tests inject a fake executor and never touch Things. */
+ export type Исполнитель = (
+   запрос: { tool: string; arguments: Record<string, unknown> },
+ ) => Promise<string>;
+ 
+-const развернуть = (путь: string): string => (путь.startsWith("~") ? путь.replace("~", os.homedir()) : путь);
+-
+-/**
+- * Вызывает скрипт как MCP-сервер и достаёт ответ на `tools/call`.
+- *
+- * Через настоящий протокол, а не через внутреннюю функцию скрипта: иначе
+- * придётся дублировать его разбор аргументов, а он может разойтись с тем,
+- * что реально отвечает клиенту.
+- */
+ export const вызватьСкрипт: Исполнитель = async ({ tool, arguments: аргументы }) =>
+   new Promise<string>((resolve, reject) => {
+     const запросы = [
+@@ -77,45 +178,23 @@
+         },
+       },
+       { jsonrpc: "2.0", method: "notifications/initialized", params: {} },
+-      {
+-        jsonrpc: "2.0",
+-        id: 2,
+-        method: "tools/call",
+-        params: { name: tool, arguments: аргументы },
+-      },
+-    ].map((сообщение) => JSON.stringify(сообщение) + "\n").join("");
++      { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: tool, arguments: аргументы } },
++    ].map((message) => JSON.stringify(message) + "\n").join("");
+ 
+     const child = execFile(
+-      развернуть(PYTHON),
+-      [развернуть(СКРИПТ)],
++      PYTHON,
++      [SCRIPT],
+       { encoding: "utf8", timeout: 60_000, maxBuffer: 4 * 1024 * 1024 },
+-      (ошибка, stdout, stderr) => {
+-        if (ошибка && !stdout) {
+-          reject(new Error(`Things3 недоступен: ${(stderr || ошибка.message).trim().split("\n")[0]}`));
++      (error, stdout, stderr) => {
++        if (error && !stdout) {
++          reject(new Error(`Things3 недоступен: ${(stderr || error.message).trim().split("\n")[0]}`));
+           return;
+         }
+-        const строки = stdout.split("\n").filter(Boolean);
+-        for (let i = строки.length - 1; i >= 0; i -= 1) {
+-          let сообщение: any;
+-          try {
+-            сообщение = JSON.parse(строки[i]!);
+-          } catch {
+-            continue;
+-          }
+-          if (сообщение?.id === 2) {
+-            if (сообщение.error) {
+-              reject(new Error(`Things3 вернул ошибку: ${сообщение.error.message ?? JSON.stringify(сообщение.error)}`));
+-              return;
+-            }
+-            resolve(
+-              (сообщение.result?.content ?? [])
+-                .map((часть: any) => (typeof часть?.text === "string" ? часть.text : ""))
+-                .join("\n"),
+-            );
+-            return;
+-          }
++        try {
++          resolve(parseMcpCallResponse(stdout));
++        } catch (parseError) {
++          reject(parseError instanceof Error ? parseError : new Error(String(parseError)));
+         }
+-        reject(new Error("Things3 не ответил на вызов"));
+       },
+     );
+     child.stdin?.end(запросы);
+@@ -133,30 +212,28 @@
+   _context: OperationContext,
+   исполнитель: Исполнитель = вызватьСкрипт,
+ ): Promise<Things3Result> => {
+-  const tool = проверитьИмя(requireString(args, "tool"));
++  const tool = requireString(args, "tool");
++  const contract = loadThingsToolsContract();
++  const definition = toolDefinition(tool, contract);
+ 
+   const сырые = args.arguments;
+   let аргументы: Record<string, unknown>;
+   if (сырые === undefined || сырые === null) {
+     аргументы = {};
+-  } else if (typeof сырые === "object" && !Array.isArray(сырые)) {
+-    аргументы = сырые as Record<string, unknown>;
++  } else if (isRecord(сырые)) {
++    аргументы = сырые;
+   } else {
+-    // Строка или число сюда не дойдут: скрипт сам разберётся и молча
+-    // сделает не то, что роль имела в виду.
+     throw new BadArgsError("«arguments» должен быть объектом");
+   }
++  validateValue(аргументы, definition.inputSchema, "arguments");
+ 
+-  const result = await исполнитель({ tool, arguments: аргументы });
+-
++  const result = await исполнитель({ tool: definition.name, arguments: аргументы });
+   return {
+-    tool,
++    tool: definition.name,
+     arguments: аргументы,
+     ok: true,
+-    // Пустой ответ — тоже ответ. Молчание выглядело бы как «ничего не нашлось»,
+-    // и роль решила бы, что список пуст, а не что скрипт не отвечает.
+     result: result.trim() || "(Things3 вернул пустой ответ)",
+   };
+ };
+ 
+-export const things3OpName = "things3";
+\ No newline at end of file
++export const things3OpName = "things3";
+
+--- before/things3.test.ts
++++ /Users/max/.local/share/taskflow-host/test/things3.test.ts
+@@ -1,6 +1,12 @@
+ import { describe, it, expect, vi } from "vitest";
+ import { makeContext } from "./helpers.js";
+-import { ДОСТУПНЫЕ_ИНСТРУМЕНТЫ, things3, проверитьИмя } from "../src/operations/things3.js";
++import {
++  things3,
++  проверитьИмя,
++  loadThingsToolsContract,
++  validateThingsToolArguments,
++  parseMcpCallResponse,
++} from "../src/operations/things3.js";
+ 
+ /**
+  * Операция things3: мост к Things3 через уже существующий
+@@ -20,14 +26,15 @@
+   });
+ 
+   it("принимает реальные инструменты Things3", () => {
+-    for (const имя of ["things_today", "things_inbox", "things_add", "things_complete"]) {
+-      expect(проверитьИмя(имя)).toBe(имя);
+-    }
++    expect(проверитьИмя("things_list")).toBe("things_list");
++    expect(проверитьИмя("things_update")).toBe("things_update");
+   });
+ 
+-  it("список инструментов непустой и совпадает с проверяемым", () => {
+-    expect(ДОСТУПНЫЕ_ИНСТРУМЕНТЫ.length).toBeGreaterThan(0);
+-    for (const имя of ДОСТУПНЫЕ_ИНСТРУМЕНТЫ) expect(проверитьИмя(имя)).toBe(имя);
++  it("использует JSON-контракт как источник имён и схем", () => {
++    const контракт = loadThingsToolsContract();
++    expect(контракт.tools.length).toBeGreaterThan(0);
++    expect(контракт.tools.some((инструмент) => инструмент.name === "things_get")).toBe(true);
++    expect(() => проверитьИмя("things_get")).not.toThrow();
+   });
+ });
+ 
+@@ -75,8 +82,63 @@
+     expect(вызов.mock.calls[0]![0]).toEqual({ tool: "things_inbox", arguments: {} });
+     expect(r.ok).toBe(true);
+   });
++
++  it("проверяет arguments по JSON Schema контракта до вызова исполнителя", async () => {
++    const вызов = заглушка("created");
++    await expect(
++      things3({ tool: "things_add", arguments: {} }, makeContext(), вызов),
++    ).rejects.toThrow(/title.*обязательное/i);
++    expect(вызов).not.toHaveBeenCalled();
++
++    await expect(
++      things3({ tool: "things_add", arguments: { title: "test", tags: "work" } }, makeContext(), вызов),
++    ).rejects.toThrow(/tags.*array/i);
++    expect(вызов).not.toHaveBeenCalled();
++
++    const лист = заглушка("[]");
++    await expect(
++      things3({ tool: "things_list", arguments: { list: "calendar" } }, makeContext(), лист),
++    ).rejects.toThrow(/list.*enum/i);
++    expect(лист).not.toHaveBeenCalled();
++  });
++
++  it("допускает nullable поля и вложенную схему patch из общего контракта", () => {
++    expect(() => validateThingsToolArguments("things_update", {
++      id: "abc123",
++      patch: { deadline: null, reminder: null, status: "completed" },
++    })).not.toThrow();
++  });
+ });
+ 
++describe("things3: ответ MCP", () => {
++  it("превращает isError:true в отказ операции, не в успешный текст", () => {
++    const stdout = JSON.stringify({
++      jsonrpc: "2.0",
++      id: 2,
++      result: { isError: true, content: [{ type: "text", text: "Operation not permitted" }] },
++    });
++    expect(() => parseMcpCallResponse(stdout)).toThrow(/Operation not permitted/);
++  });
++
++  it("превращает JSON-RPC error в отказ операции", () => {
++    const stdout = JSON.stringify({
++      jsonrpc: "2.0",
++      id: 2,
++      error: { code: -32602, message: "Invalid arguments" },
++    });
++    expect(() => parseMcpCallResponse(stdout)).toThrow(/Invalid arguments/);
++  });
++
++  it("возвращает текст только для успешного ответа MCP", () => {
++    const stdout = JSON.stringify({
++      jsonrpc: "2.0",
++      id: 2,
++      result: { isError: false, content: [{ type: "text", text: "[]" }] },
++    });
++    expect(parseMcpCallResponse(stdout)).toBe("[]");
++  });
++});
++
+ describe("things3: ошибка исполнителя не теряется", () => {
+   it("ошибка Python-стороны приходит в текст результата", async () => {
+     const вызов = vi.fn(async (_запрос: { tool: string; arguments: Record<string, unknown> }) => {
+@@ -95,4 +157,4 @@
+     };
+     expect(r.result.length).toBeGreaterThan(0);
+   });
+-});
+\ No newline at end of file
++});
