@@ -57,9 +57,11 @@ struct TaskOutcomeContent: View {
                         .tfText(.action)
                         .foregroundStyle(Color.tfText)
                     if let result = node.displayResult, !result.isEmpty {
-                        Text(result)
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfSub)
+                        // Превью строки — тот же общий рендер, короткий кусок
+                        // первого абзаца: сырой `Text` показывал ответ роли
+                        // звёздочками (`**жирный**`) и вертикальной чертой
+                        // от markdown-таблицы (карточка 19f57bc9).
+                        RoleReplyMarkdown(text: RoleReplyMarkdown.preview(of: result))
                             .lineLimit(2)
                     }
                 }

@@ -12,10 +12,10 @@ struct RoleCoordinationCard: View {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     Text("Вопрос").tfText(.meta)
-                    Text(coordination.question).textSelection(.enabled)
+                    RoleReplyMarkdown(text: coordination.question).textSelection(.enabled)
                     if let answer = coordination.answer, !answer.isEmpty {
                         Text(coordination.status == "error" ? "Причина ошибки" : "Ответ").tfText(.meta)
-                        Text(answer).textSelection(.enabled)
+                        RoleReplyMarkdown(text: answer).textSelection(.enabled)
                     }
                 }
             } label: {
