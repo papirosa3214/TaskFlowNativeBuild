@@ -38,6 +38,18 @@ struct TodayScreen: View {
         case .today: Image("EmptyPlannerToday")
         }
     }
+    /// Пуста ли открытая вкладка: те же разделы, что рисует список. Правка
+    /// 20.10.2026 оставила картинку только на «пусто всё сразу», и пустые
+    /// «Входящие» / «Ждут вас» при непустом «Сегодня» стояли голыми.
+    private func activeTabEmpty(_ c: TodayComputation) -> Bool {
+        guard taskStore.errorMessage == nil,
+              !(taskStore.isLoading && taskStore.tasks.isEmpty) else { return false }
+        return TodayListSection.sections(
+            tab: listTab, waiting: c.waitingTasks, overdue: c.overdueTasks,
+            today: c.todayTasks, upcoming: c.upcomingTasks, pool: c.poolTasks,
+            todayDate: today
+        ).isEmpty
+    }
     private var activeHourDate: String {
         vm.hourDateOffset == 0 ? today : TodayDate.addDays(today, vm.hourDateOffset)
     }
@@ -67,7 +79,7 @@ struct TodayScreen: View {
         let c = computation
         ScrollView {
                 VStack(spacing: 0) {
-                if c.trueEmpty && vm.layout == .list {
+                if (c.trueEmpty || activeTabEmpty(c)) && vm.layout == .list {
                     // Иллюстрация пустого списка — единственная на экран.
                     // Раньше она рисовалась дважды: подложкой под `ScrollView`
                     // в `TodayListView` (статичная, не ехала при прокрутке) и
