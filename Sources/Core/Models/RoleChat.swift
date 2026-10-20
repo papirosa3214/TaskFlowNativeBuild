@@ -771,16 +771,18 @@ public struct RoleChatLiveTurn: Decodable, Sendable, Equatable {
 
 /// Selected before sending; retries retain the original mode.
 public enum RoleChatWorkMode: String, CaseIterable, Codable {
-    case work, plan, deepResearch = "deep_research"
+    /// «Цель» (владелец 20.10.2026): роль работает ходами до результата,
+    /// потолок ходов — в настройках сервера.
+    case work, plan, goal, deepResearch = "deep_research"
     var title: String {
-        switch self { case .work: "Работа"; case .plan: "Планирование"; case .deepResearch: "Глубокое исследование" }
+        switch self { case .work: "Работа"; case .plan: "Планирование"; case .goal: "Цель"; case .deepResearch: "Глубокое исследование" }
     }
     var symbol: String {
-        switch self { case .work: "bolt"; case .plan: "list.bullet.clipboard"; case .deepResearch: "magnifyingglass" }
+        switch self { case .work: "bolt"; case .plan: "list.bullet.clipboard"; case .goal: "scope"; case .deepResearch: "magnifyingglass" }
     }
     static func available(in chat: RoleChat) -> [Self] {
         chat.members.contains { $0.roleKey == "researcher" || $0.id == "role_researcher" }
-            ? [.work, .plan, .deepResearch] : [.work, .plan]
+            ? [.work, .plan, .goal, .deepResearch] : [.work, .plan, .goal]
     }
 }
 
