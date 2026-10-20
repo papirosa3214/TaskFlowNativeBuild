@@ -71,7 +71,7 @@ struct RoleReplyMarkdown: View, Equatable {
         case .widget(let json):
             ChatWidgetView(json: json, widgetKey: widgetKey, checklist: checklist)
         case .structuredJSON(let json):
-            ChatStructuredOutputView(json: json, checklist: checklist)
+            ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands && fade == nil)
         case .structuredJSONStreaming(let json):
             ChatStructuredOutputView(json: json, isStreaming: true, checklist: checklist)
         case .html(let html):

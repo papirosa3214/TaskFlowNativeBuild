@@ -9,6 +9,8 @@ struct ChatStructuredOutputView: View {
     /// Контекст сообщения для отметок checklist-виджета внутри конверта
     /// (карточка 21842242); nil — конверт не из переписки.
     var checklist: ChecklistSyncContext? = nil
+    /// Кнопка «Запустить» у блока `command` — только владельцу и не в режиме выбора.
+    var allowsCommands = false
 
     private var document: StructuredOutputEnvelope? {
         guard let data = json.data(using: .utf8) else { return nil }
@@ -90,8 +92,29 @@ struct ChatStructuredOutputView: View {
             reportBlock(block)
         case "handoff":
             handoffBlock(block)
+        case "command":
+            commandBlock(block)
         default:
             unsupportedBlock("Тип блока «\(block.type)» пока не поддерживается")
+        }
+    }
+
+    /// Команда для .110 (контракт v1, блок `command`). До 20.10.2026 этот тип
+    /// здесь не рисовался — кнопка «Запустить» пропала с переходом ролей на JSON.
+    @ViewBuilder
+    private func commandBlock(_ block: StructuredOutputBlock) -> some View {
+        if let command = block.command?.trimmingCharacters(in: .whitespacesAndNewlines), !command.isEmpty {
+            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                if let title = block.title, !title.isEmpty {
+                    Text(title).tfText(.meta).foregroundStyle(Color.tfSub)
+                }
+                if allowsCommands {
+                    BashCommandBlock(command: command).id(command)
+                } else {
+                    RoleReplyMarkdown(text: "```bash\n" + command + "\n```")
+                }
+            }
+            .accessibilityIdentifier("chat.structured-output.command")
         }
     }
 
@@ -468,9 +491,10 @@ private struct StructuredOutputBlock: Decodable {
     let diagramItems: [StructuredOutputDiagramItem]?
     let artifactKey: String?
     let summary: String?
+    let command: String?
 
     enum CodingKeys: String, CodingKey {
-        case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary
+        case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary, command
         case reportKind = "report_kind"
         case artifactKey = "artifact_key"
     }
@@ -494,6 +518,7 @@ private struct StructuredOutputBlock: Decodable {
         sections = try values.decodeIfPresent(StructuredOutputSections.self, forKey: .sections)
         artifactKey = try values.decodeIfPresent(String.self, forKey: .artifactKey)
         summary = try values.decodeIfPresent(String.self, forKey: .summary)
+        command = try values.decodeIfPresent(String.self, forKey: .command)
         ordered = try values.decodeIfPresent(Bool.self, forKey: .ordered)
         if type == "diagram" {
             diagramItems = try values.decodeIfPresent([StructuredOutputDiagramItem].self, forKey: .items)

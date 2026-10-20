@@ -1971,7 +1971,7 @@ struct RoleChatRoomScreen: View {
     private func roleMessageContent(_ message: RoleChatMessage, allowsCommands: Bool) -> some View {
         let checklist = checklistContext(for: message)
         if isAgentReply(message), let json = message.roleEnvelopeJSON {
-            ChatStructuredOutputView(json: json, checklist: checklist)
+            ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist)
                 .equatable()
