@@ -15,13 +15,12 @@ struct VoiceRecordingWaveformView: View {
     let peakColor: Color
     var maxHeight: CGFloat = 28
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var history: [Double] = []
     /// Сколько замеров пришло всего: история хранит только хвост, а
     /// столбик обязан собираться из одних и тех же соседних замеров.
     @State private var received = 0
     @State private var lastLevelAt = Date()
     @State private var peak = VoiceRecordingWaveformView.quietestPeak
-    /// Сколько волны подсвечено сейчас, 0…1.
-    @State private var shown = 0.0
     // Рисунок — как у готовой волны после записи (`WaveformView`), владелец
     // 14.10.2026: та же ширина палочек, тот же зазор, те же высоты.
     private let barWidth: CGFloat = 2.5
@@ -108,25 +107,38 @@ struct VoiceRecordingWaveformView: View {
         return result
     }
 
-    /// Системная волна Apple (владелец 20.10.2026: «наша кривоватая, системная
-    /// ведёт себя грамотнее»): символ `waveform`, столбики подсвечиваются по
-    /// громкости — как у диктовки iOS. Громкость готовится прежней выверенной
-    /// нормировкой (`normalized`): тишина — пустая волна, речь — до верха.
     var body: some View {
-        Image(systemName: "waveform", variableValue: shown)
-            .font(.system(size: maxHeight, weight: .medium))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(LinearGradient(colors: [peakColor, color], startPoint: .top, endPoint: .bottom))
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: shown)
-            .frame(maxWidth: .infinity, maxHeight: maxHeight)
-            .onChange(of: elapsed) { _, _ in
-                let next = Self.normalized(level: level, peak: peak)
-                peak = next.peak
-                // Спад плавнее подъёма: слог загорается сразу, гаснет за ~0,3 с.
-                shown = next.value >= shown ? next.value : max(next.value, shown - 0.12)
-                received += 1
-                lastLevelAt = .now
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
+            Canvas { context, size in
+                let pitch = barWidth + spacing
+                let bars = Self.smoothed(Self.bars(levels: history, received: received))
+                // Между замерами лента едет равномерно, а не шагами.
+                let sinceLevel = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
+                let fraction = min(1, max(0, sinceLevel / Self.levelInterval))
+                let progress = (Double(received) + fraction) / Double(Self.levelsPerBar)
+                var bar = Int(floor(progress))
+                while true {
+                    let x = size.width - CGFloat(progress - Double(bar)) * pitch
+                    if x < -pitch { break }
+                    let level = bars[bar] ?? 0
+                    let h = Self.barHeight(level: level, available: Double(size.height))
+                    let rect = CGRect(x: x, y: (size.height - h) / 2, width: barWidth, height: h)
+                    let tint = color.mix(with: peakColor, by: level)
+                    context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(tint))
+                    bar -= 1
+                }
             }
+        }
+        .frame(height: maxHeight)
+        .clipped()
+        .onChange(of: elapsed) { _, _ in
+            let next = Self.normalized(level: level, peak: peak)
+            peak = next.peak
+            history.append(next.value)
+            if history.count > Self.historyLimit { history.removeFirst(history.count - Self.historyLimit) }
+            received += 1
+            lastLevelAt = .now
+        }
         .accessibilityLabel("Звуковая волна записи")
         .accessibilityIdentifier("chat.voice.recording-wave")
     }
