@@ -55,6 +55,20 @@ final class VoiceRecordingWaveformTests: XCTestCase {
         // После резкого звука обычная речь через секунду снова заметна.
         var peak = VoiceRecordingWaveformView.normalized(level: 1, peak: VoiceRecordingWaveformView.quietestPeak).peak
         for _ in 0..<25 { peak = VoiceRecordingWaveformView.normalized(level: 0, peak: peak).peak }
-        XCTAssertGreaterThan(VoiceRecordingWaveformView.normalized(level: 0.3, peak: peak).value, 0.5)
+        XCTAssertGreaterThan(VoiceRecordingWaveformView.normalized(level: 0.3, peak: peak).value, 0.3)
+    }
+
+    /// Второй заход 20.10.2026: тишина и шум микрофона — точка, речь не в потолке.
+    func testSilenceIsFlatFromTheStartAndSpeechVaries() {
+        let start = VoiceRecordingWaveformView.quietestPeak
+        for db in [-60.0, -50.0, -47.0] {
+            let level = sqrt((pow(10, db / 20) - pow(10, -55.0 / 20)) / (pow(10, -6.0 / 20) - pow(10, -55.0 / 20)))
+            XCTAssertEqual(VoiceRecordingWaveformView.normalized(level: level, peak: start).value, 0, "шум \(db) дБ")
+        }
+        let loud = VoiceRecordingWaveformView.normalized(level: 0.6, peak: start)
+        let normal = VoiceRecordingWaveformView.normalized(level: 0.3, peak: loud.peak)
+        XCTAssertGreaterThan(loud.value, 0.9)
+        XCTAssertGreaterThan(normal.value, 0.2)
+        XCTAssertLessThan(normal.value, 0.8)
     }
 }

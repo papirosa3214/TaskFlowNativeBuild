@@ -38,16 +38,18 @@ struct VoiceRecordingWaveformView: View {
     /// абсолютной шкале: микрофон телефона в режиме разговора даёт тихий
     /// сигнал, и на абсолютной шкале речь едва отрывалась от точки
     /// (владелец 14.10.2026: «хоть говори, хоть не говори — плоская»).
-    /// Пик спадает за секунду на 6 дБ, поэтому после резкого звука обычная
-    /// речь быстро снова встаёт в рост; всё, что на 30 дБ тише пика, — точка.
-    /// Владелец 20.10.2026: волна отзывалась только на резкие звуки — пик
-    /// спадал на 1,5 дБ/с, диапазон был 24 дБ, высоты поджаты степенью 1,4.
+    /// Владелец 20.10.2026, второй заход: при 6 дБ/с и диапазоне 30 дБ речь
+    /// упиралась в потолок, а в тишине сползающий пик раздувал шум микрофона
+    /// (и всплеск в самом начале). Теперь: всё тише `silence` — точка при
+    /// любом пике; пик не опускается ниже `quietestPeak`, спадает на 3 дБ/с;
+    /// 24 дБ ниже пика — точка; лёгкий контраст степенью 1,2.
     static func normalized(level: Double, peak: Double) -> (value: Double, peak: Double) {
         let decibels = Self.decibels(level: level)
         let nextPeak = max(decibels, max(quietestPeak, peak - peakDecay))
+        guard decibels > silence else { return (0, nextPeak) }
         let floor = max(nextPeak - dynamicRange, silence)
         let position = min(1, max(0, (decibels - floor) / (nextPeak - floor)))
-        return (position, nextPeak)
+        return (pow(position, 1.2), nextPeak)
     }
 
     /// Обратно из уровня рекордера (корень из линейной амплитуды между
@@ -59,12 +61,15 @@ struct VoiceRecordingWaveformView: View {
         return 20 * log10(low + clamped * clamped * (high - low))
     }
 
-    static let quietestPeak = -42.0
-    static let silence = -52.0
-    /// Спад пика за один замер (40 мс): 6 дБ в секунду.
-    static let peakDecay = 0.24
+    /// Ниже пик не опускается: иначе в тишине шум микрофона нормируется
+    /// «в рост».
+    static let quietestPeak = -30.0
+    /// Абсолютный порог тишины: тише — точка при любом пике.
+    static let silence = -46.0
+    /// Спад пика за один замер (40 мс): 3 дБ в секунду.
+    static let peakDecay = 0.12
     /// Сколько децибел ниже пика ещё рисуется столбиком, а не точкой.
-    static let dynamicRange = 30.0
+    static let dynamicRange = 24.0
 
     /// Высота палочки — формула готовой волны: от 7 до 83 % высоты, не ниже 2 pt.
     static func barHeight(level: Double, available: Double) -> Double {
