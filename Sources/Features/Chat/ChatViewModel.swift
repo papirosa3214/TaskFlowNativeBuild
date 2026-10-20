@@ -364,7 +364,8 @@ final class ChatViewModel {
 
     private func pruneExpiredTypists() {
         let now = Date()
-        typingDeadlines = typingDeadlines.filter { $0.value.until > now }
+        let alive = typingDeadlines.filter { $0.value.until > now }
+        if alive.count != typingDeadlines.count { typingDeadlines = alive }
         recomputeTypists()
     }
 
@@ -374,9 +375,13 @@ final class ChatViewModel {
         // `onChange(of: visibleTypists)` срабатывал постоянно и лента сообщений
         // прыгала вверх-вниз (владелец 21.09.2026). Сортируем по id — тогда
         // значение меняется только при реальном изменении состава.
-        typists = typingDeadlines
+        let next = typingDeadlines
             .map { ChatTypist(userId: $0.key, name: $0.value.name) }
             .sorted { $0.userId < $1.userId }
+        // @Observable уведомляет экран на КАЖДОЕ присваивание, даже равным
+        // значением: без проверки секундный sweep перерисовывал чат раз в
+        // секунду, когда никто не печатает (20.10.2026).
+        if next != typists { typists = next }
     }
 
     // MARK: - Реалтайм
