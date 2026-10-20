@@ -5,6 +5,29 @@ import Foundation
 
 private struct RolesEnvelope: Decodable { let roles: [RoleProfile] }
 
+/// Общий кэш `GET /api/roles` (20.10.2026). Ответ — 640 КБ с промптами всех
+/// ролей, а запрашивали его 8 экранов, карточка задачи — дважды на каждое
+/// открытие. Одновременные запросы склеиваются в один, свежий ответ живёт 30 с.
+actor RolesCache {
+    static let shared = RolesCache()
+    private let ttl: TimeInterval = 30
+    private var stored: [Bool: (at: Date, roles: [RoleProfile])] = [:]
+    private var inflight: [Bool: Task<[RoleProfile], Error>] = [:]
+
+    func roles(all: Bool, fetch: @escaping @Sendable () async throws -> [RoleProfile]) async throws -> [RoleProfile] {
+        if let hit = stored[all], Date().timeIntervalSince(hit.at) < ttl { return hit.roles }
+        if let running = inflight[all] { return try await running.value }
+        let task = Task { try await fetch() }
+        inflight[all] = task
+        defer { inflight[all] = nil }
+        let roles = try await task.value
+        stored[all] = (Date(), roles)
+        return roles
+    }
+
+    func invalidate() { stored.removeAll() }
+}
+
 /// Модель для пилюли в окне ввода чата.
 public struct RoleModelOption: Decodable, Identifiable, Hashable {
     public let id: String
@@ -28,10 +51,15 @@ public extension APIClient {
     /// надо показать, чтобы было что включить обратно. Без `all=1` — только
     /// рабочие роли (LOCK-205, ссылка на `server/src/routes/roles.ts:278-285`).
     func roles(all: Bool) async throws -> [RoleProfile] {
-        let query = all ? [URLQueryItem(name: "all", value: "1")] : []
-        let envelope: RolesEnvelope = try await request(.get, "/roles", query: query)
-        return envelope.roles
+        try await RolesCache.shared.roles(all: all) {
+            let query = all ? [URLQueryItem(name: "all", value: "1")] : []
+            let envelope: RolesEnvelope = try await self.request(.get, "/roles", query: query)
+            return envelope.roles
+        }
     }
+
+    /// Сбросить кэш ролей — после правки роли (модель, включение, инструкция).
+    static func invalidateRoles() async { await RolesCache.shared.invalidate() }
 
     /// `GET /api/roles/:role` — одна роль (не используется списком, оставлено
     /// для точечного обновления после смены модели).

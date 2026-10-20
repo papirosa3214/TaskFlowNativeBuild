@@ -206,6 +206,8 @@ public final class APIClient: Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             AppDiagnostics.shared.increment(.bytes, by: data.count)
+            // Любая запись могла поменять роль (модель, включение, инструкцию) — кэш ролей сбрасываем.
+            if (request.httpMethod ?? "GET") != "GET" { await RolesCache.shared.invalidate() }
             guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
             // Диагностика: статус, X-Request-ID (если сервер его выставил —
             // по нему лог с iPhone сопоставляется с серверным), длительность.
