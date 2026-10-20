@@ -31,7 +31,7 @@ struct WebhooksScreen: View {
                     if let at = hook.lastDeliveryAt { LabeledContent("Доставлено", value: at) }
                     if let at = hook.wakeConfirmedAt {
                         LabeledContent("Запуск подтверждён", value: at)
-                    } else { Text("Запуск оркестратора не подтверждён").foregroundStyle(.secondary) }
+                    } else { Text("Запуск оркестратора не подтверждён").foregroundStyle(Color.tfSub) }
                     if let at = hook.wake?.lastWakeAt {
                         LabeledContent("Поставлено в очередь Codex", value: at)
                     }
@@ -122,13 +122,21 @@ private struct WebhookEditor: View {
                         .accessibilityIdentifier("webhooks.url")
                     SecureField(hook == nil ? "Ключ приёмника" : "Новый ключ (необязательно)", text: $secret)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Toggle("Включён", isOn: $enabled)
+                    HStack {
+                        Text("Включён")
+                        Spacer()
+                        TFToggle(isOn: $enabled)
+                    }
                 }
                 Section("События") {
                     ForEach(events, id: \.0) { event in
-                        Toggle(event.1, isOn: Binding(get: { selected.contains(event.0) }, set: {
-                            if $0 { selected.insert(event.0) } else { selected.remove(event.0) }
-                        }))
+                        HStack {
+                            Text(event.1)
+                            Spacer()
+                            TFToggle(isOn: Binding(get: { selected.contains(event.0) }, set: {
+                                if $0 { selected.insert(event.0) } else { selected.remove(event.0) }
+                            }))
+                        }
                     }
                 }
                 Section("Оркестратор Codex") {
