@@ -107,7 +107,10 @@ struct SubtaskFeedView: View {
     private func expandedContent(_ subtask: ApiSubtask) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if let result = subtask.displayResult, !result.isEmpty {
-                Text(result).tfText(.action).foregroundStyle(Color.tfSub)
+                // Итог шага — текст роли, значит общий рендер (карточка
+                // 19f57bc9): раньше здесь был сырой `Text`, и ответ со
+                // `**жирным**`, таблицей и ```widget приходил звёздочками.
+                RoleReplyMarkdown(text: result)
             }
             // Место выполнения — владельческая настройка, как и модель шага:
             // роль сама машину не выбирает.

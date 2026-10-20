@@ -273,6 +273,31 @@ struct RoleReplyMarkdown: View, Equatable {
     }
 }
 
+extension RoleReplyMarkdown {
+    /// Короткая строка из текста роли для превью в строке списка: первый
+    /// абзац до первого пустого места, без служебных блоков (таблица, виджет,
+    /// JSON, HTML) — иначе превью в строке выросло бы на весь ответ.
+    ///
+    /// Разбор при этом общий: превью показывается тем же `RoleReplyMarkdown`,
+    /// просто коротким куском текста, поэтому `**жирный**`, ссылки и код
+    /// выглядят как в полном ответе, а не как сырые звёздочки.
+    static func preview(of text: String, limit: Int = 220) -> String {
+        var result = ""
+        for rawLine in text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("```") { break }          // служебный блок — не превью
+            if line.isEmpty {
+                if result.isEmpty { continue }            // пустые строки в начале
+                break                                     // конец первого абзаца
+            }
+            result += result.isEmpty ? line : " " + line
+            if result.count >= limit { break }
+        }
+        guard result.count > limit else { return result }
+        return String(result.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
+    }
+}
+
 /// Таблица из ответа роли (`| a | b |`): шапка, чередование строк,
 /// выравнивание колонок из строки-разделителя, горизонтальная прокрутка для
 /// широких таблиц. Ячейки понимают инлайн-разметку (**жирный**, `код`, ссылки).

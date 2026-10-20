@@ -133,18 +133,4 @@ enum NotificationTicketStyle {
         default: return Color.tfBlue
         }
     }
-
-    /// `AttributedString(markdown:)` с фолбэком на буквальный `Text` при
-    /// ошибке парсинга — не `Text(LocalizedStringKey:)`: `.inlineOnlyPreservingWhitespace`
-    /// рендерит `**bold**`/`*italic*` без риска сломанной разметки исказить
-    /// текст, а провал парсинга просто показывает исходную строку как есть.
-    static func markdownText(_ raw: String) -> Text {
-        if let attributed = try? AttributedString(
-            markdown: raw,
-            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        ) {
-            return Text(attributed)
-        }
-        return Text(raw)
-    }
 }

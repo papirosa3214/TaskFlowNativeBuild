@@ -37,7 +37,9 @@ struct WeeklySummarySheet: View {
                 }
                 if let summary {
                     Section("Продуктивность · \(Int(summary.productivity_score))%") {
-                        Text(summary.greeting)
+                        // Сводку недели пишет роль — общий рендер ответов
+                        // (карточка 19f57bc9), а не сырой `Text`.
+                        RoleReplyMarkdown(text: summary.greeting)
                         LabeledContent("Сделано", value: "\(summary.stats.completed_count)")
                         LabeledContent("Просрочено", value: "\(summary.stats.overdue_count)")
                         LabeledContent("В работе", value: "\(summary.stats.active_count)")
@@ -62,7 +64,7 @@ struct WeeklySummarySheet: View {
         }
     }
     @ViewBuilder private func items(_ title: String, _ values: [String]) -> some View {
-        if !values.isEmpty { Section(title) { ForEach(values.indices, id: \.self) { Text(values[$0]) } } }
+        if !values.isEmpty { Section(title) { ForEach(values.indices, id: \.self) { RoleReplyMarkdown(text: values[$0]) } } }
     }
     private func load(refresh: Bool = false) async {
         busy = true; error = nil

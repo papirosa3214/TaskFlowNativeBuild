@@ -199,7 +199,7 @@ private struct ChartBarRow: View {
                     .tfMonospaced(14)
                     .foregroundStyle(Color.tfText)
             }
-            WidgetBar(fraction: fraction, fill: Color.tfRed.opacity(scheme == .dark ? 0.18 : 0.25), height: 8)
+            WidgetBar(fraction: fraction, fill: RoleChartBlock.ink.opacity(scheme == .dark ? 0.18 : 0.25), height: 8)
         }
         .accessibilityElement(children: .combine)
     }

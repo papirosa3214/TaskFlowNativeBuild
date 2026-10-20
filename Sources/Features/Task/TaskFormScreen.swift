@@ -1907,10 +1907,10 @@ struct TaskCardContent: View {
                 // (владелец 11.09.2026).
                 if isRunning {
                     DisclosureGroup("Предыдущий результат") {
-                        Text(result).tfText(.action).foregroundStyle(Color.tfSub)
+                        RoleReplyMarkdown(text: result)
                     }
                 } else {
-                    Text(result).tfText(.action).foregroundStyle(Color.tfSub)
+                    RoleReplyMarkdown(text: result)
                 }
             }
             if isOwner, subtask.agentState == .review {

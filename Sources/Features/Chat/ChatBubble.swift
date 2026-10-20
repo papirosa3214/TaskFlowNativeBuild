@@ -155,7 +155,7 @@ struct ChatBubble: View {
                 AddressLine(message: message, mine: mine, toMe: toMe)
 
                 if !message.text.isEmpty {
-                    Text(message.text)
+                    messageBody
                         .tfText(.row) // 14px — веб text-[14px]
                         // Выделение текста: долгое нажатие → «Копировать»
                         // (владелец 20.10.2026). Режим выбора сообщения
@@ -250,6 +250,19 @@ struct ChatBubble: View {
             Button("Понятно", role: .cancel) {}
         } message: {
             Text(extractErrorMessage ?? "")
+        }
+    }
+
+    /// Текст пузыря. Ответ роли рисуется общим рендером ответов (карточка
+    /// 19f57bc9): раньше здесь стоял сырой `Text`, и в чате Помощника
+    /// владельца `**жирный**`, списки и блоки приходили звёздочками. Своё
+    /// сообщение — обычный текст, маркировки в нём нет.
+    @ViewBuilder
+    private var messageBody: some View {
+        if mine {
+            Text(message.text)
+        } else {
+            RoleReplyMarkdown(text: message.text)
         }
     }
 

@@ -52,11 +52,11 @@ struct NotificationTicketDetailSheet: View {
                     checkSection("Не отработали в штатном режиме", checks: checks.filter { $0.status != "ok" })
                     checkSection("Работают в штатном режиме", checks: checks.filter { $0.status == "ok" })
                 } else if let summaryText = detail?.summaryText, !summaryText.isEmpty {
-                    NotificationTicketStyle.markdownText(summaryText)
-                        .tfText(.body).foregroundStyle(Color.tfText)
+                    // Сводку сторожа пишет роль — рисуется общим рендером
+                    // ответов (карточка 19f57bc9), а не своим разборщиком.
+                    RoleReplyMarkdown(text: summaryText)
                 } else {
-                    NotificationTicketStyle.markdownText(summary.snippet)
-                        .tfText(.body).foregroundStyle(Color.tfText)
+                    RoleReplyMarkdown(text: summary.snippet)
                 }
 
                 metaSection
