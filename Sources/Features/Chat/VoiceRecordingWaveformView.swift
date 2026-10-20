@@ -28,6 +28,8 @@ struct VoiceRecordingWaveformView: View {
     private let spacing: CGFloat = 2
 
     static let levelsPerBar = 2
+    /// Сколько замеров (по 40 мс) в начале записи пропускать: щелчок старта.
+    static let startClickSamples = 8
     static let levelInterval: TimeInterval = 0.04
     private static let historyLimit = 400
 
@@ -158,7 +160,9 @@ struct VoiceRecordingWaveformView: View {
         .frame(height: maxHeight)
         .clipped()
         .onChange(of: elapsed) { _, _ in
-                let amplitude = Self.amplitude(level: level)
+                // Первые 0,3 с — щелчок включения микрофона: не всплеск, а точка
+                // (владелец 20.10.2026), и потолок громкости им не задаётся.
+                let amplitude = received < Self.startClickSamples ? 0 : Self.amplitude(level: level)
                 // Столбик — самый громкий из `levelsPerBar` замеров, как корзина
                 // огибающей файла.
                 if received % Self.levelsPerBar == 0 {
