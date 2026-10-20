@@ -195,14 +195,13 @@ struct ChatScreen: View {
             } action: { _, nearBottom in
                 isNearBottom = nearBottom
             }
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: .bottom) {
                 if !isNearBottom {
                     ChatScrollToBottomButton {
                         withAnimation(.easeOut(duration: 0.25)) {
                             proxy.scrollTo("typing-line", anchor: .bottom)
                         }
                     }
-                    .padding(.trailing, TFSpacing.lg)
                     .padding(.bottom, TFSpacing.md)
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
                 }

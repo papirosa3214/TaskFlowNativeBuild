@@ -172,15 +172,16 @@ struct ChatScrollToBottomButton: View {
 
     var body: some View {
         Button(action: action) {
+            // Вытянутая пилюля по центру над полем ввода (владелец 20.10.2026:
+            // «в краешек пальцем лезть неудобно»). 64×36 — высота прежнего
+            // кружка, ширина 16:9 от неё; зона нажатия 72×44.
             Image(systemName: "chevron.down")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.tfText)
-                .frame(width: 36, height: 36)
-                .voiceCircleSurface()
-                // Тап-зона 44 pt при кружке 36 (TFHitTarget.min), как у всех
-                // круглых кнопок приложения.
-                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                .contentShape(Circle())
+                .frame(width: 64, height: 36)
+                .voiceCapsuleSurface()
+                .frame(width: 72, height: TFHitTarget.min)
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Вниз, к последнему сообщению")

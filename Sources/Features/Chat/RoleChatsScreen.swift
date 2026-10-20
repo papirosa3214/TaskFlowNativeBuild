@@ -1365,7 +1365,7 @@ struct RoleChatRoomScreen: View {
             // над лентой, нажал — сразу у последнего сообщения. Живёт внутри
             // ScrollViewReader, потому что жмёт по его `proxy`; в режиме выбора
             // не показывается — там лента не листают.
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: .bottom) {
                 if !chatIsNearBottom && !isSelecting {
                     ChatScrollToBottomButton {
                         followsChatBottom = true
@@ -1373,7 +1373,6 @@ struct RoleChatRoomScreen: View {
                             proxy.scrollTo("chat-bottom", anchor: .bottom)
                         }
                     }
-                    .padding(.trailing, TFSpacing.lg)
                     .padding(.bottom, TFSpacing.md)
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
                 }
