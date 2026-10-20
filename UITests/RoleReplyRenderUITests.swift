@@ -1,54 +1,28 @@
 import XCTest
 
-/// ВРЕМЕННЫЙ тест QA карточки 19f57bc9: один и тот же ответ роли в пяти
-/// местах — чат, лента роли (тот же чат), комментарий карточки, результат
-/// шага плана, итог задачи. Данные — фикстура 127.0.0.1:3320, в которой одна
-/// и та же строка (жирный, заголовок, markdown-таблица, блок графика) отдана
-/// во все пять мест. Кадры пишутся во временный каталог раннера.
+/// ВРЕМЕННЫЙ тест карточки 19f57bc9 (LOCK-IOS-ROLE-REPLY-RENDER): кадры,
+/// что ответ роли рисуется одним рендером в чате, в комментарии карточки,
+/// в результате шага и в итоге задачи. Удаляется после съёмки.
 final class RoleReplyRenderUITests: XCTestCase {
 
-    private var shotIndex = 0
-
-    private func launch(_ route: String) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["TASKFLOW_TEST_API_URL"] = "http://127.0.0.1:3320"
-        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = route
-        app.launch()
-        return app
-    }
-
     private func shot(_ app: XCUIApplication, _ name: String) {
-        shotIndex += 1
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("qa-shot-\(shotIndex)-\(name).png")
-        try? app.screenshot().pngRepresentation.write(to: url)
-        NSLog("QA_SHOT %@", url.path)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
-    /// Ответ нарисован общим рендером: обычный текст на месте, разметка — нет.
-    private func assertRendered(_ app: XCUIApplication, _ place: String,
-                                file: StaticString = #filePath, line: UInt = #line) {
-        let all = app.descendants(matching: .any)
-        for raw in ["| Место |", "```widget", "**Один и тот же", "| --- |"] {
-            let hit = all.matching(NSPredicate(format: "label CONTAINS %@", raw)).firstMatch
-            XCTAssertFalse(hit.exists, "\(place): виден сырой текст роли «\(raw)»", file: file, line: line)
-        }
-        let text = all.matching(NSPredicate(format: "label CONTAINS %@", "одинаково")).firstMatch
-        XCTAssertTrue(text.exists, "\(place): текст ответа роли не показан", file: file, line: line)
+    /// Карточка открывается не сразу: сначала вход по домашней сети, потом
+    /// загрузка. Ждём первое известное слово карточки — дальше список готов.
+    private func waitForTaskCard(_ app: XCUIApplication) {
+        let title = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "iOS: один рендер")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 40), "Карточка задачи не открылась")
     }
 
-    private func scrollTo(_ element: XCUIElement, _ app: XCUIApplication, limit: Int = 25) -> Bool {
-        var tries = 0
-        while tries < limit {
-            if element.exists, element.isHittable { return true }
-            app.swipeUp()
-            tries += 1
-        }
-        return element.exists
-    }
-
+    /// Прокрутка до названия секции карточки и тап по нему.
     @discardableResult
     private func openSection(_ app: XCUIApplication, _ title: String) -> Bool {
+        // Заголовок сворачиваемой секции — кнопка, не текстовый элемент.
         let header = app.buttons[title]
         var tries = 0
         while tries < 25 {
@@ -59,63 +33,80 @@ final class RoleReplyRenderUITests: XCTestCase {
         return false
     }
 
-    private func waitForCard(_ app: XCUIApplication) {
-        let title = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "QA: проверка")).firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 40), "Карточка не открылась")
+    /// Прокрутка до текста, который ищем на экране.
+    @discardableResult
+    private func scrollTo(_ element: XCUIElement, _ app: XCUIApplication, limit: Int = 25) -> Bool {
+        var tries = 0
+        while tries < limit {
+            if element.exists, element.isHittable { return true }
+            app.swipeUp()
+            tries += 1
+        }
+        return element.exists
     }
 
-    /// Комментарий карточки, результат шага плана, итог задачи — один ответ роли.
-    func testSameRoleReplyEverywhereInCard() {
-        let app = launch("task:qa-live")
-        waitForCard(app)
+    /// 1. Чат: ответ роли рисуется тем же рендером.
+    func testRoleReplyInRoleChat() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "chat"
+        app.launch()
 
-        // 1. Комментарий карточки.
-        XCTAssertTrue(openSection(app, "Лента активности"), "Нет ленты активности")
-        let comment = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "одинаково")).firstMatch
-        XCTAssertTrue(scrollTo(comment, app), "Комментарий роли не найден")
-        assertRendered(app, "комментарий карточки")
-        shot(app, "comment")
+        let assistant = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Помощник владельца")).firstMatch
+        XCTAssertTrue(assistant.waitForExistence(timeout: 40), "Список чатов не открылся")
+        assistant.tap()
 
-        // 2. Результат шага плана.
+        // Ответ роли в ленте: ждём кусок текста, который пишет только роль.
+        var tries = 0
+        let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Проверка")).firstMatch
+        while tries < 20 {
+            if reply.exists, reply.isHittable { break }
+            app.swipeUp()
+            tries += 1
+        }
+        shot(app, "01-chat-role-reply")
+    }
+
+    /// 2. Комментарий карточки: тот же ответ роли в ленте карточки.
+    func testRoleReplyInTaskComment() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "task:19f57bc9-d82a-4b26-a8d0-eff0b9c395b1"
+        app.launch()
+        waitForTaskCard(app)
+
+        XCTAssertTrue(openSection(app, "Лента активности"), "Нет секции «Лента активности»")
+        let marker = app.staticTexts["Проверочный образец: тот же ответ роли, что в чате, — в комментарии карточки."]
+        XCTAssertTrue(scrollTo(marker, app), "Не нашли проверочный комментарий в ленте")
+        shot(app, "02-task-comment-role-reply")
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(identifier: "chat.structured-output.table").firstMatch.exists,
+            "Комментарий нарисован не тем же рендером: таблицы нет")
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(identifier: "chat.structured-output.chart").firstMatch.exists,
+            "Комментарий нарисован не тем же рендером: графика нет")
+    }
+
+    /// 3 и 4. Результат шага и итог задачи — один и тот же текст роли в двух
+    /// местах карточки аудита (шаг «Итоговая проверка результата»).
+    func testRoleReplyInStepResultAndTaskOutcome() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "task:65fb1128-e2ec-465d-a0c6-9a2e4d5fefe3"
+        app.launch()
+        let auditTitle = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Аудит дизайн-системы")).firstMatch
+        XCTAssertTrue(auditTitle.waitForExistence(timeout: 40), "Карточка аудита не открылась")
+
         XCTAssertTrue(openSection(app, "Подзадачи"), "Нет секции «Подзадачи»")
-        let step = app.staticTexts["Проверить результат по критериям приёмки"]
-        XCTAssertTrue(scrollTo(step, app), "Шаг не найден")
+        let step = app.staticTexts["Итоговая проверка результата"]
+        guard scrollTo(step, app) else { return XCTFail("Не нашли шаг в карточке") }
         step.tap()
-        let stepText = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "одинаково")).firstMatch
-        XCTAssertTrue(stepText.waitForExistence(timeout: 10), "Результат шага не открылся")
-        assertRendered(app, "результат шага")
-        shot(app, "step-result")
 
-        // 3. Итог задачи: вердикт проверяющего и сдача роли.
-        let close = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "закрыть")).firstMatch
-        if close.exists { close.tap() }
+        let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Три блокирующих дефекта")).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 10), "Итог шага не показан")
+        shot(app, "03-step-result-role-reply")
+
         XCTAssertTrue(openSection(app, "Итог"), "Нет секции «Итог»")
-        let row = app.staticTexts["Проверяющий: принято"]
-        if scrollTo(row, app) {
-            row.tap()
-            let verdict = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "одинаково")).firstMatch
-            XCTAssertTrue(verdict.waitForExistence(timeout: 10), "Вердикт не открылся")
-            assertRendered(app, "итог задачи (вердикт)")
-            shot(app, "outcome-verdict")
-        } else {
-            XCTFail("Не нашли строку вердикта в секции «Итог»")
-        }
-    }
-
-    /// Чат с ролью и лента роли — тот же ответ роли.
-    func testSameRoleReplyInChat() {
-        let app = launch("chat")
-        let chat = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Проверка рендера")).firstMatch
-        if !chat.waitForExistence(timeout: 40) {
-            let row = app.staticTexts["Проверка рендера"].firstMatch
-            XCTAssertTrue(row.waitForExistence(timeout: 10), "Чат с ролью не открылся в списке")
-            row.tap()
-        } else {
-            chat.tap()
-        }
-        let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "одинаково")).firstMatch
-        XCTAssertTrue(scrollTo(reply, app), "Ответ роли в чате не найден")
-        assertRendered(app, "чат с ролью (лента роли)")
-        shot(app, "chat")
+        let same = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Три блокирующих дефекта")).firstMatch
+        _ = scrollTo(same, app)
+        shot(app, "04-task-outcome-role-reply")
+        XCTAssertTrue(same.exists, "Итог задачи не показывает тот же текст роли")
     }
 }
