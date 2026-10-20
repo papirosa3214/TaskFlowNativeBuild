@@ -683,6 +683,9 @@ struct RoleChatRoomScreen: View {
     @State private var chatIsNearBottom = true
     @State private var centersLatestReply = false
     @State private var readingReplyHeight: CGFloat = 0
+    /// Высота последнего своего сообщения: оно встаёт чуть выше середины
+    /// экрана, ответ растёт под ним (владелец 20.10.2026).
+    @State private var ownAnchorHeight: CGFloat = 0
     private let api = APIClient()
 
     private var readingPreview: Bool {
@@ -1264,9 +1267,10 @@ struct RoleChatRoomScreen: View {
                         } else if let message = item.message {
                             messageRow(message).id(item.id)
                                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                                    if centersLatestReply && visibleLiveTurns.isEmpty && message.id == messages.last?.id {
+                                    if centersLatestReply && visibleLiveTurns.isEmpty && message.id == messages.last?.id && message.id != lastOwnMessageID {
                                         readingReplyHeight = height
                                     }
+                                    if message.id == lastOwnMessageID { ownAnchorHeight = height }
                                 }
                         }
                     }
@@ -1281,6 +1285,9 @@ struct RoleChatRoomScreen: View {
                     ForEach(pendingOutgoing) { pending in
                         pendingOutgoingRow(pending)
                             .id(pending.id)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                if pending.id == pendingOutgoing.last?.id { ownAnchorHeight = height }
+                            }
                     }
                     ForEach(pendingVoices) { message in
                         VStack(alignment: .trailing, spacing: 4) {
@@ -1321,9 +1328,7 @@ struct RoleChatRoomScreen: View {
                     // нижний край, поэтому отступ СНАРУЖИ LazyVStack не
                     // создавал зазора над композером (проверено на телефоне).
                     Color.clear
-                        .frame(height: chat.kind != "group" && centersLatestReply && !isSelecting
-                            ? max(TFSpacing.xl + TFSpacing.lg, viewportHeight / 2 - readingReplyHeight - TFSpacing.lg - TFSpacing.md)
-                            : TFSpacing.xl + TFSpacing.lg)
+                        .frame(height: readingSpacer(viewportHeight: viewportHeight))
                         .id("chat-bottom")
                 }
                 .padding(TFSpacing.lg)
@@ -1331,6 +1336,15 @@ struct RoleChatRoomScreen: View {
             .accessibilityIdentifier("chat.message.scroll")
             .onChange(of: visibleLiveTurns.last?.playbackID) { _, id in
                 if id != nil { centersLatestReply = true }
+            }
+            // Ответ дорос до низа экрана — лента больше не едет за ним: своё
+            // сообщение остаётся на месте, ответ уходит вниз, всплывает
+            // кнопка «вниз» (владелец 20.10.2026, как в ChatGPT).
+            .onChange(of: readingOverflows(viewportHeight: viewportHeight)) { _, overflows in
+                guard overflows, centersLatestReply, !visibleLiveTurns.isEmpty, followsChatBottom,
+                      let anchor = lastOwnFeedID else { return }
+                followsChatBottom = false
+                proxy.scrollTo(anchor, anchor: UnitPoint(x: 0.5, y: Self.ownAnchorFraction))
             }
             .scrollDismissesKeyboard(.interactively)
             // Начальная позиция — конец истории. Дальше лентой управляет
@@ -1394,6 +1408,35 @@ struct RoleChatRoomScreen: View {
                 }
             }
         }
+    }
+
+    /// Своё сообщение — на 38 % высоты экрана (чуть выше середины), ответ под
+    /// ним. Распорка под лентой держит эту позицию, пока ответ не дорос до низа.
+    private static let ownAnchorFraction: CGFloat = 0.38
+    private static let bottomGap = TFSpacing.xl + TFSpacing.lg
+
+    /// Строка ленты своего последнего сообщения: ещё не отправленное или уже с сервера.
+    private var lastOwnFeedID: String? {
+        if let pending = pendingOutgoing.last { return pending.id }
+        guard let id = lastOwnMessageID else { return nil }
+        return feedItems.first { $0.message?.id == id }?.id
+    }
+
+    private var lastOwnMessageID: String? {
+        messages.last { $0.fromUserID == session.currentUser?.id }?.id
+    }
+
+    private func readingTarget(viewportHeight: CGFloat) -> CGFloat {
+        viewportHeight * (1 - Self.ownAnchorFraction) - ownAnchorHeight - readingReplyHeight - TFSpacing.md * 2 - TFSpacing.lg
+    }
+
+    private func readingSpacer(viewportHeight: CGFloat) -> CGFloat {
+        guard chat.kind != "group", centersLatestReply, !isSelecting else { return Self.bottomGap }
+        return max(Self.bottomGap, readingTarget(viewportHeight: viewportHeight))
+    }
+
+    private func readingOverflows(viewportHeight: CGFloat) -> Bool {
+        readingTarget(viewportHeight: viewportHeight) < Self.bottomGap
     }
 
     /// Живой ход виден и в группе: у каждого ответа своя подпись роли.
@@ -2257,7 +2300,10 @@ struct RoleChatRoomScreen: View {
         draft = ""
         pendingAttachments = []
         followsChatBottom = true
-        centersLatestReply = false
+        // Сразу ставим своё сообщение чуть выше середины, а не внизу: иначе
+        // оно прыгало вверх, когда приходил ответ (владелец 20.10.2026).
+        centersLatestReply = true
+        readingReplyHeight = 0
         withAnimation(.snappy(duration: 0.25)) { pendingOutgoing.append(pending) }
         await deliver(pending.id)
     }
