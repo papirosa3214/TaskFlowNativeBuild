@@ -39,7 +39,13 @@ struct SystemSummaryItem: Identifiable {
     let kind: Kind
     let taskID: String?
 
-    static func compose(checks: [ServiceTicketCheck], incidents: [SystemState.Incident]) -> [Self] {
+    /// `closedIncidents` — поломки, закрытые архивом карточки починки
+    /// (сервер отдаёт их в `GET /api/system-state` отдельным списком).
+    /// Строка проверки, привязанная только к закрытой поломке, не рисуется:
+    /// починка не нужна, показывать нечего (владелец 20.10.2026).
+    static func compose(checks: [ServiceTicketCheck],
+                        incidents: [SystemState.Incident],
+                        closedIncidents: [SystemState.Closed] = []) -> [Self] {
         var represented = Set<String>()
         var rows: [Self] = []
         for (index, check) in checks.enumerated() {
@@ -47,6 +53,10 @@ struct SystemSummaryItem: Identifiable {
                 $0.key == check.incidentKey || check.diagnosticTaskIDs?.contains($0.id) == true
             }
             if let incident, !represented.insert(incident.id).inserted { continue }
+            // Живая поломка важнее закрытой: если та же поломка возникла
+            // снова, у неё новая карточка — строка возвращается. Закрытая
+            // поломка без живой — строку убираем.
+            if incident == nil, isClosed(check: check, closedIncidents: closedIncidents) { continue }
             // Свою карточку поломки проверка уже представлена — её состояние
             // и есть факт, статус проверки вторичен.
             let kind: Kind
@@ -73,6 +83,17 @@ struct SystemSummaryItem: Identifiable {
                              kind: incident.fixed ? .repaired : .broken, taskID: incident.id))
         }
         return rows
+    }
+
+    /// Привязана ли проверка к поломке, которая уже закрыта архивом карточки
+    /// починки. Связь — по ключу поломки (`incident_key`) или по id карточки
+    /// в `diagnostic_task_ids`.
+    private static func isClosed(check: ServiceTicketCheck, closedIncidents: [SystemState.Closed]) -> Bool {
+        guard !closedIncidents.isEmpty else { return false }
+        if let key = check.incidentKey, closedIncidents.contains(where: { $0.key == key }) { return true }
+        if let ids = check.diagnosticTaskIDs,
+           closedIncidents.contains(where: { ids.contains($0.id) }) { return true }
+        return false
     }
 }
 

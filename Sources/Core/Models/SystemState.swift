@@ -6,6 +6,31 @@ struct SystemState: Decodable, Sendable {
     let counts: Counts
     let incidents: [Incident]
     let workers: [Worker]
+    /// Закрытые (архивные) поломки: карточка починки ушла в архив — значит
+    /// починка не нужна и поломка закрыта (владелец 20.10.2026). Сервер
+    /// архивные поломки в `incidents` не отдаёт, поэтому клиенту нужен
+    /// отдельный список: по нему он убирает из сводки строки проверок,
+    /// привязанных к закрытой поломке.
+    let closed: [Closed]
+
+    /// Поломка, закрытая архивом карточки починки: id карточки и ключ
+    /// поломки. Ключ (`incident_key`) нужен строке проверки, id — строке,
+    /// привязанной к карточке (`diagnostic_task_ids`).
+    struct Closed: Decodable, Sendable, Identifiable, Hashable {
+        let id: String
+        let key: String
+    }
+
+    enum CodingKeys: String, CodingKey { case counts, incidents, workers, closed }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        counts = try container.decode(Counts.self, forKey: .counts)
+        incidents = try container.decode([Incident].self, forKey: .incidents)
+        workers = try container.decode([Worker].self, forKey: .workers)
+        // Сервер без поля `closed` — не поломка: закрытых поломок просто нет.
+        closed = try container.decodeIfPresent([Closed].self, forKey: .closed) ?? []
+    }
 
     struct Counts: Decodable, Sendable {
         let total: Int

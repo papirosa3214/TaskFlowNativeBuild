@@ -23,6 +23,7 @@ import SwiftUI
 // каждое действие здесь стоит полного рефетча уведомлений.
 struct NotificationsScreen: View {
     @Environment(NotificationStore.self) private var notificationStore
+    @Environment(TaskStore.self) private var taskStore
 
     @State private var route: AppRoute?
     @State private var isMarkingAllRead = false
@@ -115,10 +116,18 @@ struct NotificationsScreen: View {
         .navigationDestination(isPresented: $showFeed) { feedPage }
         .navigationDestination(item: $incidentFilter) { incidentsPage($0) }
         .task { await loadSystemState(); await loadServiceTickets() }
+        // Карточка починки ушла в архив — поломка закрыта. Сводку и ленту
+        // уведомлений перечитываем сразу, иначе запись поломки осталась бы
+        // висеть до ручного обновления (владелец 20.10.2026).
+        .onChange(of: taskStore.archivedRevision) { _, _ in
+            Task { await loadSystemState(); await notificationStore.load() }
+        }
     }
 
     private var summaryItems: [SystemSummaryItem] {
-        SystemSummaryItem.compose(checks: dailySummary?.checks ?? [], incidents: systemState?.incidents ?? [])
+        SystemSummaryItem.compose(checks: dailySummary?.checks ?? [],
+                                  incidents: systemState?.incidents ?? [],
+                                  closedIncidents: systemState?.closed ?? [])
     }
 
     private var dailySummary: ServiceTicketSummary? {
