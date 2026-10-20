@@ -198,6 +198,14 @@ public struct ProviderQuotaState: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+/// Нерабочий ключ провайдера; `at` — когда последний заход упал (nil — ключа нет совсем).
+public struct ProviderKeyProblem: Codable, Sendable, Hashable, Identifiable {
+    public let provider: String
+    public let reason: String
+    public let at: String?
+    public var id: String { provider }
+}
+
 /// `GET /api/runtime/failover`.
 public struct FailoverStatus: Codable, Sendable, Hashable {
     public let autoSwitch: Bool
@@ -207,15 +215,27 @@ public struct FailoverStatus: Codable, Sendable, Hashable {
     /// Остатки у провайдеров, которые их отдают; остальные сюда не попадают.
     /// Необязательное: поле появилось позже, прежние сборки сервера его не шлют.
     public let quota: [ProviderQuotaState]?
+    /// Провайдеры с нерабочим ключом (20.10.2026): ключ не подключён или
+    /// последний заход роли упал отказом доступа. Прежние сборки сервера не шлют.
+    public let keyProblems: [ProviderKeyProblem]?
 
     enum CodingKeys: String, CodingKey {
         case limits, roles, quota
+        case keyProblems = "key_problems"
         case autoSwitch = "auto_switch"
         case autoReturn = "auto_return"
     }
 
     /// Остатки; пусто у прежних сборок сервера.
     public var quotas: [ProviderQuotaState] { quota ?? [] }
+
+    /// Что сейчас мешает провайдеру работать: лимит или ключ; nil — ничего не известно.
+    public func problem(of provider: String) -> String? {
+        if let key = keyProblems?.first(where: { $0.provider == provider }) { return key.reason }
+        if limits.contains(where: { $0.provider == provider }) { return "в лимите" }
+        if quotas.contains(where: { $0.provider == provider && $0.known && $0.limited }) { return "в лимите" }
+        return nil
+    }
 }
 
 private struct FailoverToggles: Decodable { let autoSwitch: Bool; let autoReturn: Bool
