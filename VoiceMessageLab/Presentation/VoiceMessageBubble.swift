@@ -141,9 +141,9 @@ struct WaveformView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let values = VoiceWaveform.sculptedSamples(
-                from: VoiceWaveform.displaySamples(from: levels, slots: 48)
-            )
+            // Без «лепки» (владелец 20.10.2026): ни плавного хвоста после всплеска,
+            // ни нарастания до — каждый столбик ровно громкость своего куска.
+            let values = VoiceWaveform.displaySamples(from: levels, slots: 48)
             HStack(spacing: 2) {
                 ForEach(Array(values.enumerated()), id: \.offset) { _, level in
                     Capsule()

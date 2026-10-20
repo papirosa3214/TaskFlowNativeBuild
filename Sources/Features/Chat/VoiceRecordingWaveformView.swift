@@ -126,20 +126,42 @@ struct VoiceRecordingWaveformView: View {
     /// всплесков, нормировка по самому громкому месту записи. Отличие только
     /// в данных (микрофон на лету вместо файла) и цвете.
     var body: some View {
-        WaveformView(levels: Self.normalizedHistory(amplitudes), color: peakColor)
-            .frame(height: maxHeight)
-            .onChange(of: elapsed) { _, _ in
+        // Рисунок серой волны (48 капсул, зазор 2, та же формула высоты), без
+        // «лепки» — столбик ровно громкость своего куска (владелец 20.10.2026).
+        // Лента едет плавно от часов экрана, а не скачком на столбик.
+        let values = Self.normalizedHistory(amplitudes)
+        TimelineView(.animation(paused: reduceMotion)) { timeline in
+            Canvas { context, size in
+                let slots = 48
+                let gap: CGFloat = 2
+                let width = max(1, (size.width - gap * CGFloat(slots - 1)) / CGFloat(slots))
+                let pitch = width + gap
+                let sinceSample = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
+                let barInterval = Self.levelInterval * Double(Self.levelsPerBar)
+                let shift = CGFloat(min(1, max(0, sinceSample / barInterval))) * pitch
+                for (index, level) in values.suffix(slots + 1).reversed().enumerated() {
+                    let x = size.width - width - CGFloat(index) * pitch - shift + pitch
+                    if x < -pitch { break }
+                    let h = max(2, size.height * CGFloat(0.07 + min(0.9, level) * 0.84))
+                    let rect = CGRect(x: x, y: (size.height - h) / 2, width: width, height: h)
+                    context.fill(Path(roundedRect: rect, cornerRadius: min(width, h) / 2), with: .color(peakColor))
+                }
+            }
+        }
+        .frame(height: maxHeight)
+        .clipped()
+        .onChange(of: elapsed) { _, _ in
                 let amplitude = Self.amplitude(level: level)
                 // Столбик — самый громкий из `levelsPerBar` замеров, как корзина
                 // огибающей файла.
                 if received % Self.levelsPerBar == 0 {
                     amplitudes.append(amplitude)
+                    lastLevelAt = .now
                     if amplitudes.count > Self.historyLimit { amplitudes.removeFirst(amplitudes.count - Self.historyLimit) }
                 } else if let last = amplitudes.indices.last {
                     amplitudes[last] = max(amplitudes[last], amplitude)
                 }
                 received += 1
-                lastLevelAt = .now
             }
         .accessibilityLabel("Звуковая волна записи")
         .accessibilityIdentifier("chat.voice.recording-wave")
