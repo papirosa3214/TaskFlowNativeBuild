@@ -172,7 +172,7 @@ struct VoiceRecordingWaveformView: View {
                     if x < -pitch { break }
                     let h = max(2, size.height * CGFloat(0.07 + min(0.9, level) * 0.84))
                     let rect = CGRect(x: x, y: (size.height - h) / 2, width: width, height: h)
-                    context.fill(Path(roundedRect: rect, cornerRadius: min(width, h) / 2), with: .color(peakColor))
+                    context.fill(Path(roundedRect: rect, cornerRadius: min(width, h) / 2), with: .color(color.mix(with: peakColor, by: level)))  // тёмно-красный → светло-красный по высоте
                 }
             }
         }
