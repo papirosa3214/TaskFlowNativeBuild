@@ -102,9 +102,9 @@ final class VoiceRecorder: VoiceRecording {
             var readings = 0
             while !Task.isCancelled, let recorder {
                 recorder.updateMeters()
-                // Визуализация следует микрофону сразу; тишина не стирает историю.
-                smoothedLevel = VoiceWaveform.recordingLevel(
-                    previous: smoothedLevel,
+                // Каждый замер сам по себе, без смешивания с прошлым: иначе
+                // столбик волны тянул за собой хвост (владелец 20.10.2026).
+                smoothedLevel = VoiceWaveform.instantLevel(
                     averageDecibels: recorder.averagePower(forChannel: 0),
                     peakDecibels: recorder.peakPower(forChannel: 0)
                 )

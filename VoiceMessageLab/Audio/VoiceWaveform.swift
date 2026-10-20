@@ -51,7 +51,9 @@ enum VoiceWaveform {
 
     /// Уровень для живой волны записи: без ожидания нескольких отсчётов.
     /// Тихие слоги остаются видимыми, пауза плавно затухает примерно за 0,7 с.
-    static func recordingLevel(previous: Double, averageDecibels: Float, peakDecibels: Float) -> Double {
+    /// Громкость одного замера сама по себе — без памяти о предыдущем
+    /// (владелец 20.10.2026: каждый столбик волны реагирует сам, не тянет соседа).
+    static func instantLevel(averageDecibels: Float, peakDecibels: Float) -> Double {
         func normalize(_ decibels: Float) -> Double {
             guard decibels.isFinite else { return 0 }
             let floor = pow(10.0, -55.0 / 20)
@@ -60,7 +62,11 @@ enum VoiceWaveform {
             let progress = min(1, max(0, (amplitude - floor) / (ceiling - floor)))
             return sqrt(progress)
         }
-        let input = normalize(averageDecibels) * 0.65 + normalize(peakDecibels) * 0.35
+        return normalize(averageDecibels) * 0.65 + normalize(peakDecibels) * 0.35
+    }
+
+    static func recordingLevel(previous: Double, averageDecibels: Float, peakDecibels: Float) -> Double {
+        let input = instantLevel(averageDecibels: averageDecibels, peakDecibels: peakDecibels)
         // Быстрый отклик, спад ~0.1 с: история сохраняет слоги и паузы.
         let response = input > previous ? 0.85 : 0.65
         return min(1, max(0, previous + (input - previous) * response))
