@@ -160,7 +160,12 @@ private struct OutcomeTextRow<Label: View>: View {
 }
 
 /// Полный текст вердикта или итога роли — системная шторка на пол-экрана.
-private struct OutcomeTextSheet: View {
+///
+/// Не `private` (в отличие от остальных вспомогательных видов файла): её вид
+/// снимается снимком в `RoleReplyPlacesSnapshotTests` — кадр «итог задачи»
+/// критерия приёмки карточки 19f57bc9 иначе снять нечем, шторку нельзя
+/// развернуть без тапа по строке на живых данных.
+struct OutcomeTextSheet: View {
     let title: String
     let markdown: String
     var replyChatID: String? = nil
