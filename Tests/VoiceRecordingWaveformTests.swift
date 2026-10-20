@@ -44,4 +44,17 @@ final class VoiceRecordingWaveformTests: XCTestCase {
         XCTAssertEqual(VoiceRecordingWaveformView.height(level: -1, maximum: 28), 3)
         XCTAssertEqual(VoiceRecordingWaveformView.height(level: 4, maximum: 28), 28)
     }
+
+    /// Владелец 20.10.2026: подъём и спад слога — зеркальные, ровный звук не срезается.
+    func testLiveWaveIsSymmetricAndHoldsSustainedSound() {
+        let syllable = VoiceRecordingWaveformView.smoothed([0: 0, 1: 0, 2: 1, 3: 0, 4: 0])
+        XCTAssertEqual(syllable[1] ?? 0, syllable[3] ?? 0, accuracy: 1e-9)
+        XCTAssertGreaterThan(syllable[2] ?? 0, syllable[1] ?? 0)
+        let sustained = VoiceRecordingWaveformView.smoothed([0: 0.8, 1: 0.8, 2: 0.8, 3: 0.8])
+        XCTAssertEqual(sustained[2] ?? 0, 0.8, accuracy: 1e-9)
+        // После резкого звука обычная речь через секунду снова заметна.
+        var peak = VoiceRecordingWaveformView.normalized(level: 1, peak: VoiceRecordingWaveformView.quietestPeak).peak
+        for _ in 0..<25 { peak = VoiceRecordingWaveformView.normalized(level: 0, peak: peak).peak }
+        XCTAssertGreaterThan(VoiceRecordingWaveformView.normalized(level: 0.3, peak: peak).value, 0.5)
+    }
 }

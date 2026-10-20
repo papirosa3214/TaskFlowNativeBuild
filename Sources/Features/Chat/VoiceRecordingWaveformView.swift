@@ -38,14 +38,16 @@ struct VoiceRecordingWaveformView: View {
     /// абсолютной шкале: микрофон телефона в режиме разговора даёт тихий
     /// сигнал, и на абсолютной шкале речь едва отрывалась от точки
     /// (владелец 14.10.2026: «хоть говори, хоть не говори — плоская»).
-    /// Пик медленно спадает, поэтому тихая речь через секунду-другую тоже
-    /// встаёт в рост; всё, что на 24 дБ тише пика, — точка.
+    /// Пик спадает за секунду на 6 дБ, поэтому после резкого звука обычная
+    /// речь быстро снова встаёт в рост; всё, что на 30 дБ тише пика, — точка.
+    /// Владелец 20.10.2026: волна отзывалась только на резкие звуки — пик
+    /// спадал на 1,5 дБ/с, диапазон был 24 дБ, высоты поджаты степенью 1,4.
     static func normalized(level: Double, peak: Double) -> (value: Double, peak: Double) {
         let decibels = Self.decibels(level: level)
         let nextPeak = max(decibels, max(quietestPeak, peak - peakDecay))
-        let floor = max(nextPeak - 24, silence)
+        let floor = max(nextPeak - dynamicRange, silence)
         let position = min(1, max(0, (decibels - floor) / (nextPeak - floor)))
-        return (pow(position, 1.4), nextPeak)
+        return (position, nextPeak)
     }
 
     /// Обратно из уровня рекордера (корень из линейной амплитуды между
@@ -59,20 +61,28 @@ struct VoiceRecordingWaveformView: View {
 
     static let quietestPeak = -42.0
     static let silence = -52.0
-    /// Спад пика за один замер (40 мс): около 1,5 дБ в секунду.
-    static let peakDecay = 0.06
+    /// Спад пика за один замер (40 мс): 6 дБ в секунду.
+    static let peakDecay = 0.24
+    /// Сколько децибел ниже пика ещё рисуется столбиком, а не точкой.
+    static let dynamicRange = 30.0
 
     /// Высота палочки — формула готовой волны: от 7 до 83 % высоты, не ниже 2 pt.
     static func barHeight(level: Double, available: Double) -> Double {
         max(2, available * (0.07 + min(0.9, max(0, level)) * 0.84))
     }
 
-    /// Та же лепка, что у готовой волны: начало слога — высокая палочка,
-    /// продолжение — низкие.
-    static func sculpted(_ bars: [Int: Double]) -> [Int: Double] {
-        let order = bars.keys.sorted()
-        let values = VoiceWaveform.sculptedSamples(from: order.map { bars[$0] ?? 0 })
-        return Dictionary(uniqueKeysWithValues: zip(order, values))
+    /// Симметричное сглаживание по соседям (¼, ½, ¼): подъём и спад слога
+    /// зеркальные, ровный звук держит высоту. Владелец 20.10.2026: прежняя
+    /// «лепка» оставляла рост только на нарастании и срезала продолжение до
+    /// 28 % — выходила резкая палка и долгий хвост.
+    static func smoothed(_ bars: [Int: Double]) -> [Int: Double] {
+        var result: [Int: Double] = [:]
+        for (bar, value) in bars {
+            let left = bars[bar - 1] ?? value
+            let right = bars[bar + 1] ?? value
+            result[bar] = left * 0.25 + value * 0.5 + right * 0.25
+        }
+        return result
     }
 
     /// Столбики по сквозному номеру: каждый — самый громкий из своих
@@ -93,7 +103,7 @@ struct VoiceRecordingWaveformView: View {
         TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { timeline in
             Canvas { context, size in
                 let pitch = barWidth + spacing
-                let bars = Self.sculpted(Self.bars(levels: history, received: received))
+                let bars = Self.smoothed(Self.bars(levels: history, received: received))
                 // Между замерами лента едет равномерно, а не шагами.
                 let sinceLevel = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
                 let fraction = min(1, max(0, sinceLevel / Self.levelInterval))
