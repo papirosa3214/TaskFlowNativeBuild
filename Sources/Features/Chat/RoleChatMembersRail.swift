@@ -176,6 +176,12 @@ private struct RoleChatMembersColumn: View {
     let onAdd: (String) -> Void
     let onRemove: (RoleChatMember) -> Void
 
+    /// Тот же рост от Dynamic Type, что у `TFAvatar` (кривая `subheadline`,
+    /// база 100): иначе при уменьшенном тексте аватар ужимался, а «+» стоял
+    /// на 44pt и выглядел крупнее (владелец 20.10.2026).
+    @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
+    private var plusSide: CGFloat { (RoleChatMembersRail.avatar.rawValue * scalePercent / 100).rounded() }
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TFSpacing.md) {
@@ -214,7 +220,7 @@ private struct RoleChatMembersColumn: View {
             Image(systemName: "plus")
                 .tfText(.title)
                 .foregroundStyle(Color.tfSub)
-                .frame(width: RoleChatMembersRail.avatar.rawValue, height: RoleChatMembersRail.avatar.rawValue)
+                .frame(width: plusSide, height: plusSide)
                 .overlay { Circle().strokeBorder(Color.tfSub, style: StrokeStyle(lineWidth: 1, dash: [3, 3])) }
         }
         .accessibilityLabel("Добавить участника")
