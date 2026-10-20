@@ -42,6 +42,7 @@ struct RoleChainSheet: View {
                 accessibility: "Основная модель",
                 options: options,
                 disabled: busy,
+                fillsRow: true,
                 problem: problem
             ) { model in
                 save(primary: model.routeRef, fallbacks: chain.filter { $0 != model.routeRef })
@@ -68,6 +69,7 @@ struct RoleChainSheet: View {
                 accessibility: "Добавить запасную модель",
                 options: options.filter { $0.routeRef != primary && !chain.contains($0.routeRef) },
                 disabled: busy,
+                fillsRow: true,
                 problem: problem
             ) { model in save(primary: primary, fallbacks: chain + [model.routeRef]) }
         } header: {
