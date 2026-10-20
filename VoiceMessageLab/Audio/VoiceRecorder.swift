@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import Observation
+import os
 
 struct RecordedVoice: Equatable {
     let url: URL
@@ -31,6 +32,11 @@ final class VoiceRecorder: VoiceRecording {
     private var meterTask: Task<Void, Never>?
     private(set) var waveform: [Double] = []
     private var smoothedLevel = 0.0
+    /// Прямой замер микрофона (владелец 20.10.2026): системный измеритель
+    /// `averagePower` усредняет ~0,3 с — речь выходила ровным забором, после
+    /// паузы тянулся хвост. Пик каждого куска звука копится здесь до замера.
+    private var meterEngine: AVAudioEngine?
+    private let tapPeak = OSAllocatedUnfairLock<Float?>(initialState: nil)
 
     func start() async throws {
         guard case .idle = state else { return }
@@ -40,7 +46,9 @@ final class VoiceRecorder: VoiceRecording {
         }
 
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        // .default, а не .voiceChat: режим звонков включает автоусиление, и оно
+        // выравнивает громкость голоса — волна без амплитуды (20.10.2026).
+        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try session.setActive(true)
 
         let directory = try Self.recordingsDirectory()
@@ -63,6 +71,7 @@ final class VoiceRecorder: VoiceRecording {
         waveform = []
         smoothedLevel = 0
         state = .recording(elapsed: 0, level: 0)
+        startDirectMeter()
         startMetering()
     }
 
@@ -87,11 +96,38 @@ final class VoiceRecorder: VoiceRecording {
     private func stopRecorder() {
         meterTask?.cancel()
         meterTask = nil
+        meterEngine?.inputNode.removeTap(onBus: 0)
+        meterEngine?.stop()
+        meterEngine = nil
+        tapPeak.withLock { $0 = nil }
         recorder?.stop()
         recorder = nil
         recordingURL = nil
         state = .idle
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    /// Пик модуля сэмплов каждого буфера (~20 мс) — без усреднения. Не
+    /// запустился — остаётся системный измеритель, запись не страдает.
+    private func startDirectMeter() {
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { return }
+        let box = tapPeak
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            guard let channel = buffer.floatChannelData?[0] else { return }
+            var peak: Float = 0
+            for i in 0..<Int(buffer.frameLength) { peak = max(peak, abs(channel[i])) }
+            let db = 20 * log10(max(peak, 1e-7))
+            box.withLock { $0 = max($0 ?? -160, db) }
+        }
+        do {
+            try engine.start()
+            meterEngine = engine
+        } catch {
+            input.removeTap(onBus: 0)
+        }
     }
 
     private func startMetering() {
@@ -104,10 +140,19 @@ final class VoiceRecorder: VoiceRecording {
                 recorder.updateMeters()
                 // Каждый замер сам по себе, без смешивания с прошлым: иначе
                 // столбик волны тянул за собой хвост (владелец 20.10.2026).
-                smoothedLevel = VoiceWaveform.instantLevel(
-                    averageDecibels: recorder.averagePower(forChannel: 0),
-                    peakDecibels: recorder.peakPower(forChannel: 0)
-                )
+                if meterEngine != nil, let direct = tapPeak.withLock({ value -> Float? in
+                    defer { value = nil }
+                    return value
+                }) {
+                    smoothedLevel = VoiceWaveform.instantLevel(averageDecibels: direct, peakDecibels: direct)
+                } else if meterEngine == nil {
+                    smoothedLevel = VoiceWaveform.instantLevel(
+                        averageDecibels: recorder.averagePower(forChannel: 0),
+                        peakDecibels: recorder.peakPower(forChannel: 0)
+                    )
+                } else {
+                    smoothedLevel = 0
+                }
                 power += pow(10, Double(recorder.averagePower(forChannel: 0)) / 10)
                 peak = max(peak, recorder.peakPower(forChannel: 0))
                 readings += 1
