@@ -2123,8 +2123,11 @@ struct RoleChatRoomScreen: View {
 
     private func messageActionButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
+            // Владелец 20.10.2026: значки мельче и одного размера — 14 pt в
+            // одинаковом квадрате 16×16; зона нажатия по-прежнему 44×44.
             Image(systemName: symbol)
-                .font(.system(size: 18, weight: .regular))
+                .font(.system(size: 14, weight: .regular))
+                .frame(width: 16, height: 16)
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                 .contentShape(Rectangle())
         }
