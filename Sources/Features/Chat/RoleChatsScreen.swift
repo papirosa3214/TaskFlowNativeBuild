@@ -647,6 +647,8 @@ struct RoleChatRoomScreen: View {
     /// Сообщение, которое только что скопировали: рядом со значком на
     /// полторы секунды видна надпись «Скопировано» (владелец 14.10.2026).
     @State private var copiedMessageID: String?
+    /// Текст, открытый в «Выделить текст» — системное выделение с ручками.
+    @State private var selectingText: SelectableMessageText?
     @State private var contentsTargetID: String?
     @State private var realtime = RealtimeClient()
     @State private var roomEventRevision = 0
@@ -917,6 +919,9 @@ struct RoleChatRoomScreen: View {
         // возвращает в основной разговор (владелец 14.10.2026).
         .navigationDestination(isPresented: $isBranchPresented) {
             if let branchChat { RoleChatRoomScreen(chat: branchChat) }
+        }
+        .sheet(item: $selectingText) { item in
+            SelectableTextSheet(text: item.text)
         }
         .sheet(isPresented: $isContentsPresented) {
             RoleChatContentsSheet(messages: visibleMessages, currentUserID: session.currentUser?.id) { id in
@@ -1850,6 +1855,17 @@ struct RoleChatRoomScreen: View {
                 // (владелец 14.10.2026: «приходит только виджет»).
                 if !message.text.isEmpty || message.roleEnvelopeJSON != nil {
                     roleMessageContent(message, allowsCommands: session.currentUser?.role == .owner && !isSelecting)
+                        // Долгое нажатие — меню «Выделить текст» (как в ChatGPT).
+                        .contextMenu {
+                            if !isSelecting, !message.text.isEmpty {
+                                Button { selectingText = SelectableMessageText(text: message.text) } label: {
+                                    Label("Выделить текст", systemImage: "text.cursor")
+                                }
+                                Button { UIPasteboard.general.string = message.text } label: {
+                                    Label("Скопировать всё", systemImage: "doc.on.doc")
+                                }
+                            }
+                        }
                 }
                 if let handoff = message.handoff {
                     ChatHandoffCard(handoff: handoff)
@@ -2052,6 +2068,9 @@ struct RoleChatRoomScreen: View {
                     .tfText(.meta)
                     .padding(.trailing, TFSpacing.sm)
                     .accessibilityIdentifier("chat.message.copied")
+            }
+            messageActionButton("text.cursor", label: "Выделить текст") {
+                selectingText = SelectableMessageText(text: message.text)
             }
             messageActionButton("square.and.arrow.up", label: "Сохранить или поделиться") {
                 exportMessage(message)
@@ -2853,4 +2872,10 @@ private struct RoleChatAvatar: View {
             TFAvatar(size: size, initials: initials, tint: tint, userID: userID)
         }
     }
+}
+
+/// Текст сообщения для шторки «Выделить текст».
+struct SelectableMessageText: Identifiable {
+    let id = UUID()
+    let text: String
 }
