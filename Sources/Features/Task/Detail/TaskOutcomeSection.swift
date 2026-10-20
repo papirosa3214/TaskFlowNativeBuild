@@ -16,18 +16,12 @@ struct TaskOutcomeContent: View {
     let onOpenDocument: (String) -> Void
     /// Открыть отдельный read-only предпросмотр Markdown.
     let onPreviewDocument: (String, String) -> Void
-    /// Чат этой задачи: ответ владельца на результат роли уходит туда. nil —
-    /// чата нет, поле ответа не показываем.
-    var replyChatID: String? = nil
-    /// Подзадача шага по его ключу в плане — чтобы ответ был адресован
-    /// именно этому шагу, а не лёг в чат отдельной репликой.
-    var subtaskID: (String) -> String? = { _ in nil }
 
     private let api = APIClient()
 
     var body: some View {
         if let verdict = outcome.verdict {
-            OutcomeTextRow(sheetTitle: "Вердикт проверяющего", markdown: verdict.findings, replyChatID: replyChatID) {
+            OutcomeTextRow(sheetTitle: "Вердикт проверяющего", markdown: verdict.findings) {
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: verdict.isApproved ? "checkmark.seal.fill" : "exclamationmark.bubble.fill")
                         .foregroundStyle(verdict.isApproved ? Color.tfGreen : Color.tfOrange)
@@ -50,8 +44,7 @@ struct TaskOutcomeContent: View {
         }
 
         ForEach(outcome.nodes) { node in
-            OutcomeTextRow(sheetTitle: nodeTitle(node), markdown: node.displayResult ?? "Роль ничего не написала.", replyChatID: replyChatID,
-                           replySubtaskID: node.slotKey.flatMap(subtaskID)) {
+            OutcomeTextRow(sheetTitle: nodeTitle(node), markdown: node.displayResult ?? "Роль ничего не написала.") {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(nodeTitle(node))
                         .tfText(.action)
@@ -141,8 +134,6 @@ struct TaskOutcomeContent: View {
 private struct OutcomeTextRow<Label: View>: View {
     let sheetTitle: String
     let markdown: String
-    var replyChatID: String? = nil
-    var replySubtaskID: String? = nil
     @ViewBuilder let label: () -> Label
     @State private var isPresented = false
 
@@ -152,7 +143,7 @@ private struct OutcomeTextRow<Label: View>: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $isPresented) {
-            OutcomeTextSheet(title: sheetTitle, markdown: markdown, replyChatID: replyChatID, replySubtaskID: replySubtaskID)
+            OutcomeTextSheet(title: sheetTitle, markdown: markdown)
         }
     }
 }
@@ -161,12 +152,7 @@ private struct OutcomeTextRow<Label: View>: View {
 private struct OutcomeTextSheet: View {
     let title: String
     let markdown: String
-    var replyChatID: String? = nil
-    var replySubtaskID: String? = nil
     @Environment(\.dismiss) private var dismiss
-    @State private var reply = ""
-    @State private var isSending = false
-    @State private var replyStatus: String?
 
     var body: some View {
         NavigationStack {
@@ -182,71 +168,15 @@ private struct OutcomeTextSheet: View {
                     Button("Готово") { dismiss() }
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                if let replyChatID { replyBar(chatID: replyChatID) }
-            }
+        }
+        // Шторка только для чтения. Если под ней в карточке осталось поле в
+        // фокусе, над шторкой висела пилюля «скрыть клавиатуру + диктовка»
+        // из надстройки карточки (владелец 20.10.2026) — снимаем фокус.
+        .onAppear {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-    }
-}
-
-extension OutcomeTextSheet {
-    /// Ответ владельца прямо из шторки (07.10.2026): роль пишет «жду…» —
-    /// отвечаем здесь же. Результат роли — не сообщение чата, «ответить на
-    /// него» как на реплику нельзя; поэтому ответ уходит в чат этой задачи
-    /// адресованным шагу, чей результат открыт (`recipient_subtask_id`), с
-    /// пометкой, на что это ответ. Сообщение владельца в чате задачи будит план.
-    private func replyBar(chatID: String) -> some View {
-        // Тот же вид, что у поля ввода в чатах (`ChatVoiceComposer`): стеклянная
-        // капсула высотой `TFChatComposer.elementHeight`, красный самолётик.
-        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            if let replyStatus {
-                Text(replyStatus).tfText(.caption).foregroundStyle(Color.tfSub)
-                    .padding(.horizontal, 12)
-            }
-            HStack(spacing: 8) {
-                TextField("Ответить", text: $reply, axis: .vertical)
-                    // Поле ввода — `.input` 16 (было системное 17)
-                    // (LOCK-TYPOGRAPHY-SPEC, дефект В).
-                    .tfText(.input)
-                    .lineLimit(1...4)
-                    .frame(maxWidth: .infinity, minHeight: TFChatComposer.elementHeight, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .textInputAutocapitalization(.sentences)
-                    .accessibilityIdentifier("outcome-reply-field")
-                let canSend = !isSending && !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                Button { Task { await sendReply(chatID: chatID) } } label: {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(canSend ? Color.tfRed : Color.tfReadableSecondary)
-                        .frame(width: 36, height: 36)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .accessibilityLabel("Отправить ответ")
-                .accessibilityIdentifier("outcome-reply-send")
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: TFChatComposer.elementHeight)
-            .voiceCapsuleSurface()
-        }
-        .padding(.horizontal).padding(.vertical, 10)
-    }
-
-    private func sendReply(chatID: String) async {
-        let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isSending else { return }
-        isSending = true
-        defer { isSending = false }
-        do {
-            _ = try await APIClient().sendRoleChatMessage(chatID: chatID, text: "По «\(title)»: \(text)",
-                                                         recipientSubtaskID: replySubtaskID)
-            reply = ""
-            replyStatus = "Отправлено в чат задачи"
-        } catch {
-            replyStatus = "Не отправлено: \(error.localizedDescription)"
-        }
     }
 }
 

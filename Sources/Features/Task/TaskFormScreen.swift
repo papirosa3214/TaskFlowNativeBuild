@@ -1021,9 +1021,7 @@ struct TaskCardContent: View {
                         roleTitle: outcomeRoleTitle,
                         onToast: { toast = TaskToastMessage($0) },
                         onOpenDocument: { openedReportNoteID = $0 },
-                        onPreviewDocument: outcomePreviewDocument,
-                        replyChatID: viewModel.taskChats.first?.id,
-                        subtaskID: { slot in viewModel.subtasks.first { $0.planNodeKey == slot }?.id }
+                        onPreviewDocument: outcomePreviewDocument
                     )
                 }
                 if let mergeRow {
