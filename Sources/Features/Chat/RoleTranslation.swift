@@ -26,6 +26,22 @@ final class RoleTranslator {
     /// Идёт перевод (или окно скачивания языка) — новый не начинаем: иначе
     /// перезапуск закрывал окно скачивания, и оно мелькало (20.10.2026).
     @ObservationIgnored var isTranslating = false
+    /// Диагностика для владельца (20.10.2026): на каком шаге перевод — строка
+    /// рядом со значком, пока перевод включён.
+    var status = ""
+
+    static let english = Locale.Language(identifier: "en")
+    static let russian = Locale.Language(identifier: "ru")
+
+    /// Что система говорит о паре английский → русский.
+    func checkLanguages() async {
+        switch await LanguageAvailability().status(from: Self.english, to: Self.russian) {
+        case .installed: status = "языки скачаны"
+        case .supported: status = "языки: не скачаны — Настройки → Переводчик"
+        case .unsupported: status = "языки: пара не поддерживается"
+        @unknown default: status = "языки: неизвестный ответ"
+        }
+    }
 
     /// Что показать вместо текста: перевод, если он включён и уже готов.
     func display(_ text: String) -> String {
@@ -54,6 +70,7 @@ final class RoleTranslator {
         guard !todo.isEmpty else { return }
         isTranslating = true
         defer { isTranslating = false }
+        status = "перевожу \(todo.count)"
         let requests = todo.enumerated().map { index, text in
             TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
         }
@@ -62,9 +79,11 @@ final class RoleTranslator {
                 guard let id = response.clientIdentifier, let index = Int(id) else { continue }
                 translations[todo[index]] = response.targetText
             }
+            status = "переведено \(translations.count)"
         } catch {
             // Языковой пакет не скачан или окно закрыто — повторим позже.
             for text in todo { failedAt[text] = Date() }
+            status = "ошибка: \(error.localizedDescription) [\(String(describing: error).prefix(80))]"
         }
     }
 }
@@ -90,14 +109,22 @@ struct RoleTranslationHost: ViewModifier {
     @State private var rerun = false
 
     private func refresh() {
-        guard translator.isOn, !translator.untranslated(texts).isEmpty else { return }
+        guard translator.isOn else { return }
+        if !texts.contains(where: translator.isEnglish) {
+            translator.status = "нечего переводить (\(texts.count) реплик, английских нет)"
+            return
+        }
+        guard !translator.untranslated(texts).isEmpty else { return }
+        Task { await translator.checkLanguages() }
         // Не перезапускать посреди перевода: это закрывало окно скачивания.
         if translator.isTranslating { rerun = true; return }
         if configuration == nil {
-            configuration = .init(source: Locale.Language(identifier: "en"), target: Locale.Language(identifier: "ru"))
+            configuration = .init(source: RoleTranslator.english, target: RoleTranslator.russian)
         } else {
             configuration?.invalidate()
         }
+        // Если переводчик так и не позовёт задачу — это будет видно здесь.
+        Task { try? await Task.sleep(for: .seconds(8)); if translator.status.hasPrefix("языки") { translator.status += " · жду переводчик" } }
     }
 }
 
@@ -107,6 +134,15 @@ struct RoleTranslateSwitch: View {
     private var translator: RoleTranslator { .shared }
 
     var body: some View {
+        HStack(spacing: 0) {
+            if translator.isOn, !translator.status.isEmpty {
+                Text(translator.status)
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.trailing)
+                    .accessibilityIdentifier("role-translate-status")
+            }
         Button {
             translator.isOn.toggle()
         } label: {
@@ -120,6 +156,7 @@ struct RoleTranslateSwitch: View {
         .buttonStyle(.plain)
         .accessibilityLabel(translator.isOn ? "Показать оригинал" : "Перевести на русский")
         .accessibilityIdentifier("role-translate-switch")
+        }
     }
 }
 
