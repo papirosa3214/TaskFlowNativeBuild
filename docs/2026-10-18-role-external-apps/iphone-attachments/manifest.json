@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "2EE92862-4297-48C2-AD9E-D403722B478F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "things-capabilities_0_9DBBF547-C12F-4CA7-9A35-F11501032989.png",
+        "timestamp" : 1792370525.253
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "ABAF911A-2A9F-4C44-8031-33412E36E2B1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "gmail-capabilities_0_9D9A0315-AC50-4A99-8B2A-ED8995FC8912.png",
+        "timestamp" : 1792370522.548
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "F8183AF5-D369-4258-B274-36547D30D9BB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "external-apps-status_0_9622A91E-C682-48FD-A533-D387FCB05DBA.png",
+        "timestamp" : 1792370520.509
+      }
+    ],
+    "testIdentifier" : "ExternalAppAccessUITests/testSecretaryExternalApps()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ExternalAppAccessUITests/testSecretaryExternalApps"
+  }
+]

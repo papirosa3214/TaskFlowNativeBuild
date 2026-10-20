@@ -57,6 +57,48 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains("jev"))
     }
 
+    func testWebhookHintExplainsGenericReceiverAndOptionalCodexBranch() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.webhooks])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.webhooksEntry, frame: frame)
+        XCTAssertEqual(center.active?.step, "entry")
+        XCTAssertEqual(center.currentStep?.documentationResource, "2026-10-18-webhooks-integration")
+        center.tapped(anchor: HintAnchorID.webhooksEntry)
+        XCTAssertEqual(center.active?.step, "add")
+        center.tapped(anchor: HintAnchorID.webhooksAdd)
+        XCTAssertEqual(center.active?.step, "url")
+        XCTAssertTrue(center.currentStep?.text.contains("HTTP(S)-адрес") == true)
+        center.next()
+        XCTAssertEqual(center.active?.step, "events")
+        center.next()
+        XCTAssertEqual(center.active?.step, "project")
+        center.next()
+        XCTAssertEqual(center.active?.step, "codex-choice")
+        XCTAssertTrue(center.currentStep?.text.contains("Codex здесь не обязателен") == true)
+        XCTAssertTrue(center.currentStep?.text.contains("вручную очисти поле ID") == true)
+        XCTAssertTrue(center.currentStep?.text.contains("Выбор шага сам поле не меняет") == true)
+        let noCodex = try! XCTUnwrap(center.currentStep?.branches.first { $0.title == "Только HTTP-приёмник" })
+        center.choose(noCodex)
+        XCTAssertEqual(center.active?.step, "save")
+        center.tapped(anchor: HintAnchorID.webhookSave)
+        XCTAssertEqual(center.active?.step, "test")
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.webhookTest)
+        center.next()
+        XCTAssertTrue(center.completed.contains("webhooks"))
+
+        center.restart("webhooks")
+        center.next()
+        center.next()
+        center.next()
+        center.next()
+        center.next()
+        let useCodex = try! XCTUnwrap(center.currentStep?.branches.first { $0.title == "Ещё передавать в Codex" })
+        center.choose(useCodex)
+        XCTAssertEqual(center.active?.step, "codex")
+        center.next()
+        XCTAssertEqual(center.active?.step, "save")
+    }
+
     func testRoleActionHintCompletesWithoutChangingWork() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleActions])
         center.start("role-actions")

@@ -21,8 +21,6 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-      - path: docs/2026-10-18-role-external-apps.md
-        buildPhase: resources
       # Общий код голосового прототипа используется в основном приложении.
       - path: VoiceMessageLab/Audio/VoiceActivityGate.swift
       - path: VoiceMessageLab/Audio/VoicePlayer.swift
@@ -49,6 +47,11 @@ targets:
       # Тот же приём, что у голосов: каталог целиком, `buildPhase: resources`.
       # 2,5 МБ восьми mp4 — они идут в бандл как файлы, а не в asset catalog.
       - path: Resources/TeamAvatarLoops
+        buildPhase: resources
+      # Инструкция, на которую ссылается обучающая подсказка вебхуков.
+      - path: docs/2026-10-18-role-external-apps.md
+        buildPhase: resources
+      - path: docs/2026-10-18-webhooks-integration.md
         buildPhase: resources
       # Пиксельный шрифт для метки даты заведения в строке задачи
       # (LOCK-TASK-CREATED-STAMP). Шрифтовый файл обязан быть в бандле как

@@ -1,0 +1,75 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/maksim/Проекты/New-Todoist/server[39m
+
+[90mstdout[2m | test/roles.test.ts
+[22m[39m[apns] ключ не настроен — островок будет обновляться только при открытом приложении
+
+[90mstdout[2m | test/roles.test.ts[2m > [22m[2mrole catalog API
+[22m[39m[042_pipeline_head] backfill: kept=0 moved=0 cleared=0
+
+[90mstdout[2m | test/roles.test.ts[2m > [22m[2mrole catalog API
+[22m[39m[inbox-triage] polling /home/maksim/Проекты/taskflow-уведомления/inbox (every 1000 ms)
+[results-writer] watching tasks (0 known). poll=3000ms
+
+[90mstderr[2m | test/roles.test.ts[2m > [22m[2mrole catalog API
+[22m[39m[note-access-watch] прибор живой
+
+(node:2111462) [FSTWRN001] FastifyWarning: The body schema for POST: /api/auth/lan is missing. This may indicate the schema is not well specified.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2111462) [FSTWRN001] FastifyWarning: The body schema for POST: /api/pairing/code is missing. This may indicate the schema is not well specified.
+{"level":30,"time":1792347746730,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746730-5gm72l","req":{"method":"POST","url":"/api/auth/register","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792347746730-5gm72l"},"msg":"incoming request"}
+{"level":30,"time":1792347746786,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746730-5gm72l","res":{"statusCode":200},"responseTime":54.606464999998934,"msg":"request completed"}
+{"level":30,"time":1792347746786,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746786-c1jmqe","req":{"method":"POST","url":"/api/auth/register","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792347746786-c1jmqe"},"msg":"incoming request"}
+{"level":30,"time":1792347746832,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746786-c1jmqe","res":{"statusCode":200},"responseTime":45.609927999999854,"msg":"request completed"}
+{"level":30,"time":1792347746832,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746832-n9mgnh","req":{"method":"POST","url":"/api/auth/api-token","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792347746832-n9mgnh"},"msg":"incoming request"}
+{"level":30,"time":1792347746833,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746832-n9mgnh","res":{"statusCode":200},"responseTime":0.8522430000011809,"msg":"request completed"}
+{"level":30,"time":1792347746834,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746834-fl5hkz","req":{"method":"GET","url":"/api/roles/secretary","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792347746834-fl5hkz"},"msg":"incoming request"}
+{"level":30,"time":1792347746849,"pid":2111462,"hostname":"maksim-MS-7D27","reqId":"srv-1792347746834-fl5hkz","res":{"statusCode":200},"responseTime":14.916099000000031,"msg":"request completed"}
+ [31m❯[39m test/roles.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m | [22m[33m5 skipped[39m[2m)[22m[33m 635[2mms[22m[39m
+[31m     [31m×[31m exposes shared external operations behind the universal tool[39m[32m 18[2mms[22m[39m
+     [2m[90m↓[39m[22m reports a callable role online on the first agents request
+     [2m[90m↓[39m[22m lists nine roles (with Инженер .110) and returns Architect details
+     [2m[90m↓[39m[22m returns a role for a role account and null for a shell account
+     [2m[90m↓[39m[22m rejects unknown roles and missing accounts
+     [2m[90m↓[39m[22m lets an architect agent claim its task but rejects a foreign task
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m test/roles.test.ts[2m > [22mrole catalog API[2m > [22mexposes shared external operations behind the universal tool
+[31m[1mAssertionError[22m: expected undefined to deeply equal ArrayContaining{…}[39m
+
+[32m- Expected:[39m
+ArrayContaining [
+  ObjectContaining {
+    "description": Any<String>,
+    "name": "taskflow_things3",
+  },
+  ObjectContaining {
+    "description": Any<String>,
+    "name": "taskflow_mail_list",
+  },
+  ObjectContaining {
+    "description": Any<String>,
+    "name": "taskflow_mail_draft",
+  },
+]
+
+[31m+ Received:[39m
+undefined
+
+[36m [2m❯[22m test/roles.test.ts:[2m82:45[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[33m5 skipped[39m[90m (6)[39m
+[2m   Start at [22m 21:22:17
+[2m   Duration [22m 9.14s[2m (transform 4.61s, setup 100ms, import 8.11s, tests 635ms, environment 0ms)[22m
+
+    [90m 80|[39m       headers[33m:[39m {authorization[33m:[39m [32m`Bearer [39m[36m${[39mownerToken[36m}[39m[32m`[39m}})[33m;[39m
+    [90m 81|[39m     [34mexpect[39m(result[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+    [90m 82|[39m     expect(result.json().operations_detail).toEqual(expect.arrayContai…
+    [90m   |[39m                                             [31m^[39m
+    [90m 83|[39m       expect.objectContaining({name: "taskflow_things3", description: …
+    [90m 84|[39m       expect.objectContaining({name: "taskflow_mail_list", description…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+

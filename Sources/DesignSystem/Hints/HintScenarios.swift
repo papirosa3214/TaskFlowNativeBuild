@@ -19,10 +19,18 @@ enum HintAnchorID {
     static let taskPlan = "task.section.collaborationPlan"
     /// Выбор «своя подзадача / по плану» у шага черновика.
     static let planWorkChoice = "plan.work-choice"
+    static let webhooksEntry = "integrations.webhooks"
+    static let webhooksAdd = "webhooks.add"
+    static let webhookURL = "webhooks.url"
+    static let webhookEvents = "webhooks.events"
+    static let webhookProject = "webhooks.project"
+    static let webhookCodexThread = "webhooks.thread"
+    static let webhookSave = "webhooks.save"
+    static let webhookTest = "webhooks.test"
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [externalApps, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
+    static let all: [HintScenario] = [externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
 
     static let externalApps = HintScenario(
         id: "external-apps", title: "Внешние приложения Помощника владельца", start: "access",
@@ -30,6 +38,34 @@ enum HintScenarios {
             "access": HintStep(anchor: HintAnchorID.roleExternalApps, title: "Подключения и возможности",
                 text: "Здесь показаны Gmail с подключёнными адресами и доступ Помощника владельца к Things 3. Эти же сведения используются в Настройках → Интеграции. Нажми «Показать возможности», чтобы прочитать доступные действия из каталога инструментов. Статус Things «Доступен» означает, что проверка чтения через Mac прошла успешно.",
                 documentationResource: "2026-10-18-role-external-apps")
+        ])
+
+    static let webhooks = HintScenario(
+        id: "webhooks", title: "Вебхуки: отправка событий TaskFlow", start: "entry",
+        steps: [
+            "entry": HintStep(anchor: HintAnchorID.webhooksEntry, title: "Что такое вебхук",
+                text: "Вебхук отправляет выбранные события TaskFlow по HTTP(S) на совместимый внешний сервис-приёмник. Например, так другой сервис может получить результат этапа. Это исходящая отправка: сам TaskFlow не создаёт адрес приёмника. Codex для этого не требуется. Нажми строку, чтобы открыть список и настройки.", next: "add", advancesOnTap: true,
+                documentationResource: "2026-10-18-webhooks-integration"),
+            "add": HintStep(anchor: HintAnchorID.webhooksAdd, title: "Добавь приёмник",
+                text: "Нажми «+», чтобы создать подписку. Если подписка уже есть, можно нажать на её карточку, чтобы изменить настройки.", next: "url", advancesOnTap: true),
+            "url": HintStep(anchor: HintAnchorID.webhookURL, title: "Адрес и ключ",
+                text: "Введи название и HTTP(S)-адрес сервиса, который принимает запросы. Общий ключ укажи только если принимающая сторона ожидает его. Без доступного приёмника доставка не сработает.", next: "events"),
+            "events": HintStep(anchor: HintAnchorID.webhookEvents, title: "Выбери события",
+                text: "Отметь типы событий TaskFlow, которые нужно отправлять. Каждый выбранный тип создаёт отдельный запрос при наступлении соответствующего события.", next: "project"),
+            "project": HintStep(anchor: HintAnchorID.webhookProject, title: "Ограничь проект",
+                text: "Можно оставить один проект или выбрать «Все проекты», чтобы получать события из любого проекта. По умолчанию форма подставляет TaskFlow - NewTodoist.", next: "codex-choice"),
+            "codex-choice": HintStep(anchor: HintAnchorID.webhookCodexThread, title: "Нужна передача в Codex?",
+                text: "HTTP-вебхук работает с совместимым внешним приёмником; Codex не обязателен. Важно: форма заранее заполняет ID чата. Если нужна только HTTP-доставка, сначала вручную очисти поле ID, затем выбери «Только HTTP-приёмник». Выбор шага сам поле не меняет. Если нужна и передача в Codex, проверь ID нужной ветки.",
+                branches: [
+                    HintBranch(title: "Только HTTP-приёмник", next: "save"),
+                    HintBranch(title: "Ещё передавать в Codex", next: "codex"),
+                ]),
+            "codex": HintStep(anchor: HintAnchorID.webhookCodexThread, title: "Проверь чат Codex",
+                text: "Оставь ID только если хочешь дополнительно передавать события в эту ветку Codex. HTTP-доставка внешнему приёмнику всё равно остаётся основной подпиской.", next: "save"),
+            "save": HintStep(anchor: HintAnchorID.webhookSave, title: "Сохрани подписку",
+                text: "Подписка сохраняется на сервере TaskFlow. Кнопка станет доступна, когда введено название, корректный HTTP(S)-адрес и выбрано хотя бы одно событие. Нажми «Сохранить», чтобы перейти к проверке.", next: "test", advancesOnTap: true),
+            "test": HintStep(anchor: HintAnchorID.webhookTest, title: "Проверь доставку",
+                text: "Нажми «Проверить доставку». На карточке смотри HTTP-ответ и ошибку отдельно от постановки события в очередь и подтверждения запуска Codex: успешная HTTP-отправка сама по себе не подтверждает запуск чата.", next: nil),
         ])
 
     static let chatCoordination = HintScenario(

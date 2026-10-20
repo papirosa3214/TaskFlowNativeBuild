@@ -1,0 +1,44 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "DD521D9F-98E4-44FA-A856-4E2CE199B7D5",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Synthesized Event 2026-10-18 at 09.20.46 PM",
+        "timestamp" : 1792347646.271
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "91E75ABF-ABFA-40E9-A9A5-C50AF97236AB",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Synthesized Event 2026-10-18 at 09.20.44 PM",
+        "timestamp" : 1792347644.649
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "30DCE64D-C8C7-4E50-AF7E-BBC4707B7783.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Debug description for `\"Помощник владельца\" StaticText`_0_A868179E-2D6B-4C82-8E56-61B58AE5AC16.txt",
+        "timestamp" : 1792347643.428
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "AEC5A542-D954-4E11-BA85-B94448E26DE2.mp4",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Screen Recording 2026-10-18 at 09.20.35 PM.mp4",
+        "timestamp" : 1792347635.668
+      }
+    ],
+    "testIdentifier" : "ExternalAppAccessUITests/testSecretaryExternalApps()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ExternalAppAccessUITests/testSecretaryExternalApps"
+  }
+]

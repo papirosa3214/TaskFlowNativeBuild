@@ -61,11 +61,6 @@ final class ServerStatusViewModel {
     var pingResult: String?
     var isPinging = false
     var agentServiceError: String?
-    /// Подписки вебхуков — для строки «Вебхуки» (12.10.2026, поручение
-    /// владельца: индикация в настройках, работают они или нет). Фондовый
-    /// сторож на сервере убран по его же слову, читаем факт из данных.
-    var webhooks: [TaskFlowWebhook]?
-    var webhooksUnavailable = false
     /// Переключение будильника — реальный `POST /agent-service`, включающий/
     /// выключающий systemd-юнит НА СЕРВЕРЕ. Задача прямо запрещает трогать
     /// настройки живого сервера — проводка написана (штатная функция экрана
@@ -75,41 +70,10 @@ final class ServerStatusViewModel {
     func load() async {
         async let statusTask: ServerStatusResponse? = try? apiClient.request(.get, "/server-status")
         async let serviceTask: AgentServiceResponse? = try? apiClient.request(.get, "/agent-service")
-        async let webhooksTask: [TaskFlowWebhook]? = try? apiClient.webhooks()
-        let (loadedStatus, loadedService, loadedWebhooks) = await (statusTask, serviceTask, webhooksTask)
+        let (loadedStatus, loadedService) = await (statusTask, serviceTask)
         status = loadedStatus
         agentService = loadedService
-        webhooks = loadedWebhooks
-        // Отдельный флаг, а не пустой массив: «подписок нет» и «сервер не
-        // отдал раздел» — разные вещи, и на экране они должны читаться
-        // по-разному.
-        webhooksUnavailable = loadedWebhooks == nil
         phase = loadedStatus == nil ? .failed : .loaded
-    }
-
-    /// Сводка по вебхукам для строки настроек.
-    ///
-    /// Порядок выводов отвечает на вопрос владельца «работают или нет»:
-    /// сначала ошибка (иначе она тонет в общем «включены»), потом включение,
-    /// потом сам факт доставок.
-    enum WebhookState: Equatable {
-        case unknown            // раздел не прочитан — сервер не отдал
-        case none               // подписок нет
-        case disabled           // подписки есть, но выключены
-        case broken(String)     // последняя доставка с ошибкой
-        case works(Int)         // работают, столько доставок
-    }
-
-    var webhookState: WebhookState {
-        guard let hooks = webhooks else { return .unknown }
-        guard !hooks.isEmpty else { return .none }
-        guard hooks.contains(where: \.enabled) else { return .disabled }
-        if let failed = hooks.first(where: { $0.lastError != nil || ($0.lastDeliveryStatus ?? 0) >= 400 }) {
-            let reason = failed.lastError ?? "HTTP \(failed.lastDeliveryStatus ?? 0)"
-            return .broken(failed.name + " — " + reason)
-        }
-        let deliveries = hooks.compactMap(\.deliveryCount).reduce(0, +)
-        return .works(deliveries)
     }
 
     func ping() async {
@@ -266,19 +230,6 @@ struct ServerStatusSection: View {
                 titleStyle: .action,
                 verticalPadding: TFSpacing.xs
             )
-            TFDivider(inset: rowDividerInset)
-            // «Вебхуки» — та самая индикация, ради которой фоновый сторож
-            // на сервере убран (12.10.2026). Тап — перечитать факт, без
-            // побочных эффектов: пробная доставка живёт на экране «Вебхуки»
-            // в интеграциях, здесь она только читает состояние.
-            TFListRow(
-                icon: "arrow.triangle.branch", iconStyle: .plain,
-                title: "Вебхуки",
-                trailing: AnyView(webhookAccessory),
-                titleStyle: .action,
-                verticalPadding: TFSpacing.xs,
-                action: { Task { await viewModel.load() } }
-            )
         }
     }
 
@@ -292,29 +243,6 @@ struct ServerStatusSection: View {
             ProgressView()
         } else {
             Image(systemName: "arrow.clockwise")
-        }
-    }
-
-    /// Показание строки «Вебхуки». Цвета те же штатные, что у остальных
-    /// показаний: `tfGreen` — работает, `tfCoral` — сломано, `tfSub` — серый
-    /// (выключено/нечем читать). Новых цветов не заводим.
-    @ViewBuilder
-    private var webhookAccessory: some View {
-        switch viewModel.webhookState {
-        case .unknown:
-            valueText("не отвечает", color: .tfCoral)
-        case .none:
-            valueText("нет подписок")
-        case .disabled:
-            valueText("выключены")
-        case .broken(let reason):
-            valueText(reason, color: .tfCoral)
-        case .works(let deliveries):
-            if deliveries > 0 {
-                valueText("работают · \(deliveries)", color: .tfGreen)
-            } else {
-                valueText("работают", color: .tfGreen)
-            }
         }
     }
 

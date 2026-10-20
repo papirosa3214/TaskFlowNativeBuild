@@ -1,0 +1,51 @@
+import XCTest
+
+final class ExternalAppAccessUITests: XCTestCase {
+    func testSecretaryExternalApps() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "agents"
+        app.launchArguments = ["-hints.enabled", "NO"]
+        app.launch()
+        let assistant = app.staticTexts["Помощник владельца"].firstMatch
+        XCTAssertTrue(assistant.waitForExistence(timeout: 30))
+        if !assistant.isHittable { app.swipeUp() }
+        assistant.tap()
+        let profile = app.descendants(matching: .any)["role.openProfile"].firstMatch
+        XCTAssertTrue(profile.waitForExistence(timeout: 15))
+        if !profile.isHittable { app.swipeUp() }
+        profile.tap()
+        let external = app.staticTexts["Внешние приложения"]
+        XCTAssertTrue(external.waitForExistence(timeout: 20))
+        if !external.isHittable { app.swipeUp() }
+        XCTAssertTrue(app.staticTexts["Gmail"].firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Things 3"].firstMatch.exists)
+        let gmail = app.staticTexts["Показать возможности"].firstMatch
+        XCTAssertTrue(gmail.waitForExistence(timeout: 15))
+        let ready = app.staticTexts["Обновить доступность"].firstMatch
+        XCTAssertTrue(ready.waitForExistence(timeout: 75))
+        if !gmail.isHittable { app.swipeUp() }
+        capture(app, "external-apps-status")
+        gmail.tap()
+        XCTAssertTrue(app.staticTexts["Возможности Помощника владельца"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Сервер не вернул описания операций общего каталога."].exists)
+        XCTAssertFalse(app.staticTexts["Доступные действия не объявлены сервером."].exists)
+        capture(app, "gmail-capabilities")
+        let hide = app.staticTexts["Скрыть возможности"].firstMatch
+        if !hide.isHittable { app.swipeDown() }
+        hide.tap()
+        let things = app.staticTexts.matching(NSPredicate(format: "label == %@", "Показать возможности")).element(boundBy: 1)
+        if !things.isHittable { app.swipeUp() }
+        things.tap()
+        XCTAssertTrue(app.staticTexts["Возможности Помощника владельца"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Доступные действия не объявлены сервером."].exists)
+        capture(app, "things-capabilities")
+    }
+
+    private func capture(_ app: XCUIApplication, _ name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+}

@@ -13,6 +13,8 @@ final class IntegrationsViewModel {
 
     var status: IntegrationStatusResponse?
     var isStatusLoading = true
+    var webhooks: [TaskFlowWebhook]?
+    var isWebhookStatusLoading = true
     var googleLists: [GoogleTaskListItem] = []
     var isGoogleListsLoading = false
     var googleCalendars: [GoogleCalendarInfo] = []
@@ -37,6 +39,33 @@ final class IntegrationsViewModel {
     var successMessage: String?
 
     var googleConnected: Bool { status?.google.connected ?? false }
+
+    enum WebhookStatus: Equatable {
+        case loading, unavailable, none, disabled, failed, active(Int)
+    }
+
+    var webhookStatus: WebhookStatus {
+        if isWebhookStatusLoading { return .loading }
+        guard let webhooks else { return .unavailable }
+        guard !webhooks.isEmpty else { return .none }
+        let enabled = webhooks.filter(\.enabled)
+        guard !enabled.isEmpty else { return .disabled }
+        if enabled.contains(where: { $0.lastError != nil || ($0.lastDeliveryStatus ?? 0) >= 400 }) {
+            return .failed
+        }
+        return .active(enabled.count)
+    }
+
+    func loadWebhookStatus() async {
+        isWebhookStatusLoading = true
+        defer { isWebhookStatusLoading = false }
+        webhooks = try? await apiClient.webhooks()
+    }
+
+    func updateWebhookStatus(_ webhooks: [TaskFlowWebhook]?) {
+        self.webhooks = webhooks
+        isWebhookStatusLoading = false
+    }
 
     func loadThingsBridge() async {
         thingsBridgeAvailable = (try? await ThingsBridgeAPI.shared.health()) == true
@@ -243,9 +272,9 @@ final class IntegrationsViewModel {
     }
 }
 
-/// `/settings/integrations` — spec/SCREENS-2.md §14. Четыре аккордеона:
-/// Apple Календарь/Напоминания (`EventKit`, устройство), Google Задачи/
-/// Календарь (сервер, `GoogleIntegrationsAPI.swift`).
+/// `/settings/integrations` — spec/SCREENS-2.md §14. В одной точке собраны
+/// TaskFlow webhooks, Linear/Gmail, Apple Календарь/Напоминания (`EventKit`),
+/// Things и Google Задачи/Календарь (`GoogleIntegrationsAPI.swift`).
 ///
 /// ⚠️ Живой сервер — только чтение (граница задачи): код ниже реализует
 /// подключение/синхронизацию/отключение по-настоящему (иначе владелец не
@@ -282,11 +311,22 @@ struct IntegrationsScreen: View {
                         }
                         integrationGroup("Подключения TaskFlow") {
                             NavigationLink {
-                                WebhooksScreen()
+                                WebhooksScreen(onStatusUpdate: viewModel.updateWebhookStatus)
                             } label: {
-                                Label("Вебхуки", systemImage: "arrow.triangle.branch")
+                                TFListRow(
+                                    icon: "arrow.triangle.branch",
+                                    iconStyle: .plain,
+                                    title: "Вебхуки",
+                                    subtitle: "События TaskFlow → внешний сервис",
+                                    trailing: AnyView(webhookAccessory),
+                                    titleStyle: .action,
+                                    verticalPadding: TFSpacing.xs
+                                )
                             }
+                            .buttonStyle(.plain)
                             .accessibilityIdentifier("integrations.webhooks")
+                            .hintAnchor(HintAnchorID.webhooksEntry)
+                            TFDivider(inset: dividerInset)
                             IntegrationAccordionCard(icon: "arrow.down.doc", asset: "IntegrationLinear", title: "Linear", subtitle: "Выбор задач и перенос структуры", badge: nil, isExpanded: $isLinearOpen, identifier: "integrations.linear") {
                                 LinearImportScreen(embedded: true)
                             }
@@ -311,8 +351,38 @@ struct IntegrationsScreen: View {
         .task {
             viewModel.loadAppleState()
             await externalApps.refresh()
+            await viewModel.loadWebhookStatus()
             await viewModel.loadGoogleStatus()
         }
+    }
+
+    @ViewBuilder
+    private var webhookAccessory: some View {
+        HStack(spacing: TFSpacing.sm) {
+            Group {
+                switch viewModel.webhookStatus {
+                case .loading:
+                    Text("Проверка…").foregroundStyle(Color.tfSub)
+                case .unavailable:
+                    Text("статус недоступен").foregroundStyle(Color.tfCoral)
+                case .none:
+                    Text("нет подписок").foregroundStyle(Color.tfSub)
+                case .disabled:
+                    Text("выключены").foregroundStyle(Color.tfSub)
+                case .failed:
+                    Text("есть ошибка").foregroundStyle(Color.tfCoral)
+                case .active(let count):
+                    Text(count == 1 ? "включён" : "включены: \(count)")
+                        .foregroundStyle(Color.tfGreen)
+                }
+            }
+            .tfText(.action)
+            .lineLimit(1)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.tfDim)
+        }
+        .accessibilityIdentifier("integrations.webhooks.status")
     }
 
     private var dividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }
