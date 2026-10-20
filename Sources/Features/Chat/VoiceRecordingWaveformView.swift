@@ -20,6 +20,8 @@ struct VoiceRecordingWaveformView: View {
     /// Сколько замеров пришло всего: история хранит только хвост, а
     /// столбик обязан собираться из одних и тех же соседних замеров.
     @State private var received = 0
+    /// Сколько столбиков пришло всего — номер столбика для его рисунка.
+    @State private var barsTotal = 0
     @State private var lastLevelAt = Date()
     @State private var peak = VoiceRecordingWaveformView.quietestPeak
     // Рисунок — как у готовой волны после записи (`WaveformView`), владелец
@@ -99,6 +101,18 @@ struct VoiceRecordingWaveformView: View {
         }
     }
 
+    /// Заранее заданный рисунок × голос (владелец 20.10.2026: «нарисуй разброс
+    /// изначально, а голос пусть только усиливает»). У каждого столбика своя
+    /// высота от 30 до 100 % — высокие и низкие вперемешку, привязана к номеру
+    /// столбика, поэтому не мигает при движении. Голос — усиление: тишина —
+    /// точка, речь поднимает рисунок, громкая — до верха.
+    static func patterned(voice: Double, bar: Int) -> Double {
+        guard voice > 0 else { return 0 }
+        let noise = sin(Double(bar) * 12.9898 + 78.233) * 43758.5453
+        let shape = 0.3 + 0.7 * (noise - floor(noise))
+        return min(1, pow(voice, 0.7) * shape * 1.15)
+    }
+
     /// Высота палочки — формула готовой волны: от 7 до 83 % высоты, не ниже 2 pt.
     static func barHeight(level: Double, available: Double) -> Double {
         max(2, available * (0.07 + min(0.9, max(0, level)) * 0.84))
@@ -152,7 +166,8 @@ struct VoiceRecordingWaveformView: View {
                 let sinceSample = reduceMotion ? 0 : timeline.date.timeIntervalSince(lastLevelAt)
                 let barInterval = Self.levelInterval * Double(Self.levelsPerBar)
                 let shift = CGFloat(min(1, max(0, sinceSample / barInterval))) * pitch
-                for (index, level) in values.suffix(slots + 1).reversed().enumerated() {
+                for (index, voice) in values.suffix(slots + 1).reversed().enumerated() {
+                    let level = Self.patterned(voice: voice, bar: barsTotal - 1 - index)
                     let x = ((size.width - width - CGFloat(index) * pitch - shift + pitch) * 3).rounded() / 3
                     if x < -pitch { break }
                     let h = max(2, size.height * CGFloat(0.07 + min(0.9, level) * 0.84))
@@ -171,6 +186,7 @@ struct VoiceRecordingWaveformView: View {
                 // огибающей файла.
                 if received % Self.levelsPerBar == 0 {
                     amplitudes.append(amplitude)
+                    barsTotal += 1
                     lastLevelAt = .now
                     if amplitudes.count > Self.historyLimit { amplitudes.removeFirst(amplitudes.count - Self.historyLimit) }
                 } else if let last = amplitudes.indices.last {
