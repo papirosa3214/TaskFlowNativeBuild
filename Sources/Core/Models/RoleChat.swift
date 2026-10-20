@@ -291,9 +291,13 @@ public struct RoleTurnUsage: Decodable, Sendable, Equatable {
     public let costUSD: Double?
     public let generationMs: Int?
     public let model: String?
+    /// Размер беседы на одном обращении к модели; nil — старый ответ.
+    public let context: Int?
+    /// Обращений к модели (шагов) за ответ.
+    public let calls: Int?
 
     enum CodingKeys: String, CodingKey {
-        case input, output, model
+        case input, output, model, context, calls
         case cacheRead = "cache_read"
         case cacheWrite = "cache_write"
         case costUSD = "cost_usd"
