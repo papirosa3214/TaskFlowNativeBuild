@@ -228,13 +228,20 @@ struct RoleLiveItemsList: View {
         .modifier(RoleTranslationHost(texts: finishedTexts))
     }
 
-    /// Реплики, которые уже не растут: у идущего хода последняя ещё пишется.
+    /// Реплики и законченные размышления, которые уже не растут: у идущего
+    /// хода последняя реплика ещё пишется. Размышления переводятся здесь, а
+    /// не в их шторке: перевод, запущенный при открытии шторки, открывал
+    /// системную шторку переводчика поверх нашей, и приложение падало
+    /// (`UISheetPresentationController _tryToConnectToRemoteSheet`, 20.10.2026).
     private var finishedTexts: [String] {
+        let thoughts = items.compactMap { item -> String? in
+            if case .thinking(let thinking) = item, !thinking.isRunning { return thinking.text }; return nil
+        }
         let texts = items.compactMap { item -> String? in
             if case .text(let text) = item { return text }; return nil
         }
         let lastIsText = items.last.map { if case .text = $0 { return true }; return false } ?? false
-        return isStreaming && lastIsText ? Array(texts.dropLast()) : texts
+        return (isStreaming && lastIsText ? Array(texts.dropLast()) : texts) + thoughts
     }
 
     private static func isAction(_ item: RoleChatLiveItem) -> Bool {
@@ -687,15 +694,9 @@ struct RoleLiveDetailSheet: View {
                     Button("Готово") { dismiss() }
                 }
             }
-            .modifier(RoleTranslationHost(texts: translatableTexts))
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-    }
-
-    private var translatableTexts: [String] {
-        if case .thinking(let thinking) = detail { return [thinking.text] }
-        return []
     }
 
     private var title: String {
