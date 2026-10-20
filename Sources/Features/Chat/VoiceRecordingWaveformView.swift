@@ -81,11 +81,18 @@ struct VoiceRecordingWaveformView: View {
         return db > silence ? pow(10, db / 20) : 0
     }
 
-    /// Нормировка как у `VoiceWaveform.envelope`: делим на самый громкий
-    /// столбик, но не ниже уровня обычной речи — тишина не раздувается в рост.
+    /// Шкала в децибелах (владелец 20.10.2026: «громкости не хватает поднять
+    /// полоску»): в линейной амплитуде один громкий слог задавал потолок, и
+    /// обычная речь рядом с ним была в 5–10 раз ниже — точкой. Теперь столбик —
+    /// положение между порогом тишины и самым громким местом записи (не ниже
+    /// уровня обычной речи), как слышит ухо.
     static func normalizedHistory(_ amplitudes: [Double]) -> [Double] {
-        let peak = max(amplitudes.max() ?? 0, pow(10, quietestPeak / 20))
-        return amplitudes.map { min(1, $0 / peak) }
+        let peakDB = max(20 * log10(max(amplitudes.max() ?? 0, 1e-9)), quietestPeak)
+        return amplitudes.map { amplitude in
+            guard amplitude > 0 else { return 0 }
+            let db = 20 * log10(amplitude)
+            return min(1, max(0, (db - silence) / (peakDB - silence)))
+        }
     }
 
     /// Высота палочки — формула готовой волны: от 7 до 83 % высоты, не ниже 2 pt.
