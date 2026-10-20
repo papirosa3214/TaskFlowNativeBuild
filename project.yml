@@ -105,6 +105,10 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Задачи
+        # ProMotion (20.10.2026): без ключа iOS держит собственные анимации
+        # приложения (CADisplayLink, TimelineView(.animation)) на 60 Гц даже
+        # на экране 120 Гц — плавность «тяжеловата». Ключ снимает потолок.
+        CADisableMinimumFrameDurationOnPhone: true
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         # Шрифты заголовков разделов (LOCK-OVERVIEW-YELLOW-DISPLAY). Ключ
