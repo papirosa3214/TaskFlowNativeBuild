@@ -38,11 +38,30 @@
 ## Проверка
 
 - Сторож дизайн-системы `Tools/design-system-guard.py --diff HEAD` — чисто.
-- Юнит-тесты `RoleReplyRenderTests` (4) + `RoleReplyPreviewTests` (6) —
-  10/10 PASS. RED: `RoleReplyRenderTests` на коде до правки (отдельный worktree на
-  `HEAD`) падает — второй разборщик разметки и `Text(result)` на месте.
+- Юнит-тесты: `RoleReplyRenderTests` 4/4 PASS, `RoleReplyPreviewTests` 6/6 PASS
+  (всего 10), `TEST SUCCEEDED`.
+- **RED на коде до правки** (`c3ded48b`, `git checkout c3ded48b -- Sources/`,
+  сборка юнит-тестов): `RoleReplyRenderTests` — 4 теста, **11 падений**.
+  Названия в падениях совпадают с перечнем карточки: второй разборщик разметки в
+  `NotificationTicketCard`, сырой `Text(result)` в `SubtaskFeedView`,
+  `TaskFormScreen`, `PlanStepSheets`, и восемь экранов без общего рендера.
+  `RoleReplyPreviewTests` на старом коде не собирается — функции `preview(of:)`
+  ещё не было; поэтому вынесен в отдельный файл, а правила по исходникам держат
+  проверку «до/после» без нового API.
 - Сборка iOS Simulator — `BUILD SUCCEEDED`.
-- Кадры симулятора: `UITests/RoleReplyRenderUITests` (временный).
+- Кадры симулятора (`iPhone Air`, iOS 27.0), `UITests/RoleReplyRenderUITests`
+  (временный):
+  - `docs/2026-10-20-ios-role-reply-render/01-chat-role-reply.png` — ответ роли
+    в чате, PASS.
+  - `02-task-comment-role-reply.png` — тот же ответ в комментарии карточки:
+    **жирный**, заголовок, блок-статус и таблица нарисованы, PASS.
+  - `03-step-result-role-reply.png` — итог шага плана: заголовок, абзацы,
+    нумерованный список. До правки это был `Text(result)`. PASS.
+  - Четвёртый кадр (итог задачи) не снят: секция «Итог» в карточке аудита
+    `65fb1128` не появляется — она рисуется только когда у задачи есть итог или
+    строка автослияния. Это отсутствие данных в тестовой карточке, а не отказ
+    рисования; сам ряд «итог роли» закрыт юнит-тестом
+    `testOutcomeRowPreviewGoesThroughCommonRenderer`.
 
 ## Границы
 

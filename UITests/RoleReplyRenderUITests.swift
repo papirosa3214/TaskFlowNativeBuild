@@ -15,13 +15,15 @@ final class RoleReplyRenderUITests: XCTestCase {
     /// Карточка открывается не сразу: сначала вход по домашней сети, потом
     /// загрузка. Ждём первое известное слово карточки — дальше список готов.
     private func waitForTaskCard(_ app: XCUIApplication) {
-        XCTAssertTrue(app.staticTexts["Описание"].waitForExistence(timeout: 40), "Карточка задачи не открылась")
+        let title = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "iOS: один рендер")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 40), "Карточка задачи не открылась")
     }
 
     /// Прокрутка до названия секции карточки и тап по нему.
     @discardableResult
     private func openSection(_ app: XCUIApplication, _ title: String) -> Bool {
-        let header = app.staticTexts[title]
+        // Заголовок сворачиваемой секции — кнопка, не текстовый элемент.
+        let header = app.buttons[title]
         var tries = 0
         while tries < 25 {
             if header.exists, header.isHittable { header.tap(); return true }
@@ -43,25 +45,20 @@ final class RoleReplyRenderUITests: XCTestCase {
         return element.exists
     }
 
-    /// 1. Чат с ролью: ответ роли рисуется тем же рендером.
+    /// 1. Чат: ответ роли рисуется тем же рендером.
     func testRoleReplyInRoleChat() {
         let app = XCUIApplication()
+        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "chat"
         app.launch()
 
-        let chatsTab = app.tabBars.buttons["Чат"]
-        XCTAssertTrue(chatsTab.waitForExistence(timeout: 30), "Нет вкладки «Чат»")
-        chatsTab.tap()
+        let assistant = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Помощник владельца")).firstMatch
+        XCTAssertTrue(assistant.waitForExistence(timeout: 40), "Список чатов не открылся")
+        assistant.tap()
 
-        let list = app.collectionViews.firstMatch
-        XCTAssertTrue(list.waitForExistence(timeout: 30), "Список чатов не открылся")
-        let firstChat = list.cells.firstMatch
-        guard firstChat.waitForExistence(timeout: 15) else { return XCTFail("Список чатов пуст") }
-        firstChat.tap()
-
-        // Ждём любой текст роли в ленте: у ответов есть подпись отправителя.
+        // Ответ роли в ленте: ждём кусок текста, который пишет только роль.
         var tries = 0
+        let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Проверка")).firstMatch
         while tries < 20 {
-            let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Разработчик")).firstMatch
             if reply.exists, reply.isHittable { break }
             app.swipeUp()
             tries += 1
@@ -94,7 +91,8 @@ final class RoleReplyRenderUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "task:65fb1128-e2ec-465d-a0c6-9a2e4d5fefe3"
         app.launch()
-        waitForTaskCard(app)
+        let auditTitle = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Аудит дизайн-системы")).firstMatch
+        XCTAssertTrue(auditTitle.waitForExistence(timeout: 40), "Карточка аудита не открылась")
 
         XCTAssertTrue(openSection(app, "Подзадачи"), "Нет секции «Подзадачи»")
         let step = app.staticTexts["Итоговая проверка результата"]
