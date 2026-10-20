@@ -92,6 +92,10 @@ struct PlanStepDetailSheet: View {
                             TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".live")
                         })) {
                             if isLiveExpanded {
+                                // Над лентой, а не в ней: лента прокручена
+                                // вниз, и кнопка внутри уезжала за край
+                                // (владелец 20.10.2026 её не нашёл).
+                                RoleTranslateSwitch()
                                 ScrollView(.vertical) {
                                     TaskLiveActivityView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
                                         .frame(maxWidth: .infinity, alignment: .leading)

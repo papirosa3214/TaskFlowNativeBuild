@@ -83,21 +83,25 @@ struct RoleTranslationHost: ViewModifier {
     }
 }
 
-/// Кнопка «Перевести / Оригинал» над лентой. Видна, только когда в ленте
-/// есть английский текст.
-struct RoleTranslateButton: View {
-    let items: [RoleChatLiveItem]
-
-    private var texts: [String] {
-        items.compactMap { item in
-            if case .text(let text) = item { return text }
-            return nil
-        }
-    }
+/// Переключатель над окном хода роли: виден всегда — английский может
+/// прийти в любую минуту, а окно прокручено к свежим действиям.
+struct RoleTranslateSwitch: View {
+    private var translator: RoleTranslator { .shared }
 
     var body: some View {
-        RoleTranslateToggle(texts: texts)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+        Button {
+            translator.isOn.toggle()
+        } label: {
+            Label(translator.isOn ? "Оригинал" : "Перевести", systemImage: "translate")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .accessibilityLabel(translator.isOn ? "Показать оригинал" : "Перевести на русский")
+        .accessibilityIdentifier("role-translate-switch")
     }
 }
 
