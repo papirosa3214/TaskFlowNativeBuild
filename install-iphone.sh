@@ -16,6 +16,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Служба на Маке запускает скрипт без PATH пользователя — xcodegen лежит в
+# homebrew, и без этого сборка падает «xcodegen: command not found».
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 DEVICE_ID="00008150-001545400144401C"
 
 шаг() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
