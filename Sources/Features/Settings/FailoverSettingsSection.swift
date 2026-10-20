@@ -32,6 +32,10 @@ struct FailoverSettingsSection: View {
                             subtitle: "лимит сбросился — снова основная модель",
                             isOn: status.autoReturn
                         ) { value in Task { await viewModel.setFailover(autoReturn: value) } }
+                        ForEach(status.keyProblems ?? []) { problem in
+                            TFDivider(inset: TFSpacing.lg)
+                            keyRow(problem)
+                        }
                         ForEach(status.limits) { limit in
                             TFDivider(inset: TFSpacing.lg)
                             limitRow(limit)
@@ -98,10 +102,27 @@ struct FailoverSettingsSection: View {
         return "в лимите, время сброса неизвестно"
     }
 
+    /// Нерабочий ключ (20.10.2026): лимит пройдёт сам, а ключ — нет, нужен повторный вход
+    /// в «Провайдерах» ниже. До тех пор роли на этом провайдере падают.
+    private func keyRow(_ problem: ProviderKeyProblem) -> some View {
+        HStack(spacing: TFSpacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(RuntimeModel.providerTitle(problem.provider)): \(problem.reason)")
+                    .tfText(.action).foregroundStyle(Color.tfText)
+                Text("переподключите провайдера ниже — само не пройдёт")
+                    .tfText(.caption).foregroundStyle(Color.tfOrange)
+            }
+            Spacer(minLength: TFSpacing.sm)
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .frame(minHeight: TFField.height)
+        .accessibilityElement(children: .combine)
+    }
+
     private func limitRow(_ limit: FailoverLimit) -> some View {
         HStack(spacing: TFSpacing.md) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(limit.provider) в лимите").tfText(.action).foregroundStyle(Color.tfText)
+                Text("\(RuntimeModel.providerTitle(limit.provider)) в лимите").tfText(.action).foregroundStyle(Color.tfText)
                 Text(limit.held ? "вернётся только по вашей кнопке" : "вернётся после \(Self.clock(limit.until))")
                     .tfText(.caption)
                     .foregroundStyle(Color.tfOrange)

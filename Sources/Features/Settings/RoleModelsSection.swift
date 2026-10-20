@@ -73,17 +73,37 @@ extension RuntimeModel {
 
     var isRoutable: Bool { Self.routable.contains(provider) }
 
-    /// Провайдер «по имени модели» — так угадывает сервер (`providerOfModel`).
-    private static func guessProvider(_ id: String) -> String {
-        let m = id.lowercased()
-        if m.hasPrefix("claude") { return "anthropic" }
-        if m.hasPrefix("gpt") || m.hasPrefix("o1") || m.hasPrefix("o3") { return "openai" }
-        return "minimax"
+    /// Как модель записывается в маршрут роли — всегда `провайдер/id`
+    /// (20.10.2026). «Голый» id сервер угадывал по имени: `claude-…` есть и у
+    /// anthropic, и у opencode, `deepseek-…` — у opencode и opencode-go.
+    var routeRef: String { "\(provider)/\(id)" }
+
+    /// Имя провайдера для человека: технический id ничего не говорит о том,
+    /// подписка это или оплата за каждый запрос.
+    static func providerTitle(_ provider: String) -> String {
+        switch provider {
+        case "opencode-go": "OpenCode Go · подписка"
+        case "opencode": "OpenCode Zen · оплата за запросы"
+        case "openai-codex": "ChatGPT · подписка Codex"
+        case "openai": "OpenAI · ключ API"
+        case "anthropic": "Anthropic · Claude"
+        case "minimax": "MiniMax"
+        case "kimi-coding": "Kimi"
+        case "ollama": "Ollama · локально"
+        default: provider
+        }
     }
 
-    /// Как модель записывается в маршрут роли: «голый» id, если провайдер
-    /// угадывается по имени, иначе `провайдер/id`.
-    var routeRef: String { Self.guessProvider(id) == provider ? id : "\(provider)/\(id)" }
+    static func providerShort(_ provider: String) -> String {
+        switch provider {
+        case "opencode-go": "Go"
+        case "opencode": "Zen"
+        case "openai-codex": "Codex"
+        case "anthropic": "Anthropic"
+        case "minimax": "MiniMax"
+        default: provider
+        }
+    }
 }
 
 struct RoleModelsSection: View {
@@ -112,7 +132,7 @@ struct RoleModelsSection: View {
             }
             Button("Отмена", role: .cancel) { pendingAll = nil }
         } message: {
-            Text("Основная модель каждой роли станет «\(pendingAll?.displayName ?? "")». Запасные остаются как есть.")
+            Text("Основная модель каждой роли станет «\(pendingAll.map { models.label(forRef: $0.routeRef) } ?? "")». Запасные остаются как есть.")
         }
         .sheet(item: $editing) { profile in
             RoleChainSheet(viewModel: viewModel, profile: profile, models: models)
@@ -129,7 +149,8 @@ struct RoleModelsSection: View {
                             label: "— выбрать —",
                             accessibility: "Модель для всех ролей",
                             options: options,
-                            disabled: viewModel.busy != nil
+                            disabled: viewModel.busy != nil,
+                            problem: { viewModel.failover?.problem(of: $0) }
                         ) { pendingAll = $0 }
                     }
                     ForEach(viewModel.roles) { profile in
@@ -144,26 +165,30 @@ struct RoleModelsSection: View {
     private func roleRow(_ profile: AgentProfile) -> some View {
         let state = viewModel.failover?.roles.first { $0.role == profile.role }
         let chain = profile.modelPolicy.fallbacks
+        let primaryProblem = models.model(forRef: profile.modelPolicy.primary)
+            .flatMap { viewModel.failover?.problem(of: $0.provider) }
         let subtitle = state?.onFallback == true
-            ? "сейчас на запасной: \(models.name(forRef: state?.current ?? ""))"
-            : (chain.isEmpty ? "запасных нет" : "запасных: \(chain.count)")
+            ? "сейчас на запасной: \(models.label(forRef: state?.current ?? ""))"
+            : primaryProblem.map { "⚠︎ основная: \($0)" }
+                ?? (chain.isEmpty ? "запасных нет" : "запасных: \(chain.count)")
         return HStack(spacing: TFSpacing.md) {
             Button { editing = profile } label: {
                 HStack(spacing: TFSpacing.sm) {
-                    titleBlock(profile.title, subtitle, warn: state?.onFallback == true)
+                    titleBlock(profile.title, subtitle, warn: state?.onFallback == true || primaryProblem != nil)
                     Image(systemName: "chevron.right").tfText(.action).foregroundStyle(Color.tfDim)
                 }
                 .frame(minHeight: TFField.height)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Цепочка запасных: \(profile.title)")
+            .accessibilityLabel("Модели роли \(profile.title): основная и запасные")
             Spacer(minLength: TFSpacing.sm)
             ModelMenu(
-                label: models.name(forRef: profile.modelPolicy.primary),
-                accessibility: "Модель роли \(profile.title)",
+                label: models.label(forRef: profile.modelPolicy.primary),
+                accessibility: "Основная модель роли \(profile.title)",
                 options: options,
-                disabled: viewModel.busy != nil
+                disabled: viewModel.busy != nil,
+                problem: { viewModel.failover?.problem(of: $0) }
             ) { model in Task { await viewModel.set(role: profile.role, to: model.routeRef) } }
         }
         .padding(.horizontal, TFSpacing.lg)
