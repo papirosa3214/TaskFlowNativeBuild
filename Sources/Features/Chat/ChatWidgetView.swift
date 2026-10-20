@@ -145,6 +145,9 @@ struct ChatWidgetView: View {
         }
     }
 
+    /// Блок графика ```widget рисуется тем же `RoleChartBlock`, что и блок
+    /// конверта: раньше здесь был свой рисунок красным, а в конверте — teal,
+    /// и один и тот же ответ роли выглядел по-разному (карточка 19f57bc9).
     @ViewBuilder
     private func chartWidget(_ data: WidgetData) -> some View {
         if data.string("layout") == "bars" || data.bool("horizontal") == true {
@@ -152,7 +155,10 @@ struct ChatWidgetView: View {
                 ChartBarsWidget(points: barPoints(data))
             }
         } else {
-            ChartWidget(data: data)
+            RoleChartBlock(title: data.string("title"),
+                           kind: data.string("kind"),
+                           unit: data.string("unit"),
+                           points: data.roleChartPoints())
         }
     }
 
@@ -168,11 +174,9 @@ struct ChatWidgetView: View {
         return WidgetTone(raw)
     }
 
+    /// Полосы того же блока читаются тем же разбором точек, что и график.
     private func barPoints(_ data: WidgetData) -> [ChartBarPoint] {
-        data.array("points").enumerated().compactMap { index, item in
-            guard let value = item.number("y") else { return nil }
-            return ChartBarPoint(id: index, label: item.string("x") ?? "\(index + 1)", value: value)
-        }
+        data.roleChartPoints().map { ChartBarPoint(id: $0.id, label: $0.label, value: $0.value) }
     }
 }
 
@@ -558,46 +562,6 @@ private struct CardWidget: View {
                         .tint(Color.tfRed)
                 }
             }
-        }
-    }
-}
-
-// MARK: - График (старый вид)
-
-private struct ChartWidget: View {
-    let data: WidgetData
-
-    private struct Point: Identifiable {
-        let id: Int
-        let x: String
-        let y: Double
-    }
-
-    private var points: [Point] {
-        data.array("points").enumerated().compactMap { index, item in
-            guard let y = item.number("y") else { return nil }
-            return Point(id: index, x: item.string("x") ?? "\(index + 1)", y: y)
-        }
-    }
-
-    var body: some View {
-        WidgetCard(title: data.string("title")) {
-            let isLine = data.string("kind") == "line"
-            Chart(points) { point in
-                if isLine {
-                    LineMark(x: .value("x", point.x), y: .value("y", point.y))
-                        .interpolationMethod(.catmullRom)
-                        .foregroundStyle(Color.tfRed)
-                    PointMark(x: .value("x", point.x), y: .value("y", point.y))
-                        .foregroundStyle(Color.tfRed)
-                } else {
-                    BarMark(x: .value("x", point.x), y: .value("y", point.y))
-                        .foregroundStyle(Color.tfRed.gradient)
-                        .cornerRadius(4)
-                }
-            }
-            .chartYAxisLabel(data.string("unit") ?? "")
-            .frame(height: 180)
         }
     }
 }

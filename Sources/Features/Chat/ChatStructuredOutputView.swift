@@ -159,27 +159,21 @@ struct ChatStructuredOutputView: View {
         .accessibilityIdentifier("chat.structured-output.progress")
     }
 
+    /// График рисуется общим `RoleChartBlock` — тем же, что и блок
+    /// ```widget в `ChatWidgetView`. Свой рисунок здесь означал второй цвет и
+    /// свой формат точек: график по каталогу ролей в результате шага и в итоге
+    /// задачи не рисовался вовсе (карточка 19f57bc9).
     @ViewBuilder
     private func chartBlock(_ block: StructuredOutputBlock) -> some View {
-        if let points = block.points, !points.isEmpty {
-            WidgetCard(title: block.title) {
-                Chart(points) { point in
-                    if block.kind == "line" {
-                        LineMark(x: .value("Метка", point.label), y: .value("Значение", point.value))
-                            .foregroundStyle(Color.tfTeal)
-                        PointMark(x: .value("Метка", point.label), y: .value("Значение", point.value))
-                            .foregroundStyle(Color.tfTeal)
-                    } else {
-                        BarMark(x: .value("Метка", point.label), y: .value("Значение", point.value))
-                            .foregroundStyle(Color.tfTeal.gradient)
-                            .cornerRadius(4)
-                    }
-                }
-                .chartYAxisLabel(block.unit ?? "")
-                .frame(height: 180)
-                .accessibilityLabel(chartAccessibilityLabel(block, points: points))
-            }
-            .accessibilityIdentifier("chat.structured-output.chart")
+        let points = (block.points ?? []).enumerated().map { index, point in
+            RoleChartPoint(id: index, label: point.label, value: point.value)
+        }
+        if !points.isEmpty {
+            RoleChartBlock(title: block.title,
+                           kind: block.kind,
+                           unit: block.unit,
+                           points: points,
+                           accessibilityId: "chat.structured-output.chart")
         } else {
             unsupportedBlock("У графика нет точек данных")
         }
@@ -376,11 +370,7 @@ struct ChatStructuredOutputView: View {
         }
     }
 
-    private func chartAccessibilityLabel(_ block: StructuredOutputBlock, points: [StructuredOutputPoint]) -> Text {
-        let summary = points.map { "\($0.label): \(number($0.value))" }.joined(separator: ", ")
-        return Text([block.title, summary, block.unit].compactMap { $0 }.joined(separator: ". "))
     }
-}
 
 private struct StructuredOutputEnvelope: Decodable {
     let schemaVersion: Int?
@@ -505,10 +495,29 @@ private struct StructuredOutputBlock: Decodable {
     }
 }
 
-private struct StructuredOutputPoint: Decodable, Identifiable {
+/// Точка блока графика в конверте. Читает и `label`/`value` каталога ролей,
+/// и `x`/`y` старого блока виджета: один и тот же ответ роли не должен
+/// зависеть от того, каким экраном его покажут (карточка 19f57bc9).
+private struct StructuredOutputPoint: Decodable {
     let label: String
     let value: Double
-    var id: Int { label.hashValue }
+
+    enum CodingKeys: String, CodingKey { case label, value, x, y }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let rawLabel = try values.decodeIfPresent(String.self, forKey: .label)
+            ?? values.decodeIfPresent(String.self, forKey: .x)
+        let rawValue = try values.decodeIfPresent(Double.self, forKey: .value)
+            ?? values.decodeIfPresent(Double.self, forKey: .y)
+        guard let rawLabel, let rawValue else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(codingPath: decoder.codingPath,
+                                      debugDescription: "Точка графика без метки и значения"))
+        }
+        label = rawLabel
+        value = rawValue
+    }
 }
 
 private struct StructuredOutputDiagramItem: Decodable {
