@@ -18,10 +18,15 @@ struct TodayEmptyIllustration: View {
         self.image = image
     }
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         image
             .resizable()
             .scaledToFit()
+            // Кремовые заливки (#EDE8DE) на тёмном фоне слепят: в тёмной теме
+            // белое приглушено до нашего серого `tfSub` (владелец 20.10.2026).
+            .colorMultiply(colorScheme == .dark ? Color.tfSub : .white)
             .padding(.horizontal, TFSpacing.xl)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
