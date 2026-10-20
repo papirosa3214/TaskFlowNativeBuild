@@ -1,42 +1,29 @@
 import SwiftUI
 
-// «Чёткое видение грядущего дня» — иллюстрация trueEmpty (spec §5.1).
-// Порт SVG-смайлика из живого TodayScreen.tsx (лицо + 2 «листика» teal +
-// 3 кольца green) на простые SwiftUI-фигуры — доносит тот же образ, не
-// пиксель-в-пиксель со сплайнами исходного SVG-path.
+// Пастельная иллюстрация пустого списка «Сегодня» в Планировании.
+// По просьбе владельца 18.10.2026: чисто картинка фоном, без подписей,
+// без заголовка, без иконок. TodayListView выбирает картинку по активной
+// вкладке списка (inbox/attention/today). Старые вызовы без аргумента
+// (TodayScreen.swift:62, TodaySectionView.swift:129) оставлены на дефолте —
+// пёс с чек-листом, покрывает основной случай `trueEmpty` для всего экрана.
+//
+// `allowsHitTesting(false)` обязателен: иллюстрация лежит под ScrollView
+// как фон, и без этого флага она глотала бы тапы в своей зоне, из-за чего
+// свайп переключения вкладок «из Сегодня вправо» не срабатывал на пустой
+// ленте (тот же симптом, что уже описан у ZStack-подложки в TodaySectionView).
 struct TodayEmptyIllustration: View {
-    var body: some View {
-        VStack(spacing: TFSpacing.md) {
-            ZStack {
-                Circle().fill(Color.tfCard2).frame(width: 96, height: 96)
-                HStack(spacing: 22) {
-                    Circle().fill(.white).frame(width: 8, height: 8)
-                    Circle().fill(.white).frame(width: 8, height: 8)
-                }
-                .offset(y: -8)
-                // Улыбка
-                UnevenRoundedRectangle(cornerRadii: .init(bottomLeading: 20, bottomTrailing: 20))
-                    .trim(from: 0.5, to: 1)
-                    .stroke(.white, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .frame(width: 24, height: 12)
-                    .offset(y: 12)
-                Ellipse().fill(Color.tfTeal).frame(width: 12, height: 6).rotationEffect(.degrees(-20)).offset(x: -32, y: -25)
-                Ellipse().fill(Color.tfTeal).frame(width: 12, height: 6).rotationEffect(.degrees(20)).offset(x: 32, y: -25)
-                Circle().strokeBorder(Color.tfGreen, lineWidth: 2).frame(width: 36, height: 36).offset(x: -50, y: 50)
-                Circle().strokeBorder(Color.tfGreen, lineWidth: 2).frame(width: 28, height: 28).offset(x: 50, y: 40)
-                Circle().strokeBorder(Color.tfGreen, lineWidth: 1.5).frame(width: 20, height: 20).offset(x: -20, y: 70)
-            }
-            .frame(height: 140)
+    let image: Image
 
-            Text("Чёткое видение грядущего дня")
-                .tfText(.title)
-                .foregroundStyle(Color.tfText)
-            Text("Задачи на сегодня появятся здесь, когда вы назначите дедлайн.")
-                .tfText(.row)
-                .foregroundStyle(Color.tfSub)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TFSpacing.xl)
-        }
-        .padding(.top, TFSpacing.xl)
+    init(image: Image = Image("EmptyPlannerToday")) {
+        self.image = image
+    }
+
+    var body: some View {
+        image
+            .resizable()
+            .scaledToFit()
+            .padding(.horizontal, TFSpacing.xl)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }

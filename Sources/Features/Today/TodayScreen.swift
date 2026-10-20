@@ -29,6 +29,15 @@ struct TodayScreen: View {
     /// же экземплярами и список не пересобирается.
     @State private var computation: TodayComputation = .placeholder
     private var today: String { TodayDate.todayString() }
+
+    /// Картинка пустого состояния по активной вкладке списка.
+    private var emptyIllustrationImage: Image {
+        switch listTab {
+        case .inbox: Image("EmptyPlannerInbox")
+        case .attention: Image("EmptyPlannerAttention")
+        case .today: Image("EmptyPlannerToday")
+        }
+    }
     private var activeHourDate: String {
         vm.hourDateOffset == 0 ? today : TodayDate.addDays(today, vm.hourDateOffset)
     }
@@ -58,8 +67,15 @@ struct TodayScreen: View {
         let c = computation
         ScrollView {
                 VStack(spacing: 0) {
-                if c.trueEmpty && vm.layout == .list && listTab == .today {
-                    TodayEmptyIllustration()
+                if c.trueEmpty && vm.layout == .list {
+                    // Иллюстрация пустого списка — единственная на экран.
+                    // Раньше она рисовалась дважды: подложкой под `ScrollView`
+                    // в `TodayListView` (статичная, не ехала при прокрутке) и
+                    // здесь, элементом ленты (едет, тянется за скроллом).
+                    // По просьбе владельца 19.10.2026 оставлен этот вариант,
+                    // подложка убрана. Выбор картинки по вкладке живёт здесь
+                    // же, потому что `TodayListView` её больше не рисует.
+                    TodayEmptyIllustration(image: emptyIllustrationImage)
                 } else {
                     // Полоска проектов с «плюсом» убрана по просьбе владельца
                     // (01.09.2026): тот же выбор проектов ежедневника уже есть

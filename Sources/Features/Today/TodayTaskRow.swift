@@ -17,20 +17,11 @@ struct TodayTaskRow: View {
     let onOpen: () -> Void
     let onDelete: () -> Void
     let swipeAction: TodayTaskSwipeAction?
-    /// true (по умолчанию) — свайп строки работает откуда угодно, включая
-    /// от самого края экрана. false — свайп строки НЕ начинается в зоне
-    /// `horizontalEdgeExclusion` от левого/правого края экрана. В текущей
-    /// итерации правило ОТКЛЮЧЕНО у всех вызовов: 17.10.2026 владелец
-    /// попросил не ломать обычный отступ задач от края экрана. Если
-    /// когда-нибудь правило вернётся — оно должно применяться ТОЛЬКО к
-    /// этим трём вкладкам и НЕ через боковые полоски поверх `ScrollView`
-    /// (иначе задачи «съезжают» от края).
-    var swipeExcludedFromEdges: Bool = false
-    /// Ширина «зоны исключения» от краёв экрана в пунктах. 0 по умолчанию
-    /// — свайп строки работает от самого края. В `TodaySectionView` для
-    /// трёх вкладок списка «Обзор/Сегодня» ставится `16`
-    /// (LOCK-TODAY-LIST-TAB-SWIPE-20261017).
-    var horizontalEdgeExclusion: CGFloat = 16
+    /// true — свайп действия строки разрешён только в крайних зонах.
+    /// Для обычного экрана «Сегодня» по умолчанию доступна вся строка.
+    var swipeOnlyAtEdges: Bool = false
+    /// Ширина зоны у каждого края в пунктах.
+    var horizontalEdgeZone: CGFloat = HorizontalPanZones.defaultEdgeWidth
     let onSwipeAction: () -> Void
 
     private let actionWidth: CGFloat = TFRowActionWidth
@@ -109,7 +100,10 @@ struct TodayTaskRow: View {
                         onBegin: { UIImpactFeedbackGenerator(style: .soft).impactOccurred() },
                         onChange: { dx in dragOffset = dx },
                         onEnd: { dx, velocity in settle(dx: dx, velocity: velocity) },
-                        disallowEdgeInset: swipeExcludedFromEdges ? horizontalEdgeExclusion : 0
+                        // Закрытую строку в планировщике открывают у края.
+                        // Открытую можно вернуть из любой точки, а страничный
+                        // свайп в это время закрыт реестром строки.
+                        onlyEdgeInset: swipeOnlyAtEdges && settledOffset == 0 ? horizontalEdgeZone : 0
                     )
                 )
         }
@@ -232,11 +226,12 @@ struct TodayTaskRow: View {
     }
 
     private func close() {
-        withAnimation(TFRowSwipe.settleAnimation(velocity: 0)) {
+        withAnimation(TFRowSwipe.settleAnimation(velocity: 0), completionCriteria: .logicallyComplete) {
             settledOffset = 0
             dragOffset = 0
+        } completion: {
+            TFSwipeRowRegistry.shared.didClose(rowID)
         }
-        TFSwipeRowRegistry.shared.didClose(rowID)
     }
 
     /// Куда строка встаёт после жеста. Числа — из веба (`useRowSwipe.ts`):
@@ -249,28 +244,32 @@ struct TodayTaskRow: View {
     /// невпопад: бросок открывал строку через раз.
     private func settle(dx: CGFloat, velocity: CGFloat) {
         let finalOffset = clamp(settledOffset + dx)
-        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity)) {
-            if settledOffset == 0 {
-                // Влево — одно действие, зависящее от состояния задачи.
-                if swipeAction != nil && (finalOffset < -openThreshold || velocity < -openVelocity) {
-                    settledOffset = -actionWidth
-                } else if finalOffset > openThreshold || velocity > openVelocity {
-                    settledOffset = actionWidth
-                } else {
-                    settledOffset = 0
-                }
-            } else if settledOffset < 0 {
-                // Открыто — закрываем встречным движением.
-                settledOffset = (dx > closeThreshold || velocity > closeVelocity) ? 0 : -2 * actionWidth
-            } else {
-                settledOffset = (dx < -closeThreshold || velocity < -closeVelocity) ? 0 : actionWidth
-            }
-            dragOffset = 0
-        }
+        let targetOffset: CGFloat
         if settledOffset == 0 {
-            TFSwipeRowRegistry.shared.didClose(rowID)
+            // Влево — одно действие, зависящее от состояния задачи.
+            if swipeAction != nil && (finalOffset < -openThreshold || velocity < -openVelocity) {
+                targetOffset = -actionWidth
+            } else if finalOffset > openThreshold || velocity > openVelocity {
+                targetOffset = actionWidth
+            } else {
+                targetOffset = 0
+            }
+        } else if settledOffset < 0 {
+            // Открыто — закрываем встречным движением.
+            targetOffset = (dx > closeThreshold || velocity > closeVelocity) ? 0 : -2 * actionWidth
         } else {
+            targetOffset = (dx < -closeThreshold || velocity < -closeVelocity) ? 0 : actionWidth
+        }
+        if targetOffset != 0 {
             TFSwipeRowRegistry.shared.didOpen(rowID)
+        }
+        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity), completionCriteria: .logicallyComplete) {
+            settledOffset = targetOffset
+            dragOffset = 0
+        } completion: {
+            if targetOffset == 0 {
+                TFSwipeRowRegistry.shared.didClose(rowID)
+            }
         }
     }
 

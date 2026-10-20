@@ -39,6 +39,9 @@ struct TodaySectionView: View {
     @State private var pinnedSectionTitle = ""
     /// Высота, на которой заголовок секции прилипает к шапке.
     @State private var pinEdge: CGFloat = 0
+    /// Границы ленты в координатах экрана. Крайние 16pt отданы свайпу
+    /// строки, поэтому жест переключения вкладки там не принимается.
+    @State private var listGlobalFrame: CGRect = .zero
 
     /// Что показать в шапке: у списка — заголовок секции, которую сейчас
     /// читают, а пока ни одна не подошла к кромке — название вкладки. У
@@ -51,22 +54,23 @@ struct TodaySectionView: View {
         return pinnedSectionTitle.isEmpty ? listTab.title : pinnedSectionTitle
     }
 
-    /// Свайп «влево/вправо» по ленте — переключение вкладки списка
-    /// («Входящие» / «Ждут вас» / «Сегодня»). Жест висит через
-    /// `simultaneousGesture` на самом `ScrollView` и ловит свайп по
-    /// всей ширине ленты. Конфликт со свайпом строки (принять/архив)
-    /// разруливается на стороне `HorizontalPan` (`directionBias: 2.0`,
-    /// `directionLockPx: 10` в `Sources/DesignSystem/Components/HorizontalPan.swift`):
-    /// если палец идёт по строке, её UIKit-распознаватель срабатывает
-    /// раньше `DragGesture` и забирает касание. Числа порогов —
+    /// Свайп «влево/вправо» по внутренней части ленты переключает вкладку
+    /// («Входящие» / «Ждут вас» / «Сегодня»). Крайние 16pt оставлены свайпу
+    /// строки и исключены из перелистывания. Числа порогов —
     /// `|dx| > |dy| * 2.0` и `|dx| ≥ 80`, чтобы вертикальная прокрутка
-    /// выигрывала по умолчанию. На границах (`inbox` свайп влево,
-    /// `today` свайп вправо) — игнор. Анимация `easeInOut 0.2 c`.
-    /// Свайп строки в этих трёх вкладках работает от самого края
-    /// экрана, как и во всём проекте, — никаких «зон исключения».
+    /// выигрывала по умолчанию. На границах вкладок переход игнорируется;
+    /// анимация `easeInOut 0.2 c`.
     private var tabSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
             .onEnded { value in
+                let frame = listGlobalFrame
+                let startX = value.startLocation.x
+                guard HorizontalPanZones.allowsPagingSwipe(
+                    startX: startX,
+                    frame: frame,
+                    edgeWidth: HorizontalPanZones.defaultEdgeWidth,
+                    rowIsOpen: TFSwipeRowRegistry.shared.isPagingLocked
+                ) else { return }
                 let dx = value.translation.width
                 let dy = value.translation.height
                 guard abs(dx) >= 80, abs(dx) > abs(dy) * 2.0 else { return }
@@ -110,42 +114,23 @@ struct TodaySectionView: View {
                 // намеренно: именно вложенные прокрутки доски ломали
                 // системное затухание у шапки.
                 //
-                // Свайп у края экрана (влево/вправо) переключает вкладку
-                // списка — по аналогии с `UpcomingWeekView.swipeGesture`,
-                // только горизонталь должна явно преобладать, чтобы не
-                // конфликтовать с собственным свайпом строки (принять/
-                // архив), который ловит `HorizontalPanRecognizer` внутри
-                // `TodayTaskRow`. Те же числа, что в
-                // `Sources/DesignSystem/Components/HorizontalPan.swift` —
-                // `directionBias: 2.0`, чтобы вертикальная прокрутка
-                // выигрывала по умолчанию. Жест вешается через
-                // `simultaneousGesture`, чтобы не перехватывать нативный
-                // pull-to-refresh сверху.
-                // Обычный `ScrollView` — задачи внутри идут с родным
-                // горизонтальным отступом от края экрана, никаких боковых
-                // `Color.clear`-полос поверх. 17.10.2026 владелец попросил
-                // не ломать «обычный отступ задач в проектах»: любые
-                // боковые полоски сдвигали содержимое от края. Свайп
-                // переключения вкладок повешен через `simultaneousGesture`
-                // на сам `ScrollView` и ловит жест по всей ширине ленты.
-                // Свайп строки (принять/архив) не задет: `HorizontalPan`
-                // ловит жест по строке (`directionBias: 2.0`,
-                // `directionLockPx: 10` в `HorizontalPan.swift`) раньше
-                // `DragGesture` вкладок и забирает касание.
-                // Под `ScrollView` лежит `TodayEmptyIllustration` подложкой:
-                // раньше она стояла ПЕРВЫМ элементом внутри `ScrollView`
-                // и проглатывала тапы в своей зоне, из-за чего свайп
-                // переключения вкладок «из Сегодня вправо» не срабатывал
-                // на пустой ленте.
+                // Строки принимают горизонтальный свайп только в крайних
+                // зонах; перелистывание — только между ними. Проверка в
+                // `tabSwipeGesture` использует глобальную геометрию, чтобы
+                // safe area не смещала правую границу. Сам `ScrollView`
+                // Сам `ScrollView` остаётся без боковых полос и сохраняет
+                // обычную ширину. Иллюстрации пустого состояния здесь нет
+                // намеренно: по просьбе владельца 19.10.2026 в режиме «Часы»
+                // картинок не должно быть вовсе — только список.
                 ZStack {
-                    if c.trueEmpty && listTab == .today {
-                        TodayEmptyIllustration()
-                    }
                     ScrollView {
                         listContent(c: c)
                     }
                     .refreshable { await taskStore.load(silent: true) }
                     .simultaneousGesture(tabSwipeGesture)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .global)
+                    } action: { listGlobalFrame = $0 }
                 }
                 // Высота, на которой заголовок секции прилипает к шапке.
                 // Изнутри прокрутки её не видно (там безопасная зона уже
@@ -228,7 +213,8 @@ struct TodaySectionView: View {
                         onTitleChange(title.isEmpty ? listTab.title : title)
                     },
                     pinEdge: pinEdge,
-                    swipeExcludedFromEdges: true
+                    swipeOnlyAtEdges: true,
+                    horizontalEdgeZone: HorizontalPanZones.defaultEdgeWidth
                 )
         }
         .padding(.bottom, TFSpacing.lg)
@@ -326,7 +312,7 @@ struct TodaySectionView: View {
                 }
             }
         } label: {
-            TFPlannerToolbarIcon(systemName: "line.3.horizontal.decrease", tint: vm.filters.isActive ? .tfRed : .tfSub)
+            TFPlannerToolbarIcon(systemName: "line.3.horizontal.decrease", tint: vm.filters.isActive ? .tfRed : .tfText)
         }
         .accessibilityLabel("Фильтры")
         .accessibilityIdentifier("today.filters")

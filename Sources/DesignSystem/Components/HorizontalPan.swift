@@ -1,6 +1,25 @@
 import SwiftUI
 import UIKit
 
+enum HorizontalPanZones {
+    static let defaultEdgeWidth: CGFloat = 32
+
+    static func allowsRowSwipe(startX: CGFloat, boundsWidth: CGFloat, edgeWidth: CGFloat) -> Bool {
+        guard boundsWidth > 0, edgeWidth > 0 else { return true }
+        return startX <= edgeWidth || startX >= boundsWidth - edgeWidth
+    }
+
+    static func allowsPagingSwipe(
+        startX: CGFloat,
+        frame: CGRect,
+        edgeWidth: CGFloat,
+        rowIsOpen: Bool = false
+    ) -> Bool {
+        guard !rowIsOpen, frame.width > edgeWidth * 2 else { return false }
+        return startX > frame.minX + edgeWidth && startX < frame.maxX - edgeWidth
+    }
+}
+
 // ═══════════ СВАЙП СТРОКИ: перенос веб-хука useRowSwipe на UIKit ═══════════
 //
 // 01.09.2026, Максим: «там, где есть свайпы влево-вправо, там пиздец какой-то
@@ -46,17 +65,27 @@ import UIKit
 final class TFSwipeRowRegistry {
     static let shared = TFSwipeRowRegistry()
     private(set) var openRowID: UUID?
+    private var closingRowIDs: Set<UUID> = []
+
+    var isPagingLocked: Bool { openRowID != nil || !closingRowIDs.isEmpty }
 
     private init() {}
 
-    func didOpen(_ id: UUID) { openRowID = id }
+    func didOpen(_ id: UUID) {
+        closingRowIDs.remove(id)
+        openRowID = id
+    }
 
     func didClose(_ id: UUID) {
         if openRowID == id { openRowID = nil }
+        closingRowIDs.remove(id)
     }
 
     /// Начали листать список — раскрытая строка закрывается.
-    func closeAll() { openRowID = nil }
+    func closeAll() {
+        if let openRowID { closingRowIDs.insert(openRowID) }
+        openRowID = nil
+    }
 }
 
 /// Общие числа свайпа строки — веб-хук `useRowSwipe.ts`. Раньше каждая строка
@@ -151,14 +180,10 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
     /// мешает прокрутке; после решения в пользу горизонтали — забирает
     /// касание себе целиком.
     private(set) var decided = false
-    /// Зона «от края», в которой жест НЕ начинается. 0 — по умолчанию,
-    /// строки работают как раньше, откуда угодно. >0 — касание, начатое
-    /// в пределах `disallowEdgeInset` от левого или правого края
-    /// `view.bounds`, проваливается сразу (см. `touchesBegan`).
-    /// Включается в `TodaySectionView` для трёх вкладок списка
-    /// «Обзор/Сегодня» (LOCK-TODAY-LIST-TAB-SWIPE-20261017), чтобы
-    /// место у краёв занял свайп переключения вкладок.
-    var disallowEdgeInset: CGFloat = 0
+    /// 0 — свайп разрешён по всей строке. >0 — свайп разрешён только,
+    /// если касание началось в пределах этой ширины от левого/правого края.
+    /// Проверяется в координатах хост-вью распознавателя.
+    var onlyEdgeInset: CGFloat = 0
     /// Прокрутка, приглушённая на время жеста, чтобы вернуть ей `isScrollEnabled`.
     private weak var lockedScrollView: UIScrollView?
 
@@ -212,16 +237,15 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
         decided = false
         if let touch = touches.first {
             startLocation = touch.location(in: view)
-            // Касание, начатое в зоне `disallowEdgeInset` от края,
-            // проваливается сразу — место у краёв занимает другой жест
-            // (свайп переключения вкладок в `TodaySectionView`).
-            if disallowEdgeInset > 0,
-               let host = view,
-               host.bounds.width > 0 {
-                let x = startLocation.x
-                if x <= disallowEdgeInset || x >= host.bounds.width - disallowEdgeInset {
-                    state = .failed
-                }
+            // Свайп строки в этих вкладках разрешён только у края. Внутри
+            // ленты касание остаётся свайпу переключения вкладок.
+            if onlyEdgeInset > 0, let host = view,
+               !HorizontalPanZones.allowsRowSwipe(
+                    startX: startLocation.x,
+                    boundsWidth: host.bounds.width,
+                    edgeWidth: onlyEdgeInset
+               ) {
+                state = .failed
             }
         }
     }
@@ -284,11 +308,9 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
     var onChange: (CGFloat) -> Void
     /// Итог жеста: смещение и скорость по X (px/с).
     var onEnd: (CGFloat, CGFloat) -> Void
-    /// 0 — по умолчанию, строки работают откуда угодно. >0 — касание,
-    /// начатое в пределах `disallowEdgeInset` от края `view.bounds`,
-    /// проваливается немедленно. Включается только в экране
-    /// «Обзор/Сегодня» для трёх вкладок списка.
-    var disallowEdgeInset: CGFloat = 0
+    /// 0 — свайп разрешён по всей строке. >0 — свайп разрешён только в
+    /// пределах этой ширины от одного из краёв строки.
+    var onlyEdgeInset: CGFloat = 0
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
         Coordinator()
@@ -296,7 +318,7 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
 
     func makeUIGestureRecognizer(context: Context) -> HorizontalPanRecognizer {
         let recognizer = HorizontalPanRecognizer()
-        recognizer.disallowEdgeInset = disallowEdgeInset
+        recognizer.onlyEdgeInset = onlyEdgeInset
         recognizer.delegate = context.coordinator
         return recognizer
     }

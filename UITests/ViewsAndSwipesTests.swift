@@ -160,6 +160,68 @@ final class ViewsAndSwipesTests: XCTestCase {
                       "После горизонтальных свайпов «Планирование» пропало")
     }
 
+    func testПланированиеРазводитСвайпыПоЗонам() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-taskflow_today_layout", "list"]
+        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "upcoming"
+        app.launch()
+        let вкладка = app.buttons["planner.list-tab-switcher"]
+        XCTAssertTrue(вкладка.waitForExistence(timeout: 10), "Не найдена кнопка вкладки планировщика")
+
+        let строка = app.descendants(matching: .any).matching(identifier: "today.task-row").firstMatch
+        guard строка.waitForExistence(timeout: 15) else {
+            XCTFail("На вкладке «Сегодня» планировщика нет строки для проверки свайпа")
+            return
+        }
+
+        // Из середины строки листание переключает страницу «Сегодня» → «Ждут вас».
+        let center = строка.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let centerRight = строка.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        center.press(forDuration: 0.05, thenDragTo: centerRight)
+        XCTAssertTrue(app.buttons["planner.list-tab-switcher"].label.contains("Ждут вас"),
+                      "Свайп из середины строки не переключил вкладку на «Ждут вас»")
+
+        // Новый запуск сбрасывает вкладку на «Сегодня» без меню; затем свайп
+        // от края должен открыть действие строки, не переключая страницу.
+        app.terminate()
+        app.launchArguments = ["-taskflow_today_layout", "list", "-today_list_tab", "today"]
+        app.launchEnvironment["TASKFLOW_DEBUG_ROUTE"] = "upcoming"
+        app.launch()
+        XCTAssertTrue(app.buttons["planner.list-tab-switcher"].waitForExistence(timeout: 10),
+                      "Планировщик не открылся после перезапуска")
+        let edgeRow = app.descendants(matching: .any).matching(identifier: "today.task-row").firstMatch
+        guard edgeRow.waitForExistence(timeout: 15) else {
+            XCTFail("На вкладке «Сегодня» нет строки для проверки краевого свайпа")
+            return
+        }
+        // 6% от ширины — около 23pt на этом устройстве: дальше самого края,
+        // но внутри расширенной 32pt зоны действий.
+        let edgeStart = edgeRow.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5))
+        let edgeEnd = edgeRow.coordinate(withNormalizedOffset: CGVector(dx: 0.32, dy: 0.5))
+        edgeStart.press(forDuration: 0.05, thenDragTo: edgeEnd)
+        XCTAssertTrue(app.buttons["row.swipe.delete"].waitForExistence(timeout: 5),
+                      "Свайп у края не открыл действие строки «В архив»")
+        XCTAssertTrue(app.buttons["planner.list-tab-switcher"].label.contains("Сегодня"),
+                      "Свайп действия у края одновременно перелистнул вкладку")
+
+        // Пока действие раскрыто, встречный свайп из середины закрывает
+        // строку; страница в это время должна оставаться на месте. После
+        // возврата строки в исходное положение середина снова листает.
+        let openCenter = edgeRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let openLeft = edgeRow.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
+        openCenter.press(forDuration: 0.05, thenDragTo: openLeft)
+        XCTAssertTrue(app.buttons["row.swipe.delete"].waitForNonExistence(timeout: 5),
+                      "Строка не вернулась в исходное положение после встречного свайпа")
+        XCTAssertTrue(app.buttons["planner.list-tab-switcher"].label.contains("Сегодня"),
+                      "Перелистывание сработало, пока строка возвращалась в исходное положение")
+
+        let closedCenter = edgeRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let closedRight = edgeRow.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        closedCenter.press(forDuration: 0.05, thenDragTo: closedRight)
+        XCTAssertTrue(app.buttons["planner.list-tab-switcher"].label.contains("Ждут вас"),
+                      "После закрытия строки внутренний свайп не переключил вкладку")
+    }
+
     func testЧатОткрывается() {
         let app = запустить()
         открыть(вкладку: "Чат", app)

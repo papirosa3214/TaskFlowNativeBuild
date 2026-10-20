@@ -35,13 +35,11 @@ struct TodayListView: View {
     /// её не вычислить, а константой брать нельзя — замер показал 122pt там,
     /// где «безопасная зона плюс навбар» давали 113pt.
     var pinEdge: CGFloat = 0
-    /// true (по умолчанию) — свайп строки работает откуда угодно. false —
-    /// свайп строки НЕ начинается в зоне `horizontalEdgeExclusion` от
-    /// краёв экрана; в этой зоне место занимает свайп переключения
-    /// вкладок. Включается только в экране «Обзор/Сегодня».
-    var swipeExcludedFromEdges: Bool = false
-    /// 0 по умолчанию — никаких «зон исключения» от краёв.
-    var horizontalEdgeExclusion: CGFloat = 16
+    /// true — свайп действия строки начинается только в крайних зонах.
+    /// Включается только в «Планировании»; обычный экран «Сегодня» сохраняет
+    /// свайп по всей ширине строки.
+    var swipeOnlyAtEdges: Bool = false
+    var horizontalEdgeZone: CGFloat = HorizontalPanZones.defaultEdgeWidth
 
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
@@ -72,11 +70,6 @@ struct TodayListView: View {
             TFErrorBanner(swipeActionError, variant: .inline)
                 .padding(.horizontal, TFSpacing.lg)
 
-            if visible.isEmpty {
-                TFEmptyState(icon: nil, text: emptyText)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, TFSpacing.xl)
-            } else {
                 ForEach(visible) { section in
                     Section {
                         ForEach(section.tasks) { task in
@@ -93,7 +86,6 @@ struct TodayListView: View {
                         }
                     }
                 }
-            }
         }
     }
 
@@ -133,14 +125,6 @@ struct TodayListView: View {
         onPinnedSectionChange(passed.last?.title ?? "")
     }
 
-    private var emptyText: String {
-        switch tab {
-        case .inbox: "Нераспределённых задач нет"
-        case .attention: "Вас ничего не ждёт"
-        case .today: "На сегодня и ближайшие дни задач нет"
-        }
-    }
-
     private func row(_ task: ApiTask, overdue: Bool) -> some View {
         let swipeAction = TodayTaskSwipeAction.action(
             for: task,
@@ -151,7 +135,8 @@ struct TodayListView: View {
                             onOpen: { onOpen(task) },
                             onDelete: { onDelete(task) },
                             swipeAction: swipeAction,
-                            swipeExcludedFromEdges: swipeExcludedFromEdges,
+                            swipeOnlyAtEdges: swipeOnlyAtEdges,
+                            horizontalEdgeZone: horizontalEdgeZone,
                             onSwipeAction: {
                                 guard let swipeAction else { return }
                                 Task { await perform(swipeAction, for: task) }
