@@ -134,13 +134,17 @@ struct RoleTranslateSwitch: View {
     private var translator: RoleTranslator { .shared }
 
     var body: some View {
-        HStack(spacing: 0) {
+        // Строка прижата к низу, в одну строку — на одной линии с «Работает · …»,
+        // не налезает на последнюю строку ленты (владелец 20.10.2026).
+        HStack(alignment: .bottom, spacing: 0) {
             if translator.isOn, !translator.status.isEmpty {
                 Text(translator.status)
                     .tfText(.caption)
                     .foregroundStyle(Color.tfDim)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.trailing)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: 180, alignment: .trailing)
+                    .padding(.bottom, 2)
                     .accessibilityIdentifier("role-translate-status")
             }
         Button {
