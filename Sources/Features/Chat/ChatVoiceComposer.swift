@@ -444,11 +444,8 @@ struct ChatVoiceComposer: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("chat.voice.transcript")
             } else if message.transcript == .pending {
-                HStack(spacing: 8) {
-                    ProgressView().tint(.white)
-                    Text("Расшифровываю…").tfText(.action).foregroundStyle(.gray)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // Надпись — в нижней строке, на месте волны (владелец 20.10.2026).
+                EmptyView()
             } else {
                 Text("Не удалось распознать речь. Черновик сохранён — удалите запись и попробуйте ещё раз.")
                     .font(.callout).foregroundStyle(.gray)
@@ -465,13 +462,26 @@ struct ChatVoiceComposer: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Удалить запись")
                 .accessibilityIdentifier("chat.voice.discard")
-                WaveformView(levels: message.waveform, color: .gray)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
+                // Пока расшифровывается — ни серой волны, ни кнопки справа:
+                // только «Расшифровываю…» на их месте (владелец 20.10.2026).
+                let transcribing = message.transcript == .pending
+                if transcribing {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(.white)
+                        Text("Расшифровываю…").tfText(.action).foregroundStyle(.gray)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                } else {
+                    WaveformView(levels: message.waveform, color: .gray)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 30)
+                }
                 Text(durationText(message.duration))
                     .font(.body.monospacedDigit())
                     .foregroundStyle(.gray)
-                if isSendingVoice {
+                if transcribing {
+                    EmptyView()
+                } else if isSendingVoice {
                     ProgressView().frame(width: 40, height: 40)
                 } else {
                     Button(action: sendPreview) {
