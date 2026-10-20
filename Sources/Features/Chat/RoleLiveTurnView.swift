@@ -676,13 +676,26 @@ struct RoleLiveDetailSheet: View {
             }
             .tfNativeHeader(title, displayMode: .inline)
             .toolbar {
+                // Перевод размышлений (владелец 20.10.2026): кнопка там, где
+                // их читают, — в этой шторке. Переключатель общий с лентой.
+                if case .thinking(let thinking) = detail {
+                    ToolbarItem(placement: .topBarLeading) {
+                        RoleTranslateToggle(texts: [thinking.text])
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
                 }
             }
+            .modifier(RoleTranslationHost(texts: translatableTexts))
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var translatableTexts: [String] {
+        if case .thinking(let thinking) = detail { return [thinking.text] }
+        return []
     }
 
     private var title: String {
@@ -713,7 +726,7 @@ struct RoleLiveDetailSheet: View {
     private var content: some View {
         switch detail {
         case .thinking(let thinking):
-            RoleReplyMarkdown(text: thinking.text, color: .tfText)
+            RoleReplyMarkdown(text: RoleTranslator.shared.display(thinking.text), color: .tfText)
                 .italic()
                 .textSelection(.enabled)
         case .step(let step):

@@ -87,17 +87,28 @@ struct RoleTranslationHost: ViewModifier {
 /// есть английский текст.
 struct RoleTranslateButton: View {
     let items: [RoleChatLiveItem]
-    private var translator: RoleTranslator { .shared }
 
-    private var hasEnglish: Bool {
-        items.contains { item in
-            if case .text(let text) = item { return translator.isEnglish(text) }
-            return false
+    private var texts: [String] {
+        items.compactMap { item in
+            if case .text(let text) = item { return text }
+            return nil
         }
     }
 
     var body: some View {
-        if hasEnglish {
+        RoleTranslateToggle(texts: texts)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
+/// Сам переключатель перевода — для ленты и для шторки размышлений.
+/// Виден, только когда среди текстов есть английский.
+struct RoleTranslateToggle: View {
+    let texts: [String]
+    private var translator: RoleTranslator { .shared }
+
+    var body: some View {
+        if texts.contains(where: translator.isEnglish) {
             Button {
                 translator.isOn.toggle()
             } label: {
@@ -108,7 +119,6 @@ struct RoleTranslateButton: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, alignment: .trailing)
             .accessibilityLabel(translator.isOn ? "Показать оригинал" : "Перевести на русский")
             .accessibilityIdentifier("role-translate")
         }
