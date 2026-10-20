@@ -10,9 +10,9 @@ struct ProjectTopicsScreen: View {
 
     var body: some View {
         List {
-            NavigationLink {
-                RoleChatRoomScreen(chat: group)
-            } label: {
+            // Маршрутом, как и темы ниже: смесь `NavigationLink { }` и
+            // маршрутов в одном стеке ломала переходы и «назад» (20.10.2026).
+            NavigationLink(value: AppRoute.projectGroupRoom(id: group.id)) {
                 Label { Text("Общее обсуждение").foregroundStyle(Color.tfText) } icon: { Image(systemName: "bubble.left.and.bubble.right").foregroundStyle(Color.tfRed) }
             }
             .accessibilityIdentifier("projectChat.general")

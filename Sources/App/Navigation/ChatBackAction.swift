@@ -14,4 +14,16 @@ extension EnvironmentValues {
         get { self[ChatBackActionKey.self] }
         set { self[ChatBackActionKey.self] = newValue }
     }
+
+    /// Положить маршрут в стек текущей вкладки. Нужен там, где
+    /// `NavigationLink` не годится — например, пункт меню «…»: ссылка внутри
+    /// `Menu` срабатывает ненадёжно (владелец 20.10.2026, «Чаты проектов»).
+    var openRoute: ((AppRoute) -> Void)? {
+        get { self[OpenRouteKey.self] }
+        set { self[OpenRouteKey.self] = newValue }
+    }
+}
+
+private struct OpenRouteKey: EnvironmentKey {
+    static let defaultValue: ((AppRoute) -> Void)? = nil
 }

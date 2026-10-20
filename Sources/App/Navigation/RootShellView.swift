@@ -181,6 +181,9 @@ struct RootShellView: View {
             paths[.chat] = NavigationPath()
             selectedTab = .overview
         })
+        .environment(\.openRoute, { route in
+            paths[selectedTab, default: NavigationPath()].append(route)
+        })
         .animation(.easeOut(duration: TFAnimation.createMenu), value: isCreateMenuOpen)
         // Владелец 07.09.2026: панель быстрого создания — надстройка над
         // клавиатурой с замутнённым фоном, а не выезжающая шторка. Отсюда

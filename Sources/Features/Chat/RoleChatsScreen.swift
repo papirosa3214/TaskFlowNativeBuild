@@ -24,6 +24,7 @@ struct RoleChatsScreen: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showingProjectCreate = false
+    @Environment(\.openRoute) private var openRoute
     @State private var showingCreate = false
     @State private var realtime = RealtimeClient()
     private let api = APIClient()
@@ -99,11 +100,14 @@ struct RoleChatsScreen: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if !projectsOnly {
-                        NavigationLink {
-                            RoleChatsScreen(projectsOnly: true)
+                        // Маршрутом, не `NavigationLink { }`: экран вне пути
+                        // вкладки ломал переходы в группы и выход назад.
+                        Button {
+                            openRoute?(.projectChats)
                         } label: {
                             Label(projectsUnread > 0 ? "Чаты проектов · \(projectsUnread)" : "Чаты проектов", systemImage: "folder")
                         }
+                        .accessibilityIdentifier("chats.menu.projects")
                         Divider()
                     }
                     Button("Чат с участниками") { showingCreate = true }
@@ -260,6 +264,8 @@ struct RoleChatsScreen: View {
 /// состав чата с собой.
 struct RoleChatRoomLoader: View {
     let chatID: String
+    /// true — открыть переписку группы проекта, а не список её тем.
+    var opensGroupRoom = false
     @State private var chat: RoleChat?
     @State private var failed = false
     private let api = APIClient()
@@ -267,7 +273,7 @@ struct RoleChatRoomLoader: View {
     var body: some View {
         Group {
             if let chat {
-                if chat.projectID != nil && chat.parentChatID == nil {
+                if chat.projectID != nil && chat.parentChatID == nil && !opensGroupRoom {
                     ProjectTopicsScreen(group: chat)
                 } else {
                     RoleChatRoomScreen(chat: chat)
