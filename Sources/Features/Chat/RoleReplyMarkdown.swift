@@ -182,6 +182,7 @@ struct RoleReplyMarkdown: View, Equatable {
                     .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(color)
                     .roleReveal(fade)
+                    .textSelection(.enabled)
                     .padding(TFSpacing.md)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -196,6 +197,7 @@ struct RoleReplyMarkdown: View, Equatable {
             // показываем строки текстом.
             Text(block.runs.map(\.text).joined())
                 .foregroundStyle(color)
+                .textSelection(.enabled)
         }
     }
 
@@ -215,6 +217,7 @@ struct RoleReplyMarkdown: View, Equatable {
     private func inline(_ runs: [RichRun], fade: RoleTextFade?, liftBold: Bool = true) -> some View {
         Self.readableText(runs, color: color, liftBold: liftBold)
             .roleReveal(fade)
+            .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }

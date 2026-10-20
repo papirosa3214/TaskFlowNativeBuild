@@ -1820,9 +1820,6 @@ struct RoleChatRoomScreen: View {
             }
         }
         .contentShape(Rectangle())
-        .onLongPressGesture {
-            if !isSelecting { enterSelection(selecting: message.id) }
-        }
         .overlay {
             if isSelecting {
                 Color.clear
@@ -1938,9 +1935,6 @@ struct RoleChatRoomScreen: View {
         // режиме выбора тап по сообщению отмечает его, а внутренние кнопки
         // (воспроизведение) перекрыты прозрачным слоем, чтобы не срабатывали.
         .contentShape(Rectangle())
-        .onLongPressGesture {
-            if !isSelecting { enterSelection(selecting: message.id) }
-        }
         .overlay {
             if isSelecting {
                 Color.clear
