@@ -49,7 +49,7 @@ struct VoiceRecordingWaveformView: View {
         guard decibels > silence else { return (0, nextPeak) }
         let floor = max(nextPeak - dynamicRange, silence)
         let position = min(1, max(0, (decibels - floor) / (nextPeak - floor)))
-        return (pow(position, 1.2), nextPeak)
+        return (pow(position, 1.5), nextPeak)
     }
 
     /// Обратно из уровня рекордера (корень из линейной амплитуды между
@@ -61,15 +61,18 @@ struct VoiceRecordingWaveformView: View {
         return 20 * log10(low + clamped * clamped * (high - low))
     }
 
-    /// Ниже пик не опускается: иначе в тишине шум микрофона нормируется
-    /// «в рост».
-    static let quietestPeak = -30.0
-    /// Абсолютный порог тишины: тише — точка при любом пике.
-    static let silence = -46.0
+    // Пороги — по замеру 12 голосовых владельца с сервера (20.10.2026):
+    // паузы −75…−80 дБ, обычная речь −50…−45 дБ, громкие слоги −40…−35 дБ.
+    /// Ниже пик не опускается — уровень обычной речи владельца: тишина не
+    /// нормируется «в рост».
+    static let quietestPeak = -45.0
+    /// Абсолютный порог тишины: тише — точка при любом пике. Рекордер режет
+    /// уровень на −55 дБ, паузы владельца ниже — они всегда точка.
+    static let silence = -54.0
     /// Спад пика за один замер (40 мс): 3 дБ в секунду.
     static let peakDecay = 0.12
     /// Сколько децибел ниже пика ещё рисуется столбиком, а не точкой.
-    static let dynamicRange = 24.0
+    static let dynamicRange = 18.0
 
     /// Высота палочки — формула готовой волны: от 7 до 83 % высоты, не ниже 2 pt.
     static func barHeight(level: Double, available: Double) -> Double {
