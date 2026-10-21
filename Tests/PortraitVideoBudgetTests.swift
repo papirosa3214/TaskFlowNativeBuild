@@ -18,7 +18,7 @@ struct PortraitVideoBudgetTests {
     func allowsUpToLimit() {
         let b = budget()
         let ids = (0..<TFPortraitVideoBudget.limit).map { _ in UUID() }
-        for id in ids { #expect(b.acquire(id), "кружок должен получить слот в пределах порога") }
+        for id in ids { #expect(b.acquire(id, loop: "loop-\(id)"), "кружок должен получить слот в пределах порога") }
         for id in ids { #expect(b.allows(id)) }
         for id in ids { b.release(id) }
     }
@@ -28,9 +28,9 @@ struct PortraitVideoBudgetTests {
     func rejectsOverLimit() {
         let b = budget()
         let inBudget = (0..<TFPortraitVideoBudget.limit).map { _ in UUID() }
-        for id in inBudget { b.acquire(id) }
+        for id in inBudget { b.acquire(id, loop: "loop-\(id)") }
         let extra = UUID()
-        #expect(b.acquire(extra) == false, "шестой кружок превышает бюджет — он обязан стать статичным")
+        #expect(b.acquire(extra, loop: "loop-\(extra)") == false, "шестой кружок превышает бюджет — он обязан стать статичным")
         #expect(b.allows(extra) == false)
         for id in inBudget { b.release(id) }
     }
@@ -40,12 +40,12 @@ struct PortraitVideoBudgetTests {
     func releasesSlot() {
         let b = budget()
         let first = (0..<TFPortraitVideoBudget.limit).map { _ in UUID() }
-        for id in first { b.acquire(id) }
-        #expect(b.acquire(UUID()) == false)
+        for id in first { b.acquire(id, loop: "loop-\(id)") }
+        #expect(b.acquire(UUID(), loop: "loop-extra") == false)
 
         b.release(first[first.count - 1])
         let late = UUID()
-        #expect(b.acquire(late), "после ухода кружка с экрана слот должен освободиться")
+        #expect(b.acquire(late, loop: "loop-\(late)"), "после ухода кружка с экрана слот должен освободиться")
         b.release(late)
         for id in first { b.release(id) }
     }
@@ -55,10 +55,10 @@ struct PortraitVideoBudgetTests {
     func idempotentAcquire() {
         let b = budget()
         let id = UUID()
-        #expect(b.acquire(id))
-        #expect(b.acquire(id), "тот же кружок не должен занимать место дважды")
-        for _ in 0..<(TFPortraitVideoBudget.limit - 1) { b.acquire(UUID()) }
-        #expect(b.acquire(UUID()) == false)
+        #expect(b.acquire(id, loop: "loop-same"))
+        #expect(b.acquire(id, loop: "loop-same"), "тот же кружок не должен занимать место дважды")
+        for _ in 0..<(TFPortraitVideoBudget.limit - 1) { b.acquire(UUID(), loop: "loop-\(UUID())") }
+        #expect(b.acquire(UUID(), loop: "loop-over") == false)
         b.release(id)
     }
 }
