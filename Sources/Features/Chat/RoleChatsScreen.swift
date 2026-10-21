@@ -1585,7 +1585,10 @@ struct RoleChatRoomScreen: View {
 
     private var visibleMessages: [RoleChatMessage] {
         messages.filter { message in
-            !completingTurns.values.contains { $0.isCompleted(by: message) }
+            // Служебная строка координации после ответа исчезает из ленты
+            // (владелец 21.10.2026): ответ получен — показывать нечего.
+            if message.isFinishedCoordinationRow { return false }
+            return !completingTurns.values.contains { $0.isCompleted(by: message) }
         }
     }
 

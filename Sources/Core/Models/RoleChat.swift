@@ -197,6 +197,12 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public var coordination: RoleChatCoordination? = nil
     public var sequence: Int? = nil
 
+    /// Служебная строка координации, по которой ответ уже получен: из ленты
+    /// её убирают (владелец 21.10.2026) — показывать больше нечего.
+    public var isFinishedCoordinationRow: Bool {
+        coordination?.isAnswered == true
+    }
+
     /// JSON для renderer чата. Серверное поле должно быть объектом конверта.
     public var roleEnvelopeJSON: String? {
         guard let roleEnvelope, case .object = roleEnvelope,
@@ -255,6 +261,11 @@ public struct RoleChatCoordination: Decodable, Sendable {
     public let lastActivityAt: String
     public let answer: String?
     public let terminal: Bool
+
+    /// Ответ получен: служебная строка закрыта и в ленте не показывается
+    /// (владелец 21.10.2026). Ошибка и отмена — не ответ: строку видно,
+    /// в ней причина.
+    public var isAnswered: Bool { status == "answered" }
 
     enum CodingKeys: String, CodingKey {
         case requesterName = "requester_name"
