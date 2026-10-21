@@ -769,6 +769,8 @@ struct RoleChatRoomScreen: View {
     @State private var contentsTargetID: String?
     @State private var realtime = RealtimeClient()
     @State private var roomEventRevision = 0
+    /// Счётчик для строки рабочего плана роли (21.10.2026).
+    @State private var workPlanRevision = 0
     @State private var refreshRevision = 0
     @State private var messageEventRevisions: [String: Int] = [:]
     /// Кто сейчас готовит ответ: userId → имя. Наполняет только сервер
@@ -974,6 +976,8 @@ struct RoleChatRoomScreen: View {
             // Панель участников переехала в корень раздела «Чаты» и стала
             // панелью комнат (владелец 21.10.2026); состав чата — в «О чате».
             messageScroll
+            // Рабочий план роли в этой сессии — над полем ввода (21.10.2026).
+            ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision)
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
             }
@@ -1240,8 +1244,11 @@ struct RoleChatRoomScreen: View {
             let chatID = chat.id
             realtime.onEvent = { event in
                 switch event {
+                case .unknown(let type, _) where type == "chat:work_plan":
+                    workPlanRevision += 1
                 case .roleChatMessage(let id, let message) where id == chatID:
                     roomEventRevision += 1
+                    workPlanRevision += 1
                     // Сервер прислал готовое сообщение — вставляем его сразу,
                     // без перечитывания ленты (01.10.2026: пузырь ответа
                     // появлялся с задержкой и лента вздрагивала).
