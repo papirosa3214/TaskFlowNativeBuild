@@ -181,26 +181,6 @@ struct TodaySectionView: View {
         }
     }
 
-    /// Картинка пустого состояния по активной вкладке списка.
-    private var emptyIllustrationImage: Image {
-        switch listTab {
-        case .inbox: Image("EmptyPlannerInbox")
-        case .attention: Image("EmptyPlannerAttention")
-        case .today: Image("EmptyPlannerToday")
-        }
-    }
-
-    /// Пуста ли открытая вкладка — те же разделы, что рисует список.
-    private func activeTabEmpty(_ c: TodayComputation) -> Bool {
-        guard taskStore.errorMessage == nil,
-              !(taskStore.isLoading && taskStore.tasks.isEmpty) else { return false }
-        return TodayListSection.sections(
-            tab: listTab, waiting: c.waitingTasks, overdue: c.overdueTasks,
-            today: c.todayTasks, upcoming: c.upcomingTasks, pool: c.poolTasks,
-            todayDate: today
-        ).isEmpty
-    }
-
     @ViewBuilder
     private func listContent(c: TodayComputation) -> some View {
         VStack(spacing: 0) {
@@ -209,13 +189,6 @@ struct TodaySectionView: View {
             }
             TFErrorBanner(taskStore.errorMessage, variant: .inline)
                 .padding(.horizontal, TFSpacing.lg)
-
-            // Заглушка пустой вкладки (владелец 21.10.2026). Правка 20.10.2026
-            // (34ef88f1) легла в мёртвый `TodayScreen` (удалён 21.10.2026), а «План» рисует этот экран —
-            // здесь заглушки не было вовсе. Своя картинка у каждой вкладки.
-            if activeTabEmpty(c) {
-                TodayEmptyIllustration(image: emptyIllustrationImage)
-            }
 
             TodayListView(
                     tab: listTab,
