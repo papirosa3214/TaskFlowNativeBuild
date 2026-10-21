@@ -1,4 +1,4 @@
-# Overview review activity
+# Overview review activity (не актуально)
 
 Heatmap uses first task_events agent_state transition to review per task, including archived and child tasks. Counts one submitted task once, in local calendar day. completed_at is no longer used. Existing task detail API supplies immutable events; at most four requests concurrently, per-task revision cache avoids reloading unchanged histories. Initial/connection/task event recovery retained, no timer. Errors expose retry.
 

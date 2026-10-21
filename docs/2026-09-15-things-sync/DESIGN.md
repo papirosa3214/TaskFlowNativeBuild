@@ -1,4 +1,4 @@
-# TaskFlow ↔ Things 3 Manual Sync Design
+# TaskFlow ↔ Things 3 Manual Sync Design (не актуально)
 
 ## Goal
 
