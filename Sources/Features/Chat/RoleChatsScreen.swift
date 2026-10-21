@@ -69,7 +69,9 @@ struct RoleChatsScreen: View {
             groups[key, default: []].append(chat)
         }
         let named = order.filter { !$0.isEmpty }
-        return (named + (groups[""] == nil ? [] : [""])).map { (title: $0.isEmpty ? "Без проекта" : $0, chats: groups[$0] ?? []) }
+        // Сессии без проекта — последней группой с пустым названием: без
+        // подзаголовка, за разделительной линией (владелец 21.10.2026).
+        return (named + (groups[""] == nil ? [] : [""])).map { (title: $0, chats: groups[$0] ?? []) }
     }
     private var projectsUnread: Int {
         chats.filter { $0.parentChatID == nil && $0.projectID != nil }.reduce(0) { $0 + $1.unread }
@@ -106,6 +108,15 @@ struct RoleChatsScreen: View {
                         // Подзаголовки проектов прилипают, как в «Сегодня».
                         LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                             ForEach(sessionGroups, id: \.title) { group in
+                                if group.title.isEmpty {
+                                    // Без проекта: линия и сразу список, всегда раскрыт.
+                                    TFDivider()
+                                        .padding(.vertical, TFSpacing.sm)
+                                    ForEach(Array(group.chats.enumerated()), id: \.element.id) { index, chat in
+                                        sessionLink(chat)
+                                        if index < group.chats.count - 1 { rowDivider }
+                                    }
+                                } else {
                                 let collapsed = !expandedProjects.contains(group.title)
                                 Section {
                                     if !collapsed {
@@ -118,6 +129,7 @@ struct RoleChatsScreen: View {
                                     SessionGroupHeader(title: group.title, count: group.chats.count,
                                                        unread: group.chats.reduce(0) { $0 + $1.unread },
                                                        isCollapsed: collapsed) { toggleProject(group.title) }
+                                }
                                 }
                             }
                         }
