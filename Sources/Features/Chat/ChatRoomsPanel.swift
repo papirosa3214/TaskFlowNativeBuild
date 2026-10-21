@@ -70,13 +70,13 @@ struct ChatRoomsPanel: View {
     }
 }
 
-/// Облачко связи над аватаром.
+/// Облачко диалога над аватаром: пара ролей переписывается.
 struct RoomLinkBadge: View {
     let color: Color
     let side: CGFloat
 
     var body: some View {
-        Image(systemName: "cloud.fill")
+        Image(systemName: "bubble.left.fill")
             .resizable()
             .scaledToFit()
             .foregroundStyle(color)

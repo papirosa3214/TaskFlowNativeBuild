@@ -40,9 +40,12 @@ struct RoleChatsScreen: View {
 
     /// Чаты по проектам живут в своей вкладке и в общем списке не светятся
     /// (владелец 06.10.2026).
-    /// Список — сессии (21.10.2026): постоянные комнаты живут в панели.
+    /// Список — сессии (21.10.2026): постоянные комнаты живут в панели,
+    /// обсуждения задач (темы проектных чатов) идут сессиями под своим
+    /// проектом. Сами проектные группы остаются во вкладке «Чаты проектов».
     private var visibleChats: [RoleChat] {
-        chats.filter { $0.parentChatID == nil && !$0.isPermanentRoom && projectsOnly == ($0.projectID != nil) }
+        if projectsOnly { return chats.filter { $0.parentChatID == nil && $0.projectID != nil } }
+        return chats.filter { !$0.isPermanentRoom && ($0.parentChatID != nil || $0.projectID == nil) }
     }
     private var isOwner: Bool { session.currentUser?.role == .owner }
 
