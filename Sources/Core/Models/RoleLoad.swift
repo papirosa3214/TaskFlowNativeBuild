@@ -20,6 +20,8 @@ struct RoleLoad: Decodable {
         let id: String
         let task_id: String
         let task_title: String
+        /// Момент создания задачи — из него считается номер «МАК-ДДММ-ЧЧММ».
+        let task_created_at: String?
         let subtask_id: String?
         let routing_role: String?
         let started_at: String
@@ -33,13 +35,17 @@ struct RoleLoad: Decodable {
         let id: String
         let task_id: String
         let task_title: String
+        /// Момент создания задачи — из него считается номер «МАК-ДДММ-ЧЧММ».
+        let task_created_at: String?
         let role_key: String?
         let started_at: String?
         let heartbeat_at: String?
     }
-    struct OpenSlot: Decodable, Identifiable {
+    struct OpenSlot: Decodable, Identifiable, Equatable {
         let id: String
         let task_title: String
+        /// Момент создания задачи — из него считается номер «МАК-ДДММ-ЧЧММ».
+        let task_created_at: String?
         let role_key: String?
         let state: String
     }
