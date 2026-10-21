@@ -2060,9 +2060,14 @@ struct TaskCardContent: View {
                     Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
             }
-            // Тот же вид, что название и описание (владелец 19.10.2026):
-            // таблицы, JSON-блоки и разметка рисуются, а не сырым текстом.
-            TaskDescriptionRichPreview(text: comment.text)
+            // В ленте активности рисуем текст простым `Text` без парсинга
+            // markdown/таблиц/HTML — при сотнях комментариев парсинг каждого
+            // через RoleReplyMarkdown вешал открытие карточки. Полный вид
+            // (таблицы, виджеты) доступен в чате и в описании задачи.
+            Text(comment.text)
+                .tfText(.body)
+                .foregroundStyle(Color.tfText)
+                .textSelection(.enabled)
             // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
             // текст, и приложенные кадры в приложении не показывались
             // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
@@ -2071,9 +2076,14 @@ struct TaskCardContent: View {
             // (умеет ходить с авторизацией, обычный AsyncImage к этому
             // эндпоинту не годится), прочие файлы — строкой с именем.
             if let attachments = comment.attachments, !attachments.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                // В ленте не грузим превью вложений (ChatAttachmentImage) —
+                // они тяжёлые и вешали открытие. Показываем только имена;
+                // открыть вложение можно из чата или из карточки задачи.
+                VStack(alignment: .leading, spacing: 2) {
                     ForEach(attachments) { attachment in
-                        taskAttachmentButton(attachment, identifierPrefix: "task.comment.attachment.open")
+                        Text("📎 \(attachment.fileName)")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
                 .padding(.top, 4)
