@@ -95,9 +95,6 @@ final class TaskRowSnapshotTests: XCTestCase {
         assertSnapshot(of: row, as: .image(layout: .device(config: deviceConfig)), record: record)
     }
 
-    func testTodayEmptyIllustration() {
-        let view = TodayEmptyIllustration()
-            .frame(width: 420, height: 600)
-        assertSnapshot(of: view, as: .image(layout: .device(config: deviceConfig)), record: record)
-    }
+    // Тест на TodayEmptyIllustration удалён 21.10.2026 вместе с самим
+    // компонентом (коммит b8073dc3): без него таргет не компилировался.
 }

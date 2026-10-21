@@ -133,11 +133,7 @@ struct RoleLoadScreen: View {
                                 Rectangle().fill(Color.tfStroke).frame(width: 1).offset(x: width * CGFloat(tick) / 4)
                             }
                             Rectangle().fill(Color.tfBlue).frame(width: 1).offset(x: width * data.fraction(data.now))
-                            ForEach(Array(row.lanes.enumerated()), id: \.offset) { laneIndex, lane in
-                                ForEach(lane.contours) { contour in
-                                    contour(contour, laneIndex: laneIndex)
-                                }
-                            }
+                            lanes(row)
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(row.open) { slot in
                                     Button { selectedTask = TaskRef(id: slot.id) } label: {
@@ -174,6 +170,16 @@ struct RoleLoadScreen: View {
                 }
             }
         }.frame(width: width, height: 32, alignment: .leading)
+    }
+
+    /// Дорожки роли: контуры, не пересекающиеся по времени, стоят в одном ряду.
+    @ViewBuilder
+    private func lanes(_ row: RoleLoadLayout.RoleRow) -> some View {
+        ForEach(Array(row.lanes.enumerated()), id: \.offset) { laneIndex, lane in
+            ForEach(lane.contours) { item in
+                contour(item, laneIndex: laneIndex)
+            }
+        }
     }
 
     /// Контур одной задачи: рамка — весь интервал работы по задаче (внутри

@@ -7,15 +7,17 @@ final class RoleLoadLayoutTests: XCTestCase {
     }
 
     private func payload(
-        attempts: String,
-        active: String = "[]",
-        open: String = "[]"
+        attempts: [String],
+        active: [String] = [],
+        open: [String] = []
     ) -> String {
         """
         {"window":"24h","from":"2026-10-21T00:00:00.000Z","to":"2026-10-22T00:00:00.000Z",
          "now":"2026-10-21T12:00:00.000Z",
          "roles":[{"key":"builder","title":"Разработчик","position":1}],
-         "attempts":[\(attempts)],"active_now":[\(active)],"open_slots":[\(open)]}
+         "attempts":[\(attempts.joined(separator: ","))],
+         "active_now":[\(active.joined(separator: ","))],
+         "open_slots":[\(open.joined(separator: ","))]}
         """
     }
 
@@ -32,7 +34,8 @@ final class RoleLoadLayoutTests: XCTestCase {
         """
         {"id":"\(id)","task_id":"\(task)","task_title":"\(title)","task_created_at":"\(created)",
          "subtask_id":null,"routing_role":"builder","started_at":"\(from)",
-         "ended_at":\(to.map { "\"\($0)\"" } ?? "null"),"outcome":\(outcome.map { "\"\($0)\"" } ?? "null"),
+         "ended_at":\(to.map { "\"\($0)\"" } ?? "null"),
+         "outcome":\(outcome.isEmpty ? "null" : "\"\(outcome)\""),
          "active":\(active)}
         """
     }
@@ -42,7 +45,7 @@ final class RoleLoadLayoutTests: XCTestCase {
         let json = payload(attempts: [
             attempt(id: "a1", task: "t1", from: "2026-10-21T09:00:00.000Z", to: "2026-10-21T09:10:00.000Z"),
             attempt(id: "a2", task: "t1", from: "2026-10-21T09:20:00.000Z", to: "2026-10-21T09:30:00.000Z"),
-        ].joined(separator: ","))
+        ])
         let layout = RoleLoadLayout.build(try model(json), width: 1000)
         let row = try XCTUnwrap(layout.first)
         XCTAssertEqual(row.lanes.count, 1)
@@ -55,12 +58,19 @@ final class RoleLoadLayoutTests: XCTestCase {
         let json = payload(attempts: [
             attempt(id: "a1", task: "t1", from: "2026-10-21T09:00:00.000Z", to: "2026-10-21T09:10:00.000Z"),
             attempt(id: "a2", task: "t1", from: "2026-10-21T11:00:00.000Z", to: "2026-10-21T11:10:00.000Z"),
-        ].joined(separator: ","))
-        let layout = RoleLoadLayout.build(try model(json), width: 1000)
+        ])
+        let data = try model(json)
+        let layout = RoleLoadLayout.build(data, width: 1000)
         let contour = try XCTUnwrap(layout.first?.lanes[0].contours.first)
-        let model = try model(json)
-        XCTAssertEqual(contour.start, 1000 * CGFloat(model.fraction("2026-10-21T09:00:00.000Z")), accuracy: 0.01)
-        XCTAssertEqual(contour.end, 1000 * CGFloat(model.fraction("2026-10-21T11:10:00.000Z")), accuracy: 0.01)
+        let width: CGFloat = 1000
+        let firstStart = width * CGFloat(data.fraction("2026-10-21T09:00:00.000Z"))
+        let lastStart = width * CGFloat(data.fraction("2026-10-21T11:00:00.000Z"))
+        let lastEnd = width * CGFloat(data.fraction("2026-10-21T11:10:00.000Z"))
+        XCTAssertEqual(contour.start, firstStart, accuracy: 0.01)
+        // Короткий заход (10 минут ≈ 7 pt) рисуется от минимальной ширины
+        // полосы — иначе его не видно. Контур доходит до её правого края.
+        XCTAssertEqual(contour.end, max(lastStart + RoleLoadLayout.minBarWidth, lastEnd), accuracy: 0.01)
+        XCTAssertGreaterThan(contour.end, lastEnd, "контур должен ширить короткий заход до видимого")
     }
 
     /// Ключевое: разные задачи, не пересекающиеся по времени, встают в одну
@@ -69,7 +79,7 @@ final class RoleLoadLayoutTests: XCTestCase {
         let json = payload(attempts: [
             attempt(id: "a1", task: "t1", from: "2026-10-21T09:00:00.000Z", to: "2026-10-21T09:10:00.000Z"),
             attempt(id: "a2", task: "t2", title: "Другая", from: "2026-10-21T10:00:00.000Z", to: "2026-10-21T10:10:00.000Z"),
-        ].joined(separator: ","))
+        ])
         let layout = RoleLoadLayout.build(try model(json), width: 1000)
         let row = try XCTUnwrap(layout.first)
         XCTAssertEqual(row.lanes.count, 1, "непересекающиеся задачи должны делить дорожку")
@@ -81,7 +91,7 @@ final class RoleLoadLayoutTests: XCTestCase {
         let json = payload(attempts: [
             attempt(id: "a1", task: "t1", from: "2026-10-21T09:00:00.000Z", to: "2026-10-21T10:00:00.000Z"),
             attempt(id: "a2", task: "t2", title: "Другая", from: "2026-10-21T09:30:00.000Z", to: "2026-10-21T10:30:00.000Z"),
-        ].joined(separator: ","))
+        ])
         let layout = RoleLoadLayout.build(try model(json), width: 1000)
         let row = try XCTUnwrap(layout.first)
         XCTAssertEqual(row.lanes.count, 2, "пересекающиеся задачи не могут делить дорожку")
@@ -100,11 +110,11 @@ final class RoleLoadLayoutTests: XCTestCase {
     /// незакрытая попытка, отдельный брусок не создаётся.
     func testActiveSlotWithOpenAttemptDoesNotDuplicateBar() throws {
         let json = payload(
-            attempts: attempt(id: "a1", task: "t1", from: "2026-10-21T11:00:00.000Z", to: nil, outcome: "", active: true),
-            active: """
+            attempts: [attempt(id: "a1", task: "t1", from: "2026-10-21T11:00:00.000Z", to: nil, outcome: "", active: true)],
+            active: ["""
             {"id":"s1","task_id":"t1","task_title":"Задача","task_created_at":"2026-10-12 10:10:00",
              "role_key":"builder","started_at":"2026-10-21T11:00:00.000Z","heartbeat_at":"2026-10-21T11:50:00.000Z"}
-            """
+            """]
         )
         let layout = RoleLoadLayout.build(try model(json), width: 1000)
         let row = try XCTUnwrap(layout.first)
@@ -115,11 +125,11 @@ final class RoleLoadLayoutTests: XCTestCase {
     /// «Идёт сейчас» без записи о попытке — отдельный брусок.
     func testActiveSlotWithoutAttemptBecomesLiveMark() throws {
         let json = payload(
-            attempts: "",
-            active: """
+            attempts: [],
+            active: ["""
             {"id":"s1","task_id":"t1","task_title":"Задача","task_created_at":"2026-10-12 10:10:00",
              "role_key":"builder","started_at":"2026-10-21T11:00:00.000Z","heartbeat_at":"2026-10-21T11:50:00.000Z"}
-            """
+            """]
         )
         let layout = RoleLoadLayout.build(try model(json), width: 1000)
         let row = try XCTUnwrap(layout.first)

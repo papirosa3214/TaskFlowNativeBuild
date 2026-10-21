@@ -139,7 +139,11 @@ struct RoleLoadLayout {
         // 3. Дорожки: контуры, не пересекающиеся по времени, встают в один ряд.
         var lanes: [[Contour]] = []
         for contour in (contours + marks).sorted(by: { $0.start < $1.start }) {
-            lanes.append([contour])
+            if let index = lanes.firstIndex(where: { lane in lane.allSatisfy { $0.end <= contour.start } }) {
+                lanes[index].append(contour)
+            } else {
+                lanes.append([contour])
+            }
         }
 
         return RoleRow(
