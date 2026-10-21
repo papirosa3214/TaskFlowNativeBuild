@@ -94,21 +94,31 @@ struct RoleChatsScreen: View {
                         .padding(.horizontal, TFSpacing.screenHorizontal)
                         .padding(.top, TFSpacing.xl)
                 } else {
-                    ForEach(sessionGroups, id: \.title) { group in
-                        let collapsed = collapsedProjects.contains(group.title)
-                        SessionGroupHeader(title: group.title, count: group.chats.count,
-                                           unread: group.chats.reduce(0) { $0 + $1.unread },
-                                           isCollapsed: collapsed) { toggleProject(group.title) }
-                        if !collapsed {
-                        ForEach(Array(group.chats.enumerated()), id: \.element.id) { index, chat in
+                    if projectsOnly {
+                        // Здесь чат и есть проект (владелец 21.10.2026):
+                        // подзаголовок с тем же именем над ним лишний.
+                        ForEach(Array(visibleChats.enumerated()), id: \.element.id) { index, chat in
                             sessionLink(chat)
-                            if index < group.chats.count - 1 {
-                                // Разделитель отбит до начала текста, а не под
-                                // аватар — так строка читается как строка
-                                // списка, а не как карточка.
-                                TFDivider(inset: TFSpacing.screenHorizontal + listAvatar.rawValue + TFSpacing.sm)
-                            }
+                            if index < visibleChats.count - 1 { rowDivider }
                         }
+                    } else {
+                        // Подзаголовки проектов прилипают, как в «Сегодня».
+                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                            ForEach(sessionGroups, id: \.title) { group in
+                                let collapsed = collapsedProjects.contains(group.title)
+                                Section {
+                                    if !collapsed {
+                                        ForEach(Array(group.chats.enumerated()), id: \.element.id) { index, chat in
+                                            sessionLink(chat)
+                                            if index < group.chats.count - 1 { rowDivider }
+                                        }
+                                    }
+                                } header: {
+                                    SessionGroupHeader(title: group.title, count: group.chats.count,
+                                                       unread: group.chats.reduce(0) { $0 + $1.unread },
+                                                       isCollapsed: collapsed) { toggleProject(group.title) }
+                                }
+                            }
                         }
                     }
                 }
@@ -199,6 +209,12 @@ struct RoleChatsScreen: View {
     }
 
     // MARK: - Строка сессии
+
+    /// Разделитель отбит до начала текста, а не под аватар — так строка
+    /// читается как строка списка, а не как карточка.
+    private var rowDivider: some View {
+        TFDivider(inset: TFSpacing.screenHorizontal + listAvatar.rawValue + TFSpacing.sm)
+    }
 
     private func sessionLink(_ chat: RoleChat) -> some View {
         NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
@@ -371,6 +387,8 @@ private struct SessionGroupHeader: View {
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.sm)
+            // Прилипший заголовок не должен просвечивать строками под ним.
+            .background(Color.tfBackground)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
