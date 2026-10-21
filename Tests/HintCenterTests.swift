@@ -4,6 +4,14 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testNoteMarkdownEditingHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.noteMarkdownEditing])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.noteMarkdownEditing, frame: frame)
+        XCTAssertEqual(center.active?.step, "edit")
+        center.next()
+        XCTAssertTrue(center.completed.contains("note-markdown-editing"))
+    }
     private var defaults: UserDefaults!
     private let frame = CGRect(x: 10, y: 10, width: 40, height: 40)
 

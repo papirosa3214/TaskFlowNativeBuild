@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let noteMarkdownEditing = "note.markdown-editing"
     static let voiceMinimize = "voice.minimize"
     static let voiceMiniPlayer = "voice.mini-player"
     static let roleExternalApps = "role.external-apps"
@@ -34,7 +35,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage]
+    static let all: [HintScenario] = [voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+
+    static let noteMarkdownEditing = HintScenario(
+        id: "note-markdown-editing", title: "Чтение и правка заметки", start: "edit",
+        steps: ["edit": HintStep(anchor: HintAnchorID.noteMarkdownEditing, title: "Карандаш открывает Markdown",
+            text: "Заметка открывается для чтения, как ответ в чате. Нажмите карандаш рядом с меню «…», чтобы править исходный Markdown. Изменения сохраняются автоматически; галочка завершает правку и возвращает просмотр. При ошибке сохранения редактор остаётся открытым.", next: nil)])
 
     static let voiceConversation = HintScenario(
         id: "voice-conversation", title: "Голос и переписка", start: "minimize",

@@ -10,6 +10,8 @@ final class NoteEditorViewModel {
     let noteID: String
 
     var document = NoteDocument.empty
+    var reading = NoteReadingState()
+    var isSavingMarkdown = false
     var folders: [ApiJournalFolder] = []
     var isLoading = false
     var loadErrorMessage: String?
@@ -31,6 +33,7 @@ final class NoteEditorViewModel {
 
     private var saveGeneration = 0
     private var saveTask: Task<Void, Never>?
+    private var hasDocumentChanges = false
 
     init(noteID: String) {
         self.noteID = noteID
@@ -63,6 +66,7 @@ final class NoteEditorViewModel {
             } else {
                 document = NoteDocument.decode(fromJSONString: note.content?.stringValue)
             }
+            reading.load(note.markdown ?? MarkdownEncoder.encode(document.blocks))
             loadErrorMessage = nil
         } catch {
             loadErrorMessage = "Не удалось загрузить заметку"
@@ -73,6 +77,10 @@ final class NoteEditorViewModel {
     // MARK: - Автосохранение (debounce 800мс, spec §2 «Автосохранение»)
 
     private func scheduleSave() {
+        if !reading.isEditing {
+            reading.load(MarkdownEncoder.encode(document.blocks))
+            hasDocumentChanges = true
+        }
         saveState = .saving
         saveGeneration += 1
         let myGeneration = saveGeneration
@@ -85,9 +93,16 @@ final class NoteEditorViewModel {
     }
 
     private func flush() async {
+        if reading.isEditing {
+            await saveMarkdownDraft()
+            return
+        }
+        guard hasDocumentChanges else { return }
+        let generation = saveGeneration
         let fields: [String: JSONValue] = ["title": .string(document.derivedTitle), "content": .string(document.encodeToJSONString())]
         do {
             _ = try await apiClient.patchNote(id: noteID, fields: fields)
+            if generation == saveGeneration { hasDocumentChanges = false }
             saveState = .saved
             fadeSavedStatus()
         } catch {
@@ -107,32 +122,59 @@ final class NoteEditorViewModel {
         }
     }
 
-    /// Принудительный немедленный сброс при уходе с экрана — без ожидания
-    /// debounce (spec: «иначе последние нажатия клавиш теряются»). Не ждёт
-    /// ответа сервера (экран к этому моменту уже закрывается), как и веб.
-    ///
-    /// Пустая заметка при выходе — удаляем, а не сохраняем: «Создать
-    /// заметку» создаёт её на сервере СРАЗУ, ещё до единого нажатия клавиши
-    /// (spec) — если уйти, ничего не напечатав, раньше черновик так и
-    /// оставался висеть в Дневнике безымянным навсегда (просьба владельца
-    /// 03.09.2026: «чтобы по уму создавались», источник кучи «Без названия»,
-    /// см. LOCK-072/073 в AGENT-WORK-SCOPES.md). Правило одно и то же и для
-    /// только что созданной, и для когда-то не пустой, а теперь вычищенной
-    /// заметки — пустая заметка ценности не несёт независимо от истории.
     func flushOnExit() {
         saveTask?.cancel()
         saveTask = nil
-        let client = apiClient
-        let id = noteID
-        if document.isEffectivelyEmpty {
-            Task.detached {
-                try? await client.deleteNote(id: id)
+        if reading.isEditing, reading.hasChanges {
+            Task {
+                while isSavingMarkdown { try? await Task.sleep(for: .milliseconds(50)) }
+                await saveMarkdownDraft()
             }
-            return
+        } else if hasDocumentChanges {
+            Task { await flush() }
         }
-        let fields: [String: JSONValue] = ["title": .string(document.derivedTitle), "content": .string(document.encodeToJSONString())]
-        Task.detached {
-            _ = try? await client.patchNote(id: id, fields: fields)
+    }
+
+    func beginMarkdownEditing() async {
+        guard !isLoading, loadErrorMessage == nil else { return }
+        if hasDocumentChanges {
+            saveTask?.cancel()
+            saveTask = nil
+            await flush()
+            guard !hasDocumentChanges else { return }
+        }
+        reading.beginEditing()
+    }
+
+    func markdownDidChange() {
+        guard reading.isEditing else { return }
+        scheduleSave()
+    }
+
+    func finishMarkdownEditing() async {
+        saveTask?.cancel()
+        saveTask = nil
+        await saveMarkdownDraft()
+        if reading.finishEditing() {
+            document = NoteDocument(blocks: MarkdownParser.parse(reading.markdown))
+        }
+    }
+
+    private func saveMarkdownDraft() async {
+        guard reading.hasChanges, !isSavingMarkdown else { return }
+        let snapshot = reading.draft
+        isSavingMarkdown = true
+        saveState = .saving
+        defer { isSavingMarkdown = false }
+        do {
+            _ = try await apiClient.patchNote(id: noteID, fields: ["markdown": .string(snapshot)])
+            reading.didSave(snapshot)
+            document = NoteDocument(blocks: MarkdownParser.parse(snapshot))
+            saveState = .saved
+            fadeSavedStatus()
+            if reading.hasChanges { scheduleSave() }
+        } catch {
+            saveState = .error
         }
     }
 

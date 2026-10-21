@@ -87,7 +87,22 @@ struct NoteEditorScreen: View {
         // самой заметки намеренно не дублируется в системной шапке.
         .tfNativeHeader("База знаний", displayMode: .inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { combinedMenu }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    if viewModel.reading.isEditing {
+                        Task { await viewModel.finishMarkdownEditing() }
+                    } else {
+                        Task { await viewModel.beginMarkdownEditing() }
+                    }
+                } label: {
+                    Image(systemName: viewModel.reading.isEditing ? "checkmark" : "pencil")
+                }
+                .accessibilityLabel(viewModel.reading.isEditing ? "Готово" : "Редактировать Markdown")
+                .accessibilityIdentifier("note.edit-markdown")
+                .hintAnchor(HintAnchorID.noteMarkdownEditing)
+                .disabled(viewModel.isLoading || viewModel.loadErrorMessage != nil || viewModel.isSavingMarkdown || viewModel.aiBusy)
+                combinedMenu
+            }
         }
         .task { await viewModel.load() }
         .onDisappear { viewModel.flushOnExit() }
@@ -159,7 +174,7 @@ struct NoteEditorScreen: View {
             // троеточиями… внизу полоска чёрная появляется» — проверено
             // кадром: без статуса кнопка одна, с ним две). Оверлей
             // размеров хоста не меняет, перестраивать нечего.
-            editorBody
+            noteBody
                 .overlay(alignment: .bottom) { saveStatusBadge }
                 .animation(.easeInOut(duration: 0.2), value: viewModel.statusLabel)
         }
@@ -188,37 +203,22 @@ struct NoteEditorScreen: View {
         }
     }
 
-    /// Тело редактора — общий `BlockDocumentEditor` (тот же компонент стоит в
-    /// описании задачи, см. `TaskFormScreen`): строки блоков, лента над
-    /// клавиатурой, разбивка по Enter и слияние по Backspace живут там.
-    /// Экрану заметки остаются скролл, отступы и сохранение.
-    private var editorBody: some View {
-        ScrollView {
-            BlockDocumentEditor(
-                blocks: $viewModel.document.blocks,
-                focus: focus,
-                placeholder: "Пишите здесь что угодно…",
-                onEdit: { viewModel.documentDidChange() }
-            )
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.vertical, TFSpacing.sm)
-            .padding(.bottom, TFSpacing.xl * 2)
+    @ViewBuilder
+    private var noteBody: some View {
+        if viewModel.reading.isEditing {
+            TFMarkdownSourceEditor(text: $viewModel.reading.draft)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .onChange(of: viewModel.reading.draft) { _, _ in viewModel.markdownDidChange() }
+        } else {
+            ScrollView {
+                RoleReplyMarkdown(text: viewModel.reading.markdown)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.vertical, TFSpacing.sm)
+                    .padding(.bottom, TFSpacing.xl)
+            }
+            .accessibilityIdentifier("note.reading")
         }
-        .scrollDismissesKeyboard(.interactively)
-        // Тот же системный ScrollEdgeEffect (iOS 26), что уже выключали в
-        // чате (`ChatVoiceComposer.swift`, 26.09.2026: «какая-то подложка/
-        // повидла») и в карточке задачи (LOCK-254, 30.09.2026) — здесь он
-        // был всё это время незамеченным: `BlockDocumentEditor` даёт свою
-        // ленту над клавиатурой с самого начала (LOCK-140/141), а отключение
-        // эффекта сюда никогда не доезжало.
-        .hideComposerScrollEdgeEffect()
-        // ScrollView, в отличие от List в карточке задачи (LOCK-254 правка г),
-        // своего фона не имел вовсе — фон экрана на `content` (строка 40) не
-        // дотягивался до зоны под клавиатурным аксессуаром, и там просвечивал
-        // системный чёрный (владелец 30.09.2026, кадр «База знаний»: чёрная
-        // полоса над лентой форматирования). Тот же фикс, что уже доказан на
-        // List — сплошной фон прямо на самом скролле.
-        .background(Color.tfBackground)
     }
 
     private var deleteTitleSuffix: String {
@@ -251,7 +251,7 @@ struct NoteEditorScreen: View {
                     Label("Собрать постановку", systemImage: "point.3.connected.trianglepath.dotted")
                 }
             }
-            .disabled(viewModel.aiBusy)
+            .disabled(viewModel.aiBusy || viewModel.reading.isEditing)
 
             Button { showMovePicker = true } label: {
                 Label("Переместить в папку", systemImage: "folder")
