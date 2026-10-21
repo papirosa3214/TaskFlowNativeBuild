@@ -172,9 +172,8 @@ final class TaskFormViewModel {
     var reports: [TaskReport] = []
 
 
-    var journalEntries: [TaskJournalEntry] {
-        TaskJournalEntry.merged(comments: originalTask?.comments ?? [], events: originalTask?.events ?? [])
-    }
+    private var cachedJournalEntries: [TaskJournalEntry] = []
+    var journalEntries: [TaskJournalEntry] { cachedJournalEntries }
 
     /// Чаты, привязанные к этой задаче. Карточка по ним только ПЕРЕХОДИТ в
     /// переписку — свой чат внутри карточки не заводится и не рисуется
@@ -260,6 +259,7 @@ final class TaskFormViewModel {
             async let status: Void = loadExecutionStatus()
             let task = try await apiClient.task(id: taskID)
             originalTask = task
+            cachedJournalEntries = TaskJournalEntry.merged(comments: task.comments ?? [], events: task.events ?? [])
             title = task.title
             taskDescription = task.description ?? ""
             subtasks = task.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
@@ -380,6 +380,7 @@ final class TaskFormViewModel {
         guard let fresh = try? await apiClient.task(id: taskID) else { return }
         if let old = originalTask { adoptServerChanges(from: old, to: fresh) }
         originalTask = fresh
+        cachedJournalEntries = TaskJournalEntry.merged(comments: fresh.comments ?? [], events: fresh.events ?? [])
         await loadExecutionStatus()
         subtasks = fresh.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
         childTasks = fresh.children ?? []
