@@ -246,6 +246,7 @@ struct TaskCardContent: View {
 
     @Environment(RealtimeClient.self) private var realtime
     @Environment(\.scenePhase) private var scenePhase
+    @State private var journalVisibleCount = 50
 
     private var parentBranchPlan: ApiCollaborationPlan? {
         let plan = viewModel.collaborationPlanState.plan ?? viewModel.collaborationPlanState.draftPlan
@@ -1096,9 +1097,19 @@ struct TaskCardContent: View {
                             || viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         )
                 }
-                ForEach(viewModel.journalEntries) { entry in
+                // Пагинация: рендерим только последние 50 записей, чтобы
+                // карточка открывалась мгновенно даже при тысячах записей.
+                // Кнопка «Загрузить ещё» подгружает следующие 50.
+                ForEach(Array(viewModel.journalEntries.suffix(journalVisibleCount))) { entry in
                     nativeJournalRow(entry)
                         .listRowSeparator(.hidden)
+                }
+                if journalVisibleCount < viewModel.journalEntries.count {
+                    Button("Загрузить ещё (\(viewModel.journalEntries.count - journalVisibleCount))") {
+                        journalVisibleCount = min(journalVisibleCount + 50, viewModel.journalEntries.count)
+                    }
+                    .buttonStyle(.borderless)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
         }
 
