@@ -95,51 +95,50 @@ struct RoleLoadScreen: View {
         }
     }
 
-    private func height(_ row: RoleLoad.Row) -> CGFloat {
-        CGFloat(max(1, row.attempts.count + row.active.count + row.open.count)) * 32 + 30
+    /// Высота строки роли: дорожки (по одной на ряд одновременных задач)
+    /// плюс блок слотов без исполнителя и запас под ось.
+    private func height(_ row: RoleLoadLayout.RoleRow) -> CGFloat {
+        CGFloat(max(1, row.lanes.count)) * RoleLoadLayout.laneStep
+            + CGFloat(row.open.count) * 28 + 30
     }
 
     private func chart(_ data: RoleLoad) -> some View {
-        HStack(alignment: .top, spacing: 0) {
+        let layout = RoleLoadLayout.build(data, width: width)
+        return HStack(alignment: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Text("Роль").tfText(.meta).frame(width: 36, height: 32)
-                ForEach(data.rows) { row in
+                ForEach(layout) { row in
                     VStack(spacing: 2) {
                         Text(row.title).tfText(.body).lineLimit(1)
-                        Text(row.active.isEmpty ? "Свободна" : "Занята сейчас")
+                        Text(row.isBusy ? "Занята сейчас" : "Свободна")
                             .tfText(.caption).lineLimit(1)
-                            .foregroundStyle(row.active.isEmpty ? Color.tfSub : Color.tfBlue)
+                            .foregroundStyle(row.isBusy ? Color.tfBlue : Color.tfSub)
                     }
                     .frame(width: height(row) - 8)
                     .rotationEffect(.degrees(-90))
                     .frame(width: 36, height: height(row))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(row.title)
-                    .accessibilityValue(row.active.isEmpty ? "Свободна" : "Занята сейчас")
+                    .accessibilityValue(row.isBusy ? "Занята сейчас" : "Свободна")
                     .accessibilityIdentifier("role-load.label.\(row.id)")
                 }
             }
             ScrollView(.horizontal) {
                 VStack(spacing: 0) {
                     axis(data)
-                    ForEach(data.rows) { row in
+                    ForEach(layout) { row in
                         ZStack(alignment: .topLeading) {
                             Rectangle().fill(Color.tfStroke).frame(height: 1)
                             ForEach(0..<5) { tick in
                                 Rectangle().fill(Color.tfStroke).frame(width: 1).offset(x: width * CGFloat(tick) / 4)
                             }
                             Rectangle().fill(Color.tfBlue).frame(width: 1).offset(x: width * data.fraction(data.now))
+                            ForEach(Array(row.lanes.enumerated()), id: \.offset) { laneIndex, lane in
+                                ForEach(lane.contours) { contour in
+                                    contour(contour, laneIndex: laneIndex)
+                                }
+                            }
                             VStack(alignment: .leading, spacing: 4) {
-                                ForEach(row.attempts) { attempt in
-                                    bar(data, title: attempt.task_title, taskID: attempt.task_id,
-                                        start: attempt.started_at, end: attempt.ended_at ?? data.now,
-                                        color: attempt.service == true ? .tfPurple : attempt.active ? .tfGreen : tone(attempt.outcome), active: attempt.active)
-                                }
-                                ForEach(row.active) { slot in
-                                    bar(data, title: slot.task_title, taskID: slot.task_id,
-                                        start: slot.started_at ?? slot.heartbeat_at ?? data.now,
-                                        end: data.now, color: data.isService(taskID: slot.task_id) ? .tfPurple : .tfGreen, active: true)
-                                }
                                 ForEach(row.open) { slot in
                                     Button { selectedTask = TaskRef(id: slot.id) } label: {
                                         Label("Без исполнителя · \(slot.task_title)", systemImage: "flag")
@@ -149,7 +148,7 @@ struct RoleLoadScreen: View {
                                     }.buttonStyle(.plain)
                                 }
                             }
-                            .padding(.top, 4)
+                            .offset(y: CGFloat(max(1, row.lanes.count)) * RoleLoadLayout.laneStep)
                         }
                         .frame(width: width, height: height(row))
                     }
@@ -177,27 +176,52 @@ struct RoleLoadScreen: View {
         }.frame(width: width, height: 32, alignment: .leading)
     }
 
-    private func bar(_ data: RoleLoad, title: String, taskID: String, start: String, end: String, color: Color, active: Bool) -> some View {
-        let left = width * data.fraction(start)
-        let barWidth = min(width - left, max(12, width * (data.fraction(end) - data.fraction(start))))
-        return Button { selectedTask = TaskRef(id: taskID) } label: {
-            RoundedRectangle(cornerRadius: 5).fill(color.opacity(0.3))
-                .overlay { RoundedRectangle(cornerRadius: 5).stroke(color, lineWidth: active ? 2 : 1) }
-                .overlay(alignment: .leading) { Text(title).tfText(.caption).lineLimit(1).padding(.horizontal, 5) }
-                .frame(width: max(4, barWidth), height: 28)
+    /// Контур одной задачи: рамка — весь интервал работы по задаче (внутри
+    /// видно простои), заливка — фактические заходы. Подпись — короткий номер
+    /// «МАК-ДДММ-ЧЧММ», по нему карточка опознаётся прямо на графике.
+    private func contour(_ item: RoleLoadLayout.Contour, laneIndex: Int) -> some View {
+        let top = CGFloat(laneIndex) * RoleLoadLayout.laneStep
+        let label = item.number ?? item.title
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .tfText(.micro)
+                .lineLimit(1)
+                .frame(width: max(40, item.end - item.start), alignment: .leading)
+            ZStack(alignment: .topLeading) {
+                // Рамка контура: весь интервал по задаче (пустоты — простой).
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                    .foregroundStyle(Color.tfSub.opacity(0.6))
+                    .frame(width: max(4, item.end - item.start), height: RoleLoadLayout.barHeight)
+                // Заливка: фактические заходы.
+                ForEach(item.segments) { segment in
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(color(segment.tone).opacity(segment.tone == .live ? 0.5 : 0.85))
+                        .frame(width: max(3, segment.end - segment.start), height: RoleLoadLayout.barHeight - 6)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 3)
+                                .stroke(color(segment.tone), lineWidth: segment.tone == .live ? 2 : 1)
+                        }
+                        .offset(x: segment.start - item.start, y: 3)
+                }
+            }
+            .frame(width: max(4, item.end - item.start), height: RoleLoadLayout.barHeight, alignment: .topLeading)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(active ? "Сейчас · " : "")\(title)")
-        .accessibilityValue("\(start) — \(end)")
-        .offset(x: left)
-        .frame(width: width, height: 28, alignment: .leading)
+        .offset(x: item.start, y: top)
+        .frame(width: width, height: RoleLoadLayout.laneStep, alignment: .topLeading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.number.map { "\($0) · \(item.title)" } ?? item.title)
+        .accessibilityIdentifier("role-load.contour.\(item.taskID)")
+        .onTapGesture { selectedTask = TaskRef(id: item.taskID) }
     }
-    private func tone(_ outcome: String?) -> Color {
-        switch outcome {
-        case "done": .tfSub
-        case "failed": .tfRed
-        case "blocked": .tfOrange
-        default: .tfSub
+
+    private func color(_ tone: RoleLoadLayout.Tone) -> Color {
+        switch tone {
+        case .done: .tfSub
+        case .failed: .tfRed
+        case .blocked: .tfOrange
+        case .service: .tfPurple
+        case .live: .tfGreen
         }
     }
 }

@@ -2193,7 +2193,10 @@ struct TaskCardContent: View {
 
     private var createdText: String? {
         guard let date = viewModel.loadedTask?.createdAtDate else { return nil }
-        return "Создана \(TaskDateText.absoluteTime(date))"
+        // Номер задачи — в той же строке, что и дата: карточка не растёт
+        // в высоту, а опознать задачу можно по короткому номеру.
+        let stamp = TaskNumber.text(for: date).map { " · \($0)" } ?? ""
+        return "Создана \(TaskDateText.absoluteTime(date))\(stamp)"
     }
 
     /// Выполненная задача — с датой выполнения (владелец 14.10.2026: после
