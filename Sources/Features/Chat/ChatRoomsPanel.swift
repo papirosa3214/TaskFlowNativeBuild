@@ -13,14 +13,24 @@ struct ChatRoomsPanel: View {
     let onOpenRole: (ChatRoomsSnapshot.RoleRoom) -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
+    /// Вкладку тянут за упор — аватарки растягиваются вместе с ней.
+    @Environment(\.chatEdgeRailStretch) private var stretch
     private var avatarSide: CGFloat { (ChatEdgeRailMetrics.avatar.rawValue * scalePercent / 100).rounded() }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TFSpacing.md) {
                 if let snapshot {
+                    ForEach(snapshot.roles) { role in
+                        Button { onOpenRole(role) } label: { roleAvatar(role).scaleEffect(1 + stretch) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(label(for: role, in: snapshot))
+                            .accessibilityIdentifier("chats.rooms.\(role.id)")
+                    }
+                    // Общая — внизу, под ролями (владелец 21.10.2026).
                     Button(action: onOpenCommon) {
                         TFGroupAvatar(identity: snapshot.common.chatID, size: ChatEdgeRailMetrics.avatar)
+                            .scaleEffect(1 + stretch)
                             .overlay(alignment: .topTrailing) {
                                 if snapshot.common.live { RoomLinkBadge(color: Color.tfTeal, side: avatarSide) }
                             }
@@ -29,12 +39,6 @@ struct ChatRoomsPanel: View {
                     .accessibilityLabel(snapshot.common.live ? "Общая комната, идёт разговор" : "Общая комната")
                     .accessibilityIdentifier("chats.rooms.common")
 
-                    ForEach(snapshot.roles) { role in
-                        Button { onOpenRole(role) } label: { roleAvatar(role) }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(label(for: role, in: snapshot))
-                            .accessibilityIdentifier("chats.rooms.\(role.id)")
-                    }
                 } else {
                     ProgressView().padding(.top, TFSpacing.md)
                 }

@@ -29,6 +29,13 @@ struct ChatEdgeRail<Content: View>: View {
         }
         return max(ChatEdgeRailMetrics.restingWidth, raw)
     }
+    /// Перетяжка за упор: на сколько крат круг аватарки должен стать больше,
+    /// чтобы занять расширившуюся вкладку с прежними полями. 0 в покое;
+    /// возврат пружиной — вместе с шириной.
+    private var stretch: CGFloat {
+        let overshoot = max(0, width - ChatEdgeRailMetrics.openWidth)
+        return overshoot / ChatEdgeRailMetrics.avatar.rawValue
+    }
     private var reveal: CGFloat {
         min(1, (width - ChatEdgeRailMetrics.restingWidth) / ChatEdgeRailMetrics.travel)
     }
@@ -44,7 +51,9 @@ struct ChatEdgeRail<Content: View>: View {
             .shadow(color: TaskFamilyEdgeTabs.shadowColor, radius: TaskFamilyEdgeTabs.shadowRadius)
             .overlay(alignment: .leading) {
                 content()
-                    .frame(width: ChatEdgeRailMetrics.openWidth)
+                    .environment(\.chatEdgeRailStretch, stretch)
+                    // Шире упора — содержимое по центру расширившейся вкладки.
+                    .frame(width: max(ChatEdgeRailMetrics.openWidth, width))
                     .opacity(reveal)
                     .allowsHitTesting(isOpen && !isDragging)
             }
@@ -106,10 +115,17 @@ struct ChatEdgeRail<Content: View>: View {
 
 /// Размеры и физика `ChatEdgeRail`: у обобщённого типа не бывает статических
 /// хранимых свойств, поэтому они живут здесь.
+extension EnvironmentValues {
+    /// Перетяжка `ChatEdgeRail` за упор — содержимое растягивается вместе с ней.
+    @Entry var chatEdgeRailStretch: CGFloat = 0
+}
+
 enum ChatEdgeRailMetrics {
-    static let avatar: TFAvatar.Size = .xl
-    /// Аватар и по `TFSpacing.sm` с боков — «на размер иконки», не больше.
-    static let openWidth: CGFloat = avatar.rawValue + TFSpacing.sm * 2
+    /// Ширина открытой вкладки — 44 pt и по `TFSpacing.sm` с боков; не меняется.
+    static let openWidth: CGFloat = TFAvatar.Size.xl.rawValue + TFSpacing.sm * 2
+    /// Аватар комнаты — во всю ширину вкладки минус по `TFSpacing.xs` с краёв
+    /// (владелец 21.10.2026: «увеличить по максимуму, отступы большие»).
+    static let avatar: TFAvatar.Size = .rail
     static let restingWidth = TaskFamilyEdgeTabs.restingWidth
     /// Запас для пальца левее открытой панели (владелец 20.10.2026): здесь
     /// жест забирает панель, а не системное «назад».
