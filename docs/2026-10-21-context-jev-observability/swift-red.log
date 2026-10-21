@@ -1,0 +1,175 @@
+Tests/ContextObservabilityTests.swift:10:46: error: cannot find 'JevUsage' in scope
+ 8 |     func testMissingUsageIsVisibleInsteadOfFreeUsage() throws {
+ 9 |         let json = #"{"window":"24h","since":"2026-10-20T12:00:00Z","trackingSince":"2026-10-21T12:00:00Z","scope":"taskflow_current_key","hasKey":true,"calls":3,"succeeded":1,"failed":1,"running":1,"inputTokens":25,"outputTokens":2,"unknownUsageCalls":2,"scenarios":[],"moneyStatus":"unavailable","balance":null,"cost":null}"#
+10 |         let value = try JSONDecoder().decode(JevUsage.self, from: Data(json.utf8))
+   |                                              `- error: cannot find 'JevUsage' in scope
+11 |         XCTAssertEqual(value.unknownUsageCalls, 2)
+12 |         XCTAssertTrue(value.coverageText.contains("2"))
+
+Tests/ContextObservabilityTests.swift:10:39: error: failed to produce diagnostic for expression; please submit a bug report (https://swift.org/contributing/#reporting-bugs)
+ 8 |     func testMissingUsageIsVisibleInsteadOfFreeUsage() throws {
+ 9 |         let json = #"{"window":"24h","since":"2026-10-20T12:00:00Z","trackingSince":"2026-10-21T12:00:00Z","scope":"taskflow_current_key","hasKey":true,"calls":3,"succeeded":1,"failed":1,"running":1,"inputTokens":25,"outputTokens":2,"unknownUsageCalls":2,"scenarios":[],"moneyStatus":"unavailable","balance":null,"cost":null}"#
+10 |         let value = try JSONDecoder().decode(JevUsage.self, from: Data(json.utf8))
+   |                                       `- error: failed to produce diagnostic for expression; please submit a bug report (https://swift.org/contributing/#reporting-bugs)
+11 |         XCTAssertEqual(value.unknownUsageCalls, 2)
+12 |         XCTAssertTrue(value.coverageText.contains("2"))
+
+Tests/ContextObservabilityTests.swift:11:9: error: cannot find 'XCTAssertEqual' in scope
+ 9 |         let json = #"{"window":"24h","since":"2026-10-20T12:00:00Z","trackingSince":"2026-10-21T12:00:00Z","scope":"taskflow_current_key","hasKey":true,"calls":3,"succeeded":1,"failed":1,"running":1,"inputTokens":25,"outputTokens":2,"unknownUsageCalls":2,"scenarios":[],"moneyStatus":"unavailable","balance":null,"cost":null}"#
+10 |         let value = try JSONDecoder().decode(JevUsage.self, from: Data(json.utf8))
+11 |         XCTAssertEqual(value.unknownUsageCalls, 2)
+   |         `- error: cannot find 'XCTAssertEqual' in scope
+12 |         XCTAssertTrue(value.coverageText.contains("2"))
+13 |         XCTAssertEqual(value.moneyText, "Стоимость и баланс провайдером не предоставлены")
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:120:9: note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+118 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+119 | */
+120 | #define XCTAssertEqual(expression1, expression2, ...) \
+    |         `- note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+121 |     _XCTPrimitiveAssertEqual(nil, expression1, @#expression1, expression2, @#expression2, __VA_ARGS__)
+122 |
+
+Tests/ContextObservabilityTests.swift:12:9: error: cannot find 'XCTAssertTrue' in scope
+10 |         let value = try JSONDecoder().decode(JevUsage.self, from: Data(json.utf8))
+11 |         XCTAssertEqual(value.unknownUsageCalls, 2)
+12 |         XCTAssertTrue(value.coverageText.contains("2"))
+   |         `- error: cannot find 'XCTAssertTrue' in scope
+13 |         XCTAssertEqual(value.moneyText, "Стоимость и баланс провайдером не предоставлены")
+14 |     }
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:81:9: note: macro 'XCTAssertTrue' unavailable: function like macros not supported
+ 79 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+ 80 | */
+ 81 | #define XCTAssertTrue(expression, ...) \
+    |         `- note: macro 'XCTAssertTrue' unavailable: function like macros not supported
+ 82 |     _XCTPrimitiveAssertTrue(nil, expression, @#expression, __VA_ARGS__)
+ 83 |
+
+Tests/ContextObservabilityTests.swift:13:9: error: cannot find 'XCTAssertEqual' in scope
+11 |         XCTAssertEqual(value.unknownUsageCalls, 2)
+12 |         XCTAssertTrue(value.coverageText.contains("2"))
+13 |         XCTAssertEqual(value.moneyText, "Стоимость и баланс провайдером не предоставлены")
+   |         `- error: cannot find 'XCTAssertEqual' in scope
+14 |     }
+15 |     func testFallbackAndAppliedHaveDifferentMeaning() throws {
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:120:9: note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+118 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+119 | */
+120 | #define XCTAssertEqual(expression1, expression2, ...) \
+    |         `- note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+121 |     _XCTPrimitiveAssertEqual(nil, expression1, @#expression1, expression2, @#expression2, __VA_ARGS__)
+122 |
+
+Tests/ContextObservabilityTests.swift:17:46: error: cannot find 'ContextObservability' in scope
+15 |     func testFallbackAndAppliedHaveDifferentMeaning() throws {
+16 |         let json = #"{"id":"a","kind":"jev","scenario":"skills","startedAt":"2026-10-21T12:00:00Z","durationMs":8,"status":"ok","reason":"empty_selection_fallback","inputCount":12,"outputCount":12,"details":[]}"#
+17 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+   |                                              `- error: cannot find 'ContextObservability' in scope
+18 |         XCTAssertEqual(event.title, "Навыки под задачу")
+19 |         XCTAssertEqual(event.outcome, "Ничего не выбрал — оставлены все навыки")
+
+Tests/ContextObservabilityTests.swift:17:39: error: failed to produce diagnostic for expression; please submit a bug report (https://swift.org/contributing/#reporting-bugs)
+15 |     func testFallbackAndAppliedHaveDifferentMeaning() throws {
+16 |         let json = #"{"id":"a","kind":"jev","scenario":"skills","startedAt":"2026-10-21T12:00:00Z","durationMs":8,"status":"ok","reason":"empty_selection_fallback","inputCount":12,"outputCount":12,"details":[]}"#
+17 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+   |                                       `- error: failed to produce diagnostic for expression; please submit a bug report (https://swift.org/contributing/#reporting-bugs)
+18 |         XCTAssertEqual(event.title, "Навыки под задачу")
+19 |         XCTAssertEqual(event.outcome, "Ничего не выбрал — оставлены все навыки")
+
+Tests/ContextObservabilityTests.swift:18:9: error: cannot find 'XCTAssertEqual' in scope
+16 |         let json = #"{"id":"a","kind":"jev","scenario":"skills","startedAt":"2026-10-21T12:00:00Z","durationMs":8,"status":"ok","reason":"empty_selection_fallback","inputCount":12,"outputCount":12,"details":[]}"#
+17 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+18 |         XCTAssertEqual(event.title, "Навыки под задачу")
+   |         `- error: cannot find 'XCTAssertEqual' in scope
+19 |         XCTAssertEqual(event.outcome, "Ничего не выбрал — оставлены все навыки")
+20 |         XCTAssertEqual(event.countsText, "На входе 12 → на выходе 12")
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:120:9: note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+118 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+119 | */
+120 | #define XCTAssertEqual(expression1, expression2, ...) \
+    |         `- note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+121 |     _XCTPrimitiveAssertEqual(nil, expression1, @#expression1, expression2, @#expression2, __VA_ARGS__)
+122 |
+
+Tests/ContextObservabilityTests.swift:19:9: error: cannot find 'XCTAssertEqual' in scope
+17 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+18 |         XCTAssertEqual(event.title, "Навыки под задачу")
+19 |         XCTAssertEqual(event.outcome, "Ничего не выбрал — оставлены все навыки")
+   |         `- error: cannot find 'XCTAssertEqual' in scope
+20 |         XCTAssertEqual(event.countsText, "На входе 12 → на выходе 12")
+21 |     }
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:120:9: note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+118 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+119 | */
+120 | #define XCTAssertEqual(expression1, expression2, ...) \
+    |         `- note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+121 |     _XCTPrimitiveAssertEqual(nil, expression1, @#expression1, expression2, @#expression2, __VA_ARGS__)
+122 |
+
+Tests/ContextObservabilityTests.swift:20:9: error: cannot find 'XCTAssertEqual' in scope
+18 |         XCTAssertEqual(event.title, "Навыки под задачу")
+19 |         XCTAssertEqual(event.outcome, "Ничего не выбрал — оставлены все навыки")
+20 |         XCTAssertEqual(event.countsText, "На входе 12 → на выходе 12")
+   |         `- error: cannot find 'XCTAssertEqual' in scope
+21 |     }
+22 |     func testSourceFailureAndTruncationAreExplicit() throws {
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:120:9: note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+118 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+119 | */
+120 | #define XCTAssertEqual(expression1, expression2, ...) \
+    |         `- note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+121 |     _XCTPrimitiveAssertEqual(nil, expression1, @#expression1, expression2, @#expression2, __VA_ARGS__)
+122 |
+
+Tests/ContextObservabilityTests.swift:24:46: error: cannot find 'ContextObservability' in scope
+22 |     func testSourceFailureAndTruncationAreExplicit() throws {
+23 |         let json = #"{"id":"b","kind":"enricher","scenario":"kb","startedAt":"2026-10-21T12:00:00Z","durationMs":8000,"status":"error","reason":"source_unavailable","details":[]}"#
+24 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+   |                                              `- error: cannot find 'ContextObservability' in scope
+25 |         XCTAssertEqual(event.outcome, "Источник недоступен")
+26 |         XCTAssertEqual(event.title, "База знаний")
+
+Tests/ContextObservabilityTests.swift:24:39: error: failed to produce diagnostic for expression; please submit a bug report (https://swift.org/contributing/#reporting-bugs)
+22 |     func testSourceFailureAndTruncationAreExplicit() throws {
+23 |         let json = #"{"id":"b","kind":"enricher","scenario":"kb","startedAt":"2026-10-21T12:00:00Z","durationMs":8000,"status":"error","reason":"source_unavailable","details":[]}"#
+24 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+   |                                       `- error: failed to produce diagnostic for expression; please submit a bug report (https://swift.org/contributing/#reporting-bugs)
+25 |         XCTAssertEqual(event.outcome, "Источник недоступен")
+26 |         XCTAssertEqual(event.title, "База знаний")
+
+Tests/ContextObservabilityTests.swift:25:9: error: cannot find 'XCTAssertEqual' in scope
+23 |         let json = #"{"id":"b","kind":"enricher","scenario":"kb","startedAt":"2026-10-21T12:00:00Z","durationMs":8000,"status":"error","reason":"source_unavailable","details":[]}"#
+24 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+25 |         XCTAssertEqual(event.outcome, "Источник недоступен")
+   |         `- error: cannot find 'XCTAssertEqual' in scope
+26 |         XCTAssertEqual(event.title, "База знаний")
+27 |     }
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:120:9: note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+118 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+119 | */
+120 | #define XCTAssertEqual(expression1, expression2, ...) \
+    |         `- note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+121 |     _XCTPrimitiveAssertEqual(nil, expression1, @#expression1, expression2, @#expression2, __VA_ARGS__)
+122 |
+
+Tests/ContextObservabilityTests.swift:26:9: error: cannot find 'XCTAssertEqual' in scope
+24 |         let event = try JSONDecoder().decode(ContextObservability.Event.self, from: Data(json.utf8))
+25 |         XCTAssertEqual(event.outcome, "Источник недоступен")
+26 |         XCTAssertEqual(event.title, "База знаний")
+   |         `- error: cannot find 'XCTAssertEqual' in scope
+27 |     }
+28 | }
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Headers/XCTestAssertions.h:120:9: note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+118 |  * @param ... An optional supplementary description of the failure. A literal NSString, optionally with string format specifiers. This parameter can be completely omitted.
+119 | */
+120 | #define XCTAssertEqual(expression1, expression2, ...) \
+    |         `- note: macro 'XCTAssertEqual' unavailable: function like macros not supported
+121 |     _XCTPrimitiveAssertEqual(nil, expression1, @#expression1, expression2, @#expression2, __VA_ARGS__)
+122 |

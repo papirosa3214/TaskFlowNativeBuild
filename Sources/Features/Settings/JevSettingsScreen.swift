@@ -11,6 +11,7 @@ struct JevSettingsScreen: View {
     @State private var error: String?
     @State private var result: JevConnectionResult?
     @State private var confirmReset = false
+    @State private var usageRevision = UUID().uuidString
     private let api = APIClient()
 
     private var dirty: Bool {
@@ -37,6 +38,7 @@ struct JevSettingsScreen: View {
             if settings == nil && busy { ProgressView("Загрузка…") }
             if let settings {
                 connection(settings)
+                JevUsageSection(revision: usageRevision)
                 scenarios(settings)
                 if settings.hasApiKey {
                     Section {
@@ -125,6 +127,7 @@ struct JevSettingsScreen: View {
 
     private func apply(_ value: JevSettings, updateDraft: Bool) {
         settings = value
+        usageRevision = UUID().uuidString
         if updateDraft {
             baseUrl = value.baseUrl; model = value.model; timeoutMs = String(value.timeoutMs)
             apiKey = ""

@@ -1,0 +1,47 @@
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.002s
+
+OK
+EXIT=0
+test_comments_truncated_to_max (__main__.TestCommentsLimit.test_comments_truncated_to_max) ... ok
+test_both_sources_get_their_share (__main__.TestEnrichersSoft.test_both_sources_get_their_share)
+Память не вытесняется базой знаний. ... ok
+test_kb_keeps_one_excerpt_per_lesson (__main__.TestEnrichersSoft.test_kb_keeps_one_excerpt_per_lesson)
+Куски одного урока не занимают весь лимит. ... ok
+test_knowledge_parses_real_kb_contract (__main__.TestEnrichersSoft.test_knowledge_parses_real_kb_contract)
+Фактический ответ kb_query.py --json разбирается в фрагменты. ... ok
+test_knowledge_requests_json_output (__main__.TestEnrichersSoft.test_knowledge_requests_json_output)
+Вызов базы знаний идёт с --json. ... ok
+test_knowledge_survives_one_dead_source (__main__.TestEnrichersSoft.test_knowledge_survives_one_dead_source)
+Отказ одного источника не отменяет другой. ... ok
+test_knowledge_unavailable_only_when_both_sources_dead (__main__.TestEnrichersSoft.test_knowledge_unavailable_only_when_both_sources_dead)
+«Недоступно» — только когда молчат оба источника. ... ok
+test_knowledge_unavailable_when_no_kb (__main__.TestEnrichersSoft.test_knowledge_unavailable_when_no_kb)
+Нет ~/kb/kb_query.py → status='unavailable', НЕ exception. ... ok
+test_mnemosyne_parses_real_contract (__main__.TestEnrichersSoft.test_mnemosyne_parses_real_contract)
+Ответ `mnemosyne recall --json` разбирается в фрагменты. ... ok
+test_repository_empty_without_config (__main__.TestEnrichersSoft.test_repository_empty_without_config)
+Без конфига проекта → status='empty'. ... ok
+test_collaboration_context_is_serialized (__main__.TestTaskContextSchema.test_collaboration_context_is_serialized)
+T03: collaboration_context — отдельный блок, не смешанный с dependency_context. ... ok
+test_coordinated_mode (__main__.TestTaskContextSchema.test_coordinated_mode)
+Оркестратор: mode='coordinated', parent_task_id=корень. ... ok
+test_dependency_context_is_serialized (__main__.TestTaskContextSchema.test_dependency_context_is_serialized) ... ok
+test_direct_mode (__main__.TestTaskContextSchema.test_direct_mode)
+Прямой исполнитель: mode='direct', parent_task_id=None. ... ok
+test_first_step_history_is_marked (__main__.TestTaskContextSchema.test_first_step_history_is_marked) ... ok
+test_required_task_fields (__main__.TestTaskContextSchema.test_required_task_fields)
+TaskEnricher обязателен — без id/title бросает. ... ok
+test_task_history_absent_is_not_summarized (__main__.TestTaskContextSchema.test_task_history_absent_is_not_summarized)
+Без блока (чат/не-шаговый запуск) сводка про прошлые шаги не врёт. ... ok
+test_task_history_is_serialized_and_summarized (__main__.TestTaskContextSchema.test_task_history_is_serialized_and_summarized)
+«Что уже было по этой карточке»: блок в prompt, число шагов в сводке. ... ok
+test_truncate (__main__.TestTaskContextSchema.test_truncate)
+MAX_EXCERPT_CHARS — жёсткая обрезка строки. ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 26.288s
+
+OK
+EXISTING_EXIT=0

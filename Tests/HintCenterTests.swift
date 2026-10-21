@@ -60,6 +60,18 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(text?.contains("подробности не пришли") ?? false)
     }
 
+    func testContextAndUsageHintsComplete() {
+        for scenario in [HintScenarios.contextObservability, HintScenarios.jevUsage] {
+            let center = HintCenter(defaults: defaults, scenarios: [scenario])
+            center.isEnabled = true
+            let anchor = scenario.id == "jev-usage" ? HintAnchorID.jevUsage : HintAnchorID.contextObservability
+            center.report(anchor: anchor, frame: frame)
+            XCTAssertNotNil(center.active)
+            center.next()
+            XCTAssertTrue(center.completed.contains(scenario.id))
+        }
+    }
+
     func testJevHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.jev])
         center.isEnabled = true

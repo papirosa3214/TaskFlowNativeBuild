@@ -9,6 +9,8 @@ enum HintAnchorID {
     static let roleExternalApps = "role.external-apps"
     static let chatCoordination = "chat.coordination"
     static let systemSummary = "system.summary"
+    static let contextObservability = "role-load.context"
+    static let jevUsage = "jev.usage"
     static let jevConnection = "jev.connection"
     static let chatDictation = "chat.dictation"
     static let roleActions = "role.live-actions"
@@ -32,7 +34,7 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
+    static let all: [HintScenario] = [voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage]
 
     static let voiceConversation = HintScenario(
         id: "voice-conversation", title: "Голос и переписка", start: "minimize",
@@ -91,6 +93,16 @@ enum HintScenarios {
                 text: "Здесь сразу раскрыты поломки, тревоги, починенные механизмы и то, что работает штатно. Нажмите строку проблемы, чтобы открыть связанную задачу. Список рабочих карточек находится в меню «…» → «Карточки работ».", next: "reading"),
                     "reading": HintStep(anchor: HintAnchorID.systemSummary, title: "Как читать сводку",
                 text: "Строки разложены по факту, а не по тексту сторожевого скрипта. «Поломки» — подтверждённый отказ, «Тревоги» — проверка прошла формально, но текст говорит об отказе, «Починено» — восстановилось само, «Работает в штатном режиме» — всё штатно. Если строка помечена «подробности не пришли», сторож не прислал продолжения. Нажатие на строку с поломкой открывает связанную рабочую карточку.", next: nil)])
+
+    static let contextObservability = HintScenario(
+        id: "context-observability", title: "Контекст и JEV в загрузке ролей", start: "context",
+        steps: ["context": HintStep(anchor: HintAnchorID.contextObservability, title: "Вклад в работу роли",
+            text: "Сводка показывает срабатывания за период графика. Раскройте последние срабатывания: там видны источники, отбор JEV, время, причины пропуска и ошибки. Количества показывают вход и выход конкретной операции; это не оценка качества итоговой работы.")])
+
+    static let jevUsage = HintScenario(
+        id: "jev-usage", title: "Расход JEV", start: "usage",
+        steps: ["usage": HintStep(anchor: HintAnchorID.jevUsage, title: "Расход текущего ключа",
+            text: "Выберите сутки, неделю или месяц. Здесь учитываются только запросы TaskFlow с сохранённым ключом и адресом API с момента начала учёта. Если провайдер не вернул токены, запрос помечен отдельно; стоимость и баланс без данных провайдера не рассчитываются.")])
 
     static let jev = HintScenario(
         id: "jev", title: "Оценщик JEV", start: "connection",

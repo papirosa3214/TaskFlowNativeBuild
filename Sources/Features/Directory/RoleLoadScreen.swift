@@ -27,6 +27,7 @@ struct RoleLoadScreen: View {
                 } else if error == nil {
                     ProgressView().frame(maxWidth: .infinity)
                 }
+                ContextObservabilitySection(window: window) { selectedTask = TaskRef(id: $0) }
             }
             .padding(16)
         }

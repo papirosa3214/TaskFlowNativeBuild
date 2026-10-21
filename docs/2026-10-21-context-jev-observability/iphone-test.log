@@ -1,0 +1,18 @@
+
+🧪 Test
+
+   Scheme: ContextObservabilityCheck
+   Project: TaskFlow.xcodeproj
+   Platform: iOS
+   Device: 00008150-001545400144401C
+   Derived Data: build_device
+   Selective Testing:
+     TaskFlowUITests/ContextObservabilityUITests
+Running tests (1 completed, 0 failures, 0 skipped)
+
+✅ 1 test passed, 0 failed, 0 skipped (⏱️ 62.3s)
+  └ Files:
+     ├ Result Bundle: docs/2026-10-21-context-jev-observability/iphone-final.xcresult
+     ├ Build Logs: ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_device_2026-10-21T18-12-06-794Z_pid89018_d0fac9d0.log
+     └ Test Products: ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_device_2026-10-21T18-12-06-795Z_pid89018_9d92e529.xctestproducts
+EXIT=0

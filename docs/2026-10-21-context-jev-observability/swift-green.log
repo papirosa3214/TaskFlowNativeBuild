@@ -1,0 +1,9 @@
+Test Suite 'ContextObservabilityTests' started at 2026-10-21 21:03:30.803.
+Test Case '-[tests.ContextObservabilityTests testFallbackAndAppliedHaveDifferentMeaning]' started.
+Test Case '-[tests.ContextObservabilityTests testFallbackAndAppliedHaveDifferentMeaning]' passed (0.006 seconds).
+Test Case '-[tests.ContextObservabilityTests testMissingUsageIsVisibleInsteadOfFreeUsage]' started.
+Test Case '-[tests.ContextObservabilityTests testMissingUsageIsVisibleInsteadOfFreeUsage]' passed (0.000 seconds).
+Test Case '-[tests.ContextObservabilityTests testSourceFailureAndTruncationAreExplicit]' started.
+Test Case '-[tests.ContextObservabilityTests testSourceFailureAndTruncationAreExplicit]' passed (0.000 seconds).
+Test Suite 'ContextObservabilityTests' passed at 2026-10-21 21:03:30.811.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.006 (0.007) seconds

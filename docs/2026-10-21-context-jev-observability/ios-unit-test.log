@@ -1,0 +1,101 @@
+
+🧪 Test
+
+   Scheme: ContextObservabilityCheck
+   Project: TaskFlow.xcodeproj
+   Platform: iOS Simulator
+   Simulator: 9FF78D89-EE84-4914-AA56-D0A72D1AF43A
+   Derived Data: build_sim
+   Selective Testing:
+     TaskFlowTests/ContextObservabilityTests
+     TaskFlowTests/HintCenterTests
+Running tests (1 completed, 0 failures, 0 skipped)
+Running tests (2 completed, 0 failures, 0 skipped)
+Running tests (3 completed, 0 failures, 0 skipped)
+Running tests (4 completed, 0 failures, 0 skipped)
+Running tests (5 completed, 0 failures, 0 skipped)
+Running tests (6 completed, 0 failures, 0 skipped)
+Running tests (7 completed, 0 failures, 0 skipped)
+Running tests (8 completed, 0 failures, 0 skipped)
+Running tests (9 completed, 0 failures, 0 skipped)
+Running tests (10 completed, 0 failures, 0 skipped)
+Running tests (11 completed, 0 failures, 0 skipped)
+Running tests (12 completed, 0 failures, 0 skipped)
+Running tests (13 completed, 0 failures, 0 skipped)
+Running tests (14 completed, 0 failures, 0 skipped)
+Running tests (15 completed, 0 failures, 0 skipped)
+Running tests (16 completed, 0 failures, 0 skipped)
+Running tests (17 completed, 0 failures, 0 skipped)
+Running tests (18 completed, 0 failures, 0 skipped)
+Running tests (19 completed, 0 failures, 0 skipped)
+Running tests (20 completed, 1 failure, 0 skipped)
+
+HintCenterTests
+  ✗ testWebhookHintExplainsGenericReceiverAndOptionalCodexBranch:
+      - XCTAssertTrue failed
+        Tests/HintCenterTests.swift:101
+  ✗ testWebhookHintExplainsGenericReceiverAndOptionalCodexBranch():
+    - XCTAssertTrue failed
+
+Warnings (18):
+
+  ⚠ variable 'shot' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+    UITests/Heatmap3DUITests.swift:53:13
+
+  ⚠ variable 'found' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+    UITests/E2ETests.swift:41:13
+
+  ⚠ 'CommandURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/OwnerCommandTests.swift:4:65
+
+  ⚠ 'SystemControlURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/SystemControlViewModelTests.swift:137:71
+
+  ⚠ 'PreparationFallbackURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/TaskPreparationReplyTests.swift:48:77
+
+  ⚠ 'ReplyURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/TaskPreparationReplyTests.swift:61:63
+
+  ⚠ no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+    Tests/ChatChecklistSyncTests.swift:69:20
+
+  ⚠ no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+    Tests/ChatChecklistSyncTests.swift:85:51
+
+  ⚠ main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+    Sources/Features/Markdown/BlockDocumentEditor.swift:319:39
+
+  ⚠ 'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'
+    Sources/Core/Session/SessionStore.swift:25:13
+
+  ⚠ 'onChange(of:perform:)' was deprecated in iOS 17.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]
+    Sources/Features/Coordination/CoordinationScreen.swift:81:10
+
+  ⚠ immutable value 'onRework' was never used; consider replacing with '_' or removing it [#NoUsage]
+    Sources/Features/Task/Detail/PlanStepSheets.swift:226:24
+
+  ⚠ main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+    Sources/Features/Settings/GoogleIntegrationsAPI.swift:126:31
+
+  ⚠ application of result builder 'ViewBuilder' disabled by explicit 'return' statement
+    Sources/Features/Task/TaskFormScreen.swift:1560:9
+
+  ⚠ application of result builder 'ViewBuilder' disabled by explicit 'return' statement
+    Sources/Features/Task/TaskFormScreen.swift:1739:9
+
+  ⚠ application of result builder 'ViewBuilder' disabled by explicit 'return' statement
+    Sources/Features/Task/TaskFormScreen.swift:1954:9
+
+  ⚠ result of 'try?' is unused [#NoUsage]
+    Sources/Features/Chat/ChatViewModel.swift:334:13
+
+  ⚠ result of 'try?' is unused [#NoUsage]
+    Sources/Features/Chat/ChatViewModel.swift:340:9
+
+❌ 1 test failed, 19 passed, 0 skipped (⏱️ 49.4s)
+  └ Files:
+     ├ Result Bundle: docs/2026-10-21-context-jev-observability/unit2.xcresult
+     ├ Build Logs: ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-21T18-07-26-057Z_pid85660_7d715805.log
+     └ Test Products: ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-21T18-07-26-057Z_pid85660_bc9ce677.xctestproducts
+EXIT=1

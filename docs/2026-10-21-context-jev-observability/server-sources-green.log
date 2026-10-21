@@ -1,0 +1,76 @@
+
+ RUN  v4.1.10 /home/maksim/Проекты/New-Todoist/server
+
+stdout | test/jev.test.ts
+[apns] ключ не настроен — островок будет обновляться только при открытом приложении
+
+stdout | test/contextObservability.test.ts
+[apns] ключ не настроен — островок будет обновляться только при открытом приложении
+
+stdout | test/contextObservability.test.ts
+[042_pipeline_head] backfill: kept=0 moved=0 cleared=0
+
+stdout | test/jev.test.ts
+[042_pipeline_head] backfill: kept=0 moved=0 cleared=0
+
+stderr | test/jev.test.ts
+[note-access-watch] прибор живой
+
+stdout | test/jev.test.ts
+[inbox-triage] polling /home/maksim/Проекты/taskflow-уведомления/inbox (every 1000 ms)
+[results-writer] watching tasks (0 known). poll=3000ms
+
+stderr | test/contextObservability.test.ts
+[note-access-watch] прибор живой
+
+stdout | test/contextObservability.test.ts
+[inbox-triage] polling /home/maksim/Проекты/taskflow-уведомления/inbox (every 1000 ms)
+[results-writer] watching tasks (0 known). poll=3000ms
+
+stderr | test/jev.test.ts > протокол TypeSafe > ошибка провайдера — null, а не исключение
+JEV: оценка не получена provider_error
+
+stderr | test/jev.test.ts > шлюз jevai.org > code≠0 у jevai — null, а проверка подключения показывает текст сервиса
+JEV: оценка не получена provider_error
+
+(node:2494866) [FSTWRN001] FastifyWarning: The body schema for POST: /api/auth/lan is missing. This may indicate the schema is not well specified.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2494866) [FSTWRN001] FastifyWarning: The body schema for POST: /api/pairing/code is missing. This may indicate the schema is not well specified.
+stderr | test/jev.test.ts > сценарий: отбор памяти для роли > JEV упал — null, роль получает исходную выдачу
+JEV: оценка не получена provider_error
+
+{"level":30,"time":1792606474573,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474573-708x3s","req":{"method":"GET","url":"/api/jev/usage","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606474573-708x3s"},"msg":"incoming request"}
+stderr | test/jev.test.ts > сценарий: проверка записи в память > сомнение или отказ JEV — запись проходит
+JEV: оценка не получена provider_error
+
+stderr | test/jev.test.ts > сценарий: навыки под задачу > JEV ничего не выбрал или упал — null, роль получает все навыки
+JEV: оценка не получена provider_error
+
+stderr | test/contextObservability.test.ts > контекст и JEV: наблюдаемость > timeout, испорченный JSON и низкая уверенность остаются наблюдаемыми
+JEV: оценка не получена timeout
+
+(node:2494867) [FSTWRN001] FastifyWarning: The body schema for POST: /api/auth/lan is missing. This may indicate the schema is not well specified.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2494867) [FSTWRN001] FastifyWarning: The body schema for POST: /api/pairing/code is missing. This may indicate the schema is not well specified.
+{"level":40,"time":1792606474575,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474573-708x3s","method":"GET","url":"/api/jev/usage","statusCode":401,"body":"{\"error\":\"нужен ключ: агент ходит своим api_token (Authorization: Bearer …), вход без пароля из домашней сети работает только в браузере\"}","msg":"ответ с ошибкой"}
+{"level":30,"time":1792606474576,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474573-708x3s","res":{"statusCode":401},"responseTime":1.764603000000534,"msg":"request completed"}
+{"level":30,"time":1792606474576,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474576-zho0bv","req":{"method":"GET","url":"/api/coordination/context-observability","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606474576-zho0bv"},"msg":"incoming request"}
+{"level":40,"time":1792606474577,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474576-zho0bv","method":"GET","url":"/api/coordination/context-observability","statusCode":403,"body":"{\"error\":\"доступно только владельцу\"}","msg":"ответ с ошибкой"}
+{"level":30,"time":1792606474578,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474576-zho0bv","res":{"statusCode":403},"responseTime":1.131123000000116,"msg":"request completed"}
+{"level":30,"time":1792606474578,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474578-n7ntzq","req":{"method":"GET","url":"/api/jev/usage?window=all","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606474578-n7ntzq"},"msg":"incoming request"}
+{"level":40,"time":1792606474578,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474578-n7ntzq","method":"GET","url":"/api/jev/usage?window=all","statusCode":400,"body":"{\"error\":\"invalid_window\"}","msg":"ответ с ошибкой"}
+{"level":30,"time":1792606474579,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474578-n7ntzq","res":{"statusCode":400},"responseTime":0.5557870000002367,"msg":"request completed"}
+{"level":30,"time":1792606474579,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474579-y3kvq0","req":{"method":"GET","url":"/api/jev/usage?window=month","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606474579-y3kvq0"},"msg":"incoming request"}
+{"level":30,"time":1792606474579,"pid":2494866,"hostname":"maksim-MS-7D27","reqId":"srv-1792606474579-y3kvq0","res":{"statusCode":200},"responseTime":0.4924349999992046,"msg":"request completed"}
+ ✓ test/jev.test.ts (27 tests) 409ms
+stderr | test/contextObservability.test.ts > контекст и JEV: наблюдаемость > учитывает ответ JEV и ошибку без тела ошибки и ключа
+JEV: оценка не получена provider_error
+
+ ✓ test/contextObservability.test.ts (13 tests) 423ms
+
+ Test Files  2 passed (2)
+      Tests  40 passed (40)
+   Start at  21:14:27
+   Duration  7.52s (transform 9.30s, setup 153ms, import 13.85s, tests 832ms, environment 0ms)
+
+EXIT=0

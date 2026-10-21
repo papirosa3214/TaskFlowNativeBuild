@@ -1,0 +1,107 @@
+
+ RUN  v4.1.10 /home/maksim/Проекты/New-Todoist/server
+
+stdout | test/contextObservability.test.ts
+[apns] ключ не настроен — островок будет обновляться только при открытом приложении
+
+stdout | test/contextObservability.test.ts
+[042_pipeline_head] backfill: kept=0 moved=0 cleared=0
+
+stderr | test/contextObservability.test.ts
+[note-access-watch] прибор живой
+
+stdout | test/contextObservability.test.ts
+[inbox-triage] polling /home/maksim/Проекты/taskflow-уведомления/inbox (every 1000 ms)
+[results-writer] watching tasks (0 known). poll=3000ms
+
+(node:2491822) [FSTWRN001] FastifyWarning: The body schema for POST: /api/auth/lan is missing. This may indicate the schema is not well specified.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2491822) [FSTWRN001] FastifyWarning: The body schema for POST: /api/pairing/code is missing. This may indicate the schema is not well specified.
+{"level":30,"time":1792606442158,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442158-g8skx4","req":{"method":"GET","url":"/api/jev/usage","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606442158-g8skx4"},"msg":"incoming request"}
+stderr | test/contextObservability.test.ts > контекст и JEV: наблюдаемость > timeout, испорченный JSON и низкая уверенность остаются наблюдаемыми
+JEV: оценка не получена timeout
+
+{"level":40,"time":1792606442159,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442158-g8skx4","method":"GET","url":"/api/jev/usage","statusCode":401,"body":"{\"error\":\"нужен ключ: агент ходит своим api_token (Authorization: Bearer …), вход без пароля из домашней сети работает только в браузере\"}","msg":"ответ с ошибкой"}
+{"level":30,"time":1792606442161,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442158-g8skx4","res":{"statusCode":401},"responseTime":1.7868109999999433,"msg":"request completed"}
+{"level":30,"time":1792606442161,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442161-jv328a","req":{"method":"GET","url":"/api/coordination/context-observability","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606442161-jv328a"},"msg":"incoming request"}
+{"level":40,"time":1792606442162,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442161-jv328a","method":"GET","url":"/api/coordination/context-observability","statusCode":403,"body":"{\"error\":\"доступно только владельцу\"}","msg":"ответ с ошибкой"}
+{"level":30,"time":1792606442162,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442161-jv328a","res":{"statusCode":403},"responseTime":1.126553000000058,"msg":"request completed"}
+{"level":30,"time":1792606442163,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442163-atim3v","req":{"method":"GET","url":"/api/jev/usage?window=all","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606442163-atim3v"},"msg":"incoming request"}
+{"level":40,"time":1792606442163,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442163-atim3v","method":"GET","url":"/api/jev/usage?window=all","statusCode":400,"body":"{\"error\":\"invalid_window\"}","msg":"ответ с ошибкой"}
+{"level":30,"time":1792606442163,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442163-atim3v","res":{"statusCode":400},"responseTime":0.5828309999997145,"msg":"request completed"}
+{"level":30,"time":1792606442164,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442164-wftngz","req":{"method":"GET","url":"/api/jev/usage?window=month","host":"localhost:80","remoteAddress":"127.0.0.1","requestId":"srv-1792606442164-wftngz"},"msg":"incoming request"}
+{"level":30,"time":1792606442164,"pid":2491822,"hostname":"maksim-MS-7D27","reqId":"srv-1792606442164-wftngz","res":{"statusCode":200},"responseTime":0.5070869999999559,"msg":"request completed"}
+stderr | test/contextObservability.test.ts > контекст и JEV: наблюдаемость > учитывает ответ JEV и ошибку без тела ошибки и ключа
+JEV: оценка не получена provider_error
+
+ ❯ test/contextObservability.test.ts (13 tests | 2 failed) 253ms
+     × ошибка чтения памяти не исчезает из наблюдаемости 5ms
+     × отказ библиотеки проекта виден отдельно от отсутствия знаний 2ms
+     ✓ доступен только владельцу и проверяет период 17ms
+     ✓ timeout, испорченный JSON и низкая уверенность остаются наблюдаемыми 3ms
+     ✓ смена настроенного ключа сохраняет раздельную историю 1ms
+     ✓ изолирует две параллельные роли и сохраняет завершение по id 6ms
+     ✓ различает неизвестный расход и нулевой, отделяет новый ключ и провайдера 1ms
+     ✓ не включает старые операции в короткий период, но сохраняет историю ключа 1ms
+     ✓ отрицательный usage не подменяет реальную статистику 1ms
+     ✓ учитывает ответ JEV и ошибку без тела ошибки и ключа 1ms
+     ✓ отмечает пропуск без ключа и неверный ответ, а не успешную оценку 1ms
+     ✓ сохраняет ошибку TaskContext после повторов и фактические компоненты успешного пакета 1ms
+     ✓ проба действительно пишет и читает, но не оставляет событий 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/contextObservability.test.ts > контекст и JEV: наблюдаемость > ошибка чтения памяти не исчезает из наблюдаемости
+AssertionError: expected undefined to match object { status: 'error', …(2) }
+
+- Expected:
+{
+  "reason": "source_unavailable",
+  "role": "builder",
+  "status": "error",
+}
+
++ Received:
+undefined
+
+ ❯ test/contextObservability.test.ts:23:77
+     21|  vi.spyOn(db,"prepare").mockImplementation(((sql:string)=>{if(sql.incl…
+     22|  await expect(memoryLib.recall({roleKey:"builder",query:"q"})).rejects…
+     23|  expect(readObservability("24h").events.find(e=>e.scenario==="teamMemo…
+       |                                                                             ^
+     24|  });
+     25|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/contextObservability.test.ts > контекст и JEV: наблюдаемость > отказ библиотеки проекта виден отдельно от отсутствия знаний
+AssertionError: expected undefined to match object { status: 'error', …(3) }
+
+- Expected:
+{
+  "reason": "source_unavailable",
+  "role": "builder",
+  "status": "error",
+  "taskId": "fixture-missing-task",
+}
+
++ Received:
+undefined
+
+ ❯ test/contextObservability.test.ts:30:81
+     28|  vi.spyOn(noteSearch,"searchNotes").mockImplementation(()=>{throw Erro…
+     29|  await roleProjectContext({role:"builder",taskId:"fixture-missing-task…
+     30|  expect(readObservability("24h").events.find(e=>e.scenario==="projectL…
+       |                                                                                 ^
+     31|  });
+     32|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 11 passed (13)
+   Start at  21:13:57
+   Duration  4.88s (transform 2.90s, setup 115ms, import 4.25s, tests 253ms, environment 0ms)
+
+EXIT=1

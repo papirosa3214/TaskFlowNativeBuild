@@ -1,0 +1,32 @@
+npm notice run taskflow-server@0.1.0 npx
+npm notice run 'vitest' run test/contextObservability.test.ts
+
+ RUN  v4.1.10 /home/maksim/Проекты/New-Todoist/server
+
+ ❯ test/contextObservability.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/contextObservability.test.ts [ test/contextObservability.test.ts ]
+Error: Cannot find module '../src/lib/contextObservability.js' imported from /home/maksim/Проекты/New-Todoist/server/test/contextObservability.test.ts
+ ❯ test/contextObservability.test.ts:4:1
+      2| import db from "../src/db.js";
+      3| import { runMigrations } from "../src/migrations.js";
+      4| import { withObservationContext, startObservation, finishObservation, …
+       | ^
+      5| import { evaluateJev, saveJevSettings, resetJevSettings } from "../src…
+      6| import { checkContextObservability } from "../src/lib/contextObservabi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  20:56:49
+   Duration  1.83s (transform 482ms, setup 26ms, import 0ms, tests 0ms, environment 0ms)
+
+Traceback (most recent call last):
+  File "/home/maksim/Проекты/New-Todoist/server/test/task_context_observability_test.py", line 4, in <module>
+    from task_context import build_context, serialize_context, context_observations
+ImportError: cannot import name 'context_observations' from 'task_context' (/home/maksim/Проекты/New-Todoist/server/scripts/task_context.py)
+EXIT=1

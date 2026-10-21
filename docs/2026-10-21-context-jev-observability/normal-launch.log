@@ -1,0 +1,11 @@
+
+🚀 Launch App
+
+   Device: 00008150-001545400144401C
+   Bundle ID: com.maksim.taskflow.native
+
+✅ App launched successfully.
+  └ Process ID: 39495
+
+Next steps:
+1. Stop the app: xcodebuildmcp device stop --device-id 00008150-001545400144401C --process-id 39495
