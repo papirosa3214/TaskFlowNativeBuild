@@ -2992,14 +2992,20 @@ struct TaskCardContent: View {
 
     private func loadScreen() async {
         refreshState.begin(refreshSnapshot)
+        // Карточка должна показываться сразу после задачи и ленты. Справочники
+        // (все задачи/проекты/метки), отчёты и роли не нужны для первого кадра:
+        // роли нужны для имён, но грузятся быстро, поэтому остаются в параллели;
+        // остальное подгружается в фоне, чтобы не блокировать открытие.
         async let card: Void = viewModel.loadIfNeeded(showLoading: viewModel.loadedTask == nil)
         async let roles: Void = viewModel.loadRoles()
-        async let tasks: Void = loadTasksIfNeeded()
-        async let projects: Void = loadProjectsIfNeeded()
-        async let labels: Void = loadLabelsIfNeeded()
         async let activity: Void = viewModel.loadActivity(revision: refreshSnapshot.activityRevision)
-        async let reports: Void = viewModel.loadReports()
-        _ = await (card, roles, tasks, projects, labels, activity, reports)
+        _ = await (card, roles, activity)
+        Task {
+            await loadTasksIfNeeded()
+            await loadProjectsIfNeeded()
+            await loadLabelsIfNeeded()
+            await viewModel.loadReports()
+        }
         if viewModel.startDictation { titleFocus.blockID = viewModel.titleBlocks.first?.id }
         refreshDynamicIslandState()
         isEditorReady = true
