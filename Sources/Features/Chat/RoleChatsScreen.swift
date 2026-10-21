@@ -1154,7 +1154,7 @@ struct RoleChatRoomScreen: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         // Меню «…» построено как соседние меню приложения
-                        // (`ChatScreen`, `TodayScreen`, `VoiceModelsScreen`):
+                        // (`ChatScreen`, `TodaySectionView`, `VoiceModelsScreen`):
                         // действия — `Label`, связанные группы — `Section`,
                         // выбор из списка — ПОДМЕНЮ `Menu`, выбранное отмечено
                         // галочкой (владелец 21.09.2026: «посмотри, как у нас

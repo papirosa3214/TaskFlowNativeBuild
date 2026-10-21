@@ -127,7 +127,7 @@ public extension Color {
     /// список внутри неё теперь один и тот же цвет, и утечка фона нигде не
     /// видна, даже там, где сама прореха в вёрстке не найдена и не закрыта.
     /// Было отдельным hex (#1D1D1D) — до этого его же 02.09.2026 консолидировали
-    /// из трёх разных мест (`RootShellView`, `TodayScreen`, `TaskDetailScreen`).
+    /// из трёх разных мест (`RootShellView`, прежний экран «Сегодня», `TaskDetailScreen`).
     static let tfSheetBackground = tfBackground
 
     /// Ink-цвет чипа сетки часов (Today/Upcoming) — тёмный текст поверх

@@ -211,7 +211,7 @@ struct TodaySectionView: View {
                 .padding(.horizontal, TFSpacing.lg)
 
             // Заглушка пустой вкладки (владелец 21.10.2026). Правка 20.10.2026
-            // (34ef88f1) легла в `TodayScreen`, а «План» рисует этот экран —
+            // (34ef88f1) легла в мёртвый `TodayScreen` (удалён 21.10.2026), а «План» рисует этот экран —
             // здесь заглушки не было вовсе. Своя картинка у каждой вкладки.
             if activeTabEmpty(c) {
                 TodayEmptyIllustration(image: emptyIllustrationImage)

@@ -149,7 +149,7 @@ struct RootShellView: View {
             #if DEBUG
             // Отдельный узел (не тот, что несёт `.sheet(item: $quickAddDraft)`
             // ниже) — два `.sheet` на одном модификаторе в SwiftUI ненадёжны.
-            // Копия шторки из `TodayScreen.swift` буквально (detents/индикатор/
+            // Копия шторки задачи из `TodaySectionView.swift` (detents/индикатор/
             // радиус/фон) — единственный debug-роут, который реально
             // воспроизводит нативную шторку, а не пуш.
             .sheet(isPresented: Binding(
@@ -230,7 +230,7 @@ struct RootShellView: View {
         }
         // LOCK-253: развёрнутая форма должна открываться и вести себя ровно
         // как обычная задача — та же системная шторка (detents/хендл/
-        // скругление/фон), что у `.sheet` в TodayScreen.swift при открытии
+        // скругление/фон), что у `.sheet` в TodaySectionView.swift при открытии
         // существующей карточки, а не `fullScreenCover`. Тот же
         // `presentationBackground(Color.tfSheetBackground)` заодно чинит
         // чёрный фон в скруглённых углах системной клавиатуры (iOS 26) —

@@ -11,7 +11,7 @@ import UIKit
 // DesignSystem как есть. В отчёте — оркестратору свести оба варианта.
 struct TodayTaskRow: View {
     let task: ApiTask
-    /// TodayScreen передаёт true для просроченных задач — красная пилюля с датой
+    /// Список «Плана» передаёт true для просроченных задач — красная пилюля с датой
     /// вместо обычного бейджа срока (spec: `overdue` проп TaskRow.tsx).
     let overdue: Bool
     let onOpen: () -> Void

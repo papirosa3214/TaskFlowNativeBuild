@@ -11,7 +11,7 @@ struct TodayHourDay {
     let isToday: Bool
 }
 
-/// Пустой снимок для первого рендера `TodayScreen` (до того как `.task(id:)`
+/// Пустой снимок для первого рендера `TodaySectionView` (до того как `.task(id:)`
 /// пересчитает реальный). Без него `computation` нельзя объявить `@State`
 /// с non-optional типом, а optional тащит `??` по всему body.
 extension TodayComputation {
@@ -44,7 +44,7 @@ struct TodayComputation {
     let isError: Bool
 
     // Результаты цепочки вычисляются один раз при создании снимка экрана.
-    // Раньше это были computed properties: один проход `TodayScreen.body`
+    // Раньше это были computed properties: один проход `body` экрана
     // обращался к одним и тем же filter/sort до десятка раз, а состояние
     // липкой шапки обновляет body во время прокрутки. На длинной ленте именно
     // эта повторная работа на main thread ощущалась как микрорывки.

@@ -174,7 +174,7 @@ enum AppleRemindersSync {
             } else if let existingTask, reminder.isCompleted, existingTask.status != .completed {
                 // `apply` — no-op, как и во всех остальных вызовах `patch` в
                 // проекте (`ApiTask` целиком `let`-поля, точечная мутация
-                // локальной копии физически невозможна — см. TodayScreen.swift
+                // локальной копии физически невозможна — см. TodaySectionView.swift
                 // и др., тот же приём).
                 let ok = await taskStore.patch(taskId: existingTask.id, fields: ["status": .string("completed")]) { _ in }
                 if ok { updated += 1 }
