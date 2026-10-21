@@ -707,6 +707,7 @@ private struct PendingOutgoing: Identifiable, Equatable {
 }
 
 struct RoleChatRoomScreen: View {
+    @Environment(SecretaryVoiceViewModel.self) private var voiceSession: SecretaryVoiceViewModel?
     @Environment(SessionStore.self) private var session
     @Environment(TaskStore.self) private var taskStore
     @Environment(\.dismiss) private var dismiss
@@ -1122,12 +1123,13 @@ struct RoleChatRoomScreen: View {
                     .disabled(selectedMessageIDs.isEmpty)
                 }
             } else {
-                if chat.id == "chat-secretary" {
+                if session.currentUser?.role == .owner, chat.kind == "direct",
+                   chat.members.contains(where: { $0.id == "u-secretary" }), let voiceSession {
                     ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink(value: AppRoute.secretaryVoiceCall) {
-                            Image(systemName: "waveform")
+                        TFIconButton("waveform", label: "Голосовой разговор с Помощником владельца") {
+                            Task { await voiceSession.start(chatID: chat.id) }
                         }
-                        .accessibilityLabel("Голосовой разговор с Помощником владельца")
+                        .accessibilityIdentifier("chat.voice.start")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {

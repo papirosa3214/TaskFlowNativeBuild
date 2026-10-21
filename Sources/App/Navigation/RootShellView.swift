@@ -58,6 +58,7 @@ struct RootShellView: View {
 
     @Environment(TaskStore.self) private var taskStore
     @Environment(SessionStore.self) private var session
+    @State private var voiceSession = SecretaryVoiceViewModel()
     /// Итог «Возобновить зависшие шаги» из меню «+» (только владелец).
     @State private var resumeStuckMessage: String?
 
@@ -176,6 +177,23 @@ struct RootShellView: View {
 
 
         }
+        .environment(voiceSession)
+        .overlay(alignment: .bottomTrailing) {
+            if voiceSession.presentation.isActive && !voiceSession.presentation.isExpanded {
+                SecretaryVoiceFloatingControl(viewModel: voiceSession, onOpenChat: openVoiceChat)
+                    .padding(.trailing, TFSpacing.lg)
+                    .padding(.bottom, 100)
+            }
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { voiceSession.presentation.isExpanded },
+            set: { if !$0 { voiceSession.minimize() } }
+        )) {
+            SecretaryVoiceScreen(viewModel: voiceSession, onOpenChat: openVoiceChat)
+        }
+        .onChange(of: session.currentUser?.id) { _, _ in
+            Task { await voiceSession.stop() }
+        }
         .environment(\.chatBackAction, {
             isCreateMenuOpen = false
             paths[.chat] = NavigationPath()
@@ -287,6 +305,14 @@ struct RootShellView: View {
         Tab.allCases.map { tab in
             TFTabItem(icon: tab.icon, accessibilityLabel: tab.label, badgeCount: tab == .upcoming ? todayBadgeCount : nil, showsTodayDate: tab == .upcoming)
         }
+    }
+
+    private func openVoiceChat() {
+        guard let chatID = voiceSession.presentation.chatID else { return }
+        voiceSession.minimize()
+        selectedTab = .chat
+        paths[.chat] = NavigationPath()
+        paths[.chat, default: NavigationPath()].append(AppRoute.roleChat(id: chatID))
     }
 
     private var selectedIndexBinding: Binding<Int?> {

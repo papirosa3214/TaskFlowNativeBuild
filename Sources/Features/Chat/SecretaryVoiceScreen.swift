@@ -18,39 +18,62 @@ enum SecretaryVoiceState: Equatable {
 @MainActor
 @Observable
 final class SecretaryVoiceViewModel {
+    private(set) var presentation = SecretaryVoicePresentation()
     var state: SecretaryVoiceState = .connecting
     /// Громкость 0…1 — владельца (микрофон) и Помощника владельца (его дорожка).
     var micLevel: Double = 0
     var agentLevel: Double = 0
 
-    private let room = Room()
+    private var room: Room?
+    private var connectionID: UUID?
     private let api = APIClient()
     private var agentIdentity: Participant.Identity?
     @ObservationIgnored private lazy var micMeter = AudioLevelMeter { [weak self] in self?.micLevel = $0 }
     @ObservationIgnored private lazy var agentMeter = AudioLevelMeter { [weak self] in self?.agentLevel = $0 }
 
-    func start() async {
+    func start(chatID: String) async {
+        guard presentation.begin(chatID: chatID) else { return }
+        state = .connecting
+        let connectionID = UUID()
+        self.connectionID = connectionID
+        let room = Room()
+        self.room = room
         do {
             room.add(delegate: self)
-            let token = try await api.secretaryVoiceToken(voice: .current)
+            let token = try await api.secretaryVoiceToken(voice: .current, chatID: chatID)
+            guard self.connectionID == connectionID else { return }
             try await room.connect(url: token.url, token: token.token)
+            guard self.connectionID == connectionID else { await room.disconnect(); return }
             try await room.localParticipant.setMicrophone(enabled: true)
+            guard self.connectionID == connectionID else { await room.disconnect(); return }
             if let mic = room.localParticipant.firstAudioPublication?.track as? LocalAudioTrack {
                 mic.add(audioRenderer: micMeter)
             }
             state = .listening
         } catch {
+            guard self.connectionID == connectionID else { return }
             state = .failed(error.localizedDescription)
         }
     }
 
+    func minimize() { presentation.minimize() }
+    func expand() { presentation.expand() }
+
     func stop() async {
-        await room.disconnect()
+        connectionID = nil
+        presentation.end()
+        let previousRoom = room
+        room = nil
+        agentIdentity = nil
+        micLevel = 0
+        agentLevel = 0
+        previousRoom?.remove(delegate: self)
+        await previousRoom?.disconnect()
     }
 
     /// Тап по кольцу — оборвать ответ Помощника владельца (RPC `interrupt` в воркере).
     func interrupt() {
-        guard state == .speaking, let agentIdentity else { return }
+        guard state == .speaking, let agentIdentity, let room else { return }
         Task { _ = try? await room.localParticipant.performRpc(destinationIdentity: agentIdentity, method: "interrupt", payload: "") }
     }
 }
@@ -59,6 +82,7 @@ extension SecretaryVoiceViewModel: RoomDelegate {
     nonisolated func room(_ room: Room, didUpdateSpeakingParticipants participants: [Participant]) {
         let agentSpeaking = participants.contains { $0.identity != room.localParticipant.identity }
         Task { @MainActor in
+            guard self.room === room else { return }
             if case .failed = self.state { return }
             self.state = agentSpeaking ? .speaking : .listening
         }
@@ -68,13 +92,43 @@ extension SecretaryVoiceViewModel: RoomDelegate {
         guard let track = publication.track as? RemoteAudioTrack else { return }
         let identity = participant.identity
         Task { @MainActor in
+            guard self.room === room else { return }
             self.agentIdentity = identity
             track.add(audioRenderer: self.agentMeter)
         }
     }
 
     nonisolated func room(_ room: Room, didDisconnectWithError error: LiveKitError?) {
-        Task { @MainActor in self.state = .failed(error?.localizedDescription ?? "соединение разорвано") }
+        Task { @MainActor in
+            guard self.room === room else { return }
+            self.state = .failed(error?.localizedDescription ?? "соединение разорвано")
+        }
+    }
+}
+
+/// Отдельная граница наблюдения: громкость не инвалидирует корневую навигацию.
+struct SecretaryVoiceFloatingControl: View {
+    let viewModel: SecretaryVoiceViewModel
+    let onOpenChat: () -> Void
+
+    private var status: String {
+        switch viewModel.state {
+        case .connecting: "Подключение"
+        case .listening, .thinking: "Слушает"
+        case .speaking: "Говорит"
+        case .failed: "Соединение прервано"
+        }
+    }
+
+    var body: some View {
+        SecretaryVoiceMiniPlayer(
+            level: viewModel.state == .speaking ? viewModel.agentLevel : viewModel.micLevel,
+            status: status,
+            isFailed: { if case .failed = viewModel.state { return true }; return false }(),
+            onExpand: { viewModel.expand() },
+            onOpenChat: onOpenChat,
+            onEnd: { Task { await viewModel.stop() } }
+        )
     }
 }
 
@@ -173,11 +227,21 @@ private struct HangUpSlider: View {
 }
 
 struct SecretaryVoiceScreen: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var viewModel = SecretaryVoiceViewModel()
+    @Bindable var viewModel: SecretaryVoiceViewModel
+    let onOpenChat: () -> Void
 
     var body: some View {
         VStack(spacing: TFSpacing.xl) {
+            HStack {
+                TFIconButton("chevron.down", label: "Свернуть голосовой разговор") { viewModel.minimize() }
+                    .accessibilityIdentifier("voice.minimize")
+                    .hintAnchor(HintAnchorID.voiceMinimize)
+                Spacer()
+                Text("Голосовой разговор").tfText(.title)
+                Spacer()
+                TFIconButton("text.bubble", label: "Открыть переписку") { onOpenChat() }
+                    .accessibilityIdentifier("voice.open-chat")
+            }
             Spacer()
             SecretaryMicRing(level: voiceLevel, isFailed: isFailed)
                 .frame(maxWidth: 340)
@@ -194,14 +258,13 @@ struct SecretaryVoiceScreen: View {
             Spacer()
             // Завершить звонок — свайп внизу, под большим пальцем, а не
             // крестик сверху (владелец 26.09.2026).
-            HangUpSlider { dismiss() }
+            HangUpSlider { Task { await viewModel.stop() } }
+                .accessibilityIdentifier("voice.end")
         }
         .padding(TFSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.tfBackground.ignoresSafeArea())
         .navigationBarBackButtonHidden()
-        .task { await viewModel.start() }
-        .onDisappear { Task { await viewModel.stop() } }
     }
 
     private var voiceLevel: Double {
@@ -236,94 +299,6 @@ struct SecretaryVoiceScreen: View {
         case .listening, .thinking: "Помощник владельца слушает"
         case .speaking: "Помощник владельца говорит"
         case .failed(let message): "Не получилось: \(message)"
-        }
-    }
-}
-
-/// Паттерн веб-компонента src/components/MicRing.tsx: 96 радиальных штрихов,
-/// одинаковые hash-фазы, тройная волна, LERP и свечение активных кончиков.
-/// level уже нормирован AudioLevelMeter; веб-усиление сырого RMS здесь не нужно.
-private struct SecretaryMicRing: View {
-    let level: Double
-    var isFailed = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var lengths = Array(repeating: 5.0, count: 96)
-    @State private var inputLevel = 0.0
-
-    private static let personalities: [(phase: Double, speed: Double, bias: Double)] =
-        (0..<96).map { i in
-            func fraction(_ value: Double) -> Double { value - floor(value) }
-            let n = Double(i)
-            return (
-                fraction(sin(n * 12.9898 + 78.233) * 43758.5453) * .pi * 2,
-                0.35 + fraction(sin(n * 39.346 + 11.135) * 43758.5453) * 0.95,
-                0.45 + fraction(sin(n * 91.713 + 47.281) * 43758.5453) * 0.55
-            )
-        }
-
-    var body: some View {
-        ZStack {
-            Canvas { context, size in
-                let side = min(size.width, size.height)
-                // На вебе canvas 360px: сохраняем пропорции на разных iPhone.
-                let scale = side / 360
-                let radius = side * 0.36
-                let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                for i in 0..<96 {
-                    let length = reduceMotion ? 5 : lengths[i]
-                    let intensity = min(1, max(0, (length - 5) / 17))
-                    let angle = Double(i) / 96 * .pi * 2 - .pi / 2
-                    let start = CGPoint(x: center.x + cos(angle) * radius,
-                                        y: center.y + sin(angle) * radius)
-                    let end = CGPoint(x: center.x + cos(angle) * (radius + length * scale),
-                                      y: center.y + sin(angle) * (radius + length * scale))
-                    var stroke = Path()
-                    stroke.move(to: start)
-                    stroke.addLine(to: end)
-                    context.stroke(stroke, with: .color(Color.tfRed.opacity(0.5 + intensity * 0.5)),
-                                   style: StrokeStyle(lineWidth: (2 + intensity * 1.2) * scale, lineCap: .round))
-                    if intensity > 0.2 {
-                        let glowRadius = (3 + intensity * 5) * scale
-                        let glow = Path(ellipseIn: CGRect(x: end.x - glowRadius, y: end.y - glowRadius,
-                                                         width: glowRadius * 2, height: glowRadius * 2))
-                        context.fill(glow, with: .radialGradient(
-                            Gradient(colors: [Color.tfRed.opacity(intensity * 0.45), Color.tfRed.opacity(0)]),
-                            center: end, startRadius: 0, endRadius: glowRadius))
-                    }
-                }
-            }
-            Image(systemName: "mic")
-                .font(.system(size: 44, weight: .regular))
-                .foregroundStyle(Color.tfRed)
-        }
-        .opacity(isFailed ? 0.4 : 1)
-        .accessibilityHidden(true)
-        .onChange(of: level, initial: true) { _, value in inputLevel = value }
-        .task(id: reduceMotion) {
-            guard !reduceMotion else { return }
-            var previousTime = Date.timeIntervalSinceReferenceDate
-            while !Task.isCancelled {
-                let now = Date.timeIntervalSinceReferenceDate
-                // Веб LERP=0.15 при 60fps; пересчёт сохраняет затухание при 30fps.
-                let smoothing = 1 - pow(0.85, min(0.1, now - previousTime) * 60)
-                previousTime = now
-                let volume = inputLevel.isFinite ? min(1, max(0, inputLevel)) : 0
-                var next = lengths
-                for i in 0..<96 {
-                    let personality = Self.personalities[i]
-                    let t = now * 1.6 * personality.speed + personality.phase
-                    let wave = sin(t) * 0.45 + sin(t * 2.13 + 1.7) * 0.3
-                        + sin(t * 4.71 - 0.9) * 0.15 + 0.4
-                    let target = 5 + volume * min(1, max(0, wave)) * personality.bias * 17
-                    next[i] += (target - next[i]) * smoothing
-                    if abs(next[i] - 5) < 0.01 { next[i] = 5 }
-                }
-                if next != lengths { lengths = next }
-                // В тишине кольцо неподвижно; не перерисовываем весь экран.
-                let idle = volume == 0 && next.allSatisfy { $0 == 5 }
-                do { try await Task.sleep(for: .seconds(idle ? 0.1 : 1.0 / 30)) }
-                catch { return }
-            }
         }
     }
 }

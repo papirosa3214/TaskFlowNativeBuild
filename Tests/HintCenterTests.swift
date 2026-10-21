@@ -7,6 +7,18 @@ final class HintCenterTests: XCTestCase {
     private var defaults: UserDefaults!
     private let frame = CGRect(x: 10, y: 10, width: 40, height: 40)
 
+    func testVoiceHintExplainsMinimizeAndCompletesAtMiniPlayer() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.voiceConversation])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.voiceMinimize, frame: frame)
+        XCTAssertEqual(center.active?.step, "minimize")
+        center.tapped(anchor: HintAnchorID.voiceMinimize)
+        center.report(anchor: HintAnchorID.voiceMiniPlayer, frame: frame)
+        XCTAssertEqual(center.active?.step, "mini")
+        center.next()
+        XCTAssertTrue(center.completed.contains("voice-conversation"))
+    }
+
     override func setUp() {
         defaults = UserDefaults(suiteName: "hints-test-\(UUID().uuidString)")
     }

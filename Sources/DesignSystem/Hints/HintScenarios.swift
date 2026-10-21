@@ -4,6 +4,8 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let voiceMinimize = "voice.minimize"
+    static let voiceMiniPlayer = "voice.mini-player"
     static let roleExternalApps = "role.external-apps"
     static let chatCoordination = "chat.coordination"
     static let systemSummary = "system.summary"
@@ -30,7 +32,17 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
+    static let all: [HintScenario] = [voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination]
+
+    static let voiceConversation = HintScenario(
+        id: "voice-conversation", title: "Голос и переписка", start: "minimize",
+        steps: [
+            "minimize": HintStep(anchor: HintAnchorID.voiceMinimize, title: "Разговор остаётся с вами",
+                text: "Сверните голосовой экран: микрофон останется включённым, а вы сможете читать переписку и пользоваться приложением. Реплики и сводки сохраняются в том чате, из которого начат разговор.",
+                next: "mini", advancesOnTap: true),
+            "mini": HintStep(anchor: HintAnchorID.voiceMiniPlayer, title: "Вернуться к разговору",
+                text: "Нажмите на шарик, чтобы раскрыть голосовой экран. Удерживайте его, чтобы открыть переписку или завершить разговор.")
+        ])
 
     static let externalApps = HintScenario(
         id: "external-apps", title: "Внешние приложения Помощника владельца", start: "access",
