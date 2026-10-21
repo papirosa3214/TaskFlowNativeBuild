@@ -247,6 +247,7 @@ struct TaskCardContent: View {
     @Environment(RealtimeClient.self) private var realtime
     @Environment(\.scenePhase) private var scenePhase
     @State private var journalVisibleCount = 50
+    @State private var diagAlertMessage: String? = nil
 
     private var parentBranchPlan: ApiCollaborationPlan? {
         let plan = viewModel.collaborationPlanState.plan ?? viewModel.collaborationPlanState.draftPlan
@@ -310,6 +311,11 @@ struct TaskCardContent: View {
                 scheduleSave: scheduleSave
             ))
             .modifier(AutosaveFieldsModifier(viewModel: viewModel, scheduleSave: scheduleSave))
+            .alert("Диагностика", isPresented: Binding(get: { diagAlertMessage != nil }, set: { if !$0 { diagAlertMessage = nil } })) {
+                Button("Понятно") { diagAlertMessage = nil }
+            } message: {
+                Text(diagAlertMessage ?? "")
+            }
             .onDisappear(perform: handleDisappear)
     }
 
@@ -3021,6 +3027,7 @@ struct TaskCardContent: View {
         async let roles: Void = viewModel.loadRoles()
         async let activity: Void = viewModel.loadActivity(revision: refreshSnapshot.activityRevision)
         _ = await (card, roles, activity)
+        diagAlertMessage = "Комментариев: \(viewModel.journalEntries.count), событий: \(viewModel.loadedTask?.events?.count ?? 0), подзадач: \(viewModel.loadedTask?.subtasks.count ?? 0)"
         Task {
             await loadTasksIfNeeded()
             await loadProjectsIfNeeded()
