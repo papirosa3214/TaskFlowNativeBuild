@@ -12,6 +12,7 @@ final class RoleAvatarAssetTests: XCTestCase {
             "role_analyst": "RoleAvatarAnalyst",
             "role_critic_verifier": "RoleAvatarCriticVerifier",
             "role_designer": "RoleAvatarDesigner",
+            "role_infra_engineer": "RoleAvatarInfraEngineer",
             "u-secretary": "RoleAvatarSecretary"
         ]
         for (userID, asset) in expected {
@@ -21,6 +22,20 @@ final class RoleAvatarAssetTests: XCTestCase {
             }
             XCTAssertLessThan(alpha(in: image, x: 0, y: 0), 10, "Opaque corner: \(asset)")
         }
+    }
+
+    /// У «Инженера .110» портрет есть только в комплекте «Иллюстрация».
+    /// В «Плакате» и «Гравюре» его нет: там роль остаётся инициалами, как
+    /// у владельца, — имя несуществующего ассета дало бы пустой кружок.
+    func testInfraEngineerHasPortraitOnlyInIllustrationSet() {
+        XCTAssertEqual(RoleAvatarAsset.imageName(for: "infra_engineer", appearance: .current),
+                       "RoleAvatarInfraEngineer")
+        XCTAssertNil(RoleAvatarAsset.imageName(for: "infra_engineer", appearance: .previous))
+        XCTAssertNil(RoleAvatarAsset.imageName(for: "infra_engineer", appearance: .noir))
+        XCTAssertEqual(RoleAvatarAsset.loopName(for: "infra_engineer", appearance: .current),
+                       "RoleLoopInfraEngineer")
+        XCTAssertNil(RoleAvatarAsset.loopName(for: "infra_engineer", appearance: .previous))
+        XCTAssertNil(RoleAvatarAsset.loopName(for: "infra_engineer", appearance: .noir))
     }
 
     func testHumanAndUnknownAccountsKeepTheirExistingAvatarFallback() {

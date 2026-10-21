@@ -12,9 +12,16 @@ struct TeamAppearanceSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showRoles = false
     @State private var editingRole: String?
-    private let roles = ["researcher", "analyst", "builder", "architect", "code_orchestrator", "secretary", "critic_verifier", "qa", "designer"]
+    private let roles = ["researcher", "analyst", "builder", "architect", "code_orchestrator", "secretary", "critic_verifier", "qa", "designer", "infra_engineer"]
 
     private var showsSecretaryVariants: Bool { selected == TeamAvatarAppearance.noir.rawValue }
+
+    /// Роли, у которых в этом комплекте есть портрет. У «Инженера .110» он
+    /// нарисован только для «Иллюстрации», поэтому в «Плакате» и «Гравюре» его
+    /// в сетке нет — там роль остаётся инициалами, как у владельца.
+    private func rolesWithPortrait(in appearance: TeamAvatarAppearance) -> [String] {
+        roles.filter { RoleAvatarAsset.imageName(for: $0, appearance: appearance) != nil }
+    }
 
     var body: some View {
         NavigationStack {
@@ -30,7 +37,7 @@ struct TeamAppearanceSheet: View {
                                 if selected == appearance.rawValue { Image(systemName: "checkmark") }
                             }
                             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 10) {
-                                ForEach(roles, id: \.self) { role in
+                                ForEach(rolesWithPortrait(in: appearance), id: \.self) { role in
                                     if let asset = RoleAvatarAsset.imageName(for: role, appearance: appearance) {
                                         // Превью остаётся статичным НАМЕРЕННО: девять
                                         // одновременно играющих роликов в листе роняют
@@ -143,7 +150,7 @@ struct TeamAppearanceSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
             .navigationDestination(isPresented: $showRoles) {
                 List {
-                    ForEach(roles, id: \.self) { role in
+                    ForEach(rolesWithPortrait(in: TeamAvatarAppearance(rawValue: selected) ?? .current), id: \.self) { role in
                         Button {
                             editingRole = role
                         } label: {

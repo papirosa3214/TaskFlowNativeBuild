@@ -78,6 +78,7 @@ enum AvatarCrop {
         case "critic_verifier": return "Критик"
         case "qa": return "QA"
         case "designer": return "Дизайнер"
+        case "infra_engineer": return "Инженер .110"
         default: return role
         }
     }

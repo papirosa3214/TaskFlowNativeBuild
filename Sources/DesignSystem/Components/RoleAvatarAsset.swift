@@ -43,6 +43,7 @@ enum RoleAvatarAsset {
         case "designer": return "Designer"
         case "secretary": return "Secretary"
         case "code_orchestrator", "orchestrator": return "Orchestrator"
+        case "infra_engineer": return "InfraEngineer"
         default: return nil
         }
     }
@@ -70,10 +71,23 @@ enum RoleAvatarAsset {
         return suffix + "Male"
     }
 
+    /// Роли, у которых портрет есть только в комплекте «Иллюстрация».
+    ///
+    /// Владелец 20.10.2026: у «Инженера .110» нарисован один портрет, в
+    /// комплектах «Плакат» и «Гравюра» его нет, и там роль остаётся тем, чем
+    /// была: инициалами. Поэтому для этих ролей имя картинки в остальных
+    /// комплектах — `nil`, а не «TeamPrevious…»/«TeamNoir…» на несуществующий
+    /// ассет (пустой чёрный кружок вместо инициалов).
+    private static let illustrationOnlyRoles: Set<String> = ["infra_engineer"]
+
     static func imageName(for role: String?, appearance: TeamAvatarAppearance? = nil,
                           secretaryVariant: TeamAvatarSecretaryVariant? = nil) -> String? {
         guard let suffix = suffix(for: role) else { return nil }
-        switch resolve(appearance) {
+        let resolved = resolve(appearance)
+        if resolved != .current, let role, illustrationOnlyRoles.contains(role) {
+            return nil
+        }
+        switch resolved {
         case .current: return "RoleAvatar" + suffix
         case .previous: return "TeamPrevious" + suffix
         case .noir:
@@ -91,6 +105,9 @@ enum RoleAvatarAsset {
         // 10.10.2026: ролик «Дизайнера» появился (RoleLoopDesigner), роль
         // добавлена в список. До этого вьюха рисовала пустой видеослой.
         "designer",
+        // 20.10.2026: ролик «Инженера .110» (RoleLoopInfraEngineer) — только
+        // для комплекта «Иллюстрация», см. `illustrationOnlyRoles`.
+        "infra_engineer",
     ]
 
     /// Имя ролика в бандле (без `.mp4`) для роли, `nil` — анимации нет.
@@ -102,7 +119,9 @@ enum RoleAvatarAsset {
     static func loopName(for role: String?, appearance: TeamAvatarAppearance? = nil,
                          secretaryVariant: TeamAvatarSecretaryVariant? = nil) -> String? {
         guard let role, loopRoles.contains(role), let suffix = suffix(for: role) else { return nil }
-        switch resolve(appearance) {
+        let resolved = resolve(appearance)
+        if resolved != .current, illustrationOnlyRoles.contains(role) { return nil }
+        switch resolved {
         case .current: return "RoleLoop" + suffix
         case .noir:
             let name = noirSuffix(role, suffix, variant: resolve(secretaryVariant))
