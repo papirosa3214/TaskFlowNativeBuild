@@ -1,26 +1,20 @@
 import SwiftUI
 import AVFoundation
 
-/// Сколько видео-портретов могут одновременно играть на экране.
+/// Сколько разных роликов могут одновременно играть на экране.
 ///
-/// Владелец 11.10.2026, после зависания «Активности»: каждый кружок — это
-/// отдельный `AVQueuePlayer` с `AVPlayerLooper`, и на списке из 69 выполненных
-/// задач приложение встало колом — спиндамп симулятора показал 199 потоков и
-/// 20 видеоконвертеров, главный поток не отвечал. Кружок в списке — это 18-20pt,
-/// зритель различает «живую» и «статичную» картинку, но не различает их ВОСЕМЬ
-/// таких одновременно; платить за это надоевшим подтормаживанием нельзя.
+/// Владелец 11.10.2026, после зависания «Активности»: каждый кружок был
+/// отдельным `AVQueuePlayer` с `AVPlayerLooper`, и на списке из 69 задач
+/// приложение встало колом — 199 потоков и 20 видеоконвертеров. Тогда порог
+/// поставили на 5 кружков.
 ///
-/// ## Почему 5
+/// ## С 21.10.2026 — один плеер на ролик, порог 12 роликов
 ///
-/// - 5 — примерно то, сколько строк крупного списка помещается в первый экран;
-///   дальше список либо листают (тогда освободившиеся слоты занимает новое), либо
-///   не смотрят в упор, и анимация там не нужна.
-/// - 69 сработали как «много», 5 — как «много ИЗ 69 на одном экране»: на списке
-///   до 5 задач видео играет, на списке из 69 первые пять играют, остальные
-///   автоматически становятся статичными. Порог единый для приложения, а не
-///   угадывание на каждый экран.
-/// - Запас есть: каждый плеер тянет несколько потоков декодирования, поэтому
-///   даже в 5 одновременных счётчик потоков остаётся втрое меньше, чем был.
+/// Владелец: в панели «Комнаты» 10 ролей, а играли только пять. Теперь плеер
+/// заводится ОДИН на ролик (`TFSharedLoopPlayers`) и показывается во всех
+/// кружках этой роли сразу — 69 строк одной роли это один плеер, а не 69.
+/// Поэтому и порог считает не кружки, а разные ролики: 12 — все внутренние
+/// роли с запасом. Тринадцатый разный ролик на экране рисуется статикой.
 ///
 /// Отдельный тумблер «Анимировать» («Внешний вид») при выключенной анимации
 /// не трогаем — порог работает только поверх неё.
@@ -28,28 +22,76 @@ import AVFoundation
 final class TFPortraitVideoBudget: ObservableObject {
     static let shared = TFPortraitVideoBudget()
 
-    /// Порог одновременных видео-портретов на экране. Больше — статика.
-    static let limit = 5
+    /// Порог одновременных РАЗНЫХ роликов на экране. Больше — статика.
+    static let limit = 12
 
-    /// Кто сейчас имеет право играть. Порядок важен: `onAppear` идёт сверху
-    /// вниз, поэтому в лимите остаются те кружки, что ближе к началу списка.
-    @Published private(set) var activeIDs: Set<UUID> = []
+    /// Кружок → его ролик. Порядок `onAppear` идёт сверху вниз, поэтому в
+    /// лимите остаются роли, что ближе к началу списка.
+    @Published private(set) var active: [UUID: String] = [:]
 
     private init() {}
 
     /// `true` — этому кружку можно играть.
-    func allows(_ id: UUID) -> Bool { activeIDs.contains(id) }
+    func allows(_ id: UUID) -> Bool { active[id] != nil }
 
-    /// Регистрирует кружок. `false` — места в бюджете нет, рисуем статику.
-    func acquire(_ id: UUID) -> Bool {
-        if activeIDs.contains(id) { return true }
-        guard activeIDs.count < Self.limit else { return false }
-        activeIDs.insert(id)
+    /// Регистрирует кружок. Ролик, который уже играет, места не занимает.
+    /// `false` — разных роликов уже `limit`, рисуем статику.
+    @discardableResult
+    func acquire(_ id: UUID, loop: String) -> Bool {
+        if active[id] != nil { return true }
+        let playing = Set(active.values)
+        guard playing.contains(loop) || playing.count < Self.limit else { return false }
+        active[id] = loop
         return true
     }
 
     func release(_ id: UUID) {
-        activeIDs.remove(id)
+        active[id] = nil
+    }
+}
+
+/// Общие плееры роликов: один `AVQueuePlayer` + `AVPlayerLooper` на ролик,
+/// сколько бы кружков его ни показывали (21.10.2026). Плеер живёт, пока его
+/// держит хоть один кружок.
+@MainActor
+final class TFSharedLoopPlayers {
+    static let shared = TFSharedLoopPlayers()
+
+    private struct Entry {
+        let player: AVQueuePlayer
+        let looper: AVPlayerLooper
+        var holders: Int
+    }
+
+    private var entries: [String: Entry] = [:]
+
+    private init() {}
+
+    func retain(_ name: String) -> AVQueuePlayer? {
+        if var entry = entries[name] {
+            entry.holders += 1
+            entries[name] = entry
+            return entry.player
+        }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "mp4") else { return nil }
+        let player = AVQueuePlayer()
+        player.isMuted = true
+        player.actionAtItemEnd = .advance
+        let looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+        entries[name] = Entry(player: player, looper: looper, holders: 1)
+        player.playImmediately(atRate: 1)
+        return player
+    }
+
+    func release(_ name: String) {
+        guard var entry = entries[name] else { return }
+        entry.holders -= 1
+        if entry.holders > 0 { entries[name] = entry; return }
+        // Последний кружок ушёл — плеер останавливаем и отпускаем.
+        entry.player.pause()
+        entry.looper.disableLooping()
+        entry.player.removeAllItems()
+        entries[name] = nil
     }
 }
 
@@ -140,13 +182,14 @@ struct TFRolePortrait: View {
             .onAppear {
                 // Занимаем слот только если реально собираемся играть, иначе
                 // кружок без ролика зря съедал бы чужое место в бюджете.
-                if avatarsAnimated, allowsAnimation { budget.acquire(budgetID) }
+                if avatarsAnimated, allowsAnimation, let loopName { budget.acquire(budgetID, loop: loopName) }
             }
             .onDisappear { budget.release(budgetID) }
     }
 }
 
-/// Слой с роликом. `AVPlayerLayer` + `AVPlayerLooper` поверх `AVQueuePlayer`.
+/// Слой с роликом: общий плеер ролика из `TFSharedLoopPlayers`, один на все
+/// кружки этой роли (21.10.2026).
 private struct TFLoopingAvatarVideo: UIViewRepresentable {
     let resourceName: String
 
@@ -156,32 +199,25 @@ private struct TFLoopingAvatarVideo: UIViewRepresentable {
         let view = PlayerLayerView()
         view.playerLayer.videoGravity = .resizeAspectFill
         view.playerLayer.backgroundColor = UIColor.black.cgColor
-        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp4") else {
-            return view
+        if let player = TFSharedLoopPlayers.shared.retain(resourceName) {
+            context.coordinator.name = resourceName
+            view.playerLayer.player = player
         }
-        let player = AVQueuePlayer()
-        player.isMuted = true
-        player.actionAtItemEnd = .advance
-        context.coordinator.player = player
-        context.coordinator.looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
-        view.playerLayer.player = player
-        player.playImmediately(atRate: 1)
         return view
     }
 
     func updateUIView(_ uiView: PlayerLayerView, context: Context) {}
 
     static func dismantleUIView(_ uiView: PlayerLayerView, coordinator: Coordinator) {
-        // Иначе плеер продолжает играть после ухода вьюхи с экрана.
-        coordinator.player?.pause()
-        coordinator.player?.replaceCurrentItem(with: nil)
-        coordinator.looper = nil
-        coordinator.player = nil
+        // Слой отпускает плеер; сам плеер останавливается, когда уходит
+        // последний кружок этой роли.
+        uiView.playerLayer.player = nil
+        if let name = coordinator.name { TFSharedLoopPlayers.shared.release(name) }
+        coordinator.name = nil
     }
 
     final class Coordinator {
-        var looper: AVPlayerLooper?
-        var player: AVQueuePlayer?
+        var name: String?
     }
 
     final class PlayerLayerView: UIView {
