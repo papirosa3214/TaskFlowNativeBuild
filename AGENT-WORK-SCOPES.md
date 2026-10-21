@@ -1,5 +1,7 @@
 # Реестр ограничений работ
 
+| LOCK-NOTE-LIST-DATA-LOSS-20261022 | REVIEW | Notes serialization | Список не должен поглощать следующие таблицы и заголовки; восстановление карты .110 | `AGENT-WORK-SCOPES.md`, `Sources/Features/Notes/NoteDocument.swift`, `Tests/NoteDocumentSerializationTests.swift`, `docs/2026-10-22-note-list-data-loss.md`, `docs/2026-10-22-note-list-data-loss/` | 3 unit-теста: RED на прежнем коде, GREEN после проверки isListItem; карта прочитана через API: 6 таблиц, 73 строки. UI/симулятор/iPhone не запускались по указанию владельца | Codex | Исправление в исходнике; установленное приложение не обновлялось |
+
 Единственная каноническая папка: `/Users/max/Проекты/TaskFlowNativeBuild`.
 Копии, зеркала и worktree не создаются. По умолчанию весь исходный код
 заморожен: менять можно только файлы, перечисленные в активной строке

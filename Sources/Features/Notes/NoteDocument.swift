@@ -418,7 +418,7 @@ extension NoteDocument {
         let listType = listTypeName(blocks[start].kind)
         var items: [[String: Any]] = []
 
-        while i < blocks.count, blocks[i].level == level, listTypeName(blocks[i].kind) == listType {
+        while i < blocks.count, blocks[i].kind.isListItem, blocks[i].level == level, listTypeName(blocks[i].kind) == listType {
             var item: [String: Any] = ["type": listType == "taskList" ? "taskItem" : "listItem"]
             if case .taskItem(let checked) = blocks[i].kind {
                 item["attrs"] = ["checked": checked]

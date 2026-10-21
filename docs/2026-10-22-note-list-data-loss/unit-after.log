@@ -1,0 +1,27 @@
+Building for debugging...
+[1 / 5]
+[2 / 6] TaskFlow
+[3 / 7] TaskFlow
+[7 / 11] TaskFlow
+[10 / 11] TaskFlowTests-product
+Build complete! (1,18 с)
+Test Suite 'All tests' started at 2026-10-22 01:06:13.443.
+Test Suite 'TaskFlowTests.xctest' started at 2026-10-22 01:06:13.444.
+Test Suite 'NoteDocumentSerializationTests' started at 2026-10-22 01:06:13.444.
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testAllListKindsPreserveFollowingNonListBlocks]' started.
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testAllListKindsPreserveFollowingNonListBlocks]' passed (0.001 seconds).
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testBulletListStopsBeforeTableHeadingAndParagraph]' started.
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testBulletListStopsBeforeTableHeadingAndParagraph]' passed (0.001 seconds).
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testNestedListStopsBeforeFollowingTable]' started.
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testNestedListStopsBeforeFollowingTable]' passed (0.000 seconds).
+Test Suite 'NoteDocumentSerializationTests' passed at 2026-10-22 01:06:13.445.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'TaskFlowTests.xctest' passed at 2026-10-22 01:06:13.445.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'All tests' passed at 2026-10-22 01:06:13.445.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+EXIT=0

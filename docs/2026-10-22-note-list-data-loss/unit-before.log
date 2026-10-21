@@ -1,0 +1,34 @@
+Building for debugging...
+[2 / 6] TaskFlow
+[3 / 7] TaskFlow
+[7 / 11] TaskFlow
+[10 / 14] TaskFlowTests-product
+[12 / 16] TaskFlowTests-product
+[18 / 20] TaskFlowTests-product
+Build complete! (1,27 с)
+Test Suite 'All tests' started at 2026-10-22 01:05:54.562.
+Test Suite 'TaskFlowTests.xctest' started at 2026-10-22 01:05:54.562.
+Test Suite 'NoteDocumentSerializationTests' started at 2026-10-22 01:05:54.562.
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testAllListKindsPreserveFollowingNonListBlocks]' started.
+/private/tmp/taskflow-note-regression/Tests/TaskFlowTests/NoteDocumentSerializationTests.swift:57: error: -[TaskFlowTests.NoteDocumentSerializationTests testAllListKindsPreserveFollowingNonListBlocks] : XCTAssertEqual failed: ("[TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem]") is not equal to ("[TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.paragraph, TaskFlow.BlockKind.heading(level: 2), TaskFlow.BlockKind.horizontalRule, TaskFlow.BlockKind.codeBlock(language: Optional("sh")), TaskFlow.BlockKind.blockquote]")
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testAllListKindsPreserveFollowingNonListBlocks]' failed (0.047 seconds).
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testBulletListStopsBeforeTableHeadingAndParagraph]' started.
+/private/tmp/taskflow-note-regression/Tests/TaskFlowTests/NoteDocumentSerializationTests.swift:23: error: -[TaskFlowTests.NoteDocumentSerializationTests testBulletListStopsBeforeTableHeadingAndParagraph] : XCTAssertEqual failed: ("[TaskFlow.BlockKind.heading(level: 1), TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem]") is not equal to ("[TaskFlow.BlockKind.heading(level: 1), TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.heading(level: 2), TaskFlow.BlockKind.table(rows: [TaskFlow.NoteTableRow(id: D11CDA4B-0EF1-4FE8-9CF7-8A6AAA58BA10, cells: [TaskFlow.NoteTableCell(id: 87EB2D79-9D2E-488A-B5D3-62BFB7EF09C6, runs: [TaskFlow.RichRun(text: "Проект", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: true), TaskFlow.NoteTableCell(id: 16E183C2-61D8-46CE-AE2C-4EC697231DD4, runs: [TaskFlow.RichRun(text: "Порт", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: true)]), TaskFlow.NoteTableRow(id: AC767E7A-E27D-4379-8994-19EDA91A1660, cells: [TaskFlow.NoteTableCell(id: 908CC891-A404-4D70-BD69-F60942808BB1, runs: [TaskFlow.RichRun(text: "TaskFlow", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: false), TaskFlow.NoteTableCell(id: 4B4BD973-934D-404C-AE87-40954C963415, runs: [TaskFlow.RichRun(text: "3001", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: false)])]), TaskFlow.BlockKind.paragraph]")
+/private/tmp/taskflow-note-regression/Tests/TaskFlowTests/NoteDocumentSerializationTests.swift:27: error: -[TaskFlowTests.NoteDocumentSerializationTests testBulletListStopsBeforeTableHeadingAndParagraph] : XCTAssertEqual failed: ("["heading", "bulletList"]") is not equal to ("["heading", "bulletList", "heading", "table", "paragraph"]")
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testBulletListStopsBeforeTableHeadingAndParagraph]' failed (0.001 seconds).
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testNestedListStopsBeforeFollowingTable]' started.
+/private/tmp/taskflow-note-regression/Tests/TaskFlowTests/NoteDocumentSerializationTests.swift:44: error: -[TaskFlowTests.NoteDocumentSerializationTests testNestedListStopsBeforeFollowingTable] : XCTAssertEqual failed: ("[TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem]") is not equal to ("[TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.bulletItem, TaskFlow.BlockKind.table(rows: [TaskFlow.NoteTableRow(id: D56C4DB1-31B3-497B-9E77-E9A3C18F86E7, cells: [TaskFlow.NoteTableCell(id: 2079E432-92AE-437C-BA25-6276153AE63C, runs: [TaskFlow.RichRun(text: "Модель", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: true), TaskFlow.NoteTableCell(id: 7A5AA24B-313C-4A4B-B1AA-0A9127076F73, runs: [TaskFlow.RichRun(text: "Устройство", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: true)]), TaskFlow.NoteTableRow(id: 8C57A60D-6AEF-4A6E-94CC-96F0E72FD7E9, cells: [TaskFlow.NoteTableCell(id: 5B164B42-912E-48E9-8DBE-881DC033AD32, runs: [TaskFlow.RichRun(text: "BGE-M3", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: false), TaskFlow.NoteTableCell(id: 1E177624-8C34-4101-A6E6-8ECC77CB6155, runs: [TaskFlow.RichRun(text: "GPU", bold: false, italic: false, underline: false, strike: false, highlight: false, code: false, linkHref: nil)], isHeader: false)])]), TaskFlow.BlockKind.bulletItem]")
+Test Case '-[TaskFlowTests.NoteDocumentSerializationTests testNestedListStopsBeforeFollowingTable]' failed (0.000 seconds).
+Test Suite 'NoteDocumentSerializationTests' failed at 2026-10-22 01:05:54.611.
+	 Executed 3 tests, with 4 failures (0 unexpected) in 0.049 (0.049) seconds
+Test Suite 'TaskFlowTests.xctest' failed at 2026-10-22 01:05:54.611.
+	 Executed 3 tests, with 4 failures (0 unexpected) in 0.049 (0.049) seconds
+Test Suite 'All tests' failed at 2026-10-22 01:05:54.611.
+	 Executed 3 tests, with 4 failures (0 unexpected) in 0.049 (0.049) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+Note: Some test targets reported failures:
+  - TaskFlowTests (XCTest)
+EXIT=1
