@@ -5,6 +5,21 @@ import Foundation
 public struct ChatRoomsSnapshot: Decodable, Sendable {
     public let common: CommonRoom
     public let roles: [RoleRoom]
+    /// Внешние агенты без постоянной комнаты (владелец 21.10.2026): в панели
+    /// их нет, комнату заводят из меню «…». Старый сервер поля не шлёт.
+    public var externalCandidates: [RoleChatMember] = []
+
+    enum CodingKeys: String, CodingKey {
+        case common, roles
+        case externalCandidates = "external_candidates"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        common = try c.decode(CommonRoom.self, forKey: .common)
+        roles = try c.decode([RoleRoom].self, forKey: .roles)
+        externalCandidates = try c.decodeIfPresent([RoleChatMember].self, forKey: .externalCandidates) ?? []
+    }
 
     public struct CommonRoom: Decodable, Sendable {
         public let chatID: String

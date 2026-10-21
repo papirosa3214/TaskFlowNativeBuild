@@ -35,6 +35,14 @@ public extension APIClient {
         return response.chats
     }
 
+    /// Постоянная личная комната роли — `POST /api/chats/with-role`; для
+    /// внешнего агента создаёт её по просьбе владельца.
+    func personalRoom(roleID: String) async throws -> RoleChat {
+        struct Body: Encodable { let role_id: String }
+        let response: RoleChatEnvelope = try await request(.post, "/chats/with-role", body: Body(role_id: roleID))
+        return response.chat
+    }
+
     /// Панель «Комнаты» — `GET /api/chats/rooms` (21.10.2026).
     func chatRooms() async throws -> ChatRoomsSnapshot {
         try await request(.get, "/chats/rooms")

@@ -164,6 +164,16 @@ struct RoleChatsScreen: View {
                     }
                         .accessibilityIdentifier("chats.menu.closed")
                     Divider()
+                    if let candidates = rooms?.externalCandidates, !candidates.isEmpty {
+                        // Внешние агенты — без постоянной комнаты, пока владелец
+                        // сам её не заведёт (21.10.2026).
+                        Menu {
+                            ForEach(candidates) { agent in
+                                Button(agent.name) { Task { await openExternalRoom(agent) } }
+                            }
+                        } label: { Label("Комната внешнего агента", systemImage: "person.crop.circle.badge.plus") }
+                        .accessibilityIdentifier("chats.menu.externalRoom")
+                    }
                     Button("Чат с участниками") { showingCreate = true }
                     Button("Группа проекта") { showingProjectCreate = true }
                 } label: { Image(systemName: "ellipsis") }
@@ -231,6 +241,14 @@ struct RoleChatsScreen: View {
                 }
             }
         }
+    }
+
+    private func openExternalRoom(_ agent: RoleChatMember) async {
+        do {
+            let room = try await api.personalRoom(roleID: agent.id)
+            try await refreshList()
+            openRoute?(.roleChat(id: room.id))
+        } catch { errorMessage = error.localizedDescription }
     }
 
     private func setClosed(_ chat: RoleChat, closed: Bool) async {
