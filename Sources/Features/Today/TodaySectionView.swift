@@ -60,7 +60,7 @@ struct TodaySectionView: View {
     /// `|dx| > |dy| * 2.0` и `|dx| ≥ 80`, чтобы вертикальная прокрутка
     /// выигрывала по умолчанию. На границах вкладок переход игнорируется;
     /// анимация `easeInOut 0.2 c`.
-    private var tabSwipeGesture: some Gesture {
+    private var tabSwipeGesture: HorizontalPan {
         HorizontalPan(
             onChange: { _ in },
             onEnd: { dx, _ in
