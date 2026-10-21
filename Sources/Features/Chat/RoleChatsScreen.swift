@@ -371,11 +371,13 @@ private struct SessionGroupHeader: View {
 
     var body: some View {
         Button(action: onToggle) {
-            // Подзаголовок — шрифтом разделов «Обзора», как в Настройках
-            // (владелец 20.10.2026, `tfSectionDisplay(style: .taskTitle)`).
+            // Подзаголовок — как в карточке задачи (`taskSectionHeader` в
+            // TaskFormScreen): `.tfText(.taskTitle)`, белый (владелец 21.10.2026).
             HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
                 Text(title)
-                    .tfSectionDisplay(style: .taskTitle)
+                    .tfText(.taskTitle)
+                    .foregroundStyle(Color.tfText)
+                    .textCase(nil)
                     .lineLimit(1)
                 if isCollapsed {
                     Text(unread > 0 ? "\(count) · \(unread) новых" : "\(count)")
@@ -387,8 +389,8 @@ private struct SessionGroupHeader: View {
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.sm)
-            // Прилипший заголовок не должен просвечивать строками под ним.
-            .background(Color.tfBackground)
+            // Прилипший заголовок без подложки — полностью прозрачный, как
+            // соседние подзаголовки секций (владелец 03.09.2026).
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
