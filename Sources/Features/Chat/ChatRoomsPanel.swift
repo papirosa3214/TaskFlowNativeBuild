@@ -32,7 +32,7 @@ struct ChatRoomsPanel: View {
                         TFGroupAvatar(identity: snapshot.common.chatID, size: ChatEdgeRailMetrics.avatar)
                             .scaleEffect(1 + stretch)
                             .overlay(alignment: .topTrailing) {
-                                if snapshot.common.live { RoomLinkBadge(color: Color.tfTeal, side: avatarSide) }
+                                if snapshot.common.live { RoomLinkBadge(colors: [Color.tfTeal], side: avatarSide) }
                             }
                     }
                     .buttonStyle(.plain)
@@ -51,15 +51,11 @@ struct ChatRoomsPanel: View {
     private func roleAvatar(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
         RoleMemberAvatar(member: role.member, size: ChatEdgeRailMetrics.avatar)
             .overlay(alignment: .topTrailing) {
-                // По облачку на каждого живого собеседника, до трёх: тогда
-                // пара видна на обоих концах одним цветом (21.10.2026).
+                // Одно облачко, поделённое на полосы — по цвету каждого живого
+                // собеседника, до трёх: пара видна на обоих концах (21.10.2026).
                 let links = Array(role.liveDMs.prefix(3))
                 if !links.isEmpty {
-                    HStack(spacing: -avatarSide * 0.16) {
-                        ForEach(links) { link in
-                            RoomLinkBadge(color: RoomLinkPalette.color(for: link.pair), side: avatarSide)
-                        }
-                    }
+                    RoomLinkBadge(colors: links.map { RoomLinkPalette.color(for: $0.pair) }, side: avatarSide)
                 }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -81,20 +77,27 @@ struct ChatRoomsPanel: View {
     }
 }
 
-/// Облачко диалога над аватаром: пара ролей переписывается.
+/// Облачко диалога над аватаром: роль переписывается. Одно облачко,
+/// поделённое по вертикали на полосы — по цвету каждого собеседника.
 struct RoomLinkBadge: View {
-    let color: Color
+    let colors: [Color]
     let side: CGFloat
 
     var body: some View {
-        Image(systemName: "bubble.left.fill")
-            .resizable()
-            .scaledToFit()
-            .foregroundStyle(color)
-            .frame(width: side * 0.42, height: side * 0.42)
-            .shadow(color: Color.tfBackground, radius: 1)
-            .offset(x: side * 0.08, y: -side * 0.08)
-            .accessibilityHidden(true)
+        HStack(spacing: 0) {
+            ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+                Rectangle().fill(color)
+            }
+        }
+        .mask {
+            Image(systemName: "bubble.left.fill")
+                .resizable()
+                .scaledToFit()
+        }
+        .frame(width: side * 0.42, height: side * 0.42)
+        .shadow(color: Color.tfBackground, radius: 1)
+        .offset(x: side * 0.08, y: -side * 0.08)
+        .accessibilityHidden(true)
     }
 }
 

@@ -75,7 +75,7 @@ struct RoleRoomSheet: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if live { RoomLinkBadge(color: RoomLinkPalette.color(for: pair), side: avatar.rawValue) }
+            if live { RoomLinkBadge(colors: [RoomLinkPalette.color(for: pair)], side: avatar.rawValue) }
         }
     }
 
