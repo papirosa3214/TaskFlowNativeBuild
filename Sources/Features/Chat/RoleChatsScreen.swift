@@ -19,7 +19,13 @@ import QuickLook
 struct RoleChatsScreen: View {
     @Environment(SessionStore.self) private var session
     @State private var chats: [RoleChat] = []
-    @State private var secretary: SecretarySnapshot?
+    /// Панель «Комнаты» (владелец 21.10.2026): Общая, личные комнаты ролей и
+    /// их лички. Раньше личный чат с Помощником стоял отдельным блоком над
+    /// списком — теперь он в панели вместе с остальными ролями.
+    @State private var rooms: ChatRoomsSnapshot?
+    @AppStorage("chats.roomsRail.open") private var isRoomsOpen = false
+    @State private var openedRole: ChatRoomsSnapshot.RoleRoom?
+    @AppStorage("chats.showClosed") private var showsClosed = false
     @State private var listRequestVersion = 0
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -29,21 +35,28 @@ struct RoleChatsScreen: View {
     @State private var realtime = RealtimeClient()
     private let api = APIClient()
 
-    /// Блок «Помощник владельца» кормится старым каналом `owner`: у новых чатов
-    /// свой контракт (`GET /api/chats`), у него — `GET /chat` и `/chat/unread`.
-    private struct SecretarySnapshot: Equatable {
-        var preview: String
-        var fromMe: Bool
-        var createdAt: String?
-        var unread: Int
-    }
 
     var projectsOnly = false
 
     /// Чаты по проектам живут в своей вкладке и в общем списке не светятся
     /// (владелец 06.10.2026).
+    /// Список — сессии (21.10.2026): постоянные комнаты живут в панели.
     private var visibleChats: [RoleChat] {
-        chats.filter { $0.parentChatID == nil && projectsOnly == ($0.projectID != nil) }
+        chats.filter { $0.parentChatID == nil && !$0.isPermanentRoom && projectsOnly == ($0.projectID != nil) }
+    }
+    private var isOwner: Bool { session.currentUser?.role == .owner }
+
+    /// Сессии по проектам: сначала проекты по свежести, «Без проекта» последним.
+    private var sessionGroups: [(title: String, chats: [RoleChat])] {
+        var order: [String] = []
+        var groups: [String: [RoleChat]] = [:]
+        for chat in visibleChats {
+            let key = chat.projectName ?? ""
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(chat)
+        }
+        let named = order.filter { !$0.isEmpty }
+        return (named + (groups[""] == nil ? [] : [""])).map { (title: $0.isEmpty ? "Без проекта" : $0, chats: groups[$0] ?? []) }
     }
     private var projectsUnread: Int {
         chats.filter { $0.parentChatID == nil && $0.projectID != nil }.reduce(0) { $0 + $1.unread }
@@ -57,31 +70,23 @@ struct RoleChatsScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                if isLoading && chats.isEmpty && secretary == nil {
+                if isLoading && chats.isEmpty {
                     ProgressView("Загрузка чатов")
                         .frame(maxWidth: .infinity)
                         .padding(.top, TFSpacing.xl)
+                } else if visibleChats.isEmpty {
+                    Text(projectsOnly ? "Пока нет чатов по проектам." : "Пока нет сессий. Комнаты ролей — на панели справа.")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                        .padding(.top, TFSpacing.xl)
                 } else {
-                    if !projectsOnly {
-                        secretaryBlock
-                        // Граница блока: «Помощник владельца» стоит особняком, а не первым
-                        // в общем списке (владелец 21.09.2026).
-                        TFDivider()
-                    }
-                    if visibleChats.isEmpty {
-                        Text(projectsOnly ? "Пока нет чатов по проектам." : "Пока нет чатов. Создайте чат с одной или несколькими ролями.")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, TFSpacing.screenHorizontal)
-                            .padding(.top, TFSpacing.xl)
-                    } else {
-                    ForEach(Array(visibleChats.enumerated()), id: \.element.id) { index, chat in
-                        NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
-                            chatRow(chat)
-                        }
-                        .buttonStyle(.plain)
-                            if index < visibleChats.count - 1 {
+                    ForEach(sessionGroups, id: \.title) { group in
+                        SessionGroupHeader(title: group.title)
+                        ForEach(Array(group.chats.enumerated()), id: \.element.id) { index, chat in
+                            sessionLink(chat)
+                            if index < group.chats.count - 1 {
                                 // Разделитель отбит до начала текста, а не под
                                 // аватар — так строка читается как строка
                                 // списка, а не как карточка.
@@ -94,6 +99,22 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
+        // Бывшая панель участников чата — теперь в корне раздела и
+        // показывает комнаты (владелец 21.10.2026).
+        .overlay(alignment: .trailing) {
+            if isOwner && !projectsOnly {
+                ChatEdgeRail(isOpen: $isRoomsOpen, openLabel: "Комнаты", closedLabel: "Показать комнаты", identifier: "chats.roomsRail") {
+                    ChatRoomsPanel(snapshot: rooms,
+                                   onOpenCommon: { if let id = rooms?.common.chatID { openRoute?(.roleChat(id: id)) } },
+                                   onOpenRole: { openedRole = $0 })
+                }
+            }
+        }
+        .sheet(item: $openedRole) { role in
+            if let rooms {
+                RoleRoomSheet(role: role, snapshot: rooms) { id in openRoute?(.roleChat(id: id)) }
+            }
+        }
         .tfNativeHeader(projectsOnly ? "Чаты проектов" : "Чаты")
         .tint(Color.tfText)
         .toolbar {
@@ -110,6 +131,11 @@ struct RoleChatsScreen: View {
                         .accessibilityIdentifier("chats.menu.projects")
                         Divider()
                     }
+                    Button { showsClosed.toggle() } label: {
+                        Label("Показать закрытые", systemImage: showsClosed ? "checkmark" : "archivebox")
+                    }
+                        .accessibilityIdentifier("chats.menu.closed")
+                    Divider()
                     Button("Чат с участниками") { showingCreate = true }
                     Button("Группа проекта") { showingProjectCreate = true }
                 } label: { Image(systemName: "ellipsis") }
@@ -136,7 +162,7 @@ struct RoleChatsScreen: View {
                 case .roleChatMessage:
                     Task { await reloadSilently() }
                 case .chatNew:
-                    Task { await loadSecretary() }
+                    Task { await reloadSilently() }
                 default:
                     break
                 }
@@ -145,6 +171,7 @@ struct RoleChatsScreen: View {
             realtime.connect()
         }
         .onDisappear { realtime.disconnect() }
+        .onChange(of: showsClosed) { Task { await load() } }
         .alert("Не удалось загрузить чаты", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -154,38 +181,29 @@ struct RoleChatsScreen: View {
         } message: { Text(errorMessage ?? "") }
     }
 
-    // MARK: - Блок «Помощник владельца»
+    // MARK: - Строка сессии
 
-    @ViewBuilder
-    private var secretaryBlock: some View {
-        // Только владельцу: owner-канал — его разговор с помощником владельца, у
-        // остальных учёток этого чата нет.
-        if session.currentUser?.role == .owner {
-            NavigationLink(value: AppRoute.roleChat(id: "chat-secretary")) {
-                ChatListRow(
-                    avatar: AnyView(TFAvatar(
-                        size: listAvatar,
-                        initials: secretaryInitials,
-                        tint: Color.tfTeal,
-                        userID: "u-secretary"
-                    )),
-                    title: "Помощник владельца",
-                    preview: secretaryPreview,
-                    time: ChatListTime.label(secretary?.createdAt),
-                    unread: secretary?.unread ?? 0
-                )
+    private func sessionLink(_ chat: RoleChat) -> some View {
+        NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
+            chatRow(chat)
+                .opacity(chat.closedAt == nil ? 1 : 0.55)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if isOwner {
+                let closed = chat.closedAt != nil
+                Button { Task { await setClosed(chat, closed: !closed) } } label: {
+                    Label(closed ? "Вернуть сессию" : "Закрыть сессию", systemImage: closed ? "tray.and.arrow.up" : "archivebox")
+                }
             }
-            .buttonStyle(.plain)
         }
     }
 
-    private var secretaryInitials: String {
-        "С"
-    }
-
-    private var secretaryPreview: String {
-        guard let secretary, !secretary.preview.isEmpty else { return "" }
-        return secretary.fromMe ? "Вы: \(secretary.preview)" : secretary.preview
+    private func setClosed(_ chat: RoleChat, closed: Bool) async {
+        do {
+            _ = try await api.closeRoleChat(id: chat.id, closed: closed)
+            try await refreshList()
+        } catch { errorMessage = error.localizedDescription }
     }
 
     // MARK: - Строка чата с ролями
@@ -235,27 +253,18 @@ struct RoleChatsScreen: View {
         catch { errorMessage = error.localizedDescription }
     }
 
-    private static let secretaryChatID = "chat-secretary"
-
     private func refreshList() async throws {
         listRequestVersion += 1
         let version = listRequestVersion
-        let fresh = try await api.roleChats()
+        async let freshChats = api.roleChats(includeClosed: showsClosed)
+        let freshRooms: ChatRoomsSnapshot? = isOwner && !projectsOnly ? try? await api.chatRooms() : nil
+        let fresh = try await freshChats
         guard version == listRequestVersion, !Task.isCancelled else { return }
-        chats = fresh.filter { $0.id != Self.secretaryChatID }
-        guard session.currentUser?.role == .owner else { secretary = nil; return }
-        let room = fresh.first { $0.id == Self.secretaryChatID }
-        let last = room?.lastMessage
-        secretary = SecretarySnapshot(
-            preview: last?.displayText ?? "",
-            fromMe: last?.fromUserID == session.currentUser?.id,
-            createdAt: last?.createdAt,
-            unread: room?.unread ?? 0
-        )
+        chats = fresh
+        if let freshRooms { rooms = freshRooms }
     }
 
     private func reloadSilently() async { try? await refreshList() }
-    private func loadSecretary() async { await reloadSilently() }
 
 }
 
@@ -317,7 +326,23 @@ struct SecretaryChatScreen: View {
 /// Строка списка чатов — одна на все виды (роль, группа, помощник владельца):
 /// аватар, имя, превью, время, бейдж непрочитанных. Строка во всю ширину,
 /// без карточки и шеврона — вид списка, а не меню настроек.
-private struct ChatListRow: View {
+/// Подзаголовок группы сессий — название проекта (21.10.2026).
+private struct SessionGroupHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .tfText(.meta)
+            .foregroundStyle(Color.tfDim)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.top, TFSpacing.lg)
+            .padding(.bottom, TFSpacing.xs)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+struct ChatListRow: View {
     let avatar: AnyView
     let title: String
     let preview: String
@@ -468,7 +493,7 @@ struct RoleMemberAvatar: View {
 /// недели — день недели, ещё дальше — дата. Формат взят у Teams, потому что
 /// строка списка читается «когда было последнее сообщение», а не «сколько
 /// прошло» (`RelativeTime` в этой же папке отвечает на второй вопрос).
-private enum ChatListTime {
+enum ChatListTime {
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
@@ -674,8 +699,6 @@ struct RoleChatRoomScreen: View {
     @State private var isStopping = false
     @State private var workMode: RoleChatWorkMode = .work
     /// Столбец участников справа (владелец 20.10.2026) — помнит, открыт ли.
-    @AppStorage("chat.membersRail.open") private var isMembersRailOpen = false
-    @State private var railRoles: [RoleProfile] = []
     @State private var noticeMessage: String?
     @State private var modelChoice = ChatModelChoice()
     /// Автопрокрутка работает, пока владелец читает конец ленты. Ручной
@@ -849,14 +872,16 @@ struct RoleChatRoomScreen: View {
         }
     }
 
+    /// Личку ролей владелец читает, не будучи участником: писать в неё нельзя.
+    private var isReadOnlyDirectRoom: Bool {
+        chat.roomKind == "dm" && !chat.members.contains { $0.id == session.currentUser?.id }
+    }
+
     private var composerRoom: some View {
         VStack(spacing: 0) {
+            // Панель участников переехала в корень раздела «Чаты» и стала
+            // панелью комнат (владелец 21.10.2026); состав чата — в «О чате».
             messageScroll
-                // Только свободное место между шапкой и полем ввода
-                // (владелец 20.10.2026): на кнопки и композер не заходит.
-                .overlay(alignment: .trailing) {
-                    if !isSelecting { membersRail }
-                }
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
             }
@@ -877,6 +902,14 @@ struct RoleChatRoomScreen: View {
         .chatComposerBar {
             if isSelecting {
                 selectionBar
+            } else if isReadOnlyDirectRoom {
+                // Личка двух ролей: владелец читает, пишет — в личной комнате роли.
+                Text("Личная переписка ролей — только чтение")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfDim)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, TFSpacing.md)
+                    .accessibilityIdentifier("chat.readOnlyDirect")
             } else {
                 ChatVoiceComposer(
                     text: $draft,
@@ -1740,32 +1773,6 @@ struct RoleChatRoomScreen: View {
             try await api.compactRoleChatSession(chatID: chat.id, roleID: member.id)
             noticeMessage = "Сессия «\(member.name)» сжата."
         } catch { errorMessage = error.localizedDescription }
-    }
-
-    private var membersRail: some View {
-        let canManage = chat.createdBy == session.currentUser?.id
-        return RoleChatMembersRail(
-            members: chat.members.filter { $0.id != session.currentUser?.id },
-            addable: railRoles.filter { profile in
-                guard profile.canJoinChat, let account = profile.accountID else { return false }
-                return !chat.members.contains { $0.id == account }
-            },
-            canManage: canManage,
-            isOpen: $isMembersRailOpen,
-            onMention: { member in
-                let needsSpace = !draft.isEmpty && !draft.hasSuffix(" ")
-                draft += (needsSpace ? " " : "") + "@\(member.name) "
-            },
-            onAdd: { id in Task { await changeMembers { try await api.addRoleChatMember(chatID: chat.id, memberID: id) } } },
-            onRemove: { member in Task { await changeMembers { try await api.removeRoleChatMember(chatID: chat.id, memberID: member.id) } } }
-        )
-        .task(id: canManage) {
-            if canManage && railRoles.isEmpty { railRoles = (try? await api.roles()) ?? [] }
-        }
-    }
-
-    private func changeMembers(_ change: () async throws -> RoleChat) async {
-        do { chat = try await change() } catch { errorMessage = error.localizedDescription }
     }
 
     private func newSession() async {

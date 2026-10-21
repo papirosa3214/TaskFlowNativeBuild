@@ -28,9 +28,22 @@ public extension APIClient {
         return response.chats
     }
 
-    func roleChats() async throws -> [RoleChat] {
-        let response: RoleChatsEnvelope = try await request(.get, "/chats")
+    func roleChats(includeClosed: Bool = false) async throws -> [RoleChat] {
+        let query = includeClosed ? [URLQueryItem(name: "include_closed", value: "1")] : []
+        let response: RoleChatsEnvelope = try await request(.get, "/chats", query: query)
         return response.chats
+    }
+
+    /// Панель «Комнаты» — `GET /api/chats/rooms` (21.10.2026).
+    func chatRooms() async throws -> ChatRoomsSnapshot {
+        try await request(.get, "/chats/rooms")
+    }
+
+    /// Закрыть или вернуть сессию; постоянные комнаты сервер не закрывает.
+    func closeRoleChat(id: String, closed: Bool) async throws -> RoleChat {
+        struct Body: Encodable { let closed: Bool }
+        let response: RoleChatEnvelope = try await request(.post, "/chats/\(id)/close", body: Body(closed: closed))
+        return response.chat
     }
 
     func createRoleChat(title: String?, memberIDs: [String]) async throws -> RoleChat {

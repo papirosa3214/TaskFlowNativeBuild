@@ -28,6 +28,16 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     /// Ветка от сообщения (14.10.2026): из какого чата и от какого сообщения.
     public var branchOfChatID: String? = nil
     public var branchOfMessageID: String? = nil
+    /// Назначение комнаты (21.10.2026): `personal` — владелец ↔ роль,
+    /// `dm` — личка ролей, `common` — Общая; `wake` («Заминки» задачи) и
+    /// `handoff` — служебные сессии. `nil` — обычная сессия.
+    public var roomKind: String? = nil
+    /// Проект сессии — для группировки списка.
+    public var projectName: String? = nil
+    public var closedAt: String? = nil
+
+    /// Постоянная комната: живёт в панели «Комнаты», а не в списке сессий.
+    public var isPermanentRoom: Bool { roomKind == "personal" || roomKind == "dm" || roomKind == "common" }
 
     enum CodingKeys: String, CodingKey {
         case id, title, kind, members
@@ -40,6 +50,9 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case lastMessage = "last_message"
         case unreadCount = "unread_count"
         case taskTitle = "task_title"
+        case roomKind = "room_kind"
+        case projectName = "project_name"
+        case closedAt = "closed_at"
     }
 
     public var unread: Int { unreadCount ?? 0 }
