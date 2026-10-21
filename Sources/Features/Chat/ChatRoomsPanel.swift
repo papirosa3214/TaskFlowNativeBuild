@@ -51,8 +51,15 @@ struct ChatRoomsPanel: View {
     private func roleAvatar(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
         RoleMemberAvatar(member: role.member, size: ChatEdgeRailMetrics.avatar)
             .overlay(alignment: .topTrailing) {
-                if let link = role.liveDMs.first {
-                    RoomLinkBadge(color: RoomLinkPalette.color(for: link.pair), side: avatarSide)
+                // По облачку на каждого живого собеседника, до трёх: тогда
+                // пара видна на обоих концах одним цветом (21.10.2026).
+                let links = Array(role.liveDMs.prefix(3))
+                if !links.isEmpty {
+                    HStack(spacing: -avatarSide * 0.16) {
+                        ForEach(links) { link in
+                            RoomLinkBadge(color: RoomLinkPalette.color(for: link.pair), side: avatarSide)
+                        }
+                    }
                 }
             }
             .overlay(alignment: .bottomTrailing) {
