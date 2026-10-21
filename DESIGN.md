@@ -317,14 +317,17 @@
   [Chat/ChatBubble.swift](Sources/Features/Chat/ChatBubble.swift).
 - Архив задач: [Directory/TaskArchiveScreen.swift](Sources/Features/Directory/TaskArchiveScreen.swift).
 - Карточка задачи: [Task/TaskFormScreen.swift](Sources/Features/Task/TaskFormScreen.swift).
+- Аватарка — превью портрета: [Components/TFAvatar.swift](Sources/DesignSystem/Components/TFAvatar.swift) (`AvatarZoomMenu`).
 
-### Сверка 21.10.2026: что сделано не так
-- Увеличение портрета по удержанию (`TFAvatar`, `LongPressGesture` +
-  `UIImpactFeedbackGenerator(.medium)` + `fullScreenCover`) — свой жест и
-  своя вибрация, а не системное меню. Это просмотр, а не действия; переводить
-  ли его на `.contextMenu` с превью — решает владелец.
-- Все 13 меню (`grep -rn "\.contextMenu" Sources`) соответствуют
-  правилу.
+### Сверка 21.10.2026
+- Все меню (`grep -rn "\.contextMenu" Sources`) соответствуют правилу.
+- Увеличение портрета по удержанию (`TFAvatar`) раньше было своим жестом со
+  своей вибрацией и сразу полноэкранным окном. Переведено на системное меню:
+  превью — крупный портрет (у бригады — сетка до пяти), пункт «Открыть
+  крупно» — прежний полноэкранный просмотр.
+- Аватарка внутри строки со своим меню (например, строка сессии в чатах):
+  удержание на самой аватарке открывает портрет, на остальной строке — меню
+  строки.
 
 ### Проверка перед показом владельцу
 - Удержание даёт один отклик и подъём строки, на iPhone, не только в

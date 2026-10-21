@@ -207,32 +207,15 @@ public struct TFAvatar: View {
         // глушит внутренние тексты, дальше читается только наша метка.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(resolvedAccessibilityLabel)
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.45).onEnded { _ in
-                guard zoomable else { return }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                showZoom = true
-            }
-        )
+        // Удержание — системное контекстное меню с превью портрета (владелец
+        // 21.10.2026, DESIGN.md «Удержание: контекстное меню»): отклик, подъём
+        // и размытие даёт система. Раньше был свой `LongPressGesture` со своей
+        // вибрацией и сразу полноэкранное окно — теперь оно за пунктом меню.
+        .modifier(AvatarZoomMenu(isEnabled: zoomable, onOpen: { showZoom = true }) { zoomContent })
         .fullScreenCover(isPresented: $showZoom) {
             ZStack {
                 Color.black.opacity(0.88).ignoresSafeArea()
-                if teamIDs.count > 1 {
-                    // Бригада: все портреты разом, до пяти.
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                        ForEach(Array(teamIDs.prefix(5).enumerated()), id: \.offset) { i, id in
-                            TFAvatar(size: .team, initials: initials, tint: tint,
-                                     userID: id,
-                                     urlPath: i < teamURLs.count && !teamURLs[i].isEmpty ? teamURLs[i] : nil,
-                                     portrait: true, zoomable: false)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                } else {
-                    TFAvatar(size: .zoom, image: image, initials: initials, tint: tint,
-                             accessibilityLabel: accessibilityLabel, userID: userID,
-                             urlPath: urlPath, portrait: portrait, zoomable: false)
-                }
+                zoomContent
             }
             .contentShape(Rectangle())
             .onTapGesture { showZoom = false }
@@ -240,6 +223,46 @@ public struct TFAvatar: View {
         }
         .onChange(of: showZoom) { _, open in
             if !open, teamIDs.count > 1 { teamFront += 1 }
+        }
+    }
+
+    /// Крупный портрет: превью меню удержания и полноэкранный просмотр.
+    @ViewBuilder private var zoomContent: some View {
+        if teamIDs.count > 1 {
+            // Бригада: все портреты разом, до пяти.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                ForEach(Array(teamIDs.prefix(5).enumerated()), id: \.offset) { i, id in
+                    TFAvatar(size: .team, initials: initials, tint: tint,
+                             userID: id,
+                             urlPath: i < teamURLs.count && !teamURLs[i].isEmpty ? teamURLs[i] : nil,
+                             portrait: true, zoomable: false)
+                }
+            }
+            .padding(24)
+        } else {
+            TFAvatar(size: .zoom, image: image, initials: initials, tint: tint,
+                     accessibilityLabel: accessibilityLabel, userID: userID,
+                     urlPath: urlPath, portrait: portrait, zoomable: false)
+        }
+    }
+}
+
+/// Меню удержания аватарки: превью — крупный портрет, пункт — открыть его во
+/// весь экран. Без пунктов система меню не показывает, поэтому пункт есть.
+private struct AvatarZoomMenu<Preview: View>: ViewModifier {
+    let isEnabled: Bool
+    let onOpen: () -> Void
+    @ViewBuilder let preview: () -> Preview
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.contextMenu {
+                Button("Открыть крупно", systemImage: "arrow.up.left.and.arrow.down.right", action: onOpen)
+            } preview: {
+                preview()
+            }
+        } else {
+            content
         }
     }
 }
