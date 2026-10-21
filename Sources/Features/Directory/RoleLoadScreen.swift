@@ -9,6 +9,8 @@ struct RoleLoadScreen: View {
     private struct TaskRef: Identifiable { let id: String }
     @State private var selectedTask: TaskRef?
     private let width: CGFloat = 1000
+    /// Запас справа от шкалы: последний номер не должен резаться краем.
+    private let trailing: CGFloat = 96
 
     var body: some View {
         ScrollView {
@@ -30,6 +32,9 @@ struct RoleLoadScreen: View {
                 ContextObservabilitySection(window: window) { selectedTask = TaskRef(id: $0) }
             }
             .padding(16)
+            // Плавающая панель перекрывает низ экрана — содержимое должно
+            // доезжать выше неё (пуш из «Обзора», панель не скрывается).
+            .padding(.bottom, TFTabBarMetrics.heightCompact + 12)
         }
         .background(Color.tfBackground)
         .tfNativeHeader("Загрузка ролей", displayMode: .inline)
@@ -99,7 +104,7 @@ struct RoleLoadScreen: View {
     /// плюс блок слотов без исполнителя и запас под ось.
     private func height(_ row: RoleLoadLayout.RoleRow) -> CGFloat {
         CGFloat(max(1, row.lanes.count)) * RoleLoadLayout.laneStep
-            + CGFloat(row.open.count) * 28 + 30
+            + CGFloat(row.open.count) * 26 + 8
     }
 
     private func chart(_ data: RoleLoad) -> some View {
@@ -149,7 +154,7 @@ struct RoleLoadScreen: View {
                         .frame(width: width, height: height(row))
                     }
                 }
-                .frame(width: width)
+                .frame(width: width + trailing)
             }
             .accessibilityIdentifier("role-load.timeline")
         }
@@ -192,13 +197,19 @@ struct RoleLoadScreen: View {
             Text(label)
                 .tfText(.micro)
                 .lineLimit(1)
-                .frame(width: max(40, item.end - item.start), alignment: .leading)
+                .minimumScaleFactor(0.7)
+                .frame(width: item.labelWidth, alignment: .leading)
             ZStack(alignment: .topLeading) {
-                // Рамка контура: весь интервал по задаче (пустоты — простой).
+                // Рамка контура: весь интервал по задаче. Заливка внутри
+                // — фактическая занятость, светлая подложка — простой.
                 RoundedRectangle(cornerRadius: 5)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-                    .foregroundStyle(Color.tfSub.opacity(0.6))
+                    .fill(Color.tfSub.opacity(0.08))
                     .frame(width: max(4, item.end - item.start), height: RoleLoadLayout.barHeight)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5)
+                            .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                            .foregroundStyle(Color.tfSub.opacity(0.7))
+                    }
                 // Заливка: фактические заходы.
                 ForEach(item.segments) { segment in
                     RoundedRectangle(cornerRadius: 3)

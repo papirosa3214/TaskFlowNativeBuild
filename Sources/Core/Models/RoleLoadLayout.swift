@@ -41,6 +41,9 @@ struct RoleLoadLayout {
         let end: CGFloat
         let segments: [Segment]
         let origin: Origin
+        /// Сколько места есть под подпись до следующего контура в дорожке:
+        /// подпись не должна наезжать на соседнюю.
+        var labelWidth: CGFloat = 0
     }
 
     /// Дорожка — ряд, в который встают непересекающиеся контуры.
@@ -67,15 +70,17 @@ struct RoleLoadLayout {
     }
 
     /// Высота строки подписи над контуром.
-    static let labelHeight: CGFloat = 14
+    static let labelHeight: CGFloat = 12
     /// Высота полосы контура.
-    static let barHeight: CGFloat = 22
+    static let barHeight: CGFloat = 20
     /// Шаг дорожки: подпись + полоса.
     static let laneStep: CGFloat = labelHeight + barHeight
     /// Минимальная ширина полосы: короткий заход иначе не виден.
     static let minBarWidth: CGFloat = 12
     /// Зазор между подписями соседних контуров в одной дорожке.
     static let labelGap: CGFloat = 6
+    /// Минимальная ширина подписи — иначе номер не прочитать.
+    static let minLabelWidth: CGFloat = 46
 
     /// Собирает компоновку по всем ролям.
     static func build(_ data: RoleLoad, width: CGFloat) -> [RoleRow] {
@@ -146,10 +151,26 @@ struct RoleLoadLayout {
             }
         }
 
+        // 4. Ширина подписи: до следующего контура в той же дорожке, иначе
+        //    подписи наезжают друг на друга.
+        let width2 = width
+        let sized = lanes.map { lane -> Lane in
+            var items = lane
+            for index in items.indices {
+                let limit = index + 1 < items.count ? items[index + 1].start : width2
+                // Подпись занимает место до следующего контура в дорожке и
+                // НИКОГДА не выходит за него — иначе номера наезжают друг
+                // на друга. Слишком узкое место — подпись сжимается.
+                let available = limit - items[index].start - labelGap
+                items[index].labelWidth = max(0, available)
+            }
+            return Lane(contours: items)
+        }
+
         return RoleRow(
             id: row.id,
             title: row.title,
-            lanes: lanes.map { Lane(contours: $0) },
+            lanes: sized,
             open: row.open,
             liveMarks: marks
         )
