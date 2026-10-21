@@ -6,7 +6,23 @@ struct ProjectTopicsScreen: View {
     @State private var tasks: [ApiTask] = []
     @State private var showingTasks = false
     @State private var errorMessage: String?
+    /// Фильтры тем (владелец 21.10.2026): закрытые и участник.
+    @State private var showsClosed = false
+    @State private var memberFilter: String?
     private let api = APIClient()
+
+    /// Участники тем проекта — для фильтра, без повторов и по имени.
+    private var topicMembers: [RoleChatMember] {
+        var seen = Set<String>()
+        return topics.flatMap(\.members)
+            .filter { $0.roleKey != nil && seen.insert($0.id).inserted }
+            .sorted { $0.name < $1.name }
+    }
+
+    private var visibleTopics: [RoleChat] {
+        guard let memberFilter else { return topics }
+        return topics.filter { topic in topic.members.contains { $0.id == memberFilter } }
+    }
 
     var body: some View {
         List {
@@ -17,11 +33,11 @@ struct ProjectTopicsScreen: View {
             }
             .accessibilityIdentifier("projectChat.general")
             Section("Задачи") {
-                if topics.isEmpty { Text("Тем пока нет").foregroundStyle(Color.tfReadableSecondary) }
-                ForEach(topics) { topic in
+                if visibleTopics.isEmpty { Text(memberFilter == nil ? "Тем пока нет" : "У этого участника тем нет").foregroundStyle(Color.tfReadableSecondary) }
+                ForEach(visibleTopics) { topic in
                     NavigationLink(value: AppRoute.roleChat(id: topic.id)) {
                         HStack {
-                            Label { Text(topic.title ?? "Задача").foregroundStyle(Color.tfText) } icon: { Image(systemName: "number").foregroundStyle(Color.tfRed) }
+                            Label { Text(topic.title ?? "Задача").foregroundStyle(topic.closedAt == nil ? Color.tfText : Color.tfDim) } icon: { Image(systemName: "number").foregroundStyle(Color.tfRed) }
                             Spacer()
                             if topic.unread > 0 { Text("\(topic.unread)").foregroundStyle(Color.tfReadableSecondary) }
                         }
@@ -41,6 +57,7 @@ struct ProjectTopicsScreen: View {
         .tfScreenBackground()
         .navigationTitle(group.title ?? "Проект")
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { filterMenu }
             ToolbarItem(placement: .principal) {
                 HStack(spacing: TFSpacing.sm) {
                     TFGroupAvatar(identity: group.projectID ?? group.id, size: .md)
@@ -49,6 +66,7 @@ struct ProjectTopicsScreen: View {
             }
         }
         .task { await load() }
+        .onChange(of: showsClosed) { Task { await load() } }
         .refreshable { await load() }
         .sheet(isPresented: $showingTasks) {
             NavigationStack {
@@ -73,9 +91,31 @@ struct ProjectTopicsScreen: View {
         } message: { Text(errorMessage ?? "") }
     }
 
+    private var filterMenu: some View {
+        Menu {
+            Button { showsClosed.toggle() } label: {
+                Label("Показать закрытые", systemImage: showsClosed ? "checkmark" : "archivebox")
+            }
+            Divider()
+            Button { memberFilter = nil } label: {
+                Label("Все участники", systemImage: memberFilter == nil ? "checkmark" : "person.2")
+            }
+            ForEach(topicMembers) { member in
+                Button { memberFilter = member.id } label: {
+                    Label(member.name, systemImage: memberFilter == member.id ? "checkmark" : "person")
+                }
+            }
+        } label: {
+            Image(systemName: showsClosed || memberFilter != nil
+                  ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityLabel("Фильтр тем")
+        .accessibilityIdentifier("projectChat.filter")
+    }
+
     private func load() async {
         do {
-            topics = try await api.chatTopics(chatID: group.id)
+            topics = try await api.chatTopics(chatID: group.id, includeClosed: showsClosed)
             tasks = try await api.tasks(includeChildren: true)
         } catch { errorMessage = error.localizedDescription }
     }

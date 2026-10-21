@@ -26,14 +26,15 @@ struct RoleChatsScreen: View {
     @AppStorage("chats.roomsRail.open") private var isRoomsOpen = false
     @State private var openedRole: ChatRoomsSnapshot.RoleRoom?
     @AppStorage("chats.showClosed") private var showsClosed = false
-    /// Свёрнутые проекты в списке сессий (владелец 21.10.2026): названия через
-    /// перевод строки — `@AppStorage` не хранит множества.
-    @AppStorage("chats.collapsedProjects") private var collapsedProjectsRaw = ""
-    private var collapsedProjects: Set<String> { Set(collapsedProjectsRaw.split(separator: "\n").map(String.init)) }
+    /// Развёрнутые проекты в списке сессий (владелец 21.10.2026): по
+    /// умолчанию все свёрнуты, храним только раскрытые — названия через
+    /// перевод строки, `@AppStorage` не хранит множества.
+    @AppStorage("chats.expandedProjects") private var expandedProjectsRaw = ""
+    private var expandedProjects: Set<String> { Set(expandedProjectsRaw.split(separator: "\n").map(String.init)) }
     private func toggleProject(_ title: String) {
-        var set = collapsedProjects
+        var set = expandedProjects
         if set.contains(title) { set.remove(title) } else { set.insert(title) }
-        withAnimation(TFMotion.standard) { collapsedProjectsRaw = set.sorted().joined(separator: "\n") }
+        withAnimation(TFMotion.standard) { expandedProjectsRaw = set.sorted().joined(separator: "\n") }
     }
     @State private var listRequestVersion = 0
     @State private var isLoading = true
@@ -105,7 +106,7 @@ struct RoleChatsScreen: View {
                         // Подзаголовки проектов прилипают, как в «Сегодня».
                         LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                             ForEach(sessionGroups, id: \.title) { group in
-                                let collapsed = collapsedProjects.contains(group.title)
+                                let collapsed = !expandedProjects.contains(group.title)
                                 Section {
                                     if !collapsed {
                                         ForEach(Array(group.chats.enumerated()), id: \.element.id) { index, chat in

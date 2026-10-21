@@ -23,8 +23,9 @@ public extension APIClient {
         let response: RoleChatEnvelope = try await request(.post, "/tasks/\(taskID)/topic", body: [String: String]())
         return response.chat
     }
-    func chatTopics(chatID: String) async throws -> [RoleChat] {
-        let response: RoleChatsEnvelope = try await request(.get, "/chats/\(chatID)/topics")
+    func chatTopics(chatID: String, includeClosed: Bool = false) async throws -> [RoleChat] {
+        let query = includeClosed ? [URLQueryItem(name: "include_closed", value: "1")] : []
+        let response: RoleChatsEnvelope = try await request(.get, "/chats/\(chatID)/topics", query: query)
         return response.chats
     }
 
