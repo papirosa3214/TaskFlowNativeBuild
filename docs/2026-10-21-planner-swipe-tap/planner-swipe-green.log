@@ -1,0 +1,20 @@
+clang: warning: using sysroot for 'macOS 27.0' but targeting 'arm64-apple-ios18.0.0-simulator' [-Wincompatible-sysroot]
+COMPILE_EXIT=0
+Test Suite 'HorizontalPanZonesTests' started at 2026-10-21 19:35:02.786.
+Test Case '-[tests.HorizontalPanZonesTests testOpenRowBlocksPagingEverywhereUntilClosed]' started.
+Test Case '-[tests.HorizontalPanZonesTests testOpenRowBlocksPagingEverywhereUntilClosed]' passed (0.001 seconds).
+Test Case '-[tests.HorizontalPanZonesTests testPagingKeepsItsExistingDistanceAndDirectionThresholds]' started.
+Test Case '-[tests.HorizontalPanZonesTests testPagingKeepsItsExistingDistanceAndDirectionThresholds]' passed (0.009 seconds).
+Test Case '-[tests.HorizontalPanZonesTests testPagingRecognizerCancelsTaskTouchAndKeepsEdgeActions]' started.
+Test Case '-[tests.HorizontalPanZonesTests testPagingRecognizerCancelsTaskTouchAndKeepsEdgeActions]' passed (0.000 seconds).
+Test Case '-[tests.HorizontalPanZonesTests testPagingSwipeIsLimitedToInterior]' started.
+Test Case '-[tests.HorizontalPanZonesTests testPagingSwipeIsLimitedToInterior]' passed (0.000 seconds).
+Test Case '-[tests.HorizontalPanZonesTests testPagingSwipeRejectsInvalidNarrowFrame]' started.
+Test Case '-[tests.HorizontalPanZonesTests testPagingSwipeRejectsInvalidNarrowFrame]' passed (0.000 seconds).
+Test Case '-[tests.HorizontalPanZonesTests testRowRecognizerStillAcceptsOnlyItsConfiguredEdges]' started.
+Test Case '-[tests.HorizontalPanZonesTests testRowRecognizerStillAcceptsOnlyItsConfiguredEdges]' passed (0.000 seconds).
+Test Case '-[tests.HorizontalPanZonesTests testRowSwipeIsLimitedToEitherEdge]' started.
+Test Case '-[tests.HorizontalPanZonesTests testRowSwipeIsLimitedToEitherEdge]' passed (0.000 seconds).
+Test Suite 'HorizontalPanZonesTests' passed at 2026-10-21 19:35:02.803.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.011 (0.016) seconds
+TEST_EXIT=0

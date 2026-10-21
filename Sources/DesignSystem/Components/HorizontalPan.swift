@@ -184,6 +184,25 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
     /// если касание началось в пределах этой ширины от левого/правого края.
     /// Проверяется в координатах хост-вью распознавателя.
     var onlyEdgeInset: CGFloat = 0
+    /// Opt-in для перелистывания планировщика; обычные свайпы строк не меняются.
+    var pagingFrame: CGRect?
+
+    func acceptsStart(localX: CGFloat, globalX: CGFloat, boundsWidth: CGFloat, rowIsOpen: Bool) -> Bool {
+        if let pagingFrame {
+            return HorizontalPanZones.allowsPagingSwipe(
+                startX: globalX, frame: pagingFrame,
+                edgeWidth: HorizontalPanZones.defaultEdgeWidth, rowIsOpen: rowIsOpen
+            )
+        }
+        return HorizontalPanZones.allowsRowSwipe(
+            startX: localX, boundsWidth: boundsWidth, edgeWidth: onlyEdgeInset
+        )
+    }
+    func acceptsEnd(dx: CGFloat, dy: CGFloat) -> Bool {
+        guard pagingFrame != nil else { return true }
+        return abs(dx) >= 80 && abs(dx) > abs(dy) * 2.0
+    }
+
     /// Прокрутка, приглушённая на время жеста, чтобы вернуть ей `isScrollEnabled`.
     private weak var lockedScrollView: UIScrollView?
 
@@ -237,13 +256,12 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
         decided = false
         if let touch = touches.first {
             startLocation = touch.location(in: view)
-            // Свайп строки в этих вкладках разрешён только у края. Внутри
-            // ленты касание остаётся свайпу переключения вкладок.
-            if onlyEdgeInset > 0, let host = view,
-               !HorizontalPanZones.allowsRowSwipe(
-                    startX: startLocation.x,
+            if let host = view,
+               !acceptsStart(
+                    localX: startLocation.x,
+                    globalX: touch.location(in: nil).x,
                     boundsWidth: host.bounds.width,
-                    edgeWidth: onlyEdgeInset
+                    rowIsOpen: TFSwipeRowRegistry.shared.isPagingLocked
                ) {
                 state = .failed
             }
@@ -295,6 +313,11 @@ final class HorizontalPanRecognizer: UIPanGestureRecognizer {
         guard let view else { return 0 }
         return location(in: view).x - startLocation.x
     }
+
+    var verticalTranslation: CGFloat {
+        guard let view else { return 0 }
+        return location(in: view).y - startLocation.y
+    }
 }
 
 /// Горизонтальный свайп строки, не отбирающий вертикальную прокрутку.
@@ -311,16 +334,30 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
     /// 0 — свайп разрешён по всей строке. >0 — свайп разрешён только в
     /// пределах этой ширины от одного из краёв строки.
     var onlyEdgeInset: CGFloat = 0
+    /// Перелистывание принимает жест только внутри ленты и отменяет тап задачи.
+    var pagingFrame: CGRect? = nil
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
         Coordinator()
     }
 
     func makeUIGestureRecognizer(context: Context) -> HorizontalPanRecognizer {
-        let recognizer = HorizontalPanRecognizer()
-        recognizer.onlyEdgeInset = onlyEdgeInset
+        let recognizer = makeRecognizer()
         recognizer.delegate = context.coordinator
         return recognizer
+    }
+
+    func makeRecognizer() -> HorizontalPanRecognizer {
+        let recognizer = HorizontalPanRecognizer()
+        recognizer.onlyEdgeInset = onlyEdgeInset
+        recognizer.pagingFrame = pagingFrame
+        if pagingFrame != nil { recognizer.cancelsTouchesInView = true }
+        return recognizer
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: HorizontalPanRecognizer, context: Context) {
+        // Геометрия появляется после первого layout; не фиксируем начальный .zero.
+        recognizer.pagingFrame = pagingFrame
     }
 
     func handleUIGestureRecognizerAction(_ recognizer: HorizontalPanRecognizer, context: Context) {
@@ -330,7 +367,12 @@ struct HorizontalPan: UIGestureRecognizerRepresentable {
             onChange(recognizer.horizontalTranslation)
         case .changed:
             onChange(recognizer.horizontalTranslation)
-        case .ended, .cancelled, .failed:
+        case .ended:
+            guard recognizer.acceptsEnd(dx: recognizer.horizontalTranslation, dy: recognizer.verticalTranslation) else { return }
+            onEnd(recognizer.horizontalTranslation, recognizer.velocity(in: recognizer.view).x)
+        case .cancelled, .failed:
+            // Отменённое касание не перелистывает раздел. Свайпы строк сохраняют доводку.
+            guard pagingFrame == nil else { return }
             onEnd(recognizer.horizontalTranslation, recognizer.velocity(in: recognizer.view).x)
         default:
             break

@@ -61,19 +61,9 @@ struct TodaySectionView: View {
     /// выигрывала по умолчанию. На границах вкладок переход игнорируется;
     /// анимация `easeInOut 0.2 c`.
     private var tabSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 12, coordinateSpace: .global)
-            .onEnded { value in
-                let frame = listGlobalFrame
-                let startX = value.startLocation.x
-                guard HorizontalPanZones.allowsPagingSwipe(
-                    startX: startX,
-                    frame: frame,
-                    edgeWidth: HorizontalPanZones.defaultEdgeWidth,
-                    rowIsOpen: TFSwipeRowRegistry.shared.isPagingLocked
-                ) else { return }
-                let dx = value.translation.width
-                let dy = value.translation.height
-                guard abs(dx) >= 80, abs(dx) > abs(dy) * 2.0 else { return }
+        HorizontalPan(
+            onChange: { _ in },
+            onEnd: { dx, _ in
                 let all = TodayListTab.allCases
                 guard let cur = all.firstIndex(where: { $0.rawValue == listTabRaw }) else { return }
                 let next = dx < 0 ? cur + 1 : cur - 1
@@ -81,7 +71,9 @@ struct TodaySectionView: View {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     listTabRaw = all[next].rawValue
                 }
-            }
+            },
+            pagingFrame: listGlobalFrame
+        )
     }
 
     private var computation: TodayComputation {
@@ -127,7 +119,8 @@ struct TodaySectionView: View {
                         listContent(c: c)
                     }
                     .refreshable { await taskStore.load(silent: true) }
-                    .simultaneousGesture(tabSwipeGesture)
+                    // Признанный свайп отменяет касание Button под пальцем.
+                    .gesture(tabSwipeGesture)
                     .onGeometryChange(for: CGRect.self) { proxy in
                         proxy.frame(in: .global)
                     } action: { listGlobalFrame = $0 }

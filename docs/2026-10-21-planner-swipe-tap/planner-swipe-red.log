@@ -1,0 +1,16 @@
+/tmp/taskflow-planner-swipe-unit/Tests.swift:9:90: error: extra argument 'pagingFrame' in call
+ 7 |     func testPagingRecognizerCancelsTaskTouchAndKeepsEdgeActions() {
+ 8 |         let frame = CGRect(x: 10, y: 100, width: 390, height: 700)
+ 9 |         let gesture = HorizontalPan(onChange: { _ in }, onEnd: { _, _ in }, pagingFrame: frame)
+   |                                                                                          `- error: extra argument 'pagingFrame' in call
+10 |         let recognizer = gesture.makeRecognizer()
+11 |         XCTAssertTrue(recognizer.cancelsTouchesInView, "Paging must cancel the task button touch")
+
+/tmp/taskflow-planner-swipe-unit/Tests.swift:20:99: error: value of type 'HorizontalPan' has no member 'makeRecognizer'
+18 |     @MainActor
+19 |     func testRowRecognizerStillAcceptsOnlyItsConfiguredEdges() {
+20 |         let recognizer = HorizontalPan(onChange: { _ in }, onEnd: { _, _ in }, onlyEdgeInset: 32).makeRecognizer()
+   |                                                                                                   `- error: value of type 'HorizontalPan' has no member 'makeRecognizer'
+21 |         XCTAssertTrue(recognizer.acceptsStart(localX: 20, globalX: 30, boundsWidth: 390, rowIsOpen: false))
+22 |         XCTAssertFalse(recognizer.acceptsStart(localX: 195, globalX: 205, boundsWidth: 390, rowIsOpen: false))
+EXIT=1

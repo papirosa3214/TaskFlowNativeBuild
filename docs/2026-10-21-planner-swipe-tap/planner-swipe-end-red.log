@@ -1,0 +1,40 @@
+/tmp/taskflow-planner-swipe-unit/Tests.swift:21:35: error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+19 |     func testPagingKeepsItsExistingDistanceAndDirectionThresholds() {
+20 |         let recognizer = HorizontalPan(onChange: { _ in }, onEnd: { _, _ in }, pagingFrame: CGRect(x: 0, y: 0, width: 390, height: 700)).makeRecognizer()
+21 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 79, dy: 0))
+   |                                   `- error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+22 |         XCTAssertTrue(recognizer.acceptsEnd(dx: 80, dy: 0))
+23 |         XCTAssertTrue(recognizer.acceptsEnd(dx: -100, dy: 20))
+
+/tmp/taskflow-planner-swipe-unit/Tests.swift:22:34: error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+20 |         let recognizer = HorizontalPan(onChange: { _ in }, onEnd: { _, _ in }, pagingFrame: CGRect(x: 0, y: 0, width: 390, height: 700)).makeRecognizer()
+21 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 79, dy: 0))
+22 |         XCTAssertTrue(recognizer.acceptsEnd(dx: 80, dy: 0))
+   |                                  `- error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+23 |         XCTAssertTrue(recognizer.acceptsEnd(dx: -100, dy: 20))
+24 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 100, dy: 50))
+
+/tmp/taskflow-planner-swipe-unit/Tests.swift:23:34: error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+21 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 79, dy: 0))
+22 |         XCTAssertTrue(recognizer.acceptsEnd(dx: 80, dy: 0))
+23 |         XCTAssertTrue(recognizer.acceptsEnd(dx: -100, dy: 20))
+   |                                  `- error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+24 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 100, dy: 50))
+25 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 100, dy: 80))
+
+/tmp/taskflow-planner-swipe-unit/Tests.swift:24:35: error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+22 |         XCTAssertTrue(recognizer.acceptsEnd(dx: 80, dy: 0))
+23 |         XCTAssertTrue(recognizer.acceptsEnd(dx: -100, dy: 20))
+24 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 100, dy: 50))
+   |                                   `- error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+25 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 100, dy: 80))
+26 |     }
+
+/tmp/taskflow-planner-swipe-unit/Tests.swift:25:35: error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+23 |         XCTAssertTrue(recognizer.acceptsEnd(dx: -100, dy: 20))
+24 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 100, dy: 50))
+25 |         XCTAssertFalse(recognizer.acceptsEnd(dx: 100, dy: 80))
+   |                                   `- error: value of type 'HorizontalPanRecognizer' has no member 'acceptsEnd'
+26 |     }
+27 | 
+EXIT=1
