@@ -26,6 +26,15 @@ struct RoleChatsScreen: View {
     @AppStorage("chats.roomsRail.open") private var isRoomsOpen = false
     @State private var openedRole: ChatRoomsSnapshot.RoleRoom?
     @AppStorage("chats.showClosed") private var showsClosed = false
+    /// Свёрнутые проекты в списке сессий (владелец 21.10.2026): названия через
+    /// перевод строки — `@AppStorage` не хранит множества.
+    @AppStorage("chats.collapsedProjects") private var collapsedProjectsRaw = ""
+    private var collapsedProjects: Set<String> { Set(collapsedProjectsRaw.split(separator: "\n").map(String.init)) }
+    private func toggleProject(_ title: String) {
+        var set = collapsedProjects
+        if set.contains(title) { set.remove(title) } else { set.insert(title) }
+        withAnimation(TFMotion.standard) { collapsedProjectsRaw = set.sorted().joined(separator: "\n") }
+    }
     @State private var listRequestVersion = 0
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -86,7 +95,11 @@ struct RoleChatsScreen: View {
                         .padding(.top, TFSpacing.xl)
                 } else {
                     ForEach(sessionGroups, id: \.title) { group in
-                        SessionGroupHeader(title: group.title)
+                        let collapsed = collapsedProjects.contains(group.title)
+                        SessionGroupHeader(title: group.title, count: group.chats.count,
+                                           unread: group.chats.reduce(0) { $0 + $1.unread },
+                                           isCollapsed: collapsed) { toggleProject(group.title) }
+                        if !collapsed {
                         ForEach(Array(group.chats.enumerated()), id: \.element.id) { index, chat in
                             sessionLink(chat)
                             if index < group.chats.count - 1 {
@@ -95,6 +108,7 @@ struct RoleChatsScreen: View {
                                 // списка, а не как карточка.
                                 TFDivider(inset: TFSpacing.screenHorizontal + listAvatar.rawValue + TFSpacing.sm)
                             }
+                        }
                         }
                     }
                 }
@@ -329,19 +343,42 @@ struct SecretaryChatScreen: View {
 /// Строка списка чатов — одна на все виды (роль, группа, помощник владельца):
 /// аватар, имя, превью, время, бейдж непрочитанных. Строка во всю ширину,
 /// без карточки и шеврона — вид списка, а не меню настроек.
-/// Подзаголовок группы сессий — название проекта (21.10.2026).
+/// Подзаголовок группы сессий — название проекта (21.10.2026). Нажатие
+/// сворачивает и разворачивает сессии проекта; у свёрнутого видно, сколько
+/// в нём сессий и непрочитанных.
 private struct SessionGroupHeader: View {
     let title: String
+    let count: Int
+    let unread: Int
+    let isCollapsed: Bool
+    let onToggle: () -> Void
 
     var body: some View {
-        Text(title)
-            .tfText(.meta)
-            .foregroundStyle(Color.tfDim)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Button(action: onToggle) {
+            // Подзаголовок — шрифтом разделов «Обзора», как в Настройках
+            // (владелец 20.10.2026, `tfSectionDisplay(style: .taskTitle)`).
+            HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+                Text(title)
+                    .tfSectionDisplay(style: .taskTitle)
+                    .lineLimit(1)
+                if isCollapsed {
+                    Text(unread > 0 ? "\(count) · \(unread) новых" : "\(count)")
+                        .tfText(.meta)
+                        .foregroundStyle(unread > 0 ? Color.tfRed : Color.tfDim)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.top, TFSpacing.lg)
-            .padding(.bottom, TFSpacing.xs)
-            .accessibilityAddTraits(.isHeader)
+            .padding(.top, TFSpacing.sm)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), сессий: \(count)")
+        .accessibilityValue(isCollapsed ? "свёрнут" : "развёрнут")
+        .accessibilityHint(isCollapsed ? "Развернуть" : "Свернуть")
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("chats.group.\(title)")
     }
 }
 
