@@ -202,6 +202,7 @@ private struct TFLoopingAvatarVideo: UIViewRepresentable {
         if let player = TFSharedLoopPlayers.shared.retain(resourceName) {
             context.coordinator.name = resourceName
             view.playerLayer.player = player
+            player.play()
         }
         return view
     }
