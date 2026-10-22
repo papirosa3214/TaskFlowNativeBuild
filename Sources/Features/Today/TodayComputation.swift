@@ -73,12 +73,39 @@ struct TodayComputation {
     let filteredEmpty: Bool
     let hourDays: [TodayHourDay]
 
+    /// Счётчик реальных перестроений снимка. Растёт только когда снимок
+    /// собирается заново, а не отдаётся из кэша (`TodayComputationCache`).
+    /// Служит диагностикой: на каждый проход `body` экрана «Сегодня» снимок
+    /// должен пересобираться не чаще, чем менялись входные данные.
+    nonisolated(unsafe) static var buildCount = 0
+
     init(
         allTasks: [ApiTask], currentUser: ApiUser?, agents: [ApiUser],
         filters: TodayTaskFilters, showAgentTasks: Bool = false,
         visibleProjectIds: Set<String> = [], today: String,
         activeHourDate: String, isLoading: Bool, isError: Bool
     ) {
+        // Снимок тяжёлый (около двадцати фильтров и шести сортировок по
+        // всему списку задач), а экран обращался к нему на каждом проходе
+        // `body` — и дважды за проход (тело и тулбар). Пока входы те же,
+        // отдаётся последний собранный снимок.
+        let key = TodayComputationCache.Key(
+            allTasks: allTasks,
+            currentUser: currentUser,
+            agents: agents,
+            filters: filters,
+            showAgentTasks: showAgentTasks,
+            visibleProjectIds: visibleProjectIds,
+            today: today,
+            activeHourDate: activeHourDate,
+            isLoading: isLoading,
+            isError: isError
+        )
+        if let cached = TodayComputationCache.shared.snapshot(for: key) {
+            self = cached
+            return
+        }
+
         self.allTasks = allTasks
         self.currentUser = currentUser
         self.agents = agents
@@ -89,6 +116,9 @@ struct TodayComputation {
         self.activeHourDate = activeHourDate
         self.isLoading = isLoading
         self.isError = isError
+
+        // Снимок пересобирается — считаем это для диагностики и теста.
+        Self.buildCount += 1
 
         // Состав раздела — общий с диапазонами (одно подменю на всё
         // «Планирование», LOCK-111). Беспроектные проходят всегда.
@@ -155,6 +185,10 @@ struct TodayComputation {
         // 15.09.2026 по решению владельца («раз мы уже её не используем,
         // сноси»), а наборы задач остались: теперь по ним раскладываются
         // секции вкладок списка (`TodayListSection`).
+
+        // Снимок собран — запоминаем его, чтобы следующий проход экрана с теми
+        // же входами получил его без пересборки.
+        TodayComputationCache.shared.store(self, for: key)
     }
 
     /// Задачи без project_id (Входящие) — всегда; проектные — только opt-in

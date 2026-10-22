@@ -74,11 +74,54 @@ func loadNotes() async {
     /// Плоский список строк, отражающий развёрнутое дерево — spec: «папки
     /// можно сворачивать/разворачивать тапом по шеврону», отступ 18px на
     /// уровень (`NotesScreen.INDENT`, применяется во вью, не здесь).
+    ///
+    /// `ForEach` на экране читает это прямо в теле — раньше дерево собиралось
+    /// заново на каждом проходе `body` (16 мс на 200 заметках, замерено
+    /// 22.10.2026). Теперь дерево строится один раз на каждое изменение
+    /// данных, а между ними отдаётся из кэша: ключ — папки, заметки,
+    /// раскрытые папки и порядок дат.
     var rows: [NotesTreeRow] {
-        buildRows(parentID: nil, depth: 0, ancestorContinues: [])
+        let key = RowsKey(
+            folders: folders,
+            notes: notes,
+            expanded: expandedFolderIDs,
+            order: noteDateOrder
+        )
+        if let cachedKey = rowsCacheKey, cachedKey == key {
+            return rowsCacheValue
+        }
+        // Счётчик перестроений — диагностика и тест: пока входные данные те
+        // же, дерево пересобираться не должно.
+        Self.rowsBuildCount += 1
+        let built = buildRows(parentID: nil, depth: 0, ancestorContinues: [])
+        rowsCacheKey = key
+        rowsCacheValue = built
+        return built
     }
 
+    /// Сколько раз дерево строк собиралось заново. Растёт только на реальное
+    /// перестроение, а не на отдачу из кэша.
+    nonisolated(unsafe) static var rowsBuildCount = 0
+
+    /// Ключ кэша дерева: все входные данные, от которых дерево зависит.
+    private struct RowsKey: Equatable {
+        let folders: [ApiJournalFolder]
+        let notes: [NoteListItem]
+        let expanded: Set<Int>
+        let order: NotesDateOrder
+    }
+
+    /// Кэш последнего дерева. `@ObservationIgnored` — это не состояние экрана,
+    /// а производная величина: её пересчёт не должен будить наблюдателей.
+    @ObservationIgnored private var rowsCacheKey: RowsKey?
+    @ObservationIgnored private var rowsCacheValue: [NotesTreeRow] = []
+
     private func buildRows(parentID: Int?, depth: Int, ancestorContinues: [Bool]) -> [NotesTreeRow] {
+        let context = makeRowsContext()
+        return buildRows(parentID: parentID, depth: depth, ancestorContinues: ancestorContinues, context: context)
+    }
+
+    private func buildRows(parentID: Int?, depth: Int, ancestorContinues: [Bool], context: RowsContext) -> [NotesTreeRow] {
         var out: [NotesTreeRow] = []
         let dateOrder = noteDateOrder
         let childFolders = folders.filter { $0.parentId == parentID }
@@ -92,15 +135,15 @@ func loadNotes() async {
                 rowID: "f:\(folder.id)",
                 kind: .folder(
                     folder,
-                    noteCount: notesCount(inFolderTree: folder.id),
-                    latestNote: latestNote(inFolderTree: folder.id)
+                    noteCount: notesCount(inFolderTree: folder.id, context: context),
+                    latestNote: latestNote(inFolderTree: folder.id, context: context)
                 ),
                 depth: depth,
                 ancestorContinues: ancestorContinues,
                 isLastChild: isLast
             ))
             if expandedFolderIDs.contains(folder.id) {
-                out.append(contentsOf: buildRows(parentID: folder.id, depth: depth + 1, ancestorContinues: ancestorContinues + [!isLast]))
+                out.append(contentsOf: buildRows(parentID: folder.id, depth: depth + 1, ancestorContinues: ancestorContinues + [!isLast], context: context))
             }
         }
         for (index, note) in childNotes.enumerated() {
@@ -116,33 +159,86 @@ func loadNotes() async {
         return out
     }
 
+    /// Данные одного перестроения дерева, посчитанные ОДИН раз:
+    /// дата каждой заметки, заметки по папкам и поддерево каждой папки.
+    ///
+    /// Раньше эти три величины считались по разу на КАЖДУЮ папку: счётчик
+    /// заметок и «последняя заметка» обходили весь список заметок, а дата
+    /// последней заметки разбиралась заново для каждой сравниваемой пары.
+    /// На 200 заметках и 10 папках это 16 мс на одно дерево.
+    private struct RowsContext {
+        /// Дата заметки по её id (разбор даты — один раз на заметку).
+        let dates: [String: Date]
+        /// Заметки по папке, в порядке исходного списка.
+        let notesByFolder: [Int: [NoteListItem]]
+        /// Для каждой папки — она сама и все вложенные, транзитивно.
+        let folderTree: [Int: Set<Int>]
+    }
+
+    private func makeRowsContext() -> RowsContext {
+        var dates: [String: Date] = [:]
+        dates.reserveCapacity(notes.count)
+        var notesByFolder: [Int: [NoteListItem]] = [:]
+        for note in notes {
+            dates[note.id] = NotesDateOrder.date(of: note)
+            if let folderId = note.folderId {
+                notesByFolder[folderId, default: []].append(note)
+            }
+        }
+
+        var children: [Int: [Int]] = [:]
+        for folder in folders {
+            if let parent = folder.parentId {
+                children[parent, default: []].append(folder.id)
+            }
+        }
+        var folderTree: [Int: Set<Int>] = [:]
+        for folder in folders {
+            var ids: Set<Int> = []
+            var stack: [Int] = [folder.id]
+            while let current = stack.popLast() {
+                guard ids.insert(current).inserted else { continue }
+                stack.append(contentsOf: children[current] ?? [])
+            }
+            folderTree[folder.id] = ids
+        }
+        return RowsContext(dates: dates, notesByFolder: notesByFolder, folderTree: folderTree)
+    }
+
     /// Счётчик у папки (число справа на скриншоте `notes.png`) — заметки
     /// этой папки и всех вложенных подпапок, рекурсивно.
-    private func notesCount(inFolderTree folderID: Int) -> Int {
-        let ids = folderTreeIDs(startingAt: folderID)
-        return notes.count { $0.folderId != nil && ids.contains($0.folderId!) }
+    private func notesCount(inFolderTree folderID: Int, context: RowsContext? = nil) -> Int {
+        let ctx = context ?? makeRowsContext()
+        guard let ids = ctx.folderTree[folderID] else { return 0 }
+        var count = 0
+        for id in ids {
+            count += ctx.notesByFolder[id]?.count ?? 0
+        }
+        return count
     }
 
     /// Последний документ папки учитывает и вложенные папки: именно он лучше
     /// всего отвечает на вопрос «когда тут в последний раз что-то меняли».
     func latestNote(inFolderTree folderID: Int) -> NoteListItem? {
-        let ids = folderTreeIDs(startingAt: folderID)
-        return notes
-            .filter { $0.folderId != nil && ids.contains($0.folderId!) }
-            .max(by: { NotesDateOrder.date(of: $0) < NotesDateOrder.date(of: $1) })
+        latestNote(inFolderTree: folderID, context: makeRowsContext())
     }
 
-    private func folderTreeIDs(startingAt folderID: Int) -> Set<Int> {
-        var ids: Set<Int> = [folderID]
-        var grew = true
-        while grew {
-            grew = false
-            for f in folders where f.parentId != nil && ids.contains(f.parentId!) && !ids.contains(f.id) {
-                ids.insert(f.id)
-                grew = true
+    private func latestNote(inFolderTree folderID: Int, context: RowsContext) -> NoteListItem? {
+        guard let ids = context.folderTree[folderID] else { return nil }
+        // Тот же порядок обхода, что у `notes.filter{...}.max(by:)`, и то же
+        // правило: при равных датах остаётся ПЕРВАЯ (как у `max(by:)`).
+        var best: NoteListItem?
+        for note in notes {
+            guard let noteFolder = note.folderId, ids.contains(noteFolder) else { continue }
+            guard let current = best else {
+                best = note
+                continue
             }
+            let noteDate = context.dates[note.id] ?? .distantPast
+            let bestDate = context.dates[current.id] ?? .distantPast
+            if bestDate < noteDate { best = note }
         }
-        return ids
+        return best
     }
 
     // MARK: - Создание

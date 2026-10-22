@@ -35,7 +35,17 @@ enum MarkdownParser {
     /// возвращает один пустой параграф — то же поведение, что у
     /// `NoteDocument.empty`, чтобы UI не различал «редактор открыт, ничего
     /// не напечатано» от «сохранено как пустой документ».
+    ///
+    /// Разбор кэшируется (`MarkdownParseCache`): один и тот же текст приходит
+    /// снова и снова — из `Binding`-геттеров карточки задачи и при каждой
+    /// перерисовке сообщения чата.
     static func parse(_ source: String) -> [NoteBlock] {
+        MarkdownParseCache.shared.blocks(for: source) { parseUncached(source) }
+    }
+
+    /// Разбор без кэша — точка сверки для теста: результат кэша обязан
+    /// совпадать с результатом свежего разбора.
+    static func parseUncached(_ source: String) -> [NoteBlock] {
         let lines = source.replacingOccurrences(of: "\r\n", with: "\n")
             .components(separatedBy: "\n")
         var blocks: [NoteBlock] = []
