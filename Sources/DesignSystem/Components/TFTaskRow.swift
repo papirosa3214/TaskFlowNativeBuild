@@ -103,21 +103,26 @@ public struct TFTaskRow: View {
                     TFAvatar(size: .taskList, initials: initials, tint: model.assigneeColor ?? Color(hex: TFHexDefault.unassigned), userID: model.assigneeID, teamIDs: model.assigneeTeam, urlPath: model.assigneeAvatarURL, teamURLs: model.assigneeTeamURLs, portrait: model.assigneePortrait)
                 }
             } metadata: {
-                TFTaskStructureIndicators(priority: model.priority, subtasksDone: model.subtasksDone, subtasksTotal: model.subtasksTotal, childrenCount: model.childrenCount ?? 0, hasCollaborationPlan: model.hasCollaborationPlan)
+                // Даты — в начале метро-ряда: срок есть у каждой задачи, а
+                // остальные метки (приоритет, подзадачи, дочерние, проект) —
+                // не у всех, и из-за них дата сдвигалась по строке. Обе даты
+                // (срок и дата заведения) стоят рядом — одна колонка
+                // (владелец 22.10.2026).
                 if model.isOverdue {
-                    TFOverduePill()
+                    TFOverduePill().layoutPriority(1)
                 } else if let due = model.dueText {
-                    TFDuePill(due)
+                    TFDuePill(due).layoutPriority(1)
                 }
+                // Дата и время заведения заявки — пиксельной меткой в квадратных
+                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
+                TFTaskCreatedStamp(createdAt: model.createdAtStamp)
+                TFTaskStructureIndicators(priority: model.priority, subtasksDone: model.subtasksDone, subtasksTotal: model.subtasksTotal, childrenCount: model.childrenCount ?? 0, hasCollaborationPlan: model.hasCollaborationPlan)
                 if let status = model.agentStatus {
                     Text(status).foregroundStyle(model.agentStatusColor ?? Color.tfTeal).layoutPriority(-1)
                 }
                 if let project = model.projectName {
                     Text("#\(project)").foregroundStyle(model.projectColor ?? .tfSub).layoutPriority(-1)
                 }
-                // Дата и время заведения заявки — пиксельной меткой в квадратных
-                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
-                TFTaskCreatedStamp(createdAt: model.createdAtStamp)
                 ForEach(model.labels, id: \.title) { label in
                     TFLabelPill(label.title, color: label.color).layoutPriority(-1)
                 }

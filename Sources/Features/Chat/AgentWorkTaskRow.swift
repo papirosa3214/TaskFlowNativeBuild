@@ -188,10 +188,14 @@ struct AgentWorkTaskRow: View {
                     AgentWorkAvatarView(urlPath: task.assigneeAvatarUrl, initials: task.assigneeInitials ?? "?", tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), size: TFAvatar.Size.taskList.rawValue, userID: task.assigneeId)
                 }
             } metadata: {
-                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
+                // Дата (срок) — первой в метро-ряду: она есть у каждой задачи,
+                // а остальные метки — не у всех, и из-за них дата сдвигалась по
+                // строке. Так даты стоят в одной колонке (владелец 22.10.2026).
                 if let due = task.dueDate {
                     TFDueChip(plain: AgentWorkDate.formatDueLabel(due), relative: AgentWorkDate.formatDaysLeft(due), days: AgentWorkDate.daysUntil(due), overdueText: "Просрочено, \(AgentWorkDate.formatDueLabel(due))", highlight: task.status == .active, forceOverdue: isOverdue)
+                        .layoutPriority(1)
                 }
+                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                 if let status = AgentWorkStateTag.text(task) {
                     HStack(spacing: 3) {
                         if let icon = AgentWorkStateTag.icon(task) { Image(systemName: icon) }

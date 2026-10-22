@@ -129,7 +129,10 @@ struct LabelTasksScreen: View {
                         TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.rowAvatarID, teamIDs: task.rowAvatarTeam, urlPath: task.rowAvatarURL, teamURLs: task.rowAvatarTeamURLs, portrait: task.rowAvatarPortrait)
                     }
                 } metadata: {
-                    TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
+                    // Даты — в начале метро-ряда: срок есть у каждой задачи, а
+                    // остальные метки — не у всех, и из-за них дата сдвигалась по
+                    // строке. Обе даты (срок и дата заведения) стоят рядом — одна
+                    // колонка (владелец 22.10.2026).
                     if let due = task.dueDate {
                         HStack(spacing: 3) {
                             Image(systemName: "calendar").font(.system(size: 10))
@@ -141,13 +144,15 @@ struct LabelTasksScreen: View {
                         .padding(.vertical, 2)
                         .background(Color.tfCard)
                         .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
-                    }
-                    ForEach(task.labels, id: \.id) { label in
-                        TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned)).layoutPriority(-1)
+                        .layoutPriority(1)
                     }
                     // Дата и время заведения заявки — пиксельной меткой в
                     // квадратных скобках (LOCK-TASK-CREATED-STAMP).
                     TFTaskCreatedStamp(createdAt: task.createdAt)
+                    TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
+                    ForEach(task.labels, id: \.id) { label in
+                        TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned)).layoutPriority(-1)
+                    }
                 }
             }
             .buttonStyle(TFTapRowStyle())

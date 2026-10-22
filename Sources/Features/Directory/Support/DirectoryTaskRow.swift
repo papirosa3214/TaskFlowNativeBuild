@@ -187,16 +187,21 @@ struct DirectoryTaskRow: View {
                         .highPriorityGesture(TapGesture().onEnded { onAvatarTap?() }, including: onAvatarTap == nil ? .none : .all)
                 }
             } metadata: {
-                if let timestamp, !timestamp.isEmpty {
-                    Text(timestamp).layoutPriority(-1)
+                // Даты — в начале метро-ряда: срок есть у каждой задачи, а
+                // остальные метки — не у всех, и из-за них дата сдвигалась по
+                // строке. Обе даты (срок и дата заведения) стоят рядом — одна
+                // колонка (владелец 22.10.2026).
+                if let due = task.dueDate {
+                    TFDueChip(plain: DirectoryDate.formatDuePlain(due), relative: DirectoryDate.formatDaysLeft(due), days: DirectoryDate.daysUntil(due), overdueText: "Просрочено, \(DirectoryDate.formatDuePlain(due))", highlight: task.status == .active)
+                        .layoutPriority(1)
                 }
                 // Дата и время заведения заявки — пиксельной меткой в квадратных
                 // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
                 TFTaskCreatedStamp(createdAt: task.createdAt)
-                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
-                if let due = task.dueDate {
-                    TFDueChip(plain: DirectoryDate.formatDuePlain(due), relative: DirectoryDate.formatDaysLeft(due), days: DirectoryDate.daysUntil(due), overdueText: "Просрочено, \(DirectoryDate.formatDuePlain(due))", highlight: task.status == .active)
+                if let timestamp, !timestamp.isEmpty {
+                    Text(timestamp).layoutPriority(-1)
                 }
+                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                 if task.needsResearch {
                     TFPill("Исследование", color: .tfSub, solidBackground: .tfCard)
                 }

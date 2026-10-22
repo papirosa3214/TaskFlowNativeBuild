@@ -171,17 +171,22 @@ struct TodayTaskRow: View {
                     TFAvatar(size: .taskList, initials: initials, tint: Color(hex: task.assigneeColor ?? TFHexDefault.unassigned), userID: task.rowAvatarID, teamIDs: task.rowAvatarTeam, urlPath: task.rowAvatarURL, teamURLs: task.rowAvatarTeamURLs, portrait: task.rowAvatarPortrait)
                 }
             } metadata: {
-                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
+                // Даты — в начале метро-ряда: срок есть у каждой задачи, а
+                // остальные метки — не у всех, и из-за них дата сдвигалась по
+                // строке. Обе даты (срок и дата заведения) стоят рядом — одна
+                // колонка (владелец 22.10.2026).
                 if let due = task.dueDate {
                     TFDueChip(plain: TodayDate.formatDuePlain(due), relative: TodayDate.formatDaysLeft(due), days: TodayDate.daysUntil(due), overdueText: "Просрочено, \(TodayDate.formatDueLabel(due))", highlight: task.status == .active, forceOverdue: overdue)
+                        .layoutPriority(1)
                 }
+                // Дата и время заведения заявки — пиксельной меткой в квадратных
+                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
+                TFTaskCreatedStamp(createdAt: task.createdAt)
+                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                 if let status = TodayAgentStateTag.text(task) {
                     Text(status).foregroundStyle(TodayAgentStateTag.color(task)).layoutPriority(-1)
                 }
                 if task.agentState == .review, task.criticApproved == true { TFCriticApprovedMark() }
-                // Дата и время заведения заявки — пиксельной меткой в квадратных
-                // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
-                TFTaskCreatedStamp(createdAt: task.createdAt)
                 if let project = task.projectName {
                     Text("#\(project)").foregroundStyle(Color.tfReadableText(Color(hex: task.projectColor ?? TFHexDefault.unassigned))).layoutPriority(-1)
                 }
