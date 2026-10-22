@@ -22,10 +22,6 @@ struct JevSettingsScreen: View {
 
     var body: some View {
         List {
-            Section {
-                Text("Выбирает из готовых вариантов то, что подходит задаче. Не отвечает, выключен или не уверен — всё работает как без него.")
-                    .tfText(.action).foregroundStyle(Color.tfSub)
-            }
             if let error {
                 Section {
                     Text(error).tfText(.body).foregroundStyle(Color.tfSub)
@@ -62,24 +58,40 @@ struct JevSettingsScreen: View {
 
     private func connection(_ settings: JevSettings) -> some View {
         Section {
-            TextField("Адрес API", text: $baseUrl)
-                .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                .accessibilityIdentifier("jev-url")
-            TextField("Модель", text: $model)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .accessibilityIdentifier("jev-model")
-            TextField("Тайм-аут, мс", text: $timeoutMs)
+            HStack(spacing: TFSpacing.sm) {
+                TextField("Адрес API", text: $baseUrl)
+                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .accessibilityIdentifier("jev-url")
+                TextField("Модель", text: $model)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .accessibilityIdentifier("jev-model")
+                    .multilineTextAlignment(.trailing)
+            }
+            TextField("Тайм-аут, мс (сколько ждать ответа, 500–60000)", text: $timeoutMs)
                 .keyboardType(.numberPad).accessibilityIdentifier("jev-timeout")
             SecureField(settings.hasApiKey ? "Ключ сохранён — новый заменит" : "Ключ API TypeSafe", text: $apiKey)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .accessibilityLabel("Ключ API").accessibilityIdentifier("jev-key")
-            TFButton("Сохранить", variant: .secondary, isEnabled: dirty && !busy) {
-                Task { await saveConnection() }
-            }.accessibilityIdentifier("jev-save")
-            TFButton("Проверить подключение", icon: "waveform.path.ecg", variant: .secondary,
-                     isEnabled: settings.hasApiKey && !dirty && !busy) {
-                Task { await test() }
-            }.accessibilityIdentifier("jev-test")
+            HStack(spacing: TFSpacing.sm) {
+                TFButton("Сохранить", variant: .secondary, isEnabled: dirty && !busy) {
+                    Task { await saveConnection() }
+                }.accessibilityIdentifier("jev-save")
+                    .frame(maxWidth: .infinity)
+                Button {
+                    Task { await test() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .tfText(.row).fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color.tfBlue)
+                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                }
+                .buttonStyle(TFTapScaleStyle())
+                .disabled(!(settings.hasApiKey && !dirty && !busy))
+                .accessibilityIdentifier("jev-test")
+                .accessibilityLabel("Проверить подключение")
+            }
             if busy { ProgressView("Подождите…") }
             if let result {
                 Text(result.message).tfText(.action).foregroundStyle(Color.tfSub)

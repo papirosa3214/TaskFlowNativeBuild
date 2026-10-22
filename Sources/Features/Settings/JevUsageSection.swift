@@ -14,16 +14,20 @@ struct JevUsageSection: View {
                 Text("Неделя").tag("week")
                 Text("Месяц").tag("month")
             }.accessibilityIdentifier("jev-usage.period")
+            .foregroundStyle(Color.tfText)
             if let error { Text(error).tfText(.action).foregroundStyle(Color.tfSub) }
             if let usage {
                 if !usage.hasKey {
                     Text("Сохраните API-ключ, чтобы видеть его расход в TaskFlow.")
                         .tfText(.body).foregroundStyle(Color.tfSub)
                 } else {
-                    LabeledContent("Запросы", value: "\(usage.calls)")
-                    LabeledContent("Успешные / ошибки / в работе", value: "\(usage.succeeded) / \(usage.failed) / \(usage.running)")
-                    LabeledContent("Входные токены", value: "\(usage.inputTokens)")
-                    LabeledContent("Выходные токены", value: "\(usage.outputTokens)")
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Text("Запросы: \(usage.calls)").tfText(.body).foregroundStyle(Color.tfText)
+                        Text("Успешные / ошибки / в работе: \(usage.succeeded) / \(usage.failed) / \(usage.running)").tfText(.body).foregroundStyle(Color.tfText)
+                        Text("Входные токены: \(usage.inputTokens)").tfText(.body).foregroundStyle(Color.tfText)
+                        Text("Выходные токены: \(usage.outputTokens)").tfText(.body).foregroundStyle(Color.tfText)
+                        Text("Расход в долларах: —").tfText(.body).foregroundStyle(Color.tfText)
+                    }
                     Text(usage.coverageText).tfText(.action).foregroundStyle(Color.tfSub)
                     ForEach(usage.scenarios) { scenario in
                         VStack(alignment: .leading, spacing: 3) {
@@ -36,7 +40,6 @@ struct JevUsageSection: View {
                             }
                         }
                     }
-                    Text(usage.moneyText).tfText(.action).foregroundStyle(Color.tfSub)
                     Text("Учёт с \(ContextObservability.dateText(usage.trackingSince)). Только запросы TaskFlow с текущим ключом и адресом API. Другие приложения в эту сумму не входят.")
                         .tfText(.caption).foregroundStyle(Color.tfDim)
                 }
