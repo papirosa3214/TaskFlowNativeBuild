@@ -4,6 +4,14 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testChatExecutionModeHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.chatExecutionMode])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.chatExecutionMode, frame: frame)
+        XCTAssertEqual(center.active?.step, "choose")
+        center.next()
+        XCTAssertTrue(center.completed.contains("chat-execution-mode"))
+    }
     func testNoteMarkdownEditingHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.noteMarkdownEditing])
         center.isEnabled = true

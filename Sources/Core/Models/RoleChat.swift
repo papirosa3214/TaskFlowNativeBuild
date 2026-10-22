@@ -16,6 +16,10 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     public let taskID: String?
     public let projectID: String?
     public let parentChatID: String?
+    public var storedExecutionMode: ChatExecutionMode? = nil
+    public var executionMode: ChatExecutionMode {
+        ChatExecutionMode.resolve(stored: storedExecutionMode, taskID: taskID, parentChatID: parentChatID)
+    }
     public let members: [RoleChatMember]
     public let lastMessage: RoleChatPreview?
     /// Непрочитанных у ТЕКУЩЕГО пользователя (миграция 055, отметка на
@@ -47,6 +51,7 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case taskID = "task_id"
         case projectID = "project_id"
         case parentChatID = "parent_chat_id"
+        case storedExecutionMode = "execution_mode"
         case lastMessage = "last_message"
         case unreadCount = "unread_count"
         case taskTitle = "task_title"

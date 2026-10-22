@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let chatExecutionMode = "chat.execution-mode"
     static let noteMarkdownEditing = "note.markdown-editing"
     static let voiceMinimize = "voice.minimize"
     static let voiceMiniPlayer = "voice.mini-player"
@@ -35,7 +36,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+
+    static let chatExecutionMode = HintScenario(
+        id: "chat-execution-mode", title: "Как выполнять работу", start: "choose",
+        steps: ["choose": HintStep(anchor: HintAnchorID.chatExecutionMode, title: "В чате или по карточке",
+            text: "Выберите «В чате», чтобы роль выполнила поручение здесь без создания карточки. «По карточке» включает работу через задачу с её этапами и приёмкой. Выбор сохраняется для этого разговора и голосовых сообщений. Уже отправленное поручение продолжает работу в своём режиме.", next: nil)])
 
     static let noteMarkdownEditing = HintScenario(
         id: "note-markdown-editing", title: "Чтение и правка заметки", start: "edit",

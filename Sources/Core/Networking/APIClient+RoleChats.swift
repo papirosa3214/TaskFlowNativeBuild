@@ -72,6 +72,12 @@ public extension APIClient {
         return response.chat
     }
 
+    func setChatExecutionMode(chatID: String, mode: ChatExecutionMode) async throws -> RoleChat {
+        struct Body: Encodable { let execution_mode: ChatExecutionMode }
+        let response: RoleChatEnvelope = try await request(.post, "/chats/\(chatID)/execution-mode", body: Body(execution_mode: mode))
+        return response.chat
+    }
+
     func roleChat(id: String) async throws -> RoleChat {
         let response: RoleChatEnvelope = try await request(.get, "/chats/\(id)")
         return response.chat
@@ -123,12 +129,12 @@ public extension APIClient {
 
     /// `recipientSubtaskID` — шаг плана, которому адресовано сообщение: сервер
     /// доставляет его роли этого шага, а не всем участникам чата.
-    func sendRoleChatMessage(chatID: String, text: String, attachmentIDs: [String] = [], mode: RoleChatWorkMode = .work,
+    func sendRoleChatMessage(chatID: String, text: String, attachmentIDs: [String] = [], mode: RoleChatWorkMode = .work, executionMode: ChatExecutionMode? = nil,
                              model: String? = nil, recipientSubtaskID: String? = nil) async throws -> RoleChatMessage {
-        struct Body: Encodable { let text: String; let attachment_ids: [String]; let work_mode: RoleChatWorkMode; let model: String?; let recipient_subtask_id: String? }
+        struct Body: Encodable { let text: String; let attachment_ids: [String]; let work_mode: RoleChatWorkMode; let execution_mode: ChatExecutionMode?; let model: String?; let recipient_subtask_id: String? }
         let response: RoleChatMessageEnvelope = try await request(
             .post, "/chats/\(chatID)/messages",
-            body: Body(text: text, attachment_ids: attachmentIDs, work_mode: mode, model: model, recipient_subtask_id: recipientSubtaskID)
+            body: Body(text: text, attachment_ids: attachmentIDs, work_mode: mode, execution_mode: executionMode, model: model, recipient_subtask_id: recipientSubtaskID)
         )
         return response.message
     }

@@ -728,6 +728,7 @@ private struct PendingOutgoing: Identifiable, Equatable {
     let text: String
     let attachments: [ApiChatAttachment]
     let mode: RoleChatWorkMode
+    let executionMode: ChatExecutionMode
     var failed = false
 }
 
@@ -816,6 +817,8 @@ struct RoleChatRoomScreen: View {
     @State private var pendingOutgoing: [PendingOutgoing] = []
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
     @State private var isStopping = false
+    @State private var isSavingExecutionMode = false
+    @State private var pendingVoiceExecutionModes: [UUID: ChatExecutionMode] = [:]
     @State private var workMode: RoleChatWorkMode = .work
     /// Столбец участников справа (владелец 20.10.2026) — помнит, открыт ли.
     @State private var noticeMessage: String?
@@ -1032,11 +1035,16 @@ struct RoleChatRoomScreen: View {
                     .padding(.vertical, TFSpacing.md)
                     .accessibilityIdentifier("chat.readOnlyDirect")
             } else {
+                VStack(spacing: TFSpacing.xs) {
+                    ChatExecutionModePicker(mode: chat.executionMode, isSaving: isSavingExecutionMode || isSending || isUploadingAttachment) { mode in
+                        Task { await changeExecutionMode(mode) }
+                    }
+                    .padding(.horizontal, TFSpacing.md)
                 ChatVoiceComposer(
                     text: $draft,
                     placeholder: "Сообщение",
                     canSendText: (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
-                        && !isSending && !isUploadingAttachment,
+                        && !isSending && !isUploadingAttachment && !isSavingExecutionMode,
                     voice: voice,
                     onAttachmentSource: { source in
                         switch source {
@@ -1064,6 +1072,8 @@ struct RoleChatRoomScreen: View {
                     isStopping: isStopping,
                     onStop: { Task { await stopTurns() } }
                 )
+                .disabled(isSavingExecutionMode)
+                }
             }
         }
         .tint(Color.tfText)
@@ -2480,11 +2490,23 @@ struct RoleChatRoomScreen: View {
 
     /// Отправка без ожидания сети: пузырь встаёт в ленту сразу, поле ввода
     /// очищается тем же нажатием, сеть догоняет в фоне.
+    private func changeExecutionMode(_ mode: ChatExecutionMode) async {
+        guard !isSavingExecutionMode, mode != chat.executionMode else { return }
+        isSavingExecutionMode = true
+        defer { isSavingExecutionMode = false }
+        do {
+            let updated = try await api.setChatExecutionMode(chatID: chat.id, mode: mode)
+            // A refresh started before this response must not restore the old mode.
+            refreshRevision += 1
+            chat = updated
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     private func send() async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment else { return }
+        guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment, !isSavingExecutionMode else { return }
         let pending = PendingOutgoing(id: "local-\(UUID().uuidString)", text: text,
-                                      attachments: pendingAttachments, mode: workMode)
+                                      attachments: pendingAttachments, mode: workMode, executionMode: chat.executionMode)
         draft = ""
         pendingAttachments = []
         followsChatBottom = true
@@ -2507,7 +2529,7 @@ struct RoleChatRoomScreen: View {
         }
         do {
             let message = try await api.sendRoleChatMessage(chatID: chat.id, text: pending.text,
-                                                            attachmentIDs: pending.attachments.map(\.id), mode: pending.mode,
+                                                            attachmentIDs: pending.attachments.map(\.id), mode: pending.mode, executionMode: pending.executionMode,
                                                             model: modelChoice.selected)
             withAnimation(.snappy(duration: 0.25)) {
                 pendingOutgoing.removeAll { $0.id == pendingID }
@@ -2586,6 +2608,7 @@ struct RoleChatRoomScreen: View {
         if !pendingVoices.contains(where: { $0.id == message.id }) {
             pendingVoices.append(message)
             pendingVoiceModes[message.id] = workMode
+            pendingVoiceExecutionModes[message.id] = chat.executionMode
         }
         await sendVoice(message.id)
         // Запись передана ленте; при сетевой ошибке в ней остаётся повтор.
@@ -2656,10 +2679,11 @@ struct RoleChatRoomScreen: View {
             let text: String
             if case .ready(let recognized) = message.transcript { text = recognized }
             else { text = "" }
-            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, model: modelChoice.selected)
+            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, executionMode: pendingVoiceExecutionModes[id] ?? chat.executionMode, model: modelChoice.selected)
             if !messages.contains(where: { $0.id == sent.id }) { messages.append(sent) }
             pendingVoices.removeAll { $0.id == id }
             pendingVoiceModes[id] = nil
+            pendingVoiceExecutionModes[id] = nil
             uploadedVoiceIDs.removeValue(forKey: id)
         } catch { errorMessage = error.localizedDescription }
     }
