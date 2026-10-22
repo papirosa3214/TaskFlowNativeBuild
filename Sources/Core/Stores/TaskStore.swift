@@ -12,6 +12,11 @@ import Observation
 public final class TaskStore {
     public private(set) var tasks: [ApiTask] = []
     public private(set) var archivedTasks: [ApiTask] = []
+    /// Счётчик событий «карточка ушла в архив». Экран «Состояние системы»
+    /// слушает его и перечитывает сводку и ленту уведомлений: запись
+    /// поломки должна исчезнуть сразу после архива, а не после ручного
+    /// обновления (владелец 20.10.2026).
+    public private(set) var archivedRevision = 0
     public private(set) var isLoadingArchive = false
     public var archiveErrorMessage: String?
     /// Тот же список, но С ДОЧЕРНИМИ (`include_children`). Только для плиток
@@ -221,6 +226,7 @@ public final class TaskStore {
 
     private func upsert(_ task: ApiTask) {
         if task.isArchived {
+            archivedRevision += 1
             tasks.removeAll { $0.id == task.id }
             agentWorkTasks.removeAll { $0.id == task.id }
             if let index = archivedTasks.firstIndex(where: { $0.id == task.id }) {
