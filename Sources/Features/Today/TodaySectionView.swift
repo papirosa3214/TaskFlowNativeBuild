@@ -115,6 +115,17 @@ struct TodaySectionView: View {
                 // намеренно: по просьбе владельца 19.10.2026 в режиме «Часы»
                 // картинок не должно быть вовсе — только список.
                 ZStack {
+                    // Картинка — пустое состояние вкладки, а не постоянный фон.
+                    // Владелец 22.10.2026: «я-то думал, они будут отображаться,
+                    // пока нет записи на этой странице… в итоге есть записи —
+                    // есть фон, я не этого ожидал». Поэтому картинка живёт
+                    // только пока во вкладке нет ни одной задачи. Лежит она ПОД
+                    // прокруткой: список едет, картинка стоит. Под ней — цвет
+                    // фона приложения, на нём и работает наложение `screen`:
+                    // фон остаётся своего цвета, от картинки только светлые
+                    // штрихи.
+                    Color.tfBackground
+                    if isTabEmpty(c) { plannerBackdrop }
                     ScrollView {
                         listContent(c: c)
                     }
@@ -172,6 +183,35 @@ struct TodaySectionView: View {
                 rescheduleTaskIDs = nil
             }
         }
+    }
+
+    /// Пуста ли текущая вкладка списка — по тем же наборам задач, что
+    /// показывает `TodayListView` (см. `TodayListSection.sections`).
+    /// Пока задач нет, вместо списка стоит картинка-пустое состояние.
+    private func isTabEmpty(_ c: TodayComputation) -> Bool {
+        let sections = TodayListSection.sections(tab: listTab, waiting: c.waitingTasks,
+            overdue: c.overdueTasks, today: c.todayTasks, upcoming: c.upcomingTasks, pool: c.poolTasks,
+            todayDate: today)
+        return PlannerBackdropVisibility.isVisible(isLoading: taskStore.isLoading,
+            hasError: taskStore.errorMessage != nil,
+            visibleTaskCount: sections.reduce(0) { $0 + $1.tasks.count })
+    }
+
+    /// Неподвижная картинка-фон текущей вкладки списка: тянется по размеру
+    /// экрана и обрезается по его краям. Из прокрутки её не видно — она под
+    /// ней, поэтому список едет, а картинка стоит. Касания и озвучку не
+    /// принимает: это подложка.
+    @ViewBuilder
+    private var plannerBackdrop: some View {
+        Image(listTab.backdropAssetName)
+            .resizable()
+            .scaledToFill()
+            .opacity(0.5)
+            .blendMode(.screen)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -327,4 +367,17 @@ struct TodaySectionView: View {
 
 private struct TodaySectionTaskID: Identifiable {
     let id: String
+}
+
+private extension TodayListTab {
+    /// Картинка-фон вкладки списка (владелец 22.10.2026): «Входящие» —
+    /// «если не сейчас, то когда», «Ждут вас» и «Сегодня» — «сегодня тот
+    /// самый день» (две из трёх картинок владельца одинаковые).
+    var backdropAssetName: String {
+        switch self {
+        case .inbox: "PlannerBackdropInbox"
+        case .attention: "PlannerBackdropAttention"
+        case .today: "PlannerBackdropToday"
+        }
+    }
 }
