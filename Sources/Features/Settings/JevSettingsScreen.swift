@@ -58,47 +58,41 @@ struct JevSettingsScreen: View {
 
     private func connection(_ settings: JevSettings) -> some View {
         Section {
-            HStack(spacing: TFSpacing.sm) {
-                TextField("Адрес API", text: $baseUrl)
-                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .accessibilityIdentifier("jev-url")
-                TextField("Модель", text: $model)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .accessibilityIdentifier("jev-model")
-                    .multilineTextAlignment(.trailing)
-            }
-            TextField("Тайм-аут, мс (сколько ждать ответа, 500–60000)", text: $timeoutMs)
-                .keyboardType(.numberPad).accessibilityIdentifier("jev-timeout")
-            SecureField(settings.hasApiKey ? "Ключ сохранён — новый заменит" : "Ключ API TypeSafe", text: $apiKey)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .accessibilityLabel("Ключ API").accessibilityIdentifier("jev-key")
-            HStack(spacing: TFSpacing.sm) {
-                TFButton("Сохранить", variant: .secondary, isEnabled: dirty && !busy) {
-                    Task { await saveConnection() }
-                }.accessibilityIdentifier("jev-save")
-                    .frame(maxWidth: .infinity)
-                Button {
-                    Task { await test() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .tfText(.row).fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(Color.tfBlue)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                HStack(spacing: TFSpacing.sm) {
+                    TextField("Адрес API", text: $baseUrl)
+                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .accessibilityIdentifier("jev-url")
+                    TextField("Модель", text: $model)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .accessibilityIdentifier("jev-model")
+                        .multilineTextAlignment(.trailing)
                 }
-                .buttonStyle(TFTapScaleStyle())
-                .disabled(!(settings.hasApiKey && !dirty && !busy))
-                .accessibilityIdentifier("jev-test")
-                .accessibilityLabel("Проверить подключение")
-            }
-            if busy { ProgressView("Подождите…") }
-            if let result {
-                Text(result.message).tfText(.action).foregroundStyle(Color.tfSub)
-                    .accessibilityIdentifier("jev-test-result")
+                TextField("Тайм-аут, мс (сколько ждать ответа, 500–60000)", text: $timeoutMs)
+                    .keyboardType(.numberPad).accessibilityIdentifier("jev-timeout")
+                SecureField(settings.hasApiKey ? "Ключ сохранён — новый заменит" : "Ключ API TypeSafe", text: $apiKey)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .accessibilityLabel("Ключ API").accessibilityIdentifier("jev-key")
+                HStack(spacing: TFSpacing.sm) {
+                    TFButton("Сохранить", variant: .primary, isEnabled: dirty && !busy) {
+                        Task { await saveConnection() }
+                    }.accessibilityIdentifier("jev-save")
+                        .frame(maxWidth: .infinity)
+                    TFButton("", icon: "arrow.clockwise", variant: .secondary,
+                             isEnabled: settings.hasApiKey && !dirty && !busy) {
+                        Task { await test() }
+                    }.accessibilityIdentifier("jev-test")
+                        .accessibilityLabel("Проверить подключение")
+                }
+                if busy { ProgressView("Подождите…") }
+                if let result {
+                    Text(result.message).tfText(.action).foregroundStyle(Color.tfSub)
+                        .accessibilityIdentifier("jev-test-result")
+                }
+                Text("Ключ хранится на сервере. Проверка использует сохранённые настройки.")
+                    .tfText(.action).foregroundStyle(Color.tfSub)
             }
         } header: { Text("Подключение") }
-        footer: { Text("Ключ хранится на сервере. Проверка использует сохранённые настройки.").tfText(.action) }
         .tfText(.input)
         .foregroundStyle(Color.tfText)
         .hintAnchor(HintAnchorID.jevConnection)
