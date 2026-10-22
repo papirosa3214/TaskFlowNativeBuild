@@ -115,14 +115,17 @@ struct TodaySectionView: View {
                 // намеренно: по просьбе владельца 19.10.2026 в режиме «Часы»
                 // картинок не должно быть вовсе — только список.
                 ZStack {
-                    // Картинка-фон вкладки (владелец 22.10.2026). Живёт
-                    // ПОД прокруткой, а не внутри неё: список едет, картинка
-                    // стоит на месте. Под картинкой лежит цвет фона
-                    // приложения — на нём же и работает наложение `screen`,
-                    // поэтому фон остаётся своего цвета, а от картинки
-                    // добавляются только светлые штрихи.
+                    // Картинка — пустое состояние вкладки, а не постоянный фон.
+                    // Владелец 22.10.2026: «я-то думал, они будут отображаться,
+                    // пока нет записи на этой странице… в итоге есть записи —
+                    // есть фон, я не этого ожидал». Поэтому картинка живёт
+                    // только пока во вкладке нет ни одной задачи. Лежит она ПОД
+                    // прокруткой: список едет, картинка стоит. Под ней — цвет
+                    // фона приложения, на нём и работает наложение `screen`:
+                    // фон остаётся своего цвета, от картинки только светлые
+                    // штрихи.
                     Color.tfBackground
-                    plannerBackdrop
+                    if isTabEmpty(c) { plannerBackdrop }
                     ScrollView {
                         listContent(c: c)
                     }
@@ -179,6 +182,20 @@ struct TodaySectionView: View {
                 rescheduleTask = nil
                 rescheduleTaskIDs = nil
             }
+        }
+    }
+
+    /// Пуста ли текущая вкладка списка — по тем же наборам задач, что
+    /// показывает `TodayListView` (см. `TodayListSection.sections`).
+    /// Пока задач нет, вместо списка стоит картинка-пустое состояние.
+    private func isTabEmpty(_ c: TodayComputation) -> Bool {
+        // Пока данные грузятся или не пришли — это не «пусто», а неизвестно:
+        // картинка не должна мелькать на каждом обновлении.
+        guard !taskStore.isLoading, taskStore.errorMessage == nil else { return false }
+        return switch listTab {
+        case .inbox: c.poolTasks.isEmpty
+        case .attention: c.waitingTasks.isEmpty && c.overdueTasks.isEmpty
+        case .today: c.todayTasks.isEmpty && c.upcomingTasks.isEmpty
         }
     }
 
