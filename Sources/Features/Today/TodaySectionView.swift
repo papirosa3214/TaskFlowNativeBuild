@@ -115,6 +115,14 @@ struct TodaySectionView: View {
                 // намеренно: по просьбе владельца 19.10.2026 в режиме «Часы»
                 // картинок не должно быть вовсе — только список.
                 ZStack {
+                    // Картинка-фон вкладки (владелец 22.10.2026). Живёт
+                    // ПОД прокруткой, а не внутри неё: список едет, картинка
+                    // стоит на месте. Под картинкой лежит цвет фона
+                    // приложения — на нём же и работает наложение `screen`,
+                    // поэтому фон остаётся своего цвета, а от картинки
+                    // добавляются только светлые штрихи.
+                    Color.tfBackground
+                    plannerBackdrop
                     ScrollView {
                         listContent(c: c)
                     }
@@ -172,6 +180,23 @@ struct TodaySectionView: View {
                 rescheduleTaskIDs = nil
             }
         }
+    }
+
+    /// Неподвижная картинка-фон текущей вкладки списка: тянется по размеру
+    /// экрана и обрезается по его краям. Из прокрутки её не видно — она под
+    /// ней, поэтому список едет, а картинка стоит. Касания и озвучку не
+    /// принимает: это подложка.
+    @ViewBuilder
+    private var plannerBackdrop: some View {
+        Image(listTab.backdropAssetName)
+            .resizable()
+            .scaledToFill()
+            .opacity(0.5)
+            .blendMode(.screen)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -327,4 +352,17 @@ struct TodaySectionView: View {
 
 private struct TodaySectionTaskID: Identifiable {
     let id: String
+}
+
+private extension TodayListTab {
+    /// Картинка-фон вкладки списка (владелец 22.10.2026): «Входящие» —
+    /// «если не сейчас, то когда», «Ждут вас» и «Сегодня» — «сегодня тот
+    /// самый день» (две из трёх картинок владельца одинаковые).
+    var backdropAssetName: String {
+        switch self {
+        case .inbox: "PlannerBackdropInbox"
+        case .attention: "PlannerBackdropAttention"
+        case .today: "PlannerBackdropToday"
+        }
+    }
 }
