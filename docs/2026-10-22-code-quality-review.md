@@ -52,6 +52,9 @@
 
 ### High
 
+> ✅ **Оба High закрыты 22.10.2026** — отчёт `docs/2026-10-22-code-review-high-fixes.md`
+> (реестр `LOCK-ATTACHMENT-FLUSH-20261022`, `LOCK-ESCALATION-STEP-INDEX-20261022`).
+
 **Category: Error Handling / потеря данных**
 
 **[High]: `Sources/Features/Task/Fields/AttachmentsFieldView.swift:76-83`** — неудачная
@@ -79,6 +82,8 @@ pending.removeAll { $0.fileName != ... }   // неудачные остаютс�
 // отвечает ошибкой, файл исчезает без единого сообщения. Соседние методы этого
 // же типа (`addPending` :55, `removeUploaded` :64) `errorMessage` ставят — здесь
 // забыто. Проверено лично.
+// ИТОГ: неудачные файлы остаются в `pending`, `errorMessage` показывается
+// (`Tests/TaskAttachmentsFlushTests.swift`, 3 теста).
 
 **[High]: `Sources/Features/Settings/EscalationStepEditor.swift:66, 78`** — индекс шага,
 захваченный при отрисовке, используется для правки массива позже.
@@ -91,6 +96,8 @@ if let index { rule.steps[index] = step }
 // Reason: `index` — номер на момент открытия шторки. Если правило с че��овека
 // изменилось (реалтайм-синхронизация), массив стал короче — `remove(at:)`
 /`rule.steps[index]` падают с «index out of range». Проверено лично.
+// ИТОГ: шаг ищется ПО ЗНАЧЕНИЮ (`EscalationStepDraft.currentIndex(in:)`), выход
+// за границу невозможен (`Tests/EscalationStepIndexTests.swift`, 4 теста).
 
 ### Medium
 
@@ -296,8 +303,8 @@ private var visibleMessages: [RoleChatMessage] {
 
 ## 📋 Recommendations
 
-1. **High Priority**: починить потерю вложения (`AttachmentsFieldView.swift:76-83`) — неудачные файлы остаются в `pending`, `errorMessage` показывается. Соседние методы уже так делают.
-2. **High Priority**: закрыть падение по индексу в `EscalationStepEditor.swift:66,78` — проверять `index < rule.steps.count` перед правкой.
+1. ~~**High Priority**: починить потерю вложения (`AttachmentsFieldView.swift:76-83`) — неудачные файлы остаются в `pending`, `errorMessage` показывается. Соседние методы уже так делают.~~ ✅ сделано 22.10.2026.
+2. ~~**High Priority**: закрыть падение по индексу в `EscalationStepEditor.swift:66,78` — проверять `index < rule.steps.count` перед правкой.~~ ✅ сделано 22.10.2026 (шаг ищется по значению, а не по номеру).
 3. **Medium Priority**: вынести `visibleMessages`/`feedItems` из `body` ленты в кэш по ревизиям и убрать `AnyView` из заголовков строк (`RoleChatsScreen.swift:1618-1630, 1471, 2120`) — тот же приём, что применён к «Сегодня» и «Заметкам».
 4. **Medium Priority**: статусы из строк — в enum (`TaskPreparation`, `CollaborationPlan`); вью должна работать с моделью, у которой уже есть вычисляемые свойства.
 5. **Medium Priority**: убрать `DateFormatter()` из горячих путей (6 файлов) — статические экземпляры, как в `DateFormats.swift`.

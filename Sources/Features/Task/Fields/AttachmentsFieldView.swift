@@ -72,14 +72,28 @@ final class TaskAttachmentsController {
     }
 
     /// Вызывается формой ПОСЛЕ того, как задача создана и id стал известен.
+    ///
+    /// Неудачный файл НЕ теряется: он остаётся в `pending`, а пользователь
+    /// получает `errorMessage` — как в `add` и `removeUploaded`. Раньше ошибка
+    /// загрузки глушилась через `try?`, а `pending.removeAll()` убирал файл из
+    /// списка в любом случае: файл исчезал молча (High №1 кодревью 22.10.2026).
     func flushPending(taskId: String) async {
+        var failed: [PendingAttachment] = []
         for item in pending {
-            if let attachment = try? await apiClient.uploadTaskAttachment(
-                taskId: taskId, kind: "task", fileName: item.fileName, data: item.data, mime: item.mime
-            ) {
+            do {
+                let attachment = try await apiClient.uploadTaskAttachment(
+                    taskId: taskId, kind: "task", fileName: item.fileName, data: item.data, mime: item.mime
+                )
                 uploaded.append(attachment)
+            } catch {
+                failed.append(item)
             }
         }
-        pending.removeAll()
+        if failed.isEmpty {
+            pending.removeAll()
+        } else {
+            pending = failed
+            errorMessage = "Не удалось приложить файл"
+        }
     }
 }
