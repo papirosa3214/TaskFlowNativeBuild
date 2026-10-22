@@ -53,6 +53,51 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.messages.first?.taskTitle, "Помыть посуду")
     }
 
+    /// Подгруженная по курсору БОЛЕЕ СТАРАЯ история встаёт в НАЧАЛО ленты.
+    /// Раньше она дописывалась в конец — и порядок ломался: старые сообщения
+    /// оказывались после новых (владелец 22.10.2026: «криво встают мои
+    /// сообщения непоследовательно по времени»).
+    func testOlderHistoryIsPrependedNotAppended() async throws {
+        var pages = 0
+        ChatURLProtocol.handler = { request in
+            if request.httpMethod == "POST" {
+                return Data(#"{"id":"sent","channel":"agents","text":"sent"}"#.utf8)
+            }
+            pages += 1
+            if pages == 1 {
+                return Data(#"{"messages":[{"id":"old","channel":"agents","text":"old","created_at":"2026-10-22 12:00:00"}],"has_more":true}"#.utf8)
+            }
+            return Data(#"{"messages":[{"id":"older","channel":"agents","text":"older","created_at":"2026-10-22 10:00:00"}],"has_more":false}"#.utf8)
+        }
+        defer { ChatURLProtocol.handler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ChatURLProtocol.self]
+        let viewModel = ChatViewModel(api: APIClient(session: URLSession(configuration: configuration)))
+
+        await viewModel.loadHistory()
+        XCTAssertEqual(viewModel.messages.map(\.id), ["old"])
+        await viewModel.loadHistory()
+        XCTAssertEqual(viewModel.messages.map(\.id), ["older", "old"])
+    }
+
+    /// Сообщение по сокету встаёт по времени, а не в конец: ответ, пришедший
+    /// позже по сети, но созданный раньше, должен лежать ВЫШЕ новых.
+    func testRealtimeMessageOlderThanShownIsInsertedByTime() throws {
+        let viewModel = ChatViewModel()
+        let newer = try JSONDecoder().decode(
+            ApiChatMessage.self,
+            from: Data(#"{"id":"newer","channel":"agents","text":"новое","created_at":"2026-10-22 12:00:00"}"#.utf8)
+        )
+        let older = try JSONDecoder().decode(
+            ApiChatMessage.self,
+            from: Data(#"{"id":"older","channel":"agents","text":"старое","created_at":"2026-10-22 10:00:00"}"#.utf8)
+        )
+        viewModel.handle(.chatNew(newer))
+        viewModel.handle(.chatNew(older))
+        XCTAssertEqual(viewModel.messages.map(\.id), ["older", "newer"])
+    }
+
     /// Сообщение чужого канала в ленту не идёт, повтор события не задваивает.
     func testRealtimeIgnoresOtherChannelAndDuplicates() throws {
         let viewModel = ChatViewModel() // агентская учётка — активен канал «agents»

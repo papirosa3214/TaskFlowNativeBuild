@@ -207,8 +207,22 @@ struct ChatScreen: View {
                 }
             }
             .animation(.easeOut(duration: TFDuration.base), value: isNearBottom)
-            .onChange(of: viewModel.messages.count) { _, _ in scrollToBottom(proxy) }
-            .onChange(of: viewModel.visibleTypists) { _, _ in scrollToBottom(proxy) }
+            // Новое сообщение: прокручиваем вниз, только если владелец и так
+            // внизу. Раньше прокрутка была БЕЗУСЛОВНОЙ — лента выкидывала его
+            // вниз, пока он читал выше (владелец 22.10.2026: «куда-то вечно
+            // уезжает, а там уже текста нет»).
+            .onChange(of: viewModel.messages.last?.id) { _, _ in
+                if isNearBottom { scrollToBottom(proxy) }
+            }
+            // Подгрузилась более старая история: удерживаем взгляд на том же
+            // сообщении, а не уезжаем вниз.
+            .onChange(of: viewModel.messages.first?.id) { previous, _ in
+                guard let previous else { return }
+                proxy.scrollTo(previous, anchor: .top)
+            }
+            .onChange(of: viewModel.visibleTypists) { _, _ in
+                if isNearBottom { scrollToBottom(proxy) }
+            }
         }
     }
 

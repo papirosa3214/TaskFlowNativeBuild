@@ -170,6 +170,11 @@ final class ChatViewModel {
     func switchChannel(to newChannel: ChatChannel) {
         guard bothChannelsVisible, newChannel != channel else { return }
         channel = newChannel
+        // Другой канал — другая лента: чистим сообщения и курсор, иначе в
+        // одном списке смешаются сообщения двух каналов, а подгрузка старых
+        // дописывалась бы в конец чужой ленты.
+        messages = []
+        historyCursor = nil
         Task { await loadHistory() }
     }
 
@@ -217,7 +222,13 @@ final class ChatViewModel {
             if messages.isEmpty {
                 messages = page.messages
             } else {
-                messages.append(contentsOf: page.messages)
+                // Страница по курсору — БОЛЕЕ СТАРАЯ история. Раньше она
+                // дописывалась в конец ленты, и порядок ломался: подгруженные
+                // старые сообщения оказывались ПОСЛЕ новых («криво встают по
+                // времени», владелец 22.10.2026). Старые — в начало.
+                let known = Set(messages.map(\.id))
+                let older = page.messages.filter { !known.contains($0.id) }
+                messages = older + messages
             }
             historyCursor = page.hasMore ? page.messages.first?.id : nil
             historyErrorMessage = nil
@@ -237,11 +248,39 @@ final class ChatViewModel {
                 limit: 50
             )
             var knownIDs = Set(messages.map(\.id))
-            messages.append(contentsOf: page.messages.filter { knownIDs.insert($0.id).inserted })
+            for message in page.messages where knownIDs.insert(message.id).inserted {
+                insertByTime(message)
+            }
             historyErrorMessage = nil
         } catch {
             historyErrorMessage = Self.message(for: error)
         }
+    }
+
+    /// Вставка сообщения в ленту ПО ВРЕМЕНИ.
+    ///
+    /// Раньше новое сообщение просто дописывалось в конец (`append`), и
+    /// сообщение, пришедшее по сокету с временем старше уже показанных,
+    /// вставало ПОСЛЕ них — лента читалась «не по времени» (владелец
+    /// 22.10.2026). Сообщение без даты (локальное «в пути») считаем самым
+    /// новым: оно идёт в конец.
+    private func insertByTime(_ message: ApiChatMessage) {
+        if let index = messages.firstIndex(where: { $0.id == message.id }) {
+            messages[index] = message
+            return
+        }
+        var index = messages.count
+        if let newDate = message.createdAtDate {
+            // Новое с датой: встаёт перед первым сообщением, которое строго
+            // новее. Сообщения с той же секундой сохраняют порядок поступления.
+            index = 0
+            while index < messages.count {
+                guard let other = messages[index].createdAtDate else { break }
+                if other > newDate { break }
+                index += 1
+            }
+        }
+        messages.insert(message, at: index)
     }
 
     // MARK: - Отправка
@@ -396,7 +435,7 @@ final class ChatViewModel {
     func receiveRealtimeMessage(_ message: ApiChatMessage) {
         guard message.channel == activeChannel else { return }
         guard !messages.contains(where: { $0.id == message.id }) else { return }
-        messages.append(message)
+        insertByTime(message)
     }
 
     func handle(_ event: RealtimeEvent) {
