@@ -551,7 +551,11 @@ private struct CardWidget: View {
                     .frame(maxWidth: .infinity)
                 // task://<id> — карточка внутри приложения (владелец 13.10.2026):
                 // система такую ссылку не знает, openURL молча ничего не делал.
-                if url.scheme == "task", let taskID = url.host ?? url.pathComponents.last, !taskID.isEmpty {
+                if case .note(let noteID) = ChatMaterialDestination.resolve(raw) {
+                    NavigationLink(value: AppRoute.noteEditor(noteID: noteID)) { label }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("widget-card-open-note")
+                } else if url.scheme == "task", let taskID = url.host ?? url.pathComponents.last, !taskID.isEmpty {
                     TaskCardLink(taskID: taskID) { label }
                         .buttonStyle(.bordered)
                         .tint(Color.tfRed)

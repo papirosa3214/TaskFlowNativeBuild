@@ -299,13 +299,25 @@ struct ChatStructuredOutputView: View {
 
     @ViewBuilder
     private func materialRow(_ material: StructuredOutputMaterial) -> some View {
-        if let url = URL(string: material.ref), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+        switch ChatMaterialDestination.resolve(material.ref, kind: material.kind) {
+        case .note(let id):
+            NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
+                Label(material.title, systemImage: "doc.text")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfBlue)
+            }
+            .accessibilityIdentifier("chat.material.note.\(id)")
+        case .task(let id):
+            TaskCardLink(taskID: id) {
+                Label(material.title, systemImage: "checklist").tfText(.body)
+            }
+        case .web(let url):
             Link(destination: url) {
                 Label(material.title, systemImage: "arrow.up.right.square")
                     .tfText(.body)
                     .foregroundStyle(Color.tfBlue)
             }
-        } else {
+        case nil:
             VStack(alignment: .leading, spacing: 2) {
                 Text(material.title).tfText(.body).foregroundStyle(Color.tfText)
                 Text(material.ref).tfText(.caption).foregroundStyle(Color.tfSub).textSelection(.enabled)
