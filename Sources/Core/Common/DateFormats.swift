@@ -81,15 +81,24 @@ public enum DateFormats {
     /// Порядок дней считается по пролептическому григорианскому календарю
     /// (алгоритм «days from civil»), без `Calendar` и без локали.
     static func fastSQLiteUTC(_ raw: String) -> Date? {
-        let utf8 = raw.utf8
-        guard utf8.count == 19 else { return nil }
-        var bytes = [UInt8]()
-        bytes.reserveCapacity(19)
-        for byte in utf8 { bytes.append(byte) }
+        // Байты читаем без копии: у нативной строки UTF-8 лежит подряд.
+        if let date = raw.utf8.withContiguousStorageIfAvailable({ fastSQLiteUTC(bytes: $0) }) {
+            return date
+        }
+        // Редкий случай: строка не нативная (например, из Objective-C) —
+        // тогда копируем байты и разбираем так же.
+        var copy = [UInt8]()
+        copy.reserveCapacity(19)
+        copy.append(contentsOf: raw.utf8)
+        return copy.withUnsafeBufferPointer { fastSQLiteUTC(bytes: $0) }
+    }
+
+    private static func fastSQLiteUTC(bytes: UnsafeBufferPointer<UInt8>) -> Date? {
+        guard bytes.count == 19 else { return nil }
 
         guard bytes[4] == 0x2D, bytes[7] == 0x2D, bytes[10] == 0x20,
               bytes[13] == 0x3A, bytes[16] == 0x3A else { return nil }
-        guard let year = twoOrFourDigits(bytes, 0), let month = twoDigits(bytes, 5),
+        guard let year = fourDigits(bytes, 0), let month = twoDigits(bytes, 5),
               let day = twoDigits(bytes, 8), let hour = twoDigits(bytes, 11),
               let minute = twoDigits(bytes, 14), let second = twoDigits(bytes, 17) else { return nil }
         guard (1...12).contains(month), day >= 1, day <= daysInMonth(year: year, month: month),
@@ -101,7 +110,7 @@ public enum DateFormats {
     }
 
     /// Четыре цифры года.
-    private static func twoOrFourDigits(_ bytes: [UInt8], _ index: Int) -> Int? {
+    private static func fourDigits(_ bytes: UnsafeBufferPointer<UInt8>, _ index: Int) -> Int? {
         var value = 0
         for offset in 0..<4 {
             guard let digit = digit(bytes[index + offset]) else { return nil }
@@ -111,7 +120,7 @@ public enum DateFormats {
     }
 
     /// Две цифры.
-    private static func twoDigits(_ bytes: [UInt8], _ index: Int) -> Int? {
+    private static func twoDigits(_ bytes: UnsafeBufferPointer<UInt8>, _ index: Int) -> Int? {
         guard let tens = digit(bytes[index]), let ones = digit(bytes[index + 1]) else { return nil }
         return tens * 10 + ones
     }

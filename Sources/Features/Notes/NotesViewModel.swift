@@ -219,10 +219,6 @@ func loadNotes() async {
 
     /// Последний документ папки учитывает и вложенные папки: именно он лучше
     /// всего отвечает на вопрос «когда тут в последний раз что-то меняли».
-    func latestNote(inFolderTree folderID: Int) -> NoteListItem? {
-        latestNote(inFolderTree: folderID, context: makeRowsContext())
-    }
-
     private func latestNote(inFolderTree folderID: Int, context: RowsContext) -> NoteListItem? {
         guard let ids = context.folderTree[folderID] else { return nil }
         // Тот же порядок обхода, что у `notes.filter{...}.max(by:)`, и то же
