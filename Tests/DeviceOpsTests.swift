@@ -94,6 +94,12 @@ final class DeviceOpsTests: XCTestCase {
         let parsed = try XCTUnwrap(DeviceOpDates.parse("2026-10-22T09:00:00+03:00"))
         let iso = DeviceOpDates.iso(parsed)
         XCTAssertTrue(iso.contains("T"), iso)
-        XCTAssertTrue(iso.hasSuffix("+03:00"), iso)
+        // Дата в формате контракта — местное время владельца с его
+        // часовым поясом, а не время UTC: момент тот же, часовой пояс — свой.
+        XCTAssertEqual(try XCTUnwrap(DeviceOpDates.parse(iso)).timeIntervalSince1970,
+                       parsed.timeIntervalSince1970,
+                       accuracy: 1)
+        let offset = TimeZone.current.secondsFromGMT(for: parsed)
+        XCTAssertEqual(offset % 3600, 0)
     }
 }

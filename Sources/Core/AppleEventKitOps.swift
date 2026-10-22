@@ -502,10 +502,14 @@ enum DeviceOpDates {
         return local.date(from: text)
     }
 
-    /// Дата в формате контракта.
+    /// Дата в формате контракта: ISO 8601 в местном времени владельца с
+    /// часовым поясом (`2026-10-22T09:00:00+03:00`). Форматировать в UTC
+    /// нельзя: владелец смотрит на даты в своём времени, а не в московском
+    /// времени сервера.
     static func iso(_ date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = TimeZone.current
         return formatter.string(from: date)
     }
 }
