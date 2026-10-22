@@ -1,6 +1,33 @@
 import XCTest
 
 final class RoleChatComposerUITests: XCTestCase {
+    func testExecutionChoiceIsInsideWorkMenuAndPreservesDraft() {
+        for promptBox in ["YES", "NO"] {
+            let app = XCUIApplication()
+            app.launchEnvironment["TASKFLOW_CHAT_COMPOSER_PREVIEW"] = "1"
+            app.launchArguments = ["-chat.experimentalPromptBox", promptBox]
+            app.launch()
+            let menu = app.buttons["chat.mode"]
+            XCTAssertTrue(menu.waitForExistence(timeout: 20))
+            XCTAssertFalse(app.segmentedControls["chat.execution-mode"].exists)
+            let field = app.descendants(matching: .any).matching(identifier: "chat.message").firstMatch
+            field.tap()
+            field.typeText("keep this draft")
+            menu.tap()
+            let card = app.buttons["По карточке"]
+            XCTAssertTrue(card.waitForExistence(timeout: 5))
+            guard card.exists else { app.terminate(); return }
+            card.tap()
+            XCTAssertEqual(menu.value as? String, "По карточке")
+            XCTAssertEqual(field.value as? String, "keep this draft")
+            menu.tap()
+            app.buttons["В чате"].tap()
+            XCTAssertEqual(menu.value as? String, "В чате")
+            XCTAssertEqual(field.value as? String, "keep this draft")
+            app.terminate()
+        }
+    }
+
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["TASKFLOW_CHAT_COMPOSER_PREVIEW"] = "1"

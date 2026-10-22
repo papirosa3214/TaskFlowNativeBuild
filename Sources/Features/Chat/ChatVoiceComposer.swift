@@ -35,6 +35,8 @@ struct ChatVoiceComposer: View {
     let onSendVoice: (VoiceMessage) async -> Bool
     let onDiscardVoice: (VoiceMessage) -> Void
     var workMode: Binding<RoleChatWorkMode>? = nil
+    var executionMode: Binding<ChatExecutionMode>? = nil
+    var canChangeExecutionMode = true
     var availableModes: [RoleChatWorkMode] = [.work, .plan]
     /// Пилюля модели рядом с режимом; nil или пустой список — не рисуется.
     var modelChoice: ChatModelChoice? = nil
@@ -72,6 +74,19 @@ struct ChatVoiceComposer: View {
     /// `ChatComposer.swift`); авто-рост под длинный текст не затронут —
     /// им управляет `.lineLimit(1...4)` у `TextField`, не эта константа.
     private let composerHeight: CGFloat = TFChatComposer.elementHeight
+
+    @ViewBuilder private var executionModeMenu: some View {
+        if let executionMode {
+            Divider()
+            Picker("", selection: executionMode) {
+                ForEach(ChatExecutionMode.allCases, id: \.self) { choice in
+                    Text(choice.title).tag(choice)
+                }
+            }
+            .pickerStyle(.inline)
+            .disabled(!canChangeExecutionMode)
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -175,6 +190,7 @@ struct ChatVoiceComposer: View {
                                 Label(mode.title, systemImage: mode.symbol).tag(mode)
                             }
                         }
+                        executionModeMenu
                     } label: {
                         Image(systemName: workMode.wrappedValue.symbol)
                             .font(.system(size: 20, weight: .medium))
@@ -184,6 +200,8 @@ struct ChatVoiceComposer: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("chat.mode")
                     .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
+                    .accessibilityValue(executionMode?.wrappedValue.title ?? "")
+                    .hintAnchor(HintAnchorID.chatExecutionMode)
                 }
                 if let modelChoice, modelChoice.isAvailable {
                     ChatModelMenu(choice: modelChoice) {
@@ -254,6 +272,7 @@ struct ChatVoiceComposer: View {
                                 Label(mode.title, systemImage: mode.symbol).tag(mode)
                             }
                         }
+                        executionModeMenu
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: workMode.wrappedValue.symbol)
@@ -272,6 +291,8 @@ struct ChatVoiceComposer: View {
                     .padding(.leading, 4)
                     .accessibilityIdentifier("chat.mode")
                     .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
+                    .accessibilityValue(executionMode?.wrappedValue.title ?? "")
+                    .hintAnchor(HintAnchorID.chatExecutionMode)
                 }
                 if let modelChoice, modelChoice.isAvailable {
                     // Тот же вид, что у пилюли режима слева от неё.
@@ -745,6 +766,7 @@ struct AgentChatComposerPreview: View {
     @State private var text = ""
     @State private var sentText = ""
     @State private var mode: RoleChatWorkMode = .work
+    @State private var executionMode: ChatExecutionMode = .chat
     @State private var voice = RoleChatVoiceController()
     @State private var responding = ProcessInfo.processInfo.environment["TASKFLOW_PROMPT_BOX_PREVIEW"] != "1"
     @State private var stream = ""
@@ -783,7 +805,7 @@ struct AgentChatComposerPreview: View {
                 ChatVoiceComposer(text: $text, placeholder: "Сообщение", canSendText: !text.isEmpty,
                                   voice: voice, onAttachmentSource: { _ in }, onSendText: { sentText = text; text = "" },
                                   onSendVoice: { _ in false }, onDiscardVoice: { _ in },
-                                  workMode: $mode, availableModes: RoleChatWorkMode.allCases,
+                                  workMode: $mode, executionMode: $executionMode, availableModes: RoleChatWorkMode.allCases,
                                   mentionCandidates: [RoleChatMember(id: "preview-role", name: "Архитектор", avatarColor: nil, avatarURL: nil, initials: nil, roleKey: "architect")],
                                   isResponding: responding, onStop: { responding = false })
             }

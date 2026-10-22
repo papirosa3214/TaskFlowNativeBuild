@@ -1035,11 +1035,6 @@ struct RoleChatRoomScreen: View {
                     .padding(.vertical, TFSpacing.md)
                     .accessibilityIdentifier("chat.readOnlyDirect")
             } else {
-                VStack(spacing: TFSpacing.xs) {
-                    ChatExecutionModePicker(mode: chat.executionMode, isSaving: isSavingExecutionMode || isSending || isUploadingAttachment) { mode in
-                        Task { await changeExecutionMode(mode) }
-                    }
-                    .padding(.horizontal, TFSpacing.md)
                 ChatVoiceComposer(
                     text: $draft,
                     placeholder: "Сообщение",
@@ -1057,6 +1052,10 @@ struct RoleChatRoomScreen: View {
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in },
                     workMode: $workMode,
+                    executionMode: Binding(get: { chat.executionMode }, set: { mode in
+                        Task { await changeExecutionMode(mode) }
+                    }),
+                    canChangeExecutionMode: !isSavingExecutionMode && !isSending && !isUploadingAttachment,
                     availableModes: RoleChatWorkMode.available(in: chat),
                     modelChoice: modelChoice,
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
@@ -1073,7 +1072,6 @@ struct RoleChatRoomScreen: View {
                     onStop: { Task { await stopTurns() } }
                 )
                 .disabled(isSavingExecutionMode)
-                }
             }
         }
         .tint(Color.tfText)
