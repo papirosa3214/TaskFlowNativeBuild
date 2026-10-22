@@ -585,8 +585,19 @@ struct RoleMemberAvatar: View {
 /// строка списка читается «когда было последнее сообщение», а не «сколько
 /// прошло» (`RelativeTime` в этой же папке отвечает на второй вопрос).
 enum ChatListTime {
+    /// Московские часы: строка списка и плашка дня внутри чата обязаны
+    /// называть один и тот же день одним и тем же словом (общее правило
+    /// проекта — все даты в Europe/Moscow).
+    private static var moscow: TimeZone { TimeZone(identifier: "Europe/Moscow") ?? .current }
+    private static func moscowCalendar() -> Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = moscow
+        return cal
+    }
+
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.timeZone = moscow
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
@@ -594,6 +605,7 @@ enum ChatListTime {
     private static let weekday: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
+        formatter.timeZone = moscow
         formatter.dateFormat = "EEE"
         return formatter
     }()
@@ -601,13 +613,14 @@ enum ChatListTime {
     private static let shortDate: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
+        formatter.timeZone = moscow
         formatter.dateFormat = "dd.MM"
         return formatter
     }()
 
     static func label(_ raw: String?) -> String? {
         guard let moment = DateFormats.sqliteUTC(raw) else { return nil }
-        let calendar = Calendar.autoupdatingCurrent
+        let calendar = moscowCalendar()
         if calendar.isDateInToday(moment) { return clock.string(from: moment) }
         if calendar.isDateInYesterday(moment) { return "Вчера" }
         let days = calendar.dateComponents(
@@ -787,6 +800,18 @@ struct RoleChatRoomScreen: View {
     @State private var endedTurnIDs: Set<String> = []
     /// Final messages stay in the paced queue until their text/actions are shown.
     @State private var completingTurns: [String: RoleChatLiveTurn] = [:]
+    /// Строка ленты для каждого сообщения. Своя у каждого сообщения; у
+    /// сообщения, ЗАВЕРШИВШЕГО живой ход, — строка хода: пока ход доигрывает
+    /// ответ, сообщение скрыто, и при его появлении строка не должна
+    /// пересоздаваться (пересоздание рвёт высоту и сбрасывает якорь
+    /// прокрутки). Раньше id строился как «reply:автор:на что ответ», а такая
+    /// пара не уникальна — ответ роли и служебные строки координации получали
+    /// один id, и SwiftUI переиспользовал строки: текст пропадал, лента
+    /// прыгала (владелец 22.10.2026).
+    @State private var rowIDByMessageID: [String: String] = [:]
+    /// Какое сообщение закрыло живой ход: ход прячет из ленты ровно ЭТО
+    /// сообщение, а не все ответы того же автора подряд.
+    @State private var completedMessageIDByTurn: [String: String] = [:]
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
     @State private var pendingOutgoing: [PendingOutgoing] = []
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
@@ -1266,8 +1291,7 @@ struct RoleChatRoomScreen: View {
                     roomEventRevision += 1
                     if let turn {
                         guard !endedTurnIDs.contains(turn.playbackID) else { return }
-                        if let trigger = turn.triggerMessageID,
-                           messages.contains(where: { $0.fromUserID == userID && $0.replyToMessageID == trigger }) { return }
+                        if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
                         liveTurns[userID] = turn
                     } else if let messageID, let message = messages.first(where: { $0.id == messageID }) {
                         // REST may have loaded the final message before chat:new.
@@ -1588,7 +1612,17 @@ struct RoleChatRoomScreen: View {
             // Служебная строка координации после ответа исчезает из ленты
             // (владелец 21.10.2026): ответ получен — показывать нечего.
             if message.isFinishedCoordinationRow { return false }
-            return !completingTurns.values.contains { $0.isCompleted(by: message) }
+            // Прячем только то сообщение, которое закрыло живой ход: пока
+            // ход доигрывает ответ, его текст уже в живом пузыре. Раньше
+            // скрывалось ЛЮБОЕ сообщение того же автора, попавшее в окно
+            // времени хода, — из-за этого из ленты пропадали ответы.
+            return !completingTurns.keys.contains { playbackID in
+                if let completed = completedMessageIDByTurn[playbackID] { return completed == message.id }
+                // Ход восстановлен после перезапуска приложения: какое
+                // сообщение его закрыло — неизвестно, берём прежнее правило.
+                guard let turn = completingTurns[playbackID] else { return false }
+                return turn.isCompleted(by: message)
+            }
         }
     }
 
@@ -1625,16 +1659,18 @@ struct RoleChatRoomScreen: View {
     /// Replacing `playbackID` with the server message ID made LazyVStack tear
     /// down one variable-height row and insert another at the same position,
     /// which could reset the reader's scroll anchor during completion.
+    ///
+    /// Своя строка у каждого сообщения. Строки не строятся из пары
+    /// «автор + на что ответ»: она не уникальна (ответ роли и служебные
+    /// строки координации отвечают на одно сообщение), и одинаковые id в
+    /// ForEach заставляли SwiftUI переиспользовать строки — текст пропадал, а
+    /// лента прыгала (владелец 22.10.2026).
     private func feedItemID(for message: RoleChatMessage) -> String {
-        guard let author = message.fromUserID, let trigger = message.replyToMessageID else {
-            return message.id
-        }
-        return "reply:\(author):\(trigger)"
+        rowIDByMessageID[message.id] ?? RoleChatRowID.message(message.id)
     }
 
     private func feedItemID(for turn: RoleChatLiveTurn) -> String {
-        guard let trigger = turn.triggerMessageID else { return turn.playbackID }
-        return "reply:\(turn.userID):\(trigger)"
+        RoleChatRowID.turn(turn.playbackID)
     }
 
 
@@ -1668,13 +1704,20 @@ struct RoleChatRoomScreen: View {
             if let index = messages.firstIndex(where: { $0.id == message.id }) {
                 messages[index] = message
             } else {
-                messages.append(message)
-                messages = RoleChatMessageOrder.sorted(messages)
+                // Вставка по серверному порядку: раньше тут сортировалась вся
+                // лента, и на каждом снимке живого ответа даты разбирались
+                // заново — это и было главным тормозом ленты.
+                messages = RoleChatMessageOrder.inserting(message, into: messages)
             }
             if let author = message.fromUserID, !mine {
                 if let turn = liveTurns[author] {
                     if turn.isCompleted(by: message) {
                         completingTurns[turn.playbackID] = turn.completed(with: message)
+                        // Это сообщение закрыло ход: пока ход доигрывает ответ,
+                        // сообщение скрыто, а при его появлении оно должно
+                        // занять ту же строку.
+                        completedMessageIDByTurn[turn.playbackID] = message.id
+                        rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
                         endedTurnIDs.insert(turn.playbackID)
                         liveTurns[author] = nil
                         restoredTurnIDs.remove(turn.playbackID)
@@ -1687,6 +1730,9 @@ struct RoleChatRoomScreen: View {
                 }
             }
             if mine, let index = pendingOutgoing.firstIndex(where: { !$0.failed && $0.text == message.text }) {
+                // Сервер принял наше сообщение: готовое занимает строку
+                // пузыря «в пути» — лента не дёргается на смене карточки.
+                rowIDByMessageID[message.id] = pendingOutgoing[index].id
                 pendingOutgoing.remove(at: index)
             }
         }
@@ -1771,6 +1817,17 @@ struct RoleChatRoomScreen: View {
                                    endedTurnIDs.remove(turn.playbackID)
                                })
                 .id(turn.playbackID)
+        }
+    }
+
+    /// Ответ роли уже есть в ленте: служебные строки координации («Ответ
+    /// получен», «Ход завершился ошибкой») ответом НЕ считаются — иначе
+    /// живой ход не показывался бы, хотя текст ответа ещё не пришёл.
+    private func hasAnswer(on trigger: String, from userID: String) -> Bool {
+        messages.contains { message in
+            message.fromUserID == userID
+                && message.replyToMessageID == trigger
+                && message.kind != "system"
         }
     }
 
@@ -2455,8 +2512,10 @@ struct RoleChatRoomScreen: View {
             withAnimation(.snappy(duration: 0.25)) {
                 pendingOutgoing.removeAll { $0.id == pendingID }
                 if !messages.contains(where: { $0.id == message.id }) {
-                    messages.append(message)
-                    messages = RoleChatMessageOrder.sorted(messages)
+                    // Своё отправленное сообщение занимает строку пузыря «в
+                    // пути»: строка не пересоздаётся, лента не прыгает.
+                    rowIDByMessageID[message.id] = pending.id
+                    messages = RoleChatMessageOrder.inserting(message, into: messages)
                 }
             }
         } catch {

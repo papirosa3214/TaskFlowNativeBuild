@@ -7,14 +7,25 @@ import SwiftUI
 // одна и та же (системное стекло `voiceCircleSurface`, как у круглых кнопок
 // композера).
 //
-// День считается по календарю УСТРОЙСТВА — намеренно так же, как
-// `ChatListTime` в списке чатов рядом: строка списка и плашка внутри чата
-// обязаны называть один и тот же день одним и тем же словом. Московское
-// время из `RelativeTime` для этого не годится — оно показывает время
-// сообщения, а не границу суток.
+// День и время считаются по МОСКОВСКОМУ времени — по общему правилу проекта
+// (все даты в Europe/Moscow, независимо от настроек устройства; см.
+// `graft/moscow-timezone-enforcement.md`). Раньше здесь стоял календарь
+// устройства, и при часовом поясе не московском «Сегодня» в чатах
+// разъезжалось с остальным приложением и с сервером. Список чатов рядом
+// (`ChatListTime`) переведён на то же правило — строка списка и плашка
+// внутри чата обязаны называть один и тот же день одним и тем же словом.
 
 /// Подпись разделителя дня: «Сегодня» / «Вчера» / «Понедельник» / «1 октября».
 enum ChatDayLabel {
+    /// Календарь московский: граница суток должна быть одна и та же на
+    /// телефоне, в вебе и на сервере.
+    static var moscow: TimeZone { TimeZone(identifier: "Europe/Moscow") ?? .current }
+    private static func moscowCalendar() -> Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = moscow
+        return cal
+    }
+
     /// Родительный падеж месяца — «1 октября», а не системное «1 окт.».
     private static let monthsGenitive = [
         "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -24,6 +35,7 @@ enum ChatDayLabel {
     private static let weekday: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
+        formatter.timeZone = moscow
         formatter.dateFormat = "EEEE"
         return formatter
     }()
@@ -36,7 +48,7 @@ enum ChatDayLabel {
     }
 
     static func label(_ date: Date, now: Date = .now) -> String {
-        let calendar = Calendar.autoupdatingCurrent
+        let calendar = moscowCalendar()
         if calendar.isDateInToday(date) { return "Сегодня" }
         if calendar.isDateInYesterday(date) { return "Вчера" }
         // Ближайшая неделя — словом: увидел «Среда» и сразу видно, где был.
@@ -51,7 +63,7 @@ enum ChatDayLabel {
 
     /// «1 октября» этого года; чужой год — с годом («1 октября 2025»).
     private static func dayAndMonth(_ date: Date, now: Date = .now) -> String {
-        let calendar = Calendar.autoupdatingCurrent
+        let calendar = moscowCalendar()
         let comps = calendar.dateComponents([.year, .month, .day], from: date)
         let month = max(1, min(12, comps.month ?? 1))
         let text = "\(comps.day ?? 1) \(monthsGenitive[month - 1])"
@@ -76,7 +88,7 @@ enum ChatDayLabel {
     nonisolated(unsafe) private static let dayKeys = NSCache<NSString, NSString>()
 
     static func dayKey(_ date: Date) -> String {
-        let comps = Calendar.autoupdatingCurrent.dateComponents([.year, .month, .day], from: date)
+        let comps = moscowCalendar().dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
     }
 
@@ -88,7 +100,7 @@ enum ChatDayLabel {
     }
 
     static func dividerTitle(_ date: Date, now: Date = .now) -> String {
-        let calendar = Calendar.autoupdatingCurrent
+        let calendar = moscowCalendar()
         let text = dayAndMonth(date, now: now)
         if calendar.isDateInToday(date) { return "Сегодня, \(text)" }
         if calendar.isDateInYesterday(date) { return "Вчера, \(text)" }
@@ -96,12 +108,13 @@ enum ChatDayLabel {
     }
 }
 
-/// Время сообщения в строке отправителя — «14:05» по часам устройства
+/// Время сообщения в строке отправителя — «14:05» по московским часам
 /// (владелец 14.10.2026: время нужно и у своих сообщений, и у ответов).
 enum ChatMessageTime {
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
+        formatter.timeZone = ChatDayLabel.moscow
         formatter.dateFormat = "HH:mm"
         return formatter
     }()

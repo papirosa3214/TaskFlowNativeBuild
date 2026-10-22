@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "0319E229-06B5-4FA9-8551-1C85859E835E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "chat-feed-orchestrator_0_53F90F9F-C8E8-4675-B189-4FF622BE7873.png",
+        "timestamp" : 1792631371.463
+      }
+    ],
+    "testIdentifier" : "ChatFeedStabilityUITests/testRoleChatFeedShowsEveryBubble()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/ChatFeedStabilityUITests/testRoleChatFeedShowsEveryBubble"
+  }
+]

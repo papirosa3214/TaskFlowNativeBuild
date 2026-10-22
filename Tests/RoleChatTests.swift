@@ -142,10 +142,15 @@ final class RoleChatTests: XCTestCase {
 }
 
 /// Разделители дней в ленте переписки (владелец 03.10.2026): где начинается
-/// новый день и как он называется. Даты — по календарю устройства, поэтому
-/// тесты строят моменты календарём, а не константами.
+/// новый день и как он называется. Даты — по МОСКОВСКОМУ календарю (общее
+/// правило проекта: все даты в Europe/Moscow), поэтому тесты строят моменты
+/// московским календарём, а не константами.
 final class ChatDayLabelTests: XCTestCase {
-    private let calendar = Calendar.autoupdatingCurrent
+    private var calendar: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Moscow") ?? .current
+        return cal
+    }()
 
     private func moment(daysAgo: Int, hour: Int = 12) -> Date {
         let start = calendar.startOfDay(for: Date())
@@ -215,5 +220,74 @@ final class ChatDayLabelTests: XCTestCase {
     func testDayStartsEmptyWhenHistoryHasNoDates() {
         let messages: [String?] = [nil, nil]
         XCTAssertTrue(ChatDayMarker.dayStarts(in: messages, createdAt: \.self).isEmpty)
+    }
+
+    /// Граница суток — московская, а не таймзона устройства: сообщение в
+    /// 23:30 по Москве относится к СЕГОДНЯШНЕМУ дню, даже если UTC-дата
+    /// сервера у него уже «завтра».
+    func testDayBoundaryIsMoscowNotDevice() {
+        // 2026-10-21 23:30 UTC = 2026-10-22 02:30 МСК → это уже 22 октября.
+        XCTAssertEqual(ChatDayLabel.dayKey(raw: "2026-10-21 23:30:00"), "2026-10-22")
+        // 2026-10-21 20:30 UTC = 2026-10-21 23:30 МСК → ещё 21 октября.
+        XCTAssertEqual(ChatDayLabel.dayKey(raw: "2026-10-21 20:30:00"), "2026-10-21")
+    }
+}
+
+/// Идентичность строки ленты и порядок сообщений (владелец 22.10.2026:
+/// «текста нет, но он всё равно где-то», сообщения встают криво по времени).
+final class RoleChatFeedIdentityTests: XCTestCase {
+    private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
+        try JSONDecoder().decode(type, from: Data(json.utf8))
+    }
+
+    /// Шесть строк от одной роли в ответ на одно сообщение (в живой базе
+    /// такое есть: ответ роли + служебные строки координации). Прежний id
+    /// строки строился как «reply:автор:на что ответ» — у всех шести он был
+    /// ОДИН, и SwiftUI переиспользовал строки: пузыри менялись местами, текст
+    /// пропадал, лента прыгала.
+    func testRowIDIsUniqueForSeveralMessagesFromSameAuthorOnSameTrigger() throws {
+        let messages = try decode([RoleChatMessage].self, #"[{"id":"m1","text":"Ответ","from_user_id":"role_code_orchestrator","created_at":"2026-10-21 13:19:39","is_session_marker":false,"reply_to_message_id":"q1","sequence":10},{"id":"m2","text":"Ответ получен","from_user_id":"role_code_orchestrator","created_at":"2026-10-21 13:19:39","is_session_marker":false,"reply_to_message_id":"q1","kind":"system","sequence":11},{"id":"m3","text":"Ход завершился ошибкой","from_user_id":"role_code_orchestrator","created_at":"2026-10-21 13:19:39","is_session_marker":false,"reply_to_message_id":"q1","kind":"system","sequence":12},{"id":"m4","text":"Ответ","from_user_id":"role_code_orchestrator","created_at":"2026-10-21 13:19:39","is_session_marker":false,"reply_to_message_id":"q1","sequence":13},{"id":"m5","text":"Ответ получен","from_user_id":"role_code_orchestrator","created_at":"2026-10-21 13:19:40","is_session_marker":false,"reply_to_message_id":"q1","kind":"system","sequence":14},{"id":"m6","text":"Ответ получен","from_user_id":"role_code_orchestrator","created_at":"2026-10-21 13:21:59","is_session_marker":false,"reply_to_message_id":"q1","kind":"system","sequence":15}]"#)
+        let ids = messages.map { RoleChatRowID.message($0.id) }
+        XCTAssertEqual(Set(ids).count, 6, "у строк ленты должен быть свой id")
+        // Прежняя формула давала один id на все шесть строк — это и ломало ленту.
+        let legacy = Set(messages.map { "reply:\($0.fromUserID ?? "-"):\($0.replyToMessageID ?? "-")" })
+        XCTAssertEqual(legacy.count, 1, "прежняя формула совмещала все шесть строк")
+    }
+
+    /// Сообщение, закрывшее живой ход, занимает строку хода: пока ход
+    /// доигрывает ответ, сообщение скрыто, и при его появлении строка не
+    /// пересоздаётся (иначе рвётся высота и прыгает прокрутка).
+    func testMessageCompletingTurnTakesTurnRow() {
+        XCTAssertEqual(RoleChatRowID.message("m1", completedTurn: "role:2026-10-21T13:19:39Z"),
+                       RoleChatRowID.turn("role:2026-10-21T13:19:39Z"))
+        XCTAssertEqual(RoleChatRowID.message("m1", completedTurn: nil),
+                       RoleChatRowID.message("m1"))
+        XCTAssertNotEqual(RoleChatRowID.message("m1"), RoleChatRowID.message("m2"))
+    }
+
+    /// Новое сообщение встаёт на своё место по серверному порядку
+    /// (`sequence` — rowid), а не в конец и не с полной пересортировкой ленты.
+    func testInsertingPlacesMessageByServerSequence() throws {
+        let messages = try decode([RoleChatMessage].self, #"[{"id":"a","text":"1","created_at":"2026-10-21 13:00:00","is_session_marker":false,"sequence":1},{"id":"c","text":"3","created_at":"2026-10-21 13:00:02","is_session_marker":false,"sequence":3}]"#)
+        let middle = try decode(RoleChatMessage.self, #"{"id":"b","text":"2","created_at":"2026-10-21 13:00:01","is_session_marker":false,"sequence":2}"#)
+        let inserted = RoleChatMessageOrder.inserting(middle, into: messages)
+        XCTAssertEqual(inserted.map(\.id), ["a", "b", "c"])
+    }
+
+    /// Известное сообщение заменяется на месте — порядок не трогаем.
+    func testInsertingReplacesKnownMessageInPlace() throws {
+        let messages = try decode([RoleChatMessage].self, #"[{"id":"a","text":"старое","created_at":"2026-10-21 13:00:00","is_session_marker":false,"sequence":1},{"id":"b","text":"2","created_at":"2026-10-21 13:00:01","is_session_marker":false,"sequence":2}]"#)
+        let updated = try decode(RoleChatMessage.self, #"{"id":"a","text":"новое","created_at":"2026-10-21 13:00:00","is_session_marker":false,"sequence":1}"#)
+        let result = RoleChatMessageOrder.inserting(updated, into: messages)
+        XCTAssertEqual(result.map(\.id), ["a", "b"])
+        XCTAssertEqual(result.first?.text, "новое")
+    }
+
+    /// Сообщения с одинаковой секундой сохраняют порядок поступления.
+    func testInsertingKeepsEqualTimestampsInArrivalOrder() throws {
+        let messages = try decode([RoleChatMessage].self, #"[{"id":"a","text":"1","created_at":"2026-10-21 13:00:00","is_session_marker":false},{"id":"b","text":"2","created_at":"2026-10-21 13:00:00","is_session_marker":false}]"#)
+        let next = try decode(RoleChatMessage.self, #"{"id":"c","text":"3","created_at":"2026-10-21 13:00:00","is_session_marker":false}"#)
+        let result = RoleChatMessageOrder.inserting(next, into: messages)
+        XCTAssertEqual(result.map(\.id), ["a", "b", "c"])
     }
 }

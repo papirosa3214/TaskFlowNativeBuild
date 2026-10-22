@@ -426,11 +426,20 @@ enum RoleChatTime {
     private static let fractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
     private static let whole = Date.ISO8601FormatStyle()
 
+    /// Кэш разбора дат. Лента пересчитывается на каждом снимке живого ответа
+    /// (сервер шлёт их раз в 150 мс), а дата каждого сообщения истории при
+    /// этом разбиралась заново — при сравнении в сортировке это разбиралось
+    /// по несколько раз на сообщение. Тот же приём, что в `ChatDayLabel`.
+    nonisolated(unsafe) private static let dates = NSCache<NSString, NSDate>()
+
     static func date(_ value: String?) -> Date? {
         guard let value else { return nil }
+        if let cached = dates.object(forKey: value as NSString) { return cached as Date }
         let normalized = value.count == 19 && value.contains(" ")
             ? value.replacingOccurrences(of: " ", with: "T") + "Z" : value
-        return (try? fractional.parse(normalized)) ?? (try? whole.parse(normalized))
+        let parsed = (try? fractional.parse(normalized)) ?? (try? whole.parse(normalized))
+        if let parsed { dates.setObject(parsed as NSDate, forKey: value as NSString) }
+        return parsed
     }
 
     static func seconds(from start: String?, to end: String?) -> Int? {
@@ -854,6 +863,30 @@ extension RoleChatLiveTurn {
     }
 }
 
+/// Идентичность строки ленты.
+///
+/// Раньше id строки строился как «reply:автор:на что ответ». Такая пара НЕ
+/// уникальна: одна роль отвечает на одно сообщение несколькими строками —
+/// сам ответ и служебные строки координации («Ответ получен», «Ход завершился
+/// ошибкой») — и все они получали ОДИН id. SwiftUI на одинаковых id в
+/// ForEach переиспользует строки: пузырь одного ответа встаёт на место
+/// другого, текст пропадает, а лента прыгает (владелец 22.10.2026: «текста
+/// нет, но он всё равно где-то»).
+///
+/// Теперь своя строка на каждое сообщение. Исключение — сообщение,
+/// ЗАВЕРШИВШЕЕ живой ход: оно занимает строку хода, чтобы при доигрывании
+/// ответа строка не пересоздавалась (пересоздание рвёт переменную высоту и
+/// сбрасывает якорь прокрутки).
+enum RoleChatRowID {
+    static func message(_ messageID: String) -> String { "msg:\(messageID)" }
+    static func turn(_ playbackID: String) -> String { "turn:\(playbackID)" }
+    /// Строка для сообщения: своя или строка завершённого хода.
+    static func message(_ messageID: String, completedTurn playbackID: String?) -> String {
+        guard let playbackID else { return message(messageID) }
+        return turn(playbackID)
+    }
+}
+
 /// SQLite sequence is shared by REST and WebSocket; ties on older servers retain input order.
 enum RoleChatMessageOrder {
     static func mergingSnapshot(_ snapshot: [RoleChatMessage], current: [RoleChatMessage], receivedAfterRequest: Set<String>) -> [RoleChatMessage] {
@@ -869,10 +902,55 @@ enum RoleChatMessageOrder {
 
     static func sorted(_ messages: [RoleChatMessage]) -> [RoleChatMessage] {
         messages.enumerated().sorted { lhs, rhs in
-            if let a = lhs.element.sequence, let b = rhs.element.sequence, a != b { return a < b }
-            let a = RoleChatTime.date(lhs.element.createdAt) ?? .distantPast
-            let b = RoleChatTime.date(rhs.element.createdAt) ?? .distantPast
-            return a == b ? lhs.offset < rhs.offset : a < b
+            if isOrderedBefore(lhs.element, rhs.element) { return true }
+            if isOrderedBefore(rhs.element, lhs.element) { return false }
+            return lhs.offset < rhs.offset
         }.map(\.element)
+    }
+
+    /// Вставка сообщения в ленту по серверному порядку.
+    ///
+    /// Раньше на КАЖДОЕ новое сообщение сортировалась вся лента: сортировка
+    /// разбирала даты заново для каждой пары, а лента пересчитывается на
+    /// каждом снимке живого ответа — это и было главным тормозом отрисовки.
+    /// Теперь сообщение встаёт на своё место (по `sequence` — это rowid
+    /// таблицы сообщений), а лента не трогается.
+    static func inserting(_ message: RoleChatMessage, into messages: [RoleChatMessage]) -> [RoleChatMessage] {
+        if let index = messages.firstIndex(where: { $0.id == message.id }) {
+            var result = messages
+            result[index] = message
+            return result
+        }
+        var result = messages
+        result.insert(message, at: insertionIndex(for: message, in: result))
+        return result
+    }
+
+    /// Место нового сообщения: после всех, что не новее него. Обычное
+    /// сообщение приходит последним — тогда сравнений ровно одно.
+    static func insertionIndex(for message: RoleChatMessage, in messages: [RoleChatMessage]) -> Int {
+        guard let last = messages.last else { return 0 }
+        if isNotOrderedAfter(last, message) { return messages.count }
+        var index = 0
+        while index < messages.count, isNotOrderedAfter(messages[index], message) { index += 1 }
+        return index
+    }
+
+    /// `sequence` (rowid) — основной порядок; у старого сервера его нет,
+    /// тогда по дате создания.
+    private static func isOrderedBefore(_ lhs: RoleChatMessage, _ rhs: RoleChatMessage) -> Bool {
+        if let a = lhs.sequence, let b = rhs.sequence { return a < b }
+        let a = RoleChatTime.date(lhs.createdAt) ?? .distantPast
+        let b = RoleChatTime.date(rhs.createdAt) ?? .distantPast
+        return a < b
+    }
+
+    /// «lhs не новее rhs» — для вставки: равные по времени сообщения держат
+    /// порядок поступления, новое встаёт после них.
+    private static func isNotOrderedAfter(_ lhs: RoleChatMessage, _ rhs: RoleChatMessage) -> Bool {
+        if let a = lhs.sequence, let b = rhs.sequence { return a <= b }
+        let a = RoleChatTime.date(lhs.createdAt) ?? .distantPast
+        let b = RoleChatTime.date(rhs.createdAt) ?? .distantPast
+        return a <= b
     }
 }
