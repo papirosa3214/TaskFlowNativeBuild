@@ -14,42 +14,45 @@ public final class KeychainService: @unchecked Sendable {
 
     private let service = "com.maksim.taskflow.native"
     private let account = "session-token"
+    /// Токен УСТРОЙСТВА лежит отдельной записью: по нему телефон заходит на
+    /// сокет команд `device_op`, и отзывается он отдельно от сессии.
+    private let deviceAccount = "device-token"
 
     private init() {}
 
     /// Текущий токен, если пользователь входил и не выходил. `nil` — нет
     /// сессии, показывать экран входа.
     public var token: String? {
-        get {
-            var query = baseQuery()
-            query[kSecReturnData as String] = true
-            query[kSecMatchLimit as String] = kSecMatchLimitOne
-
-            var result: AnyObject?
-            let status = SecItemCopyMatching(query as CFDictionary, &result)
-            guard status == errSecSuccess, let data = result as? Data else { return nil }
-            return String(data: data, encoding: .utf8)
-        }
-        set {
-            if let newValue {
-                save(newValue)
-            } else {
-                delete()
-            }
-        }
+        get { read(account: account) }
+        set { write(newValue, account: account) }
     }
 
-    private func baseQuery() -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
+    /// Токен устройства — вход на сокет команд `device_op`. Отдельно от
+    /// токена сессии: сессию перевыпускают при входе, устройство отзывает
+    /// владелец на сервере.
+    public var deviceToken: String? {
+        get { read(account: deviceAccount) }
+        set { write(newValue, account: deviceAccount) }
     }
 
-    private func save(_ value: String) {
+    private func read(account: String) -> String? {
+        var query = baseQuery(account: account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private func write(_ value: String?, account: String) {
+        guard let value else {
+            delete(account: account)
+            return
+        }
         let data = Data(value.utf8)
-        var query = baseQuery()
+        var query = baseQuery(account: account)
         // Сначала пробуем обновить существующую запись — SecItemAdd на уже
         // занятый account/service вернёт errSecDuplicateItem.
         let update = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
@@ -60,7 +63,15 @@ public final class KeychainService: @unchecked Sendable {
         }
     }
 
-    private func delete() {
-        SecItemDelete(baseQuery() as CFDictionary)
+    private func baseQuery(account: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+    }
+
+    private func delete(account: String) {
+        SecItemDelete(baseQuery(account: account) as CFDictionary)
     }
 }

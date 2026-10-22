@@ -192,6 +192,15 @@ public final class RealtimeClient {
             // Keepalive — сервер шлёт ping, клиент обязан ответить pong (spec §4).
             socketTask.send(.string("{\"type\":\"pong\"}")) { _ in }
         }
+        if case .deviceOp(let request) = event {
+            // Команда сервера телефону: исполнить через EventKit и ответить
+            // на тот же opId. Ответ уходит по тому же сокету, по которому
+            // пришла команда.
+            Task { @MainActor in
+                let answer = await DeviceOpsChannel.shared.resultMessage(for: request)
+                socketTask.send(.string(answer)) { _ in }
+            }
+        }
         onEvent?(event)
     }
 

@@ -151,6 +151,7 @@ struct RootView: View {
                 startSessionServices()
             } else {
                 realtimeClient.disconnect()
+                Task { await DeviceOpsChannel.shared.stop() }
             }
         }
     }
@@ -181,6 +182,9 @@ struct RootView: View {
             }
         }
         realtimeClient.connect()
+        // Канал команд телефону (`device_op`): телефон отвечает на команды
+        // сервера, пока приложение живо.
+        Task { await DeviceOpsChannel.shared.start() }
         LiveActivityService.restore(api: APIClient())
 
         Task {
