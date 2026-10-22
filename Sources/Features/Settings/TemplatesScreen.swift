@@ -107,7 +107,7 @@ struct TemplatesScreen: View {
 
             HStack(spacing: TFSpacing.md) {
                 TFButton("Отмена", variant: .secondary) { closeForm() }
-                TFButton("Сохранить", variant: .primary, isEnabled: !formTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                TFButton("Сохранить", variant: .secondary, isEnabled: !formTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
                     saveForm()
                 }
             }

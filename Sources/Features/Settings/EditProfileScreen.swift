@@ -53,7 +53,7 @@ struct EditProfileScreen: View {
                 TFErrorBanner(errorMessage, variant: .block)
                 ProfileNameLoginFields(name: $name, login: $login)
                 ProfilePasswordFields(current: $currentPassword, new: $newPassword, repeated: $repeatPassword)
-                TFButton(isSaving ? "Сохранение…" : "Сохранить", variant: .primary, isEnabled: canSave) {
+                TFButton(isSaving ? "Сохранение…" : "Сохранить", variant: .secondary, isEnabled: canSave) {
                     Task { await save() }
                 }
                 .accessibilityIdentifier("profile.save")
