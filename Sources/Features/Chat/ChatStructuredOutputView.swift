@@ -336,6 +336,7 @@ struct ChatStructuredOutputView: View {
     /// (пуш в редактор заметки), `task://<id>` — карточка задачи, `http(s)` —
     /// внешняя ссылка в системном браузере. До этой правки блок `link` в iOS
     /// не рисовался вовсе: попадал в «Тип блока не поддерживается».
+    @ViewBuilder
     private func linkBlock(_ block: StructuredOutputBlock) -> some View {
         let title = block.title ?? block.url ?? "Ссылка"
         switch ChatMaterialDestination.resolve(block.url ?? "") {
