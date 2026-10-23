@@ -1,0 +1,32 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "807B72B3-B684-44BB-8CA9-F480DFC446DD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-behavior-conflict-recovered_0_1F240A67-4148-4B68-AA63-1C43BE6660EC.png",
+        "timestamp" : 1792751133.592
+      }
+    ],
+    "testIdentifier" : "RoleBehaviorUITests/testConflictKeepsDraftAndGenderUntilExplicitApply()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleBehaviorUITests/testConflictKeepsDraftAndGenderUntilExplicitApply"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "5AE1D85C-D415-4ACF-9619-BACC62EB9AA1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-behavior-applied-female_0_1C299B95-AE67-415C-A37D-22A2DBE9B3D5.png",
+        "timestamp" : 1792751173.645
+      }
+    ],
+    "testIdentifier" : "RoleBehaviorUITests/testSaveTemplateDoesNotApplyThenApplyRetainsFemaleGender()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleBehaviorUITests/testSaveTemplateDoesNotApplyThenApplyRetainsFemaleGender"
+  }
+]

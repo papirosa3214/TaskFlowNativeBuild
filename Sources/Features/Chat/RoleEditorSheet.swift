@@ -181,7 +181,7 @@ struct RoleEditorSheet: View {
                     Button("Вернуть исходную инструкцию", action: { prompt = "" })
                         .buttonStyle(.plain)
                         .tfText(.action).fontWeight(.medium)
-                        .foregroundStyle(Color.tfCoral)
+                        .foregroundStyle(Color.tfText)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }

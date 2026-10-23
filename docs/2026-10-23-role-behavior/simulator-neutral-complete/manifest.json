@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "F43D1DB1-97DD-461C-A5A2-F10C347F8324.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-behavior-conflict-recovered_0_75605C98-06BA-4ACA-A4BD-0FFDBE2CE45D.png",
+        "timestamp" : 1792751574.853
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "62D05789-6256-4280-BE81-FB1210FAE422.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-editor-neutral-actions_0_32344093-D45A-45EF-8721-4424B9001CDE.png",
+        "timestamp" : 1792751551.277
+      }
+    ],
+    "testIdentifier" : "RoleBehaviorUITests/testConflictKeepsDraftAndGenderUntilExplicitApply()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleBehaviorUITests/testConflictKeepsDraftAndGenderUntilExplicitApply"
+  }
+]
