@@ -12,6 +12,8 @@ public struct UpcomingScreen: View {
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
 
+    @State private var routinePlanner = RoutinePlanner()
+    @State private var selectedOccurrence: RoutineOccurrence?
     @State private var agentsProvider = UpcomingAgentsProvider()
 
     /// Четыре раздела единого «Планирования». «Сегодня» больше не отдельная
@@ -187,6 +189,15 @@ public struct UpcomingScreen: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $selectedOccurrence, onDismiss: { Task { await loadRoutineCalendar() } }) { occurrence in
+            NavigationStack { RoutineOccurrenceDestination(occurrence: occurrence) }
+        }
+        .task(id: routineRangeAnchor) {
+            while !Task.isCancelled {
+                await loadRoutineCalendar()
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
         .task { await agentsProvider.load() }
         .onAppear {
             // Сбрасываем заголовок на месяц «сегодня» каждый раз при появлении
@@ -210,6 +221,9 @@ public struct UpcomingScreen: View {
         } else if let error = taskStore.errorMessage {
             TFErrorBanner(error, variant: .block).padding(.horizontal, TFSpacing.screenHorizontal)
         } else {
+            if let error = routinePlanner.error {
+                TFErrorBanner(error, variant: .inline).padding(.horizontal, TFSpacing.screenHorizontal)
+            }
             switch view {
             case .today:
                 TodaySectionView(
@@ -221,7 +235,9 @@ public struct UpcomingScreen: View {
                     visibleProjectIds: effectivePlannerVisibleProjectIds,
                     showAgentTasks: plannerShowAgentTasks,
                     showCompleted: filters.showCompleted,
-                    onTitleChange: { listTabTitle = $0 }
+                    onTitleChange: { listTabTitle = $0 },
+                    routineOccurrences: routineOccurrences,
+                    onOpenRoutine: { selectedOccurrence = $0 }
                 )
             case .threeDays:
                 UpcomingHoursView(
@@ -240,6 +256,7 @@ public struct UpcomingScreen: View {
             case .week:
                 UpcomingWeekView(
                     monday: gridMonday, byDate: byDate,
+                    occurrences: routineOccurrences, onRoutineTap: { selectedOccurrence = $0 },
                     onTaskTap: { pushedTaskID = $0 },
                     onDayTap: { openDay = $0 },
                     onPickDate: { gridMonday = UpcomingDate.mondayOf($0) },
@@ -252,6 +269,7 @@ public struct UpcomingScreen: View {
                     initialMonday: monthGridInitialMonday,
                     initialMonth: UpcomingDate.yearMonth(UpcomingDate.todayString()),
                     byDate: byDate,
+                    occurrences: routineOccurrences, onRoutineTap: { selectedOccurrence = $0 },
                     onDayTap: { openDay = $0 },
                     onVisibleMonthChange: { y, m in gridMonth = (y, m) }
                 )
@@ -263,6 +281,7 @@ public struct UpcomingScreen: View {
     private func refreshPlanner() async {
         await taskStore.load(silent: true)
         await projectStore.load()
+        await loadRoutineCalendar()
     }
 
     /// Нативная шторка — тот же приём, что `TodaySectionView.sheetTaskID`: свой
@@ -275,7 +294,15 @@ public struct UpcomingScreen: View {
         NavigationStack {
             UpcomingDaySheetContent(
                 date: openDay, tasks: byDate[openDay] ?? [],
-                onTaskTap: { self.openDay = nil; pushedTaskID = $0 }
+                onTaskTap: { self.openDay = nil; pushedTaskID = $0 },
+                occurrences: routineOccurrences.filter { $0.day() == openDay },
+                onRoutineTap: { occurrence in
+                    self.openDay = nil
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(400))
+                        selectedOccurrence = occurrence
+                    }
+                }
             )
             .padding(.horizontal, TFSpacing.screenHorizontal)
             // Тот же фон, что заливает себе карточка задачи
@@ -515,6 +542,32 @@ public struct UpcomingScreen: View {
 
     private var today: String { UpcomingDate.todayString() }
 
+    private var routineRangeAnchor: String {
+        switch view {
+        case .week: return gridMonday
+        case .month:
+            let month = gridMonth ?? UpcomingDate.yearMonth(today)
+            return String(format: "%04d-%02d-01", month.year, month.month + 1)
+        case .threeDays: return threeDayStart
+        case .today: return todayHourDate
+        }
+    }
+
+    private var routineOccurrences: [RoutineOccurrence] {
+        RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: effectivePlannerVisibleProjectIds)
+    }
+
+    private func loadRoutineCalendar() async {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let anchor = formatter.date(from: routineRangeAnchor),
+              let from = Calendar.current.date(byAdding: .day, value: -7, to: anchor),
+              let until = Calendar.current.date(byAdding: .day, value: 63, to: anchor) else { return }
+        await routinePlanner.load(from: from, until: until)
+    }
+
+
     /// Агентские задачи сюда не попадают вовсе; дата обязана быть, но НЕ
     /// обязана быть будущей. Отсечка `due_date >= today` (спека §5.2) снята
     /// 09.09.2026 по прямому слову владельца: «три дня — это три дня, а не
@@ -522,7 +575,7 @@ public struct UpcomingScreen: View {
     /// все дни левее сегодняшнего стояли пустыми, хотя задачи на них есть.
     private var datedTasks: [ApiTask] {
         taskStore.tasks.filter { t in
-            (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents))
+            !Set(routineOccurrences.compactMap(\.taskId)).contains(t.id) && (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents))
                 && t.dueDate != nil
                 && (t.projectId == nil || effectivePlannerVisibleProjectIds.contains(t.projectId!))
         }

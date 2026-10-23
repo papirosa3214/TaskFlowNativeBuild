@@ -87,6 +87,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         SearchScreen()
     case .activity:
         ActivityScreen()
+    case .routines:
+        RoutinesScreen()
     case .notifications:
         NotificationsScreen()
     case .agents:

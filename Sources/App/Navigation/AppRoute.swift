@@ -50,6 +50,8 @@ public enum AppRoute: Hashable {
     case labelTasks(labelID: String)
     case search
     case activity
+    /// Рутины (крон-задачи) — экран «Мои рутины».
+    case routines
     case notifications
     case agents
     /// Очередь запусков ролей (LOCK-208) — только для владельца.

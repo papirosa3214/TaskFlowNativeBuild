@@ -76,13 +76,27 @@ struct TodaySectionView: View {
         )
     }
 
+    var routineOccurrences: [RoutineOccurrence] = []
+    var onOpenRoutine: (RoutineOccurrence) -> Void = { _ in }
+
+    private var currentRoutineOccurrences: [RoutineOccurrence] {
+        routineOccurrences.filter { $0.day() == (layout == .hours ? activeHourDate : today) }
+    }
+
+    @ViewBuilder private var routineRows: some View {
+        ForEach(currentRoutineOccurrences) { occurrence in
+            RoutineOccurrenceRow(occurrence: occurrence) { onOpenRoutine(occurrence) }
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+        }
+    }
+
     private var computation: TodayComputation {
         // Разовые фильтры — свои у экрана, состав раздела — общий с
         // диапазонами и приходит параметрами (LOCK-111).
         var effectiveFilters = vm.filters
         effectiveFilters.showCompleted = showCompleted
         return TodayComputation(
-            allTasks: taskStore.tasks,
+            allTasks: taskStore.tasks.filter { !Set(routineOccurrences.compactMap(\.taskId)).contains($0.id) },
             currentUser: session.currentUser,
             agents: vm.agents,
             filters: effectiveFilters,
@@ -194,7 +208,7 @@ struct TodaySectionView: View {
             todayDate: today)
         return PlannerBackdropVisibility.isVisible(isLoading: taskStore.isLoading,
             hasError: taskStore.errorMessage != nil,
-            visibleTaskCount: sections.reduce(0) { $0 + $1.tasks.count })
+            visibleTaskCount: currentRoutineOccurrences.count + sections.reduce(0) { $0 + $1.tasks.count })
     }
 
     /// Неподвижная картинка-фон текущей вкладки списка: тянется по размеру
@@ -223,6 +237,7 @@ struct TodaySectionView: View {
             TFErrorBanner(taskStore.errorMessage, variant: .inline)
                 .padding(.horizontal, TFSpacing.lg)
 
+            if listTab == .today { routineRows }
             TodayListView(
                     tab: listTab,
                     waitingTasks: c.waitingTasks,
@@ -259,6 +274,7 @@ struct TodaySectionView: View {
             TFLoading(.block)
         } else {
             let hourDay = c.hourDays[0]
+            routineRows
             UpcomingHoursView(
                 days: [UpcomingHourColumn(date: hourDay.date, tasks: hourDay.tasks, isToday: hourDay.isToday)],
                 projectColor: { task in
