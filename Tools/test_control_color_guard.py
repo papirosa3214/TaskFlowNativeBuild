@@ -100,20 +100,24 @@ class ControlColorTests(unittest.TestCase):
     def test_button_action_body_does_not_supply_label_color(self):
         self.assertIn('implicit-system-blue', self.rules('Button("Save") { let message = Text("X").foregroundStyle(Color.tfText) }'))
 
-    def test_new_rules_fail_cli_and_are_not_warnings(self):
+    def test_disabled_rules_are_found_but_do_not_fail_the_gate(self):
+        # Владелец 23.10.2026 выключил до общей чистки: правила находятся
+        # сканером (юнит-уровень), но вывод их не считает нарушением сборки.
+        self.assertIn('red-button', self.rules('TFButton("Save") {}'))
+        self.assertIn('implicit-system-blue', self.rules('Picker("Gender", selection: $gender) {}'))
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(guard.render(guard.scan_fragment('TFButton("Save") {}')), 1)
-            self.assertEqual(guard.render(guard.scan_fragment('Picker("Gender", selection: $gender) {}')), 1)
+            self.assertEqual(guard.render(guard.scan_fragment('TFButton("Save") {}')), 0)
+            self.assertEqual(guard.render(guard.scan_fragment('Picker("Gender", selection: $gender) {}')), 0)
 
-    def test_new_file_removing_tint_is_detected_with_unchanged_control_line(self):
+    def test_disabled_rule_does_not_fail_new_file_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source = root / 'Sources/Test.swift'
             source.parent.mkdir()
             source.write_text('VStack {\n Picker("Gender", selection: $gender) {}\n}.tint(Color.tfText)\n')
             proc = subprocess.run([sys.executable, str(Path(guard.__file__)), '--root', tmp, '--new-file', str(source)], input=source.read_text().replace('.tint(Color.tfText)', ''), text=True, capture_output=True)
-            self.assertEqual(proc.returncode, 1, proc.stdout)
-            self.assertIn('[implicit-system-blue]', proc.stdout)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            self.assertNotIn('[implicit-system-blue]', proc.stdout)
 
     def test_new_file_neutral_parent_not_rejected_by_fragment_false_positive(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -126,15 +130,15 @@ class ControlColorTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stdout)
 
 class GuardEntryPointTests(unittest.TestCase):
-    def test_folder_gate_rejects_default_red_without_baseline(self):
+    def test_folder_gate_ignores_default_red_while_rule_is_disabled(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'Sources').mkdir()
             (root / 'Sources/Test.swift').write_text('TFButton("Save") {}')
             proc = subprocess.run([sys.executable, guard.__file__, '--root', tmp, '--folder'], capture_output=True, text=True)
-            self.assertEqual(proc.returncode, 1)
-            self.assertIn('[red-button]', proc.stdout)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            self.assertNotIn('[red-button]', proc.stdout)
 
-    def test_diff_deletion_of_tint_is_detected(self):
+    def test_diff_deletion_of_tint_is_not_a_gate_error_while_rule_is_disabled(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'Sources').mkdir()
             file = root / 'Sources/Test.swift'
@@ -144,8 +148,8 @@ class GuardEntryPointTests(unittest.TestCase):
             subprocess.run(['git', '-C', tmp, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'fixture'], check=True)
             file.write_text(file.read_text().replace('.tint(Color.tfText)', ''))
             proc = subprocess.run([sys.executable, guard.__file__, '--root', tmp, '--diff', 'HEAD'], capture_output=True, text=True)
-            self.assertEqual(proc.returncode, 1, proc.stdout)
-            self.assertIn('[implicit-system-blue]', proc.stdout)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            self.assertNotIn('[implicit-system-blue]', proc.stdout)
 
     def hook(self):
         default = Path(__file__).parents[1] / '.claude/hooks/guard_design_system.py'

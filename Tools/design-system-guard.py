@@ -59,6 +59,16 @@ _color_spec = importlib.util.spec_from_file_location("control_color_guard", Path
 _color_module = importlib.util.module_from_spec(_color_spec)
 _color_spec.loader.exec_module(_color_module)
 scan_control_colors = _color_module.scan_control_colors
+
+# Временно выключенные правила (владелец 23.10.2026): красных кнопок и
+# системного синего в коде много, чистить их сейчас не берёмся — сторож на
+# них не ругается и сборку не роняет. Сами правила и их тесты остаются:
+# включаются обратно удалением строки из этого набора.
+DISABLED_RULE_IDS = {"red-button", "implicit-system-blue", "system-blue-color"}
+
+
+def _enabled(rows):
+    return [row for row in rows if row[2] not in DISABLED_RULE_IDS]
 COLOR_RULES = {"red-button", "system-blue-color", "implicit-system-blue"}
 
 
@@ -386,6 +396,7 @@ def load_baseline(root: str, path=None):
 
 
 def render(findings, baseline=None):
+    findings = [row for row in findings if row[2] not in DISABLED_RULE_IDS]
     by_rule = {rule["id"]: rule for rule in RULES}
     # Базовый снимок: нарушения, которые были в коде на момент включения
     # сторожа. Их не роняем сборку — иначе гейт заблокирует всё разом и
