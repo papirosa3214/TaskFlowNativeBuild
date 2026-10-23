@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let roleLoadRows = "role-load.rows"
     static let roleBehavior = "role.behavior"
     static let chatExecutionMode = "chat.execution-mode"
     static let noteMarkdownEditing = "note.markdown-editing"
@@ -37,7 +38,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+
+    static let roleLoadRows = HintScenario(
+        id: "role-load-rows", title: "Свернуть ненужные роли", start: "collapse",
+        steps: ["collapse": HintStep(anchor: HintAnchorID.roleLoadRows, title: "Оставьте нужные графики",
+            text: "Нажмите имя роли слева, чтобы скрыть её график. Останется короткая строка с именем и стрелкой. Нажмите её или стрелку слева, чтобы развернуть роль. Можно свернуть несколько ролей независимо друг от друга.", next: nil)])
 
     static let roleBehavior = HintScenario(
         id: "role-behavior", title: "Личность и шаблоны роли", start: "templates",

@@ -6,6 +6,7 @@ struct RoleLoadScreen: View {
     @State private var window = "24h"
     @State private var data: RoleLoad?
     @State private var error: String?
+    @State private var rowPresentation = RoleLoadRowPresentation()
     private struct TaskRef: Identifiable { let id: String }
     @State private var selectedTask: TaskRef?
     private let width: CGFloat = 1000
@@ -37,6 +38,7 @@ struct RoleLoadScreen: View {
             .padding(.bottom, TFTabBarMetrics.heightCompact + 12)
         }
         .background(Color.tfBackground)
+        .tint(Color.tfText)
         .tfNativeHeader("Загрузка ролей", displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -103,8 +105,38 @@ struct RoleLoadScreen: View {
     /// Высота строки роли: дорожки (по одной на ряд одновременных задач)
     /// плюс блок слотов без исполнителя и запас под ось.
     private func height(_ row: RoleLoadLayout.RoleRow) -> CGFloat {
-        CGFloat(max(1, row.lanes.count)) * RoleLoadLayout.laneStep
-            + CGFloat(row.open.count) * 26 + 8
+        RoleLoadRowPresentation.height(laneCount: row.lanes.count, openCount: row.open.count,
+                                       collapsed: rowPresentation.isCollapsed(row.id))
+    }
+
+    private func roleLabel(_ row: RoleLoadLayout.RoleRow) -> some View {
+        let collapsed = rowPresentation.isCollapsed(row.id)
+        return Button { rowPresentation.toggle(row.id) } label: {
+            Group {
+                if collapsed {
+                    Image(systemName: "chevron.down")
+                } else {
+                    VStack(spacing: 2) {
+                        Text(row.title).tfText(.body).lineLimit(1).minimumScaleFactor(0.75)
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.up").imageScale(.small)
+                            Text(row.isBusy ? "Занята сейчас" : "Свободна").tfText(.caption)
+                                .lineLimit(1).foregroundStyle(row.isBusy ? Color.tfBlue : Color.tfSub)
+                        }
+                    }
+                    .frame(width: height(row) - 8)
+                    .rotationEffect(.degrees(-90))
+                }
+            }
+            .frame(width: 36, height: height(row))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.tfText)
+        .accessibilityLabel(row.title)
+        .accessibilityValue(collapsed ? "Свёрнута" : "Развёрнута")
+        .accessibilityHint(collapsed ? "Развернуть график роли" : "Свернуть график роли")
+        .accessibilityIdentifier("role-load.label.\(row.id)")
     }
 
     private func chart(_ data: RoleLoad) -> some View {
@@ -112,20 +144,9 @@ struct RoleLoadScreen: View {
         return HStack(alignment: .top, spacing: 0) {
             VStack(spacing: 0) {
                 Text("Роль").tfText(.meta).frame(width: 36, height: 32)
+                    .hintAnchor(HintAnchorID.roleLoadRows)
                 ForEach(layout) { row in
-                    VStack(spacing: 2) {
-                        Text(row.title).tfText(.body).lineLimit(1)
-                        Text(row.isBusy ? "Занята сейчас" : "Свободна")
-                            .tfText(.caption).lineLimit(1)
-                            .foregroundStyle(row.isBusy ? Color.tfBlue : Color.tfSub)
-                    }
-                    .frame(width: height(row) - 8)
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 36, height: height(row))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(row.title)
-                    .accessibilityValue(row.isBusy ? "Занята сейчас" : "Свободна")
-                    .accessibilityIdentifier("role-load.label.\(row.id)")
+                    roleLabel(row)
                 }
             }
             ScrollView(.horizontal) {
@@ -134,27 +155,39 @@ struct RoleLoadScreen: View {
                     ForEach(layout) { row in
                         ZStack(alignment: .topLeading) {
                             Rectangle().fill(Color.tfStroke).frame(height: 1)
-                            ForEach(0..<5) { tick in
-                                Rectangle().fill(Color.tfStroke).frame(width: 1).offset(x: width * CGFloat(tick) / 4)
-                            }
-                            Rectangle().fill(Color.tfBlue).frame(width: 1).offset(x: width * data.fraction(data.now))
-                            lanes(row)
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(row.open) { slot in
-                                    Button { selectedTask = TaskRef(id: slot.id) } label: {
-                                        Label("Без исполнителя · \(slot.task_title)", systemImage: "flag")
-                                            .tfText(.meta).lineLimit(1).padding(.horizontal, 8).frame(height: 28)
-                                            .foregroundStyle(Color.tfOrange).background(Color.tfOrange.opacity(0.15))
-                                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                                    }.buttonStyle(.plain)
+                            if rowPresentation.isCollapsed(row.id) {
+                                Button { rowPresentation.toggle(row.id) } label: {
+                                    Label(row.title, systemImage: "chevron.down")
+                                        .tfText(.action).foregroundStyle(Color.tfSub)
+                                        .frame(width: width, height: height(row), alignment: .leading)
+                                        .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Развернуть: \(row.title)")
+                                .accessibilityIdentifier("role-load.expand.\(row.id)")
+                            } else {
+                                ForEach(0..<5) { tick in
+                                    Rectangle().fill(Color.tfStroke).frame(width: 1).offset(x: width * CGFloat(tick) / 4)
+                                }
+                                Rectangle().fill(Color.tfBlue).frame(width: 1).offset(x: width * data.fraction(data.now))
+                                lanes(row)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(row.open) { slot in
+                                        Button { selectedTask = TaskRef(id: slot.id) } label: {
+                                            Label("Без исполнителя · \(slot.task_title)", systemImage: "flag")
+                                                .tfText(.meta).lineLimit(1).padding(.horizontal, 8).frame(height: 28)
+                                                .foregroundStyle(Color.tfOrange).background(Color.tfOrange.opacity(0.15))
+                                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                                        }.buttonStyle(.plain)
+                                    }
+                                }
+                                .offset(y: CGFloat(max(1, row.lanes.count)) * RoleLoadLayout.laneStep)
                             }
-                            .offset(y: CGFloat(max(1, row.lanes.count)) * RoleLoadLayout.laneStep)
                         }
                         .frame(width: width, height: height(row))
                     }
                 }
-                .frame(width: width + trailing)
+                .frame(width: width + trailing, alignment: .leading)
             }
             .accessibilityIdentifier("role-load.timeline")
         }

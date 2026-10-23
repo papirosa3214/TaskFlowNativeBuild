@@ -4,6 +4,14 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testRoleLoadCollapseHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleLoadRows])
+        center.start("role-load-rows")
+        XCTAssertEqual(center.active?.step, "collapse")
+        XCTAssertEqual(HintScenarios.roleLoadRows.steps["collapse"]?.anchor, HintAnchorID.roleLoadRows)
+        center.next()
+        XCTAssertTrue(center.completed.contains("role-load-rows"))
+    }
     func testRoleBehaviorHintExplainsSaveAndApplySeparately() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleBehavior])
         center.isEnabled = true
