@@ -160,14 +160,10 @@ public struct UpcomingScreen: View {
         // выбранный владельцем мелкий заголовок оставлен как есть.
         .tfNativeHeader(navigationTitle, displayMode: .inline)
         .toolbar {
-            // Вкладки списка нужны только самому списку: «Три дня» — это
-            // три дня, к «Сегодня»/«Ждут вас» они отношения не имеют
-            // (владелец 16.09.2026). Вернуться в список теперь можно
-            // пунктом «Список» в правом календаре, поэтому кнопка больше
-            // не обязана висеть в диапазонах ради одного этого.
-            if plannerSection == .list {
-                ToolbarItem(placement: .topBarLeading) { subviewPill }
-            }
+            // Вкладки списка теперь рисует сам список (`TodaySectionView`):
+            // на iOS 26 `ToolbarItem(.topBarLeading)`, повешенный здесь,
+            // выводился в шапке дважды. Слот остаётся только под правую
+            // кнопку диапазонов, где списка нет.
             if view != .today {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 0) {
@@ -231,6 +227,7 @@ public struct UpcomingScreen: View {
                     activeHourDate: $todayHourDate,
                     onAddTask: { createTaskOpen = true },
                     plannerViewSwitcher: AnyView(viewSwitcherMenu),
+                    listTabSwitcher: AnyView(subviewPill),
                     sectionCompositionMenu: AnyView(sectionCompositionMenu),
                     visibleProjectIds: effectivePlannerVisibleProjectIds,
                     showAgentTasks: plannerShowAgentTasks,

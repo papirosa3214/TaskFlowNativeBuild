@@ -9,6 +9,13 @@ struct TodaySectionView: View {
     @Binding var activeHourDate: String
     var onAddTask: () -> Void = {}
     let plannerViewSwitcher: AnyView
+    /// ЛЕВАЯ кнопка шапки — вкладки списка. Приходит из `UpcomingScreen`
+    /// готовым `Menu`: состояние вкладки живёт там. Объявлена здесь, а не в
+    /// `UpcomingScreen`: на iOS 26 `ToolbarItem(.topBarLeading)`, повешенный
+    /// на корень раздела, рисуется дважды (жалоба владельца 24.10.2026 —
+    /// две одинаковые иконки в шапке «Ждут вас»), а в этом слое шапки
+    /// правая кнопка рисуется один раз.
+    var listTabSwitcher: AnyView = AnyView(EmptyView())
     /// Тот же самый `Menu` «Показывать в разделе», что и у диапазонов —
     /// приходит из `UpcomingScreen`, где живёт его состояние (LOCK-111).
     var sectionCompositionMenu: AnyView = AnyView(EmptyView())
@@ -167,10 +174,12 @@ struct TodaySectionView: View {
         }
         .onChange(of: layout) { _, _ in onTitleChange(titleForHeader) }
         .toolbar {
-            // Вкладки списка живут на ЛЕВОЙ кнопке шапки (её рисует
-            // `UpcomingScreen`), справа остаются фильтр и выбор раздела —
-            // владелец 15.09.2026 отдельно попросил не заводить здесь третью
-            // кнопку, а использовать левую.
+            // Вкладки списка живут на ЛЕВОЙ кнопке шапки, справа остаются
+            // фильтр и выбор раздела — владелец 15.09.2026 отдельно попросил
+            // не заводить здесь третью кнопку, а использовать левую.
+            if layout == .list {
+                ToolbarItem(placement: .topBarLeading) { listTabSwitcher }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 0) {
                     filterMenu(c: c).tfPlannerWideControl()
