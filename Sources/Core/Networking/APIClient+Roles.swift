@@ -51,7 +51,14 @@ public extension APIClient {
     /// надо показать, чтобы было что включить обратно. Без `all=1` — только
     /// рабочие роли (LOCK-205, ссылка на `server/src/routes/roles.ts:278-285`).
     func roles(all: Bool) async throws -> [RoleProfile] {
-        try await RolesCache.shared.roles(all: all) {
+        #if DEBUG
+        // UI fixtures must not depend on the mutable live role catalogue or cached titles.
+        if ProcessInfo.processInfo.environment["TASKFLOW_ROLE_CONTEXT_FIXTURE"] == "1" {
+            let data = Data(#"{"role":"developer","title":"Разработчик","account_id":"role_developer","status":"ready","status_title":"Готов","runtime_ready":true,"problems":[],"prompt":"Инструкция роли","skills":[],"tools":[],"fallbacks":[],"attempt_policy":[],"enabled":true}"#.utf8)
+            return [try JSONDecoder().decode(RoleProfile.self, from: data)]
+        }
+        #endif
+        return try await RolesCache.shared.roles(all: all) {
             let query = all ? [URLQueryItem(name: "all", value: "1")] : []
             let envelope: RolesEnvelope = try await self.request(.get, "/roles", query: query)
             return envelope.roles
@@ -156,5 +163,18 @@ public extension APIClient {
         }
         if let enabled { body["enabled"] = .bool(enabled) }
         return try await request(.patch, "/roles/\(role)", body: body)
+    }
+}
+
+public extension APIClient {
+    func roleBehavior(role: String) async throws -> RoleBehavior {
+        try await request(.get, "/roles/\(role)/behavior")
+    }
+    func saveRoleBehaviorTemplate(role: String, name: String, text: String, gender: RoleBehaviorGender) async throws -> RoleBehaviorTemplate {
+        try await request(.post, "/roles/\(role)/behavior/templates", body: ["name": name, "text": text, "gender": gender.rawValue])
+    }
+    func applyRoleBehavior(role: String, text: String, gender: RoleBehaviorGender, expectedVersion: Int) async throws -> RoleBehavior {
+        let body: [String: JSONValue] = ["text": .string(text), "gender": .string(gender.rawValue), "expectedVersion": .number(Double(expectedVersion))]
+        return try await request(.patch, "/roles/\(role)/behavior", body: body)
     }
 }

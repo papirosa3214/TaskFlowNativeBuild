@@ -4,6 +4,16 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testRoleBehaviorHintExplainsSaveAndApplySeparately() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleBehavior])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.roleBehavior, frame: frame)
+        XCTAssertEqual(center.active?.step, "templates")
+        XCTAssertTrue(center.currentStep?.text.contains("Сохранить шаблон") == true)
+        XCTAssertTrue(center.currentStep?.text.contains("Применить личность") == true)
+        center.next()
+        XCTAssertTrue(center.completed.contains("role-behavior"))
+    }
     func testChatExecutionModeHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.chatExecutionMode])
         center.isEnabled = true

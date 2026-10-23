@@ -10,7 +10,7 @@ struct RoleRuntimeContextSheet: View {
     @Environment(\.dismiss) private var dismiss
     private var groups: [String] {
         var result: [String] = []
-        for block in context?.blocks ?? [] where !result.contains(block.group) { result.append(block.group) }
+        for block in context?.blocks ?? [] where block.id != "role.persona" && !result.contains(block.group) { result.append(block.group) }
         return result
     }
     var body: some View {
@@ -20,6 +20,20 @@ struct RoleRuntimeContextSheet: View {
                 else if let context {
                     ScrollView {
                         VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                            TFSectionHeader("Личность роли")
+                            TFCard(padding: 0) {
+                                NavigationLink {
+                                    RoleBehaviorTemplatesView(role: role.role, canEdit: context.canEdit == true)
+                                } label: {
+                                    TFListRow(icon: "person.text.rectangle", iconStyle: .plain,
+                                              title: "ROLE.md · Личность и поведение",
+                                              subtitle: "Характер, шаблоны и пол",
+                                              trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                                }
+                                .buttonStyle(TFTapRowStyle())
+                                .accessibilityIdentifier("roleContext.behavior")
+                            }
+                            TFSectionHeader("Правила и инструкции")
                             TFCard {
                                 VStack(alignment: .leading, spacing: TFSpacing.md) {
                                     Text(context.notice ?? "Изменения применятся при следующем запуске роли.")
@@ -41,7 +55,7 @@ struct RoleRuntimeContextSheet: View {
                             if let blocks = context.blocks {
                                 TFCard(padding: 0) {
                                     VStack(spacing: 0) {
-                                        ForEach(blocks.filter { $0.group == group }) { block in
+                                        ForEach(blocks.filter { $0.group == group && $0.id != "role.persona" }) { block in
                                             NavigationLink {
                                                 RoleInstructionEditor(role: role.role, block: block, canEdit: context.canEdit == true, service: service)
                                             } label: {
