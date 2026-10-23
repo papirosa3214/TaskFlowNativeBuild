@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let aiUsage = "ai.usage"
     static let roleLoadRows = "role-load.rows"
     static let roleBehavior = "role.behavior"
     static let chatExecutionMode = "chat.execution-mode"
@@ -38,7 +39,7 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
 
     static let roleLoadRows = HintScenario(
         id: "role-load-rows", title: "Свернуть ненужные роли", start: "collapse",
@@ -122,6 +123,11 @@ enum HintScenarios {
         id: "context-observability", title: "Контекст и JEV в загрузке ролей", start: "context",
         steps: ["context": HintStep(anchor: HintAnchorID.contextObservability, title: "Вклад в работу роли",
             text: "Сводка показывает срабатывания за период графика. Раскройте последние срабатывания: там видны источники, отбор JEV, время, причины пропуска и ошибки. Количества показывают вход и выход конкретной операции; это не оценка качества итоговой работы.")])
+
+    static let aiUsage = HintScenario(
+        id: "ai-usage", title: "Статистика", start: "usage",
+        steps: ["usage": HintStep(anchor: HintAnchorID.aiUsage, title: "Токены, кэш и стоимость",
+            text: "Раздел «Статистика» в обзоре. Выберите сегодня, 7 или 30 дней. Здесь расход ответов моделей ролям TaskFlow, включая сохранённые сессии. Стоимость — тарифная оценка, а не списание с подписки. История выполненных задач с графиком — в архиве.")])
 
     static let jevUsage = HintScenario(
         id: "jev-usage", title: "Расход JEV", start: "usage",

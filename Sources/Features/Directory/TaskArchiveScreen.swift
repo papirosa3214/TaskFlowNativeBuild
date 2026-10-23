@@ -21,6 +21,8 @@ struct TaskArchiveScreen: View {
         // карточный контейнер и разделители — это и был неровный вид.
         ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+                historySection
+
                 TFErrorBanner(taskStore.archiveErrorMessage, variant: .inline)
 
                 if taskStore.isLoadingArchive && tasks.isEmpty {
@@ -32,10 +34,16 @@ struct TaskArchiveScreen: View {
                     )
                     .padding(.horizontal, TFSpacing.xs)
                 } else if !tasks.isEmpty {
-                    VStack(spacing: 2) {
-                        ForEach(tasks.indices, id: \.self) { rowIndex in
-                            if rowIndex > 0 { TFDivider() }
-                            archiveRow(tasks[rowIndex])
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Text("Задачи")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .padding(.horizontal, TFSpacing.screenHorizontal)
+                        VStack(spacing: 2) {
+                            ForEach(tasks.indices, id: \.self) { rowIndex in
+                                if rowIndex > 0 { TFDivider() }
+                                archiveRow(tasks[rowIndex])
+                            }
                         }
                     }
                 }
@@ -78,9 +86,16 @@ struct TaskArchiveScreen: View {
                             Text(.init(description)).tfText(.row).foregroundStyle(Color.tfText).textSelection(.enabled)
                         }
                         LabeledContent("Проект", value: task.projectName ?? "Без проекта")
-                        LabeledContent("Состояние", value: task.status == .completed ? "Выполнена" : "Открыта")
+                        LabeledContent("Состояние", value: "В архиве")
+                        LabeledContent("Результат", value: task.status == .completed ? "Выполнена" : "Отменена")
+                        if let created = task.createdAt {
+                            LabeledContent("Создана", value: archiveDate(created))
+                        }
+                        if task.status == .completed, let completed = task.completedAt {
+                            LabeledContent("Выполнена", value: archiveDate(completed))
+                        }
                         if let date = task.archivedAt {
-                            LabeledContent("В архиве с", value: date)
+                            LabeledContent("В архиве с", value: archiveDate(date))
                         }
                     }
                     Section {
@@ -128,6 +143,46 @@ struct TaskArchiveScreen: View {
             Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
                 pendingDelete = task
             }
+        }
+    }
+
+    /// Ссылка на историю выполнения — тем же видом, что ряды остальных
+    /// разделов архива: подпись секции 13 pt `tfSub`, строка на подложке,
+    /// разделитель, шеврон справа. Было голое `Label` прямо в списке: оно
+    /// читалось как случайно брошенная строка (владелец 24.10.2026 —
+    /// «в разнобой, вообще неадекватный вид»).
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            Text("История")
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+
+            NavigationLink {
+                ActivityScreen()
+            } label: {
+                HStack(spacing: TFSpacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Выполненные задачи")
+                            .tfText(.row)
+                            .foregroundStyle(Color.tfText)
+                        Text("График выполнения и закрытые задачи")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .imageScale(.small)
+                        .foregroundStyle(Color.tfDim)
+                }
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, TFSpacing.sm)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .background(Color.tfBackground)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("archive.completed-history")
         }
     }
 
@@ -179,6 +234,10 @@ struct TaskArchiveScreen: View {
             Button("Восстановить", systemImage: "arrow.uturn.backward") { restoreProject(project) }
             Button("Удалить окончательно", systemImage: "trash", role: .destructive) { pendingProjectDelete = project }
         }
+    }
+
+    private func archiveDate(_ raw: String) -> String {
+        DateFormats.sqliteUTC(raw)?.formatted(date: .abbreviated, time: .shortened) ?? raw
     }
 
     private func loadArchive() async {

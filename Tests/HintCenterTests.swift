@@ -4,6 +4,15 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testAIUsageHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.aiUsage])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.aiUsage, frame: frame)
+        XCTAssertEqual(center.active?.step, "usage")
+        center.next()
+        XCTAssertTrue(center.completed.contains("ai-usage"))
+    }
+
     func testRoleLoadCollapseHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleLoadRows])
         center.start("role-load-rows")
