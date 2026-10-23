@@ -42,6 +42,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import os
 import re
 import subprocess
@@ -53,6 +54,23 @@ _heading_spec = importlib.util.spec_from_file_location("screen_heading_guard", P
 _heading_module = importlib.util.module_from_spec(_heading_spec)
 _heading_spec.loader.exec_module(_heading_module)
 scan_screen_headings = _heading_module.scan_screen_headings
+
+_color_spec = importlib.util.spec_from_file_location("control_color_guard", Path(__file__).with_name("control-color-guard.py"))
+_color_module = importlib.util.module_from_spec(_color_spec)
+_color_spec.loader.exec_module(_color_module)
+scan_control_colors = _color_module.scan_control_colors
+COLOR_RULES = {"red-button", "system-blue-color", "implicit-system-blue"}
+
+
+def new_color_findings(path, old_text, new_text):
+    """Color may change by removing an ancestor modifier, without changing the control line."""
+    previous = Counter((row[2], row[3]) for row in scan_control_colors(path, old_text))
+    result = []
+    for row in scan_control_colors(path, new_text):
+        key = (row[2], row[3])
+        if previous[key]: previous[key] -= 1
+        else: result.append(row)
+    return result
 
 IGNORE_MARK = "design-system-guard: ignore"
 
@@ -73,6 +91,12 @@ BASELINE_HEADER = """# Базовый снимок сторожа дизайн-�
 # Пары «что ищем — чем заменить». Правило error роняет сборку, warn только
 # сообщает.
 RULES = [
+    {"id": "red-button", "severity": "error", "title": "красная кнопка (включая TFButton.primary по умолчанию)",
+     "fix": "нейтральная кнопка как в настройках: TFButton(..., variant: .secondary); цвет текста — tfText, без tfRed/tfCoral/tint(.red)"},
+    {"id": "system-blue-color", "severity": "error", "title": "явный системный синий цвет или accentColor",
+     "fix": "для обычных действий и выбора используй .tint(Color.tfText) / .foregroundStyle(Color.tfText); цвет смысловых данных — из палитры"},
+    {"id": "implicit-system-blue", "severity": "error", "title": "не задан нейтральный цвет интерактивного элемента: риск системного синего",
+     "fix": "задай нейтральный .tint(Color.tfText) элементу или его контейнеру; для кнопок используй нейтральный компонент дизайн-системы"},
     {
         "id": "screen-heading-consistency",
         "severity": "error",
@@ -103,7 +127,7 @@ RULES = [
         "id": "bespoke-button",
         "severity": "warn",
         "title": "похоже на самодельную кнопку со своей рамкой/фоном",
-        "fix": "готовые кнопки: `TFButton` (полноширинная, варианты primary/secondary/outline), "
+        "fix": "готовые кнопки: `TFButton` (полноширинная, нейтральные secondary/outline), "
                "`TFIconButton` (иконка, тап-зона 44×44)",
     },
     # Ниже — правила из свода критериев аудита дизайн-системы
@@ -262,6 +286,7 @@ def scan_file(path: str, only_lines=None):
             continue
         for rule_id in check_line(path, lines, index):
             findings.append((path, index + 1, rule_id, lines[index].strip()))
+    findings.extend(row for row in scan_control_colors(path, "\n".join(lines)) if only_lines is None or row[1] in only_lines)
     return findings
 
 
@@ -271,6 +296,7 @@ def scan_fragment(text: str):
     for index in range(len(lines)):
         for rule_id in check_line("<правка>", lines, index):
             findings.append(("<правка>", index + 1, rule_id, lines[index].strip()))
+    findings.extend(scan_control_colors("<правка>", text))
     return findings
 
 
@@ -302,6 +328,7 @@ def diff_added_lines(root: str, rev: str):
             if target.startswith("b/"):
                 target = target[2:]
             current = os.path.join(root, target)
+            added.setdefault(current, set())
             continue
         if line.startswith("@@"):
             match = re.match(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", line)
@@ -398,7 +425,7 @@ def render(findings, baseline=None):
                 shown = os.path.relpath(path)
             except ValueError:
                 shown = path
-        print("  [%s] %s:%d — %s" % (marker, shown, line, rule["title"]))
+        print("  [%s] %s:%d — %s [%s]" % (marker, shown, line, rule["title"], rule_id))
         print("      надо: %s" % rule["fix"])
     print("")
     print("Осознанное отклонение от правила — добавь в строку «// %s»." % IGNORE_MARK)
@@ -462,6 +489,11 @@ def main() -> int:
                 continue
             for rule_id in check_line(existing, new_lines, index):
                 findings.append((args.new_file, index + 1, rule_id, new_lines[index].strip()))
+        try:
+            old_text = Path(existing).read_text()
+        except OSError:
+            old_text = ""
+        findings.extend(new_color_findings(existing, old_text, new_text))
         findings.extend(scan_screen_headings(root, overrides={existing: new_text}, affected={existing}))
         return render(findings)
 
@@ -477,7 +509,13 @@ def main() -> int:
         added, untracked = diff_added_lines(root, args.diff)
         findings = []
         for path, lineset in added.items():
-            findings.extend(scan_file(path, only_lines=lineset))
+            findings.extend(row for row in scan_file(path, only_lines=lineset) if row[2] not in COLOR_RULES)
+            old = subprocess.run(["git", "-C", root, "show", args.diff + ":" + os.path.relpath(path, root)], capture_output=True, text=True).stdout
+            try:
+                current_text = Path(path).read_text()
+            except OSError:
+                current_text = ""
+            findings.extend(new_color_findings(path, old, current_text))
         for path in untracked:
             findings.extend(scan_file(path))
         findings.extend(scan_screen_headings(root, affected=set(added) | set(untracked)))
