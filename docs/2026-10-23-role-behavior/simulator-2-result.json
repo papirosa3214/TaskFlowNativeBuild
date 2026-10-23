@@ -1,0 +1,53 @@
+{
+  "summary": {
+    "status": "FAILED",
+    "durationMs": 210416,
+    "counts": {
+      "passed": 22,
+      "failed": 3,
+      "skipped": 0
+    },
+    "target": "simulator"
+  },
+  "artifacts": {
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_sim_2026-10-23T10-02-11-109Z_pid43437_b85701bb.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_sim_2026-10-23T10-02-11-110Z_pid43437_a62399f3.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_sim_2026-10-23T10-02-11-110Z_pid43437_c7ea6505.xctestproducts"
+  },
+  "testFailures": [
+    {
+      "suite": "HintCenterTests",
+      "test": "testWebhookHintExplainsGenericReceiverAndOptionalCodexBranch",
+      "message": "XCTAssertTrue failed",
+      "location": "/Users/max/Проекты/TaskFlowNativeBuild/Tests/HintCenterTests.swift:127"
+    },
+    {
+      "suite": "HintCenterTests",
+      "test": "testWebhookHintExplainsGenericReceiverAndOptionalCodexBranch()",
+      "message": "XCTAssertTrue failed"
+    },
+    {
+      "suite": "RoleBehaviorUITests",
+      "test": "testConflictKeepsDraftAndGenderUntilExplicitApply",
+      "message": "XCTAssertTrue failed",
+      "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/RoleBehaviorUITests.swift:9"
+    },
+    {
+      "suite": "RoleBehaviorUITests",
+      "test": "testConflictKeepsDraftAndGenderUntilExplicitApply()",
+      "message": "XCTAssertTrue failed"
+    },
+    {
+      "suite": "RoleBehaviorUITests",
+      "test": "testSaveTemplateDoesNotApplyThenApplyRetainsFemaleGender",
+      "message": "XCTAssertTrue failed",
+      "location": "/Users/max/Проекты/TaskFlowNativeBuild/UITests/RoleBehaviorUITests.swift:9"
+    },
+    {
+      "suite": "RoleBehaviorUITests",
+      "test": "testSaveTemplateDoesNotApplyThenApplyRetainsFemaleGender()",
+      "message": "XCTAssertTrue failed"
+    }
+  ],
+  "tests": null
+}

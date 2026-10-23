@@ -1,0 +1,26 @@
+{
+  "summary": {
+    "status": "FAILED",
+    "durationMs": 88717,
+    "counts": {
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0
+    },
+    "target": "device"
+  },
+  "artifacts": {
+    "deviceId": "00008150-001545400144401C",
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_device_2026-10-23T10-09-04-783Z_pid58033_06cb9c0b.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_device_2026-10-23T10-09-04-783Z_pid58033_a3035745.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_device_2026-10-23T10-09-04-783Z_pid58033_5e4979a2.xctestproducts"
+  },
+  "testFailures": [
+    {
+      "suite": "System Failures",
+      "test": "TaskFlowUITests-Runner (42770) encountered an error",
+      "message": "The test runner failed to initialize for UI testing. (Underlying Error: Timed out while enabling automation mode.)"
+    }
+  ],
+  "tests": null
+}
