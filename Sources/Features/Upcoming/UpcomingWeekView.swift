@@ -8,6 +8,8 @@ private let swipeMinPx: CGFloat = 70 // SWIPE_MIN_PX
 struct UpcomingWeekView: View {
     let monday: String
     let byDate: [String: [ApiTask]]
+    let occurrences: [RoutineOccurrence]
+    let onRoutineTap: (RoutineOccurrence) -> Void
     let onTaskTap: (String) -> Void
     let onDayTap: (String) -> Void
     let onPickDate: (String) -> Void
@@ -17,11 +19,14 @@ struct UpcomingWeekView: View {
     private let days: [String]
     init(
         monday: String, byDate: [String: [ApiTask]],
+        occurrences: [RoutineOccurrence] = [], onRoutineTap: @escaping (RoutineOccurrence) -> Void = { _ in },
         onTaskTap: @escaping (String) -> Void, onDayTap: @escaping (String) -> Void,
         onPickDate: @escaping (String) -> Void, onPrevWeek: @escaping () -> Void, onNextWeek: @escaping () -> Void
     ) {
         self.monday = monday
         self.byDate = byDate
+        self.occurrences = occurrences
+        self.onRoutineTap = onRoutineTap
         self.onTaskTap = onTaskTap
         self.onDayTap = onDayTap
         self.onPickDate = onPickDate
@@ -76,6 +81,9 @@ struct UpcomingWeekView: View {
             .padding(.horizontal, 2)
             .padding(.bottom, 2)
 
+            ForEach(occurrences.filter { $0.day() == ds }) { occurrence in
+                RoutineOccurrenceRow(occurrence: occurrence, compact: true) { onRoutineTap(occurrence) }
+            }
             ForEach(tasks, id: \.id) { task in
                 UpcomingTaskChip(task: task, compact: false) { onTaskTap(task.id) }
             }

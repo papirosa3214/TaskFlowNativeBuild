@@ -181,7 +181,7 @@ struct RoleEditorSheet: View {
                     Button("Вернуть исходную инструкцию", action: { prompt = "" })
                         .buttonStyle(.plain)
                         .tfText(.action).fontWeight(.medium)
-                        .foregroundStyle(Color.tfCoral)
+                        .foregroundStyle(Color.tfText)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
@@ -214,7 +214,7 @@ struct RoleEditorSheet: View {
     private var actions: some View {
         HStack(spacing: TFSpacing.md) {
             TFButton("Отмена", variant: .secondary) { dismiss() }
-            TFButton(saveButtonTitle, icon: "checkmark", variant: .primary,
+            TFButton(saveButtonTitle, icon: "checkmark", variant: .secondary,
                      isEnabled: canSave && !isSaving && !isTogglingEnabled) {
                 Task { await save() }
             }

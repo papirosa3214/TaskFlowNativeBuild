@@ -98,6 +98,9 @@ targets:
         basedOnDependencyAnalysis: false
         inputFiles:
           - $(SRCROOT)/Tools/design-system-guard.py
+          - $(SRCROOT)/Tools/control-color-guard.py
+          - $(SRCROOT)/Tools/screen-heading-guard.py
+          - $(SRCROOT)/Tools/screen-heading-scopes.json
           - $(SRCROOT)/Tools/design-system-baseline.txt
         script: |
           /usr/bin/python3 "$SRCROOT/Tools/design-system-guard.py" --folder

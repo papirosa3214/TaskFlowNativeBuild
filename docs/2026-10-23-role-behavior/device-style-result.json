@@ -1,0 +1,19 @@
+{
+  "summary": {
+    "status": "SUCCEEDED",
+    "durationMs": 172344,
+    "counts": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "target": "device"
+  },
+  "artifacts": {
+    "deviceId": "00008150-001545400144401C",
+    "buildLogPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/test_device_2026-10-23T10-23-17-796Z_pid70749_c88753ce.log",
+    "xcresultPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/result-bundles/test_device_2026-10-23T10-23-17-796Z_pid70749_c3386752.xcresult",
+    "testProductsPath": "~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/test_device_2026-10-23T10-23-17-797Z_pid70749_07c8e38f.xctestproducts"
+  },
+  "failures": []
+}

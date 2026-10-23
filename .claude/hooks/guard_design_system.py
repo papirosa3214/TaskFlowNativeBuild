@@ -8,11 +8,11 @@
 PreToolUse на Edit|Write. Смотрит правку Swift-файла в `Sources/`: зовёт
 общий разбор `Tools/design-system-guard.py` (тот же, что стоит шагом сборки),
 и если правка тумблера/типографики/кнопки не по системе — один раз блокирует
-её и говорит, чем заменить. Повтор той же правки проходит: гейт заставляет
-сверить, а не запрещает навсегда.
+её и говорит, чем заменить. Красные кнопки и системный синий блокируются
+также при повторе. Для прежних правил повтор оставлен как подтверждение сверки.
 
 Тот же сторож работает и без Claude Code: любой агент может позвать
-`python3 Tools/design-system-guard.py`, а `--diff HEAD` включён шагом сборки
+`python3 Tools/design-system-guard.py`, а `--folder` включён шагом сборки
 (`project.yml`).
 """
 import hashlib
@@ -48,6 +48,18 @@ def main() -> int:
     else:
         text = tool_input.get("new_string") or ""
         argv = [sys.executable, guard, "--root", root, "--fragment"]
+        # Edit must retain ancestor tint/dialog context. A naked fragment cannot
+        # tell an inherited neutral control from an automatic blue one.
+        old = tool_input.get("old_string")
+        try:
+            with open(path, encoding="utf-8") as handle:
+                current = handle.read()
+            if isinstance(old, str) and old and old in current:
+                count = -1 if tool_input.get("replace_all") else 1
+                text = current.replace(old, text, count)
+                argv = [sys.executable, guard, "--root", root, "--new-file", path]
+        except OSError:
+            pass
     if not text.strip():
         return 0
     try:
@@ -66,16 +78,21 @@ def main() -> int:
     key = hashlib.sha1((rel + "|" + stable).encode()).hexdigest()
     os.makedirs(STATE_DIR, exist_ok=True)
     marker = os.path.join(STATE_DIR, key)
-    if os.path.exists(marker) and time.time() - os.path.getmtime(marker) < PASS_TTL:
+    color_error = any("[" + rule + "]" in report for rule in (
+        "red-button", "system-blue-color", "implicit-system-blue"))
+    if not color_error and os.path.exists(marker) and time.time() - os.path.getmtime(marker) < PASS_TTL:
         return 0
     open(marker, "w").close()
 
     print(f"ГЕЙТ «дизайн-система» (владелец 16.10.2026): правка «{rel}» не по нашей системе.",
           file=sys.stderr)
     print(report, file=sys.stderr)
-    print("Сверь с готовым компонентом и повтори правку — второй раз гейт её пропустит. "
-          "Отклонение осознанное — добавь в строку «// design-system-guard: ignore».",
-          file=sys.stderr)
+    if color_error:
+        print("Исправь цвет: повтор той же правки не снимает ошибку красной кнопки или системного синего. "
+              "Осознанное исключение — только явный // design-system-guard: ignore в строке находки.", file=sys.stderr)
+    else:
+        print("Сверь с готовым компонентом и повтори правку — второй раз гейт её пропустит. "
+              "Отклонение осознанное — добавь в строку «// design-system-guard: ignore».", file=sys.stderr)
     return 2
 
 

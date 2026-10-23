@@ -1,0 +1,50 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "C21B6BFD-AC44-4733-B880-34941B6D0098.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-behavior-conflict-recovered_0_8F2F6645-3506-44B5-B741-ABA8A8EC4BF6.png",
+        "timestamp" : 1792751384.064
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "C6DB4581-02D2-466E-8913-C41590562F69.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-editor-neutral-actions_0_00F30080-8026-42B1-B8B2-6138446C25DF.png",
+        "timestamp" : 1792751356.182
+      }
+    ],
+    "testIdentifier" : "RoleBehaviorUITests/testConflictKeepsDraftAndGenderUntilExplicitApply()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleBehaviorUITests/testConflictKeepsDraftAndGenderUntilExplicitApply"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "B50517D3-46F2-4076-868E-51CEE44A9610.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-behavior-applied-female_0_CCA2A1BA-DDC0-4BB7-AAEB-748E365BED6E.png",
+        "timestamp" : 1792751424.535
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008150-001545400144401C",
+        "deviceName" : "iPhone Air",
+        "exportedFileName" : "4165DF28-B31F-4167-AEC2-3FC2A04B1868.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "role-editor-neutral-actions_0_2137EDA5-7E71-46CB-91DF-8856CE469036.png",
+        "timestamp" : 1792751392.338
+      }
+    ],
+    "testIdentifier" : "RoleBehaviorUITests/testSaveTemplateDoesNotApplyThenApplyRetainsFemaleGender()",
+    "testIdentifierURL" : "test://com.apple.xcode/TaskFlow/TaskFlowUITests/RoleBehaviorUITests/testSaveTemplateDoesNotApplyThenApplyRetainsFemaleGender"
+  }
+]

@@ -34,6 +34,8 @@ struct UpcomingMonthView: View {
     /// на прошедшем месяце, а не на текущем.
     let initialMonth: (year: Int, month: Int)
     let byDate: [String: [ApiTask]]
+    let occurrences: [RoutineOccurrence]
+    let onRoutineTap: (RoutineOccurrence) -> Void
     let onDayTap: (String) -> Void
     let onVisibleMonthChange: (Int, Int) -> Void
 
@@ -44,12 +46,15 @@ struct UpcomingMonthView: View {
     init(
         initialMonday: String, initialMonth: (year: Int, month: Int),
         byDate: [String: [ApiTask]],
+        occurrences: [RoutineOccurrence] = [], onRoutineTap: @escaping (RoutineOccurrence) -> Void = { _ in },
         onDayTap: @escaping (String) -> Void,
         onVisibleMonthChange: @escaping (Int, Int) -> Void
     ) {
         self.initialMonday = initialMonday
         self.initialMonth = initialMonth
         self.byDate = byDate
+        self.occurrences = occurrences
+        self.onRoutineTap = onRoutineTap
         self.onDayTap = onDayTap
         self.onVisibleMonthChange = onVisibleMonthChange
     }
@@ -172,8 +177,10 @@ struct UpcomingMonthView: View {
         let isToday = ds == today
         let startsMonth = UpcomingDate.day(ds) == 1
         let tasks = byDate[ds] ?? []
-        let shown = Array(tasks.prefix(monthChipLimit))
-        let rest = tasks.count - shown.count
+        let automations = occurrences.filter { $0.day() == ds }
+        let shownAutomations = Array(automations.prefix(monthChipLimit))
+        let shown = Array(tasks.prefix(max(0, monthChipLimit - shownAutomations.count)))
+        let rest = tasks.count + automations.count - shown.count - shownAutomations.count
 
         return VStack(spacing: 2) {
             Text("\(UpcomingDate.day(ds))")
@@ -184,6 +191,9 @@ struct UpcomingMonthView: View {
                 .frame(minWidth: isToday ? 18 : nil, minHeight: isToday ? 18 : nil)
                 .background(isToday ? Circle().fill(Color.tfRed) : nil)
 
+            ForEach(shownAutomations) { occurrence in
+                RoutineOccurrenceRow(occurrence: occurrence, compact: true) { onRoutineTap(occurrence) }
+            }
             ForEach(shown, id: \.id) { task in
                 UpcomingTaskChip(task: task, compact: true) { onDayTap(ds) }
             }

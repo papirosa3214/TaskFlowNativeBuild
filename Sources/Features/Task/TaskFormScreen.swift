@@ -467,6 +467,10 @@ struct TaskCardContent: View {
             }
         }
         .taskToast($toast)
+        .onChange(of: viewModel.routineNotice) { _, notice in
+            guard let notice else { return }
+            toast = TaskToastMessage(notice)
+        }
         .quickLookPreview($previewAttachmentURL)
         .onChange(of: previewAttachmentURL) { oldURL, newURL in
             if newURL == nil, let oldURL {
@@ -914,8 +918,35 @@ struct TaskCardContent: View {
                 )
             }
 
+            // «Создать рутину» — только для новой карточки: рутина сама создаёт
+            // новые карточки, поэтому у уже созданной её быть не может.
+            if viewModel.taskID == nil {
+                routineToggle
+            }
+
             // «Создал» отсюда убран (владелец 01.10.2026, LOCK-272): создателя
             // видно в ленте активности. Исполнитель возвращён чипом выше.
+    }
+
+    /// «Создать рутину» — правило берётся из поля «повтор», время — из поля
+    /// «время запуска»: то же расписание, другой смысл (рутина создаёт новые
+    /// карточки сама, а не переоткрывает эту).
+    private var routineToggle: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            HStack(spacing: TFSpacing.md) {
+                Text("Создать рутину")
+                    .tfText(.row)
+                    .foregroundStyle(Color.tfText)
+                Spacer(minLength: 0)
+                TFToggle(isOn: $viewModel.routineEnabled)
+            }
+            .frame(minHeight: TFHitTarget.min)
+            if viewModel.routineEnabled {
+                Text("Рутина сама создаёт новую задачу: правило — «повтор», время — «время запуска».")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+            }
+        }
     }
 
     // 15.09.2026: тип экрана стирается здесь намеренно. Цепочка

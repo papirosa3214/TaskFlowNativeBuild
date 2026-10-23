@@ -14,6 +14,8 @@ struct OverviewScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var openIncidents: Int?
     @State private var busyRoles: Int?
+    /// Сколько рутин активны — значение справа в строке «Мои рутины».
+    @State private var routinesActive: Int?
     var body: some View {
         // Владелец 12.10.2026: разделы «прилипали» к карте — отступ 24 вместо 12.
         VStack(spacing: TFSpacing.xl) {
@@ -99,6 +101,8 @@ struct OverviewScreen: View {
             TFDivider()
             navigationRow(route: .activity, title: "Статистика")
             TFDivider()
+            navigationRow(route: .routines, title: "Мои рутины", value: routinesActiveText)
+            TFDivider()
             navigationRow(route: .settings, title: "Настройки")
         }
     }
@@ -133,6 +137,15 @@ struct OverviewScreen: View {
                                                          query: [URLQueryItem(name: "window", value: "24h")]) {
             busyRoles = Set(load.active_now.compactMap(\.role_key)).count
         }
+        if let list: ApiSchedulesResponse = try? await client.request(.get, "/schedules") {
+            routinesActive = list.schedules.filter { $0.status == "active" }.count
+        }
+    }
+
+    /// Значение справа у строки «Мои рутины»: сколько рутин активны сейчас.
+    private var routinesActiveText: String? {
+        guard let routinesActive else { return nil }
+        return routinesActive > 0 ? "\(routinesActive) активных" : "нет активных"
     }
 
     private func navigationRow(route: AppRoute, title: String, value: String? = nil, tint: Color? = nil) -> some View {

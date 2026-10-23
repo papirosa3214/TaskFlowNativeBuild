@@ -38,6 +38,9 @@ struct RoleInstructionEditor: View {
                 Text(block.source).textSelection(.enabled)
                 Text("Режимы: " + modeLabels)
                 Text("Действует: " + sourceLabel)
+                if block.id == "role.system" {
+                    Text("SYSTEM.md — единые инструкции для всех ролей. Изменение этого документа применяется ко всей команде.")
+                }
                 if canEdit && block.editable && block.allowsTeam {
                     Picker("Область правки", selection: Binding(get: { team }, set: { value in
                             scopeDrafts[team] = draft
@@ -75,7 +78,7 @@ struct RoleInstructionEditor: View {
             }
             if canEdit && block.editable {
                 instructionSection("Действия") {
-                    TFButton("Сохранить", icon: "checkmark", isEnabled: !busy && !draft.hasConflict) { Task { await mutate() } }
+                    TFButton("Сохранить", icon: "checkmark", variant: .secondary, isEnabled: !busy && !draft.hasConflict) { Task { await mutate() } }
                         .accessibilityIdentifier("roleContext.save")
                     TFButton("Сбросить переопределение", variant: .outline, isEnabled: !busy) { showReset = true }
                         .disabled(busy).accessibilityIdentifier("roleContext.reset")
@@ -113,7 +116,7 @@ struct RoleInstructionEditor: View {
         .confirmationDialog("Отменить несохранённую правку?", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("Отменить правку", role: .destructive) { dismiss() }
         }
-        .confirmationDialog(team ? "Сбросить общую правку команды?" : "Сбросить правку этой роли?", isPresented: $showReset, titleVisibility: .visible) {
+        .confirmationDialog((team || block.id == "role.system") ? "Сбросить общую правку команды?" : "Сбросить правку этой роли?", isPresented: $showReset, titleVisibility: .visible) {
             Button("Сбросить", role: .destructive) { Task { await mutate(action: "reset") } }
         }
         .task { await refresh(preserveDraft: false); busy = false }
@@ -204,5 +207,62 @@ final class RoleInstructionService {
         }
         #endif
         try await api.mutateRoleInstruction(role: role, block: block, team: team, version: version, text: text, action: action, historyVersion: historyVersion)
+    }
+}
+
+@MainActor
+final class RoleBehaviorService {
+    private let api = APIClient()
+    #if DEBUG
+    private var fixture: RoleBehavior?
+    private var fixtureEnabled: Bool { ProcessInfo.processInfo.environment["TASKFLOW_ROLE_CONTEXT_FIXTURE"] == "1" }
+    private var conflictSent = false
+    private func fixtureBehavior(role: String) -> RoleBehavior {
+        if let fixture { return fixture }
+        let value = RoleBehavior(role: role, text: "Я — разработчик. Общаюсь кратко и проверяю факты.", gender: .male, version: 0,
+            templates: [
+                RoleBehaviorTemplate(id: "precise", name: "Точный аналитик", text: "Я — точный аналитик. Сначала факты, затем выводы. Говорю сдержанно.", gender: .male, builtin: true),
+                RoleBehaviorTemplate(id: "warm", name: "Тёплый партнёр", text: "Я — тёплый партнёр. Объясняю терпеливо, помогаю найти решение вместе.", gender: .female, builtin: true),
+                RoleBehaviorTemplate(id: "bold", name: "Прямой практик", text: "Я — прямой практик. Сразу называю главное и предлагаю конкретный следующий шаг.", gender: .male, builtin: true)
+            ])
+        fixture = value
+        return value
+    }
+    #endif
+    func load(role: String) async throws -> RoleBehavior {
+        #if DEBUG
+        if fixtureEnabled { return fixtureBehavior(role: role) }
+        #endif
+        return try await api.roleBehavior(role: role)
+    }
+    func saveTemplate(role: String, name: String, text: String, gender: RoleBehaviorGender) async throws -> RoleBehaviorTemplate {
+        #if DEBUG
+        if fixtureEnabled {
+            let value = fixtureBehavior(role: role)
+            let template = RoleBehaviorTemplate(id: UUID().uuidString, name: name, text: text, gender: gender, builtin: false)
+            fixture = RoleBehavior(role: role, text: value.text, gender: value.gender, version: value.version, templates: value.templates + [template])
+            return template
+        }
+        #endif
+        return try await api.saveRoleBehaviorTemplate(role: role, name: name, text: text, gender: gender)
+    }
+    func apply(role: String, draft: RoleBehaviorDraft) async throws -> RoleBehavior {
+        #if DEBUG
+        if fixtureEnabled {
+            let value = fixtureBehavior(role: role)
+            if ProcessInfo.processInfo.environment["TASKFLOW_ROLE_BEHAVIOR_CONFLICT"] == "1", !conflictSent {
+                conflictSent = true
+                fixture = RoleBehavior(role: role, text: value.text, gender: value.gender, version: value.version + 1, templates: value.templates)
+                throw APIError.conflict(message: "Версия изменилась")
+            }
+            guard value.version == draft.expectedVersion else { throw APIError.conflict(message: "Версия изменилась") }
+            let result = RoleBehavior(role: role, text: draft.text, gender: draft.gender, version: value.version + 1, templates: value.templates)
+            fixture = result
+            return result
+        }
+        #endif
+        let result = try await api.applyRoleBehavior(role: role, text: draft.text, gender: draft.gender, expectedVersion: draft.expectedVersion)
+        await APIClient.invalidateRoles()
+        return result
     }
 }

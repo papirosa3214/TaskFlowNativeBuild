@@ -94,6 +94,8 @@ struct ChatStructuredOutputView: View {
             handoffBlock(block)
         case "command":
             commandBlock(block)
+        case "link":
+            linkBlock(block)
         default:
             unsupportedBlock("Тип блока «\(block.type)» пока не поддерживается")
         }
@@ -325,6 +327,43 @@ struct ChatStructuredOutputView: View {
         }
     }
 
+    /// Ссылка из ответа роли (владелец 23.10.2026: «ссылку правильную давай
+    /// на материал... чтобы по падении мог сразу прочитать, а то щас не
+    /// кликабельна»).
+    ///
+    /// Разбор адреса — тот же, что у материалов (`ChatMaterialDestination`):
+    /// `note://<id>` — заметка «Базы знаний» открывается ВНУТРИ приложения
+    /// (пуш в редактор заметки), `task://<id>` — карточка задачи, `http(s)` —
+    /// внешняя ссылка в системном браузере. До этой правки блок `link` в iOS
+    /// не рисовался вовсе: попадал в «Тип блока не поддерживается».
+    @ViewBuilder
+    private func linkBlock(_ block: StructuredOutputBlock) -> some View {
+        let title = block.title ?? block.url ?? "Ссылка"
+        switch ChatMaterialDestination.resolve(block.url ?? "") {
+        case .note(let id):
+            NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
+                Label(title, systemImage: "doc.text")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfBlue)
+            }
+            .accessibilityIdentifier("chat.link.note.\(id)")
+        case .task(let id):
+            TaskCardLink(taskID: id) {
+                Label(title, systemImage: "checklist").tfText(.body)
+            }
+            .accessibilityIdentifier("chat.link.task.\(id)")
+        case .web(let url):
+            Link(destination: url) {
+                Label(title, systemImage: "arrow.up.right.square")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfBlue)
+            }
+            .accessibilityIdentifier("chat.link.web")
+        case nil:
+            unsupportedBlock("У ссылки должен быть http(s)-адрес или note://<id заметки>")
+        }
+    }
+
     private func handoffBlock(_ block: StructuredOutputBlock) -> some View {
         WidgetCard(title: "Передача результата") {
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
@@ -494,9 +533,10 @@ private struct StructuredOutputBlock: Decodable {
     let artifactKey: String?
     let summary: String?
     let command: String?
+    let url: String?
 
     enum CodingKeys: String, CodingKey {
-        case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary, command
+        case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary, command, url
         case reportKind = "report_kind"
         case artifactKey = "artifact_key"
     }
@@ -521,6 +561,7 @@ private struct StructuredOutputBlock: Decodable {
         artifactKey = try values.decodeIfPresent(String.self, forKey: .artifactKey)
         summary = try values.decodeIfPresent(String.self, forKey: .summary)
         command = try values.decodeIfPresent(String.self, forKey: .command)
+        url = try values.decodeIfPresent(String.self, forKey: .url)
         ordered = try values.decodeIfPresent(Bool.self, forKey: .ordered)
         if type == "diagram" {
             diagramItems = try values.decodeIfPresent([StructuredOutputDiagramItem].self, forKey: .items)

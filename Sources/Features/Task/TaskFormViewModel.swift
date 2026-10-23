@@ -97,6 +97,13 @@ final class TaskFormViewModel {
     var runRepeat: String = "none"
     var repeatUntil: Date?
 
+    /// Создать из этой задачи рутину: рутина сама создаёт новые карточки по
+    /// расписанию (правило — поле «повтор», время — поле «время запуска»).
+    /// Только для новой карточки: у уже созданной рутины быть не может.
+    var routineEnabled = false
+    /// Что вышло при создании рутины (задача к этому моменту уже создана).
+    var routineNotice: String?
+
     static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
@@ -1016,9 +1023,74 @@ final class TaskFormViewModel {
         }
         taskID = created.id
         originalTask = created
+        // Рутина создаётся после карточки: её шаблон — эта задача. Ошибка
+        // создания рутины не отменяет созданную задачу — владельцу показываем
+        // сообщение, карточка остаётся на месте.
+        if routineEnabled {
+            await createRoutineForTask(trimmedTitle: trimmedTitle)
+        }
         // Файлы, накопленные локально до создания задачи — заливаем теперь,
         // когда id наконец известен (см. `AttachmentsFieldView.swift`).
         await attachments.flushPending(taskId: created.id)
+    }
+
+    /// Повтор карточки → правило рутины. В форме то же поле «повтор», поэтому
+    /// и правило рутины берётся из него (спека, уточнение 22.10.2026).
+    nonisolated static func routineRuleKind(fromRepeat value: String) -> String {
+        switch value {
+        case "weekdays": return "weekdays"
+        case "weekly": return "weekly"
+        case "monthly": return "monthly"
+        default: return "daily"
+        }
+    }
+
+    /// День недели или число месяца для рутины из формы задачи — из срока
+    /// задачи: «повтор» у карточки значит «в этот день недели», и рутина
+    /// должна срабатывать в тот же день, а не в день создания.
+    nonisolated static func routineRuleExpr(ruleKind: String, dueDate: Date?) -> String? {
+        guard let dueDate else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TaskDateText.moscow
+        switch ruleKind {
+        case "weekly":
+            let sundayFirst = calendar.component(.weekday, from: dueDate)
+            let iso = sundayFirst == 1 ? 7 : sundayFirst - 1
+            return RoutineFormat.weekdayExpr(iso)
+        case "monthly":
+            return RoutineFormat.monthDayExpr(calendar.component(.day, from: dueDate))
+        default:
+            return nil
+        }
+    }
+
+    /// Рутина из формы задачи: та же карточка, но создаётся снова и снова.
+    private func createRoutineForTask(trimmedTitle: String) async {
+        let payload = ApiSchedulePayload(
+            title: trimmedTitle,
+            description: taskDescription.isEmpty ? nil : taskDescription,
+            projectId: projectId,
+            assigneeId: ownerSelectedRole ?? assigneeId,
+            priority: priority.rawValue,
+            durationMin: durationMin
+        )
+        let ruleKind = Self.routineRuleKind(fromRepeat: runRepeat)
+        let request = ApiScheduleCreateRequest(
+            title: trimmedTitle,
+            ruleKind: ruleKind,
+            ruleExpr: Self.routineRuleExpr(ruleKind: ruleKind, dueDate: dueDate),
+            timeLocal: RoutineFormat.timeLocalText(startMinutes ?? 9 * 60),
+            timezone: RoutineFormat.defaultTimezone,
+            catchUp: true,
+            overlapPolicy: "skip",
+            taskPayload: payload
+        )
+        do {
+            _ = try await apiClient.createSchedule(request)
+            routineNotice = "Рутина создана — задача будет создаваться снова по расписанию"
+        } catch {
+            routineNotice = "Задача создана, но рутину создать не удалось: \(Self.message(error))"
+        }
     }
 
     private func flushDeferredComment(taskID: String) async throws {
