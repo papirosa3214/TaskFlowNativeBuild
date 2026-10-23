@@ -130,7 +130,7 @@ struct SecretaryDraftCard: View {
 
             if canDecide {
                 HStack(spacing: TFSpacing.sm) {
-                    TFButton("Запустить", icon: "checkmark", variant: .primary, isEnabled: !isBusy) {
+                    TFButton("Запустить", icon: "checkmark", variant: .secondary, isEnabled: !isBusy) {
                         Task { await start() }
                     }
                     TFButton("В архив", icon: "archivebox", variant: .outline, isEnabled: !isBusy) {

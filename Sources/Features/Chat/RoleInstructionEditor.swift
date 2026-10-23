@@ -78,7 +78,7 @@ struct RoleInstructionEditor: View {
             }
             if canEdit && block.editable {
                 instructionSection("Действия") {
-                    TFButton("Сохранить", icon: "checkmark", isEnabled: !busy && !draft.hasConflict) { Task { await mutate() } }
+                    TFButton("Сохранить", icon: "checkmark", variant: .secondary, isEnabled: !busy && !draft.hasConflict) { Task { await mutate() } }
                         .accessibilityIdentifier("roleContext.save")
                     TFButton("Сбросить переопределение", variant: .outline, isEnabled: !busy) { showReset = true }
                         .disabled(busy).accessibilityIdentifier("roleContext.reset")

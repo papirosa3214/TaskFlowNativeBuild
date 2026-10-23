@@ -15,7 +15,9 @@ final class RoleBehaviorUITests: XCTestCase {
             if context.exists && context.isHittable { break }
             app.swipeUp()
         }
-        XCTAssertTrue(context.waitForExistence(timeout: 10)); context.tap()
+        XCTAssertTrue(context.waitForExistence(timeout: 10))
+        capture(app, name: "role-editor-neutral-actions")
+        context.tap()
         let behavior = app.buttons["roleContext.behavior"]
         XCTAssertTrue(behavior.waitForExistence(timeout: 10)); behavior.tap()
         XCTAssertTrue(app.textViews["roleBehavior.editor"].waitForExistence(timeout: 10))
@@ -40,7 +42,10 @@ final class RoleBehaviorUITests: XCTestCase {
         tap("roleBehavior.template.warm", app: app)
         let name = app.textFields["roleBehavior.templateName"]
         for _ in 0..<5 { if name.isHittable { break }; app.swipeUp() }
-        XCTAssertTrue(name.exists); name.tap(); name.typeText("Мой характер")
+        XCTAssertTrue(name.exists); name.tap(); name.typeText("Мой характер\n")
+        // Submit the single-line name field before scrolling: the software keyboard
+        // can cover Apply on iPhone while XCTest still reports that button hittable.
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 10))
         app.swipeUp()
         tap("roleBehavior.saveTemplate", app: app)
         XCTAssertTrue(app.staticTexts["Шаблон сохранён. Действующая личность не изменена."].waitForExistence(timeout: 10))
@@ -48,7 +53,10 @@ final class RoleBehaviorUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["roleBehavior.activeText"].label.contains("разработчик"))
         tap("roleBehavior.apply", app: app)
         goToTop(app)
-        XCTAssertEqual(app.staticTexts["roleBehavior.activeGender"].label, "Пол: Женский")
+        let activeGender = app.staticTexts["roleBehavior.activeGender"]
+        let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Пол: Женский"), object: activeGender)
+        XCTAssertEqual(XCTWaiter.wait(for: [applied], timeout: 10), .completed)
+        XCTAssertEqual(activeGender.label, "Пол: Женский")
         XCTAssertTrue(app.staticTexts["roleBehavior.activeText"].label.contains("тёплый партнёр"))
         capture(app, name: "role-behavior-applied-female")
     }

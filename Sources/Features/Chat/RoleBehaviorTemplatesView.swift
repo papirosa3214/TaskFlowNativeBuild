@@ -38,10 +38,11 @@ struct RoleBehaviorTemplatesView: View {
                                 .accessibilityIdentifier("roleBehavior.editor")
                             Picker("Пол", selection: gender) {
                                 ForEach(RoleBehaviorGender.allCases, id: \.self) { Text($0.title).tag($0) }
-                            }.accessibilityIdentifier("roleBehavior.gender")
+                            }.tint(Color.tfText)
+                            .accessibilityIdentifier("roleBehavior.gender")
                             Text("Определяет, как роль говорит о себе: «сделал» или «сделала».")
                                 .tfText(.caption).foregroundStyle(Color.tfSub)
-                            TFButton("Применить личность", icon: "checkmark", isEnabled: !busy && !draft.hasConflict && validText && changed) {
+                            TFButton("Применить личность", icon: "checkmark", variant: .secondary, isEnabled: !busy && !draft.hasConflict && validText && changed) {
                                 Task { await apply() }
                             }.accessibilityIdentifier("roleBehavior.apply")
                         } else {
@@ -80,7 +81,7 @@ struct RoleBehaviorTemplatesView: View {
                         section("Сохранить как шаблон") {
                             TFTextField("Название шаблона", text: $templateName)
                                 .accessibilityIdentifier("roleBehavior.templateName")
-                            TFButton("Сохранить как новый шаблон", icon: "square.and.arrow.down", isEnabled: !busy && validText && !templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                            TFButton("Сохранить как новый шаблон", icon: "square.and.arrow.down", variant: .secondary, isEnabled: !busy && validText && !templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
                                 Task { await saveTemplate() }
                             }.accessibilityIdentifier("roleBehavior.saveTemplate")
                             Text("Сохранение добавит свой шаблон с этим текстом и полом. Применяется отдельной кнопкой выше.")
