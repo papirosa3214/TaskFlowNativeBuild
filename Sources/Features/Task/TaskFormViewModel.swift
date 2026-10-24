@@ -56,12 +56,29 @@ final class TaskFormViewModel {
     /// set парсит входящий markdown (от сервера, от AI-структуризатора)
     /// в блоки. Старый код, читающий `taskDescription` как String,
     /// продолжает работать без правок.
-    var taskDescriptionBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)]
+    var taskDescriptionBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)] {
+        // Любая запись массива (в том числе через `Binding` редактора) сбрасывает
+        // кэш собранного markdown — иначе описание в карточке перестало бы
+        // совпадать с тем, что в полях.
+        didSet { cachedDescriptionMarkdown = nil }
+    }
+
+    /// Собранный markdown описания. Раньше `MarkdownEncoder.encode` срабатывал на
+    /// каждый доступ к `taskDescription`, а он читается несколько раз за проход
+    /// `body` карточки (подпись, сравнение с серверным описанием, автосохранение).
+    private var cachedDescriptionMarkdown: String?
+
     var taskDescription: String {
-        get { MarkdownEncoder.encode(taskDescriptionBlocks) }
+        get {
+            if let cached = cachedDescriptionMarkdown { return cached }
+            let encoded = MarkdownEncoder.encode(taskDescriptionBlocks)
+            cachedDescriptionMarkdown = encoded
+            return encoded
+        }
         set {
             let parsed = MarkdownParser.parse(newValue)
             taskDescriptionBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+            cachedDescriptionMarkdown = nil
         }
     }
 
@@ -73,10 +90,17 @@ final class TaskFormViewModel {
     /// (LOCK-DESC-ROUNDTRIP-20261019, владелец 19.10.2026).
     static func editorForm(_ markdown: String?) -> String? {
         guard let markdown, !markdown.isEmpty else { return nil }
+        // Разбор и сборка описания — недешёвая операция, а результат зависит
+        // только от строки: кэшируем по самой строке.
+        if let cached = editorFormCache.value(for: markdown) { return cached }
         let parsed = MarkdownParser.parse(markdown)
         let encoded = MarkdownEncoder.encode(parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed)
-        return encoded.isEmpty ? nil : encoded
+        let result = encoded.isEmpty ? nil : encoded
+        if let result { editorFormCache.set(result, for: markdown) }
+        return result
     }
+
+    private static let editorFormCache = ParsedValueCache<String>(limit: 16)
 
     /// Описание в полях совпадает с серверным — владелец его не правил.
     func descriptionMatches(_ serverDescription: String?) -> Bool {

@@ -77,9 +77,12 @@ struct TodayHoursView: View {
     private let totalHours = TodayHoursMetrics.hoursCount
 
     var body: some View {
+        // Пул задач без времени считаем ОДИН раз за проход `body`: раньше он
+        // фильтровался дважды (проверка пустоты и сам пул).
+        let untimed = untimed
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             if !untimed.isEmpty {
-                untimedPool
+                untimedPool(untimed)
             }
 
             ScrollViewReader { proxy in
@@ -114,7 +117,7 @@ struct TodayHoursView: View {
 
     // MARK: - Пул задач без времени
 
-    private var untimedPool: some View {
+    private func untimedPool(_ untimed: [ApiTask]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(untimed.enumerated()), id: \.element.id) { index, task in
                 if index > 0 {

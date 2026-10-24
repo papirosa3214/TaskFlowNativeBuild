@@ -77,10 +77,10 @@ public struct CoordinationScreen: View {
             .padding(.bottom, TFSpacing.xs)
         }
         .background(Color(.systemBackground))
-        .task { await initialLoad() }
-        .onChange(of: taskId) { _ in
-            Task { await initialLoad() }
-        }
+        // `.task(id:)` вместо `.task` + `onChange`: SwiftUI сам отменяет прежний
+        // цикл при смене задачи — раньше опрос шёл в двух циклах одновременно
+        // (и не отменялся при уходе с экрана).
+        .task(id: taskId) { await initialLoad() }
         .sheet(isPresented: $showDetails) {
             ResolutionDetailsSheet(resolution: currentResolution)
                 .presentationDetents([.medium, .large])

@@ -58,11 +58,22 @@ public enum RoutineFormat {
     /// «Последний запуск: 21.10» — дата в зоне рутины.
     public static func lastRunLabel(lastRunAt: String?, timezone: String) -> String? {
         guard let date = DateFormats.iso8601(lastRunAt) else { return nil }
+        return formatter("dd.MM", timezone: timezone).string(from: date)
+    }
+
+    /// Форматтеры кэшируются по маске и таймзоне: создание `DateFormatter`
+    /// стоит ~160 мкс, а подписи рутин считаются на каждом проходе списка.
+    private static let formatters = NSCache<NSString, DateFormatter>()
+
+    private static func formatter(_ format: String, timezone: String) -> DateFormatter {
+        let key = "\(format)|\(timezone)" as NSString
+        if let cached = formatters.object(forKey: key) { return cached }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
         formatter.timeZone = TimeZone(identifier: timezone) ?? .current
-        formatter.dateFormat = "dd.MM"
-        return formatter.string(from: date)
+        formatter.dateFormat = format
+        formatters.setObject(formatter, forKey: key)
+        return formatter
     }
 
     /// Интервал в форме сервера: «15m», «2h».
@@ -244,11 +255,7 @@ public enum RoutineFormat {
         let zone = TimeZone(identifier: timezone) ?? .current
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = zone
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
-        formatter.timeZone = zone
-        formatter.dateFormat = "HH:mm"
-        let time = formatter.string(from: date)
+        let time = formatter("HH:mm", timezone: timezone).string(from: date)
 
         let dayDelta = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
                                                to: calendar.startOfDay(for: date)).day ?? 0
@@ -258,8 +265,7 @@ public enum RoutineFormat {
         case 1:
             return "завтра, \(time)"
         default:
-            formatter.dateFormat = "dd.MM"
-            return "\(formatter.string(from: date)), \(time)"
+            return "\(formatter("dd.MM", timezone: timezone).string(from: date)), \(time)"
         }
     }
 }

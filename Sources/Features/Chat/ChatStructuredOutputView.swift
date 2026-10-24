@@ -12,9 +12,19 @@ struct ChatStructuredOutputView: View {
     /// Кнопка «Запустить» у блока `command` — только владельцу и не в режиме выбора.
     var allowsCommands = false
 
+    /// Разобранный конверт кэшируется по строке JSON: `document` читается на
+    /// каждом проходе `body`, а `JSONDecoder` на каждый вызов — это работа,
+    /// которую лента сообщений повторяла на каждый кадр.
+    private static let documentCache = ParsedValueCache<StructuredOutputEnvelope>(limit: 32)
+
     private var document: StructuredOutputEnvelope? {
+        if let cached = Self.documentCache.value(for: json) { return cached }
         guard let data = json.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(StructuredOutputEnvelope.self, from: data)
+        let decoded = try? JSONDecoder().decode(StructuredOutputEnvelope.self, from: data)
+        if let decoded {
+            Self.documentCache.set(decoded, for: json)
+        }
+        return decoded
     }
 
     var body: some View {

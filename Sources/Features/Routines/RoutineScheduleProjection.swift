@@ -19,46 +19,56 @@ struct RoutineOccurrence: Decodable, Identifiable, Hashable, Sendable {
     }
 
     var date: Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: runAt) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: runAt)
+        // Общий разборщик ISO8601 из Core: свой `ISO8601DateFormatter`
+        // создавался на каждый вызов, а `date` читается и в ключе, и в
+        // компараторе сортировки — по несколько раз на вхождение.
+        DateFormats.iso8601(runAt)
     }
 
     func day(in timezone: TimeZone = .current) -> String? {
         guard let date else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timezone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        return CalendarDateMath.dateString(date, timeZone: timezone)
     }
 
     var timeLabel: String {
         guard let date else { return runAt }
+        return Self.timeFormatter(for: timezone).string(from: date)
+    }
+
+    /// Форматтер «ЧЧ:ММ» на таймзону рутины — создаётся один раз на таймзону,
+    /// а не на каждую подпись.
+    private static let timeFormatters = NSCache<NSString, DateFormatter>()
+
+    private static func timeFormatter(for timezone: String) -> DateFormatter {
+        if let cached = timeFormatters.object(forKey: timezone as NSString) { return cached }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
         formatter.timeZone = TimeZone(identifier: timezone)
         formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        timeFormatters.setObject(formatter, forKey: timezone as NSString)
+        return formatter
     }
 }
 
 enum RoutineScheduleProjection {
     /// Keep one entry per automation + instant, preferring a real execution.
     static func visible(_ occurrences: [RoutineOccurrence], projects: Set<String>?) -> [RoutineOccurrence] {
-        var byInstant: [String: RoutineOccurrence] = [:]
+        // Дату разбираем ОДИН раз на вхождение и сортируем по готовым `Date`:
+        // раньше компаратор звал `$0.date`/`$1.date` на каждом сравнении, то
+        // есть разбор даты шёл по O(n log n) раз за сортировку.
+        var byInstant: [String: (occurrence: RoutineOccurrence, date: Date)] = [:]
         for occurrence in occurrences {
             guard let date = occurrence.date else { continue }
             if let projects, let project = occurrence.projectId, !projects.contains(project) { continue }
             let key = "\(occurrence.scheduleId)@\(date.timeIntervalSince1970)"
-            if let existing = byInstant[key], existing.status != "scheduled", occurrence.status == "scheduled" { continue }
-            byInstant[key] = occurrence
+            if let existing = byInstant[key], existing.occurrence.status != "scheduled", occurrence.status == "scheduled" { continue }
+            byInstant[key] = (occurrence, date)
         }
-        return byInstant.values.sorted {
-            if $0.date == $1.date { return $0.id < $1.id }
-            return $0.date! < $1.date!
-        }
+        return byInstant.values
+            .sorted { lhs, rhs in
+                if lhs.date == rhs.date { return lhs.occurrence.id < rhs.occurrence.id }
+                return lhs.date < rhs.date
+            }
+            .map(\.occurrence)
     }
 }
