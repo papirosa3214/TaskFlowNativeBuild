@@ -15,6 +15,13 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains("chat-own-message-copy"))
     }
 
+    func testUnifiedPlannerHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.unifiedPlanner])
+        center.start("unified-planner")
+        XCTAssertEqual(center.active?.step, "list")
+        center.next()
+        XCTAssertTrue(center.completed.contains("unified-planner"))
+    }
 
     func testAIUsageHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.aiUsage])

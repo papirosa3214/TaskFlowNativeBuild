@@ -22,6 +22,7 @@ struct TodayTaskRow: View {
     var swipeOnlyAtEdges: Bool = false
     /// Ширина зоны у каждого края в пунктах.
     var horizontalEdgeZone: CGFloat = HorizontalPanZones.defaultEdgeWidth
+    var usesNativeSwipeActions = false
     let onSwipeAction: () -> Void
 
     private let actionWidth: CGFloat = TFRowActionWidth
@@ -41,6 +42,28 @@ struct TodayTaskRow: View {
     private var offsetX: CGFloat { clamp(settledOffset + dragOffset) }
 
     var body: some View {
+        if usesNativeSwipeActions {
+            row
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    Button(role: .destructive, action: onDelete) {
+                        Label("В архив", systemImage: "archivebox")
+                    }
+                    .accessibilityIdentifier("row.swipe.delete")
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    if let swipeAction {
+                        Button(action: onSwipeAction) {
+                            Label(swipeAction.accessibilityLabel, systemImage: swipeAction.icon)
+                        }
+                        .accessibilityIdentifier(swipeAction.accessibilityIdentifier)
+                    }
+                }
+        } else {
+            legacySwipeBody
+        }
+    }
+
+    private var legacySwipeBody: some View {
         ZStack {
             // ═══ Действия под строкой ═══
             //

@@ -5,6 +5,7 @@ import Foundation
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
     static let chatOwnMessageCopy = "chat.own-message.copy"
+    static let unifiedPlanner = "planner.all-tasks"
     static let taskNumberCopy = "task.number.copy"
     static let aiUsage = "ai.usage"
     static let roleLoadRows = "role-load.rows"
@@ -41,7 +42,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [chatOwnMessageCopy, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+
+    static let unifiedPlanner = HintScenario(
+        id: "unified-planner", title: "Все задачи в одном списке", start: "list",
+        steps: ["list": HintStep(anchor: HintAnchorID.unifiedPlanner, title: "Все задачи",
+            text: "Входящие, Ждут вас, Просроченные, Сегодня и Предстоящие находятся в одной ленте. Заголовки закрепляются при прокрутке. Будущие появления рутин видны в Предстоящих; задачи без проекта распределяются по тем же правилам.")])
 
     static let chatOwnMessageCopy = HintScenario(
         id: "chat-own-message-copy", title: "Копировать своё сообщение", start: "copy",

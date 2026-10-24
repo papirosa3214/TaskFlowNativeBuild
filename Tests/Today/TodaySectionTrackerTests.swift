@@ -101,11 +101,46 @@ final class TodayListSectionTests: XCTestCase {
 
     /// Единственная секция вкладки без «Предстоящих» заголовок не получает:
     /// он дублировал бы название самой вкладки в шапке. Правило не трогаем.
-    func testSingleDaySectionStaysWithoutHeader() {
+    func testSingleDaySectionKeepsHeaderInUnifiedList() {
         let result = sections(tab: .today, today: [task("today")])
 
         XCTAssertEqual(result.map(\.id), ["today"])
-        XCTAssertFalse(result[0].showsHeader(among: result))
+        XCTAssertTrue(result[0].showsHeader(among: result))
+    }
+
+    func testUnifiedListIncludesEveryBucketInOrder() {
+        let result = sections(tab: .today, waiting: [task("w")], overdue: [task("o")],
+                              today: [task("t")], upcoming: [task("u")], pool: [task("p")])
+        XCTAssertEqual(result.map(\.id), ["pool", "waiting", "overdue", "today", "upcoming"])
+        XCTAssertEqual(Set(result.flatMap { $0.tasks.map(\.id) }), Set(["p", "w", "o", "t", "u"]))
+    }
+
+    func testProjectlessTasksKeepEveryDateBucketAndWaitingDoesNotDuplicate() {
+        let user = try! JSONDecoder().decode(ApiUser.self, from: Data(#"{"id":"u-owner","name":"Owner","role":"owner","type":"human"}"#.utf8))
+        let tasks = [TestTaskFactory.makeTask(id: "pool"),
+                     TestTaskFactory.makeTask(id: "past", dueDate: "2026-08-31"),
+                     TestTaskFactory.makeTask(id: "now", dueDate: date),
+                     TestTaskFactory.makeTask(id: "future", dueDate: "2027-01-01"),
+                     TestTaskFactory.makeTask(id: "waiting", dueDate: "2026-10-30", agentState: .blocked),
+                     TestTaskFactory.makeTask(id: "done", status: .completed)]
+        let c = TodayComputation(allTasks: tasks, currentUser: user, agents: [], filters: .empty,
+                                 today: date, activeHourDate: date, isLoading: false, isError: false)
+        XCTAssertEqual(c.poolTasks.map(\.id), ["pool"])
+        XCTAssertEqual(c.overdueTasks.map(\.id), ["past"])
+        XCTAssertEqual(c.todayTasks.map(\.id), ["now"])
+        XCTAssertEqual(c.upcomingTasks.map(\.id), ["future"])
+        XCTAssertEqual(c.waitingTasks.map(\.id), ["waiting"])
+    }
+
+    func testFutureRoutineAppearsWithoutCreatingOrDuplicatingTask() {
+        let future = RoutineOccurrence(id: "virtual", scheduleId: "s", title: "Routine", timezone: "Europe/Moscow",
+            projectId: nil, runAt: "2026-09-02T07:00:00Z", taskId: nil, status: "scheduled", detail: nil)
+        let real = RoutineOccurrence(id: "real", scheduleId: "r", title: "Executed", timezone: "Europe/Moscow",
+            projectId: nil, runAt: "2026-09-01T07:00:00Z", taskId: "t", status: "created", detail: nil)
+        let result = TodayListSection.sections(tab: .today, waiting: [], overdue: [], today: [task("t")],
+            upcoming: [], pool: [], todayDate: date, occurrences: [future, real])
+        XCTAssertEqual(result.map(\.id), ["today", "upcoming"])
+        XCTAssertEqual(result.flatMap(\.occurrences).map(\.id), ["virtual"])
     }
 
     private func sections(
