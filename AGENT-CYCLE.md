@@ -149,6 +149,60 @@ python3 Tools/design-system-guard.py --diff HEAD
 После зелёного сторожа запускать сборку. Готово при `BUILD SUCCEEDED`
 и пустом отчёте сторожа.
 
+#### XcodeBuildMCP: как подключить с нуля
+
+Нужен, чтобы собирать, запускать симулятор, снимать кадры и тапать по
+элементам доступности без UI-тестов. Проверка одной командой:
+
+```bash
+which xcodebuildmcp && xcodebuildmcp --version   # сейчас: /opt/homebrew/bin/xcodebuildmcp, 2.7.0
+```
+
+Бинарника нет — поставить (`npm i -g xcodebuildmcp@latest`, откуда и появился
+симлинк `/opt/homebrew/bin/xcodebuildmcp -> ../lib/node_modules/xcodebuildmcp/build/cli.js`).
+
+Дальше прописать сервер в конфиг оболочки, в которой работаешь. Значения одни и
+те же, отличается только файл:
+
+| Оболочка | Файл | Блок |
+|---|---|---|
+| OpenCode | `~/.config/opencode/opencode.jsonc` | `"xcodebuildmcp": { "type": "local", "command": ["xcodebuildmcp", "mcp"], "enabled": true }` |
+| Codex | `~/.Codex/config.toml` | `[mcp_servers.xcodebuildmcp]` + `command = "xcodebuildmcp"`, `args = ["mcp"]` |
+| Claude Code | `~/.claude.json` | `"xcodebuildmcp": { "command": "xcodebuildmcp", "args": ["mcp"] }` |
+
+В Codex у владельца уже лежит и вариант через zsh
+(`/bin/zsh -lc "xcodebuildmcp mcp"`) — годится, если PATH в неинтерактивной
+среде не подхватывается. После правки конфига **перезапустить сессию**: сервер
+поднимается при старте, на живую он не появится. Признак успеха — в каталоге
+инструментов есть `xcodebuildmcp` (44 инструмента: `build_run_sim`,
+`list_sims`, `screenshot`, `snapshot_ui`, `tap`, `wait_for_ui`).
+
+Первое, что сделать в новой сессии, — проверить дефолты:
+
+```text
+session_show_defaults
+```
+
+Пусто или чужой проект — записать свои значения (иначе MCP соберёт не то):
+
+```text
+session_set_defaults {
+  projectPath: "/Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj",
+  scheme: "TaskFlow",
+  simulatorName: "iPhone Air",
+  simulatorId: "9FF78D89-EE84-4914-AA56-D0A72D1AF43A",
+  derivedDataPath: "/Users/max/Проекты/TaskFlowNativeBuild/build_sim",
+  bundleId: "com.maksim.taskflow.native"
+}
+```
+
+`bundleId` обязателен для `launch_app_sim`, без него запуск падает с
+`MISSING_REQUIRED_PARAMETERS`. Дальше рабочий цикл: `build_run_sim` (сборка +
+установка + запуск), `wait_for_ui` по тексту (например «Статистика») → `tap`,
+`screenshot` — кадр лежит путём из `artifacts.screenshotPath`. Столбики
+графиков и другие нарисованные элементы в дерево доступности не попадают:
+по ним тап невозможен, такие вещи проверяет владелец пальцем.
+
 **Заголовки одного уровня сверяются внутри экрана.** Допустимый шрифт сам
 по себе не означает соответствие соседним разделам. Для составных экранов
 регистрировать группы заголовков в `Tools/screen-heading-scopes.json`:
