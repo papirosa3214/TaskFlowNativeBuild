@@ -9,6 +9,11 @@ struct AIUsage: Decodable, Sendable {
     /// Сервер отдаёт его отдельным полем `dailyByModel`; старый ответ без
     /// поля декодируется пустым списком, и экран остаётся с общими столбиками.
     let dailyByModel: [AIUsageDayModel]
+    /// Устойчивый порядок моделей: сначала самые дорогие по токенам за период.
+    /// Считается ОДИН РАЗ при разборе ответа: раньше это свойство пересобирало
+    /// словарь и сортировало его на каждый вызов `shadeIndex` — то есть на каждую
+    /// модель в легенде и в столбиках.
+    let modelOrder: [String]
 
     init(trackingSince: String?, totals: AIUsageTotals, models: [AIUsageModel],
          daily: [AIUsageDay], dailyByModel: [AIUsageDayModel]) {
@@ -17,6 +22,7 @@ struct AIUsage: Decodable, Sendable {
         self.models = models
         self.daily = daily
         self.dailyByModel = dailyByModel
+        self.modelOrder = Self.order(for: dailyByModel)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -30,6 +36,15 @@ struct AIUsage: Decodable, Sendable {
         models = try c.decodeIfPresent([AIUsageModel].self, forKey: .models) ?? []
         daily = try c.decodeIfPresent([AIUsageDay].self, forKey: .daily) ?? []
         dailyByModel = try c.decodeIfPresent([AIUsageDayModel].self, forKey: .dailyByModel) ?? []
+        modelOrder = Self.order(for: dailyByModel)
+    }
+
+    private static func order(for rows: [AIUsageDayModel]) -> [String] {
+        var totals: [String: Int] = [:]
+        for row in rows { totals[row.model, default: 0] += row.totalTokens }
+        return totals.sorted { lhs, rhs in
+            lhs.value == rhs.value ? lhs.key < rhs.key : lhs.value > rhs.value
+        }.map(\.key)
     }
 
     /// Есть ли на сервере разрез по моделям внутри дня.
@@ -59,15 +74,6 @@ struct AIUsage: Decodable, Sendable {
     /// период — порядок задаёт и очередь оттенков в легенде.
     var chartSegments: [AIUsageDayModel] {
         AIUsageDayModel.sortedForChart(dailyByModel, order: modelOrder)
-    }
-
-    /// Устойчивый порядок моделей: сначала самые дорогие по токенам за период.
-    var modelOrder: [String] {
-        var totals: [String: Int] = [:]
-        for row in dailyByModel { totals[row.model, default: 0] += row.totalTokens }
-        return totals.sorted { lhs, rhs in
-            lhs.value == rhs.value ? lhs.key < rhs.key : lhs.value > rhs.value
-        }.map(\.key)
     }
 
     /// Оттенок модели в столбиках: чем больше расход, тем насыщеннее.

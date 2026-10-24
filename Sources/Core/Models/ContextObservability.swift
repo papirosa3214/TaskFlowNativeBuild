@@ -103,9 +103,9 @@ struct ContextObservability: Decodable, Sendable {
         }
     }
     static func dateText(_ value: String) -> String {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = f.date(from: value) ?? ISO8601DateFormatter().date(from: value) else { return value }
+        // Общий кэшированный разборщик ISO8601 из Core: свой `ISO8601DateFormatter`
+        // создавался на каждый вызов.
+        guard let date = DateFormats.iso8601(value) else { return value }
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 }

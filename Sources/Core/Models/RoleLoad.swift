@@ -73,9 +73,10 @@ struct RoleLoad: Decodable {
         }
     }
     static func date(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        // Разбор ISO8601 с миллисекундами и без них — общий кэшированный
+        // разборщик из Core: создавать `ISO8601DateFormatter` на каждый вызов
+        // дорого, а даты зовутся сотнями за проход списка.
+        DateFormats.iso8601(value)
     }
     func fraction(_ value: String) -> Double {
         guard let start = Self.date(from), let end = Self.date(to), let date = Self.date(value), end > start else { return 0 }

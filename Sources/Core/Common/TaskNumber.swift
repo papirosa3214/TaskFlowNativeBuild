@@ -12,12 +12,18 @@ public enum TaskNumber {
 
     private static let moscow = TimeZone(identifier: "Europe/Moscow")!
 
+    /// Календарь МСК — один на всё приложение: `Calendar(identifier:)` создаётся
+    /// не на каждый вызов, номер задачи считается при каждом создании карточки.
+    private static let moscowCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = moscow
+        return calendar
+    }()
+
     /// Номер по моменту создания. `nil`, если даты нет.
     public static func text(for date: Date?) -> String? {
         guard let date else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = moscow
-        let parts = calendar.dateComponents([.day, .month, .hour, .minute], from: date)
+        let parts = moscowCalendar.dateComponents([.day, .month, .hour, .minute], from: date)
         guard let day = parts.day, let month = parts.month,
               let hour = parts.hour, let minute = parts.minute else { return nil }
         return String(format: "МАК-%02d%02d-%02d%02d", day, month, hour, minute)

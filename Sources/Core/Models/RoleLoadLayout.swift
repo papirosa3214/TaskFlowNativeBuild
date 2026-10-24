@@ -124,11 +124,14 @@ struct RoleLoadLayout {
         //    задаче есть незакрытая попытка, она уже нарисована в контуре
         //    выше — второй полосы не делаем (иначе «идёт сейчас» дублируется).
         var marks: [Contour] = []
+        // Положение «сейчас» одно на всю строку — считаем один раз, а не на
+        // каждый активный слот (раньше дата разбиралась заново в каждом витке).
+        let nowX = x(data, data.now, width)
         for slot in row.active {
             let hasOpenAttempt = row.attempts.contains { $0.task_id == slot.task_id && $0.ended_at == nil }
             guard !hasOpenAttempt else { continue }
             let start = x(data, slot.started_at ?? slot.heartbeat_at ?? data.now, width)
-            let now = x(data, data.now, width)
+            let now = nowX
             marks.append(Contour(
                 id: "live-\(slot.id)",
                 taskID: slot.task_id,

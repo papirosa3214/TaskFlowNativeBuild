@@ -209,10 +209,20 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     }
 
     /// JSON для renderer чата. Серверное поле должно быть объектом конверта.
+    ///
+    /// Конверт кодируется ОДИН РАЗ на сообщение и кэшируется по id: содержимое
+    /// `roleEnvelope` неизменно (поле `let`), а раньше `JSONEncoder` срабатывал
+    /// на каждый доступ — то есть два-три раза на каждое сообщение от роли при
+    /// каждом проходе `body` ленты.
+    nonisolated(unsafe) private static let envelopeJSONCache = NSCache<NSString, NSString>()
+
     public var roleEnvelopeJSON: String? {
-        guard let roleEnvelope, case .object = roleEnvelope,
-              let data = try? JSONEncoder().encode(roleEnvelope) else { return nil }
-        return String(data: data, encoding: .utf8)
+        guard let roleEnvelope, case .object = roleEnvelope else { return nil }
+        if let cached = Self.envelopeJSONCache.object(forKey: id as NSString) { return cached as String }
+        guard let data = try? JSONEncoder().encode(roleEnvelope),
+              let json = String(data: data, encoding: .utf8) else { return nil }
+        Self.envelopeJSONCache.setObject(json as NSString, forKey: id as NSString)
+        return json
     }
 
     enum CodingKeys: String, CodingKey {
@@ -440,9 +450,9 @@ enum RoleChatTime {
     static func date(_ value: String?) -> Date? {
         guard let value else { return nil }
         if let cached = dates.object(forKey: value as NSString) { return cached as Date }
-        let normalized = value.count == 19 && value.contains(" ")
-            ? value.replacingOccurrences(of: " ", with: "T") + "Z" : value
-        let parsed = (try? fractional.parse(normalized)) ?? (try? whole.parse(normalized))
+        // Сервер шлёт «yyyy-MM-dd HH:mm:ss» — такой каноничный вид разбирается
+        // быстрым разборщиком из Core, без промежуточной строки и ISO8601.
+        let parsed = DateFormats.sqliteUTC(value)
         if let parsed { dates.setObject(parsed as NSDate, forKey: value as NSString) }
         return parsed
     }
@@ -692,9 +702,14 @@ struct RoleLiveTextPacer {
 
     /// Fence boundaries use String indices so Unicode and CRLF remain intact.
     /// Ordinary code fences are consumed as pairs and never treated as HTML.
+    ///
+    /// Регулярку компилируем ОДИН РАЗ: `pacingParts` зовётся на каждый снимок
+    /// ответа для каждого его текстового элемента, а компиляция выражения
+    /// каждый раз — это отдельная работа на каждый вызов.
+    private static let fenceRegex = try? NSRegularExpression(pattern: #"(?m)^[ \t]*```([^\r\n]*)(?:\r?\n|$)"#)
+
     private static func pacingParts(_ text: String) -> [(String, Bool)] {
-        let pattern = #"(?m)^[ \t]*```([^\r\n]*)(?:\r?\n|$)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [(text, false)] }
+        guard let regex = fenceRegex else { return [(text, false)] }
         let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
         var parts: [(String, Bool)] = []
         var consumed = text.startIndex
@@ -897,7 +912,10 @@ enum RoleChatMessageOrder {
     static func mergingSnapshot(_ snapshot: [RoleChatMessage], current: [RoleChatMessage], receivedAfterRequest: Set<String>) -> [RoleChatMessage] {
         var byID = Dictionary(snapshot.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         for message in current where receivedAfterRequest.contains(message.id) { byID[message.id] = message }
-        let order = snapshot.map(\.id) + current.filter { message in byID[message.id] != nil && !snapshot.contains(where: { $0.id == message.id }) }.map(\.id)
+        // Идентификаторы снимка — в множество один раз: поиск по массиву внутри
+        // `filter` давал O(n·m) сравнений на каждый `refresh`.
+        let snapshotIDs = Set(snapshot.map(\.id))
+        let order = snapshot.map(\.id) + current.filter { message in byID[message.id] != nil && !snapshotIDs.contains(message.id) }.map(\.id)
         var seen: Set<String> = []
         return sorted(order.compactMap { id in
             guard seen.insert(id).inserted else { return nil }

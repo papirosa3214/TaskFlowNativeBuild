@@ -19,11 +19,7 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
 
         /// `created_at` из SQLite — «2026-09-30 10:12:34», UTC.
         public var createdDate: Date? {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.timeZone = TimeZone(identifier: "UTC")
-            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-            return formatter.date(from: createdAt)
+            DateFormats.sqliteUTC(createdAt)
         }
 
         public var title: String {
