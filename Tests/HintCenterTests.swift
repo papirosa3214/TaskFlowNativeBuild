@@ -4,6 +4,18 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testOwnMessageCopyHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-own-message-copy" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.isEnabled = true
+        center.report(anchor: "chat.own-message.copy", frame: frame)
+        XCTAssertEqual(center.active?.step, "copy")
+        XCTAssertTrue(center.currentStep?.text.contains("буфер обмена") == true)
+        center.next()
+        XCTAssertTrue(center.completed.contains("chat-own-message-copy"))
+    }
+
+
     func testAIUsageHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.aiUsage])
         center.isEnabled = true

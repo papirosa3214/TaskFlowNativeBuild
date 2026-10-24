@@ -2133,6 +2133,7 @@ struct RoleChatRoomScreen: View {
                 if (!message.text.isEmpty || message.roleEnvelopeJSON != nil) && !hasAudio {
                     if mine {
                         Text(message.text)
+                            .textSelection(.enabled)
                             .foregroundStyle(Color.tfText)
                     } else {
                         // В группе ответ роли использует тот же разбор контракта.
@@ -2144,6 +2145,22 @@ struct RoleChatRoomScreen: View {
                 }
                 if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
+                }
+                if mine && !message.text.isEmpty && !isSelecting {
+                    HStack(spacing: TFSpacing.xs) {
+                        messageActionButton("doc.on.doc", label: "Скопировать своё сообщение") {
+                            copyMessage(message)
+                        }
+                        .accessibilityIdentifier("chat.message.copy.\(message.id)")
+                        .hintAnchor(HintAnchorID.chatOwnMessageCopy)
+                        if copiedMessageID == message.id {
+                            Text("Скопировано")
+                                .tfText(.meta)
+                                .accessibilityIdentifier("chat.message.copied")
+                        }
+                    }
+                    .foregroundStyle(Color.tfSub)
+                    .buttonStyle(.plain)
                 }
                 if !mine && isAgentReply(message) && !isSelecting {
                     messageActions(message)
@@ -2216,6 +2233,15 @@ struct RoleChatRoomScreen: View {
         }
     }
 
+    private func copyMessage(_ message: RoleChatMessage) {
+        UIPasteboard.general.string = message.text
+        copiedMessageID = message.id
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if copiedMessageID == message.id { copiedMessageID = nil }
+        }
+    }
+
     private func messageActions(_ message: RoleChatMessage) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             if let usage = message.steps?.usage { RoleTurnUsageRow(usage: usage) }
@@ -2231,12 +2257,7 @@ struct RoleChatRoomScreen: View {
                 .padding(.leading, (TFHitTarget.min - 20) / 2)
                 .padding(.trailing, TFSpacing.sm)
             messageActionButton("doc.on.doc", label: "Скопировать сообщение") {
-                UIPasteboard.general.string = message.text
-                copiedMessageID = message.id
-                Task {
-                    try? await Task.sleep(for: .seconds(1.5))
-                    if copiedMessageID == message.id { copiedMessageID = nil }
-                }
+                copyMessage(message)
             }
             if copiedMessageID == message.id {
                 Text("Скопировано")

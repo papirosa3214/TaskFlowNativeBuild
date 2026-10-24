@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let chatOwnMessageCopy = "chat.own-message.copy"
     static let taskNumberCopy = "task.number.copy"
     static let aiUsage = "ai.usage"
     static let roleLoadRows = "role-load.rows"
@@ -40,7 +41,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatOwnMessageCopy, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+
+    static let chatOwnMessageCopy = HintScenario(
+        id: "chat-own-message-copy", title: "Копировать своё сообщение", start: "copy",
+        steps: ["copy": HintStep(anchor: HintAnchorID.chatOwnMessageCopy, title: "Скопировать сообщение",
+            text: "Нажмите значок копирования под своим сообщением: весь текст попадёт в буфер обмена. Появится подтверждение «Скопировано». Текст сообщения также можно выделить.")])
 
     static let taskNumberCopy = HintScenario(
         id: "task-number-copy", title: "Скопировать номер задачи", start: "copy",
