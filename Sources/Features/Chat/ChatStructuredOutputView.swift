@@ -33,8 +33,8 @@ struct ChatStructuredOutputView: View {
                 if document.ok {
                     switch document.output {
                     case .blocks(let blocks):
-                        ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                            blockView(block)
+                        ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
+                            blockView(block, widgetKey: widgetKey(in: blocks, before: index))
                         }
                     case .text(let text):
                         RoleReplyMarkdown(text: text, checklist: checklist)
@@ -72,7 +72,7 @@ struct ChatStructuredOutputView: View {
     }
 
     @ViewBuilder
-    private func blockView(_ block: StructuredOutputBlock) -> some View {
+    private func blockView(_ block: StructuredOutputBlock, widgetKey: String? = nil) -> some View {
         switch block.type {
         case "text":
             if let text = block.text, !text.isEmpty {
@@ -106,6 +106,10 @@ struct ChatStructuredOutputView: View {
             commandBlock(block)
         case "link":
             linkBlock(block)
+        case "widget":
+            widgetBlock(block, widgetKey: widgetKey)
+        case "html":
+            htmlBlock(block)
         default:
             unsupportedBlock("Тип блока «\(block.type)» пока не поддерживается")
         }
@@ -128,6 +132,45 @@ struct ChatStructuredOutputView: View {
             }
             .accessibilityIdentifier("chat.structured-output.command")
         }
+    }
+
+    /// Блок `widget` контракта v1: JSON-объект виджета рисует тот же
+    /// `ChatWidgetView`, что и ```widget-фенс в markdown-пути. До 25.10.2026
+    /// ветки не было — с переходом ролей на JSON виджеты пропали из чата, и
+    /// владелец видел «Тип блока «widget» пока не поддерживается».
+    @ViewBuilder
+    private func widgetBlock(_ block: StructuredOutputBlock, widgetKey: String?) -> some View {
+        if let widget = block.widget, let json = Self.jsonString(widget), json.count > 2 {
+            ChatWidgetView(json: json, widgetKey: widgetKey, checklist: checklist)
+                .accessibilityIdentifier("chat.structured-output.widget")
+        } else {
+            unsupportedBlock("Блок виджета пуст")
+        }
+    }
+
+    /// Блок `html` контракта v1 — тот же интерактив в окне чата, что
+    /// ```html-фенс в markdown-пути.
+    @ViewBuilder
+    private func htmlBlock(_ block: StructuredOutputBlock) -> some View {
+        if let html = block.html?.trimmingCharacters(in: .whitespacesAndNewlines), !html.isEmpty {
+            ChatHTMLView(html: html, allowsCommands: allowsCommands)
+                .accessibilityIdentifier("chat.structured-output.html")
+        } else {
+            unsupportedBlock("Пустой блок html")
+        }
+    }
+
+    private static func jsonString(_ value: JSONValue) -> String? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Номер виджета в сообщении — тот же порядок, каким его считает сервер
+    /// (`chatChecklist.ts`): блоки `widget` и `chart` (график тоже ложится
+    /// ```widget-фенсом). Нужен отметкам checklist.
+    private func widgetKey(in blocks: [StructuredOutputBlock], before index: Int) -> String? {
+        guard checklist != nil else { return nil }
+        return String(blocks.prefix(index).filter { $0.type == "widget" || $0.type == "chart" }.count)
     }
 
     private func listBlock(_ block: StructuredOutputBlock) -> some View {
@@ -544,9 +587,13 @@ private struct StructuredOutputBlock: Decodable {
     let summary: String?
     let command: String?
     let url: String?
+    /// Блок `widget` контракта v1 — объект виджета (`ChatWidgetView`).
+    let widget: JSONValue?
+    /// Блок `html` контракта v1 — страница интерактива (`ChatHTMLView`).
+    let html: String?
 
     enum CodingKeys: String, CodingKey {
-        case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary, command, url
+        case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary, command, url, widget, html
         case reportKind = "report_kind"
         case artifactKey = "artifact_key"
     }
@@ -572,6 +619,8 @@ private struct StructuredOutputBlock: Decodable {
         summary = try values.decodeIfPresent(String.self, forKey: .summary)
         command = try values.decodeIfPresent(String.self, forKey: .command)
         url = try values.decodeIfPresent(String.self, forKey: .url)
+        html = try values.decodeIfPresent(String.self, forKey: .html)
+        widget = try values.decodeIfPresent(JSONValue.self, forKey: .widget)
         ordered = try values.decodeIfPresent(Bool.self, forKey: .ordered)
         if type == "diagram" {
             diagramItems = try values.decodeIfPresent([StructuredOutputDiagramItem].self, forKey: .items)
