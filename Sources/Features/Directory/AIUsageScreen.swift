@@ -34,6 +34,7 @@ struct AIUsageScreen: View {
                         TFEmptyState(icon: "chart.bar", text: "За этот период нет сохранённого расхода ролей.")
                     } else {
                         modelsSection(usage)
+                    JevUsageSection()
                     }
                     Text("Учтены сохранённые ответы моделей ролям TaskFlow. Это не расход всего аккаунта провайдера. Стоимость — тарифная оценка SDK, а не списание с подписки; баланс и стоимость подписки здесь не учитываются.")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
@@ -95,6 +96,19 @@ struct AIUsageScreen: View {
         .chartForegroundStyleScale(domain: usage.modelOrder,
                                    range: usage.modelOrder.map(shade))
         .chartLegend(.hidden)
+        .chartXAxis {
+            // За 30 дней даты не помещаются в строку: Swift Charts их прятал,
+            // и ось оставалась пустой. Пишем каждую дату вертикально мелким
+            // кеглем — они уходят в ту же полосу, что и сетка (владелец 24.10.2026).
+            AxisMarks(values: usage.daily.map { dayLabel($0.day) }) { value in
+                AxisGridLine()
+                AxisValueLabel(orientation: verticalAxis ? .verticalReversed : .horizontal) {
+                    if let label = value.as(String.self) {
+                        Text(label).tfText(.caption)
+                    }
+                }
+            }
+        }
         .chartYAxis {
             AxisMarks(position: .trailing) { value in
                 AxisGridLine()
@@ -110,6 +124,9 @@ struct AIUsageScreen: View {
         .chartXSelection(value: $pickedLabel)
         .frame(height: 170)
     }
+
+    /// Месяц не влезает в подписи по горизонтали — там даты идут вертикально.
+    private var verticalAxis: Bool { window == "month" }
 
     /// Деление оси — просто число: «1» вместо «1,0».
     private func axisTick(_ value: Double) -> String {
