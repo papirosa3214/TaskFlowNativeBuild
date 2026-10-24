@@ -33,12 +33,46 @@ public final class RealtimeClient {
         case .taskCreated(let task), .taskUpdated(let task), .taskState(let task), .taskCompleted(let task):
             taskRevisions[task.id, default: 0] += 1
             if let parent = task.parentId { taskRevisions[parent, default: 0] += 1 }
-            rolesRevision += 1
-            jobsRevision += 1
+            // Списки ролей и работ перезагружаются по окну, а не на каждое
+            // событие: во время работы агента события идут пачками, и каждый
+            // экран уходил в сеть со своим запросом на каждое из них.
+            scheduleCoalescedInvalidation()
         case .rolesChanged: rolesRevision += 1
         case .roleJobsChanged: jobsRevision += 1; rolesRevision += 1
         case .taskActivity(let id?, _): activityRevisions[id, default: 0] += 1
         default: break
+        }
+    }
+
+    /// Окно схлопывания: столько ждём, прежде чем разбудить экраны ролей и
+    /// работ. Свежесть списка — не хуже половины секунды, запросов — в разы
+    /// меньше. Состав ролей (`.rolesChanged`) ждать не должен: это редкое
+    /// событие, и оно меняет список по-настоящему.
+    private static let invalidationWindow = Duration.milliseconds(500)
+    private var pendingRolesInvalidation = false
+    private var pendingJobsInvalidation = false
+    private var coalesceTask: Task<Void, Never>?
+
+    private func scheduleCoalescedInvalidation() {
+        pendingRolesInvalidation = true
+        pendingJobsInvalidation = true
+        guard coalesceTask == nil else { return }
+        coalesceTask = Task { [weak self] in
+            try? await ContinuousClock().sleep(for: Self.invalidationWindow)
+            guard !Task.isCancelled else { return }
+            self?.flushCoalescedInvalidation()
+        }
+    }
+
+    private func flushCoalescedInvalidation() {
+        coalesceTask = nil
+        if pendingRolesInvalidation {
+            rolesRevision += 1
+            pendingRolesInvalidation = false
+        }
+        if pendingJobsInvalidation {
+            jobsRevision += 1
+            pendingJobsInvalidation = false
         }
     }
 
@@ -120,6 +154,12 @@ public final class RealtimeClient {
         reconnectTask = nil
         watchdogTask?.cancel()
         watchdogTask = nil
+        // Отложенная инвалидация на разрыве связи не нужна: переподключение
+        // и так поднимает `connectionRevision`, а по нему экраны перечитывают.
+        coalesceTask?.cancel()
+        coalesceTask = nil
+        pendingRolesInvalidation = false
+        pendingJobsInvalidation = false
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
         isConnected = false
