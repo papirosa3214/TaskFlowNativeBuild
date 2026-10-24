@@ -27,12 +27,8 @@ enum DirectoryDate {
     /// логика, что `Core/Common/DateFormats.calendarDate`) — чисто метка
     /// дня, не момент времени.
     static func dueShort(_ dueDate: String) -> String {
-        guard let date = DateFormats.calendarDate(dueDate) else { return dueDate }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        let comps = calendar.dateComponents([.day, .month], from: date)
-        guard let day = comps.day, let month = comps.month else { return dueDate }
-        return "\(day) \(monthsShort[month - 1])"
+        guard let comps = CalendarDateMath.components(dueDate) else { return dueDate }
+        return "\(comps.day) \(monthsShort[comps.month - 1])"
     }
 
     // MARK: - Уведомления: «вчера · 30 авг, 11:41» — относительное + абсолютное,
@@ -75,10 +71,7 @@ enum DirectoryDate {
 
     /// МСК-«сегодня» как `YYYY-MM-DD` — та же формула, что `TodayDate.todayString()`.
     private static func todayStringMoscow() -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = moscow
-        let comps = calendar.dateComponents([.year, .month, .day], from: Date())
-        return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
+        CalendarDateMath.dateString(Date(), timeZone: moscow)
     }
 
     /// 0 — сегодня, 1 — завтра, отрицательное — просрочено (МСК).

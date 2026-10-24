@@ -15,52 +15,28 @@ import Foundation
 // бы сборку моего экрана с чужим файлом.
 enum UpcomingDate {
     static let moscow = TimeZone(identifier: "Europe/Moscow")!
-    private static let utc = TimeZone(identifier: "UTC")!
-
-    private static var utcCalendar: Calendar {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = utc
-        return cal
-    }
 
     /// «Сегодня» строго по МСК (spec §4.1), а не по устройству.
     static func todayString() -> String {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = moscow
-        let c = cal.dateComponents([.year, .month, .day], from: Date())
-        return String(format: "%04d-%02d-%02d", c.year ?? 1970, c.month ?? 1, c.day ?? 1)
+        CalendarDateMath.dateString(Date(), timeZone: moscow)
     }
 
     /// `YYYY-MM-DD` → полночь UTC (чистая календарная метка, без сдвига по зоне устройства).
     static func calendarDate(_ raw: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = utc
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: raw)
+        CalendarDateMath.calendarDate(raw)
     }
 
     static func calendarDateString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = utc
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        CalendarDateMath.calendarDateString(date)
     }
 
     static func addDays(_ dateStr: String, _ n: Int) -> String {
-        guard let d = calendarDate(dateStr), let shifted = utcCalendar.date(byAdding: .day, value: n, to: d) else {
-            return dateStr
-        }
-        return calendarDateString(shifted)
+        CalendarDateMath.addingDays(dateStr, n) ?? dateStr
     }
 
     /// 0=воскресенье … 6=суббота — как `Date.getDay()` в JS (Foundation отдаёт 1=вс…7=сб).
     static func jsWeekday(_ dateStr: String) -> Int {
-        guard let d = calendarDate(dateStr) else { return 0 }
-        return utcCalendar.component(.weekday, from: d) - 1
+        CalendarDateMath.weekdayIndex(dateStr) ?? 0
     }
 
     /// Понедельник недели, в которую попадает `dateStr` — spec §3.6, `mondayOf` в `UpcomingCalendar.tsx`.
@@ -74,35 +50,32 @@ enum UpcomingDate {
     /// месяцев принадлежит тому, где лежит её большая часть (spec §5.2, `weekMonth`).
     static func weekMonth(monday: String) -> (year: Int, month: Int) {
         let thursday = addDays(monday, 3)
-        guard let d = calendarDate(thursday) else { return (1970, 0) }
-        let c = utcCalendar.dateComponents([.year, .month], from: d)
-        return (c.year ?? 1970, (c.month ?? 1) - 1) // month здесь 0-based, как JS getMonth()
+        guard let comps = CalendarDateMath.components(thursday) else { return (1970, 0) }
+        return (comps.year, comps.month - 1) // month здесь 0-based, как JS getMonth()
     }
 
     /// 42 даты (6 недель по 7 дней) месячной сетки — с понедельника недели,
     /// содержащей 1-е число `month` (0-based) `year`.
     static func monthGridDates(year: Int, month: Int) -> [String] {
-        var comps = DateComponents()
-        comps.year = year
-        comps.month = month + 1
-        comps.day = 1
-        guard let first = utcCalendar.date(from: comps) else { return [] }
-        let dow = utcCalendar.component(.weekday, from: first) - 1 // 0=вс
+        let firstStr = String(format: "%04d-%02d-01", year, month + 1)
+        guard let first = CalendarDateMath.calendarDate(firstStr) else { return [] }
+        let firstDay = Int((first.timeIntervalSince1970 / 86_400).rounded(.down))
+        let dow = (firstDay + 4 + 7) % 7 // 0=вс
         let lead = dow == 0 ? 6 : dow - 1
-        let startStr = addDays(calendarDateString(first), -lead)
-        return (0..<42).map { addDays(startStr, $0) }
+        let startStr = CalendarDateMath.calendarDateString(
+            Date(timeIntervalSince1970: Double(firstDay - lead) * 86_400)
+        )
+        return (0..<42).map { CalendarDateMath.addingDays(startStr, $0) ?? startStr }
     }
 
     /// Год/месяц (0-based) для `YYYY-MM-DD`.
     static func yearMonth(_ dateStr: String) -> (year: Int, month: Int) {
-        guard let d = calendarDate(dateStr) else { return (1970, 0) }
-        let c = utcCalendar.dateComponents([.year, .month], from: d)
-        return (c.year ?? 1970, (c.month ?? 1) - 1)
+        guard let comps = CalendarDateMath.components(dateStr) else { return (1970, 0) }
+        return (comps.year, comps.month - 1)
     }
 
     static func day(_ dateStr: String) -> Int {
-        guard let d = calendarDate(dateStr) else { return 1 }
-        return utcCalendar.component(.day, from: d)
+        CalendarDateMath.components(dateStr)?.day ?? 1
     }
 
     // MARK: - Тексты

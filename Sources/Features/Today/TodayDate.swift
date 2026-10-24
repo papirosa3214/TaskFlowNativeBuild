@@ -14,38 +14,20 @@ enum TodayDate {
 
     /// «Сегодня» строго по МСК, независимо от таймзоны телефона (spec §4.1).
     static func todayString() -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = moscow
-        let comps = calendar.dateComponents([.year, .month, .day], from: Date())
-        return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
+        CalendarDateMath.dateString(Date(), timeZone: moscow)
     }
 
     static func addDays(_ dateStr: String, _ days: Int) -> String {
-        guard let date = calendarDate(dateStr) else { return dateStr }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        guard let shifted = calendar.date(byAdding: .day, value: days, to: date) else { return dateStr }
-        return calendarDateString(shifted)
+        CalendarDateMath.addingDays(dateStr, days) ?? dateStr
     }
 
     /// Разбор `YYYY-MM-DD` в UTC-полночь — чисто календарная метка, без сдвига по зоне устройства.
     static func calendarDate(_ raw: String?) -> Date? {
-        guard let raw, !raw.isEmpty else { return nil }
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: raw)
+        CalendarDateMath.calendarDate(raw)
     }
 
     static func calendarDateString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        CalendarDateMath.calendarDateString(date)
     }
 
     /// Родительный падеж без точки — «янв, фев, … , авг, …».
@@ -54,13 +36,10 @@ enum TodayDate {
     static let weekdaysShort = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"]
 
     private static func dayMonth(_ dateStr: String) -> (day: Int, month: String, year: Int, weekday: Int)? {
-        guard let d = calendarDate(dateStr) else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        let comps = calendar.dateComponents([.day, .month, .year, .weekday], from: d)
-        guard let day = comps.day, let month = comps.month, let year = comps.year, let weekday = comps.weekday else { return nil }
+        guard let comps = CalendarDateMath.components(dateStr),
+              let weekday = CalendarDateMath.weekdayIndex(dateStr) else { return nil }
         // Calendar.weekday: 1=воскресенье…7=суббота — совпадает с индексом weekdaysFull.
-        return (day, monthsShort[month - 1], year, weekday - 1)
+        return (comps.day, monthsShort[comps.month - 1], comps.year, weekday)
     }
 
     /// «Сегодня, 31 авг.» / «Завтра, 1 сен.» / «31 авг.» / «31 авг 2027» (другой год).
@@ -70,9 +49,7 @@ enum TodayDate {
         let tomorrow = addDays(today, 1)
         if dateStr == today { return "Сегодня, \(day) \(month)." }
         if dateStr == tomorrow { return "Завтра, \(day) \(month)." }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = moscow
-        let currentYear = calendar.component(.year, from: Date())
+        let currentYear = CalendarDateMath.components(today)?.year ?? 1970
         if year != currentYear { return "\(day) \(month) \(year)" }
         return "\(day) \(month)."
     }
@@ -95,10 +72,12 @@ enum TodayDate {
     /// «1 сентября» — компактная дата в схлопнутой шапке: месяц целиком.
     static func formatDayMonthFull(_ dateStr: String) -> String {
         guard let (day, _, _, _) = dayMonth(dateStr), let d = calendarDate(dateStr) else { return dateStr }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = moscow
-        let index = calendar.component(.month, from: d) - 1
-        return "\(day) \(monthsGenitive[index])"
+        // Месяц считаем по МСК: метка — полночь UTC, в МСК это 03:00 того же дня,
+        // но месяц берём из самой московской даты, чтобы правило не зависело от зоны.
+        let moscowDay = CalendarDateMath.dateString(d, timeZone: moscow)
+        let parts = moscowDay.split(separator: "-")
+        guard parts.count == 3, let month = Int(parts[1]) else { return dateStr }
+        return "\(day) \(monthsGenitive[month - 1])"
     }
 
     static let monthsGenitive = ["января", "февраля", "марта", "апреля", "мая", "июня",

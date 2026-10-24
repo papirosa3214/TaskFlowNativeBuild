@@ -17,15 +17,6 @@ public enum DateFormats {
         return formatter
     }()
 
-    private static let calendarFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
-
     private static let localDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = .autoupdatingCurrent
@@ -170,13 +161,12 @@ public enum DateFormats {
     /// времени — парсинг в локальной таймзоне устройства мог бы съехать на
     /// соседний день у пользователей восточнее UTC ближе к полуночи.
     public static func calendarDate(_ raw: String?) -> Date? {
-        guard let raw, !raw.isEmpty else { return nil }
-        return locked { calendarFormatter.date(from: raw) }
+        CalendarDateMath.calendarDate(raw)
     }
 
     /// Обратное преобразование — `Date` → `YYYY-MM-DD` для отправки в `due_date`.
     public static func calendarDateString(_ date: Date) -> String {
-        locked { calendarFormatter.string(from: date) }
+        CalendarDateMath.calendarDateString(date)
     }
 
     /// Сегодняшняя календарная дата в формате `YYYY-MM-DD` — для сравнения с

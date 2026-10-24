@@ -14,11 +14,15 @@ enum TaskDateText {
     /// Родительный падеж без точки — ровно как в спеке.
     static let monthsShort = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
 
-    private static func moscowCalendar() -> Calendar {
+    /// Календарь МСК создаётся один раз: `Calendar(identifier:)` — не дешёвая
+    /// операция, а `moscowCalendar()` звался на каждый вызов подписи времени.
+    private static let moscowCal: Calendar = {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = moscow
         return cal
-    }
+    }()
+
+    private static func moscowCalendar() -> Calendar { moscowCal }
 
     /// Разница в календарных днях между двумя датами по московскому времени.
     private static func dayDiff(_ date: Date, from reference: Date) -> Int {
@@ -108,11 +112,6 @@ enum TaskDateText {
     /// в UTC, но UTC-полночь через этот форматтер даёт тот же день — цикл
     /// «прочитать → показать → выбрать → сохранить» замкнут корректно.
     static func calendarDateStringMoscow(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = moscow
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        CalendarDateMath.dateString(date, timeZone: moscow)
     }
 }
