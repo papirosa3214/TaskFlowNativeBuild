@@ -107,9 +107,12 @@ struct RoleReplyMarkdown: View, Equatable {
 
     @ViewBuilder
     private func markdownBody(_ text: String) -> some View {
-        // Живой текст разбирается заново каждый кадр — в кэш он не идёт, иначе
-        // растущие префиксы вытесняют разборы истории чата.
-        let blocks = Self.numbered(MarkdownParser.parse(text, cached: !isStreaming))
+        // Живой текст растёт на каждом кадре проявления: разбираем заново
+        // только последний блок, устойчивая часть — из кэша. Разбор всего
+        // текста на каждом кадре стоил 110 мкс на ответ в 388 символов.
+        let blocks = Self.numbered(isStreaming
+            ? MarkdownParser.parseIncremental(text)
+            : MarkdownParser.parse(text))
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не id блока: парсер раздаёт новые UUID на каждый
             // разбор, а живой текст разбирается заново каждые 150 мс.
@@ -154,9 +157,9 @@ struct RoleReplyMarkdown: View, Equatable {
     private func blockView(_ block: NoteBlock, number: Int, fade: RoleTextFade?) -> some View {
         switch block.kind {
         case .paragraph:
-            inline(block.runs, fade: fade)
+            inline(block, fade: fade)
         case .heading(let level):
-            inline(block.runs, fade: fade, liftBold: false)
+            inline(block, fade: fade, liftBold: false)
                 .font(level <= 1 ? .title3.weight(.semibold) : .headline)
                 .padding(.top, TFSpacing.xs)
         case .bulletItem:
@@ -170,7 +173,7 @@ struct RoleReplyMarkdown: View, Equatable {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(Color.tfStroke)
                     .frame(width: 3)
-                inline(block.runs, fade: fade)
+                inline(block, fade: fade)
                     .foregroundStyle(Color.tfSub)
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -208,7 +211,7 @@ struct RoleReplyMarkdown: View, Equatable {
             marker
                 .foregroundStyle(Color.tfSub)
                 .frame(minWidth: 14, alignment: .trailing)
-            inline(block.runs, fade: fade)
+            inline(block, fade: fade)
         }
         .padding(.leading, CGFloat(block.level) * TFSpacing.lg)
     }
@@ -216,8 +219,8 @@ struct RoleReplyMarkdown: View, Equatable {
     /// `liftBold` — увеличивать ли жирное на ступень. В обычном тексте да,
     /// в заголовках нет: там жирное и так крупное, и лишний шаг вверх
     /// сбивал бы уровень (владелец 17.10.2026: жирное сливалось с текстом).
-    private func inline(_ runs: [RichRun], fade: RoleTextFade?, liftBold: Bool = true) -> some View {
-        Self.readableText(runs, color: color, liftBold: liftBold)
+    private func inline(_ block: NoteBlock, fade: RoleTextFade?, liftBold: Bool = true) -> some View {
+        Self.readableText(Self.pieces(for: block), color: color, liftBold: liftBold)
             .roleReveal(fade)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -231,10 +234,10 @@ struct RoleReplyMarkdown: View, Equatable {
     /// как другой уровень текста. Теперь оба `color`, различает вес.
     /// Вес задаётся на Text, чтобы сохранить унаследованный размер заголовка
     /// и Dynamic Type; разметка кода, ссылок и курсива остаётся у прогона.
-    private static func readableText(_ runs: [RichRun], color: Color, liftBold: Bool = true) -> Text {
-        runs.reduce(Text("")) { result, run in
-            var piece = Text(attributed([run]))
-                .fontWeight(run.bold ? .bold : nil)
+    private static func readableText(_ pieces: [RunPiece], color: Color, liftBold: Bool = true) -> Text {
+        pieces.reduce(Text("")) { result, piece in
+            var text = Text(piece.attributed)
+                .fontWeight(piece.bold ? .bold : nil)
                 .foregroundColor(color)
             // Жирьём выделение не читалось: кегль был как у соседних слов,
             // и на телефоне выделение сливалось с текстом (владелец
@@ -242,17 +245,45 @@ struct RoleReplyMarkdown: View, Equatable {
             // обычном тексте идёт на ступень выше — токеном `.body` (15
             // против 14 у строки), а не своей цифрой: кривая масштабирования
             // и Dynamic Type остаются системными.
-            if run.bold, liftBold {
-                piece = piece.font(TFFont.body).foregroundColor(color)
+            if piece.bold, liftBold {
+                text = text.font(TFFont.body).foregroundColor(color)
             } else if liftBold {
                 // Обычный текст чуть тише жирного — буквально на 5%: полностью
                 // приглушать нельзя, владелец уже возвращал серый основной текст
                 // (17.10.2026), но на его фоне жирное снова сливалось. Теперь
                 // разница есть и видна, и основной текст остаётся читаемым.
-                piece = piece.foregroundColor(color.opacity(0.94))
+                text = text.foregroundColor(color.opacity(0.94))
             }
-            return Text("\(result)\(piece)")
+            return Text("\(result)\(text)")
         }
+    }
+
+    /// Готовый кусок текста: разметка прогона и признак жирного.
+    struct RunPiece {
+        let attributed: AttributedString
+        let bold: Bool
+    }
+
+    /// Кэш готовых кусков текста по блоку.
+    ///
+    /// Тело ответа пересобирается на каждом кадре проявления (публикация
+    /// состояния — каждые 16 мс, 60 Гц), а сборка `AttributedString` стоит
+    /// ~2 мкс на прогон (замер 24.10.2026: 131 мкс на 60 прогонов) — это
+    /// самая дорогая часть кадра проявления.
+    ///
+    /// Устойчивые блоки приходят из кэша разбора с теми же `id`, поэтому
+    /// готовые куски переиспользуются; пересобирается только растущий хвост,
+    /// у которого `id` каждый раз новый. Ключ — `id` блока: содержимое блока
+    /// неизменно, поэтому ключ однозначно задаёт и куски.
+    private static let runPieces = ParsedValueCache<[RunPiece]>(limit: 64)
+
+    /// Куски текста блока — из кэша, если блок уже собирался.
+    static func pieces(for block: NoteBlock) -> [RunPiece] {
+        let key = block.id.uuidString
+        if let cached = runPieces.value(for: key) { return cached }
+        let built = block.runs.map { RunPiece(attributed: attributed([$0]), bold: $0.bold) }
+        runPieces.set(built, for: key)
+        return built
     }
 
     /// Прогоны с марками → `AttributedString`: жирный/курсив/код/зачёркнутый

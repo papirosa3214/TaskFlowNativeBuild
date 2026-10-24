@@ -178,4 +178,22 @@ final class MarkdownParseIncrementalTests: XCTestCase {
         XCTAssertEqual(cached, ChatRichContent.splitUncached(text))
         XCTAssertEqual(cached, ChatRichContent.split(text))
     }
+
+    /// Готовые куски текста блока кэшируются по id блока: сборка
+    /// `AttributedString` стоит ~2 мкс на прогон и была самой дорогой частью
+    /// кадра проявления.
+    func testКускиТекстаБерутсяИзКэша() {
+        let block = NoteBlock(
+            kind: .paragraph,
+            runs: [RichRun(text: "Привет", bold: true), RichRun(text: " мир")]
+        )
+        let first = RoleReplyMarkdown.pieces(for: block)
+        let second = RoleReplyMarkdown.pieces(for: block)
+        XCTAssertEqual(first.count, 2)
+        XCTAssertEqual(first.map(\.bold), [true, false])
+        XCTAssertEqual(first.map(\.attributed.characters.count), second.map(\.attributed.characters.count))
+        // Тот же id — те же куски; другой блок — другие.
+        let other = NoteBlock(kind: .paragraph, runs: block.runs)
+        XCTAssertNotEqual(other.id, block.id)
+    }
 }
