@@ -1,5 +1,7 @@
 # Реестр ограничений работ
 
+| LOCK-BLACK-BACKGROUND-20261024 | REVIEW | BLACK-BACKGROUND | Чистый чёрный основной фон тёмной темы | AGENT-WORK-SCOPES.md, Sources/DesignSystem/Theme/Color+Palette.swift, docs/2026-10-24-black-background.md | Прямое поручение владельца; визуал проверяет владелец | Codex | Проверка diff, сторож и сборка; без UI-тестов |
+
 | LOCK-UI-TEST-OPT-IN-20261024 | REVIEW | UI-TEST-OPT-IN | UI-тесты только после явного согласия владельца; по умолчанию кадр | AGENT-WORK-SCOPES.md, AGENTS.md, CLAUDE.md, AGENT-CYCLE.md, .agents/skills/ios-ui-triage/SKILL.md | Прямое указание Максима 24.10: агенты больше не запускают UI-тесты автоматически | Codex | Проверить отсутствие старых обязательных XCUITest-инструкций; без запуска тестов |
 
 | LOCK-TASK-NUMBER-COPY-20261024 | REVIEW | TASK-NUMBER-COPY | Иконка копирования рядом с номером задачи | AGENT-WORK-SCOPES.md, Sources/Features/Task/TaskFormScreen.swift, Sources/DesignSystem/Hints/HintScenarios.swift, docs/2026-10-24-task-number-copy.md, docs/2026-10-24-task-number-copy/ | Владелец: только кнопка, сборка и кадр; UI-тесты не трогать и не запускать | Codex | Сторож, сборка, кадр симулятора |

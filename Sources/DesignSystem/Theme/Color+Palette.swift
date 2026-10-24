@@ -18,7 +18,7 @@ public extension Color {
     // MARK: Поверхность (переключается темой)
 
     /// Фон экрана, самый нижний слой глубины.
-    static let tfBackground = dynamic(dark: "#171717", light: "#f4f4f5")
+    static let tfBackground = dynamic(dark: "#000000", light: "#f4f4f5")
     /// Поверхность: карточки, шапка, шторка, поле, панель таббара.
     static let tfCard = dynamic(dark: "#242424", light: "#ffffff")
     /// Элемент внутри карточки: подложка тумблера, выпадающее меню, чип.
