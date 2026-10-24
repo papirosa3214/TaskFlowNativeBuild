@@ -1,20 +1,6 @@
 import SwiftUI
 
-// Вид «Список» — лента с вкладками. Канбан-доска убрана 15.09.2026 по
-// прямому решению владельца («с ним только мучения, не получается по уму»),
-// и то, что раньше было колонками, стало вкладками одной ленты.
-//
-// Почему именно так, а не второй прокруткой: вкладка МЕНЯЕТ СОДЕРЖИМОЕ
-// единственной вертикальной прокрутки экрана. Ни `TabView`, ни
-// горизонтального `ScrollView` здесь нет и быть не должно — на доске
-// системная кромка затухания ломалась именно из-за вложенных прокруток, и
-// владелец отдельно просил «чтобы не случилось канители, что мы не сможем
-// сделать затухание». При одной прокрутке под навбаром кромку рисует
-// система, без единой строчки кода.
-//
-// `AppleCalendarEvents` (события календаря устройства) — вне спеки Волны 1
-// (`spec/NATIVE-PARTS.md` относит интеграцию с системным календарём к
-// более поздней волне), здесь не рисуется.
+// Все категории задач и расписание рутин в одной прокрутке с закрепляемыми заголовками.
 struct TodayListView: View {
     let tab: TodayListTab
     let waitingTasks: [ApiTask]
@@ -23,6 +9,8 @@ struct TodayListView: View {
     let upcomingTasks: [ApiTask]
     let poolTasks: [ApiTask]
     let today: String
+    var routineOccurrences: [RoutineOccurrence] = []
+    var onOpenRoutine: (RoutineOccurrence) -> Void = { _ in }
     let onOpen: (ApiTask) -> Void
     let onComplete: (ApiTask) -> Void
     let onDelete: (ApiTask) -> Void
@@ -48,7 +36,34 @@ struct TodayListView: View {
     /// сейчас прилип к кромке: владелец 15.09.2026 просил, чтобы подзаголовки
     /// не были захардкожены, а «когда они подходят, появлялись в центре» —
     /// то есть в шапке всегда стоит та секция, которую он сейчас читает.
-    @State private var sectionTops: [String: CGFloat] = [:]
+    ///
+    /// Лежит в ссылочном хранилище, а НЕ в `@State`: запись идёт на каждый
+    /// кадр прокрутки, и запись в `@State` инвалидировала весь экран — с
+    /// пересборкой секций заново на каждом кадре. В шапку название попадает
+    /// через `onPinnedSectionChange` — состояние шапки у родителя.
+    @State private var sectionTops = SectionTops()
+
+    /// Москва — зона календарных дат в приложении. Создаётся один раз, а не
+    /// на каждое вхождение рутины в списке.
+    private static let moscow = TimeZone(identifier: "Europe/Moscow")!
+
+    /// Верхние границы секций — вне состояния SwiftUI.
+    private final class SectionTops {
+        private let lock = NSLock()
+        private var storage: [String: CGFloat] = [:]
+
+        var snapshot: [String: CGFloat] {
+            lock.lock()
+            defer { lock.unlock() }
+            return storage
+        }
+
+        func set(_ top: CGFloat, for id: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            storage[id] = top
+        }
+    }
 
     private let apiClient = APIClient()
 
@@ -60,20 +75,33 @@ struct TodayListView: View {
             today: todayTasks,
             upcoming: upcomingTasks,
             pool: poolTasks,
-            todayDate: today
+            todayDate: today,
+            occurrences: routineOccurrences
         )
     }
 
     var body: some View {
         let visible = sections
-        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+        List {
             TFErrorBanner(swipeActionError, variant: .inline)
                 .padding(.horizontal, TFSpacing.lg)
 
                 ForEach(visible) { section in
                     Section {
+                        ForEach(section.occurrences) { occurrence in
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(occurrence.day(in: Self.moscow) ?? "")
+                                    .tfText(.caption).foregroundStyle(Color.tfSub)
+                                RoutineOccurrenceRow(occurrence: occurrence) { onOpenRoutine(occurrence) }
+                            }
+                            .padding(.horizontal, TFSpacing.lg)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                        }
                         ForEach(section.tasks) { task in
                             row(task, overdue: section.marksOverdue)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
                         }
                     } header: {
                         // Единственная секция вкладки заголовка не получает:
@@ -82,26 +110,26 @@ struct TodayListView: View {
                         // (см. `TodayListSection.showsHeader`).
                         if section.showsHeader(among: visible) {
                             header(section)
-                                .background(sectionTopReader(section))
+                                .background(sectionTopReader(section, visible: visible))
                         }
                     }
                 }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     /// Замеряет верх заголовка секции в координатах экрана.
-    private func sectionTopReader(_ section: TodayListSection) -> some View {
+    private func sectionTopReader(_ section: TodayListSection, visible: [TodayListSection]) -> some View {
         GeometryReader { proxy in
             Color.clear
                 .onGeometryChange(for: CGFloat.self) { _ in
                     proxy.frame(in: .global).minY
                 } action: { top in
-                    // Считаем по свежему снимку: присвоенный `@State` в этом
-                    // же проходе ещё содержит прошлое значение.
-                    var tops = sectionTops
-                    tops[section.id] = top
-                    sectionTops = tops
-                    reportPinnedSection(with: tops)
+                    // Считаем по свежему снимку: присвоенное значение в этом
+                    // же проходе ещё содержит прошлое.
+                    sectionTops.set(top, for: section.id)
+                    reportPinnedSection(with: visible)
                 }
         }
     }
@@ -110,8 +138,8 @@ struct TodayListView: View {
     /// ещё не дошли. Значит текущая секция — самая нижняя из тех, чей верх
     /// уже не ниже кромки. Пока до кромки не дошла ни одна, в шапке остаётся
     /// название вкладки.
-    private func reportPinnedSection(with tops: [String: CGFloat]) {
-        let visible = sections
+    private func reportPinnedSection(with visible: [TodayListSection]) {
+        let tops = sectionTops.snapshot
         guard visible.count > 1, pinEdge > 0 else {
             onPinnedSectionChange("")
             return
@@ -137,6 +165,7 @@ struct TodayListView: View {
                             swipeAction: swipeAction,
                             swipeOnlyAtEdges: swipeOnlyAtEdges,
                             horizontalEdgeZone: horizontalEdgeZone,
+                            usesNativeSwipeActions: true,
                             onSwipeAction: {
                                 guard let swipeAction else { return }
                                 Task { await perform(swipeAction, for: task) }
@@ -191,6 +220,7 @@ struct TodayListView: View {
         .padding(.top, 8)
         .padding(.bottom, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tfBackground)
     }
 }
 
@@ -209,6 +239,7 @@ struct TodayListSection: Identifiable, Equatable {
     /// ровно как «Просрочено» во вкладке «Ждут вас»; без подзаголовка задачи
     /// стояли прямо под названием вкладки и читались как сегодняшние.
     let alwaysShowsHeader: Bool
+    var occurrences: [RoutineOccurrence] = []
 
     /// Единственная секция вкладки заголовок не получает: он дублировал бы
     /// название самой вкладки в шапке. Секции с `alwaysShowsHeader` — всегда.
@@ -217,7 +248,7 @@ struct TodayListSection: Identifiable, Equatable {
     }
 
     static func == (lhs: TodayListSection, rhs: TodayListSection) -> Bool {
-        lhs.id == rhs.id && lhs.tasks.map(\.id) == rhs.tasks.map(\.id)
+        lhs.id == rhs.id && lhs.tasks == rhs.tasks && lhs.occurrences == rhs.occurrences
     }
 
     /// Единственное место, где решается состав вкладок. Наборы задач сюда
@@ -231,9 +262,10 @@ struct TodayListSection: Identifiable, Equatable {
         today: [ApiTask],
         upcoming: [ApiTask],
         pool: [ApiTask],
-        todayDate: String
+        todayDate: String,
+        occurrences: [RoutineOccurrence] = []
     ) -> [TodayListSection] {
-        let all: [TodayListSection]
+        var all: [TodayListSection]
         switch tab {
         case .inbox:
             // «Входящие — это и есть без даты, они не распределены»
@@ -252,14 +284,32 @@ struct TodayListSection: Identifiable, Equatable {
             ]
         case .today:
             all = [
+                .init(id: "pool", title: "Входящие", icon: nil,
+                      color: .tfSub, tasks: pool, marksOverdue: false, alwaysShowsHeader: true),
+                .init(id: "waiting", title: "Ждут вас", icon: nil,
+                      color: .tfSub, tasks: waiting, marksOverdue: false, alwaysShowsHeader: true),
+                .init(id: "overdue", title: "Просроченные", icon: nil,
+                      color: .tfRed, tasks: overdue, marksOverdue: true, alwaysShowsHeader: true),
                 .init(id: "today", title: TodayDate.formatDueLabel(todayDate), icon: nil,
                       color: .tfSub, tasks: today, marksOverdue: false,
-                      alwaysShowsHeader: false),
+                      alwaysShowsHeader: true),
                 .init(id: "upcoming", title: "Предстоящие", icon: nil,
                       color: .tfSub, tasks: upcoming, marksOverdue: false,
                       alwaysShowsHeader: true)
             ]
         }
-        return all.filter { !$0.tasks.isEmpty }
+        if tab == .today {
+            let zone = TimeZone(identifier: "Europe/Moscow")!
+            // Только будущие виртуальные появления; исполненные — обычные задачи из стора.
+            for occurrence in RoutineScheduleProjection.visible(occurrences, projects: nil) {
+                guard occurrence.taskId == nil, occurrence.status == "scheduled",
+                      let day = occurrence.day(in: zone), day >= todayDate else { continue }
+                let sectionID = day == todayDate ? "today" : "upcoming"
+                if let index = all.firstIndex(where: { $0.id == sectionID }) {
+                    all[index].occurrences.append(occurrence)
+                }
+            }
+        }
+        return all.filter { !$0.tasks.isEmpty || !$0.occurrences.isEmpty }
     }
 }

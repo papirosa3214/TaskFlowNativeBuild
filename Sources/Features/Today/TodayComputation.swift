@@ -83,14 +83,16 @@ struct TodayComputation {
         allTasks: [ApiTask], currentUser: ApiUser?, agents: [ApiUser],
         filters: TodayTaskFilters, showAgentTasks: Bool = false,
         visibleProjectIds: Set<String> = [], today: String,
-        activeHourDate: String, isLoading: Bool, isError: Bool
+        activeHourDate: String, isLoading: Bool, isError: Bool,
+        tasksRevision: Int = 0
     ) {
         // Снимок тяжёлый (около двадцати фильтров и шести сортировок по
         // всему списку задач), а экран обращался к нему на каждом проходе
         // `body` — и дважды за проход (тело и тулбар). Пока входы те же,
         // отдаётся последний собранный снимок.
         let key = TodayComputationCache.Key(
-            allTasks: allTasks,
+            tasksRevision: tasksRevision,
+            allTaskIDs: allTasks.map(\.id),
             currentUser: currentUser,
             agents: agents,
             filters: filters,

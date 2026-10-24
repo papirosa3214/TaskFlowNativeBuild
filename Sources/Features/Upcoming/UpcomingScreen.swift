@@ -227,7 +227,6 @@ public struct UpcomingScreen: View {
                     activeHourDate: $todayHourDate,
                     onAddTask: { createTaskOpen = true },
                     plannerViewSwitcher: AnyView(viewSwitcherMenu),
-                    listTabSwitcher: AnyView(subviewPill),
                     sectionCompositionMenu: AnyView(sectionCompositionMenu),
                     visibleProjectIds: effectivePlannerVisibleProjectIds,
                     showAgentTasks: plannerShowAgentTasks,
@@ -475,38 +474,6 @@ public struct UpcomingScreen: View {
     /// Кнопка видна только в разделе «Список» (владелец 16.09.2026): в
     /// «Трёх днях» и прочих сетках вкладки списка ничего не значат. Выйти
     /// из сетки обратно в список — пункт «Список» в правом календаре.
-    private var subviewPill: some View {
-        Menu {
-            Picker("Вкладка", selection: Binding(
-                get: { listTabRaw },
-                set: { newValue in
-                    listTabRaw = newValue
-                    // Выбрали вкладку — значит хотим список сегодняшнего
-                    // раздела, из какого бы диапазона ни пришли.
-                    todayLayout = .list
-                    view = .today
-                }
-            )) {
-                ForEach(TodayListTab.allCases) { tab in
-                    Label(tab.menuTitle, systemImage: tab.icon).tag(tab.rawValue)
-                }
-            }
-        } label: {
-            TFPlannerToolbarIcon(systemName: listTabIcon, tint: .tfText)
-        }
-        .tfPlannerWideControl()
-        .accessibilityLabel("Вкладка: \(listTab.title)")
-        .accessibilityIdentifier("planner.list-tab-switcher")
-    }
-
-    @AppStorage("today_list_tab") private var listTabRaw = TodayListTab.today.rawValue
-    private var listTab: TodayListTab { TodayListTab(rawValue: listTabRaw) ?? .today }
-    /// В разделах-диапазонах список не показан, поэтому и подсвечивать
-    /// вкладку нечем — иконка становится нейтральной.
-    private var listTabIcon: String {
-        (view == .today && todayLayout == .list) ? listTab.icon : "list.bullet"
-    }
-
     private func todayLayoutIcon(_ layout: TodayLayout) -> String {
         switch layout {
         case .list: "list.bullet"
@@ -546,12 +513,12 @@ public struct UpcomingScreen: View {
             let month = gridMonth ?? UpcomingDate.yearMonth(today)
             return String(format: "%04d-%02d-01", month.year, month.month + 1)
         case .threeDays: return threeDayStart
-        case .today: return todayHourDate
+        case .today: return todayLayout == .list ? today : todayHourDate
         }
     }
 
     private var routineOccurrences: [RoutineOccurrence] {
-        RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: effectivePlannerVisibleProjectIds)
+        RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: view == .today && todayLayout == .list ? nil : effectivePlannerVisibleProjectIds)
     }
 
     private func loadRoutineCalendar() async {
@@ -571,8 +538,11 @@ public struct UpcomingScreen: View {
     /// три дня вперёд». Диапазоны листаются в обе стороны, и до этой правки
     /// все дни левее сегодняшнего стояли пустыми, хотя задачи на них есть.
     private var datedTasks: [ApiTask] {
-        taskStore.tasks.filter { t in
-            !Set(routineOccurrences.compactMap(\.taskId)).contains(t.id) && (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents))
+        // Множество задач рутин — ОДИН раз на фильтр: раньше оно собиралось
+        // внутри замыкания, то есть заново на каждую задачу (O(N×M)).
+        let routineTaskIDs = Set(routineOccurrences.compactMap(\.taskId))
+        return taskStore.tasks.filter { t in
+            !routineTaskIDs.contains(t.id) && (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents))
                 && t.dueDate != nil
                 && (t.projectId == nil || effectivePlannerVisibleProjectIds.contains(t.projectId!))
         }
@@ -597,11 +567,80 @@ public struct UpcomingScreen: View {
         }
     }
 
-    private var tasks: [ApiTask] { UpcomingFilterEngine.filter(datedTasks, filters) }
-    private var byDate: [String: [ApiTask]] { UpcomingDate.groupByDate(tasks) }
+    /// Кэш данных планировщика: отфильтрованный список, группировка по датам
+    /// и три колонки часов считались заново на каждый доступ — 6–10 раз за
+    /// проход `body` (список задач фильтровался, сортировался и
+    /// группировался). Теперь считаются один раз и переиспользуются, пока
+    /// входы те же.
+    @State private var plannerCache = PlannerCache()
 
-    private var hourDays: [UpcomingHourColumn] {
-        (0..<3).map { i in
+    /// Входы планировщика: пока они те же — пересчитывать нечего.
+    private struct PlannerKey: Equatable {
+        let tasksRevision: Int
+        let filters: UpcomingTaskFilters
+        let today: String
+        let threeDayStart: String
+        let showAgentTasks: Bool
+        let visibleProjectIds: Set<String>
+        let agents: [ApiUser]
+        let occurrences: [RoutineOccurrence]
+    }
+
+    /// Готовые данные планировщика на текущие входы.
+    private struct PlannerPlan {
+        let tasks: [ApiTask]
+        let byDate: [String: [ApiTask]]
+        let hourDays: [UpcomingHourColumn]
+        /// Просроченные и бессрочные — сырьё для планирования на часовой сетке.
+        let awaitingPlanning: [ApiTask]
+        /// Задачи с датой есть, но под фильтры не подошли.
+        let hasDatedTasks: Bool
+    }
+
+    private final class PlannerCache {
+        private let lock = NSLock()
+        private var key: PlannerKey?
+        private var plan: PlannerPlan?
+
+        func plan(for input: PlannerKey, build: () -> PlannerPlan) -> PlannerPlan {
+            lock.lock()
+            if let stored = key, stored == input, let plan {
+                lock.unlock()
+                return plan
+            }
+            lock.unlock()
+            let fresh = build()
+            lock.lock()
+            key = input
+            plan = fresh
+            lock.unlock()
+            return fresh
+        }
+    }
+
+    /// Данные планировщика на текущие входы.
+    private var plannerPlan: PlannerPlan {
+        plannerCache.plan(for: PlannerKey(
+            tasksRevision: taskStore.tasksRevision,
+            filters: filters,
+            today: today,
+            threeDayStart: threeDayStart,
+            showAgentTasks: plannerShowAgentTasks,
+            visibleProjectIds: effectivePlannerVisibleProjectIds,
+            agents: agentsProvider.agents,
+            occurrences: routineOccurrences
+        )) { buildPlannerPlan() }
+    }
+
+    private func buildPlannerPlan() -> PlannerPlan {
+        let dated = datedTasks
+        let tasks = UpcomingFilterEngine.filter(dated, filters)
+        let byDate = UpcomingDate.groupByDate(tasks)
+        let awaiting = tasks.filter { task in
+            guard let due = task.dueDate, !due.isEmpty else { return true }
+            return due < today
+        }
+        let hourDays = (0..<3).map { i in
             let date = UpcomingDate.addDays(threeDayStart, i)
             var dayTasks = byDate[date] ?? []
             // К первой колонке добавляем то, что ждёт распределения:
@@ -612,18 +651,25 @@ public struct UpcomingScreen: View {
             // и неназначенные, чтобы я мог их оттуда забрать и выставить
             // планы». Будущие сюда не идут: «то, что ещё не наступило, зачем
             // его показывать».
-            if i == 0 { dayTasks += tasksAwaitingPlanning }
+            if i == 0 { dayTasks += awaiting }
             return UpcomingHourColumn(date: date, tasks: dayTasks, isToday: date == today)
         }
+        return PlannerPlan(
+            tasks: tasks,
+            byDate: byDate,
+            hourDays: hourDays,
+            awaitingPlanning: awaiting,
+            hasDatedTasks: !dated.isEmpty
+        )
     }
 
+    private var tasks: [ApiTask] { plannerPlan.tasks }
+    private var byDate: [String: [ApiTask]] { plannerPlan.byDate }
+
+    private var hourDays: [UpcomingHourColumn] { plannerPlan.hourDays }
+
     /// Просроченные и бессрочные — сырьё для планирования на почасовой сетке.
-    private var tasksAwaitingPlanning: [ApiTask] {
-        tasks.filter { task in
-            guard let due = task.dueDate, !due.isEmpty else { return true }
-            return due < today
-        }
-    }
+    private var tasksAwaitingPlanning: [ApiTask] { plannerPlan.awaitingPlanning }
 
     /// Состояния общие для оставшихся 3 видов (Неделя/Месяц/Три дня) — в
     /// «Список» такой баннер владелец 03.09.2026 явно попросил НЕ добавлять
@@ -632,7 +678,7 @@ public struct UpcomingScreen: View {
     /// загрузкой/ошибкой: фильтры вычистили список подчистую.
     private var emptyFilterBanner: AnyView? {
         guard view != .today, selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
-              !datedTasks.isEmpty, tasks.isEmpty else { return nil }
+              plannerPlan.hasDatedTasks, plannerPlan.tasks.isEmpty else { return nil }
         return AnyView(
             HStack(spacing: 6) {
                 Text("Под выбранные фильтры ничего не подошло").tfText(.action).foregroundStyle(Color.tfDim)

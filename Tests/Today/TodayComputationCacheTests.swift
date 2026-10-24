@@ -43,7 +43,8 @@ final class TodayComputationCacheTests: XCTestCase {
         _ tasks: [ApiTask],
         today: String = "2026-10-22",
         activeHourDate: String = "2026-10-22",
-        filters: TodayTaskFilters = .empty
+        filters: TodayTaskFilters = .empty,
+        tasksRevision: Int = 0
     ) -> TodayComputation {
         TodayComputation(
             allTasks: tasks,
@@ -55,7 +56,8 @@ final class TodayComputationCacheTests: XCTestCase {
             today: today,
             activeHourDate: activeHourDate,
             isLoading: false,
-            isError: false
+            isError: false,
+            tasksRevision: tasksRevision
         )
     }
 
@@ -90,6 +92,16 @@ final class TodayComputationCacheTests: XCTestCase {
         _ = makeComputation(tasks)
         _ = makeComputation(tasks, today: "2026-10-23", activeHourDate: "2026-10-23")
         XCTAssertEqual(TodayComputation.buildCount, 2, "Другой день — другой снимок")
+    }
+
+    /// Содержимое задачи изменилось, а состав списка — тот же: снимок обязан
+    /// пересобраться по ревизии стора. Раньше это ловилось сравнением задач
+    /// по значению; теперь — ревизией `TaskStore.tasksRevision`.
+    func testСменаРевизииПересобираетСнимок() {
+        let tasks = makeTasks(20)
+        _ = makeComputation(tasks, tasksRevision: 7)
+        _ = makeComputation(tasks, tasksRevision: 8)
+        XCTAssertEqual(TodayComputation.buildCount, 2, "Правка задачи обязана пересобрать снимок")
     }
 
     // MARK: - Содержимое не изменилось

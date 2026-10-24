@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// Раздел «Сегодня» внутри «Планирования». Шапку и выбор раздела рисует
-/// `UpcomingScreen`; здесь живут только три подви́да и их фильтры.
+/// Единый список задач и почасовой режим внутри «Планирования».
 struct TodaySectionView: View {
     @Binding var layout: TodayLayout
     /// Видимая дата почасового режима принадлежит родителю: так заголовок
@@ -9,13 +8,6 @@ struct TodaySectionView: View {
     @Binding var activeHourDate: String
     var onAddTask: () -> Void = {}
     let plannerViewSwitcher: AnyView
-    /// ЛЕВАЯ кнопка шапки — вкладки списка. Приходит из `UpcomingScreen`
-    /// готовым `Menu`: состояние вкладки живёт там. Объявлена здесь, а не в
-    /// `UpcomingScreen`: на iOS 26 `ToolbarItem(.topBarLeading)`, повешенный
-    /// на корень раздела, рисуется дважды (жалоба владельца 24.10.2026 —
-    /// две одинаковые иконки в шапке «Ждут вас»), а в этом слое шапки
-    /// правая кнопка рисуется один раз.
-    var listTabSwitcher: AnyView = AnyView(EmptyView())
     /// Тот же самый `Menu` «Показывать в разделе», что и у диапазонов —
     /// приходит из `UpcomingScreen`, где живёт его состояние (LOCK-111).
     var sectionCompositionMenu: AnyView = AnyView(EmptyView())
@@ -30,9 +22,7 @@ struct TodaySectionView: View {
     @Environment(ProjectStore.self) private var projectStore
     @Environment(SessionStore.self) private var session
 
-    /// Выбранная вкладка живёт между запусками — как и выбранный вид.
-    @AppStorage("today_list_tab") private var listTabRaw = TodayListTab.today.rawValue
-    private var listTab: TodayListTab { TodayListTab(rawValue: listTabRaw) ?? .today }
+    private let listTab = TodayListTab.today
 
     @State private var vm = TodayViewModel()
     @State private var sheetTaskID: TodaySectionTaskID?
@@ -46,10 +36,6 @@ struct TodaySectionView: View {
     @State private var pinnedSectionTitle = ""
     /// Высота, на которой заголовок секции прилипает к шапке.
     @State private var pinEdge: CGFloat = 0
-    /// Границы ленты в координатах экрана. Крайние 16pt отданы свайпу
-    /// строки, поэтому жест переключения вкладки там не принимается.
-    @State private var listGlobalFrame: CGRect = .zero
-
     /// Что показать в шапке: у списка — заголовок секции, которую сейчас
     /// читают, а пока ни одна не подошла к кромке — название вкладки. У
     /// почасовой сетки шапку рисует родитель по дате.
@@ -58,29 +44,7 @@ struct TodaySectionView: View {
     /// „Сегодня“, а у меня тут же предстоящие, это же уже не сегодня».
     private var titleForHeader: String {
         guard layout == .list else { return "" }
-        return pinnedSectionTitle.isEmpty ? listTab.title : pinnedSectionTitle
-    }
-
-    /// Свайп «влево/вправо» по внутренней части ленты переключает вкладку
-    /// («Входящие» / «Ждут вас» / «Сегодня»). Крайние 16pt оставлены свайпу
-    /// строки и исключены из перелистывания. Числа порогов —
-    /// `|dx| > |dy| * 2.0` и `|dx| ≥ 80`, чтобы вертикальная прокрутка
-    /// выигрывала по умолчанию. На границах вкладок переход игнорируется;
-    /// анимация `easeInOut 0.2 c`.
-    private var tabSwipeGesture: HorizontalPan {
-        HorizontalPan(
-            onChange: { _ in },
-            onEnd: { dx, _ in
-                let all = TodayListTab.allCases
-                guard let cur = all.firstIndex(where: { $0.rawValue == listTabRaw }) else { return }
-                let next = dx < 0 ? cur + 1 : cur - 1
-                guard all.indices.contains(next) else { return }
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    listTabRaw = all[next].rawValue
-                }
-            },
-            pagingFrame: listGlobalFrame
-        )
+        return pinnedSectionTitle.isEmpty ? "Все задачи" : pinnedSectionTitle
     }
 
     var routineOccurrences: [RoutineOccurrence] = []
@@ -101,18 +65,25 @@ struct TodaySectionView: View {
         // Разовые фильтры — свои у экрана, состав раздела — общий с
         // диапазонами и приходит параметрами (LOCK-111).
         var effectiveFilters = vm.filters
-        effectiveFilters.showCompleted = showCompleted
+        effectiveFilters.showCompleted = layout == .list ? false : showCompleted
+        var seen = Set<String>()
+        let source = layout == .list ? taskStore.tasks + taskStore.agentWorkTasks : taskStore.tasks
+        let tasks = source.filter { seen.insert($0.id).inserted && !$0.isArchived }
+        // Множество задач рутин — ОДИН раз на сборку: раньше оно собиралось
+        // внутри фильтра, то есть заново на каждую задачу (O(N×M)).
+        let routineTaskIDs = Set(routineOccurrences.compactMap(\.taskId))
         return TodayComputation(
-            allTasks: taskStore.tasks.filter { !Set(routineOccurrences.compactMap(\.taskId)).contains($0.id) },
+            allTasks: layout == .list ? tasks : tasks.filter { !routineTaskIDs.contains($0.id) },
             currentUser: session.currentUser,
             agents: vm.agents,
             filters: effectiveFilters,
             showAgentTasks: showAgentTasks,
-            visibleProjectIds: visibleProjectIds,
+            visibleProjectIds: layout == .list ? Set(tasks.compactMap(\.projectId)) : visibleProjectIds,
             today: today,
             activeHourDate: activeHourDate,
             isLoading: taskStore.isLoading,
-            isError: taskStore.errorMessage != nil
+            isError: taskStore.errorMessage != nil,
+            tasksRevision: taskStore.tasksRevision
         )
     }
 
@@ -122,19 +93,7 @@ struct TodaySectionView: View {
             if layout == .hours {
                 hoursContent(c: c)
             } else {
-                // Одна вертикальная прокрутка на весь список — вкладка лишь
-                // меняет её содержимое. Второго уровня прокрутки здесь нет
-                // намеренно: именно вложенные прокрутки доски ломали
-                // системное затухание у шапки.
-                //
-                // Строки принимают горизонтальный свайп только в крайних
-                // зонах; перелистывание — только между ними. Проверка в
-                // `tabSwipeGesture` использует глобальную геометрию, чтобы
-                // safe area не смещала правую границу. Сам `ScrollView`
-                // Сам `ScrollView` остаётся без боковых полос и сохраняет
-                // обычную ширину. Иллюстрации пустого состояния здесь нет
-                // намеренно: по просьбе владельца 19.10.2026 в режиме «Часы»
-                // картинок не должно быть вовсе — только список.
+                // Все категории в одной ленте; горизонтальный свайп принадлежит строкам.
                 ZStack {
                     // Картинка — пустое состояние вкладки, а не постоянный фон.
                     // Владелец 22.10.2026: «я-то думал, они будут отображаться,
@@ -147,39 +106,21 @@ struct TodaySectionView: View {
                     // штрихи.
                     Color.tfBackground
                     if isTabEmpty(c) { plannerBackdrop }
-                    ScrollView {
-                        listContent(c: c)
-                    }
+                    listContent(c: c)
                     .refreshable { await taskStore.load(silent: true) }
-                    // Признанный свайп отменяет касание Button под пальцем.
-                    .gesture(tabSwipeGesture)
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .global)
-                    } action: { listGlobalFrame = $0 }
                 }
                 // Высота, на которой заголовок секции прилипает к шапке.
                 // Изнутри прокрутки её не видно (там безопасная зона уже
                 // нулевая), поэтому меряем снаружи и отдаём списку.
+                .hintAnchor(HintAnchorID.unifiedPlanner)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.frame(in: .global).minY + proxy.safeAreaInsets.top
                 } action: { pinEdge = $0 }
             }
         }
         .onAppear { onTitleChange(titleForHeader) }
-        .onChange(of: listTab) { _, newTab in
-            // Сменили вкладку — прежняя секция больше ни при чём, шапка
-            // возвращается к названию вкладки, пока не долистают до секции.
-            pinnedSectionTitle = ""
-            onTitleChange(layout == .list ? newTab.title : "")
-        }
         .onChange(of: layout) { _, _ in onTitleChange(titleForHeader) }
         .toolbar {
-            // Вкладки списка живут на ЛЕВОЙ кнопке шапки, справа остаются
-            // фильтр и выбор раздела — владелец 15.09.2026 отдельно попросил
-            // не заводить здесь третью кнопку, а использовать левую.
-            if layout == .list {
-                ToolbarItem(placement: .topBarLeading) { listTabSwitcher }
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 0) {
                     filterMenu(c: c).tfPlannerWideControl()
@@ -214,10 +155,10 @@ struct TodaySectionView: View {
     private func isTabEmpty(_ c: TodayComputation) -> Bool {
         let sections = TodayListSection.sections(tab: listTab, waiting: c.waitingTasks,
             overdue: c.overdueTasks, today: c.todayTasks, upcoming: c.upcomingTasks, pool: c.poolTasks,
-            todayDate: today)
+            todayDate: today, occurrences: routineOccurrences)
         return PlannerBackdropVisibility.isVisible(isLoading: taskStore.isLoading,
             hasError: taskStore.errorMessage != nil,
-            visibleTaskCount: currentRoutineOccurrences.count + sections.reduce(0) { $0 + $1.tasks.count })
+            visibleTaskCount: sections.reduce(0) { $0 + $1.tasks.count + $1.occurrences.count })
     }
 
     /// Неподвижная картинка-фон текущей вкладки списка: тянется по размеру
@@ -246,7 +187,6 @@ struct TodaySectionView: View {
             TFErrorBanner(taskStore.errorMessage, variant: .inline)
                 .padding(.horizontal, TFSpacing.lg)
 
-            if listTab == .today { routineRows }
             TodayListView(
                     tab: listTab,
                     waitingTasks: c.waitingTasks,
@@ -255,6 +195,8 @@ struct TodaySectionView: View {
                     upcomingTasks: c.upcomingTasks,
                     poolTasks: c.poolTasks,
                     today: today,
+                    routineOccurrences: routineOccurrences,
+                    onOpenRoutine: onOpenRoutine,
                     onOpen: { sheetTaskID = TodaySectionTaskID(id: $0.id) },
                     onComplete: { task in
                         Task {
@@ -267,14 +209,12 @@ struct TodaySectionView: View {
                         pinnedSectionTitle = title
                         // Считаем от свежего значения, а не от `titleForHeader`:
                         // присвоенный `@State` в этом же проходе ещё старый.
-                        onTitleChange(title.isEmpty ? listTab.title : title)
+                        onTitleChange(title.isEmpty ? "Все задачи" : title)
                     },
                     pinEdge: pinEdge,
-                    swipeOnlyAtEdges: true,
-                    horizontalEdgeZone: HorizontalPanZones.defaultEdgeWidth
+                    swipeOnlyAtEdges: false
                 )
         }
-        .padding(.bottom, TFSpacing.lg)
     }
 
     @ViewBuilder
@@ -361,7 +301,7 @@ struct TodaySectionView: View {
             // «Выполненные» живут внутри этого подменю вместе с проектами и
             // агентскими — состав раздела общий с диапазонами, отдельного
             // переключателя здесь больше нет.
-            sectionCompositionMenu
+            if layout != .list { sectionCompositionMenu }
 
             if vm.filters.isActive {
                 Divider()

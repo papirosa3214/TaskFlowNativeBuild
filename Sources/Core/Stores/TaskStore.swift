@@ -10,7 +10,13 @@ import Observation
 @MainActor
 @Observable
 public final class TaskStore {
-    public private(set) var tasks: [ApiTask] = []
+    public private(set) var tasks: [ApiTask] = [] {
+        // Ревизия списка: растёт при ЛЮБОМ изменении. Экрану «Сегодня» она
+        // нужна вместо сравнения самих задач: `ApiTask` — это десятки полей,
+        // и сравнение списка по значению на каждый проход `body` стоило
+        // дороже, чем вся пересборка снимка.
+        didSet { tasksRevision += 1 }
+    }
     public private(set) var archivedTasks: [ApiTask] = []
     /// Счётчик событий «карточка ушла в архив». Экран «Состояние системы»
     /// слушает его и перечитывает сводку и ленту уведомлений: запись
@@ -24,7 +30,14 @@ public final class TaskStore {
     /// `tasks` сервер кладёт лишь те из них, у кого есть проект — дочерняя
     /// «в работе» в плитках не считалась (владелец 22.09.2026). `tasks` не
     /// расширяем: иначе дочерние вывалились бы строками во все списки.
-    public private(set) var agentWorkTasks: [ApiTask] = []
+    public private(set) var agentWorkTasks: [ApiTask] = [] {
+        didSet { tasksRevision += 1 }
+    }
+
+    /// Ревизия списка задач. Меняется при любой правке `tasks` или
+    /// `agentWorkTasks` — по ней экраны понимают, что список изменился, не
+    /// сравнивая сами задачи.
+    public private(set) var tasksRevision = 0
     public private(set) var isLoading = false
     public var errorMessage: String?
 
