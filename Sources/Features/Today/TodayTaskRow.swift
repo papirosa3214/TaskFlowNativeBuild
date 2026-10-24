@@ -46,15 +46,22 @@ struct TodayTaskRow: View {
             row
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
                     Button(role: .destructive, action: onDelete) {
-                        Label("В архив", systemImage: "archivebox")
+                        Image(systemName: "archivebox")
+                            .font(.system(size: TFIconSize.md))
+                            .frame(width: TFRowActionWidth)
                     }
+                    .accessibilityLabel("В архив")
                     .accessibilityIdentifier("row.swipe.delete")
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     if let swipeAction {
                         Button(action: onSwipeAction) {
-                            Label(swipeAction.accessibilityLabel, systemImage: swipeAction.icon)
+                            Image(systemName: swipeAction.icon)
+                                .font(.system(size: TFIconSize.md))
+                                .frame(width: TFRowActionWidth)
                         }
+                        .tint(.tfGreen)
+                        .accessibilityLabel(swipeAction.accessibilityLabel)
                         .accessibilityIdentifier(swipeAction.accessibilityIdentifier)
                     }
                 }
