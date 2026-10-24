@@ -62,4 +62,24 @@ final class MarkdownParseCacheTests: XCTestCase {
         XCTAssertEqual(again[0].runs[0].text, "Абзац", "Кэш не должен отдавать правленый текст")
         XCTAssertEqual(cached[0].runs[0].text, "Абзац")
     }
+
+    /// Живой ответ роли приходит префиксами: пока текст растёт, каждый кадр
+    /// — новая строка. В общий кэш такие префиксы попадать не должны: они
+    /// вытесняли разборы истории чата (лимит 128 записей) и сообщения
+    /// перечитывались при каждой прокрутке.
+    func testПотоковыйТекстНеЗабиваетКэш() {
+        for length in 1...200 {
+            let prefix = String(repeating: "а", count: length)
+            _ = MarkdownParser.parse(prefix, cached: false)
+        }
+        XCTAssertEqual(MarkdownParseCache.shared.count, 0,
+                       "Растущие префиксы живого ответа не должны попадать в общий кэш разбора")
+    }
+
+    func testГотовыйТекстКэшируется() {
+        _ = MarkdownParser.parse("Готовый ответ роли")
+        _ = MarkdownParser.parse("Готовый ответ роли")
+        XCTAssertEqual(MarkdownParseCache.shared.count, 1,
+                       "Готовый текст должен остаться в кэше — он перерисовывается при каждом проходе экрана")
+    }
 }

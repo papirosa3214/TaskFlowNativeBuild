@@ -107,7 +107,9 @@ struct RoleReplyMarkdown: View, Equatable {
 
     @ViewBuilder
     private func markdownBody(_ text: String) -> some View {
-        let blocks = Self.numbered(MarkdownParser.parse(text))
+        // Живой текст разбирается заново каждый кадр — в кэш он не идёт, иначе
+        // растущие префиксы вытесняют разборы истории чата.
+        let blocks = Self.numbered(MarkdownParser.parse(text, cached: !isStreaming))
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не id блока: парсер раздаёт новые UUID на каждый
             // разбор, а живой текст разбирается заново каждые 150 мс.

@@ -39,8 +39,13 @@ enum MarkdownParser {
     /// Разбор кэшируется (`MarkdownParseCache`): один и тот же текст приходит
     /// снова и снова — из `Binding`-геттеров карточки задачи и при каждой
     /// перерисовке сообщения чата.
-    static func parse(_ source: String) -> [NoteBlock] {
-        MarkdownParseCache.shared.blocks(for: source) { parseUncached(source) }
+    static func parse(_ source: String, cached: Bool = true) -> [NoteBlock] {
+        // Растущий текст идущего ответа кэшировать нельзя: он меняется на
+        // каждом кадре проявления, и десятки новых префиксов в секунду
+        // вытесняли из кэша разборы истории чата (лимит 128 записей).
+        // Готовый текст кэшируется как раньше.
+        guard cached else { return parseUncached(source) }
+        return MarkdownParseCache.shared.blocks(for: source) { parseUncached(source) }
     }
 
     /// Разбор без кэша — точка сверки для теста: результат кэша обязан

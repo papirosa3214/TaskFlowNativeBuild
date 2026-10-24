@@ -64,6 +64,13 @@ final class MarkdownParseCache {
         }
     }
 
+    /// Сколько записей в кэше — для тестов.
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.count
+    }
+
     /// Сброс — только для тестов.
     func reset() {
         lock.lock()
