@@ -6,6 +6,14 @@ struct AIUsageScreen: View {
     @State private var usage: AIUsage?
     @State private var error: String?
     @State private var loading = false
+    /// Выбранный на графике день (`2026-10-23`); `nil` — весь период.
+    @State private var pickedLabel: String?
+    @State private var modelsExpanded = false
+
+    private var selectedDay: String? {
+        guard let pickedLabel, let usage else { return nil }
+        return usage.daily.first { shortDay($0.day) == pickedLabel }?.day
+    }
 
     var body: some View {
         ScrollView {
@@ -20,30 +28,12 @@ struct AIUsageScreen: View {
                 TFErrorBanner(error, variant: .inline)
                 if loading { TFLoading(.block) }
                 if let usage {
-                    AIUsageSummary(totals: usage.totals)
+                    chartSection(usage)
+                    numbersSection(usage)
                     if usage.totals.calls == 0 {
                         TFEmptyState(icon: "chart.bar", text: "За этот период нет сохранённого расхода ролей.")
                     } else {
-                        TFSectionHeader("Токены по дням")
-                        Chart(usage.daily) { day in
-                            BarMark(x: .value("День", String(day.day.suffix(5))),
-                                    y: .value("Токены", day.totalTokens))
-                        }
-                        .frame(height: 150)
-                        .accessibilityIdentifier("ai-usage.chart")
-                        TFSectionHeader("Модели")
-                        ForEach(usage.models) { model in
-                            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                                Text(model.model).tfText(.row).foregroundStyle(Color.tfText)
-                                Text("\(model.provider) · \(RoleTurnUsageRow.tokens(model.totalTokens)) токенов · \(model.calls) вызовов")
-                                    .tfText(.caption).foregroundStyle(Color.tfSub)
-                                if let cost = model.estimatedCostUsd {
-                                    Text((model.unpricedCalls > 0 ? "Частично: " : "") + RoleTurnUsageRow.cost(cost))
-                                        .tfText(.caption).foregroundStyle(Color.tfSub)
-                                }
-                            }
-                            TFDivider()
-                        }
+                        modelsSection(usage)
                     }
                     Text("Учтены сохранённые ответы моделей ролям TaskFlow. Это не расход всего аккаунта провайдера. Стоимость — тарифная оценка SDK, а не списание с подписки; баланс и стоимость подписки здесь не учитываются.")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
@@ -68,9 +58,186 @@ struct AIUsageScreen: View {
         .refreshable { await load() }
     }
 
+    // MARK: - График
+
+    /// График — наверху: вопрос «сколько и когда», цифры — ниже. Столбик дня
+    /// делится по моделям оттенками красного, тап по столбику выбирает день.
+    private func chartSection(_ usage: AIUsage) -> some View {
+        VStack(spacing: TFSpacing.sm) {
+            Text("Токены по дням")
+                .tfText(.row)
+                .foregroundStyle(Color.tfText)
+                .frame(maxWidth: .infinity, alignment: .center)
+            if usage.hasModelBreakdown {
+                stackedChart(usage)
+                legend(usage)
+            } else {
+                Chart(usage.daily) { day in
+                    BarMark(x: .value("День", shortDay(day.day)),
+                            y: .value("Токены", day.totalTokens))
+                    .foregroundStyle(Color.tfRed)
+                }
+                .frame(height: 170)
+            }
+        }
+        .accessibilityIdentifier("ai-usage.chart")
+    }
+
+    private func stackedChart(_ usage: AIUsage) -> some View {
+        Chart(usage.chartSegments) { row in
+            BarMark(x: .value("День", shortDay(row.day)),
+                    y: .value("Токены", row.totalTokens))
+            .foregroundStyle(by: .value("Модель", row.model))
+            .opacity(selectedDay == nil || selectedDay == row.day ? 1 : 0.35)
+        }
+        .chartForegroundStyleScale(domain: usage.modelOrder,
+                                   range: usage.modelOrder.map(shade))
+        .chartLegend(.hidden)
+        .chartXSelection(value: $pickedLabel)
+        .chartYAxis {
+            AxisMarks { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let tokens = value.as(Int.self) {
+                        Text(RoleTurnUsageRow.tokens(tokens)).tfText(.caption)
+                    }
+                }
+            }
+        }
+        .frame(height: 170)
+    }
+
+    private func legend(_ usage: AIUsage) -> some View {
+        VStack(spacing: 4) {
+            ForEach(legendModels(usage), id: \.self) { model in
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(shade(model))
+                        .frame(width: 8, height: 8)
+                    Text(model)
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                    Spacer(minLength: TFSpacing.sm)
+                    Text(RoleTurnUsageRow.tokens(tokens(of: model, in: usage)))
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .accessibilityIdentifier("ai-usage.legend")
+    }
+
+    /// В легенде — только модели, которые реально съели токены, и не больше
+    /// шести: остальные всё равно видны под «Подробнее по моделям».
+    private func legendModels(_ usage: AIUsage) -> [String] {
+        Array(usage.modelOrder.filter { tokens(of: $0, in: usage) > 0 }.prefix(6))
+    }
+
+    // MARK: - Цифры (первая категория, отделены линиями)
+
+    private func numbersSection(_ usage: AIUsage) -> some View {
+        let totals = usage.totals(for: selectedDay)
+        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFDivider()
+            Text(selectedDay == nil ? periodTitle : "День \(shortDay(selectedDay ?? ""))")
+                .tfText(.row)
+                .foregroundStyle(Color.tfText)
+                .frame(maxWidth: .infinity, alignment: .center)
+            if selectedDay != nil {
+                Button("Весь период") { pickedLabel = nil }
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfSub)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .accessibilityIdentifier("ai-usage.reset-day")
+            }
+            metric("Оценка стоимости", totals.costLabel)
+                .accessibilityIdentifier("ai-usage.cost")
+            metric("Всего токенов", RoleTurnUsageRow.tokens(totals.totalTokens))
+            metric("Вход без кэша", RoleTurnUsageRow.tokens(totals.inputTokens))
+            metric("Чтение кэша", RoleTurnUsageRow.tokens(totals.cacheReadTokens))
+            metric("Выход", RoleTurnUsageRow.tokens(totals.outputTokens))
+            metric("Доля кэша во входе", totals.cacheHitRate.map { String(format: "%.1f%%", $0 * 100).replacingOccurrences(of: ".", with: ",") } ?? "Нет данных")
+            metric("Вызовов модели", String(totals.calls))
+            TFDivider()
+        }
+        .accessibilityIdentifier("ai-usage.summary")
+    }
+
+    /// Подпись и значение одного ранга: одинаковый размер и цвет, значение —
+    /// моноширинными цифрами в один столбец (владелец 24.10.2026).
+    private func metric(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: TFSpacing.md) {
+            Text(label)
+                .tfText(.row)
+                .foregroundStyle(Color.tfText)
+            Spacer(minLength: TFSpacing.sm)
+            Text(value)
+                .tfText(.row)
+                .foregroundStyle(Color.tfText)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    // MARK: - Разбивка по моделям
+
+    private func modelsSection(_ usage: AIUsage) -> some View {
+        let models = usage.models(for: selectedDay)
+        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            DisclosureGroup(isExpanded: $modelsExpanded) {
+                VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                    ForEach(models) { model in
+                        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                            Text(model.model).tfText(.row).foregroundStyle(Color.tfText)
+                            Text("\(model.provider) · \(RoleTurnUsageRow.tokens(model.totalTokens)) токенов · \(model.calls) вызовов")
+                                .tfText(.caption).foregroundStyle(Color.tfSub)
+                            if let cost = model.estimatedCostUsd {
+                                Text((model.unpricedCalls > 0 ? "Частично: " : "") + RoleTurnUsageRow.cost(cost))
+                                    .tfText(.caption).foregroundStyle(Color.tfSub)
+                            }
+                        }
+                        TFDivider()
+                    }
+                }
+                .padding(.top, TFSpacing.sm)
+            } label: {
+                Text("Подробнее по моделям")
+                    .tfText(.row)
+                    .foregroundStyle(Color.tfText)
+            }
+            .accessibilityIdentifier("ai-usage.models-toggle")
+        }
+    }
+
+    // MARK: - Служебное
+
+    private var periodTitle: String {
+        switch window {
+        case "today": return "Сегодня"
+        case "month": return "30 дней"
+        default: return "7 дней"
+        }
+    }
+
+    private func shortDay(_ day: String) -> String { String(day.suffix(5)) }
+
+    private func tokens(of model: String, in usage: AIUsage) -> Int {
+        usage.dailyByModel.filter { $0.model == model }.reduce(0) { $0 + $1.totalTokens }
+    }
+
+    /// Оттенки красного по рангу модели: больше расход — насыщеннее.
+    private func shade(_ model: String) -> Color {
+        let opacities: [Double] = [1, 0.72, 0.52, 0.36, 0.24, 0.15]
+        let rank = usage?.shadeIndex(for: model) ?? opacities.count
+        return Color.tfRed.opacity(rank < opacities.count ? opacities[rank] : 0.1)
+    }
+
     @MainActor private func load() async {
         let selected = window
-        loading = true; error = nil; usage = nil
+        loading = true; error = nil; usage = nil; pickedLabel = nil
         do {
             let value: AIUsage = try await APIClient().request(.get, "/runtime/usage", query: [URLQueryItem(name: "window", value: selected)])
             guard !Task.isCancelled, selected == window else { return }
@@ -80,29 +247,5 @@ struct AIUsageScreen: View {
             self.error = error.localizedDescription
         }
         loading = false
-    }
-}
-
-struct AIUsageSummary: View {
-    let totals: AIUsageTotals
-    var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            metric("Оценка стоимости", totals.costLabel)
-                .accessibilityIdentifier("ai-usage.cost")
-            metric("Всего токенов", RoleTurnUsageRow.tokens(totals.totalTokens))
-            metric("Вход без кэша", RoleTurnUsageRow.tokens(totals.inputTokens))
-            metric("Чтение кэша", RoleTurnUsageRow.tokens(totals.cacheReadTokens))
-            metric("Выход", RoleTurnUsageRow.tokens(totals.outputTokens))
-            metric("Доля кэша во входе", totals.cacheHitRate.map { String(format: "%.1f%%", $0 * 100).replacingOccurrences(of: ".", with: ",") } ?? "Нет данных")
-            metric("Вызовов модели", String(totals.calls))
-        }
-        .accessibilityIdentifier("ai-usage.summary")
-    }
-    private func metric(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label).tfText(.action).foregroundStyle(Color.tfSub)
-            Spacer(minLength: TFSpacing.sm)
-            Text(value).tfText(.row).foregroundStyle(Color.tfText).monospacedDigit()
-        }
     }
 }
