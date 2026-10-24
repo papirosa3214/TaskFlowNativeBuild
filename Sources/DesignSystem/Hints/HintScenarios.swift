@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let taskNumberCopy = "task.number.copy"
     static let aiUsage = "ai.usage"
     static let roleLoadRows = "role-load.rows"
     static let roleBehavior = "role.behavior"
@@ -39,7 +40,12 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+
+    static let taskNumberCopy = HintScenario(
+        id: "task-number-copy", title: "Скопировать номер задачи", start: "copy",
+        steps: ["copy": HintStep(anchor: HintAnchorID.taskNumberCopy, title: "Отправьте номер задачи",
+            text: "Нажмите иконку рядом с номером: в буфер обмена скопируется только номер задачи. Его можно вставить в сообщение.")])
 
     static let roleLoadRows = HintScenario(
         id: "role-load-rows", title: "Свернуть ненужные роли", start: "collapse",

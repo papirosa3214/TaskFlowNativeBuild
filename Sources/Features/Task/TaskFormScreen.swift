@@ -716,6 +716,13 @@ struct TaskCardContent: View {
                         Text(createdText)
                             .tfText(.caption)
                             .foregroundStyle(Color.tfSub)
+                        if let number = TaskNumber.text(for: viewModel.loadedTask?.createdAtDate) {
+                            TFIconButton("doc.on.doc", label: "Скопировать номер задачи", size: TFIconSize.xs) {
+                                UIPasteboard.general.string = number
+                            }
+                            .accessibilityIdentifier("task.number.copy")
+                            .hintAnchor(HintAnchorID.taskNumberCopy)
+                        }
                     }
                     if let completedText {
                         Label(completedText, systemImage: "checkmark.circle.fill")
