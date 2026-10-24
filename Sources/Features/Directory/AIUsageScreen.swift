@@ -34,7 +34,7 @@ struct AIUsageScreen: View {
                         TFEmptyState(icon: "chart.bar", text: "За этот период нет сохранённого расхода ролей.")
                     } else {
                         modelsSection(usage)
-                    JevUsageSection()
+                    JevUsageSection(window: jevWindow)
                     }
                     Text("Учтены сохранённые ответы моделей ролям TaskFlow. Это не расход всего аккаунта провайдера. Стоимость — тарифная оценка SDK, а не списание с подписки; баланс и стоимость подписки здесь не учитываются.")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
@@ -123,6 +123,15 @@ struct AIUsageScreen: View {
         .chartXAxisLabel("Дни")
         .chartXSelection(value: $pickedLabel)
         .frame(height: 170)
+    }
+
+    /// Окно для расхода JEV: у него нет «сегодня», есть сутки.
+    private var jevWindow: String {
+        switch window {
+        case "today": return "24h"
+        case "month": return "month"
+        default: return "week"
+        }
     }
 
     /// Месяц не влезает в подписи по горизонтали — там даты идут вертикально.

@@ -7,24 +7,19 @@ import SwiftUI
 /// Джеффа». Вёрстка — как у остальной статистики: подпись слева, значение
 /// справа, того же ранга, моноширинными цифрами, блок между линиями.
 struct JevUsageSection: View {
-    @State private var window = "24h"
+    /// Период задаёт экран статистики: одна полоса периодов на весь экран,
+    /// а не две (владелец 24.10.2026). JEV понимает только сутки/неделю/месяц.
+    let window: String
     @State private var usage: JevUsage?
     @State private var error: String?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Расход Джеффа")
+            Text("Расход JEV")
                 .tfText(.row)
                 .foregroundStyle(Color.tfText)
                 .frame(maxWidth: .infinity, alignment: .center)
-            Picker("Период расхода Джеффа", selection: $window) {
-                Text("Сутки").tag("24h")
-                Text("Неделя").tag("week")
-                Text("Месяц").tag("month")
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("jev-usage.period")
 
             if let error {
                 Text(error).tfText(.caption).foregroundStyle(Color.tfSub)
