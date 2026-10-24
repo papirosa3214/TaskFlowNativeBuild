@@ -228,14 +228,6 @@ struct RootShellView: View {
             )
             .presentationBackground(.clear)
         }
-        // LOCK-253: развёрнутая форма должна открываться и вести себя ровно
-        // как обычная задача — та же системная шторка (detents/хендл/
-        // скругление/фон), что у `.sheet` в TodaySectionView.swift при открытии
-        // существующей карточки, а не `fullScreenCover`. Тот же
-        // `presentationBackground(Color.tfSheetBackground)` заодно чинит
-        // чёрный фон в скруглённых углах системной клавиатуры (iOS 26) —
-        // fullScreenCover такого фона не задавал вовсе, отсюда были видны
-        // чёрные уголки на новой карточке, которых нет на обычной.
         .alert("Зависшие шаги", isPresented: Binding(
             get: { resumeStuckMessage != nil },
             set: { if !$0 { resumeStuckMessage = nil } }
@@ -248,9 +240,7 @@ struct RootShellView: View {
             NavigationStack {
                 TaskFormScreen(expandingFrom: draft.viewModel)
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(Color.tfSheetBackground)
+            .taskCardSheetPresentation()
         }
         #if DEBUG
         // Отладочный автопереход: снять экран в симуляторе иначе нечем —

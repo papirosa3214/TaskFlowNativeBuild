@@ -1,5 +1,7 @@
 # Реестр ограничений работ
 
+| LOCK-TASK-SYSTEM-SHEET-20261024 | REVIEW | TASK-SYSTEM-SHEET | Системный фон шторки задачи без собственных заливок | AGENT-WORK-SCOPES.md, Sources/Features/Task/TaskCardSheet.swift, Sources/Features/Task/TaskFormScreen.swift, Sources/Features/Task/TaskFamilyNavigation.swift, Sources/App/Navigation/RootShellView.swift, docs/2026-10-24-task-system-sheet.md, docs/2026-10-24-task-system-sheet/ | Владелец: выяснить и применить фон Apple | Codex | Сторож, сборка и кадр; без UI-тестов |
+
 | LOCK-BLACK-BACKGROUND-20261024 | REVIEW | BLACK-BACKGROUND | Чистый чёрный основной фон тёмной темы | AGENT-WORK-SCOPES.md, Sources/DesignSystem/Theme/Color+Palette.swift, docs/2026-10-24-black-background.md | Прямое поручение владельца; визуал проверяет владелец | Codex | Проверка diff, сторож и сборка; без UI-тестов |
 
 | LOCK-UI-TEST-OPT-IN-20261024 | REVIEW | UI-TEST-OPT-IN | UI-тесты только после явного согласия владельца; по умолчанию кадр | AGENT-WORK-SCOPES.md, AGENTS.md, CLAUDE.md, AGENT-CYCLE.md, .agents/skills/ios-ui-triage/SKILL.md | Прямое указание Максима 24.10: агенты больше не запускают UI-тесты автоматически | Codex | Проверить отсутствие старых обязательных XCUITest-инструкций; без запуска тестов |

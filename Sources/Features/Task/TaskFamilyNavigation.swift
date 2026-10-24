@@ -47,7 +47,6 @@ struct TaskFormScreen: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.tfBackground.ignoresSafeArea()
                 TaskCardContent(model: model, expanding: expanding, family: family,
                     onFamilyLoaded: receiveFamily,
                     onFamilySelected: { finishSelection($0, width: geometry.size.width) },
@@ -88,7 +87,7 @@ struct TaskFormScreen: View {
                         .id(incoming.taskID)
                         .background {
                             UnevenRoundedRectangle(bottomTrailingRadius: 14, topTrailingRadius: 14)
-                                .fill(Color.tfBackground)
+                                .fill(.background)
                                 .ignoresSafeArea()
                         }
                         .overlay(alignment: .trailing) {
@@ -128,7 +127,7 @@ struct TaskFormScreen: View {
                         // шапки остаются верхним слоем и не двигаются.
                         .background {
                             UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14)
-                                .fill(Color.tfBackground)
+                                .fill(.background)
                                 .ignoresSafeArea()
                         }
                         // Вместо тени — тонкая красная кромка листа; контур
@@ -191,7 +190,6 @@ struct TaskFormScreen: View {
                 if !expanded && !settling && pull > 0 { resetPull() }
             })
         }
-        .background(Color.tfBackground.ignoresSafeArea())
         .onChange(of: pullingCardID) { _, new in
             guard new != nil else { return }
             tabOut = 0
@@ -392,7 +390,7 @@ struct TaskFormScreen: View {
                         // цветом листа; выделяют её только контур и тень.
                         TaskFamilyEdgeTabs.tabShape
                             .fill(TaskFamilyEdgeTabs.fillColor)
-                            .background(Color.tfBackground, in: TaskFamilyEdgeTabs.tabShape)
+                            .background(Color(uiColor: .systemBackground), in: TaskFamilyEdgeTabs.tabShape)
                             .overlay { TaskFamilyTabOutline(openEdge: .trailing, openInset: TaskFamilyEdgeTabs.seamOverlap).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                             .frame(width: TaskFamilyEdgeTabs.expandedWidth + TaskFamilyEdgeTabs.seamOverlap, height: slotHeight)
                             .overlay {
@@ -436,7 +434,7 @@ struct TaskFamilyEdgeTabs: View {
     static let cornerRadius: CGFloat = 10
     /// Ровно цвет листа (владелец 02.10.2026): выделяют закладку только
     /// контур и тень — одна и та же в покое и при тяге.
-    static let fillColor = Color.tfBackground
+    static let fillColor = Color(uiColor: .systemBackground)
     /// Захват — после этого пути пальца: дальше закладка уже не меняется
     /// при движении вдоль края.
     static let captureDistance: CGFloat = 18
@@ -516,7 +514,7 @@ struct TaskFamilyEdgeTabs: View {
                     // тень вполсилы, и спрятанные закладки её почти не отдавали.
                     Self.tabShape
                         .fill(Self.fillColor)
-                        .background(Color.tfBackground, in: Self.tabShape)
+                        .background(Color(uiColor: .systemBackground), in: Self.tabShape)
                         .overlay { TaskFamilyTabOutline(openEdge: .trailing).stroke(Self.outlineColor, lineWidth: Self.outlineWidth) }
                         .frame(width: hovered == member.id ? Self.expandedWidth : Self.restingWidth,
                             height: slotHeight)
@@ -677,7 +675,7 @@ struct TaskFamilyParentTab: View {
         } label: {
             Self.shape
                 .fill(TaskFamilyEdgeTabs.fillColor)
-                .background(Color.tfBackground, in: Self.shape)
+                .background(Color(uiColor: .systemBackground), in: Self.shape)
                 .overlay { TaskFamilyTabOutline(openEdge: .leading).stroke(TaskFamilyEdgeTabs.outlineColor, lineWidth: TaskFamilyEdgeTabs.outlineWidth) }
                 .frame(width: hovered ? TaskFamilyEdgeTabs.expandedWidth : TaskFamilyEdgeTabs.restingWidth,
                     height: slotHeight)

@@ -361,9 +361,7 @@ struct TaskCardContent: View {
                     NavigationStack {
                         TaskFormScreen(expandingFrom: expandedLinkedTaskViewModel)
                     }
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Color.tfSheetBackground)
+                    .taskCardSheetPresentation()
                 }
             }
             .onChange(of: linkedTaskNavigation) { previous, current in
@@ -372,17 +370,8 @@ struct TaskCardContent: View {
     }
 
     private var formPresentationBody: some View {
-        // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
-        // iOS 26): фон нужен ОДНИМ слоем на самом верху этого тела, через
-        // `ZStack` + `.ignoresSafeArea()` без ограничения edges — регион
-        // `.keyboard` входит в `.all` по умолчанию. Фон на внутреннем
-        // контейнере (было — `.background(...)` прямо на `VStack`) не
-        // достаёт до угла клавиатуры: тот стоит НАД ней, а не под. Уже
-        // применено так в `RoleChatRoomScreen`; здесь раньше фон был на
-        // внутреннем VStack — тот же класс бага, что владелец описывал как
-        // «чёрные уголки рядом с клавиатурой».
+        // Содержимое прозрачно: поверхность и область клавиатуры рисует системная шторка.
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
             VStack(spacing: 0) {
                 if viewModel.isLoadingTask {
                     TFLoading(.block)
@@ -770,7 +759,7 @@ struct TaskCardContent: View {
                 // Причина блокировки показывается по тапу на чип «заблокировано»
                 // в шапке (владелец 07.10.2026) — здесь она не нужна.
             }
-            .listRowBackground(Color.tfBackground)
+            .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
     }
@@ -1250,16 +1239,11 @@ struct TaskCardContent: View {
         #if DEBUG
         .accessibilityValue(inheritedRefreshAction == nil ? "refresh:none" : "refresh:inherited")
         #endif
-        // Карточка получалась полосатой: промежутки и заголовки секций шли на
-        // нашем фоне, а сами строки — на системном чёрном, и это било в глаза
-        // (владелец 09.09.2026: «текст задачи, текст описания — чёрный, он
-        // должен быть везде одинаковым»). Гасим и подложку списка, и подложку
-        // строк, оставляя один фон на весь экран.
-        .listRowBackground(Color.tfBackground)
+        // Прозрачные строки и промежутки показывают одну системную поверхность шторки.
+        .listRowBackground(Color.clear)
         .scrollContentBackground(.hidden)
         // Без полосы прокрутки справа (владелец 02.10.2026).
         .scrollIndicators(.hidden)
-        .background(Color.tfBackground)
         // Невидимый загрузчик плана, пока не известно, утверждён ли он.
         // Раньше он стоял строкой в списке: строка нулевого размера всё
         // равно получала системную высоту и системный фон — светлая полоса
@@ -1482,14 +1466,14 @@ struct TaskCardContent: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("AI структурирует задачу")
             }
-            .listRowBackground(Color.tfBackground)
+            .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
         case .completed:
             Section {
                 Label("Структура готова", systemImage: "checkmark.circle")
             }
-            .listRowBackground(Color.tfBackground)
+            .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
         case .failed(let message):
@@ -1497,7 +1481,7 @@ struct TaskCardContent: View {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
             }
-            .listRowBackground(Color.tfBackground)
+            .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
         }
@@ -1758,7 +1742,7 @@ struct TaskCardContent: View {
         } header: {
             collapsibleHeader(section, title)
         }
-        .listRowBackground(Color.tfBackground)
+        .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listSectionSeparator(.hidden)
     }

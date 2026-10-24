@@ -37,7 +37,6 @@ extension View {
             // закрытия), прокрутка содержимого — потом.
             .presentationContentInteraction(.resizes)
             .presentationDragIndicator(.visible)
-            .presentationBackground(Color.tfSheetBackground)
     }
 }
 
