@@ -46,7 +46,33 @@ enum ChatRichContent {
     static let widgetLanguages: Set<String> = ["widget", "tf-widget"]
     static let structuredJSONLanguages: Set<String> = ["tf-json"]
 
+    /// Кэш разложения ответа на куски.
+    ///
+    /// Во время проявления состояние публикуется каждые 16 мс (60 Гц), а сам
+    /// текст ответа меняется раз в ~150 мс: без кэша один и тот же текст
+    /// раскладывался заново на каждом кадре — копия строки плюс разбор по
+    /// строкам. Живой текст лежит в одном слоте (нужен только последний
+    /// разбор), готовые ответы — в общем кэше: их много, и они не меняются.
+    private static let streamingSegments = LastValueCache<[ChatRichSegment]>()
+    private static let finishedSegments = ParsedValueCache<[ChatRichSegment]>(limit: 16)
+
+    /// Разложение ответа на куски: тот же текст — тот же результат.
     static func split(_ text: String, isStreaming: Bool = true) -> [ChatRichSegment] {
+        if isStreaming {
+            if let cached = streamingSegments.value(for: text) { return cached }
+            let segments = splitUncached(text, isStreaming: true)
+            streamingSegments.set(segments, for: text)
+            return segments
+        }
+        if let cached = finishedSegments.value(for: text) { return cached }
+        let segments = splitUncached(text, isStreaming: false)
+        finishedSegments.set(segments, for: text)
+        return segments
+    }
+
+    /// Разложение без кэша — точка сверки для теста: результат кэша обязан
+    /// совпадать с результатом свежего разложения.
+    static func splitUncached(_ text: String, isStreaming: Bool = true) -> [ChatRichSegment] {
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
         var segments: [ChatRichSegment] = []
         var buffer: [String] = []

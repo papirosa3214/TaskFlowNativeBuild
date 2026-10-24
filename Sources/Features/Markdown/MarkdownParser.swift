@@ -48,6 +48,95 @@ enum MarkdownParser {
         return MarkdownParseCache.shared.blocks(for: source) { parseUncached(source) }
     }
 
+    /// Кэш последнего разбора живого ответа и его устойчивой части.
+    ///
+    /// Один слот на каждый: растущий текст приходит кадрами подряд, и нужен
+    /// только последний разбор — предыдущие версии уже не придут. Сравнение
+    /// строк дешевле хеширования (замер 24.10.2026: хеш 1.8 КБ — 8.2 мкс,
+    /// сравнение того же экземпляра — 0 мкс).
+    private static let liveBlocks = LastValueCache<[NoteBlock]>()
+    private static let liveStableBlocks = LastValueCache<[NoteBlock]>()
+
+    /// Разбор с переиспользованием устойчивой части.
+    ///
+    /// Во время проявления ответа текст растёт на каждом кадре, и каждый кадр
+    /// раньше разбирал его целиком: замер 24.10.2026 — 110 мкс на ответ в 388
+    /// символов, то есть 6.6 мс в секунду только на разбор, и тем больше на
+    /// длинном ответе.
+    ///
+    /// Здесь разбирается только последний блок, а всё, что до него, берётся
+    /// из кэша: устойчивая часть не меняется от кадра к кадру, поэтому разбор
+    /// её — попадание в кэш (3.7 мкс). Результат совпадает с полным разбором
+    /// (см. `MarkdownParseIncrementalTests`).
+    ///
+    /// Сам растущий текст тоже кэшируется: состояние проявления публикуется
+    /// каждые 16 мс (60 Гц), поэтому один и тот же текст приходит десятками
+    /// кадров подряд, и без кэша он разбирался бы заново 60 раз в секунду.
+    /// Общий кэш (`MarkdownParseCache.shared`) растущий текст не трогает: его
+    /// версии вытесняли бы разборы истории чата.
+    static func parseIncremental(_ source: String) -> [NoteBlock] {
+        if let cached = liveBlocks.value(for: source) { return cached }
+        let blocks = parseIncrementalUncached(source)
+        liveBlocks.set(blocks, for: source)
+        return blocks
+    }
+
+    /// Разбор без обращения к кэшу живого текста — точка сверки для теста.
+    static func parseIncrementalUncached(_ source: String) -> [NoteBlock] {
+        guard let tailRange = lastTailRange(source) else {
+            // Пустой строки нет — весь текст и есть последний блок.
+            return parseUncached(source)
+        }
+        let stable = String(source[..<tailRange.lowerBound])
+        let tail = String(source[tailRange])
+        // Код-блок может пережить пустую строку внутри себя: тогда ограждение
+        // осталось открытым и делить текст нельзя — разбираем целиком.
+        guard !hasOpenFence(stable) else { return parseUncached(source) }
+
+        var blocks: [NoteBlock] = []
+        if !stable.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let cached = liveStableBlocks.value(for: stable) {
+                blocks.append(contentsOf: cached)
+            } else {
+                let parsed = parseUncached(stable)
+                liveStableBlocks.set(parsed, for: stable)
+                blocks.append(contentsOf: parsed)
+            }
+        }
+        if !tail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            blocks.append(contentsOf: parseUncached(tail))
+        }
+        return blocks.isEmpty ? [NoteBlock(kind: .paragraph)] : blocks
+    }
+
+    /// Хвост после последней пустой строки: пустая строка отделяет блоки, и
+    /// всё, что после неё, — последний (растущий) блок.
+    private static func lastTailRange(_ source: String) -> Range<String.Index>? {
+        var tailStart: String.Index?
+        var lineStart = source.startIndex
+        while lineStart < source.endIndex {
+            let newline = source[lineStart...].firstIndex(of: "\n")
+            let lineEnd = newline ?? source.endIndex
+            let line = source[lineStart..<lineEnd]
+            if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                tailStart = newline.map { source.index(after: $0) } ?? source.endIndex
+            }
+            guard let newline else { break }
+            lineStart = source.index(after: newline)
+        }
+        guard let tailStart else { return nil }
+        return tailStart..<source.endIndex
+    }
+
+    /// Открытое ограждение в тексте: строки ``` должны идти парами.
+    private static func hasOpenFence(_ text: String) -> Bool {
+        var fences = 0
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") { fences += 1 }
+        }
+        return fences % 2 == 1
+    }
+
     /// Разбор без кэша — точка сверки для теста: результат кэша обязан
     /// совпадать с результатом свежего разбора.
     static func parseUncached(_ source: String) -> [NoteBlock] {

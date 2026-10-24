@@ -595,7 +595,19 @@ struct RoleThinkingWindow: View {
         }
     }
 
+    /// Кэш разметки мыслей: окно пересобирается на каждом кадре проявления
+    /// (публикация состояния — каждые 16 мс), а текст мыслей меняется раз в
+    /// ~150 мс. Без кэша тот же текст пересобирался заново 60 раз в секунду.
+    private static let highlightedCache = LastValueCache<AttributedString>()
+
     static func highlighted(_ text: String) -> AttributedString {
+        if let cached = highlightedCache.value(for: text) { return cached }
+        let result = buildHighlighted(text)
+        highlightedCache.set(result, for: text)
+        return result
+    }
+
+    private static func buildHighlighted(_ text: String) -> AttributedString {
         var result = AttributedString()
         for (index, line) in text.components(separatedBy: "\n").enumerated() {
             if index > 0 { result += AttributedString("\n") }
