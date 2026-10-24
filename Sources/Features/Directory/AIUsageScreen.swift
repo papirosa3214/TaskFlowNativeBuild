@@ -12,7 +12,7 @@ struct AIUsageScreen: View {
 
     private var selectedDay: String? {
         guard let pickedLabel, let usage else { return nil }
-        return usage.daily.first { shortDay($0.day) == pickedLabel }?.day
+        return usage.daily.first { dayLabel($0.day) == pickedLabel }?.day
     }
 
     var body: some View {
@@ -73,10 +73,12 @@ struct AIUsageScreen: View {
                 legend(usage)
             } else {
                 Chart(usage.daily) { day in
-                    BarMark(x: .value("День", shortDay(day.day)),
-                            y: .value("Токены", day.totalTokens))
+                    BarMark(x: .value("День", dayLabel(day.day)),
+                            y: .value("Токены", tokensInAxisUnit(day.totalTokens, for: usage)))
                     .foregroundStyle(Color.tfRed)
                 }
+                .chartYAxisLabel(axisUnitName(for: usage), position: .leading)
+                .chartXAxisLabel("Дни")
                 .frame(height: 170)
             }
         }
@@ -85,26 +87,55 @@ struct AIUsageScreen: View {
 
     private func stackedChart(_ usage: AIUsage) -> some View {
         Chart(usage.chartSegments) { row in
-            BarMark(x: .value("День", shortDay(row.day)),
-                    y: .value("Токены", row.totalTokens))
+            BarMark(x: .value("День", dayLabel(row.day)),
+                    y: .value("Токены", tokensInAxisUnit(row.totalTokens, for: usage)))
             .foregroundStyle(by: .value("Модель", row.model))
             .opacity(selectedDay == nil || selectedDay == row.day ? 1 : 0.35)
         }
         .chartForegroundStyleScale(domain: usage.modelOrder,
                                    range: usage.modelOrder.map(shade))
         .chartLegend(.hidden)
-        .chartXSelection(value: $pickedLabel)
         .chartYAxis {
-            AxisMarks { value in
+            AxisMarks(position: .trailing) { value in
                 AxisGridLine()
                 AxisValueLabel {
-                    if let tokens = value.as(Int.self) {
-                        Text(RoleTurnUsageRow.tokens(tokens)).tfText(.caption)
+                    if let tick = value.as(Double.self) {
+                        Text(axisTick(tick)).tfText(.caption)
                     }
                 }
             }
         }
+        .chartYAxisLabel(axisUnitName(for: usage), position: .leading)
+        .chartXAxisLabel("Дни")
+        .chartXSelection(value: $pickedLabel)
         .frame(height: 170)
+    }
+
+    /// Деление оси — просто число: «1» вместо «1,0».
+    private func axisTick(_ value: Double) -> String {
+        let text = String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
+        return text.hasSuffix(",0") ? String(text.dropLast(2)) : text
+    }
+
+    /// Единица оси считается один раз на период: «млн» или «млрд». По делениям
+    /// идут простые числа, а не «500,0 млн» у каждой отметки.
+    private func axisUnit(for usage: AIUsage) -> Double {
+        let peak = usage.daily.map(\.totalTokens).max() ?? 0
+        if peak >= 1_000_000_000 { return 1_000_000_000 }
+        if peak >= 1_000_000 { return 1_000_000 }
+        return 1_000
+    }
+
+    private func axisUnitName(for usage: AIUsage) -> String {
+        switch axisUnit(for: usage) {
+        case 1_000_000_000: return "Токены, млрд"
+        case 1_000_000: return "Токены, млн"
+        default: return "Токены, тыс"
+        }
+    }
+
+    private func tokensInAxisUnit(_ value: Int, for usage: AIUsage) -> Double {
+        Double(value) / axisUnit(for: usage)
     }
 
     private func legend(_ usage: AIUsage) -> some View {
@@ -119,7 +150,7 @@ struct AIUsageScreen: View {
                         .foregroundStyle(Color.tfSub)
                         .lineLimit(1)
                     Spacer(minLength: TFSpacing.sm)
-                    Text(RoleTurnUsageRow.tokens(tokens(of: model, in: usage)))
+                    Text(AIUsageFormat.tokens(tokens(of: model, in: usage)))
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
                         .monospacedDigit()
@@ -141,7 +172,7 @@ struct AIUsageScreen: View {
         let totals = usage.totals(for: selectedDay)
         return VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFDivider()
-            Text(selectedDay == nil ? periodTitle : "День \(shortDay(selectedDay ?? ""))")
+            Text(selectedDay == nil ? periodTitle : "День \(dayLabel(selectedDay ?? ""))")
                 .tfText(.row)
                 .foregroundStyle(Color.tfText)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -154,10 +185,10 @@ struct AIUsageScreen: View {
             }
             metric("Оценка стоимости", totals.costLabel)
                 .accessibilityIdentifier("ai-usage.cost")
-            metric("Всего токенов", RoleTurnUsageRow.tokens(totals.totalTokens))
-            metric("Вход без кэша", RoleTurnUsageRow.tokens(totals.inputTokens))
-            metric("Чтение кэша", RoleTurnUsageRow.tokens(totals.cacheReadTokens))
-            metric("Выход", RoleTurnUsageRow.tokens(totals.outputTokens))
+            metric("Всего токенов", AIUsageFormat.tokens(totals.totalTokens))
+            metric("Вход без кэша", AIUsageFormat.tokens(totals.inputTokens))
+            metric("Чтение кэша", AIUsageFormat.tokens(totals.cacheReadTokens))
+            metric("Выход", AIUsageFormat.tokens(totals.outputTokens))
             metric("Доля кэша во входе", totals.cacheHitRate.map { String(format: "%.1f%%", $0 * 100).replacingOccurrences(of: ".", with: ",") } ?? "Нет данных")
             metric("Вызовов модели", String(totals.calls))
             TFDivider()
@@ -192,7 +223,7 @@ struct AIUsageScreen: View {
                     ForEach(models) { model in
                         VStack(alignment: .leading, spacing: TFSpacing.xs) {
                             Text(model.model).tfText(.row).foregroundStyle(Color.tfText)
-                            Text("\(model.provider) · \(RoleTurnUsageRow.tokens(model.totalTokens)) токенов · \(model.calls) вызовов")
+                            Text("\(model.provider) · \(AIUsageFormat.tokens(model.totalTokens)) токенов · \(model.calls) вызовов")
                                 .tfText(.caption).foregroundStyle(Color.tfSub)
                             if let cost = model.estimatedCostUsd {
                                 Text((model.unpricedCalls > 0 ? "Частично: " : "") + RoleTurnUsageRow.cost(cost))
@@ -222,7 +253,12 @@ struct AIUsageScreen: View {
         }
     }
 
-    private func shortDay(_ day: String) -> String { String(day.suffix(5)) }
+    /// День на оси — «17.10»: сначала число, потом месяц, как пишут даты.
+    private func dayLabel(_ day: String) -> String {
+        let parts = day.split(separator: "-")
+        guard parts.count == 3 else { return day }
+        return "\(parts[2]).\(parts[1])"
+    }
 
     private func tokens(of model: String, in usage: AIUsage) -> Int {
         usage.dailyByModel.filter { $0.model == model }.reduce(0) { $0 + $1.totalTokens }

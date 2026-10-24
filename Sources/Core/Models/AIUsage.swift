@@ -124,6 +124,29 @@ struct AIUsageDay: Decodable, Identifiable, Sendable {
     }
 }
 
+/// Короткая запись количества токенов для экрана статистики: миллиарды и
+/// миллионы не должны растягиваться в «4720,7 млн» (просьба владельца
+/// 24.10.2026 — «чтобы числа были коротенькими»).
+enum AIUsageFormat {
+    static func tokens(_ value: Int) -> String {
+        func number(_ raw: Double, decimals: Int) -> String {
+            let text = String(format: "%.\(decimals)f", raw).replacingOccurrences(of: ".", with: ",")
+            // «500,0 млн» читается хуже, чем «500 млн»: хвост из нулей не нужен.
+            return text.hasSuffix(",0") ? String(text.dropLast(2)) : text
+        }
+        switch value {
+        case 1_000_000_000...:
+            return number(Double(value) / 1_000_000_000, decimals: 1) + " млрд"
+        case 1_000_000...:
+            return number(Double(value) / 1_000_000, decimals: 1) + " млн"
+        case 10_000...:
+            return number(Double(value) / 1_000, decimals: 0) + " тыс"
+        default:
+            return String(value)
+        }
+    }
+}
+
 /// Одна строка разреза «день × модель».
 struct AIUsageDayModel: Decodable, Identifiable, Sendable {
     var id: String { day + ":" + provider + ":" + model }

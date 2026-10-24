@@ -93,4 +93,22 @@ final class AIUsageTests: XCTestCase {
         XCTAssertTrue(decoded.hasModelBreakdown)
         XCTAssertEqual(decoded.models(for: "2026-10-23").first?.totalTokens, 2)
     }
+    // MARK: - Короткая запись токенов
+
+    func testTokensAreShortForLargeAmounts() {
+        XCTAssertEqual(AIUsageFormat.tokens(4_720_700_000), "4,7 млрд")
+        XCTAssertEqual(AIUsageFormat.tokens(85_100), "85 тыс")
+        XCTAssertEqual(AIUsageFormat.tokens(999), "999")
+    }
+
+    func testTokensKeepOneDecimalBelowTen() {
+        XCTAssertEqual(AIUsageFormat.tokens(2_440_000), "2,4 млн")
+        XCTAssertEqual(AIUsageFormat.tokens(1_200_000_000), "1,2 млрд")
+    }
+
+    func testWholeAmountsDropTrailingZero() {
+        XCTAssertEqual(AIUsageFormat.tokens(500_000_000), "500 млн")
+        XCTAssertEqual(AIUsageFormat.tokens(171_000_000), "171 млн")
+        XCTAssertEqual(AIUsageFormat.tokens(9_000_000_000), "9 млрд")
+    }
 }
