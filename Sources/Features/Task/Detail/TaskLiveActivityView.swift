@@ -10,6 +10,9 @@ struct TaskLiveActivityView: View {
     @State private var activity = ApiTaskActivity.idle
     @State private var errorText: String?
     @State private var loaded = false
+    /// Список действий протухает от событий активности и обновляется циклом
+    /// ниже — не чаще раза в две секунды.
+    @State private var refreshState = LiveActivityRefreshState()
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
@@ -57,6 +60,11 @@ struct TaskLiveActivityView: View {
                    turn.taskID == taskID, turn.subtaskID == subtaskID {
                     live = turn
                 }
+                // Событие активности само ничего не перерисовывает: список
+                // действий забирает цикл ниже, не чаще раза в две секунды.
+                if case .taskActivity(let id, _) = event, id == taskID {
+                    refreshState.markDirty()
+                }
             }
             realtime.connect()
         }
@@ -72,15 +80,26 @@ struct TaskLiveActivityView: View {
             guard scenePhase == .active else { return }
             await restoreSnapshot()
         }
-        // Список действий обновляем по событиям активности, но не чаще
-        // раза в пару секунд: события приходят пачками.
-        .task(id: "\(taskID):\(subtaskID ?? ""):\(scenePhase):\(realtime.activityRevisions[taskID] ?? 0)") {
+        // Список действий: событие только помечает его протухшим, забирает
+        // отдельный цикл — не чаще раза в две секунды. Раньше задача была
+        // привязана к ревизии событий, и на каждый пакет событий уходил запрос
+        // и перерисовка окна (владелец 25.10.2026).
+        .task(id: "\(taskID):\(subtaskID ?? ""):\(scenePhase):activity") {
             guard scenePhase == .active else { return }
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
-            await refreshActivity()
+            await refreshActivityLoop()
         }
         .onDisappear { realtime.disconnect(); realtime.onEvent = nil }
+    }
+
+    /// Цикл обновления списка действий: ждёт интервал, забирает протухшее
+    /// состояние и обновляет список. Пока событий нет — запросов нет.
+    private func refreshActivityLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: LiveActivityRefreshState.minimumInterval)
+            guard !Task.isCancelled else { return }
+            guard refreshState.takeDirty() else { continue }
+            await refreshActivity()
+        }
     }
 
     private func restoreSnapshot() async {

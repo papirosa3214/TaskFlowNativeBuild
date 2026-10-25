@@ -13,6 +13,11 @@ struct AgentTraceView: View {
     @State private var loaded = false
     @State private var failed = false
     @State private var scrollRequest = 0
+    /// Лента действий протухает от событий активности и обновляется циклом
+    /// ниже — не чаще раза в две секунды.
+    @State private var refreshState = LiveActivityRefreshState()
+    /// Живой ход по сокету уже пришёл — тогда ленту действий REST не догоняет.
+    @State private var hasLiveTurn = false
     private var scope: String { taskID + ":" + (subtaskID ?? "none") }
     private var selected: AgentTraceRun? { runs.first { $0.id == selectedID } ?? runs.last }
 
@@ -121,10 +126,17 @@ struct AgentTraceView: View {
             guard subtaskID != nil else { loaded = true; return }
             realtime.onEvent = { event in
                 if case .taskLive(let live) = event { receive(live) }
+                // Событие активности само ничего не перерисовывает: ленту
+                // забирает цикл ниже, не чаще раза в две секунды.
+                if case .taskActivity(let id, _) = event, id == taskID { refreshState.markDirty() }
             }
             realtime.connect()
         }
-        .task(id: "\(scope):\(scenePhase):\(realtime.revision(for: taskID)):\(realtime.activityRevisions[taskID] ?? 0)") {
+        // Снимок живого хода — при открытии, смене шага или сцены. Раньше id
+        // включал ревизии живых событий, и задача перезапускалась на КАЖДОЕ
+        // событие: при идущем ходе это раз в секунду — запрос и перерисовка
+        // ленты (владелец 25.10.2026).
+        .task(id: "\(scope):\(scenePhase)") {
             #if DEBUG
             if ProcessInfo.processInfo.environment["TASKFLOW_AGENT_TRACE_PREVIEW"] == "1" { return }
             #endif
@@ -133,15 +145,13 @@ struct AgentTraceView: View {
                 let live = (try? await APIClient().taskLiveTurns(taskID: taskID)) ?? []
                 for turn in live { receive(turn) }
                 failed = false
-                if live.allSatisfy({ $0.subtaskID != subtaskID }), let subtaskID {
-                    let activity = try await APIClient().taskActivity(taskId: taskID).forSubtask(subtaskID)
-                    if let start = activity.actions.map(\.date).min() {
-                        let events = activity.actions.map { AgentTraceSpan(id: $0.id, label: $0.text ?? "Действие", start: $0.date, end: $0.date, status: "done", isEvent: true) }
-                        update(AgentTraceRun(id: "events-" + subtaskID, start: start, observedAt: activity.actions.map(\.date).max() ?? start, complete: false, spans: events))
-                    }
-                }
             } catch { if !Task.isCancelled { failed = true } }
             loaded = true
+        }
+        // Лента действий — по событиям активности, но не чаще раза в две секунды.
+        .task(id: "\(scope):\(scenePhase):activity") {
+            guard scenePhase == .active, subtaskID != nil else { return }
+            await refreshActivityLoop()
         }
         .onChange(of: scenePhase) { _, phase in if phase != .active { persist(); realtime.disconnect() } else if subtaskID != nil { realtime.connect() } }
         .onDisappear { persist(); realtime.disconnect(); realtime.onEvent = nil }
@@ -178,8 +188,33 @@ struct AgentTraceView: View {
         .accessibilityHidden(true)
     }
 
+    /// Цикл обновления ленты действий: ждёт интервал, забирает протухшее
+    /// состояние и обновляет список. Пока событий нет — запросов нет.
+    private func refreshActivityLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: LiveActivityRefreshState.minimumInterval)
+            guard !Task.isCancelled, let subtaskID else { return }
+            guard refreshState.takeDirty() else { continue }
+            // Живой ход по сокету уже есть — тогда ленту действий REST не догоняет.
+            guard !hasLiveTurn else { continue }
+            await reloadActivityEvents(subtaskID: subtaskID)
+        }
+    }
+
+    /// Лента действий без живого хода: события как отдельные отрезки.
+    private func reloadActivityEvents(subtaskID: String) async {
+        do {
+            let activity = try await APIClient().taskActivity(taskId: taskID).forSubtask(subtaskID)
+            if let start = activity.actions.map(\.date).min() {
+                let events = activity.actions.map { AgentTraceSpan(id: $0.id, label: $0.text ?? "Действие", start: $0.date, end: $0.date, status: "done", isEvent: true) }
+                update(AgentTraceRun(id: "events-" + subtaskID, start: start, observedAt: activity.actions.map(\.date).max() ?? start, complete: false, spans: events))
+            }
+        } catch { if !Task.isCancelled { failed = true } }
+    }
+
     private func receive(_ live: TaskLiveTurn) {
         guard live.taskID == taskID, live.subtaskID == subtaskID, let run = AgentTraceRun.from(live) else { return }
+        hasLiveTurn = true
         update(run)
         if live.complete { persist() }
     }
