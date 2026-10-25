@@ -84,12 +84,7 @@ final class RoleChatVoiceTests: XCTestCase {
         XCTAssertFalse(VoiceBarsMotion.shouldPauseTimeline(reduceMotion: false, isSmooth: false))
     }
 
-    func testComposerDismissesKeyboardForClearDownwardSwipe() {
-        XCTAssertTrue(ChatComposerKeyboardDismissGesture.shouldDismiss(translation: CGSize(width: 5, height: 48)))
-        XCTAssertFalse(ChatComposerKeyboardDismissGesture.shouldDismiss(translation: CGSize(width: 8, height: -48)))
-        XCTAssertFalse(ChatComposerKeyboardDismissGesture.shouldDismiss(translation: CGSize(width: 48, height: 12)))
-        XCTAssertFalse(ChatComposerKeyboardDismissGesture.shouldDismiss(translation: CGSize(width: 2, height: 20)))
-    }
+
 
     func testSmoothVoiceWaveChangesMoreGentlyWithoutChangingDefaultMotion() {
         let from = 0.3

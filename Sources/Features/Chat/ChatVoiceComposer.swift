@@ -11,12 +11,6 @@ enum ChatDictationDraft {
     }
 }
 
-enum ChatComposerKeyboardDismissGesture {
-    static func shouldDismiss(translation: CGSize) -> Bool {
-        translation.height >= 38 && translation.height > abs(translation.width) * 1.2
-    }
-}
-
 /// Три пункта меню «+» (владелец 26.09.2026): фото из галереи, файл,
 /// снимок камерой прямо на месте. «Из базы знаний» и отдельная пилюля для
 /// квик-реплаев в том же разговоре обсуждались и отклонены владельцем.
@@ -55,6 +49,7 @@ struct ChatVoiceComposer: View {
     var isResponding = false
     var isStopping = false
     var onStop: (() -> Void)? = nil
+    var focus: FocusState<Bool>.Binding? = nil
 
     @AppStorage("chat.experimentalPromptBox") private var experimentalPromptBox = true
     @State private var player = VoicePlayer()
@@ -63,6 +58,7 @@ struct ChatVoiceComposer: View {
     @State private var sendAfterTranscription = false
     @State private var isSendingVoice = false
     @FocusState private var isTextFieldFocused: Bool
+    private var textFieldFocus: FocusState<Bool>.Binding { focus ?? $isTextFieldFocused }
     @Namespace private var composerNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -113,13 +109,6 @@ struct ChatVoiceComposer: View {
             }
         }
         .contentShape(Rectangle())
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 16)
-                .onEnded { value in
-                    guard ChatComposerKeyboardDismissGesture.shouldDismiss(translation: value.translation) else { return }
-                    isTextFieldFocused = false
-                }
-        )
         .onAppear {
             #if DEBUG
             if ProcessInfo.processInfo.environment["TASKFLOW_PROMPT_BOX_PREVIEW"] == "1" {
@@ -179,7 +168,7 @@ struct ChatVoiceComposer: View {
                     .frame(maxWidth: .infinity, minHeight: composerHeight, alignment: .leading)
                     .contentShape(Rectangle())
                     .textInputAutocapitalization(.sentences)
-                    .focused($isTextFieldFocused)
+                    .focused(textFieldFocus)
                     .onSubmit(onSendText)
                     .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.primary)
                     .accessibilityIdentifier("chat.message")
@@ -254,7 +243,7 @@ struct ChatVoiceComposer: View {
             TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
                 .lineLimit(2...5)
                 .textInputAutocapitalization(.sentences)
-                .focused($isTextFieldFocused)
+                .focused(textFieldFocus)
                 .onSubmit { if !isRecording && preview == nil { onSendText() } }
                 .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.white)
                 .accessibilityIdentifier("chat.message")
@@ -392,7 +381,7 @@ struct ChatVoiceComposer: View {
     private func insertMention(_ member: RoleChatMember) {
         let needsSpace = !text.isEmpty && !text.hasSuffix(" ")
         text += (needsSpace ? " " : "") + "@\(member.name) "
-        isTextFieldFocused = true
+        textFieldFocus.wrappedValue = true
     }
 
     private var promptRecordingComposer: some View {
@@ -615,7 +604,7 @@ struct ChatVoiceComposer: View {
             isRecording = true
         }
         // После смены ветки повторно удерживаем фокус того же поля.
-        DispatchQueue.main.async { isTextFieldFocused = true }
+        DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #if DEBUG
         if ProcessInfo.processInfo.environment["TASKFLOW_DICTATION_PREVIEW"] == "1" { return }
@@ -644,7 +633,7 @@ struct ChatVoiceComposer: View {
         }
         #endif
         guard voice.phase == .recording else { return }
-        isTextFieldFocused = true
+        textFieldFocus.wrappedValue = true
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
             isRecording = false
             preview = voice.finish()
@@ -681,7 +670,7 @@ struct ChatVoiceComposer: View {
         }
         onDiscardVoice(message)
         try? VoiceRecorder.cancelRecordingFile(at: message.audioURL)
-        isTextFieldFocused = true
+        textFieldFocus.wrappedValue = true
     }
 
     private func discardPreview() {

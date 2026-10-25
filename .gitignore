@@ -55,3 +55,5 @@ build_preparation_device/
 *-frames/
 simulator-frames/
 device-frames/
+
+.claude/settings.local.json

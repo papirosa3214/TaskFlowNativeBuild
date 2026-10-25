@@ -31,6 +31,66 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertFalse(pacer.visibleItems.isEmpty)
     }
 
+    /// Сервер вправе убрать из снимка законченное пустое размышление
+    /// (`chatLiveTurn.ts`, `snapshot()`), и индексы пунктов сдвигаются.
+    /// Проявленные шаги при этом теряться не должны: иначе видимый список
+    /// обрезается, живой пузырь схлопывается на полосу, а лента, привязанная
+    /// к низу, прыгает вниз и тут же обратно (владелец 25.10.2026).
+    func testRevealedActionsSurviveRemovalFromSnapshot() {
+        var pacer = RoleLiveTextPacer()
+        let thinking = RoleChatLiveItem.thinking(RoleChatThinking(id: "thinking-0", text: "мысль", isRunning: false))
+        let step = RoleChatLiveItem.step(RoleChatLiveStep(id: "step-0", tool: "read", detail: nil, status: .done))
+        let emptyThinking = RoleChatLiveItem.thinking(RoleChatThinking(id: "thinking-1", text: "", isRunning: false))
+        let lastStep = RoleChatLiveItem.step(RoleChatLiveStep(id: "step-1", tool: "bash", detail: nil, status: .done))
+        pacer.ingest([thinking, step, emptyThinking, lastStep])
+        for _ in 0..<40 { pacer.advance(elapsed: 0.1) }
+        XCTAssertEqual(pacer.visibleItems.count, 4, "все действия должны проявиться")
+
+        // Снимок без законченного пустого размышления: индексы сдвинулись.
+        pacer.ingest([thinking, step, lastStep])
+        XCTAssertEqual(pacer.visibleItems.count, 3, "проявленный хвост не должен обрезаться")
+        XCTAssertEqual(pacer.visibleItems.last?.id, "step-1")
+    }
+
+    /// Текст узнаём по порядку среди текстовых пунктов: сервер убрал пункт
+    /// перед текстом — текст не должен проявляться заново с нуля.
+    func testRevealedTextSurvivesRemovalOfEarlierItem() {
+        var pacer = RoleLiveTextPacer()
+        let step = RoleChatLiveItem.step(RoleChatLiveStep(id: "step-0", tool: "read", detail: nil, status: .done))
+        pacer.ingest([step, .text("Проверил первую часть")])
+        for _ in 0..<60 { pacer.advance(elapsed: 0.05) }
+        let revealed = pacer.visibleItems.compactMap { item -> String? in
+            if case .text(let text) = item { return text }; return nil
+        }.first
+        XCTAssertNotNil(revealed)
+        XCTAssertFalse(revealed?.isEmpty ?? true)
+
+        pacer.ingest([.text("Проверил первую часть")])
+        let after = pacer.visibleItems.compactMap { item -> String? in
+            if case .text(let text) = item { return text }; return nil
+        }.first
+        XCTAssertEqual(after, revealed, "проявленный текст не должен начинаться заново")
+    }
+
+    /// Пока ход идёт, одиночное действие — полосой: иначе полоса то
+    /// появляется, то исчезает, и высота живого пузыря меняется (владелец
+    /// 25.10.2026).
+    func testLiveSegmentGroupsSingleActionForLiveTurn() {
+        let items: [RoleChatLiveItem] = [
+            .thinking(RoleChatThinking(id: "thinking-0", text: "", isRunning: true)),
+            .text("Ответ")
+        ]
+        let обычные = RoleLiveSegment.split(items, grouping: true)
+        XCTAssertEqual(обычные.count, 2)
+        if case .actions = обычные[0] { XCTFail("в истории одиночное действие остаётся строкой") }
+
+        let сПолосой = RoleLiveSegment.split(items, grouping: true, groupsSingleAction: true)
+        XCTAssertEqual(сПолосой.count, 2)
+        if case .actions(let group) = сПолосой[0] { XCTAssertEqual(group.count, 1) }
+        else { XCTFail("одиночное действие должно стать полосой") }
+        if case .single = сПолосой[1] {} else { XCTFail("текст остаётся строкой") }
+    }
+
     func testFinalAnswerDrainsSmoothlyWithinCompletionWindow() {
         var pacer = RoleLiveTextPacer()
         let text = String(repeating: "готовый ответ ", count: 1000)

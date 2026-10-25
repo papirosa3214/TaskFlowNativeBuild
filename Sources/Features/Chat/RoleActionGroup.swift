@@ -7,12 +7,22 @@ enum RoleLiveSegment {
     case actions([RoleChatLiveItem])
 
     /// Группа — от двух действий подряд; одиночное действие остаётся строкой.
-    static func split(_ items: [RoleChatLiveItem], grouping: Bool) -> [RoleLiveSegment] {
+    ///
+    /// `groupsSingleAction` — одиночное действие тоже полосой. Пока ход идёт,
+    /// высота живого пузыря должна быть постоянной: полоса то появляется, то
+    /// исчезает, а лента привязана к низу — и от этого она прыгает вверх-вниз
+    /// (владелец 25.10.2026).
+    static func split(_ items: [RoleChatLiveItem], grouping: Bool,
+                      groupsSingleAction: Bool = false) -> [RoleLiveSegment] {
         guard grouping else { return items.map { .single($0) } }
         var result: [RoleLiveSegment] = []
         var run: [RoleChatLiveItem] = []
         func flush() {
-            if run.count >= 2 { result.append(.actions(run)) } else { result += run.map { .single($0) } }
+            if run.count >= 2 || (groupsSingleAction && run.count == 1) {
+                result.append(.actions(run))
+            } else {
+                result += run.map { .single($0) }
+            }
             run = []
         }
         for item in items {
@@ -30,6 +40,11 @@ enum RoleLiveSegment {
 struct RoleActionGroup<Row: View>: View {
     let items: [RoleChatLiveItem]
     let isLive: Bool
+    /// Превью последнего действия под полосой — у каждой полосы, пока ход
+    /// идёт. Полоса без превью и полоса с превью — разная высота, а лента
+    /// привязана к низу: превью то появляется, то пропадает, и лента прыгает
+    /// вверх-вниз (владелец 25.10.2026).
+    var showsPreview = false
     @ViewBuilder let row: (RoleChatLiveItem) -> Row
 
     @State private var expanded = false
@@ -57,7 +72,7 @@ struct RoleActionGroup<Row: View>: View {
                     Rectangle().fill(Color.tfStroke).frame(width: 1)
                 }
                 .transition(.opacity)
-            } else if isLive, let last = items.last {
+            } else if (showsPreview || isLive), let last = items.last {
                 row(last)
             }
         }
