@@ -1,5 +1,8 @@
 # Реестр ограничений работ
 
+| LOCK-NO-SIMULATOR-CYCLE-20261025 | REVIEW | NO-SIMULATOR | Исключить симулятор и UI-приёмку из обязательного цикла | `AGENT-WORK-SCOPES.md`, `AGENT-CYCLE.md`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/ios-ui-triage/SKILL.md`, `docs/2026-10-25-no-simulator-cycle.md` | Прямое указание владельца: симулятор не трогать, проверять только логику | Codex | Проверка согласованности инструкций и diff --check; без сборки/симулятора/UI-тестов |
+
+
 | LOCK-SWIPE-LABELS-20261025 | REVIEW | SWIPE-LABELS | Во всех свайпах системный Label: иконка и надпись, согласованные цвета | `AGENT-WORK-SCOPES.md`, `Sources/Features/Directory/Support/DirectorySwipeRow.swift`, `Sources/Features/Directory/Support/DirectoryTaskRow.swift`, `Sources/Features/Today/TodayTaskRow.swift`, `Sources/Features/Upcoming/UpcomingTaskRow.swift`, `Sources/Features/Routines/RoutinesScreen.swift`, `Sources/Features/Chat/MemoryScreen.swift`, `Sources/Features/Task/TaskFormScreen.swift`, `docs/2026-10-25-native-swipes.md`, `docs/2026-10-25-native-swipes/` | Владелец подтвердил Label во всём приложении | Codex | Guard, build, кадр; без UI-тестов/iPhone/push |
 
 
