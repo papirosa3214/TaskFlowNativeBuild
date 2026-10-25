@@ -1,5 +1,7 @@
 # Реестр ограничений работ
 
+| LOCK-CHAT-SCROLL-REVEAL-20261026 | IN_PROGRESS | CHAT-SCROLL-REVEAL | Чат с ролью: (1) экран прыгает при отправке, (2) текст JSON-конверта появляется разом без проявления, (3) дёрганье скролла при росте контента | `AGENT-WORK-SCOPES.md`, `Sources/Features/Chat/RoleChatsScreen.swift` (только `send()`, `messageScroll`, `roleMessageContent`), `docs/2026-10-26-chat-scroll-reveal.md` | Прямое поручение владельца 26.10.2026 | Antigravity | Декоративная правка: diff, сторож; без симулятора |
+
 | LOCK-COORDINATION-INTEGRATION-20261026 | REVIEW | COORDINATION | Рабочая панель состояния шагов в карточке задачи; реальные данные и действия | `AGENT-WORK-SCOPES.md`, `Sources/Features/Coordination/CoordinationAPI.swift`, `Sources/Features/Coordination/CoordinationState.swift`, `Sources/Features/Coordination/CoordinationScreen.swift`, `Sources/Features/Coordination/CoordinationCause.swift`, `Sources/Features/Coordination/ActionBar.swift`, `Sources/Features/Coordination/ResolutionGraph.swift`, `Sources/Features/Task/TaskFormScreen.swift` (только вход и sheet координации), `Sources/DesignSystem/Hints/HintScenarios.swift`, `Tests/CoordinationIntegrationTests.swift`, `Tests/HintCenterTests.swift`, `Tools/test_coordination_integration.py`, `docs/2026-10-26-coordination-integration.md` | Владелец: сначала доработать, затем экспериментировать | Codex | RED/GREEN macOS unit, HTTP контракт; без симулятора и запуска живых ролей |
 
 

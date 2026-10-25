@@ -1577,7 +1577,7 @@ struct RoleChatRoomScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.bottom, for: .alignment)
-        .defaultScrollAnchor(chatScrollPosition.isPositionedByUser ? nil : .bottom, for: .sizeChanges)
+        .defaultScrollAnchor(chatScrollPosition.isPositionedByUser || !chatIsNearBottom ? nil : .bottom, for: .sizeChanges)
         .background(Color.tfBackground)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
@@ -2231,6 +2231,8 @@ struct RoleChatRoomScreen: View {
         let checklist = checklistContext(for: message)
         if isAgentReply(message), let json = message.roleEnvelopeJSON {
             ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
+                .roleMessageReveal(text: message.text, messageID: message.id,
+                                   animate: chatIsNearBottom && message.id == messages.last?.id)
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist)
                 .equatable()
@@ -2542,8 +2544,12 @@ struct RoleChatRoomScreen: View {
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.executionMode)
         draft = ""
         pendingAttachments = []
-        chatScrollPosition.scrollTo(edge: .bottom)
         pendingOutgoing.append(pending)
+        // Скролл после вставки pending-пузыря: SwiftUI успевает добавить
+        // строку в ленту, и скролл попадает на неё, а не прыгает к дну
+        // до появления пузыря (жалоба владельца 26.10.2026).
+        try? await Task.sleep(for: .milliseconds(50))
+        chatScrollPosition.scrollTo(edge: .bottom)
         await deliver(pending.id)
     }
 
