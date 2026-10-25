@@ -9,6 +9,23 @@ struct RoleLoad: Decodable {
     let attempts: [Attempt]
     let active_now: [Active]
     let open_slots: [OpenSlot]
+    /// Ходы ролей в чате без карточки. Сервер отдаёт их отдельно: в
+    /// `attempts` их нет (там `task_id` обязателен), но по времени работы
+    /// это такая же нагрузка роли.
+    let chat_turns: [ChatTurn]?
+
+    /// Ход роли в чате: интервал работы и название работы — из отчёта роли.
+    struct ChatTurn: Decodable, Identifiable {
+        let id: String
+        let chat_id: String
+        let chat_title: String?
+        let role_id: String
+        let role_key: String?
+        let started_at: String
+        let ended_at: String
+        /// Название работы: из отчёта роли по этому ходу.
+        let title: String
+    }
 
     struct Role: Decodable, Identifiable {
         let key: String
@@ -55,6 +72,7 @@ struct RoleLoad: Decodable {
         let attempts: [Attempt]
         let active: [Active]
         let open: [OpenSlot]
+        let chat: [ChatTurn]
     }
     /// Идёт ли по карточке починка поломки: у «идёт сейчас» своего признака
     /// нет, берём его у интервалов той же карточки.
@@ -63,13 +81,14 @@ struct RoleLoad: Decodable {
     }
     var rows: [Row] {
         var keys = roles.sorted { $0.position < $1.position }.map(\.key)
-        let extra = Set(attempts.map { $0.routing_role ?? "" } + active_now.map { $0.role_key ?? "" } + open_slots.map { $0.role_key ?? "" })
+        let extra = Set(attempts.map { $0.routing_role ?? "" } + active_now.map { $0.role_key ?? "" } + open_slots.map { $0.role_key ?? "" } + (chat_turns ?? []).map { $0.role_key ?? "" })
         keys += extra.subtracting(keys).sorted()
         return keys.map { key in
             Row(id: key, title: roles.first { $0.key == key }?.title ?? (key.isEmpty ? "Без роли" : key),
                 attempts: attempts.filter { ($0.routing_role ?? "") == key },
                 active: active_now.filter { ($0.role_key ?? "") == key },
-                open: open_slots.filter { ($0.role_key ?? "") == key })
+                open: open_slots.filter { ($0.role_key ?? "") == key },
+                chat: (chat_turns ?? []).filter { ($0.role_key ?? "") == key })
         }
     }
     static func date(_ value: String) -> Date? {

@@ -23,7 +23,8 @@ struct RoleLoadScreen: View {
                     } else {
                         legend
                         chart(data)
-                        if data.attempts.isEmpty && data.active_now.isEmpty && data.open_slots.isEmpty {
+                        if data.attempts.isEmpty && data.active_now.isEmpty && data.open_slots.isEmpty
+                            && (data.chat_turns ?? []).isEmpty {
                             Text("За выбранный период рабочего времени нет.").foregroundStyle(Color.tfSub)
                         }
                     }
@@ -74,6 +75,7 @@ struct RoleLoadScreen: View {
         (.tfRed, "Сбой"),
         (.tfOrange, "Заблокировано или без исполнителя"),
         (.tfPurple, "Починка поломки"),
+        (.tfBlue, "Работа в чате (без карточки)"),
     ]
 
     private var legend: some View {
@@ -106,6 +108,7 @@ struct RoleLoadScreen: View {
     /// плюс блок слотов без исполнителя и запас под ось.
     private func height(_ row: RoleLoadLayout.RoleRow) -> CGFloat {
         RoleLoadRowPresentation.height(laneCount: row.lanes.count, openCount: row.open.count,
+                                       chatLaneCount: row.chatLanes.count,
                                        collapsed: rowPresentation.isCollapsed(row.id))
     }
 
@@ -171,6 +174,7 @@ struct RoleLoadScreen: View {
                                 }
                                 Rectangle().fill(Color.tfBlue).frame(width: 1).offset(x: width * data.fraction(data.now))
                                 lanes(row)
+                                chatLanes(row)
                                 VStack(alignment: .leading, spacing: 4) {
                                     ForEach(row.open) { slot in
                                         Button { selectedTask = TaskRef(id: slot.id) } label: {
@@ -181,7 +185,7 @@ struct RoleLoadScreen: View {
                                         }.buttonStyle(.plain)
                                     }
                                 }
-                                .offset(y: CGFloat(max(1, row.lanes.count)) * RoleLoadLayout.laneStep)
+                                .offset(y: CGFloat(max(1, row.lanes.count) + row.chatLanes.count) * RoleLoadLayout.laneStep)
                             }
                         }
                         .frame(width: width, height: height(row))
@@ -218,6 +222,52 @@ struct RoleLoadScreen: View {
                 contour(item, laneIndex: laneIndex)
             }
         }
+    }
+
+    /// Дорожки работы в чате: одна роль без карточки — отдельные ряды под
+    /// карточными, подпись — название работы из отчёта роли.
+    @ViewBuilder
+    private func chatLanes(_ row: RoleLoadLayout.RoleRow) -> some View {
+        ForEach(Array(row.chatLanes.enumerated()), id: \.offset) { laneIndex, lane in
+            ForEach(lane) { item in
+                chatContour(item, laneIndex: laneIndex)
+            }
+        }
+    }
+
+    private func chatContour(_ item: RoleLoadLayout.ChatContour, laneIndex: Int) -> some View {
+        let top = CGFloat(rowLaneCount(row) + laneIndex) * RoleLoadLayout.laneStep
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(item.title)
+                .tfText(.micro)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: item.labelWidth, alignment: .leading)
+            ZStack(alignment: .topLeading) {
+                ForEach(item.segments) { segment in
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.tfBlue.opacity(0.85))
+                        .frame(width: max(3, segment.end - segment.start), height: RoleLoadLayout.barHeight - 6)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 3)
+                                .stroke(Color.tfBlue, lineWidth: 1)
+                        }
+                        .offset(x: segment.start - item.start, y: 3)
+                }
+            }
+            .frame(width: max(4, item.end - item.start), height: RoleLoadLayout.barHeight, alignment: .topLeading)
+        }
+        .offset(x: item.start, y: top)
+        .frame(width: width, height: RoleLoadLayout.laneStep, alignment: .topLeading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.title)
+        .accessibilityValue(item.chatTitle ?? "Чат")
+        .accessibilityIdentifier("role-load.chat.\(item.id)")
+    }
+
+    /// Сколько карточных дорожек у роли — на столько ниже сдвигаются чатовые.
+    private func rowLaneCount(_ row: RoleLoadLayout.RoleRow) -> Int {
+        max(1, row.lanes.count)
     }
 
     /// Контур одной задачи: рамка — весь интервал работы по задаче (внутри
@@ -272,6 +322,7 @@ struct RoleLoadScreen: View {
         case .blocked: .tfOrange
         case .service: .tfPurple
         case .live: .tfGreen
+        case .chat: .tfBlue
         }
     }
 }

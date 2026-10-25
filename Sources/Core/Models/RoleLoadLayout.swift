@@ -14,6 +14,8 @@ struct RoleLoadLayout {
     /// Тон захода — цвет полосы внутри контура.
     enum Tone: Equatable {
         case done, failed, blocked, service, live
+        /// Ход роли в чате без карточки — работа в чате.
+        case chat
     }
 
     /// Откуда контур: заходы задачи или «идёт сейчас» без записи о попытке.
@@ -51,6 +53,19 @@ struct RoleLoadLayout {
         let contours: [Contour]
     }
 
+    /// Контур работы в чате: один-два хода роли в одном чате, идущих рядом.
+    /// Подпись — название работы из отчёта роли по этому ходу.
+    struct ChatContour: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let chatTitle: String?
+        let start: CGFloat
+        let end: CGFloat
+        let segments: [Segment]
+        /// Сколько места есть под подпись до следующего контура в дорожке.
+        var labelWidth: CGFloat = 0
+    }
+
     /// Собранная роль: дорожки + слоты без исполнителя.
     struct RoleRow: Identifiable, Equatable {
         let id: String
@@ -60,6 +75,8 @@ struct RoleLoadLayout {
         /// «Идёт сейчас» без записи о попытке — такие контуры рисуем отдельно
         /// по времени, они не дублируют уже нарисованную попытку.
         let liveMarks: [Contour]
+        /// Работа роли в чате без карточки — свои дорожки ниже карточных.
+        let chatLanes: [[ChatContour]]
 
         /// Занята ли роль прямо сейчас.
         var isBusy: Bool {
@@ -175,8 +192,69 @@ struct RoleLoadLayout {
             title: row.title,
             lanes: sized,
             open: row.open,
-            liveMarks: marks
+            liveMarks: marks,
+            chatLanes: chatLanes(row.chat, data: data, width: width)
         )
+    }
+
+    /// Работа в чате: ходы одной роли в одном чате, идущие рядом (пауза до
+    /// 10 минут), сворачиваются в один контур с названием работы.
+    private static func chatLanes(_ turns: [RoleLoad.ChatTurn], data: RoleLoad, width: CGFloat) -> [[ChatContour]] {
+        guard !turns.isEmpty else { return [] }
+        let sorted = turns.sorted { $0.started_at < $1.started_at }
+        var groups: [[RoleLoad.ChatTurn]] = []
+        for turn in sorted {
+            if var last = groups.last, let previous = last.last,
+               previous.chat_id == turn.chat_id,
+               let gap = chatGap(previous.ended_at, turn.started_at), gap <= 600 {
+                last.append(turn)
+                groups[groups.count - 1] = last
+                continue
+            }
+            groups.append([turn])
+        }
+        let contours: [ChatContour] = groups.map { group in
+            let segments = group.map { turn -> Segment in
+                let start = x(data, turn.started_at, width)
+                let end = x(data, turn.ended_at, width)
+                return Segment(id: turn.id, start: start, end: max(start + minBarWidth, end), tone: .chat)
+            }
+            // Название работы — самое длинное из ходов группы: оно и есть суть.
+            let title = group.map(\.title).max { $0.count < $1.count } ?? "Чат"
+            let start = segments.map(\.start).min() ?? 0
+            let end = segments.map(\.end).max() ?? 0
+            return ChatContour(
+                id: "chat-\(group[0].id)",
+                title: title,
+                chatTitle: group[0].chat_title,
+                start: start,
+                end: end,
+                segments: segments
+            )
+        }.sorted { $0.start < $1.start }
+
+        var lanes: [[ChatContour]] = []
+        for contour in contours {
+            if let index = lanes.firstIndex(where: { lane in lane.allSatisfy { $0.end <= contour.start } }) {
+                lanes[index].append(contour)
+            } else {
+                lanes.append([contour])
+            }
+        }
+        for laneIndex in lanes.indices {
+            let lane = lanes[laneIndex]
+            for index in lane.indices {
+                let limit = index + 1 < lane.count ? lane[index + 1].start : width
+                lanes[laneIndex][index].labelWidth = max(0, limit - lane[index].start - labelGap)
+            }
+        }
+        return lanes
+    }
+
+    /// Пауза между концом одного хода и началом следующего в минутах.
+    private static func chatGap(_ endedAt: String, _ startedAt: String) -> Double? {
+        guard let end = RoleLoad.date(endedAt), let start = RoleLoad.date(startedAt) else { return nil }
+        return start.timeIntervalSince(end)
     }
 
     /// Позиция времени на шкале (в пунктах от нуля).

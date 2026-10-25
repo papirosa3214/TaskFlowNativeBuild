@@ -9,7 +9,8 @@ final class RoleLoadLayoutTests: XCTestCase {
     private func payload(
         attempts: [String],
         active: [String] = [],
-        open: [String] = []
+        open: [String] = [],
+        chat: [String] = []
     ) -> String {
         """
         {"window":"24h","from":"2026-10-21T00:00:00.000Z","to":"2026-10-22T00:00:00.000Z",
@@ -17,7 +18,21 @@ final class RoleLoadLayoutTests: XCTestCase {
          "roles":[{"key":"builder","title":"Разработчик","position":1}],
          "attempts":[\(attempts.joined(separator: ","))],
          "active_now":[\(active.joined(separator: ","))],
-         "open_slots":[\(open.joined(separator: ","))]}
+         "open_slots":[\(open.joined(separator: ","))],
+         "chat_turns":[\(chat.joined(separator: ","))]}
+        """
+    }
+
+    private func chatTurn(
+        id: String,
+        title: String,
+        chat: String = "Чат про TaskFlow",
+        from: String,
+        to: String
+    ) -> String {
+        """
+        {"id":"\(id)","chat_id":"c1","chat_title":"\(chat)","role_id":"role_builder",
+         "role_key":"builder","started_at":"\(from)","ended_at":"\(to)","title":"\(title)"}
         """
     }
 
@@ -136,5 +151,53 @@ final class RoleLoadLayoutTests: XCTestCase {
         XCTAssertEqual(row.liveMarks.count, 1)
         XCTAssertEqual(row.liveMarks[0].number, "МАК-1210-1310")
         XCTAssertEqual(row.liveMarks[0].origin, .liveMark)
+    }
+
+    /// Работа роли в чате без карточки — свой контур с названием работы.
+    func testChatTurnBecomesChatContourWithWorkTitle() throws {
+        let json = payload(
+            attempts: [],
+            chat: [chatTurn(id: "q1", title: "Экран загрузки ролей готов",
+                            from: "2026-10-21T09:00:00.000Z", to: "2026-10-21T09:30:00.000Z")]
+        )
+        let layout = RoleLoadLayout.build(try model(json), width: 1000)
+        let row = try XCTUnwrap(layout.first)
+        XCTAssertEqual(row.chatLanes.count, 1)
+        let contour = try XCTUnwrap(row.chatLanes[0].first)
+        XCTAssertEqual(contour.title, "Экран загрузки ролей готов")
+        XCTAssertEqual(contour.chatTitle, "Чат про TaskFlow")
+        XCTAssertEqual(contour.segments.count, 1)
+    }
+
+    /// Два хода в одном чате рядом — один контур; второй чат — другой.
+    func testNearbyTurnsInSameChatMergeIntoOneContour() throws {
+        let json = payload(
+            attempts: [],
+            chat: [
+                chatTurn(id: "q1", title: "Первая работа",
+                         from: "2026-10-21T09:00:00.000Z", to: "2026-10-21T09:10:00.000Z"),
+                chatTurn(id: "q2", title: "Вторая работа",
+                         from: "2026-10-21T09:15:00.000Z", to: "2026-10-21T09:25:00.000Z"),
+            ]
+        )
+        let layout = RoleLoadLayout.build(try model(json), width: 1000)
+        let row = try XCTUnwrap(layout.first)
+        XCTAssertEqual(row.chatLanes.count, 1, "ходы рядом в одном чате — один контур")
+        XCTAssertEqual(row.chatLanes[0].count, 1)
+        XCTAssertEqual(row.chatLanes[0][0].segments.count, 2)
+    }
+
+    /// Без карточной работы чатовые дорожки — единственные в роли.
+    func testChatLanesDoNotDisturbCardLanes() throws {
+        let json = payload(
+            attempts: [attempt(id: "a1", task: "t1", from: "2026-10-21T08:00:00.000Z", to: "2026-10-21T08:30:00.000Z")],
+            chat: [chatTurn(id: "q1", title: "Работа в чате",
+                            from: "2026-10-21T09:00:00.000Z", to: "2026-10-21T09:30:00.000Z")]
+        )
+        let layout = RoleLoadLayout.build(try model(json), width: 1000)
+        let row = try XCTUnwrap(layout.first)
+        XCTAssertEqual(row.lanes.count, 1)
+        XCTAssertEqual(row.lanes[0].contours.count, 1)
+        XCTAssertEqual(row.chatLanes.count, 1)
     }
 }

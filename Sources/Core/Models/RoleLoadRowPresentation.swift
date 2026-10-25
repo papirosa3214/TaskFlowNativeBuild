@@ -10,8 +10,9 @@ struct RoleLoadRowPresentation {
 
     func isCollapsed(_ role: String) -> Bool { collapsedRoles.contains(role) }
 
-    static func height(laneCount: Int, openCount: Int, collapsed: Bool) -> CGFloat {
+    static func height(laneCount: Int, openCount: Int, chatLaneCount: Int = 0, collapsed: Bool) -> CGFloat {
         if collapsed { return 44 }
-        return max(104, CGFloat(max(1, laneCount)) * 32 + CGFloat(openCount) * 32 + 8)
+        return max(104, CGFloat(max(1, laneCount)) * 32 + CGFloat(openCount) * 32
+                   + CGFloat(chatLaneCount) * 32 + 8)
     }
 }
