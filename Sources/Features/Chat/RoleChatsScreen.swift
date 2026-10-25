@@ -837,10 +837,7 @@ struct RoleChatRoomScreen: View {
     @State private var chatScrollPosition = ScrollPosition(idType: String.self)
     @State private var chatIsNearBottom = true
     /// Сообщение, текст которого сейчас выводится по словам.
-    @State private var revealMessageID: String?
     /// Уже показанная часть текста этого сообщения.
-    @State private var revealedText: String = ""
-    @State private var revealTask: Task<Void, Never>?
     @FocusState private var composerFocused: Bool
     private let api = APIClient()
 
@@ -1744,8 +1741,6 @@ struct RoleChatRoomScreen: View {
         roomEventRevision += 1
         messageEventRevisions[message.id] = roomEventRevision
         let mine = message.fromUserID == session.currentUser?.id
-        let wasKnown = messages.contains(where: { $0.id == message.id })
-        var shownLive = false
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -1771,9 +1766,6 @@ struct RoleChatRoomScreen: View {
                         restoredTurnIDs.remove(turn.playbackID)
                         typists[author] = nil
                         typistTools[author] = nil
-                        // Текст этого ответа уже показан живым пузырём —
-                        // выводить его заново не нужно.
-                        shownLive = true
                     }
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
@@ -1786,15 +1778,6 @@ struct RoleChatRoomScreen: View {
                 rowIDByMessageID[message.id] = pendingOutgoing[index].id
                 pendingOutgoing.remove(at: index)
             }
-        }
-        if !mine, !wasKnown, !shownLive, !message.text.isEmpty {
-            // Ответ роли пришёл без живого хода: его текст выводится по словам,
-            // как текст живого ответа. Раньше он вставал в ленту целиком, и
-            // высота строки скакала на сотни пунктов (владелец 26.10.2026).
-            startTextReveal(message)
-        } else if shownLive {
-            revealMessageID = nil
-            revealTask?.cancel()
         }
         if !mine && message.id != markedReadMessageID {
             let id = message.id
@@ -2290,15 +2273,6 @@ struct RoleChatRoomScreen: View {
         let checklist = checklistContext(for: message)
         if isAgentReply(message), let json = message.roleEnvelopeJSON {
             ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
-        } else if revealMessageID == message.id {
-            // Текст ответа роли выводится по словам — тем же pacer'ом, что и
-            // живой ответ. Сервер отдаёт его целиком, и раньше он вставал в
-            // ленту разом: высота строки скакала на сотни пунктов, лента
-            // уезжала в пустоту, а растущий текст уходил под нижний край
-            // (владелец 26.10.2026). Очередь касается только букв: шаги и
-            // действия появляются сразу.
-            RoleReplyMarkdown(text: revealedText, allowsCommands: allowsCommands, checklist: checklist)
-                .equatable()
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist)
                 .equatable()
@@ -2314,27 +2288,6 @@ struct RoleChatRoomScreen: View {
     ///
     /// Тот же pacer, что у живого ответа (`RoleLiveTextPacer`): сервер отдаёт
     /// текст целиком, а в ленте он должен набегать — тогда высота строки
-    /// растёт вместе с текстом, и ленту не нужно дёргать.
-    private func startTextReveal(_ message: RoleChatMessage) {
-        revealTask?.cancel()
-        var pacer = RoleLiveTextPacer()
-        pacer.ingest([.text(message.text)])
-        revealMessageID = message.id
-        revealedText = ""
-        revealTask = Task { @MainActor in
-            while !Task.isCancelled {
-                pacer.advance(elapsed: 0.016)
-                if case .text(let text)? = pacer.visibleItems.first, text != revealedText {
-                    revealedText = text
-                }
-                guard pacer.hasPendingText else { break }
-                try? await Task.sleep(for: .milliseconds(16))
-            }
-            // Текст показан целиком — даже если pacer оборвался.
-            if !Task.isCancelled { revealedText = message.text }
-        }
-    }
-
     private func copyMessage(_ message: RoleChatMessage) {
         UIPasteboard.general.string = message.text
         copiedMessageID = message.id
