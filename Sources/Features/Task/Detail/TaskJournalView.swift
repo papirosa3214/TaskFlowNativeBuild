@@ -33,7 +33,7 @@ enum TaskJournalEntry: Identifiable {
 
     /// Сортировка «новые сверху» — spec §19.2.
     static func merged(comments: [ApiComment], events: [ApiTaskEvent]) -> [TaskJournalEntry] {
-        (comments.map(TaskJournalEntry.comment) + events.map(TaskJournalEntry.event))
+        (comments.map(TaskJournalEntry.comment) + events.filter(TaskJournalView.isVisible).map(TaskJournalEntry.event))
             .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
     }
 }
@@ -63,6 +63,32 @@ enum AgentOwnerActionKind {
 // (`TaskJournalEntry`), виды владельческих действий и словарь формулировок
 // событий.
 enum TaskJournalView {
+    /// Только события с содержательным пользовательским описанием.
+    /// Полный аудит остаётся в данных задачи; неизвестные технические виды
+    /// не превращаются в десятки одинаковых строк «обновил задачу».
+    static func isVisible(_ event: ApiTaskEvent) -> Bool {
+        switch event.kind {
+        case "role_choice", "ready_flag_changed":
+            return false
+        case "field_changed":
+            return ["assignee_id", "owner_selected_role", "priority", "due_date",
+                    "start_time", "duration_min", "project_id", "title", "status", "parent_id"]
+                .contains(event.field ?? "")
+        case "state_changed":
+            return ["in_progress", "review", "blocked", "completed", "active"]
+                .contains(event.toValue ?? "")
+        case "task_created", "claimed", "unclaimed", "lease_expired", "task_dispatched",
+             "review_recorded", "reviewer_sent", "run_requested", "result_version_created",
+             "description_changed", "labels_changed", "subtasks_seeded", "subtask_added",
+             "subtask_started", "subtask_done", "subtask_undone", "subtask_renamed",
+             "subtask_removed", "subtask_review", "subtask_returned", "subtask_blocked",
+             "subtask_released":
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Человеческие подписи событий ленты.
     ///
     /// 14.09.2026: словарь был составлен под названия событий из
