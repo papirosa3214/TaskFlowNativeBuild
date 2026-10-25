@@ -1,8 +1,7 @@
 import XCTest
 @testable import TaskFlow
 
-/// Служебная строка координации в ленте чата: показывается, пока ответ не
-/// получен, и исчезает после ответа роли (владелец 21.10.2026).
+/// Статусы обращений: получение ответа не означает скрытие карточки.
 ///
 /// Правило живёт в модели, а не во вьюхе: так его видно и в тесте, и в ленте
 /// одинаково.
@@ -61,7 +60,7 @@ final class RoleChatCoordinationTests: XCTestCase {
         XCTAssertFalse(c.isAnswered)
     }
 
-    func testAnsweredRowIsHidden() throws {
+    func testAnsweredStatusIsRecognized() throws {
         let c = try coordination(status: "answered", terminal: true, answer: "Готово")
         XCTAssertTrue(c.isAnswered)
     }
@@ -77,7 +76,7 @@ final class RoleChatCoordinationTests: XCTestCase {
         XCTAssertFalse(c.isAnswered)
     }
 
-    func testMessageWithAnsweredCoordinationIsHiddenFromFeed() throws {
+    func testMessageWithAnsweredCoordinationIsFinished() throws {
         let m = try message(id: "m1", status: "answered", terminal: true, answer: "Готово")
         XCTAssertTrue(m.isFinishedCoordinationRow)
     }

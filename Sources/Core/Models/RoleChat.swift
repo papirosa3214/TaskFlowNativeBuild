@@ -217,8 +217,7 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         ChatMessageInterruption(stopReason: stopReason, partial: partial == true)
     }
 
-    /// Служебная строка координации, по которой ответ уже получен: из ленты
-    /// её убирают (владелец 21.10.2026) — показывать больше нечего.
+    /// Обращение получило ответ. Это статус, а не указание скрыть карточку.
     public var isFinishedCoordinationRow: Bool {
         coordination?.isAnswered == true
     }
@@ -295,9 +294,8 @@ public struct RoleChatCoordination: Decodable, Sendable {
     public let answer: String?
     public let terminal: Bool
 
-    /// Ответ получен: служебная строка закрыта и в ленте не показывается
-    /// (владелец 21.10.2026). Ошибка и отмена — не ответ: строку видно,
-    /// в ней причина.
+    /// Ответ получен. Вопрос и ответ остаются доступны в карточке.
+    /// Ошибка и отмена не считаются полученным ответом.
     public var isAnswered: Bool { status == "answered" }
 
     enum CodingKeys: String, CodingKey {
