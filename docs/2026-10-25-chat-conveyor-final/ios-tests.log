@@ -1,0 +1,107 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -testProductsPath /Users/max/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/build_sim_2026-10-25T10-40-58-370Z_pid94339_9d7a6388.xctestproducts -destination "platform=iOS Simulator,id=9FF78D89-EE84-4914-AA56-D0A72D1AF43A" "-only-testing:TaskFlowTests/ChatWorkPlanServerStateTests" "-only-testing:TaskFlowTests/ChatDeliveryBadgeTests" "-only-testing:TaskFlowTests/ChatInterruptedReplyTests" "-only-testing:TaskFlowTests/HintCenterTests/testChatConveyorHintsComplete" test-without-building
+
+2026-10-25 13:41:59.412 xcodebuild[96025:3567674] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+Unable to update Font Descriptor's weight to Weight(value: 0.4):
+UICTFontDescriptor <0x10bf922e0> = {
+    NSFontNameAttribute = "PT Sans Narrow";
+    NSFontSizeAttribute = 22;
+} - SwiftUICore/Logging.swift:84 - please file a bug report.
+Unable to update Font Descriptor's weight to Weight(value: 0.4):
+UICTFontDescriptor <0x10bf92ee0> = {
+    NSFontNameAttribute = "PT Sans Narrow";
+    NSFontSizeAttribute = 22;
+} - SwiftUICore/Logging.swift:84 - please file a bug report.
+Unable to update Font Descriptor's weight to Weight(value: 0.4):
+UICTFontDescriptor <0x10bff4300> = {
+    NSFontNameAttribute = "PT Sans Narrow";
+    NSFontSizeAttribute = 17;
+} - SwiftUICore/Logging.swift:84 - please file a bug report.
+Unable to update Font Descriptor's weight to Weight(value: 0.4):
+UICTFontDescriptor <0x10bff7c00> = {
+    NSFontNameAttribute = "PT Sans Narrow";
+    NSFontSizeAttribute = 17;
+} - SwiftUICore/Logging.swift:84 - please file a bug report.
+Unable to update Font Descriptor's weight to Weight(value: 0.4):
+UICTFontDescriptor <0x10c559200> = {
+    NSFontNameAttribute = "PT Sans Narrow";
+    NSFontSizeAttribute = 17;
+} - SwiftUICore/Logging.swift:84 - please file a bug report.
+IOSurfaceClientSetSurfaceNotify failed e00002c7
+2026-10-25 13:42:04.901886+0300 TaskFlow[96039:3567979] [API] cannot add handler to 0 from 0 - dropping
+2026-10-25 13:42:04.910036+0300 TaskFlow[96039:3567979] [API] cannot add handler to 0 from 0 - dropping
+2026-10-25 13:42:04.910122+0300 TaskFlow[96039:3567979] [API] cannot add handler to 0 from 0 - dropping
+2026-10-25 13:42:04.910163+0300 TaskFlow[96039:3567979] [API] cannot add handler to 0 from 0 - dropping
+2026-10-25 13:42:04.916760+0300 TaskFlow[96039:3567979] [XPCErrors] non-launching port is incompatible with service identifier "com.apple.PointerUI.pointeruid.default-service"
+Test Suite 'Selected tests' started at 2026-10-25 13:42:04.955.
+Test Suite 'TaskFlowTests.xctest' started at 2026-10-25 13:42:04.957.
+Test Suite 'ChatDeliveryBadgeTests' started at 2026-10-25 13:42:04.957.
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testLabelsTellSavedFromDelivered]' started.
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testLabelsTellSavedFromDelivered]' passed (0.001 seconds).
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testMessageWithoutServerStateHasNoBadge]' started.
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testMessageWithoutServerStateHasNoBadge]' passed (0.003 seconds).
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testOwnMessageKeepsEveryServerState]' started.
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testOwnMessageKeepsEveryServerState]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testOwnMessageShowsDeliveryState]' started.
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testOwnMessageShowsDeliveryState]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testRoleAnswerHasNoDeliveryBadge]' started.
+Test Case '-[TaskFlowTests.ChatDeliveryBadgeTests testRoleAnswerHasNoDeliveryBadge]' passed (0.000 seconds).
+Test Suite 'ChatDeliveryBadgeTests' passed at 2026-10-25 13:42:04.964.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.005 (0.007) seconds
+Test Suite 'ChatInterruptedReplyTests' started at 2026-10-25 13:42:04.966.
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testClarificationStopsTurnAndIsVisible]' started.
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testClarificationStopsTurnAndIsVisible]' passed (0.001 seconds).
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testFailedTurnIsMarkedSeparately]' started.
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testFailedTurnIsMarkedSeparately]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testLegacyMessageWithoutNewFieldsStillDecodes]' started.
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testLegacyMessageWithoutNewFieldsStillDecodes]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testOrdinaryReplyHasNoInterruption]' started.
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testOrdinaryReplyHasNoInterruption]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testPartialAnswerWithoutReasonIsStillInterrupted]' started.
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testPartialAnswerWithoutReasonIsStillInterrupted]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testUnknownServerReasonIsShownAsInterruption]' started.
+Test Case '-[TaskFlowTests.ChatInterruptedReplyTests testUnknownServerReasonIsShownAsInterruption]' passed (0.000 seconds).
+Test Suite 'ChatInterruptedReplyTests' passed at 2026-10-25 13:42:04.969.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'ChatWorkPlanServerStateTests' started at 2026-10-25 13:42:04.969.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testActivePlanSummaryNamesCurrentItem]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testActivePlanSummaryNamesCurrentItem]' passed (0.004 seconds).
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testBlockedItemShowsServerReason]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testBlockedItemShowsServerReason]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testDeliveryLabelsTellSavedFromDelivered]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testDeliveryLabelsTellSavedFromDelivered]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testDoneItemShowsAcceptedResult]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testDoneItemShowsAcceptedResult]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testItemStatesComeFromServer]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testItemStatesComeFromServer]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testMessageDeliveryStatesAreDistinct]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testMessageDeliveryStatesAreDistinct]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testPlanWithoutServerFieldsStillDecodes]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testPlanWithoutServerFieldsStillDecodes]' passed (0.000 seconds).
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testStoppedPlanSummaryExplainsWhoStopped]' started.
+Test Case '-[TaskFlowTests.ChatWorkPlanServerStateTests testStoppedPlanSummaryExplainsWhoStopped]' passed (0.000 seconds).
+Test Suite 'ChatWorkPlanServerStateTests' passed at 2026-10-25 13:42:04.977.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.006 (0.008) seconds
+Test Suite 'HintCenterTests' started at 2026-10-25 13:42:04.977.
+Test Case '-[TaskFlowTests.HintCenterTests testChatConveyorHintsComplete]' started.
+Test Case '-[TaskFlowTests.HintCenterTests testChatConveyorHintsComplete]' passed (0.003 seconds).
+Test Suite 'HintCenterTests' passed at 2026-10-25 13:42:04.980.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'TaskFlowTests.xctest' passed at 2026-10-25 13:42:04.980.
+	 Executed 20 tests, with 0 failures (0 unexpected) in 0.017 (0.023) seconds
+Test Suite 'Selected tests' passed at 2026-10-25 13:42:04.980.
+	 Executed 20 tests, with 0 failures (0 unexpected) in 0.017 (0.025) seconds
+2026-10-25 13:42:04.993 xcodebuild[96025:3567674] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-10-25 13:42:04.993 xcodebuild[96025:3567674] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-10-25 13:42:04.993 xcodebuild[96025:3567674] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-10-25 13:42:05.267 xcodebuild[96025:3567674] [MT] IDETestOperationsObserverDebug: 5.984 elapsed -- Testing started completed.
+2026-10-25 13:42:05.267 xcodebuild[96025:3567674] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-10-25 13:42:05.267 xcodebuild[96025:3567674] [MT] IDETestOperationsObserverDebug: 5.984 sec, +5.984 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/max/Library/Developer/Xcode/DerivedData/TaskFlow-depckffyfncmrtcmxfjcaklniijp/Logs/Test/Test-TaskFlow-2026.10.25_13-41-59-+0300.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
+EXIT=0

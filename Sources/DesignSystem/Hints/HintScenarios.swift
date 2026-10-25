@@ -23,6 +23,10 @@ enum HintAnchorID {
     static let chatDictation = "chat.dictation"
     static let roleActions = "role.live-actions"
     static let chatMembersMenu = "chat.members-menu"
+    /// Полоса чек-листа роли над полем ввода: серверные состояния пункта.
+    static let chatWorkPlan = "chat.work-plan"
+    /// Признак доставки под своим сообщением в чате с ролями.
+    static let chatDeliveryBadge = "chat.delivery-badge"
     /// Кнопка «Работа» (два человечка) в шапке карточки задачи.
     static let taskWorkMenu = "task.work-menu"
     /// Заголовок секции «Шаги» карточки.
@@ -42,7 +46,7 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
 
     static let unifiedPlanner = HintScenario(
         id: "unified-planner", title: "Все задачи в одном списке", start: "list",
@@ -166,6 +170,30 @@ enum HintScenarios {
         id: "role-actions", title: "Действия и навыки роли", start: "actions",
         steps: ["actions": HintStep(anchor: HintAnchorID.roleActions, title: "Что делает роль",
             text: "В ходе работы различаются чтение, запись, правки, поиск, тесты и другие действия. После успешного чтения файла навыка появляется «Навык подключён» с его именем. Это подтверждает получение инструкции, а не выполнение всех её требований. Нажмите действие, чтобы открыть подробности.", next: nil)])
+
+    static let chatWorkPlan = HintScenario(
+        id: "chat-work-plan",
+        title: "Чек-лист роли в чате",
+        start: "plan",
+        steps: [
+            "plan": HintStep(
+                anchor: HintAnchorID.chatWorkPlan,
+                title: "Сервер ведёт пункты, а не модель",
+                text: "Нажмите строку — раскроется весь план. Синий значок — пункт идёт сейчас, зелёный — сдан и рядом виден принятый итог, оранжевый с восклицательным знаком — пункт заблокирован и ждёт ответа или доступа, серый квадрат остановки — план остановлен, остальные пункты больше не начнутся. Следующий пункт начинается только после того, как роль сдала текущий: перепрыгнуть пункт нельзя.",
+                next: nil),
+        ])
+
+    static let chatDeliveryBadge = HintScenario(
+        id: "chat-delivery-badge",
+        title: "Дошло ли сообщение до роли",
+        start: "delivery",
+        steps: [
+            "delivery": HintStep(
+                anchor: HintAnchorID.chatDeliveryBadge,
+                title: "Сохранено — ещё не передано",
+                text: "Под своим сообщением в чате с ролями виден признак доставки. «Сохранено» — сообщение лежит в ленте, «В очереди» — ждёт своей передачи, «Передано исполнителю» — роль взяла его в работу, «Не передано» — прежний ход отменён. Проверь актуальный план и уточнения перед повтором поручения.",
+                next: nil),
+        ])
 
     static let chatMembers = HintScenario(
         id: "chat-members",

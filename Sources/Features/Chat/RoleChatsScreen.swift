@@ -2142,6 +2142,19 @@ struct RoleChatRoomScreen: View {
                 if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 }
+                // Признак доставки под СВОИМ сообщением (карточка b504958a,
+                // контракт §10): «Сохранено» — сообщение лежит в ленте,
+                // «Передано исполнителю» — роль взяла его в работу. Под
+                // ответом роли признака нет: доставки «исполнителю» там не
+                // бывает, и значок сбивал бы владельца с толку.
+                if let delivery = ChatDeliveryBadgePolicy.badge(
+                    for: message,
+                    isOwnMessage: mine,
+                    isAgentReply: isAgentReply(message)
+                ) {
+                    ChatDeliveryBadge(state: delivery)
+                        .hintAnchor(HintAnchorID.chatDeliveryBadge)
+                }
                 if mine && !message.text.isEmpty && !isSelecting {
                     HStack(spacing: TFSpacing.xs) {
                         messageActionButton("doc.on.doc", label: "Скопировать своё сообщение") {
@@ -2240,6 +2253,11 @@ struct RoleChatRoomScreen: View {
 
     private func messageActions(_ message: RoleChatMessage) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            // Прерванный ответ (уточнение владельца остановило ход) не должен
+            // выглядеть как завершённый (карточка b504958a, доработка D1).
+            if let interruption = message.interruption {
+                ChatInterruptionBadge(interruption: interruption, isPartial: message.partial == true)
+            }
             if let usage = message.steps?.usage { RoleTurnUsageRow(usage: usage) }
             messageActionRow(message)
         }

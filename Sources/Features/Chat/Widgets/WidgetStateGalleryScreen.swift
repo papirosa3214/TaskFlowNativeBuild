@@ -17,6 +17,9 @@ struct WidgetStateGalleryScreen: View {
                 if kind == "loading" {
                     pending
                 }
+                if kind == "workplan" {
+                    workPlanSamples
+                }
             }
             .padding(TFSpacing.lg)
         }
@@ -24,6 +27,70 @@ struct WidgetStateGalleryScreen: View {
         .preferredColorScheme(
             ProcessInfo.processInfo.environment["TASKFLOW_WIDGET_GALLERY_APPEARANCE"] == "light" ? .light : .dark
         )
+    }
+
+    /// Кадры серверных состояний чатового чек-листа и доставки сообщения
+    /// (карточка b504958a): остановленный план, заблокированный пункт с
+    /// причиной, сданный пункт с итогом и четыре состояния доставки.
+    private var workPlanSamples: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.lg) {
+            ChatWorkPlanRows(plans: workPlanPreviews, members: workPlanMembers, initiallyExpanded: true)
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                Text("Доставка сообщения роли").font(.caption).foregroundStyle(Color.tfDim)
+                ForEach(ChatMessageDeliveryState.allCasesForPreview, id: \.self) { state in
+                    ChatDeliveryBadge(state: state)
+                }
+            }
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                Text("Доставка своего сообщения").font(.caption).foregroundStyle(Color.tfDim)
+                ForEach(ChatMessageDeliveryState.allCasesForPreview, id: \.self) { state in
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Text("Сделай вот это")
+                            .font(.body)
+                            .foregroundStyle(Color.tfText)
+                        ChatDeliveryBadge(state: state)
+                    }
+                    .padding(TFSpacing.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tfCard)
+                }
+            }
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                Text("Прерванный ответ роли").font(.caption).foregroundStyle(Color.tfDim)
+                ChatInterruptionBadge(interruption: .ownerInterrupt, isPartial: true)
+                ChatInterruptionBadge(interruption: .failed, isPartial: false)
+            }
+        }
+    }
+
+    private var workPlanMembers: [RoleChatMember] {
+        [
+            RoleChatMember(id: "role_builder", name: "Разработчик", avatarColor: nil,
+                           avatarURL: nil, initials: "Р", roleKey: "builder"),
+            RoleChatMember(id: "role_qa", name: "Критик-проверяющий", avatarColor: nil,
+                           avatarURL: nil, initials: "К", roleKey: "qa"),
+        ]
+    }
+
+    private var workPlanPreviews: [ChatWorkPlan] {
+        [
+            ChatWorkPlan(chatID: "preview", roleID: "role_builder", revision: 6,
+                         items: [
+                            .init(id: "read", title: "Прочитать контракт", state: .done,
+                                  result: "Контракт зафиксирован, поля для клиента названы."),
+                            .init(id: "impl", title: "Показать серверные состояния", state: .blocked,
+                                  blockReason: "Нужен ответ владельца о цвете остановки"),
+                            .init(id: "qa", title: "Проверить на симуляторе", state: .pending),
+                         ],
+                         updatedAt: "2026-10-25T05:00:00Z", currentItemID: "impl"),
+            ChatWorkPlan(chatID: "preview", roleID: "role_qa", revision: 2,
+                         items: [
+                            .init(id: "check", title: "Проверить сдачу пункта", state: .stopped),
+                            .init(id: "report", title: "Собрать пакет проверки", state: .pending),
+                         ],
+                         updatedAt: "2026-10-25T05:00:00Z", status: .stopped,
+                         stopReason: .ownerStop, stoppedAt: "2026-10-25T05:00:00Z"),
+        ]
     }
 
     private var header: some View {

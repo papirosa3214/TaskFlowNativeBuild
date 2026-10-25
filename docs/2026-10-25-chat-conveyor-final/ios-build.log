@@ -1,0 +1,38 @@
+
+🔨 Build
+
+   Scheme: TaskFlow
+   Project: TaskFlow.xcodeproj
+   Platform: iOS Simulator
+   Simulator: 9FF78D89-EE84-4914-AA56-D0A72D1AF43A
+   Derived Data: build_sim
+
+Warnings (6):
+
+  ⚠ main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+    Sources/Features/Markdown/BlockDocumentEditor.swift:319:39
+
+  ⚠ 'nonisolated(unsafe)' has no effect on property 'unauthorizedObserver', consider using 'nonisolated'
+    Sources/Core/Session/SessionStore.swift:25:13
+
+  ⚠ 'CommandURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/OwnerCommandTests.swift:4:65
+
+  ⚠ 'SystemControlURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/SystemControlViewModelTests.swift:137:71
+
+  ⚠ 'PreparationFallbackURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/TaskPreparationReplyTests.swift:48:77
+
+  ⚠ 'ReplyURLProtocol' inherits an unavailable 'Sendable' conformance; conforming here risks data races [#UnavailableSendableConformance]
+    Tests/TaskPreparationReplyTests.swift:61:63
+
+✅ Build succeeded. (⏱️ 29.7s)
+  └ Files:
+     ├ Build Logs: ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/logs/build_sim_2026-10-25T10-40-58-371Z_pid94339_2ae766df.log
+     ├ Test Products: ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/build_sim_2026-10-25T10-40-58-370Z_pid94339_9d7a6388.xctestproducts
+     └ XCTest Run: ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/build_sim_2026-10-25T10-40-58-370Z_pid94339_9d7a6388.xctestproducts/Tests/0/TaskFlow.xctestrun
+
+Next steps:
+1. Run prepared tests: xcodebuildmcp simulator test --test-products-path ~/Library/Developer/XcodeBuildMCP/workspaces/TaskFlowNativeBuild-6630a891c838/test-products/build_sim_2026-10-25T10-40-58-370Z_pid94339_9d7a6388.xctestproducts --simulator-id 9FF78D89-EE84-4914-AA56-D0A72D1AF43A
+EXIT=0

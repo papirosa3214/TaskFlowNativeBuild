@@ -201,6 +201,21 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public var handoff: RoleChatHandoff? = nil
     public var coordination: RoleChatCoordination? = nil
     public var sequence: Int? = nil
+    /// Сохранено или уже передано исполнителю (карточка b504958a, контракт §10).
+    /// Признак несёт сообщение владельца, которому роль должна ответить; у
+    /// ответа роли он nil — доставлять его исполнителю некуда.
+    public var queueDeliveryState: ChatMessageDeliveryState? = nil
+    /// Прерванный ответ роли (карточка b504958a, доработка D1): сервер
+    /// останавливает ход уточнением владельца и помечает ответ — `stop_reason`
+    /// (почему прерван) и `partial` (сохранён частично). У сообщений человека
+    /// оба поля пустые, у старого сервера их нет вовсе.
+    public var stopReason: String? = nil
+    public var partial: Bool? = nil
+
+    /// Состояние прерывания для показа в ленте: nil — ответ не прерывали.
+    public var interruption: ChatMessageInterruption? {
+        ChatMessageInterruption(stopReason: stopReason, partial: partial == true)
+    }
 
     /// Служебная строка координации, по которой ответ уже получен: из ленты
     /// её убирают (владелец 21.10.2026) — показывать больше нечего.
@@ -242,6 +257,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case taskTitle = "task_title"
         case quickReplies = "quick_replies"
         case isSessionMarker = "is_session_marker"
+        case queueDeliveryState = "queue_delivery_state"
+        case stopReason = "stop_reason"
+        case partial
     }
 }
 

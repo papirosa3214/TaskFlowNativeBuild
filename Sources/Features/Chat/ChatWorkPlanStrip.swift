@@ -4,8 +4,12 @@ import SwiftUI
 /// «План · Разработчик · 2 из 5 · сейчас: …». Нажатие раскрывает тот же
 /// список этапов, что в слоте карточки (`SubtaskWorkPlanView`): синий —
 /// в работе, зелёный — выполнено. Галочки владелец не переключает — план
-/// ведёт роль инструментом `taskflow_work_plan`. Несколько ролей — по строке
-/// на каждую. Плана нет — строки нет.
+/// ведёт роль инструментом `taskflow_work_plan`.
+///
+/// С 25.10.2026 (карточка b504958a) состояние пункта — серверное: кроме
+/// «сейчас» и «выполнено» есть заблокированный пункт с причиной и остановка
+/// плана. Клиент ничего не додумывает: что пришло, то и нарисовано.
+/// Несколько ролей — по строке на каждую. Плана нет — строки нет.
 struct ChatWorkPlanStrip: View {
     let chatID: String
     let members: [RoleChatMember]
@@ -13,6 +17,25 @@ struct ChatWorkPlanStrip: View {
     let revision: Int
 
     @State private var plans: [ChatWorkPlan] = []
+
+    var body: some View {
+        ChatWorkPlanRows(plans: plans, members: members)
+            .task(id: "\(chatID):\(revision)") { await load() }
+    }
+
+    private func load() async {
+        guard let response: ChatWorkPlansResponse = try? await APIClient().request(.get, "/chats/\(chatID)/work-plans"),
+              !Task.isCancelled else { return }
+        if response.plans != plans { plans = response.plans }
+    }
+}
+
+/// Сама полоса без запросов: её рисуют и чат, и отладочная галерея кадров.
+struct ChatWorkPlanRows: View {
+    let plans: [ChatWorkPlan]
+    let members: [RoleChatMember]
+    /// Развёрнуто сразу — для кадров отладочной галереи; в чате свёрнуто.
+    var initiallyExpanded: Bool = false
     @State private var expanded: Set<String> = []
 
     var body: some View {
@@ -23,7 +46,9 @@ struct ChatWorkPlanStrip: View {
                 TFDivider()
             }
         }
-        .task(id: "\(chatID):\(revision)") { await load() }
+        .onAppear {
+            if initiallyExpanded { expanded = Set(plans.map(\.roleID)) }
+        }
     }
 
     private func name(_ roleID: String) -> String {
@@ -38,10 +63,10 @@ struct ChatWorkPlanStrip: View {
             }
         } label: {
             HStack(spacing: TFSpacing.sm) {
-                Image(systemName: plan.doneCount == plan.items.count ? "checkmark.square.fill" : "checklist")
-                    .foregroundStyle(plan.doneCount == plan.items.count ? Color.tfGreen : Color.tfBlue)
+                Image(systemName: rowSymbol(plan))
+                    .foregroundStyle(rowTint(plan))
                     .accessibilityHidden(true)
-                Text(summary(plan))
+                Text(plan.summary(roleName: name(plan.roleID)))
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(1)
@@ -59,12 +84,20 @@ struct ChatWorkPlanStrip: View {
         .accessibilityLabel("План: \(name(plan.roleID)), выполнено \(plan.doneCount) из \(plan.items.count)")
         .accessibilityValue(isOpen ? "Раскрыто" : "Свёрнуто")
         .accessibilityIdentifier("chat.workPlan.\(plan.roleID)")
+        .hintAnchor(HintAnchorID.chatWorkPlan)
     }
 
-    private func summary(_ plan: ChatWorkPlan) -> String {
-        var text = "План · \(name(plan.roleID)) · \(plan.doneCount) из \(plan.items.count)"
-        if let current = plan.current { text += " · сейчас: \(current.title)" }
-        return text
+    private func rowSymbol(_ plan: ChatWorkPlan) -> String {
+        if plan.isStopped { return "pause.circle" }
+        if plan.doneCount == plan.items.count { return "checkmark.square.fill" }
+        return plan.items.contains { $0.state == .blocked } ? "exclamationmark.square.fill" : "checklist"
+    }
+
+    private func rowTint(_ plan: ChatWorkPlan) -> Color {
+        if plan.isStopped { return Color.tfDim }
+        if plan.doneCount == plan.items.count { return Color.tfGreen }
+        if plan.items.contains(where: { $0.state == .blocked }) { return Color.tfOrange }
+        return Color.tfBlue
     }
 
     private func items(_ plan: ChatWorkPlan) -> some View {
@@ -72,18 +105,21 @@ struct ChatWorkPlanStrip: View {
             ForEach(plan.items) { item in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Image(systemName: item.state.symbol)
-                        .foregroundStyle(item.state == .done ? Color.tfGreen : (item.state == .inProgress ? Color.tfBlue : Color.tfSub))
+                        .foregroundStyle(tint(item.state))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title).foregroundStyle(Color.tfText)
-                        if item.state == .inProgress {
-                            Text("Сейчас").tfText(.meta).foregroundStyle(Color.tfBlue)
+                        Text(item.title).foregroundStyle(item.state == .stopped ? Color.tfSub : Color.tfText)
+                        if let note = item.statusNote {
+                            Text(note)
+                                .tfText(.meta)
+                                .foregroundStyle(tint(item.state))
+                                .lineLimit(3)
                         }
                     }
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(item.title)
-                .accessibilityValue(item.state.label)
+                .accessibilityValue([item.state.label, item.statusNote].compactMap { $0 }.joined(separator: ", "))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -91,9 +127,33 @@ struct ChatWorkPlanStrip: View {
         .padding(.bottom, TFSpacing.md)
     }
 
-    private func load() async {
-        guard let response: ChatWorkPlansResponse = try? await APIClient().request(.get, "/chats/\(chatID)/work-plans"),
-              !Task.isCancelled else { return }
-        if response.plans != plans { plans = response.plans }
+    /// Цвет состояния — тот же, что в слоте карточки: синий — сейчас,
+    /// зелёный — сдано, оранжевый — ждёт, серый — остановлено или впереди.
+    private func tint(_ state: SubtaskWorkPlan.Item.State) -> Color {
+        switch state {
+        case .done: Color.tfGreen
+        case .inProgress: Color.tfBlue
+        case .blocked: Color.tfOrange
+        case .stopped, .pending: Color.tfSub
+        }
+    }
+}
+
+/// Признак доставки под сообщением владельца: «сохранено» и «передано исполнителю» —
+/// разные вещи (карточка b504958a), и владелец должен видеть, какая из них.
+struct ChatDeliveryBadge: View {
+    let state: ChatMessageDeliveryState
+
+    var body: some View {
+        HStack(spacing: TFSpacing.xs) {
+            Image(systemName: state.symbol)
+                .tfText(.meta)
+                .accessibilityHidden(true)
+            Text(state.label).tfText(.meta)
+        }
+        .foregroundStyle(state.isProblem ? Color.tfOrange : Color.tfDim)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Доставка: \(state.label)")
+        .accessibilityIdentifier("chat.delivery.\(state.rawValue)")
     }
 }
