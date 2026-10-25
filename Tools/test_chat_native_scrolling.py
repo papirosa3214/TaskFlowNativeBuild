@@ -32,10 +32,12 @@ class NativeChatScrollingTests(unittest.TestCase):
         # не дёргает ленту, если позицию установил пользователь.
         self.absent('defaultScrollAnchor(chatScrollPosition.isPositionedByUser', self.feed)
         self.present('.defaultScrollAnchor(.bottom, for: .sizeChanges)', self.feed)
-        # Программная прокрутка (отправка, кнопка «вниз») снимает отметку
-        # «позиция установлена пользователем» — иначе якорь больше не следит
-        # за хвостом.
-        self.present('chatScrollPosition.isPositionedByUser = false', self.feed)
+        # Позиция прокрутки — по идентификатору, а не по смещению: со
+        # смещением SwiftUI не двигает ленту при изменении размера содержимого
+        # (Apple: «For a point, SwiftUI won't attempt to keep that exact offset
+        # scrolled when the content size changes»).
+        self.present('ScrollPosition(idType: String.self)', self.screen)
+        self.absent('ScrollPosition()', self.screen)
         for token in ['ScrollViewReader', '.onScrollPhaseChange', '.onChange(of: feedItems.last?.id)', 'Task.yield()']:
             self.absent(token, self.feed)
 

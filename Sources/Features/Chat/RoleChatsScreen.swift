@@ -824,7 +824,17 @@ struct RoleChatRoomScreen: View {
     @State private var noticeMessage: String?
     @State private var modelChoice = ChatModelChoice()
     // SwiftUI owns the scroll position, including user interaction and resizing.
-    @State private var chatScrollPosition = ScrollPosition()
+    //
+    // Позиция — ПО ИДЕНТИФИКАТОРУ, а не по смещению (Apple: «For a point,
+    // SwiftUI won't attempt to keep that exact offset scrolled when the content
+    // size changes nor will it update to a new offset when that changes»).
+    // Со смещением в позиции лента замирала: текст печатался, высота росла,
+    // а смещение оставалось прежним — и лента оказывалась либо в пустоте,
+    // либо с контентом под композером (владелец 26.10.2026).
+    //
+    // С идентификатором SwiftUI сам удерживает нужную строку в кадре, когда
+    // содержимое меняется, и не замораживает ленту.
+    @State private var chatScrollPosition = ScrollPosition(idType: String.self)
     @State private var chatIsNearBottom = true
     /// Сообщение, текст которого сейчас выводится по словам.
     @State private var revealMessageID: String?
@@ -1600,9 +1610,10 @@ struct RoleChatRoomScreen: View {
             chatIsNearBottom = new.distanceToBottom <= 80
             let heightDelta = new.contentHeight - old.contentHeight
             if abs(heightDelta) > 0.5 {
-                ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f, область %.0f, отступ снизу %.0f",
+                ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f, область %.0f, отступ снизу %.0f, позиция пользователя %@",
                                                 old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom,
-                                                new.containerHeight, new.insetBottom))
+                                                new.containerHeight, new.insetBottom,
+                                                chatScrollPosition.isPositionedByUser ? "да" : "нет"))
             }
         }
         .onChange(of: visibleTypists.count) { old, new in
@@ -1611,7 +1622,6 @@ struct RoleChatRoomScreen: View {
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
-                    chatScrollPosition.isPositionedByUser = false
                     chatScrollPosition.scrollTo(edge: .bottom)
                 }
                 .padding(.bottom, TFSpacing.md)
@@ -2625,7 +2635,6 @@ struct RoleChatRoomScreen: View {
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.executionMode)
         draft = ""
         pendingAttachments = []
-        chatScrollPosition.isPositionedByUser = false
         chatScrollPosition.scrollTo(edge: .bottom)
         pendingOutgoing.append(pending)
         await deliver(pending.id)
