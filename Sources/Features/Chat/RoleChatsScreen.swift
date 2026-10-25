@@ -810,6 +810,9 @@ struct RoleChatRoomScreen: View {
     /// один id, и SwiftUI переиспользовал строки: текст пропадал, лента
     /// прыгала (владелец 22.10.2026).
     @State private var rowIDByMessageID: [String: String] = [:]
+    /// Последнее сообщение, которое уже показывал живой пузырь: его текст
+    /// в ленте не проявляется заново.
+    @State private var lastPlayedLiveMessageID: String?
     /// Какое сообщение закрыло живой ход: ход прячет из ленты ровно ЭТО
     /// сообщение, а не все ответы того же автора подряд.
     @State private var completedMessageIDByTurn: [String: String] = [:]
@@ -826,6 +829,14 @@ struct RoleChatRoomScreen: View {
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
+    /// Кто держит ленту: хвост переписки или пользователь.
+    ///
+    /// Раньше решение принималось по `chatScrollPosition.isPositionedByUser` —
+    /// флаг SwiftUI, который ставится один раз и навсегда: после первого
+    /// прокручивания лента переставала следить за хвостом навсегда (новые
+    /// ответы не попадали в кадр — «прилипало»), а до первого прокручивания
+    /// рост любой строки утягивал всю ленту вниз («резко уходило»).
+    @State private var tailPolicy = ChatTailPolicy()
     @FocusState private var composerFocused: Bool
     private let api = APIClient()
 
@@ -1443,6 +1454,10 @@ struct RoleChatRoomScreen: View {
             await loadLiveTurns()
         }
         .onDisappear { realtime.disconnect() }
+        .onAppear {
+            // Открыли чат — лента встаёт в хвост переписки.
+            tailPolicy.handle(.entered)
+        }
         .task {
             if !readingPreview { await refresh() }
         }
@@ -1509,6 +1524,11 @@ struct RoleChatRoomScreen: View {
     private var messageScroll: some View {
         let orderedFeed = feedItems
         let dayDividers = dayDividerTitles(orderedFeed)
+        // Индекс сообщений по id — один раз на проход тела. Раньше каждая
+        // строка ленты искала исходное сообщение линейным поиском по всей
+        // истории: на длинной переписке это квадратичная работа, а тело
+        // экрана пересчитывается на каждом снимке живого ответа.
+        let messagesByID = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
                 if messages.isEmpty {
@@ -1522,9 +1542,9 @@ struct RoleChatRoomScreen: View {
                         ChatFeedDivider(title: title)
                     }
                     if let turn = item.turn {
-                        liveTurnRow(turn)
+                        liveTurnRow(turn, messagesByID: messagesByID)
                     } else if let message = item.message {
-                        messageRow(message).id(item.id)
+                        messageRow(message, messagesByID: messagesByID).id(item.id)
                     }
                 }
                 // Владелец 26.09.2026: плашки быстрых ответов должны
@@ -1536,7 +1556,7 @@ struct RoleChatRoomScreen: View {
                     quickReplyRow(replies)
                 }
                 ForEach(pendingOutgoing) { pending in
-                    pendingOutgoingRow(pending)
+                    pendingOutgoingRow(pending, messagesByID: messagesByID)
                         .id(pending.id)
                 }
                 ForEach(pendingVoices) { message in
@@ -1577,7 +1597,7 @@ struct RoleChatRoomScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.bottom, for: .alignment)
-        .defaultScrollAnchor(chatScrollPosition.isPositionedByUser ? nil : .bottom, for: .sizeChanges)
+        .defaultScrollAnchor(tailPolicy.followsTail ? .bottom : nil, for: .sizeChanges)
         .background(Color.tfBackground)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
@@ -1588,10 +1608,32 @@ struct RoleChatRoomScreen: View {
         } action: { _, nearBottom in
             // Observation only: this does not issue any scroll commands.
             chatIsNearBottom = nearBottom
+            // Пока ленту ведёт пользователь, расстояние до хвоста — его
+            // намерение: ушёл читать историю — перестаём догонять хвост,
+            // дошёл до хвоста — снова догоняем.
+            if tailPolicy.userDrivesScroll {
+                tailPolicy.handle(.userScrolled(nearBottom: nearBottom))
+            }
+        }
+        .onScrollPhaseChange { _, phase in
+            switch phase {
+            case .tracking, .interacting, .decelerating:
+                // Палец на ленте: решение о слежении ещё не меняем, ждём
+                // конечного положения.
+                tailPolicy.userStartedDriving()
+            case .idle:
+                tailPolicy.userStoppedDriving(nearBottom: chatIsNearBottom)
+            case .animating:
+                // Ленту повёл интерфейс (отправка, кнопка «вниз»).
+                tailPolicy.programmaticScroll()
+            @unknown default:
+                break
+            }
         }
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
+                    tailPolicy.handle(.jumpedToTail)
                     chatScrollPosition.scrollTo(edge: .bottom)
                 }
                 .padding(.bottom, TFSpacing.md)
@@ -1600,6 +1642,7 @@ struct RoleChatRoomScreen: View {
         .onChange(of: contentsTargetID) { _, id in
             guard let id else { return }
             let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
+            tailPolicy.handle(.jumpedToMessage)
             chatScrollPosition.scrollTo(id: feedID, anchor: .top)
             contentsTargetID = nil
         }
@@ -1722,6 +1765,9 @@ struct RoleChatRoomScreen: View {
                         // занять ту же строку.
                         completedMessageIDByTurn[turn.playbackID] = message.id
                         rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
+                        // Это сообщение уже показывал живой пузырь — готовое
+                        // сообщение не должно проявляться заново.
+                        lastPlayedLiveMessageID = message.id
                         endedTurnIDs.insert(turn.playbackID)
                         liveTurns[author] = nil
                         restoredTurnIDs.remove(turn.playbackID)
@@ -1750,10 +1796,10 @@ struct RoleChatRoomScreen: View {
 
     /// Своё сообщение в пути: тот же пузырь, что у отправленного, но
     /// приглушён; не ушло — подпись и «Повторить».
-    private func pendingOutgoingRow(_ pending: PendingOutgoing) -> some View {
+    private func pendingOutgoingRow(_ pending: PendingOutgoing, messagesByID: [String: RoleChatMessage]) -> some View {
         VStack(alignment: .trailing, spacing: TFSpacing.xs) {
             // Выбор и удаление для него не имеют смысла — на сервере его нет.
-            messageBubbleRow(pendingMessage(pending))
+            messageBubbleRow(pendingMessage(pending), messagesByID: messagesByID)
                 .allowsHitTesting(false)
                 .opacity(pending.failed ? 1 : 0.6)
             if pending.failed {
@@ -1811,9 +1857,9 @@ struct RoleChatRoomScreen: View {
         return typists.filter { !live.contains($0.key) }
     }
 
-    private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
+    private func liveTurnRow(_ turn: RoleChatLiveTurn, messagesByID: [String: RoleChatMessage]) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            replyContext(messageID: turn.triggerMessageID, sender: nil)
+            replyContext(messageID: turn.triggerMessageID, sender: nil, messagesByID: messagesByID)
             RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
                                startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID),
                                onPlaybackComplete: {
@@ -1965,7 +2011,7 @@ struct RoleChatRoomScreen: View {
     }
 
     @ViewBuilder
-    private func messageRow(_ message: RoleChatMessage) -> some View {
+    private func messageRow(_ message: RoleChatMessage, messagesByID: [String: RoleChatMessage]) -> some View {
         if let coordination = message.coordination {
             RoleCoordinationCard(coordination: coordination) {
                 try await api.stopRoleCoordination(chatID: chat.id, messageID: message.id)
@@ -1974,9 +2020,9 @@ struct RoleChatRoomScreen: View {
         } else if message.isSessionMarker {
             sessionMarkerRow(message)
         } else if isFlatReply(message) {
-            flatReplyRow(message)
+            flatReplyRow(message, messagesByID: messagesByID)
         } else {
-            messageBubbleRow(message)
+            messageBubbleRow(message, messagesByID: messagesByID)
         }
     }
 
@@ -1990,8 +2036,8 @@ struct RoleChatRoomScreen: View {
     }
 
     @ViewBuilder
-    private func replyContext(messageID: String?, sender: String?) -> some View {
-        if let messageID, let original = messages.first(where: { $0.id == messageID }) {
+    private func replyContext(messageID: String?, sender: String?, messagesByID: [String: RoleChatMessage]) -> some View {
+        if let messageID, let original = messagesByID[messageID] {
             let excerpt = original.text.trimmingCharacters(in: .whitespacesAndNewlines)
             Text("В ответ на: " + (excerpt.isEmpty ? "Вложение" : excerpt))
                 .tfText(.meta)
@@ -2005,7 +2051,7 @@ struct RoleChatRoomScreen: View {
         }
     }
 
-    private func flatReplyRow(_ message: RoleChatMessage) -> some View {
+    private func flatReplyRow(_ message: RoleChatMessage, messagesByID: [String: RoleChatMessage]) -> some View {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
             if isSelecting {
                 Image(systemName: selectedMessageIDs.contains(message.id)
@@ -2017,7 +2063,7 @@ struct RoleChatRoomScreen: View {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 // Ответ роли подписан внизу (replyFooter), сверху — только чужой.
                 if !isAgentReply(message) { senderLine(message, color: Color.tfSub) }
-                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
+                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName, messagesByID: messagesByID)
                 if let steps = message.steps, steps.hasDetails {
                     RoleLiveItemsList(items: steps.items)
                 }
@@ -2074,7 +2120,7 @@ struct RoleChatRoomScreen: View {
         }
     }
 
-    private func messageBubbleRow(_ message: RoleChatMessage) -> some View {
+    private func messageBubbleRow(_ message: RoleChatMessage, messagesByID: [String: RoleChatMessage]) -> some View {
         let mine = message.fromUserID == session.currentUser?.id
         let hasAudio = message.attachments?.contains { $0.isVoiceRecording } ?? false
         return HStack(alignment: .top, spacing: TFSpacing.sm) {
@@ -2101,7 +2147,7 @@ struct RoleChatRoomScreen: View {
                 if !hasAudio && (mine || !isAgentReply(message)) {
                     senderLine(message, color: Color.tfSub)
                 }
-                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
+                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName, messagesByID: messagesByID)
                 // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
                 if let steps = message.steps, steps.hasDetails {
                     RoleLiveItemsList(items: steps.items)
@@ -2237,8 +2283,12 @@ struct RoleChatRoomScreen: View {
                 // Анимируем только новое сообщение и только когда лента внизу:
                 // иначе проявление старых строк при прокрутке дёргает
                 // автопривязку к низу (жалоба владельца 17.10.2026).
+                // Сообщение, которое только что показал живой пузырь, заново
+                // не проявляем: в момент подмены весь ответ становился
+                // прозрачным и печатался второй раз (мигание в конце хода).
                 .roleMessageReveal(text: message.text, messageID: message.id,
-                                   animate: chatIsNearBottom && message.id == messages.last?.id)
+                                   animate: chatIsNearBottom && message.id == messages.last?.id
+                                       && message.id != lastPlayedLiveMessageID)
         }
     }
 
@@ -2542,6 +2592,7 @@ struct RoleChatRoomScreen: View {
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.executionMode)
         draft = ""
         pendingAttachments = []
+        tailPolicy.handle(.jumpedToTail)
         chatScrollPosition.scrollTo(edge: .bottom)
         pendingOutgoing.append(pending)
         await deliver(pending.id)
