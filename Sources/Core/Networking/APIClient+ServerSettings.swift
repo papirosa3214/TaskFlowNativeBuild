@@ -9,10 +9,12 @@ struct ServerSetting: Decodable, Identifiable, Sendable {
     let min: Double?
     let max: Double?
     let options: [String]?
+    let explanation: String?
     var id: String { key }
     enum CodingKeys: String, CodingKey {
         case key, label, group, kind, min, max, options
         case defaultValue = "default"
+        case explanation = "description"
     }
     var unit: String {
         switch kind {

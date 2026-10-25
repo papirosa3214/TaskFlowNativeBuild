@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let chatItemBudget = "server.setting.chat_item_max_actions"
     static let chatOwnMessageCopy = "chat.own-message.copy"
     static let unifiedPlanner = "planner.all-tasks"
     static let taskNumberCopy = "task.number.copy"
@@ -46,7 +47,7 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
-    static let all: [HintScenario] = [chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
 
     static let unifiedPlanner = HintScenario(
         id: "unified-planner", title: "Все задачи в одном списке", start: "list",
@@ -170,6 +171,12 @@ enum HintScenarios {
         id: "role-actions", title: "Действия и навыки роли", start: "actions",
         steps: ["actions": HintStep(anchor: HintAnchorID.roleActions, title: "Что делает роль",
             text: "В ходе работы различаются чтение, запись, правки, поиск, тесты и другие действия. После успешного чтения файла навыка появляется «Навык подключён» с его именем. Это подтверждает получение инструкции, а не выполнение всех её требований. Нажмите действие, чтобы открыть подробности.", next: nil)])
+
+    static let chatItemBudget = HintScenario(
+        id: "chat-item-budget", title: "Лимит действий чек-листа", start: "limit",
+        steps: ["limit": HintStep(
+            anchor: HintAnchorID.chatItemBudget, title: "Бюджет одного пункта",
+            text: "Нажмите параметр, чтобы изменить число действий на один пункт чек-листа роли. Один вызов инструмента — одно действие; сдача пункта и сообщения о ходе работы не расходуют лимит. После принятой сервером сдачи следующий пункт получает новый бюджет. Настройка применяется без перезапуска сервера, уже выполненные действия не обнуляются.", next: nil)])
 
     static let chatWorkPlan = HintScenario(
         id: "chat-work-plan",

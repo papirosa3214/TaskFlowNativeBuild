@@ -65,6 +65,7 @@ struct ServerSettingsScreen: View {
                                 }
                             }
                             .accessibilityIdentifier("server-setting-" + setting.key)
+                            .hintAnchor("server.setting." + setting.key)
                         }
                     }
                 }
@@ -177,7 +178,10 @@ private struct ServerSettingEditor: View {
                     }
                 } header: { Text(setting.label) }
                 footer: {
-                    Text("По умолчанию: " + setting.displayText(setting.defaultValue))
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        if let explanation = setting.explanation { Text(explanation) }
+                        Text("По умолчанию: " + setting.displayText(setting.defaultValue))
+                    }
                 }
                 if let error { Section { Text(error).foregroundStyle(Color.tfCoral) } }
                 Section {

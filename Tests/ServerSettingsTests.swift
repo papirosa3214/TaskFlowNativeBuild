@@ -7,6 +7,16 @@ final class ServerSettingsTests: XCTestCase {
         {"key":"silence","label":"Тишина","group":"тишина","kind":"\(kind)","default":10,"min":1,"max":120}
         """.utf8))
     }
+    func testChatItemActionLimitIncludesExplanationAndIntegerValidation() throws {
+        let data = Data(#"{"key":"chat_item_max_actions","label":"Действий на пункт чек-листа","group":"лимиты","kind":"int","default":10,"min":1,"max":1000,"description":"После сдачи пункта счётчик начинается заново."}"#.utf8)
+        let setting = try JSONDecoder().decode(ServerSetting.self, from: data)
+        XCTAssertEqual(setting.explanation, "После сдачи пункта счётчик начинается заново.")
+        XCTAssertEqual(setting.displayText(setting.defaultValue), "10")
+        XCTAssertEqual(try setting.validatedNumber("20"), .number(20))
+        XCTAssertThrowsError(try setting.validatedNumber("2.5"))
+        XCTAssertThrowsError(try setting.validatedNumber("0"))
+    }
+
     func testBoundsAndInvalidNumbers() throws {
         let s = try setting()
         XCTAssertEqual(try s.validatedNumber("1,5"), .number(1.5))

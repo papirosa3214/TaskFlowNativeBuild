@@ -4,6 +4,17 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testChatItemBudgetHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-item-budget" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.isEnabled = true
+        center.report(anchor: "server.setting.chat_item_max_actions", frame: frame)
+        XCTAssertEqual(center.active?.step, "limit")
+        XCTAssertTrue(center.currentStep?.text.contains("пункт") == true)
+        center.next()
+        XCTAssertTrue(center.completed.contains("chat-item-budget"))
+    }
+
     func testChatConveyorHintsComplete() throws {
         for (id, anchor, step) in [
             ("chat-work-plan", "chat.work-plan", "plan"),
