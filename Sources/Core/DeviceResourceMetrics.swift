@@ -82,8 +82,10 @@ enum DeviceResourceMetrics {
         // Размер страницы берём из Mach: поля `page_size` у
         // `vm_statistics64_data_t` нет (ошибка компиляции), а `host_page_size`
         // отдаёт точный размер страницы текущей системы.
-        let pageSize = UInt64(max(host_page_size(mach_host_self()), 4096))
-        return UInt64(stats.free_count) * pageSize
+        var pageSize: vm_size_t = 0
+        _ = host_page_size(mach_host_self(), &pageSize)
+        let bytes = pageSize == 0 ? 4096 : UInt64(pageSize)
+        return UInt64(stats.free_count) * bytes
     }
 
     /// Физический footprint приложения. Читается напрямую из Mach, без
