@@ -104,4 +104,8 @@ public enum AppRoute: Hashable {
     /// LOCK-195: прежний owner-канал «Помощник владельца» (надиктовать → карточка) —
     /// тот же экран `ChatScreen`, но открытый из списка чатов.
     case secretaryChat
+    /// Экран «Диагностика приложения» — отдельный маршрут, чтобы его можно
+    /// было открыть без рук (отладочный маршрут `TASKFLOW_DEBUG_ROUTE=diagnostics`).
+    /// Сверх таблицы `spec/INTEGRATION.md` — как и `.noteFolder` выше.
+    case diagnostics
 }

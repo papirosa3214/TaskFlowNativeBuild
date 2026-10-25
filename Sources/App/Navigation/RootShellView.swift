@@ -274,6 +274,9 @@ struct RootShellView: View {
             // должен снимать её независимо от того, под кем симулятор вошёл.
             // Роут открывает маршрут напрямую — DEBUG, в релиз не попадает.
             case "serversettings": paths[selectedTab, default: NavigationPath()].append(AppRoute.serverSettings)
+            // Экран диагностики — тоже маршрут: без него снять кадр этого
+            // экрана на устройстве нечем (тапы по нему руками).
+            case "diagnostics": paths[selectedTab, default: NavigationPath()].append(AppRoute.diagnostics)
             case "notes": paths[selectedTab, default: NavigationPath()].append(AppRoute.notes)
             case "noteeditor" where parts.count == 2:
                 paths[selectedTab, default: NavigationPath()].append(AppRoute.noteEditor(noteID: parts[1]))

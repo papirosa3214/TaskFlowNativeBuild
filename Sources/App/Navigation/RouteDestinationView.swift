@@ -117,6 +117,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         ProviderDetailScreen(providerID: providerID)
     case .serverSettings:
         ServerSettingsScreen()
+    case .diagnostics:
+        AppDiagnosticsScreen()
     case .escalationSettings:
         EscalationSettingsScreen()
     case .runtimeStatus:
