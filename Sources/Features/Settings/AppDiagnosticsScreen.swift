@@ -4,6 +4,16 @@ struct AppDiagnosticsScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var snapshot = AppDiagnostics.shared.snapshot()
     @State private var showsReset = false
+    /// Системный снимок устройства: читается по требованию, не чаще раза в 5 секунд.
+    @State private var deviceSnapshot: DeviceResourceSnapshot?
+    /// Ручные снимки заряда: владелец записывает их сам.
+    @State private var batterySnapshots: [BatterySnapshot] = []
+    /// Что владелец ввёл в поле «Заряд, %».
+    @State private var batteryInput = ""
+    /// Пометка к снимку: что он делал, когда записывал.
+    @State private var batteryNote = ""
+    /// Хранилище снимков: локально, на устройстве, никуда не отправляется.
+    private let batteryStore = BatterySnapshotStore()
 
     var body: some View {
         List {
@@ -52,6 +62,75 @@ struct AppDiagnosticsScreen: View {
                     }
                 }
             }
+            Section {
+                ForEach(report.deviceFacts) { fact in deviceFactRow(fact) }
+            } header: {
+                HStack(spacing: TFSpacing.sm) {
+                    Text("Устройство")
+                    Spacer(minLength: TFSpacing.sm)
+                    Text("системное измерение").foregroundStyle(Color.tfSub)
+                }
+            } footer: {
+                Text("Заряд, тепло, режим экономии, память — замер iOS в момент, когда открыт экран. "
+                     + "iOS не сообщает, сколько батареи съело приложение: расход считается только по ручным снимкам ниже.")
+            }
+            Section {
+                ForEach(report.topConsumers) { row in counterRow(row) }
+            } header: {
+                HStack(spacing: TFSpacing.sm) {
+                    Text("Кто подъедает")
+                    Spacer(minLength: TFSpacing.sm)
+                    Text("счётчик приложения").foregroundStyle(Color.tfSub)
+                }
+            } footer: {
+                Text("Топ-3 по скорости роста счётчиков приложения за текущий отсчёт. Байты считаются отдельно — у них своя единица.")
+            }
+            Section {
+                if let delta = report.batteryDelta {
+                    LabeledContent("Изменение заряда", value: DiagnosticsReport.batteryText(delta))
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("diagnostics-battery-delta")
+                } else {
+                    Text("Нужны два снимка, чтобы увидеть расход.")
+                        .tfText(.meta).foregroundStyle(Color.tfSub)
+                }
+                LabeledContent("Снимков записано", value: "\(batterySnapshots.count) из \(BatterySnapshotStore.limit)")
+                ForEach(batterySnapshots) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(item.level)%")
+                        Text(item.note.map { "\(dateLabel(item.date)) · \($0)" } ?? dateLabel(item.date))
+                            .tfText(.meta).foregroundStyle(Color.tfSub)
+                    }
+                }
+                TFTextField("Заряд, % — из «Настройки → Батарея»", text: $batteryInput)
+                    .keyboardType(.numberPad)
+                TFTextField("Пометка (необязательно)", text: $batteryNote)
+                Button("Записать снимок") { recordBatterySnapshot() }
+                    .foregroundStyle(Color.tfText)
+                    .disabled(!canRecordBattery)
+                    .accessibilityIdentifier("diagnostics-battery-save")
+                if let level = deviceSnapshot?.batteryLevel {
+                    Button("Снимок по системному заряду (\(level)%)") { recordSystemBatterySnapshot() }
+                        .foregroundStyle(Color.tfText)
+                        .accessibilityIdentifier("diagnostics-battery-system")
+                }
+                if !batterySnapshots.isEmpty {
+                    Button("Убрать снимки") {
+                        batteryStore.clear()
+                        batterySnapshots = []
+                    }
+                    .foregroundStyle(Color.tfText)
+                }
+            } header: {
+                HStack(spacing: TFSpacing.sm) {
+                    Text("Расход батареи")
+                    Spacer(minLength: TFSpacing.sm)
+                    Text("ручной снимок").foregroundStyle(Color.tfSub)
+                }
+            } footer: {
+                Text("Снимок — это заряд, который вы видите в «Настройки → Батарея». Расход — разница между двумя снимками. "
+                     + "Приложение не знает свой расход батареи и не притворяется, что знает: счётчики приложения показывают работу, а не проценты.")
+            }
             Section("Последние события") {
                 ForEach(snapshot.saved.events.reversed()) { event in
                     VStack(alignment: .leading, spacing: 4) {
@@ -62,7 +141,7 @@ struct AppDiagnosticsScreen: View {
                 }
             }
             Section {
-                ShareLink(item: AppDiagnostics.shared.report()) {
+                ShareLink(item: report.text(events: snapshot.saved.events)) {
                     Label("Поделиться диагностикой", systemImage: "square.and.arrow.up")
                         .foregroundStyle(Color.tfText)
                 }
@@ -79,8 +158,16 @@ struct AppDiagnosticsScreen: View {
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             // Only the open diagnostics page refreshes; collection itself has no timer.
+            // Системные метрики устройства читаем не чаще раза в 5 секунд: чаще —
+            // значит сам экран становится причиной расхода.
+            var lastDeviceRead = Date.distantPast
             while !Task.isCancelled {
                 snapshot = AppDiagnostics.shared.snapshot()
+                if Date().timeIntervalSince(lastDeviceRead) >= 5 {
+                    lastDeviceRead = Date()
+                    deviceSnapshot = DeviceResourceMetrics.currentSnapshot()
+                    batterySnapshots = batteryStore.snapshots()
+                }
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
             }
         }
@@ -93,7 +180,9 @@ struct AppDiagnosticsScreen: View {
         }
     }
 
-    private var report: DiagnosticsReport { DiagnosticsReport(snapshot: snapshot) }
+    private var report: DiagnosticsReport {
+        DiagnosticsReport(snapshot: snapshot, device: deviceSnapshot, batterySnapshots: batterySnapshots)
+    }
 
     /// Строка счётчика: сколько всего, сколько прибавилось за отсчёт, с какой
     /// скоростью и что об этом думает метка (владелец 18.10.2026).
@@ -125,6 +214,51 @@ struct AppDiagnosticsScreen: View {
             parts.append("в фоне " + DiagnosticsReport.deltaText(row.backgroundDelta, isBytes: row.isBytes))
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// Строка системного факта: значение, метка и пометка источника. Источник
+    /// виден рядом со значением — чтобы никто не принял замер iOS за счётчик
+    /// приложения.
+    private func deviceFactRow(_ fact: DiagnosticsReport.DeviceFact) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            HStack(spacing: TFSpacing.sm) {
+                markIcon(fact.mark)
+                Text(fact.title)
+                Spacer(minLength: TFSpacing.sm)
+                Text(fact.value).foregroundStyle(Color.tfSub)
+            }
+            Text(fact.source)
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue("\(fact.value). \(fact.mark.title). \(fact.source)")
+        .accessibilityIdentifier("diagnostics-device-" + fact.id)
+    }
+
+    /// Записать ручной снимок: число, которое владелец увидел в «Настройки →
+    /// Батарея».
+    private func recordBatterySnapshot() {
+        guard let level = Int(batteryInput.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (0...100).contains(level) else { return }
+        let note = batteryNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        batteryStore.add(level: level, note: note.isEmpty ? nil : note)
+        batteryInput = ""
+        batteryNote = ""
+        batterySnapshots = batteryStore.snapshots()
+    }
+
+    /// Записать снимок по текущему системному заряду — быстрый путь, когда
+    /// телефон под рукой и «Настройки» открывать не хочется.
+    private func recordSystemBatterySnapshot() {
+        guard let level = deviceSnapshot?.batteryLevel else { return }
+        batteryStore.add(level: level)
+        batterySnapshots = batteryStore.snapshots()
+    }
+
+    private var canRecordBattery: Bool {
+        guard let level = Int(batteryInput.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        return (0...100).contains(level)
     }
 
     private func markIcon(_ mark: DiagnosticsMark) -> some View {

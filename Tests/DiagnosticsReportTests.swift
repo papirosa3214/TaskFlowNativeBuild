@@ -166,6 +166,95 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertTrue(line.contains("держится фон островка"))
     }
 
+    // MARK: - Устройство: источники, пороги, топ и ручные снимки
+
+    private func device(
+        battery: Int? = 62,
+        thermal: ProcessInfo.ThermalState = .nominal,
+        lowPower: Bool = false,
+        available: UInt64 = 84 * 1_048_576,
+        footprint: UInt64 = 12_400_000
+    ) -> DeviceResourceSnapshot {
+        DeviceResourceSnapshot(
+            takenAt: Date(),
+            thermalState: thermal,
+            lowPowerModeEnabled: lowPower,
+            batteryLevel: battery,
+            batteryState: .unplugged,
+            availableMemoryBytes: available,
+            appFootprintBytes: footprint
+        )
+    }
+
+    func testDeviceFactsCarrySourceAndMarks() {
+        let report = DiagnosticsReport(snapshot: snapshot(baselineAt: Date()), device: device())
+        XCTAssertEqual(report.deviceFacts.count, 5)
+        // У каждого значения виден источник: системное измерение, а не счётчик.
+        XCTAssertTrue(report.deviceFacts.allSatisfy { $0.source == "системное измерение" })
+        XCTAssertEqual(report.deviceFacts.first { $0.id == "battery" }?.value, "62%")
+        XCTAssertEqual(report.deviceFacts.first { $0.id == "battery" }?.mark, .ok)
+        XCTAssertEqual(report.deviceFacts.first { $0.id == "thermal" }?.value, "норма")
+        XCTAssertEqual(report.deviceFacts.first { $0.id == "low-power" }?.value, "выключен")
+        XCTAssertTrue(report.text().contains("[Устройство]"))
+    }
+
+    func testDeviceMarksFollowRealThresholds() {
+        // iOS просит беречь батарею на 20 % и предупреждает на 10 %.
+        XCTAssertEqual(DiagnosticsReport.batteryMark(20), .ok)
+        XCTAssertEqual(DiagnosticsReport.batteryMark(19), .attention)
+        XCTAssertEqual(DiagnosticsReport.batteryMark(9), .alarm)
+        XCTAssertEqual(DiagnosticsReport.batteryMark(nil), .ok)
+        // Тепло: serious — система сама ограничивает нагрузку.
+        XCTAssertEqual(DiagnosticsReport.thermalMark(.nominal), .ok)
+        XCTAssertEqual(DiagnosticsReport.thermalMark(.fair), .ok)
+        XCTAssertEqual(DiagnosticsReport.thermalMark(.serious), .attention)
+        XCTAssertEqual(DiagnosticsReport.thermalMark(.critical), .alarm)
+        // Память: ниже 100 МБ тесно, ниже 50 МБ iOS снимает фоновые приложения.
+        XCTAssertEqual(DiagnosticsReport.memoryMark(84 * 1_048_576), .ok)
+        XCTAssertEqual(DiagnosticsReport.memoryMark(60 * 1_048_576), .attention)
+        XCTAssertEqual(DiagnosticsReport.memoryMark(20 * 1_048_576), .alarm)
+    }
+
+    func testTopConsumersAreThreeFastestNonByteCounters() {
+        let now = Date()
+        let snapshot = snapshot(
+            totals: [.ticks: 300, .wakes: 25, .messages: 10, .requests: 5, .bytes: 10_000_000],
+            baselineAt: now.addingTimeInterval(-60)
+        )
+        let report = DiagnosticsReport(snapshot: snapshot, now: now)
+        XCTAssertEqual(report.topConsumers.map(\.id), ["ticks", "wakes", "messages"])
+        // Байты с тактами не сравниваются: у них разные единицы.
+        XCTAssertFalse(report.topConsumers.contains { $0.isBytes })
+        XCTAssertTrue(report.text().contains("[Кто подъедает]"))
+    }
+
+    func testBatteryDeltaNeedsTwoManualSnapshots() {
+        let now = Date()
+        let report = DiagnosticsReport(
+            snapshot: snapshot(baselineAt: now),
+            batterySnapshots: [BatterySnapshot(date: now, level: 62)]
+        )
+        XCTAssertNil(report.batteryDelta, "по одному снимку расход не считается")
+    }
+
+    func testBatteryDeltaComparesTwoManualSnapshots() throws {
+        let now = Date()
+        let previous = BatterySnapshot(date: now.addingTimeInterval(-4 * 3600 - 12 * 60), level: 62)
+        let latest = BatterySnapshot(date: now, level: 54)
+        let report = DiagnosticsReport(
+            snapshot: snapshot(baselineAt: now),
+            batterySnapshots: [latest, previous]
+        )
+        let delta = try XCTUnwrap(report.batteryDelta)
+        XCTAssertEqual(delta.percentChange, -8)
+        XCTAssertEqual(delta.previous.level, 62)
+        XCTAssertEqual(delta.latest.level, 54)
+        XCTAssertEqual(DiagnosticsReport.batteryText(delta), "62% → 54% за 4 ч 12 мин, −8%")
+        let text = report.text()
+        XCTAssertTrue(text.contains("[Расход батареи]"))
+        XCTAssertTrue(text.contains("ручные снимки владельца"))
+    }
+
     // MARK: - Сторож мёртвых счётчиков
 
     /// Каждый счётчик обязан где-то увеличиваться. Счётчик без вызова

@@ -70,6 +70,32 @@ struct DiagnosticsReport {
         }
     }
 
+    /// Разовое значение об устройстве: это не счётчик, поэтому у него нет
+    /// скорости и предела — только значение, источник и метка.
+    struct DeviceFact: Identifiable, Sendable {
+        let id: String
+        let title: String
+        let value: String
+        /// Откуда значение: «системное измерение» (iOS), а не счётчик
+        /// приложения.
+        let source: String
+        let mark: DiagnosticsMark
+    }
+
+    /// Дельта между двумя последними ручными снимками заряда. Единственный
+    /// честный способ сказать «минус 8 %»: iOS не сообщает, сколько батареи
+    /// съело приложение.
+    struct BatteryDelta: Sendable {
+        /// Более ранний снимок.
+        let previous: BatterySnapshot
+        /// Более свежий снимок.
+        let latest: BatterySnapshot
+        /// Изменение в процентах: минус — батарея просела.
+        let percentChange: Int
+        /// Сколько времени между снимками.
+        let interval: TimeInterval
+    }
+
     /// Когда начался текущий отсчёт (приложение вернулось на экран).
     let startAt: Date
     /// Минут с начала отсчёта.
@@ -79,13 +105,24 @@ struct DiagnosticsReport {
     /// Что происходит прямо сейчас: очереди, соединение, островок.
     let stateLine: String
     let groups: [Group]
+    /// Системные метрики устройства. Источник — системное измерение iOS.
+    let deviceFacts: [DeviceFact]
+    /// Кто подъедает больше всех по счётчикам приложения.
+    let topConsumers: [Row]
+    /// Дельта между двумя последними ручными снимками заряда.
+    let batteryDelta: BatteryDelta?
 
     var rows: [Row] { groups.flatMap(\.rows) }
     var alarmCount: Int { rows.filter { $0.mark == .alarm }.count }
     var attentionCount: Int { rows.filter { $0.mark == .attention }.count }
     var mark: DiagnosticsMark { groups.map(\.mark).max { $0.rank < $1.rank } ?? .ok }
 
-    init(snapshot: AppDiagnostics.Snapshot, now: Date = Date()) {
+    init(
+        snapshot: AppDiagnostics.Snapshot,
+        device: DeviceResourceSnapshot? = nil,
+        batterySnapshots: [BatterySnapshot] = [],
+        now: Date = Date()
+    ) {
         let baseline = snapshot.baseline
         startAt = baseline.at
         countersSince = snapshot.saved.since
@@ -154,9 +191,107 @@ struct DiagnosticsReport {
         ]))
 
         groups = built
+        topConsumers = Self.topConsumers(from: built.flatMap(\.rows))
+        deviceFacts = Self.deviceFacts(from: device)
+        // Снимки хранятся свежими сверху, но порядок определяем по дате:
+        // часы телефона могли перевести.
+        let sorted = batterySnapshots.sorted { $0.date > $1.date }
+        if sorted.count >= 2 {
+            batteryDelta = BatteryDelta(
+                previous: sorted[1],
+                latest: sorted[0],
+                percentChange: sorted[0].level - sorted[1].level,
+                interval: sorted[0].date.timeIntervalSince(sorted[1].date)
+            )
+        } else {
+            batteryDelta = nil
+        }
     }
 
     // MARK: - Правила
+
+    /// Топ потребителей по скорости роста счётчиков приложения.
+    /// Байты с тактами не сравниваются (разные единицы), поэтому «Получено от
+    /// сервера» в топ не входит; агрегированная «Работа в фоне» — тоже: это
+    /// сумма, а не отдельный потребитель.
+    static func topConsumers(from rows: [Row], limit: Int = 3) -> [Row] {
+        rows
+            .filter { $0.id != "background-work" && !$0.isBytes }
+            .sorted { lhs, rhs in
+                lhs.perMinute == rhs.perMinute ? lhs.title < rhs.title : lhs.perMinute > rhs.perMinute
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    /// Факты об устройстве — только то, что система отдаёт сама.
+    static func deviceFacts(from device: DeviceResourceSnapshot?) -> [DeviceFact] {
+        guard let device else { return [] }
+        return [
+            DeviceFact(
+                id: "battery", title: "Заряд",
+                value: device.batteryLevel.map { "\($0)%" } ?? "система не сообщает",
+                source: "системное измерение", mark: batteryMark(device.batteryLevel)
+            ),
+            DeviceFact(
+                id: "thermal", title: "Тепло", value: thermalText(device.thermalState),
+                source: "системное измерение", mark: thermalMark(device.thermalState)
+            ),
+            DeviceFact(
+                id: "low-power", title: "Режим экономии",
+                value: device.lowPowerModeEnabled ? "включён" : "выключен",
+                source: "системное измерение", mark: .ok
+            ),
+            DeviceFact(
+                id: "available-memory", title: "Свободная память",
+                value: bytes(Int(device.availableMemoryBytes)),
+                source: "системное измерение", mark: memoryMark(device.availableMemoryBytes)
+            ),
+            DeviceFact(
+                id: "footprint", title: "Память приложения",
+                value: bytes(Int(device.appFootprintBytes)),
+                source: "системное измерение", mark: .ok
+            ),
+        ]
+    }
+
+    /// Заряд: iOS просит беречь батарею на 20 % и предупреждает о критическом
+    /// на 10 % — это пороги внимания и тревоги.
+    static func batteryMark(_ level: Int?) -> DiagnosticsMark {
+        guard let level else { return .ok }
+        if level < 10 { return .alarm }
+        if level < 20 { return .attention }
+        return .ok
+    }
+
+    /// Тепло: serious — система сама ограничивает нагрузку, critical — уже
+    /// жарко.
+    static func thermalMark(_ state: ProcessInfo.ThermalState) -> DiagnosticsMark {
+        switch state {
+        case .critical: return .alarm
+        case .serious: return .attention
+        default: return .ok
+        }
+    }
+
+    static func thermalText(_ state: ProcessInfo.ThermalState) -> String {
+        switch state {
+        case .nominal: "норма"
+        case .fair: "тепло"
+        case .serious: "горячо"
+        case .critical: "критично"
+        @unknown default: "норма"
+        }
+    }
+
+    /// Память: ниже 100 МБ системе скоро станет тесно, ниже 50 МБ iOS начинает
+    /// снимать фоновые приложения.
+    static func memoryMark(_ available: UInt64) -> DiagnosticsMark {
+        let megabyte: UInt64 = 1_048_576
+        if available < 50 * megabyte { return .alarm }
+        if available < 100 * megabyte { return .attention }
+        return .ok
+    }
 
     /// Метка по скорости: выше предела нормы — внимание, выше предела тревоги —
     /// тревожно.
@@ -231,10 +366,27 @@ struct DiagnosticsReport {
         lines.append("Как читать: «за отсчёт» — прирост скорости сейчас, «всего» — с начала сбора. "
                      + "Метки: норма — в пределах порога, внимание — выше нормы, тревожно — вне обычного режима. "
                      + "Пороги — в DiagnosticsReport.swift.")
+        lines.append("Источники: устройство — системное измерение iOS; «кто подъедает» — счётчики приложения; "
+                     + "расход батареи — ручные снимки владельца (iOS не сообщает расход батареи приложением).")
         for group in groups {
             lines.append("")
             lines.append("[\(group.title)] — \(group.mark.title)")
             for row in group.rows { lines.append(Self.rowText(row)) }
+        }
+        if !deviceFacts.isEmpty {
+            lines.append("")
+            lines.append("[Устройство] — системное измерение iOS")
+            for fact in deviceFacts { lines.append(Self.factText(fact)) }
+        }
+        if !topConsumers.isEmpty {
+            lines.append("")
+            lines.append("[Кто подъедает] — счётчики приложения, топ-3 по скорости")
+            for row in topConsumers { lines.append(Self.rowText(row)) }
+        }
+        if let batteryDelta {
+            lines.append("")
+            lines.append("[Расход батареи] — ручные снимки владельца")
+            lines.append(Self.batteryText(batteryDelta))
         }
         if !events.isEmpty {
             lines.append("")
@@ -254,6 +406,18 @@ struct DiagnosticsReport {
         let rest = rows.count - alarmCount - attentionCount
         parts.append("в норме — \(rest)")
         return parts.joined(separator: ", ") + ". Подробности ниже."
+    }
+
+    static func factText(_ fact: DeviceFact) -> String {
+        "\(fact.title): \(fact.value) — \(fact.mark.title)"
+    }
+
+    /// Снимки батареи: «62% → 54% за 4 ч 12 мин, −8%».
+    static func batteryText(_ delta: BatteryDelta) -> String {
+        let change = delta.percentChange
+        let sign = change > 0 ? "+" : (change < 0 ? "−" : "")
+        return "\(delta.previous.level)% → \(delta.latest.level)% за \(Self.duration(delta.interval / 60))"
+            + ", \(sign)\(abs(change))%"
     }
 
     static func rowText(_ row: Row) -> String {
