@@ -826,6 +826,9 @@ struct RoleChatRoomScreen: View {
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
+    #if DEBUG
+    @State private var chatScrollTrace = ChatScrollTrace()
+    #endif
     @FocusState private var composerFocused: Bool
     private let api = APIClient()
 
@@ -1589,6 +1592,19 @@ struct RoleChatRoomScreen: View {
             // Observation only: this does not issue any scroll commands.
             chatIsNearBottom = nearBottom
         }
+        #if DEBUG
+        .onScrollGeometryChange(for: ChatScrollGeometry.self) { geometry in
+            ChatScrollGeometry(offsetY: Double(geometry.contentOffset.y),
+                               contentHeight: Double(geometry.contentSize.height),
+                               viewportHeight: Double(geometry.containerSize.height),
+                               visibleMaxY: Double(geometry.visibleRect.maxY))
+        } action: { _, geometry in
+            chatScrollTrace.record(geometry, rowIDs: orderedFeed.map(\.id),
+                liveTurnCount: visibleLiveTurns.count, nearBottom: chatIsNearBottom,
+                positionedByUser: chatScrollPosition.isPositionedByUser)
+        }
+        .onDisappear { chatScrollTrace.flush() }
+        #endif
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
