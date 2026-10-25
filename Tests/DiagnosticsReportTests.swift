@@ -209,8 +209,10 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertEqual(DiagnosticsReport.thermalMark(.fair), .ok)
         XCTAssertEqual(DiagnosticsReport.thermalMark(.serious), .attention)
         XCTAssertEqual(DiagnosticsReport.thermalMark(.critical), .alarm)
-        // Память: ниже 100 МБ тесно, ниже 50 МБ iOS снимает фоновые приложения.
-        XCTAssertEqual(DiagnosticsReport.memoryMark(84 * 1_048_576), .ok)
+        // Память: ниже 100 МБ — внимание, ниже 50 МБ — тревога (iOS снимает
+        // фоновые приложения). Пороги те же, что в DiagnosticsReport.
+        XCTAssertEqual(DiagnosticsReport.memoryMark(120 * 1_048_576), .ok)
+        XCTAssertEqual(DiagnosticsReport.memoryMark(84 * 1_048_576), .attention)
         XCTAssertEqual(DiagnosticsReport.memoryMark(60 * 1_048_576), .attention)
         XCTAssertEqual(DiagnosticsReport.memoryMark(20 * 1_048_576), .alarm)
     }
