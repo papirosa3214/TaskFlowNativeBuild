@@ -199,19 +199,28 @@ struct TodayListView: View {
                     .font(.system(size: 16))
                     .foregroundStyle(section.color)
             }
-            // Владелец 12.10.2026: «заголовки как везде… меньшинство сделать
-            // как большинство». Большинство заголовков секций приложения —
-            // `TFSectionHeader` (13 pt, `tfSub`), поэтому частное решение
-            // 15.09.2026 («покрупнее и белым») отменено ради единообразия.
+            // Владелец 26.10.2026: подзаголовки «Планирования» — те же, что
+            // подзаголовки карточки задачи («Задача», «План», «Лента
+            // активности»). В карточке это `taskSectionHeader(_:)`
+            // (`TaskFormScreen.swift`): `.tfText(.taskTitle)` — системный
+            // шрифт, 20 pt, semibold, цвет `tfText` (белый в тёмной теме).
+            // Решение 12.10.2026 («заголовки как везде», 13 pt `tfSub`)
+            // владелец 26.10.2026 отменил.
             Text(section.title)
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
+                .tfText(.taskTitle)
+                .foregroundStyle(Color.tfText)
+                .textCase(nil)
         }
         .padding(.horizontal, TFSpacing.lg)
         .padding(.top, 8)
         .padding(.bottom, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfBackground)
+        // Подложка прозрачная — по просьбе владельца 26.10.2026 (то же, что
+        // он просил 03.09.2026 и как у заголовков диапазонов в
+        // `UpcomingListView.dateHeader(_:)`): закреплённый заголовок не
+        // должен резать ленту чёрной полосой. Непрозрачная подложка
+        // `Color.tfBackground` проскочила в ревизии списка 24.10.2026
+        // (`9b284a62`), когда заголовки переехали из `LazyVStack` в `List`.
     }
 }
 
