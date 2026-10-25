@@ -1,7 +1,7 @@
 # coding: utf-8
 import json, threading, hashlib, base64, struct, time, socket
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-clients=set(); counts={}; phase=0
+clients=set(); counts={}; phase=0; activity_hits=0
 user={"id":"u1","name":"Максим","role":"owner","type":"human"}
 def task():
  return {"id":"energy","title":"Проверка WebSocket","status":"active","creator_id":"u1","subtasks":[{"id":"step","task_id":"energy","title":["Шаг до события","Шаг после события","Шаг после переподключения"][min(phase,2)],"done":False,"position":0}],"children":[],"comments":[],"events":[],"priority":1}
@@ -44,7 +44,10 @@ class H(BaseHTTPRequestHandler):
    elif path.endswith("/subtasks"):result=task()["subtasks"]
    elif path.endswith("/collaboration-plans"):result={"plans":[{"id":"p1","task_id":"energy","revision":1,"status":"approved","profile":"product_feature","rationale":"Fixture","nodes":[{"slot_key":"builder","role_key":"builder","required":True,"expected_result":"Проверка окна","task_id":"energy","source_subtask_id":"step","execution_state":"active"}],"edges":[]}]}
    elif path.endswith("/preparation"):result={"preparation":None}
-   elif path.endswith("/activity"):result={"text":None,"actions":[],"by_subtask":{"step":{"text":"Проверка накопленной истории","actions":[{"kind":"read","target":str(i),"actor":"builder","at":1791532800000+i*1000,"text":"Событие %02d: проверяется накопленная история роли в ограниченном окне"%i} for i in range(40)],"total":40}}}
+   elif path.endswith("/activity"):
+    global activity_hits
+    activity_hits+=1
+    result={"text":None,"actions":[],"by_subtask":{"step":{"text":"Проверка накопленной истории, обновлений %d"%activity_hits,"actions":[{"kind":"read","target":str(i),"actor":"builder","at":1791532800000+i*1000,"text":"Событие %02d: проверяется накопленная история роли в ограниченном окне"%i} for i in range(40)],"total":40}}}
    elif path.endswith("/live"):result={"turns":[]}
    elif path=="/api/roles":result={"roles":[]}
    elif path=="/api/notifications":result=[]
@@ -55,5 +58,13 @@ class H(BaseHTTPRequestHandler):
    else:result={}
   data=json.dumps(result,ensure_ascii=False).encode()
   self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Content-Length",str(len(data)));self.end_headers();self.wfile.write(data)
+def pump():
+ # События активности раз в секунду: как в бою, когда ход идёт.
+ while True:
+  time.sleep(1)
+  for sock in list(clients):
+   try: frame(sock,{"type":"task:activity","task_id":"energy"})
+   except Exception: clients.discard(sock)
+threading.Thread(target=pump,daemon=True).start()
 print("WebSocket fixture listening on 3307",flush=True)
 ThreadingHTTPServer(("127.0.0.1",3307),H).serve_forever()

@@ -60,12 +60,25 @@ struct TaskLiveActivityView: View {
             }
             realtime.connect()
         }
-        .task(id: "\(taskID):\(subtaskID ?? ""):\(scenePhase):\(realtime.revision(for: taskID)):\(realtime.activityRevisions[taskID] ?? 0)") {
+        // Снимок — при открытии окна, смене шага или сцены. Раньше id
+        // включал ревизии живых событий, и задача перезапускалась на КАЖДОМ
+        // событии: при идущем ходе это раз в секунду — два REST-запроса и
+        // перерисовка окна, из-за чего прокрутка сбрасывалась наверх, а
+        // владелец не мог долистать до «Прервать» (владелец 25.10.2026).
+        .task(id: "\(taskID):\(subtaskID ?? ""):\(scenePhase)") {
             #if DEBUG
             if ProcessInfo.processInfo.environment["TASKFLOW_ACTION_LABELS_PREVIEW"] == "1" { return }
             #endif
             guard scenePhase == .active else { return }
             await restoreSnapshot()
+        }
+        // Список действий обновляем по событиям активности, но не чаще
+        // раза в пару секунд: события приходят пачками.
+        .task(id: "\(taskID):\(subtaskID ?? ""):\(scenePhase):\(realtime.activityRevisions[taskID] ?? 0)") {
+            guard scenePhase == .active else { return }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            await refreshActivity()
         }
         .onDisappear { realtime.disconnect(); realtime.onEvent = nil }
     }
@@ -78,6 +91,11 @@ struct TaskLiveActivityView: View {
                 live = turn
             }
         }
+        await refreshActivity()
+    }
+
+    private func refreshActivity() async {
+        let api = APIClient()
         do {
             activity = try await api.taskActivity(taskId: taskID).forSubtask(subtaskID)
             errorText = nil

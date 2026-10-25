@@ -97,7 +97,11 @@ struct PlanStepDetailSheet: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .frame(height: UIScreen.main.bounds.height * 0.5)
-                                .defaultScrollAnchor(.bottom)
+                                // Без defaultScrollAnchor(.bottom): привязка к низу
+                                // пересчитывается на каждом обновлении содержимого
+                                // (живой ход идёт пачками раз в секунду), и окно
+                                // уводит владельца наверх — пролистать до кнопки
+                                // «Прервать» было невозможно (владелец 25.10.2026).
                                 .scrollBounceBehavior(.basedOnSize)
                                 .accessibilityIdentifier("plan-slot-live-window")
                                 // Перевод — значком в правом нижнем углу, на
