@@ -479,7 +479,12 @@ struct RoleLiveTextPacer {
     private var texts: [[Character]] = []
     private var immediateText: Set<Int> = []
     private var budget: Double = 0
-    private var revealedActions: Set<Int> = []
+    /// Проявленные действия — по id, не по индексу. Сервер вправе убрать из
+    /// снимка законченное пустое размышление, и индексы сдвигаются: по
+    /// индексу проявленное действие терялось, видимый список обрезался, живой
+    /// пузырь схлопывался на полосу, а лента, привязанная к низу, прыгала
+    /// вниз и тут же обратно (владелец 25.10.2026).
+    private var revealedActions: Set<String> = []
     private var actionWait: TimeInterval = 0
     static let actionInterval: TimeInterval = 0.4
     static let initialBuffer: TimeInterval = 0
@@ -491,9 +496,8 @@ struct RoleLiveTextPacer {
     /// скачок в конце ответа (владелец 14.10.2026: «ни задержек, ни рывков»).
     mutating func finish() {
         guard completionRemaining == nil else { return }
-        let pendingActions = target.indices.filter {
-            if case .text = target[$0] { return false }
-            return !revealedActions.contains($0)
+        let pendingActions = target.compactMap { Self.actionID($0) }.filter {
+            !revealedActions.contains($0)
         }.count
         completionRemaining = max(Self.completionDrain,
             Double(pendingCharacters) / Self.maxRate
@@ -532,28 +536,40 @@ struct RoleLiveTextPacer {
                 }
             } else { items.append(item) }
         }
+        // Текст узнаём по порядку среди текстовых пунктов: сервер их только
+        // дописывает, поэтому номер текста не меняется. Действия — по id.
+        var oldTexts: [(chars: [Character], visible: Int)] = []
+        for index in target.indices {
+            guard case .text = target[index] else { continue }
+            oldTexts.append((chars: texts[index], visible: visibleCharacters[index]))
+        }
         var next = Array(repeating: 0, count: items.count)
         var nextTexts: [[Character]] = Array(repeating: [], count: items.count)
+        var textOrdinal = 0
         for index in items.indices {
             guard case .text(let new) = items[index] else { continue }
             let chars = Array(new)
             nextTexts[index] = chars
-            if immediateText.contains(index) { next[index] = chars.count; continue }
-            guard index < target.count, case .text = target[index] else { continue }
-            let old = texts[index]
-            let shown = visibleCharacters[index]
-            if chars.count >= shown, old.count >= shown, chars[0..<shown] == old[0..<shown] {
-                next[index] = shown
+            if immediateText.contains(index) {
+                next[index] = chars.count
+            } else if textOrdinal < oldTexts.count {
+                let old = oldTexts[textOrdinal]
+                let shown = old.visible
+                if chars.count >= shown, old.chars.count >= shown,
+                   shown == 0 || Array(old.chars[0..<shown]) == Array(chars[0..<shown]) {
+                    next[index] = shown
+                }
             }
+            textOrdinal += 1
         }
-        revealedActions = revealedActions.filter { index in
-            guard index < items.count, index < target.count else { return false }
-            switch (target[index], items[index]) {
-            case (.step(let old), .step(let new)): return old.id == new.id
-            case (.thinking(let old), .thinking(let new)): return old.id == new.id
-            default: return false
-            }
+        // Проявленными остаются те же действия, что и были: по id, а не по
+        // индексу — индексы сдвигаются, когда сервер убирает законченное
+        // пустое размышление из снимка.
+        var liveIDs = Set<String>()
+        for item in items {
+            if let id = Self.actionID(item) { liveIDs.insert(id) }
         }
+        revealedActions = revealedActions.filter { liveIDs.contains($0) }
         target = items
         texts = nextTexts
         visibleCharacters = next
@@ -565,14 +581,23 @@ struct RoleLiveTextPacer {
         }
     }
 
+    /// Идентификатор действия: у шага и у размышления он свой.
+    private static func actionID(_ item: RoleChatLiveItem) -> String? {
+        switch item {
+        case .text: return nil
+        case .step(let step): return "step:" + step.id
+        case .thinking(let thinking): return "thinking:" + thinking.id
+        }
+    }
+
     var pendingCharacters: Int {
         texts.indices.reduce(0) { $0 + max(0, texts[$1].count - visibleCharacters[$1]) }
     }
 
     var hasPendingText: Bool {
-        pendingCharacters > 0 || target.indices.contains {
-            if case .text = target[$0] { return false }
-            return !revealedActions.contains($0)
+        pendingCharacters > 0 || target.contains { item in
+            guard let id = Self.actionID(item) else { return false }
+            return !revealedActions.contains(id)
         }
     }
 
@@ -612,7 +637,8 @@ struct RoleLiveTextPacer {
         actionWait = max(0, actionWait - elapsed)
         guard let index = target.indices.first(where: {
             if case .text = target[$0] { return visibleCharacters[$0] < texts[$0].count }
-            return !revealedActions.contains($0)
+            guard let id = Self.actionID(target[$0]) else { return false }
+            return !revealedActions.contains(id)
         }) else {
             return false
         }
@@ -621,7 +647,7 @@ struct RoleLiveTextPacer {
             guard actionWait == 0 else { return true }
         } else {
             guard actionWait == 0 else { return true }
-            revealedActions.insert(index)
+            revealedActions.insert(Self.actionID(target[index]) ?? "")
             actionWait = Self.actionInterval
             budget = 0
             lastPresentationAt = now
@@ -667,9 +693,7 @@ struct RoleLiveTextPacer {
     /// Показать восстановленный снимок без повторного проигрывания.
     mutating func flush(now: Date = .now) {
         for index in texts.indices { visibleCharacters[index] = texts[index].count }
-        revealedActions = Set(target.indices.filter {
-            if case .text = target[$0] { return false }; return true
-        })
+        revealedActions = Set(target.compactMap { Self.actionID($0) })
         actionWait = 0
         initialDelay = 0
         lastRevealAt = .distantPast
@@ -693,7 +717,9 @@ struct RoleLiveTextPacer {
                 }
             case .step, .thinking:
                 if blocked { continue }
-                guard revealedActions.contains(index) else { blocked = true; continue }
+                guard let id = Self.actionID(target[index]), revealedActions.contains(id) else {
+                    blocked = true; continue
+                }
                 result.append(target[index])
             }
         }

@@ -116,6 +116,9 @@ struct RoleLiveStepRow: View {
             Text(RoleActionPresentation.forStep(step).title)
                 .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
+                // Одна строка: перенос поднял бы строку шага и изменил высоту
+                // живого пузыря — лента от этого прыгает (владелец 25.10.2026).
+                .lineLimit(1)
             if showsDetail, let detail = RoleActionPresentation.forStep(step).skillName ?? step.detail, !detail.isEmpty {
                 Text(detail)
                     .font(.system(.caption, design: .monospaced))
@@ -168,12 +171,19 @@ struct RoleLiveItemsList: View {
     /// Проявление текста из пустоты — только у идущего хода.
     var fade: RoleTextFade?
     var isStreaming = false
+    /// Превью последнего действия — у каждой полосы, и одиночное действие
+    /// тоже полосой. Пока ход идёт, высота пузыря не меняется: ни полоса не
+    /// появляется вместо строки, ни превью не пропадает из-под полосы, когда
+    /// приходит ответ. Лента привязана к низу, и любое изменение высоты
+    /// двигает её — вот откуда «шатается вверх-вниз» (владелец 25.10.2026).
+    var showsActionPreview = false
     @State private var detail: RoleLiveDetail?
     @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     var body: some View {
         let visible = detailLevel.visible(items)
-        let segments = RoleLiveSegment.split(visible, grouping: detailLevel == .standard)
+        let segments = RoleLiveSegment.split(visible, grouping: detailLevel == .standard,
+                                             groupsSingleAction: showsActionPreview)
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не текст: текст растёт каждые 150 мс, и id по нему
             // пересоздавал бы строку на каждом кадре.
@@ -184,7 +194,8 @@ struct RoleLiveItemsList: View {
                 case .actions(let group):
                     // «Стандарт» (владелец 20.10.2026): подряд идущие шаги и
                     // размышления — одной строкой, тап раскрывает весь список.
-                    RoleActionGroup(items: group, isLive: isStreaming && index == segments.count - 1) { item in
+                    RoleActionGroup(items: group, isLive: isStreaming && index == segments.count - 1,
+                                    showsPreview: showsActionPreview) { item in
                         itemView(item)
                     }
                 }
@@ -317,7 +328,10 @@ struct RoleLiveTurnBubble: View {
                     .foregroundStyle(Color.tfSub)
             }
             if !(pacesText ? visibleItems : turn.items).isEmpty {
-                RoleLiveItemsList(items: pacesText ? visibleItems : turn.items, fade: pacesText && !reduceMotion ? fade : nil, isStreaming: !isComplete)
+                RoleLiveItemsList(items: pacesText ? visibleItems : turn.items,
+                                  fade: pacesText && !reduceMotion ? fade : nil,
+                                  isStreaming: !isComplete,
+                                  showsActionPreview: true)
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
             if turn.thinking != nil && turn.runningThinking == nil && detailLevel != .minimal {

@@ -937,6 +937,70 @@ struct RoleChatRoomScreen: View {
         return         RoleChatLiveTurn(chatID: "reading-preview", userID: "role_researcher", name: "Исследователь", startedAt: nil,
             items: [.text(long ? "Ответ начинается здесь. " + String(repeating: "Подробное пояснение результата. ", count: 60) + "КОНЕЦ ДЛИННОГО ОТВЕТА" : "Ответ начинается здесь. Короткое пояснение.")], thinking: nil)
     }
+
+    /// Пункты идущего хода для стенда шатания: реальный порядок с сервера —
+    /// «размышление, шаг, шаг, размышление, шаг…» (база TaskFlow, 25.10.2026).
+    private static func shakePreviewItems() -> [RoleChatLiveItem] {
+        let steps: [(String, String)] = [
+            ("read", "Sources/Core/Models/RoleChat.swift"),
+            ("bash", "rg defaultScrollAnchor Sources"),
+            ("edit", "Sources/Features/Chat/RoleActionGroup.swift"),
+            ("bash", "npm run build"),
+            ("read", "docs/2026-10-24-chat-smoothness-plan.md"),
+            ("grep", "scrollPosition Sources/Features/Chat"),
+            ("write", "docs/2026-10-25-chat-shake.md"),
+            ("bash", "xcodebuild -scheme TaskFlow build"),
+            ("read", "AGENT-WORK-SCOPES.md"),
+            ("edit", "Sources/Features/Chat/RoleLiveTurnView.swift")
+        ]
+        var items: [RoleChatLiveItem] = []
+        for (index, step) in steps.enumerated() {
+            items.append(.thinking(RoleChatThinking(id: "thinking-\(index)", text: "Размышление \(index)", isRunning: true,
+                startedAt: "2026-10-25T03:00:0\(index % 10)Z")))
+            items.append(.step(RoleChatLiveStep(id: "step-\(index)", tool: step.0, detail: step.1, status: .done,
+                startedAt: "2026-10-25T03:00:0\(index % 10)Z", endedAt: "2026-10-25T03:00:0\(index % 10)Z")))
+        }
+        return items
+    }
+
+    /// Снимок живого хода на тике стенда — повторяет фазы сервера: сначала
+    /// размышление с растущим текстом, потом шаги, в конце ответ роли.
+    static func shakePreviewItems(at tick: Int) -> [RoleChatLiveItem] {
+        let start = "2026-10-25T03:00:00Z"
+        func thinking(_ id: String, _ text: String, _ running: Bool) -> RoleChatLiveItem {
+            .thinking(RoleChatThinking(id: id, text: text, isRunning: running, startedAt: start,
+                endedAt: running ? nil : "2026-10-25T03:00:05Z"))
+        }
+        func step(_ id: String, _ tool: String, _ detail: String, _ running: Bool) -> RoleChatLiveItem {
+            .step(RoleChatLiveStep(id: id, tool: tool, detail: detail, status: running ? .running : .done,
+                startedAt: start, endedAt: running ? nil : "2026-10-25T03:00:05Z"))
+        }
+        var items: [RoleChatLiveItem] = []
+        // Фаза 1: размышление (текст растёт), затем шаг.
+        items.append(thinking("thinking-0", tick <= 1 ? "" : "Сверяю, что именно прыгает", tick < 4))
+        if tick >= 4 { items.append(step("step-0", "read", "Sources/Core/Models/RoleChat.swift", tick < 5)) }
+        // Фаза 2: второе размышление и второй шаг.
+        if tick >= 6 {
+            items.append(thinking("thinking-1", tick <= 6 ? "" : "Проверяю раскладку", tick < 8))
+            items.append(step("step-1", "bash", "rg defaultScrollAnchor Sources", tick < 9))
+        }
+        // Фаза 3: ответ роли ПРИХОДИТ В СЕРЕДИНЕ хода (так и пишут роли:
+        // «проверил первую часть» → снова инструменты → дописал).
+        if tick >= 8 { items.append(.text("Проверил первую часть: полоса появляется вместо строки.")) }
+        // Фаза 4: после текста снова инструменты.
+        if tick >= 9 && tick < 11 {
+            items.append(thinking("thinking-2", "", true))
+        }
+        if tick >= 9 { items.append(step("step-2", "edit", "Sources/Features/Chat/RoleActionGroup.swift", tick < 10)) }
+        // Фаза 5: сервер прячет законченное ПУСТОЕ размышление (snapshot,
+        // chatLiveTurn.ts): список пунктов снимка от этого становится короче —
+        // клиент обязан пережить это без прыжка ленты.
+        if tick >= 12 { items.append(.text("Проверил первую часть: полоса появляется вместо строки. Дописал вывод.")) }
+        if tick >= 14 {
+            items.append(.text("Проверил первую часть: полоса появляется вместо строки. Дописал вывод. Правку внёс."))
+        }
+        return items
+    }
     #endif
 
     init(chat: RoleChat) {
@@ -970,6 +1034,18 @@ struct RoleChatRoomScreen: View {
                 _liveTurns = State(initialValue: [:])
             }
             _centersLatestReply = State(initialValue: true)
+            if !structuredOutputPreview && ProcessInfo.processInfo.environment["TASKFLOW_CHAT_SHAKE_PREVIEW"] == "1" {
+                // Стенд шатания (25.10.2026): длинная переписка + идущий ход
+                // роли. Пункты повторяют реальный порядок с сервера —
+                // «размышление, шаг, шаг, размышление, шаг…» — pacer
+                // проявляет их по одному, как в бою.
+                _messages = State(initialValue: Self.correctnessMessages(stress: true))
+                _liveTurns = State(initialValue: [
+                    "role_builder": RoleChatLiveTurn(chatID: "reading-preview", userID: "role_builder",
+                        name: "Разработчик", startedAt: "2026-10-25T03:00:00Z",
+                        items: Self.shakePreviewItems(at: 0), thinking: nil)
+                ])
+            }
         }
         #endif
     }
@@ -992,7 +1068,38 @@ struct RoleChatRoomScreen: View {
                 try? FileManager.default.removeItem(at: oldURL.deletingLastPathComponent())
             }
         }
+        #if DEBUG
+        .task { await runShakePreview() }
+        #endif
     }
+
+    #if DEBUG
+    /// Стенд шатания (25.10.2026): снимки живого хода приходят каждые 150 мс,
+    /// как их шлёт сервер (LIVE_BROADCAST_MS). Клиент тянет их тем же кодом,
+    /// что и в бою: pacer проявляет действия, лента привязана к низу.
+    private func runShakePreview() async {
+        guard ProcessInfo.processInfo.environment["TASKFLOW_CHAT_SHAKE_PREVIEW"] == "1" else { return }
+        for tick in 1...24 {
+            try? await Task.sleep(for: .milliseconds(150))
+            if tick == 20 {
+                // Ход закончился: живой пузырь сменяется ответом роли.
+                liveTurns["role_builder"] = nil
+                let rows: [[String: Any]] = [
+                    ["id": "preview-answer", "text": "Проверил первую часть: полоса появляется вместо строки. Дописал вывод. Правку внёс.",
+                     "from_user_id": "role_builder", "from_user_name": "Разработчик",
+                     "created_at": "2026-10-25T03:00:10Z", "is_session_marker": false]
+                ]
+                let replies = try! JSONDecoder().decode([RoleChatMessage].self,
+                                                       from: JSONSerialization.data(withJSONObject: rows))
+                for reply in replies { insertIncoming(reply) }
+                continue
+            }
+            liveTurns["role_builder"] = RoleChatLiveTurn(chatID: "reading-preview", userID: "role_builder",
+                name: "Разработчик", startedAt: "2026-10-25T03:00:00Z",
+                items: Self.shakePreviewItems(at: tick), thinking: nil)
+        }
+    }
+    #endif
 
     /// Личку ролей владелец читает, не будучи участником: писать в неё нельзя.
     private var isReadOnlyDirectRoom: Bool {
