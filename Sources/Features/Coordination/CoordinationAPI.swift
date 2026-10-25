@@ -22,7 +22,7 @@ public extension APIClient {
     struct CoordinationResolution: Decodable, Sendable, Equatable {
         public let contractVersion: String
         public let generatedAt: String
-        public let subtaskId: String
+        public let subtaskId: String?
         public let taskId: String
         public let planNodeKey: String?
         public let role: String?
@@ -35,6 +35,15 @@ public extension APIClient {
         public let metrics: CoordinationMetrics
         public let notes: String?
         public let links: [CoordinationLink]
+        public var title: String? = nil
+        public var done: Bool? = nil
+        public var skipped: Bool? = nil
+        public var assigneeName: String? = nil
+        public var waitingFor: [String]? = nil
+        public var id: String { subtaskId ?? "task:\(taskId)" }
+        public var displayTitle: String { title ?? planNodeKey ?? "Задача" }
+        public var displayStatus: String { skipped == true ? "Шаг пропущен" : done == true ? "Шаг завершён" : causeEnum.title }
+
 
         enum CodingKeys: String, CodingKey {
             case contractVersion = "contract_version"
@@ -51,7 +60,9 @@ public extension APIClient {
             case evidence
             case metrics
             case notes
-            case links
+            case links, title, done, skipped
+            case assigneeName = "assignee_name"
+            case waitingFor = "waiting_for"
         }
     }
 
@@ -86,16 +97,28 @@ public extension APIClient {
 
     /// Ссылка на связанные действия и узлы графа.
     struct CoordinationLink: Decodable, Sendable, Equatable {
-        public let kind: String
-        public let ref: String
+        public let href: String
+        public let rel: String
+        public let note: String?
+        public var kind: String { rel }
+        public var ref: String { href }
     }
 
-    /// Конверт `GET /api/coordination/tasks/:id/resolve` — массив
-    /// `Resolution` по всем подзадачам карточки (узлы плана + личные).
-    /// Имя массива — `items`; сервер V2 в ответе кладёт массив в корень,
-    /// но оборачиваем в конверт, чтобы клиенту было удобно диффовать.
+    /// Сервер возвращает {task_id, resolutions}. Поддерживаем также старые
+    /// конверт items и массив в корне, без повторного HTTP-запроса.
     struct TaskResolutions: Decodable, Sendable, Equatable {
         public let items: [CoordinationResolution]
+        enum CodingKeys: String, CodingKey { case items, resolutions }
+        public init(from decoder: Decoder) throws {
+            if let array = try? decoder.singleValueContainer().decode([CoordinationResolution].self) {
+                items = array
+            } else {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                items = try c.contains(.resolutions)
+                    ? c.decode([CoordinationResolution].self, forKey: .resolutions)
+                    : c.decode([CoordinationResolution].self, forKey: .items)
+            }
+        }
     }
 
     /// Конверт `GET /api/coordination/_metrics?window=hour|day` — счётчики
@@ -107,7 +130,6 @@ public extension APIClient {
         public let counts: [String: Int]
         public let actions: [String: Int]
         public let topUnknownSubtasks: [TopUnknown]
-
         public struct TopUnknown: Decodable, Sendable, Equatable {
             public let subtaskId: String
             public let lastSeenAt: String
@@ -122,17 +144,8 @@ public extension APIClient {
     /// `GET /api/coordination/tasks/:id/resolve` — список `Resolution` по
     /// подзадачам карточки.
     func fetchTaskResolutions(taskId: String) async throws -> [CoordinationResolution] {
-        // Сервер отдаёт массив в корне: ради совместимости с уже принятым
-        // клиентом декодируем и в массив, и в конверт — берём первый, что
-        // не упал.
-        if let envelope: TaskResolutions = try? await request(
-            .get, "/coordination/tasks/\(taskId)/resolve"
-        ) {
-            return envelope.items
-        }
-        return try await request(
-            .get, "/coordination/tasks/\(taskId)/resolve"
-        )
+        let response: TaskResolutions = try await request(.get, "/coordination/tasks/\(taskId)/resolve")
+        return response.items
     }
 
     /// `GET /api/coordination/subtasks/:id/resolve` — один `Resolution`
@@ -155,5 +168,50 @@ public extension APIClient {
             "/coordination/_metrics",
             query: [URLQueryItem(name: "window", value: window)]
         )
+    }
+}
+
+public extension APIClient.CoordinationResolution {
+    /// Решения с выбором параметров открывают уже существующее управление.
+    var controlLabel: String? {
+        guard done != true, skipped != true, causeEnum != .unknown else { return nil }
+        switch actionEnum {
+        case .replaceAttempt:
+            return canRestartStep ? "Перезапустить шаг" : "Открыть управление задачей"
+        case .switchProvider, .fixConfig: return "Открыть настройки моделей"
+        case .liftDependency: return "Открыть зависимости задачи"
+        case .askOwner: return "Ответить в задаче"
+        case .switchRole: return "Выбрать исполнителя в задаче"
+        case .acceptReview: return "Открыть приёмку задачи"
+        case .start, .runFinalReview, .pickUpAfterReview, .retryWithDelay: return "Открыть управление задачей"
+        case .waitPredecessor, .noAction, .none: return nil
+        }
+    }
+    var canRestartStep: Bool {
+        done != true && skipped != true && causeEnum != .unknown && actionEnum == .replaceAttempt
+            && subtaskId != nil && planNodeKey != nil && role != nil
+    }
+}
+
+public extension APIClient {
+    func restartCoordinationStep(_ selected: CoordinationResolution, reason: String) async throws {
+        let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 1000 else {
+            throw NSError(domain: "Coordination", code: 400, userInfo: [NSLocalizedDescriptionKey: "Укажите причину перезапуска (до 1000 символов)"])
+        }
+        // Подтверждение могло открыться до обновления шага. Перечитываем его.
+        let current = try await fetchTaskResolutions(taskId: selected.taskId)
+        guard let latest = current.first(where: { $0.id == selected.id }),
+              latest.contractVersion == "2.0.0", latest.canRestartStep,
+              latest.role == selected.role,
+              let id = latest.subtaskId, let role = latest.role else {
+            throw NSError(domain: "Coordination", code: 409, userInfo: [NSLocalizedDescriptionKey: "Состояние шага изменилось. Обновите координацию."])
+        }
+        struct Body: Encodable { let role: String; let reason: String }
+        struct Result: Decodable { let ok: Bool }
+        let result: Result = try await request(.post, "/subtasks/\(id)/restart", body: Body(role: role, reason: trimmed))
+        guard result.ok else {
+            throw NSError(domain: "Coordination", code: 409, userInfo: [NSLocalizedDescriptionKey: "Сервер не подтвердил перезапуск шага"])
+        }
     }
 }

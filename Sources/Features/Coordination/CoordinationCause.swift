@@ -166,18 +166,18 @@ public enum CoordinationCause: String, CaseIterable, Sendable {
 /// `confirmRequired` поднимает sheet-подтверждение (как у bash-блоков).
 public enum CoordinationAction: String, CaseIterable, Sendable {
     case start
-    case waitPredecessor
-    case liftDependency
-    case askOwner
-    case switchRole
-    case retryWithDelay
-    case replaceAttempt
-    case switchProvider
-    case fixConfig
-    case acceptReview
-    case runFinalReview
-    case pickUpAfterReview
-    case noAction
+    case waitPredecessor = "wait_predecessor"
+    case liftDependency = "lift_dependency"
+    case askOwner = "ask_owner"
+    case switchRole = "switch_role"
+    case retryWithDelay = "retry_with_delay"
+    case replaceAttempt = "replace_attempt"
+    case switchProvider = "switch_provider"
+    case fixConfig = "fix_config"
+    case acceptReview = "accept_review"
+    case runFinalReview = "run_final_review"
+    case pickUpAfterReview = "pick_up_after_review"
+    case noAction = "no_action"
     case none
 
     /// Видимый текст кнопки (RU).

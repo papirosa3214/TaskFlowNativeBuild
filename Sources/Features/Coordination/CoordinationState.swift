@@ -83,31 +83,34 @@ public final class CoordinationState: ObservableObject {
         resolutions: [APIClient.CoordinationResolution],
         contractVersion: String?
     ) {
-        if let v = contractVersion { self.contractVersion = v }
-        if let v = contractVersion, v != expectedContractVersion {
-            loadState = .versionMismatch(
-                detail: "Сервер \(v), клиент \(expectedContractVersion)"
-            )
-        }
+        let version = contractVersion ?? resolutions.first?.contractVersion ?? expectedContractVersion
+        self.contractVersion = version
+        let mismatch = resolutions.contains { $0.contractVersion != expectedContractVersion } || version != expectedContractVersion
+        loadState = mismatch ? .versionMismatch(detail: "Сервер \(version), клиент \(expectedContractVersion)") : .loaded
 
         var updatedNodes = nodes
-        var newIndex: [String: Int] = [:]
+        let incoming = Set(resolutions.map(\.id))
+        for index in updatedNodes.indices where !incoming.contains(updatedNodes[index].id) {
+            updatedNodes[index].resolution = nil
+        }
+        var newIndex = indexBySubtask
         let now = Date()
 
         // 1. Обновляем/добавляем узлы из ответа.
         for res in resolutions {
-            if let existingIdx = indexBySubtask[res.subtaskId] {
+            if let existingIdx = newIndex[res.id] {
                 updatedNodes[existingIdx].resolution = res
                 updatedNodes[existingIdx].lastSeenAt = now
             } else {
                 let newNode = Node(
-                    id: res.subtaskId,
+                    id: res.id,
                     planNodeKey: res.planNodeKey,
                     role: res.role,
                     resolution: res,
                     initialIndex: updatedNodes.count,
                     lastSeenAt: now
                 )
+                newIndex[res.id] = updatedNodes.count
                 updatedNodes.append(newNode)
             }
         }

@@ -27,15 +27,18 @@ public struct ResolutionGraph: View {
     public let axis: Axis
     /// Размер сенсорной цели (правило 44×44 пт).
     public let tapSize: CGFloat
+    public let onSelect: (String) -> Void
 
     public init(
         state: CoordinationState,
         axis: Axis = .horizontal,
-        tapSize: CGFloat = 44
+        tapSize: CGFloat = 44,
+        onSelect: @escaping (String) -> Void = { _ in }
     ) {
         self.state = state
         self.axis = axis
         self.tapSize = tapSize
+        self.onSelect = onSelect
     }
 
     public var body: some View {
@@ -54,11 +57,12 @@ public struct ResolutionGraph: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .center, spacing: 12) {
                 ForEach(state.nodes) { node in
-                    GraphNodeView(
-                        node: node,
-                        size: tapSize,
-                        onTap: { }
-                    )
+                    VStack {
+                        GraphNodeView(node: node, size: tapSize, onTap: { onSelect(node.id) })
+                        Text(node.resolution?.displayTitle ?? "Нет данных").tfText(.meta)
+                            .lineLimit(2)
+                    }
+                    .frame(width: 100)
                 }
             }
             .padding(.horizontal, 16)
@@ -76,7 +80,7 @@ public struct ResolutionGraph: View {
                         GraphNodeView(
                             node: node,
                             size: tapSize,
-                            onTap: { }
+                            onTap: { onSelect(node.id) }
                         )
                         GraphNodeLabel(node: node)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,16 +150,16 @@ public struct GraphNodeView: View {
     }
 
     private var tint: CoordinationTint {
-        node.resolution?.causeEnum.tint ?? .unknownGray
+        node.resolution?.skipped == true ? .dimGray : node.resolution?.done == true ? .softGreen : node.resolution?.causeEnum.tint ?? .unknownGray
     }
 
     private var shouldPulse: Bool {
-        guard let cause = node.resolution?.causeEnum else { return false }
+        guard node.resolution?.done != true, node.resolution?.skipped != true, let cause = node.resolution?.causeEnum else { return false }
         return cause == .activeRun || cause == .durableQueuedWake
     }
 
     private var accessibilityLabel: String {
-        let role = node.role ?? "—"
+        let role = node.resolution?.displayTitle ?? "Нет данных"
         let state = node.resolution?.causeEnum.title ?? "нет данных"
         return "\(role), \(state)"
     }
@@ -166,8 +170,8 @@ public struct GraphNodeLabel: View {
     public let node: CoordinationState.Node
     public init(node: CoordinationState.Node) { self.node = node }
     public var body: some View {
-        let role = node.role ?? "—"
-        let title = node.resolution?.causeEnum.title ?? "Нет данных"
+        let role = node.resolution?.displayTitle ?? "Нет данных"
+        let title = node.resolution?.displayStatus ?? "Нет данных"
         VStack(alignment: .leading, spacing: 2) {
             Text(role)
                 .tfText(.action).fontWeight(.semibold)

@@ -60,6 +60,7 @@ struct TaskCardContent: View {
     @State private var commentFocus = NoteEditorFocusState()
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
+    @State private var isCoordinationPresented = false
     @State private var replyingSubtask: ApiSubtask?
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
@@ -407,6 +408,11 @@ struct TaskCardContent: View {
         .modifier(TFSoftTopScrollEdge())
         .navigationBarBackButtonHidden(true)
         .toolbar { if !preview { formToolbarContent } }
+        .sheet(isPresented: $isCoordinationPresented) {
+            if let id = viewModel.taskID {
+                TaskCoordinationScreen(taskID: id) { isCoordinationPresented = false }
+            }
+        }
         .confirmationDialog("Отправить задачу в архив?", isPresented: $isDeleteConfirmationPresented, titleVisibility: .visible) {
             Button("В архив") { Task { await deleteCurrentTask() } }
             Button("Отмена", role: .cancel) {}
@@ -2541,6 +2547,9 @@ struct TaskCardContent: View {
             }
         }
         if viewModel.taskID != nil {
+            Button { isCoordinationPresented = true } label: {
+                Label("Координация", systemImage: "point.3.connected.trianglepath.dotted")
+            }
             Button { isPreparationPresented = true } label: {
                 Text("Подготовка")
                 if let preparationWaiting { Text(preparationWaiting) }

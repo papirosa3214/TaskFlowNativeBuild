@@ -4,6 +4,15 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testTaskCoordinationHintCompletes() throws {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.taskCoordination])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.taskCoordination, frame: frame)
+        XCTAssertEqual(center.active?.step, "step")
+        center.next()
+        XCTAssertTrue(center.completed.contains("task-coordination"))
+    }
+
     func testChatItemBudgetHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-item-budget" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])
