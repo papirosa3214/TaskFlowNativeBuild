@@ -1583,11 +1583,20 @@ struct RoleChatRoomScreen: View {
         .onTapGesture { composerFocused = false }
         .accessibilityIdentifier("chat.feed")
         .hideComposerScrollEdgeEffect()
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentSize.height - geometry.visibleRect.maxY <= 80
-        } action: { _, nearBottom in
+        .onScrollGeometryChange(for: ChatFeedHeightLog.self) { geometry in
+            ChatFeedHeightLog(offsetY: geometry.contentOffset.y,
+                              contentHeight: geometry.contentSize.height,
+                              distanceToBottom: geometry.contentSize.height - geometry.visibleRect.maxY)
+        } action: { old, new in
             // Observation only: this does not issue any scroll commands.
-            chatIsNearBottom = nearBottom
+            chatIsNearBottom = new.distanceToBottom <= 80
+            if abs(new.contentHeight - old.contentHeight) > 0.5 {
+                NSLog("[TaskFlow] лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f",
+                      old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom)
+            }
+        }
+        .onChange(of: visibleTypists.count) { old, new in
+            NSLog("[TaskFlow] лента: «печатает…» %d -> %d", old, new)
         }
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
@@ -1629,6 +1638,15 @@ struct RoleChatRoomScreen: View {
                 return turn.isCompleted(by: message)
             }
         }
+    }
+
+    /// Срез геометрии ленты для диагностики: по нему видно, что именно
+    /// дёргает ленту — рост текста, появление «печатает…» или подмена
+    /// живого пузыря готовым сообщением.
+    private struct ChatFeedHeightLog: Equatable {
+        let offsetY: Double
+        let contentHeight: Double
+        let distanceToBottom: Double
     }
 
     private struct FeedItem: Identifiable {
@@ -1817,6 +1835,10 @@ struct RoleChatRoomScreen: View {
             RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
                                startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID),
                                onPlaybackComplete: {
+                                   // Живой пузырь уходит, его место занимает готовое
+                                   // сообщение — у него подвал с действиями, и
+                                   // высота строки в этот момент меняется.
+                                   NSLog("[TaskFlow] лента: живой пузырь сменён готовым сообщением")
                                    completingTurns[turn.playbackID] = nil
                                    endedTurnIDs.remove(turn.playbackID)
                                })
