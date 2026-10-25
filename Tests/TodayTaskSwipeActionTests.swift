@@ -7,9 +7,16 @@ final class TodayTaskSwipeActionTests: XCTestCase {
         XCTAssertEqual(TodayTaskSwipeAction.action(for: task, isOwner: true), .acceptReview)
     }
 
-    func testUnconfirmedTaskGetsReadyActionForOwner() {
+    func testUnconfirmedTaskHasNoStartSwipeForOwner() {
         let task = TestTaskFactory.makeTask(id: "unconfirmed", assigneeId: "agent-1")
-        XCTAssertEqual(TodayTaskSwipeAction.action(for: task, isOwner: true), .markReadyForPickup)
+        XCTAssertNil(TodayTaskSwipeAction.action(for: task, isOwner: true))
+        XCTAssertNil(ProjectTaskSwipeAction.action(for: task, isOwner: true))
+    }
+
+    func testReadyTaskKeepsCompleteActions() throws {
+        let task = try JSONDecoder().decode(ApiTask.self, from: Data(#"{"id":"ready","title":"Task","priority":1,"status":"active","pinned":0,"ready_for_pickup":1}"#.utf8))
+        XCTAssertEqual(TodayTaskSwipeAction.action(for: task, isOwner: true), .complete)
+        XCTAssertEqual(ProjectTaskSwipeAction.action(for: task, isOwner: true), .complete)
     }
 
     func testPersonalTaskGetsCompleteNotStart() {

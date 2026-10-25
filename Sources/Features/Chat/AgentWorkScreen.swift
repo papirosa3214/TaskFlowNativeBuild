@@ -183,19 +183,6 @@ struct AgentWorkScreen: View {
         }
     }
 
-    /// Поднять флаг готовности через отдельный action — для задач в работе/пропавших,
-    /// которые ещё не на ревью (ProjectTaskSwipeAction.markReadyForPickup).
-    /// Не вызывается из текущей разметки (там только .complete), оставлен на
-    /// будущее, когда добавим второй свайп.
-    private func markReady(_ task: ApiTask) async {
-        do {
-            _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
-            await taskStore.load(silent: true)
-        } catch {
-            swipeActionError = (error as? APIError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-
     private func deleteTask(_ task: ApiTask) async {
         if !(await taskStore.delete(taskId: task.id)) {
             swipeActionError = taskStore.errorMessage

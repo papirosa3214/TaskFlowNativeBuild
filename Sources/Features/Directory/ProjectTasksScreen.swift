@@ -346,13 +346,6 @@ struct ProjectTasksScreen: View {
         guard let action else { return }
         do {
             switch action {
-            case .markReadyForPickup:
-                // «Запустить» — тем же путём, что в карточке и в чате Помощника владельца.
-                if task.parentId == nil {
-                    try await apiClient.startDraft(taskID: task.id)
-                } else {
-                    _ = try await apiClient.patchTask(id: task.id, fields: ["ready_for_pickup": .bool(true)])
-                }
             case .complete:
                 // complete покрывает «принять задачу» — и ревью, и просто
                 // завершить. Если был ревью — сначала снимаем блокировку.

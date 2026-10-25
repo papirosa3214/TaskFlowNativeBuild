@@ -118,7 +118,6 @@ struct TodayTaskRow: View {
 enum TodayTaskSwipeAction: Equatable {
     case complete
     case acceptReview
-    case markReadyForPickup
 
     /// `currentUserID` — чтобы у личного дела (исполнитель — сам владелец)
     /// был «Завершить», а не «Запустить»: запускать там некого (23.09.2026).
@@ -126,14 +125,13 @@ enum TodayTaskSwipeAction: Equatable {
         guard task.status == .active else { return nil }
         if isOwner, task.agentState == .review { return .acceptReview }
         if let me = currentUserID, task.assigneeId == me { return .complete }
-        if isOwner, task.agentState == nil, !task.readyForPickup { return .markReadyForPickup }
+        if isOwner, task.agentState == nil, !task.readyForPickup { return nil }
         return .complete
     }
 
     var icon: String {
         switch self {
         case .complete, .acceptReview: "checkmark"
-        case .markReadyForPickup: "play.fill"
         }
     }
 
@@ -141,7 +139,6 @@ enum TodayTaskSwipeAction: Equatable {
         switch self {
         case .complete: "Завершить"
         case .acceptReview: "Принять"
-        case .markReadyForPickup: "Запустить"
         }
     }
 
@@ -149,7 +146,6 @@ enum TodayTaskSwipeAction: Equatable {
         switch self {
         case .complete: "row.swipe.complete"
         case .acceptReview: "row.swipe.accept"
-        case .markReadyForPickup: "row.swipe.ready"
         }
     }
 }

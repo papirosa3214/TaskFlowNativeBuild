@@ -1,5 +1,8 @@
 # Реестр ограничений работ
 
+| LOCK-REMOVE-TASK-SWIPE-START-20261025 | REVIEW | REMOVE-TASK-SWIPE-START | Удалить запуск из свайпов задач, не затрагивая согласование плана и рутины | `AGENT-WORK-SCOPES.md`, `Sources/Features/Today/TodayTaskRow.swift`, `Sources/Features/Today/TodayListView.swift`, `Sources/Features/Directory/Support/DirectoryTaskRow.swift`, `Sources/Features/Directory/ProjectTasksScreen.swift`, `Sources/Features/Chat/AgentWorkScreen.swift`, `Tests/TodayTaskSwipeActionTests.swift`, `Tools/test_task_swipe_actions.py`, `docs/2026-10-25-remove-task-swipe-start.md` | Прямое поручение владельца | Codex | Host Swift XCTest RED/GREEN; guard; без симулятора |
+
+
 | LOCK-NO-SIMULATOR-CYCLE-20261025 | REVIEW | NO-SIMULATOR | Исключить симулятор и UI-приёмку из обязательного цикла | `AGENT-WORK-SCOPES.md`, `AGENT-CYCLE.md`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/ios-ui-triage/SKILL.md`, `docs/2026-10-25-no-simulator-cycle.md` | Прямое указание владельца: симулятор не трогать, проверять только логику | Codex | Проверка согласованности инструкций и diff --check; без сборки/симулятора/UI-тестов |
 
 

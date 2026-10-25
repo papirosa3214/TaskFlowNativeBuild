@@ -187,8 +187,6 @@ enum DirectoryAgentStateTag {
 /// Решение: владелец видит разное действие в зависимости от того, готов
 /// ли он отдать задачу (флаг) или уже отдал (тогда можно сразу принять).
 enum ProjectTaskSwipeAction: Equatable {
-    /// Поднять флаг готовности (`ready_for_pickup=1`), чтобы агент мог взять.
-    case markReadyForPickup
     /// Завершить задачу (зелёная галочка). Показывается для ВСЕХ
     /// не-завершённых задач с поднятым флагом готовности — владелец 11.09.2026
     /// попросил «если флаг поднят и задача не выполнена, всё равно чтобы
@@ -206,14 +204,13 @@ enum ProjectTaskSwipeAction: Equatable {
         guard isOwner else { return nil }
         guard task.status == .active else { return nil }
         if let me = currentUserID, task.assigneeId == me { return .complete }
-        if !task.readyForPickup { return .markReadyForPickup }
+        if !task.readyForPickup { return nil }
         return .complete
     }
 
     var icon: String {
         switch self {
         case .complete: "checkmark"
-        case .markReadyForPickup: "play.fill"
         case .restore: "arrow.uturn.backward"
         }
     }
@@ -221,7 +218,6 @@ enum ProjectTaskSwipeAction: Equatable {
     var accessibilityLabel: String {
         switch self {
         case .complete: "Принять"
-        case .markReadyForPickup: "Запустить"
         case .restore: "Вернуть в работу"
         }
     }
@@ -229,7 +225,6 @@ enum ProjectTaskSwipeAction: Equatable {
     var accessibilityIdentifier: String {
         switch self {
         case .complete: "project.row.swipe.complete"
-        case .markReadyForPickup: "project.row.swipe.ready"
         case .restore: "archive.row.swipe.restore"
         }
     }
