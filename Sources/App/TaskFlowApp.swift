@@ -177,7 +177,10 @@ struct RootView: View {
             // время разрыва, а не только задачи.
             Task {
                 async let tasksRefreshed: () = taskStore.refreshAfterReconnect()
-                async let notificationsRefreshed: () = notificationStore.load()
+                // Только непрочитанные: полная лента (463 КБ, 61 КБ в gzip)
+                // нужна на экране уведомлений, а при переподключении хватает
+                // счётчика непрочитанных.
+                async let notificationsRefreshed: () = notificationStore.load(unreadOnly: true)
                 _ = await (tasksRefreshed, notificationsRefreshed)
             }
         }
@@ -192,7 +195,7 @@ struct RootView: View {
             async let projectsLoaded: () = projectStore.load()
             async let labelsLoaded: () = labelStore.load()
             async let avatarsLoaded: () = AvatarDirectory.shared.load(apiClient: APIClient())
-            async let notificationsLoaded: () = notificationStore.load()
+            async let notificationsLoaded: () = notificationStore.load(unreadOnly: true)
             _ = await (tasksLoaded, projectsLoaded, labelsLoaded, notificationsLoaded, avatarsLoaded)
         }
     }

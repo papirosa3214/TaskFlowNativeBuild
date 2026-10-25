@@ -2,8 +2,13 @@ import Foundation
 
 /// Уведомления — spec/API.md §5.7.
 public extension APIClient {
-    func notifications() async throws -> [ApiNotification] {
-        try await request(.get, "/notifications")
+    /// `unreadOnly` — только непрочитанные (`?unread=true`). Параметр на
+    /// сервере необязательный: без него ответ прежний (вся лента), поэтому
+    /// старые сборки клиента работают как раньше.
+    func notifications(unreadOnly: Bool = false) async throws -> [ApiNotification] {
+        var query: [URLQueryItem] = []
+        if unreadOnly { query.append(URLQueryItem(name: "unread", value: "true")) }
+        return try await request(.get, "/notifications", query: query)
     }
 
     /// Сервер принимает только `PATCH /notifications/:id/read` без тела и

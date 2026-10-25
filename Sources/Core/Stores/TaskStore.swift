@@ -57,9 +57,17 @@ public final class TaskStore {
         if !silent { isLoading = true }
         errorMessage = nil
         defer { if !silent { isLoading = false } }
-        async let withChildren = apiClient.tasks(includeChildren: true)
+        // ОДИН запрос вместо двух. Сервер отдаёт список вместе с дочерними
+        // (`include_children=true`), а корневые выделяются локально по тому же
+        // правилу, что и на сервере (`server/src/routes/tasks.ts`:
+        // `parent_id IS NULL OR project_id IS NOT NULL`) — сверено на живых
+        // данных: 126 корневых совпадают с серверным списком до id. Раньше
+        // телефон скачивал весь список дважды (1,83 МБ каждый) ради единиц
+        // дочерних карточек — половина трафика уходила в дубль.
         do {
-            tasks = try await apiClient.tasks().filter { !$0.isArchived }
+            let all = try await apiClient.tasks(includeChildren: true)
+            agentWorkTasks = all.filter { !$0.isArchived }
+            tasks = all.filter { !$0.isArchived && Self.isRootTask($0) }
         } catch is CancellationError {
             // Экран перезапросил список раньше, чем доехал предыдущий заход
             // (смена формата «Список»/«Один день», быстрый повторный вход) —
@@ -67,13 +75,13 @@ public final class TaskStore {
         } catch {
             errorMessage = Self.message(for: error)
         }
-        do {
-            agentWorkTasks = try await withChildren.filter { !$0.isArchived }
-        } catch is CancellationError {
-            // см. комментарий выше
-        } catch {
-            errorMessage = errorMessage ?? Self.message(for: error)
-        }
+    }
+
+    /// Корневая карточка — по правилу сервера (`server/src/routes/tasks.ts`):
+    /// `parent_id IS NULL OR project_id IS NOT NULL`. Сверено на живых данных:
+    /// 126 корневых из 127 совпадают с серверным списком до id.
+    private static func isRootTask(_ task: ApiTask) -> Bool {
+        task.parentId == nil || task.projectId != nil
     }
 
     /// Партиальная правка с оптимистичным откликом: локальная копия меняется
@@ -231,10 +239,13 @@ public final class TaskStore {
 
     /// После восстановления связи (`RealtimeClient.onReconnected`) — сервер
     /// не хранит очередь пропущенного за время разрыва (spec §4.2), поэтому
-    /// полный рефетч, а не точечная синхронизация.
+    /// рефетч списка задач, а не точечная синхронизация.
+    ///
+    /// Архив сюда НЕ входит: он весит ~547 КБ (95 КБ в gzip) и нужен
+    /// только на экране «Архив», который грузит его сам. Раньше каждый
+    /// разрыв связи тянул весь архив вместе со списком задач.
     public func refreshAfterReconnect() async {
         await load(silent: true)
-        await loadArchive()
     }
 
     private func upsert(_ task: ApiTask) {

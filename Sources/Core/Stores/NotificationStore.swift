@@ -17,12 +17,16 @@ public final class NotificationStore {
         self.apiClient = apiClient
     }
 
-    public func load() async {
+    /// `unreadOnly` — взять только непрочитанные. На старте приложения и при
+    /// переподключении хватает счётчика непрочитанных: вся лента — это
+    /// ~463 КБ (61 КБ в gzip) ради числа на плашке. Полную ленту грузит
+    /// экран уведомлений обычным `load()`.
+    public func load(unreadOnly: Bool = false) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         do {
-            notifications = try await apiClient.notifications()
+            notifications = try await apiClient.notifications(unreadOnly: unreadOnly)
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
