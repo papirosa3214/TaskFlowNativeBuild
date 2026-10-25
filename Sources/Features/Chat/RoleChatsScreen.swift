@@ -829,6 +829,9 @@ struct RoleChatRoomScreen: View {
     /// Положение ленты относительно хвоста переписки: по нему решается,
     /// возвращать ли ленту к хвосту, когда содержимое пересобралось.
     @State private var tailFollow = ChatFeedTailFollow()
+    /// Сколько раз подряд лента не доехала до хвоста: больше трёх — значит,
+    /// содержимое ещё пересобирается, и дальше трогать её нельзя.
+    @State private var tailPullAttempts = 0
     /// Сообщение, текст которого сейчас выводится по словам.
     @State private var revealMessageID: String?
     /// Уже показанная часть текста этого сообщения.
@@ -1600,20 +1603,22 @@ struct RoleChatRoomScreen: View {
         } action: { old, new in
             chatIsNearBottom = new.distanceToBottom <= 80
             let heightDelta = new.contentHeight - old.contentHeight
-            // Содержимое переписки пересобирается само: ответ роли набегает,
-            // а строка при подмене живого пузыря готовым сообщением усыхает
-            // на сотни пунктов. Смещение при этом остаётся прежним — и лента
-            // оказывается либо в пустоте под контентом, либо с растущим
-            // ответом под нижним краем (владелец 26.10.2026). Если
-            // пользователь был у хвоста, возвращаем его туда.
+            let wasAtTail = tailFollow.wasAtTail
+            // Содержимое пересобралось — вернуть ленту к хвосту.
             let needsCompensation = ChatFeedTailFollow.needsCompensation(
-                heightDelta: heightDelta, wasAtTail: tailFollow.wasAtTail)
+                heightDelta: heightDelta, wasAtTail: wasAtTail)
+            // Лента туда не доехала: низ встал у самого края, без отступа
+            // (было: −7 pt вместо штатных −16). Одна прокрутка не помогает —
+            // содержимое пересобирается после неё, поэтому доводим, пока
+            // лента не встала на место, но не больше трёх попыток подряд.
+            let needsPull = ChatFeedTailFollow.needsPullToTail(
+                distanceToBottom: new.distanceToBottom, wasAtTail: wasAtTail)
             tailFollow.update(distanceToBottom: new.distanceToBottom)
-            if needsCompensation {
-                ChatFeedDiagnostics.log(String(format: "лента: возврат к хвосту (высота %+.0f)", heightDelta))
-                // Прокрутка отложена на следующий проход: строки
-                // перерисовываются пачкой, и одна прокрутка в конце пачки не
-                // дёргает ленту.
+            if !needsPull { tailPullAttempts = 0 }
+            if needsCompensation || (needsPull && tailPullAttempts < 3) {
+                if needsPull { tailPullAttempts += 1 }
+                ChatFeedDiagnostics.log(String(format: "лента: возврат к хвосту (высота %+.0f, до хвоста %.1f)",
+                                                heightDelta, new.distanceToBottom))
                 DispatchQueue.main.async { chatScrollPosition.scrollTo(edge: .bottom) }
             }
             if abs(heightDelta) > 0.5 {

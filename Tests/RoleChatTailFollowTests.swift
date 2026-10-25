@@ -53,4 +53,25 @@ final class RoleChatTailFollowTests: XCTestCase {
         follow.update(distanceToBottom: -900)
         XCTAssertFalse(follow.wasAtTail)
     }
+
+    // MARK: - Доводка до хвоста
+
+    func testNotReachedTailIsPulledDown() {
+        XCTAssertTrue(ChatFeedTailFollow.needsPullToTail(distanceToBottom: -7, wasAtTail: true),
+                      "Лента встала в 7 pt от края вместо штатных 16 — её надо довести")
+    }
+
+    func testSeatAtTailNeedsNoPull() {
+        XCTAssertFalse(ChatFeedTailFollow.needsPullToTail(distanceToBottom: -16, wasAtTail: true),
+                       "Лента уже на месте — дёргать её нельзя")
+    }
+
+    func testTailFarAboveIsPulledDown() {
+        XCTAssertTrue(ChatFeedTailFollow.needsPullToTail(distanceToBottom: 2342, wasAtTail: true))
+    }
+
+    func testReadingHistoryIsNotPulledDown() {
+        XCTAssertFalse(ChatFeedTailFollow.needsPullToTail(distanceToBottom: -7, wasAtTail: false),
+                       "Читающему историю лента догонять хвост не должна")
+    }
 }

@@ -37,4 +37,19 @@ struct ChatFeedTailFollow: Equatable {
         guard wasAtTail else { return false }
         return abs(heightDelta) >= heightChangeThreshold
     }
+
+    /// Расстояние, на котором низ содержимого считается «у хвоста».
+    ///
+    /// Штатное состояние ленты: низ содержимого на 16 pt выше края области
+    /// (нижний отступ safe area). Если лента остановилась ближе — она не
+    /// доехала: контент пересобирался уже после прокрутки, и низ встал к
+    /// самому краю, без отступа (владелец 26.10.2026).
+    static let tailSeat: Double = -10
+
+    /// Нужно ли доводить ленту до хвоста: пользователь был у хвоста, а лента
+    /// встала выше него — значит, она туда не доехала.
+    static func needsPullToTail(distanceToBottom: Double, wasAtTail: Bool) -> Bool {
+        guard wasAtTail else { return false }
+        return distanceToBottom > tailSeat
+    }
 }
