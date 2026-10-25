@@ -1,5 +1,8 @@
 # Реестр ограничений работ
 
+| LOCK-NATIVE-SWIPES-20261025 | IN_PROGRESS | NATIVE-SWIPES | Откат кнопок рутин и переход списочных свайпов на Apple | `AGENT-WORK-SCOPES.md`, `Sources/Features/Routines/RoutinesScreen.swift`, `docs/2026-10-25-routine-swipe.md`, `docs/2026-10-25-native-swipes.md`, `docs/2026-10-25-native-swipes/` | Прямое поручение владельца: никаких имитаций системной отрисовки | Codex | Guard, build, кадры; без UI-тестов/iPhone/push |
+
+
 | LOCK-ROUTINE-SWIPE-20261025 | REVIEW | ROUTINE-SWIPE | Мои рутины: зелёное круглое «Возобновить», «Запустить сейчас» как прежнее «Возобновить» | `AGENT-WORK-SCOPES.md`, `Sources/Features/Routines/RoutinesScreen.swift` (только leading swipeActions), `docs/2026-10-25-routine-swipe.md`, `docs/2026-10-25-routine-swipe/` | Владелец подтвердил вид двух кнопок; действия не менять | Codex | Guard чисто; BUILD SUCCEEDED; экран открыт, раскрытый свайп инструментом не подтверждён; docs/2026-10-25-routine-swipe.md; без UI-тестов/iPhone/push |
 
 

@@ -96,18 +96,14 @@ struct RoutinesScreen: View {
                         Button {
                             Task { await model.setPaused(schedule, paused: !schedule.isPaused) }
                         } label: {
-                            if schedule.isPaused {
-                                Image(systemName: "play")
-                            } else {
-                                Label("Пауза", systemImage: "pause")
-                            }
+                            Label(schedule.isPaused ? "Возобновить" : "Пауза",
+                                  systemImage: schedule.isPaused ? "play" : "pause")
                         }
-                        .accessibilityLabel(schedule.isPaused ? "Возобновить" : "Пауза")
-                        .tint(schedule.isPaused ? Color.tfGreen : Color.tfSub)
+                        .tint(Color.tfSub)
                         Button {
                             Task { await model.runNow(schedule) }
                         } label: {
-                            Text("Запустить сейчас")
+                            Label("Запустить сейчас", systemImage: "play.circle")
                         }
                         .tint(Color.tfBlue)
                     }
