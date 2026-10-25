@@ -1589,7 +1589,9 @@ struct RoleChatRoomScreen: View {
         .onScrollGeometryChange(for: ChatFeedHeightLog.self) { geometry in
             ChatFeedHeightLog(offsetY: geometry.contentOffset.y,
                               contentHeight: geometry.contentSize.height,
-                              distanceToBottom: geometry.contentSize.height - geometry.visibleRect.maxY)
+                              distanceToBottom: geometry.contentSize.height - geometry.visibleRect.maxY,
+                              containerHeight: geometry.containerSize.height,
+                              insetBottom: geometry.contentInsets.bottom)
         } action: { old, new in
             chatIsNearBottom = new.distanceToBottom <= 80
             let heightDelta = new.contentHeight - old.contentHeight
@@ -1610,8 +1612,9 @@ struct RoleChatRoomScreen: View {
                 DispatchQueue.main.async { chatScrollPosition.scrollTo(edge: .bottom) }
             }
             if abs(heightDelta) > 0.5 {
-                ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f",
-                                                old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom))
+                ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f, область %.0f, отступ снизу %.0f",
+                                                old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom,
+                                                new.containerHeight, new.insetBottom))
             }
         }
         .onChange(of: visibleTypists.count) { old, new in
@@ -1666,6 +1669,11 @@ struct RoleChatRoomScreen: View {
         let offsetY: Double
         let contentHeight: Double
         let distanceToBottom: Double
+        /// Высота области ленты: под ней стоят плашка плана и поле ввода,
+        /// они в расчёт хвоста не входят.
+        let containerHeight: Double
+        /// Нижний отступ области ленты (safe area).
+        let insetBottom: Double
     }
 
     private struct FeedItem: Identifiable {
