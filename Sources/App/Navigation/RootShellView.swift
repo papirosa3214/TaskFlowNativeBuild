@@ -277,6 +277,9 @@ struct RootShellView: View {
             // Экран диагностики — тоже маршрут: без него снять кадр этого
             // экрана на устройстве нечем (тапы по нему руками).
             case "diagnostics": paths[selectedTab, default: NavigationPath()].append(AppRoute.diagnostics)
+            // Экран «Загрузка ролей» — тоже маршрут: снять его кадр в
+            // симуляторе иначе нечем (тапы руками из командной строки не идут).
+            case "roleload": paths[selectedTab, default: NavigationPath()].append(AppRoute.roleLoad)
             case "notes": paths[selectedTab, default: NavigationPath()].append(AppRoute.notes)
             case "noteeditor" where parts.count == 2:
                 paths[selectedTab, default: NavigationPath()].append(AppRoute.noteEditor(noteID: parts[1]))
