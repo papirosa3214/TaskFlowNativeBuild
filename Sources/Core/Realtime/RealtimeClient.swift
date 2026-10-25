@@ -82,6 +82,32 @@ public final class RealtimeClient {
     /// строго оттуда же, лишнее требование только мешало бы захватывать
     /// обычные (не-Sendable) `@Observable`-сторы.
     public var onEvent: ((RealtimeEvent) -> Void)?
+    /// Подписчики на события. Слот `onEvent` один, и его держит приложение
+    /// (TaskStore), поэтому экранам нужен свой список: событие получают все
+    /// подписчики, а снятие подписки никого не ломает. Без этого каждый экран
+    /// шторки роли поднимал свой WebSocket — в журнале сервера это десятки
+    /// переподключений в минуту.
+    @ObservationIgnored private var observers: [UUID: (RealtimeEvent) -> Void] = [:]
+
+    /// Подписаться на события. Возвращает токен подписки.
+    @discardableResult
+    public func addObserver(_ observer: @escaping (RealtimeEvent) -> Void) -> UUID {
+        let id = UUID()
+        observers[id] = observer
+        return id
+    }
+
+    /// Снять подписку. Чужой или уже снятый токен — не ошибка.
+    public func removeObserver(_ id: UUID) {
+        observers.removeValue(forKey: id)
+    }
+
+    /// Раздать событие: старый слот и новые подписчики.
+    /// Внутренний метод — unit-тест проверяет доставку без сокета.
+    func dispatchToSubscribers(_ event: RealtimeEvent) {
+        onEvent?(event)
+        for observer in observers.values { observer(event) }
+    }
     /// Только на ПЕРЕподключение (не на первое) — spec §4.2: сервер не хранит
     /// очередь пропущенных событий за время разрыва, сторам нужно обновиться
     /// явным REST-запросом, а не ждать, что WS сам «досоединится».
@@ -241,7 +267,7 @@ public final class RealtimeClient {
                 socketTask.send(.string(answer)) { _ in }
             }
         }
-        onEvent?(event)
+        dispatchToSubscribers(event)
     }
 
     private func handleDisconnect() {

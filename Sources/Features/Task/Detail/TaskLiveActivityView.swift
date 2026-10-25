@@ -6,7 +6,10 @@ struct TaskLiveActivityView: View {
     let subtaskID: String?
     @Environment(\.scenePhase) private var scenePhase
     @State private var live: TaskLiveTurn?
-    @State private var realtime = RealtimeClient()
+    /// Общий канал приложения: свой сокет на каждый экран шторки роли давал
+    /// десятки переподключений в минуту (видно в журнале сервера).
+    @Environment(RealtimeClient.self) private var realtime
+    @State private var observerID: UUID?
     @State private var activity = ApiTaskActivity.idle
     @State private var errorText: String?
     @State private var loaded = false
@@ -55,7 +58,10 @@ struct TaskLiveActivityView: View {
                 return
             }
             #endif
-            realtime.onEvent = { event in
+            // Подписка на общий канал: слот `onEvent` у клиента один, и его
+            // держит приложение (TaskStore) — свой слот занял бы его.
+            if let observerID { realtime.removeObserver(observerID) }
+            observerID = realtime.addObserver { event in
                 if case .taskLive(let turn) = event,
                    turn.taskID == taskID, turn.subtaskID == subtaskID {
                     live = turn
@@ -66,7 +72,6 @@ struct TaskLiveActivityView: View {
                     refreshState.markDirty()
                 }
             }
-            realtime.connect()
         }
         // Снимок — при открытии окна, смене шага или сцены. Раньше id
         // включал ревизии живых событий, и задача перезапускалась на КАЖДОМ
@@ -88,7 +93,11 @@ struct TaskLiveActivityView: View {
             guard scenePhase == .active else { return }
             await refreshActivityLoop()
         }
-        .onDisappear { realtime.disconnect(); realtime.onEvent = nil }
+        .onDisappear {
+            // Сокет общий — закрывает его приложение, а мы снимаем подписку.
+            if let observerID { realtime.removeObserver(observerID) }
+            observerID = nil
+        }
     }
 
     /// Цикл обновления списка действий: ждёт интервал, забирает протухшее

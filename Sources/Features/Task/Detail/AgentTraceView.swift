@@ -5,7 +5,10 @@ struct AgentTraceView: View {
     let taskID: String
     let subtaskID: String?
     @Environment(\.scenePhase) private var scenePhase
-    @State private var realtime = RealtimeClient()
+    /// Общий канал приложения: свой сокет на каждый экран шторки роли давал
+    /// десятки переподключений в минуту (видно в журнале сервера).
+    @Environment(RealtimeClient.self) private var realtime
+    @State private var observerID: UUID?
     @State private var runs: [AgentTraceRun] = []
     @State private var selectedID: String?
     @State private var position = 1.0
@@ -124,13 +127,15 @@ struct AgentTraceView: View {
             #endif
             runs = AgentTraceArchive().load(scope: scope); selectedID = runs.last?.id
             guard subtaskID != nil else { loaded = true; return }
-            realtime.onEvent = { event in
+            // Подписка на общий канал: слот `onEvent` у клиента один, и его
+            // держит приложение (TaskStore) — свой слот занял бы его.
+            if let observerID { realtime.removeObserver(observerID) }
+            observerID = realtime.addObserver { event in
                 if case .taskLive(let live) = event { receive(live) }
                 // Событие активности само ничего не перерисовывает: ленту
                 // забирает цикл ниже, не чаще раза в две секунды.
                 if case .taskActivity(let id, _) = event, id == taskID { refreshState.markDirty() }
             }
-            realtime.connect()
         }
         // Снимок живого хода — при открытии, смене шага или сцены. Раньше id
         // включал ревизии живых событий, и задача перезапускалась на КАЖДОЕ
@@ -153,8 +158,13 @@ struct AgentTraceView: View {
             guard scenePhase == .active, subtaskID != nil else { return }
             await refreshActivityLoop()
         }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { persist(); realtime.disconnect() } else if subtaskID != nil { realtime.connect() } }
-        .onDisappear { persist(); realtime.disconnect(); realtime.onEvent = nil }
+        // Сокет общий — его держит приложение; экран только подписан.
+        .onChange(of: scenePhase) { _, phase in if phase != .active { persist() } }
+        .onDisappear {
+            persist()
+            if let observerID { realtime.removeObserver(observerID) }
+            observerID = nil
+        }
     }
 
     private func presentation(_ span: AgentTraceSpan) -> RoleActionPresentation {
