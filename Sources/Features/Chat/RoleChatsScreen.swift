@@ -826,6 +826,9 @@ struct RoleChatRoomScreen: View {
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
+    /// Положение ленты относительно хвоста переписки: по нему решается,
+    /// возвращать ли ленту к хвосту, когда содержимое пересобралось.
+    @State private var tailFollow = ChatFeedTailFollow()
     @FocusState private var composerFocused: Bool
     private let api = APIClient()
 
@@ -1588,9 +1591,25 @@ struct RoleChatRoomScreen: View {
                               contentHeight: geometry.contentSize.height,
                               distanceToBottom: geometry.contentSize.height - geometry.visibleRect.maxY)
         } action: { old, new in
-            // Observation only: this does not issue any scroll commands.
             chatIsNearBottom = new.distanceToBottom <= 80
-            if abs(new.contentHeight - old.contentHeight) > 0.5 {
+            let heightDelta = new.contentHeight - old.contentHeight
+            // Содержимое переписки пересобирается само: ответ роли набегает,
+            // а строка при подмене живого пузыря готовым сообщением усыхает
+            // на сотни пунктов. Смещение при этом остаётся прежним — и лента
+            // оказывается либо в пустоте под контентом, либо с растущим
+            // ответом под нижним краем (владелец 26.10.2026). Если
+            // пользователь был у хвоста, возвращаем его туда.
+            let needsCompensation = ChatFeedTailFollow.needsCompensation(
+                heightDelta: heightDelta, wasAtTail: tailFollow.wasAtTail)
+            tailFollow.update(distanceToBottom: new.distanceToBottom)
+            if needsCompensation {
+                ChatFeedDiagnostics.log(String(format: "лента: возврат к хвосту (высота %+.0f)", heightDelta))
+                // Прокрутка отложена на следующий проход: строки
+                // перерисовываются пачкой, и одна прокрутка в конце пачки не
+                // дёргает ленту.
+                DispatchQueue.main.async { chatScrollPosition.scrollTo(edge: .bottom) }
+            }
+            if abs(heightDelta) > 0.5 {
                 ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f",
                                                 old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom))
             }
