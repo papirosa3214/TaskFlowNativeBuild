@@ -42,6 +42,13 @@ public final class TaskStore {
     public var errorMessage: String?
 
     private let apiClient: APIClient
+    /// Курсор синхронизации: с какого момента клиент догоняет дельту
+    /// (вариант B трафика). Живёт в памяти сессии: после перезапуска
+    /// приложения список всё равно перечитывается целиком.
+    @ObservationIgnored private var syncCursor: String?
+    /// ETag последней выдачи списка: по нему сервер отвечает 304, если
+    /// список не менялся (тело не качаем).
+    @ObservationIgnored private var listETag: String?
     @ObservationIgnored private var realtimeLoads: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var realtimeVersions: [String: Int] = [:]
     @ObservationIgnored private var realtimeLoadIDs: [String: UUID] = [:]
@@ -65,9 +72,18 @@ public final class TaskStore {
         // телефон скачивал весь список дважды (1,83 МБ каждый) ради единиц
         // дочерних карточек — половина трафика уходила в дубль.
         do {
-            let all = try await apiClient.tasks(includeChildren: true)
+            let page = try await apiClient.taskList(includeChildren: true, etag: listETag)
+            if page.notModified {
+                // Список не менялся — сервер ответил 304 без тела. Качать
+                // 402 КБ gzip впустую не нужно, состояние уже актуально.
+                if let cursor = page.cursor { syncCursor = cursor }
+                return
+            }
+            let all = page.tasks
             agentWorkTasks = all.filter { !$0.isArchived }
             tasks = all.filter { !$0.isArchived && Self.isRootTask($0) }
+            listETag = page.etag
+            if let cursor = page.cursor { syncCursor = cursor }
         } catch is CancellationError {
             // Экран перезапросил список раньше, чем доехал предыдущий заход
             // (смена формата «Список»/«Один день», быстрый повторный вход) —
@@ -245,7 +261,45 @@ public final class TaskStore {
     /// только на экране «Архив», который грузит его сам. Раньше каждый
     /// разрыв связи тянул весь архив вместе со списком задач.
     public func refreshAfterReconnect() async {
-        await load(silent: true)
+        guard let cursor = syncCursor else {
+            // Курсора нет (первый запуск сессии) — догонять нечего, читаем
+            // список целиком.
+            await load(silent: true)
+            return
+        }
+        do {
+            let delta = try await apiClient.taskChanges(since: cursor)
+            if delta.full {
+                // Журнал изменений не покрывает нужный момент — дешевле
+                // один полный список, чем догонять по одной.
+                await load(silent: true)
+                return
+            }
+            await apply(delta)
+            syncCursor = delta.serverTime
+        } catch {
+            // Дельта не вышла — список оставлять старым нельзя, читаем
+            // целиком (старая цена, но правильные данные).
+            await load(silent: true)
+        }
+    }
+
+    /// Наложить дельту на локальный список: изменившиеся карточки — точечно
+    /// (тем же путём, что и по событию сокета), исчезнувшие — убрать.
+    private func apply(_ delta: APIClient.TaskChanges) async {
+        var byId = Dictionary(uniqueKeysWithValues: agentWorkTasks.map { ($0.id, $0) })
+        for id in delta.removedIds {
+            byId.removeValue(forKey: id)
+        }
+        for id in delta.changedIds {
+            if let task = try? await apiClient.task(id: id) {
+                byId[task.id] = task
+            }
+        }
+        // Порядок — как у полной выдачи (сервер сортирует по created_at DESC).
+        let all = byId.values.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+        agentWorkTasks = all.filter { !$0.isArchived }
+        tasks = all.filter { !$0.isArchived && Self.isRootTask($0) }
     }
 
     private func upsert(_ task: ApiTask) {

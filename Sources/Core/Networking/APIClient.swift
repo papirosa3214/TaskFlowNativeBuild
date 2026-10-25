@@ -60,9 +60,10 @@ public final class APIClient: Sendable {
         query: [URLQueryItem] = [],
         body: (any Encodable)? = nil,
         timeout: TimeInterval? = nil,
-        acceptedErrorStatuses: Set<Int> = []
+        acceptedErrorStatuses: Set<Int> = [],
+        headers: [String: String] = [:]
     ) async throws -> Response {
-        let request = try buildRequest(method: method, path: path, query: query, body: body, timeout: timeout)
+        let request = try buildRequest(method: method, path: path, query: query, body: body, timeout: timeout, headers: headers)
         let (data, http) = try await send(request)
         if !acceptedErrorStatuses.contains(http.statusCode) {
             try Self.throwIfError(status: http.statusCode, data: data, request: request)
@@ -88,12 +89,40 @@ public final class APIClient: Sendable {
         try Self.throwIfError(status: http.statusCode, data: data, request: request)
     }
 
+    /// Запрос с доступом к ЗАГОЛОВКАМ ответа: нужны для ETag/304 и курсора
+    /// синхронизации (вариант B трафика iOS-клиента). Обычный `request`
+    /// отдаёт только разобранное тело, а 304 без тела в него не влезает.
+    public func requestRaw(
+        _ method: HTTPMethodKind,
+        _ path: String,
+        query: [URLQueryItem] = [],
+        body: (any Encodable)? = nil,
+        timeout: TimeInterval? = nil,
+        acceptedErrorStatuses: Set<Int> = [],
+        headers: [String: String] = [:]
+    ) async throws -> (Data, HTTPURLResponse) {
+        let request = try buildRequest(
+            method: method, path: path, query: query, body: body, timeout: timeout, headers: headers
+        )
+        let (data, http) = try await send(request)
+        if !acceptedErrorStatuses.contains(http.statusCode) {
+            try Self.throwIfError(status: http.statusCode, data: data, request: request)
+        }
+        return (data, http)
+    }
+
+    /// Разбор тела тем же декодером, что и у обычных запросов.
+    public func decode<Response: Decodable>(_ type: Response.Type, from data: Data) throws -> Response {
+        try decoder.decode(type, from: data)
+    }
+
     private func buildRequest(
         method: HTTPMethodKind,
         path: String,
         query: [URLQueryItem],
         body: (any Encodable)?,
-        timeout: TimeInterval? = nil
+        timeout: TimeInterval? = nil,
+        headers: [String: String] = [:]
     ) throws -> URLRequest {
         guard var components = URLComponents(
             url: Self.baseURL.appendingPathComponent("/api" + path),
@@ -110,6 +139,10 @@ public final class APIClient: Sendable {
         // для таких маршрутов.
         if let timeout { request.timeoutInterval = timeout }
         Self.applyIdentity(to: &request)
+        // Дополнительные заголовки запроса (If-None-Match и подобные).
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
         // Выбор серверной модели приложения — необязательная подсказка серверу;
         // читается только там, где модель реально уместна (см. AIServerModelSetting).
         if let model = AIServerModelSetting.selected {

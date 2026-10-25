@@ -44,6 +44,65 @@ public extension APIClient {
         return try await request(.get, "/tasks", query: query)
     }
 
+    /// Список задач с ETag и курсором синхронизации (вариант B трафика
+    /// iOS-клиента, владелец 25.10.2026).
+    ///
+    /// Если список не менялся, сервер отвечает 304 без тела — клиент не
+    /// качает 402 КБ gzip впустую. Курсор (`X-TaskFlow-Sync-Cursor`) нужен
+    /// для дельты: по нему клиент спрашивает «что изменилось с прошлого
+    /// раза» вместо полной перечитки.
+    struct TaskListPage: Sendable {
+        let tasks: [ApiTask]
+        let notModified: Bool
+        let cursor: String?
+        let etag: String?
+    }
+
+    func taskList(includeChildren: Bool = false, archived: Bool = false, etag: String? = nil) async throws -> TaskListPage {
+        var query: [URLQueryItem] = []
+        if includeChildren { query.append(URLQueryItem(name: "include_children", value: "true")) }
+        if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
+        var headers: [String: String] = [:]
+        if let etag { headers["If-None-Match"] = etag }
+        let (data, http) = try await requestRaw(
+            .get, "/tasks", query: query, acceptedErrorStatuses: [304], headers: headers
+        )
+        let cursor = http.value(forHTTPHeaderField: "X-TaskFlow-Sync-Cursor")
+        let newEtag = http.value(forHTTPHeaderField: "ETag")
+        if http.statusCode == 304 {
+            // Курсор при 304 берём только из заголовка: ETag — это отпечаток
+            // тела, а не метка времени, и подставлять его в курсор нельзя
+            // (сервер поймёт его как мусор и попросит полную перечитку).
+            return TaskListPage(tasks: [], notModified: true, cursor: cursor, etag: newEtag ?? etag)
+        }
+        let tasks = try decode([ApiTask].self, from: data)
+        return TaskListPage(tasks: tasks, notModified: false, cursor: cursor, etag: newEtag)
+    }
+
+    /// ДЕЛЬТА: что изменилось с курсора (вариант B трафика iOS-клиента).
+    ///
+    /// Сервер отдаёт id, а не карточки: изменившиеся клиент дозапрашивает
+    /// по одной тем же путём, что и по событию сокета (`GET /api/tasks/:id`),
+    /// исчезнувшие — просто убирает. `full: true` — журнал не покрывает
+    /// запрошенный момент, нужен обычный полный список.
+    struct TaskChanges: Decodable, Sendable {
+        let serverTime: String
+        let changedIds: [String]
+        let removedIds: [String]
+        let full: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case serverTime = "server_time"
+            case changedIds = "changed_ids"
+            case removedIds = "removed_ids"
+            case full
+        }
+    }
+
+    func taskChanges(since: String) async throws -> TaskChanges {
+        try await request(.get, "/tasks/changes", query: [URLQueryItem(name: "since", value: since)])
+    }
+
     /// 404, если задача не видна по роли вызывающего (spec §2.3).
     func task(id: String) async throws -> ApiTask {
         try await request(.get, "/tasks/\(id)")
