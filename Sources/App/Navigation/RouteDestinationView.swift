@@ -119,6 +119,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         ServerSettingsScreen()
     case .diagnostics:
         AppDiagnosticsScreen()
+    case .roleLoad:
+        RoleLoadScreen()
     case .escalationSettings:
         EscalationSettingsScreen()
     case .runtimeStatus:
