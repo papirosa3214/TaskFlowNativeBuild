@@ -1,7 +1,7 @@
 # coding: utf-8
 import json, threading, hashlib, base64, struct, time, socket
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-clients=set(); counts={}; phase=0; activity_hits=0; live_hits=0
+clients=set(); counts={}; phase=0; activity_hits=0
 user={"id":"u1","name":"Максим","role":"owner","type":"human"}
 def task():
  return {"id":"energy","title":"Проверка WebSocket","status":"active","creator_id":"u1","subtasks":[{"id":"step","task_id":"energy","title":["Шаг до события","Шаг после события","Шаг после переподключения"][min(phase,2)],"done":False,"position":0}],"children":[],"comments":[],"events":[],"priority":1}
@@ -48,7 +48,7 @@ class H(BaseHTTPRequestHandler):
     global activity_hits
     activity_hits+=1
     result={"text":None,"actions":[],"by_subtask":{"step":{"text":"Проверка накопленной истории, обновлений %d"%activity_hits,"actions":[{"kind":"read","target":str(i),"actor":"builder","at":1791532800000+i*1000,"text":"Событие %02d: проверяется накопленная история роли в ограниченном окне"%i} for i in range(40)],"total":40}}}
-   elif path.endswith("/live"):result={"turns":[live_turn()]}
+   elif path.endswith("/live"):result={"turns":[]}
    elif path=="/api/roles":result={"roles":[]}
    elif path=="/api/notifications":result=[]
    elif path.endswith("/chats"):result={"chats":[]}
@@ -58,26 +58,12 @@ class H(BaseHTTPRequestHandler):
    else:result={}
   data=json.dumps(result,ensure_ascii=False).encode()
   self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Content-Length",str(len(data)));self.end_headers();self.wfile.write(data)
-def live_turn():
- # Живой ход растёт по словам — как в бою, пока модель пишет ответ.
- global live_hits
- live_hits+=1
- text="\n\n".join("Событие %02d: проверяется накопленная история роли в ограниченном окне"%i for i in range(live_hits))
- return {"task_id":"energy","subtask_id":"step","run_id":"run-1","complete":False,
-         "turn":{"chat_id":"energy","user_id":"u1","name":"Разработчик",
-                 "started_at":"2026-10-25T02:00:00Z",
-                 "items":[{"kind":"text","text":text}],"thinking":None}}
-
 def pump():
- # События активности и живого хода раз в секунду: как в бою, когда идёт ход.
+ # События активности раз в секунду: как в бою, когда ход идёт.
  while True:
   time.sleep(1)
   for sock in list(clients):
-   try:
-    frame(sock,{"type":"task:activity","task_id":"energy"})
-    turn=live_turn()
-    turn["type"]="tasks:live"
-    frame(sock,turn)
+   try: frame(sock,{"type":"task:activity","task_id":"energy"})
    except Exception: clients.discard(sock)
 threading.Thread(target=pump,daemon=True).start()
 print("WebSocket fixture listening on 3307",flush=True)
