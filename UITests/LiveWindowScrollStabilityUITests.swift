@@ -32,13 +32,21 @@ final class LiveWindowScrollStabilityUITests: XCTestCase {
         if !window.exists { disclosure.tap() }
         XCTAssertTrue(window.waitForExistence(timeout: 10), app.debugDescription)
 
-        // Прокручиваем окно вниз и запоминаем, где оказался маркер.
-        window.swipeUp()
+        // Маркер — строка внутри окна: по ней видно, куда уехала прокрутка.
         let marker = app.staticTexts
-            .containing(NSPredicate(format: "label CONTAINS 'Событие 20:'"))
+            .containing(NSPredicate(format: "label CONTAINS 'Событие 03:'"))
             .firstMatch
         XCTAssertTrue(marker.waitForExistence(timeout: 5), app.debugDescription)
+
+        // Прокручиваем окно вниз и запоминаем, где оказался маркер.
+        let initial = marker.frame.minY
+        window.swipeUp()
         let afterScroll = marker.frame.minY
+        print("SCROLL initial=\(initial) after=\(afterScroll)")
+        XCTAssertTrue(
+            abs(afterScroll - initial) > 20,
+            "прокрутка внутри окна не сработала — проверка бессмысленна"
+        )
         let scrolled = XCTAttachment(screenshot: app.screenshot())
         scrolled.name = "after-scroll"; scrolled.lifetime = .keepAlways; add(scrolled)
 
