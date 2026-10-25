@@ -826,12 +826,6 @@ struct RoleChatRoomScreen: View {
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
-    /// Положение ленты относительно хвоста переписки: по нему решается,
-    /// возвращать ли ленту к хвосту, когда содержимое пересобралось.
-    @State private var tailFollow = ChatFeedTailFollow()
-    /// Сколько раз подряд лента не доехала до хвоста: больше трёх — значит,
-    /// содержимое ещё пересобирается, и дальше трогать её нельзя.
-    @State private var tailPullAttempts = 0
     /// Сообщение, текст которого сейчас выводится по словам.
     @State private var revealMessageID: String?
     /// Уже показанная часть текста этого сообщения.
@@ -1588,7 +1582,7 @@ struct RoleChatRoomScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.bottom, for: .alignment)
-        .defaultScrollAnchor(chatScrollPosition.isPositionedByUser ? nil : .bottom, for: .sizeChanges)
+        .defaultScrollAnchor(.bottom, for: .sizeChanges)
         .background(Color.tfBackground)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
@@ -1601,26 +1595,10 @@ struct RoleChatRoomScreen: View {
                               containerHeight: geometry.containerSize.height,
                               insetBottom: geometry.contentInsets.bottom)
         } action: { old, new in
+            // Наблюдение, команд прокрутки тут нет: положение ленты ведёт
+            // сама система (defaultScrollAnchor .bottom + isPositionedByUser).
             chatIsNearBottom = new.distanceToBottom <= 80
             let heightDelta = new.contentHeight - old.contentHeight
-            let wasAtTail = tailFollow.wasAtTail
-            // Содержимое пересобралось — вернуть ленту к хвосту.
-            let needsCompensation = ChatFeedTailFollow.needsCompensation(
-                heightDelta: heightDelta, wasAtTail: wasAtTail)
-            // Лента туда не доехала: низ встал у самого края, без отступа
-            // (было: −7 pt вместо штатных −16). Одна прокрутка не помогает —
-            // содержимое пересобирается после неё, поэтому доводим, пока
-            // лента не встала на место, но не больше трёх попыток подряд.
-            let needsPull = ChatFeedTailFollow.needsPullToTail(
-                distanceToBottom: new.distanceToBottom, wasAtTail: wasAtTail)
-            tailFollow.update(distanceToBottom: new.distanceToBottom)
-            if !needsPull { tailPullAttempts = 0 }
-            if needsCompensation || (needsPull && tailPullAttempts < 3) {
-                if needsPull { tailPullAttempts += 1 }
-                ChatFeedDiagnostics.log(String(format: "лента: возврат к хвосту (высота %+.0f, до хвоста %.1f)",
-                                                heightDelta, new.distanceToBottom))
-                DispatchQueue.main.async { chatScrollPosition.scrollTo(edge: .bottom) }
-            }
             if abs(heightDelta) > 0.5 {
                 ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f, область %.0f, отступ снизу %.0f",
                                                 old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom,
@@ -1633,6 +1611,7 @@ struct RoleChatRoomScreen: View {
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
+                    chatScrollPosition.isPositionedByUser = false
                     chatScrollPosition.scrollTo(edge: .bottom)
                 }
                 .padding(.bottom, TFSpacing.md)
@@ -2648,6 +2627,7 @@ struct RoleChatRoomScreen: View {
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.executionMode)
         draft = ""
         pendingAttachments = []
+        chatScrollPosition.isPositionedByUser = false
         chatScrollPosition.scrollTo(edge: .bottom)
         pendingOutgoing.append(pending)
         await deliver(pending.id)

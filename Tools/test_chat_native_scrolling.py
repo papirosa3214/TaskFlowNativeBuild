@@ -25,7 +25,17 @@ class NativeChatScrollingTests(unittest.TestCase):
 
     def test_native_position_owns_user_scrolling_without_packet_scroll_requests(self):
         self.present('.scrollPosition($chatScrollPosition, anchor: .bottom)', self.feed)
-        self.present('chatScrollPosition.isPositionedByUser', self.feed)
+        # Положение ленты ведёт система: якорь .bottom на изменение размера
+        # содержимого (Apple: defaultScrollAnchor(_:for:) — «how the scroll
+        # view should handle content size or container size changes»). Условия
+        # по isPositionedByUser в модификаторе быть не должно: система сама
+        # не дёргает ленту, если позицию установил пользователь.
+        self.absent('defaultScrollAnchor(chatScrollPosition.isPositionedByUser', self.feed)
+        self.present('.defaultScrollAnchor(.bottom, for: .sizeChanges)', self.feed)
+        # Программная прокрутка (отправка, кнопка «вниз») снимает отметку
+        # «позиция установлена пользователем» — иначе якорь больше не следит
+        # за хвостом.
+        self.present('chatScrollPosition.isPositionedByUser = false', self.feed)
         for token in ['ScrollViewReader', '.onScrollPhaseChange', '.onChange(of: feedItems.last?.id)', 'Task.yield()']:
             self.absent(token, self.feed)
 
