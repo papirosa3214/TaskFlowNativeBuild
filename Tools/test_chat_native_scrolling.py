@@ -25,16 +25,8 @@ class NativeChatScrollingTests(unittest.TestCase):
 
     def test_native_position_owns_user_scrolling_without_packet_scroll_requests(self):
         self.present('.scrollPosition($chatScrollPosition, anchor: .bottom)', self.feed)
-        # Владелец 25.10.2026: решение о слежении за хвостом переписки больше
-        # не берётся из `isPositionedByUser` — этот флаг SwiftUI ставится один
-        # раз и навсегда, и после первого прокручивания лента переставала
-        # следить за новыми ответами навсегда. Следит явная политика.
-        self.absent('chatScrollPosition.isPositionedByUser', self.feed)
-        self.present('defaultScrollAnchor(tailPolicy.followsTail ? .bottom : nil, for: .sizeChanges)', self.feed)
-        # Фазы прокрутки — штатный API SwiftUI (iOS 18): по нему видно, что
-        # ленту ведёт пользователь, а не программа.
-        self.present('.onScrollPhaseChange { _, phase in', self.feed)
-        for token in ['ScrollViewReader', '.onChange(of: feedItems.last?.id)', 'Task.yield()']:
+        self.present('chatScrollPosition.isPositionedByUser', self.feed)
+        for token in ['ScrollViewReader', '.onScrollPhaseChange', '.onChange(of: feedItems.last?.id)', 'Task.yield()']:
             self.absent(token, self.feed)
 
     def test_feed_does_not_apply_custom_motion_transactions(self):

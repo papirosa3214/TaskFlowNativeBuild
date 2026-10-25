@@ -564,37 +564,21 @@ struct RoleLiveTextPacer {
         var next = Array(repeating: 0, count: items.count)
         var nextTexts: [[Character]] = Array(repeating: [], count: items.count)
         var textOrdinal = 0
-        var carriedOldOrdinals = Set<Int>()
         for index in items.indices {
             guard case .text(let new) = items[index] else { continue }
             let chars = Array(new)
             nextTexts[index] = chars
-            // Порядковый номер текста двигается по всем текстовым пунктам —
-            // включая «особые» (готовые блоки): иначе сопоставление со старым
-            // текстом поехало бы на один пункт.
-            let ordinal = textOrdinal
-            textOrdinal += 1
             if immediateText.contains(index) {
                 next[index] = chars.count
-            } else {
-                // Сначала — тот же текст по порядковому номеру.
-                if ordinal < oldTexts.count,
-                   let carried = Self.carriedVisible(from: oldTexts[ordinal], into: chars) {
-                    next[index] = carried
-                    carriedOldOrdinals.insert(ordinal)
-                } else if let (matchOrdinal, old) = Self.bestMatch(for: chars, among: oldTexts,
-                                                              excluding: carriedOldOrdinals),
-                          let carried = Self.carriedVisible(from: old, into: chars) {
-                    // Состав текстовых пунктов сервер меняет (закрытие хода
-                    // собирает шаги и ответ в один пункт), и при сопоставлении
-                    // по номеру сравнивались разные тексты: показанный текст
-                    // сбрасывался, пузырь схлопывался, лента прыгала. Поэтому
-                    // ищем старый текст по общему префиксу — переносить можно
-                    // только дословно совпадающую показанную часть.
-                    next[index] = carried
-                    carriedOldOrdinals.insert(matchOrdinal)
+            } else if textOrdinal < oldTexts.count {
+                let old = oldTexts[textOrdinal]
+                let shown = old.visible
+                if chars.count >= shown, old.chars.count >= shown,
+                   shown == 0 || Array(old.chars[0..<shown]) == Array(chars[0..<shown]) {
+                    next[index] = shown
                 }
             }
+            textOrdinal += 1
         }
         // Проявленными остаются те же действия, что и были: по id, а не по
         // индексу — индексы сдвигаются, когда сервер убирает законченное
@@ -622,41 +606,6 @@ struct RoleLiveTextPacer {
         case .step(let step): return "step:" + step.id
         case .thinking(let thinking): return "thinking:" + thinking.id
         }
-    }
-
-    /// Сколько показанных символов старого текста можно оставить на месте в
-    /// новом. Переносить можно только дословно совпадающую показанную
-    /// часть: иначе текст на экране поменялся бы на глазах.
-    private static func carriedVisible(from old: (chars: [Character], visible: Int),
-                                       into chars: [Character]) -> Int? {
-        let shown = old.visible
-        guard shown > 0 else { return 0 }
-        guard chars.count >= shown, old.chars.count >= shown else { return nil }
-        guard Array(old.chars[0..<shown]) == Array(chars[0..<shown]) else { return nil }
-        return shown
-    }
-
-    /// Старый текст с самым длинным общим префиксом: так находится продолжение
-    /// текста, когда состав текстовых пунктов изменился.
-    private static func bestMatch(for chars: [Character],
-                                  among olds: [(chars: [Character], visible: Int)],
-                                  excluding used: Set<Int>) -> (Int, (chars: [Character], visible: Int))? {
-        var best: (Int, (chars: [Character], visible: Int))?
-        var bestPrefix = -1
-        for (ordinal, old) in olds.enumerated() where !used.contains(ordinal) {
-            let prefix = commonPrefixLength(old.chars, chars)
-            if prefix > bestPrefix {
-                bestPrefix = prefix
-                best = (ordinal, old)
-            }
-        }
-        return best
-    }
-
-    private static func commonPrefixLength(_ lhs: [Character], _ rhs: [Character]) -> Int {
-        var index = 0
-        while index < lhs.count, index < rhs.count, lhs[index] == rhs[index] { index += 1 }
-        return index
     }
 
     var pendingCharacters: Int {
