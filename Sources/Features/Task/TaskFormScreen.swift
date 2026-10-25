@@ -1284,8 +1284,9 @@ struct TaskCardContent: View {
                     Button {
                         Task { await viewModel.unlinkFromParent() }
                     } label: {
-                        Label("Отвязать", systemImage: "link.badge.minus")
+                        Image(systemName: "link.badge.minus")
                     }
+                    .accessibilityLabel("Отвязать")
                 }
         }
 
@@ -1295,8 +1296,9 @@ struct TaskCardContent: View {
                     Button {
                         Task { await viewModel.unlinkChildTask(child) }
                     } label: {
-                        Label("Отвязать", systemImage: "link.badge.minus")
+                        Image(systemName: "link.badge.minus")
                     }
+                    .accessibilityLabel("Отвязать")
                 }
         }
 

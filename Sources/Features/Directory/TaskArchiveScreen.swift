@@ -16,11 +16,9 @@ struct TaskArchiveScreen: View {
     }
 
     var body: some View {
-        // Тот же каркас, что у списков проекта и меток: `ScrollView` +
-        // `LazyVStack` с разделителями между рядами. Штатный `List` давал
-        // карточный контейнер и разделители — это и был неровный вид.
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+        // List owns the row surface and native swipe presentation.
+        List {
+            Group {
                 historySection
 
                 TFErrorBanner(taskStore.archiveErrorMessage, variant: .inline)
@@ -34,23 +32,24 @@ struct TaskArchiveScreen: View {
                     )
                     .padding(.horizontal, TFSpacing.xs)
                 } else if !tasks.isEmpty {
-                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Group {
                         Text("Задачи")
                             .tfText(.action)
                             .foregroundStyle(Color.tfSub)
                             .padding(.horizontal, TFSpacing.screenHorizontal)
-                        VStack(spacing: 2) {
+                        Group {
                             ForEach(tasks.indices, id: \.self) { rowIndex in
-                                if rowIndex > 0 { TFDivider() }
                                 archiveRow(tasks[rowIndex])
                             }
                         }
                     }
                 }
+
             }
-            .padding(.top, TFSpacing.sm)
-            .padding(.bottom, TFSpacing.xl)
+            .listRowInsets(EdgeInsets())
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .accessibilityIdentifier("taskArchiveList")
         .tfNativeHeader("Архив", displayMode: .inline)
         .task { await loadArchive() }
@@ -189,7 +188,7 @@ struct TaskArchiveScreen: View {
     @ViewBuilder
     private var projectArchiveSection: some View {
         if !projectStore.archivedProjects.isEmpty {
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            Group {
                 Text("Проекты")
                     // Единый заголовок секции — 13 pt `tfSub`
                     // (LOCK-TYPOGRAPHY-UNIFY): было `.meta` 12.
@@ -197,9 +196,8 @@ struct TaskArchiveScreen: View {
                     .foregroundStyle(Color.tfSub)
                     .padding(.horizontal, TFSpacing.screenHorizontal)
 
-                VStack(spacing: 2) {
+                Group {
                     ForEach(projectStore.archivedProjects.indices, id: \.self) { i in
-                        if i > 0 { TFDivider() }
                         projectRow(projectStore.archivedProjects[i])
                     }
                 }

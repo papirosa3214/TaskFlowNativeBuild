@@ -306,8 +306,8 @@ struct UpcomingListView: View {
                     .padding(.top, 40)
                     .safeAreaInset(edge: .top, spacing: 0) { header }
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0, pinnedViews: selectedDate == nil ? [.sectionHeaders] : []) {
+                List {
+            Group {
                         ForEach(visibleDates, id: \.self) { date in
                             let dayTasks = groupedTasks[date] ?? []
                             if selectedDate != nil || !dayTasks.isEmpty {
@@ -327,10 +327,13 @@ struct UpcomingListView: View {
                                 }
                             }
                         }
-                    }
-                    .padding(.top, TFSpacing.md)
-                }
-                .safeAreaInset(edge: .top, spacing: 0) { header }
+
+            }
+            .listRowInsets(EdgeInsets())
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+                        .safeAreaInset(edge: .top, spacing: 0) { header }
             }
     }
 

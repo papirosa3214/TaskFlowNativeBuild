@@ -22,8 +22,8 @@ struct ActivityScreen: View {
     private var yesterday: String { DirectoryDate.addDaysLocal(today, -1) }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+        List {
+            Group {
                 TFErrorBanner(taskStore.errorMessage, variant: .inline)
                     .padding(.horizontal, TFSpacing.screenHorizontal)
 
@@ -49,10 +49,10 @@ struct ActivityScreen: View {
                     filteredEmptyState
                 } else {
                     ForEach(groups, id: \.key) { group in
-                        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                        Group {
                             Text(group.label).tfText(.action).foregroundStyle(Color.tfSub)
                                 .padding(.horizontal, TFSpacing.screenHorizontal + 4)
-                            VStack(spacing: TFSpacing.sm) {
+                            Group {
                                 ForEach(group.tasks, id: \.id) { task in
                                     completedRow(task)
                                 }
@@ -61,10 +61,12 @@ struct ActivityScreen: View {
                         }
                     }
                 }
+
             }
-            .padding(.top, TFSpacing.sm)
-            .padding(.bottom, TFSpacing.xl)
+            .listRowInsets(EdgeInsets())
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .refreshable {
             await taskStore.load(silent: true)
         }

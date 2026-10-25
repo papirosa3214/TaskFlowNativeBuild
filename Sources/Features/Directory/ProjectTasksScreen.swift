@@ -163,8 +163,8 @@ struct ProjectTasksScreen: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+        List {
+            Group {
                 TFErrorBanner(projectStore.errorMessage, variant: .inline)
                 TFErrorBanner(taskStore.errorMessage, variant: .inline)
 
@@ -180,9 +180,8 @@ struct ProjectTasksScreen: View {
                         )
                         .padding(.horizontal, TFSpacing.xs)
                     } else {
-                        VStack(spacing: 2) {
+                        Group {
                             ForEach(tasks.indices, id: \.self) { rowIndex in
-                                if rowIndex > 0 { TFDivider() }
                                 rowWithIndex(rowIndex)
                             }
                         }
@@ -194,10 +193,12 @@ struct ProjectTasksScreen: View {
                         })
                     }
                 }
+
             }
-            .padding(.top, TFSpacing.sm)
-            .padding(.bottom, TFSpacing.xl)
+            .listRowInsets(EdgeInsets())
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .refreshable {
             await taskStore.load(silent: true)
             await refreshRelationshipTasks()
@@ -302,7 +303,7 @@ struct ProjectTasksScreen: View {
         let kids = children(of: task)
         let isOpen = expandedIDs.contains(task.id) || (filter != .open && filter != .all && !kids.isEmpty)
         return AnyView(
-            VStack(spacing: 2) {
+            Group {
                 DirectoryTaskRow(
                     index: shortId,
                     task: task,

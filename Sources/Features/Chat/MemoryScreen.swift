@@ -62,13 +62,15 @@ struct MemoryScreen: View {
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) { Task { await delete(memory) } } label: {
-                            Label("Забыть", systemImage: "trash")
+                            Image(systemName: "trash")
                         }
+                        .accessibilityLabel("Забыть")
                     }
                     .swipeActions(edge: .leading) {
                         Button { Task { await togglePin(memory) } } label: {
-                            Label(memory.isPinned ? "Открепить" : "Закрепить", systemImage: memory.isPinned ? "pin.slash" : "pin")
+                            Image(systemName: memory.isPinned ? "pin.slash" : "pin")
                         }
+                        .accessibilityLabel(memory.isPinned ? "Открепить" : "Закрепить")
                         .tint(Color.tfOrange)
                     }
                     .accessibilityIdentifier("memory-row-\(memory.id)")

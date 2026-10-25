@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 // Строка задачи для ProjectTasksScreen — дубль `src/components/TaskRow.tsx`
 // (общий компонент, которым пользуется чужой набор экранов), тем же приёмом
@@ -72,69 +71,10 @@ struct DirectoryTaskRow: View {
     /// время закрытия — главное, ради чего список сгруппирован по дням.
     var timestamp: String? = nil
 
-    /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
-    @State private var rowID = UUID()
-    @State private var settledOffset: CGFloat = 0
-    @State private var dragOffset: CGFloat = 0
     @State private var confirmDelete = false
 
-    private var offsetX: CGFloat { clamp(settledOffset + dragOffset) }
-
     var body: some View {
-        ZStack {
-            HStack(spacing: 0) {
-                swipeIconButton(icon: "archivebox", color: .tfSwipeDelete) {
-                    close()
-                    // В архив — сразу, без подтверждения (владелец 12.10.2026):
-                    // задача не пропадает, её видно в «Архиве» и можно вернуть.
-                    // Диалог остаётся только там, где действие необратимо, —
-                    // то есть когда строка переиспользуется экраном «Архив»
-                    // и передаёт свои `deleteConfirmTitle`/`deleteConfirmMessage`
-                    // на окончательное удаление.
-                    if deleteConfirmTitle == nil {
-                        onDelete()
-                    } else {
-                        confirmDelete = true
-                    }
-                }
-                .frame(width: leftRevealWidth)
-                .opacity(revealOpacity(leftRevealWidth))
-
-                Spacer(minLength: 0)
-
-                if let swipeAction {
-                    swipeIconButton(
-                        icon: swipeAction.icon,
-                        color: .tfGreen,
-                        action: { close(); onSwipeAction() },
-                        accessibilityLabel: swipeAction.accessibilityLabel,
-                        accessibilityIdentifier: swipeAction.accessibilityIdentifier
-                    )
-                    .frame(width: rightRevealWidth)
-                    .opacity(revealOpacity(rightRevealWidth))
-                }
-            }
-
-            row
-                .background(Color.tfBackground)
-                .offset(x: offsetX)
-                // UIKit-pan не забирает вертикальный жест у ScrollView.
-                // Обычный DragGesture здесь делал начало прокрутки вязким:
-                // список ждал, решит ли строка трактовать касание как свайп.
-                .gesture(
-                    HorizontalPan(
-                        onBegin: { UIImpactFeedbackGenerator(style: .soft).impactOccurred() },
-                        onChange: { dx in dragOffset = dx },
-                        onEnd: { dx, velocity in settle(dx: dx, velocity: velocity) }
-                    )
-                )
-        }
-        .clipped()
-        // Раскрыта всегда одна строка: как только реестр называет другую
-        // (или прокрутка гасит всё), эта закрывается сама.
-        .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
-            if openID != rowID, settledOffset != 0 { close() }
-        }
+        swipeBody
         // Диалог остался только для окончательного удаления с экрана «Архив»
         // (там владелец передаёт `deleteConfirmTitle`). Обычный свайп в архив
         // его больше не показывает — поручение владельца 12.10.2026.
@@ -147,38 +87,34 @@ struct DirectoryTaskRow: View {
         }
     }
 
-    private var leftRevealWidth: CGFloat { max(offsetX, 0) }
-    private var rightRevealWidth: CGFloat { max(-offsetX, 0) }
-
-    private func revealOpacity(_ width: CGFloat) -> Double {
-        min(1, Double(width / TFRowActionWidth) * 1.3)
-    }
-
-    /// Кнопка свайпа — только иконка, без надписи (владелец 11.09.2026).
-    /// Идентификатор и подпись для VoiceOver берутся из действия, когда оно
-    /// задано: раньше они были объявлены в перечислении, но на кнопку не
-    /// попадали — из-за этого свайп было нечем проверить в UI-тесте.
-    private func swipeIconButton(icon: String, color: Color, action: @escaping () -> Void,
-                                 accessibilityLabel: String? = nil,
-                                 accessibilityIdentifier: String? = nil) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: TFIconSize.md))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(color)
-        }
-        .buttonStyle(.plain)
-        .clipped()
-        .allowsHitTesting(abs(offsetX) >= TFRowActionWidth * 0.7)
-        .accessibilityHidden(abs(offsetX) < TFRowActionWidth * 0.7)
-        .accessibilityLabel(Text(accessibilityLabel ?? icon))
-        .accessibilityIdentifier(accessibilityIdentifier ?? icon)
+    @ViewBuilder
+    private var swipeBody: some View {
+            row
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        if deleteConfirmTitle == nil { onDelete() } else { confirmDelete = true }
+                    } label: {
+                        Image(systemName: deleteConfirmTitle == nil ? "archivebox" : "trash")
+                    }
+                    .tint(Color.tfSwipeDelete)
+                    .accessibilityLabel(deleteConfirmTitle == nil ? "В архив" : "Удалить окончательно")
+                    .accessibilityIdentifier("directory.swipe.delete")
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    if let swipeAction {
+                        Button(action: onSwipeAction) {
+                            Image(systemName: swipeAction.icon)
+                        }
+                        .tint(Color.tfGreen)
+                        .accessibilityLabel(swipeAction.accessibilityLabel)
+                        .accessibilityIdentifier(swipeAction.accessibilityIdentifier)
+                    }
+                }
     }
 
     private var row: some View {
         Button {
-            if settledOffset != 0 { close() } else { onOpen() }
+            onOpen()
         } label: {
             TFTaskRowContent(title: task.title, description: task.description, isDone: strikesDoneTitle ?? (task.status == .completed)) {
                 if showsAvatar, let initials = task.rowAvatarInitials {
@@ -228,57 +164,6 @@ struct DirectoryTaskRow: View {
     }
 
 
-    private func close() {
-        withAnimation(TFRowSwipe.settleAnimation(velocity: 0)) {
-            settledOffset = 0
-            dragOffset = 0
-        }
-        TFSwipeRowRegistry.shared.didClose(rowID)
-    }
-
-    // Пороги 1:1 с `TaskRow.tsx`: открытие >36px/280px·с⁻¹, закрытие
-    // обратным сдвигом >25px/250px·с⁻¹ — асимметрично, легче закрыть, чем открыть.
-    private func settle(dx: CGFloat, velocity: CGFloat) {
-        let finalOffset = clamp(settledOffset + dx)
-        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity)) {
-            if settledOffset == 0 {
-                if swipeAction != nil, (finalOffset < -TFRowSwipe.openThreshold || velocity < -TFRowSwipe.openVelocity) {
-                    settledOffset = -TFRowActionWidth
-                } else if finalOffset > TFRowSwipe.openThreshold || velocity > TFRowSwipe.openVelocity {
-                    // Открыть «Удалить» слева — те же пороги, что и для
-                    // действия справа. confirmDelete срабатывает по тапу.
-                    settledOffset = TFRowActionWidth
-                } else {
-                    settledOffset = 0
-                }
-            } else if settledOffset < 0 {
-                settledOffset = (dx > TFRowSwipe.closeThreshold || velocity > TFRowSwipe.closeVelocity) ? 0 : -2 * TFRowActionWidth
-            } else {
-                settledOffset = (dx < -TFRowSwipe.closeThreshold || velocity < -TFRowSwipe.closeVelocity) ? 0 : TFRowActionWidth
-            }
-            dragOffset = 0
-        }
-        if settledOffset == 0 {
-            TFSwipeRowRegistry.shared.didClose(rowID)
-        } else {
-            TFSwipeRowRegistry.shared.didOpen(rowID)
-        }
-    }
-
-    /// «Резина» за пределом раскрытия — веб: `W + over × 30 / (30 + over)`.
-    /// По одной кнопке с каждой стороны.
-    private func clamp(_ raw: CGFloat) -> CGFloat {
-        if raw < 0, swipeAction == nil { return 0 }
-        let limit = TFRowActionWidth
-        if raw > limit {
-            let over = raw - limit
-            return limit + (over * 30) / (30 + over)
-        } else if raw < -limit {
-            let over = -raw - limit
-            return -limit - (over * 30) / (30 + over)
-        }
-        return raw
-    }
 }
 
 /// Статус агента плоским текстом — дубль `TodayAgentStateTag` (`Features/Today/TodayFilters.swift`,

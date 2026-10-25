@@ -66,8 +66,8 @@ struct AgentWorkScreen: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+        List {
+            Group {
                 TFErrorBanner(taskStore.errorMessage.map { _ in "Не удалось загрузить задачи" })
                     .padding(.horizontal, TFSpacing.screenHorizontal)
                     .padding(.top, TFSpacing.sm)
@@ -95,9 +95,12 @@ struct AgentWorkScreen: View {
                         sectionView(section)
                     }
                 }
+
             }
-            .padding(.bottom, TFSpacing.xl)
+            .listRowInsets(EdgeInsets())
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .refreshable {
             await taskStore.load(silent: true)
         }
@@ -108,7 +111,7 @@ struct AgentWorkScreen: View {
     }
 
     private func sectionView(_ section: Section) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        Group {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(section.title) \(section.tasks.count)")
                     .tfText(.action)

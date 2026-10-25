@@ -96,27 +96,29 @@ struct RoutinesScreen: View {
                         Button {
                             Task { await model.setPaused(schedule, paused: !schedule.isPaused) }
                         } label: {
-                            Label(schedule.isPaused ? "Возобновить" : "Пауза",
-                                  systemImage: schedule.isPaused ? "play" : "pause")
+                            Image(systemName: schedule.isPaused ? "play" : "pause")
                         }
-                        .tint(Color.tfSub)
+                        .accessibilityLabel(schedule.isPaused ? "Возобновить" : "Пауза")
+                        .tint(schedule.isPaused ? Color.tfGreen : Color.tfSub)
                         Button {
                             Task { await model.runNow(schedule) }
                         } label: {
-                            Label("Запустить сейчас", systemImage: "play.circle")
+                            Image(systemName: "play.circle")
                         }
+                        .accessibilityLabel("Запустить сейчас")
                         .tint(Color.tfBlue)
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             pendingDelete = schedule
                         } label: {
-                            Label("Удалить", systemImage: "trash")
+                            Image(systemName: "trash")
                         }
                         // Нейтральный `.tint(Color.tfText)` у списка иначе
                         // перекрашивает и смахивание: кнопка удаления выходила
                         // белым кружком вместо красной (владелец 23.10.2026).
                         // Цвет тот же, что у свайпа-удаления в списках задач.
+                        .accessibilityLabel("Удалить")
                         .tint(Color.tfSwipeDelete)
                     }
                 }

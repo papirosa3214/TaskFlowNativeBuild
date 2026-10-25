@@ -101,7 +101,6 @@ struct TodayListView: View {
                         ForEach(section.tasks) { task in
                             row(task, overdue: section.marksOverdue)
                                 .listRowInsets(EdgeInsets())
-                                .listRowBackground(Color.clear)
                         }
                     } header: {
                         // Единственная секция вкладки заголовка не получает:
@@ -165,7 +164,6 @@ struct TodayListView: View {
                             swipeAction: swipeAction,
                             swipeOnlyAtEdges: swipeOnlyAtEdges,
                             horizontalEdgeZone: horizontalEdgeZone,
-                            usesNativeSwipeActions: true,
                             onSwipeAction: {
                                 guard let swipeAction else { return }
                                 Task { await perform(swipeAction, for: task) }

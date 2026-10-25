@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 // Строка задачи вида «Список» — spec/SCREENS-1.md §3.3 (`TaskRow.tsx`),
 // с проп-переопределением экрана «Планирование»: `maxLabels=1 showDueBadge=false`
@@ -13,84 +12,41 @@ struct UpcomingTaskRow: View {
     let onComplete: () -> Void
     let onDelete: () -> Void
 
-    /// Ширина зоны действия свайпа — `ACTION_W` (spec §3.3).
-    private let actionWidth: CGFloat = TFRowActionWidth
-    private let openThreshold = TFRowSwipe.openThreshold
-    private let openVelocity = TFRowSwipe.openVelocity
-    private let closeThreshold = TFRowSwipe.closeThreshold
-    private let closeVelocity = TFRowSwipe.closeVelocity
-    /// Своё имя в общем реестре раскрытых строк (`TFSwipeRowRegistry`).
-    @State private var rowID = UUID()
-    @State private var settledOffset: CGFloat = 0
-    @State private var dragOffset: CGFloat = 0
     @State private var confirmDelete = false
 
-    private var offsetX: CGFloat { clamp(settledOffset + dragOffset) }
-
     var body: some View {
-        ZStack {
-            // Кнопки растут за пальцем и проявляются по ходу жеста —
-            // разбор веб-модели в TodayTaskRow.
-            HStack(spacing: 0) {
-                actionButton(
-                    icon: "archivebox", label: "В архив",
-                    identifier: "row.swipe.delete", color: .tfSwipeDelete
-                ) { close(); confirmDelete = true }
-                .frame(width: leftRevealWidth)
-                .opacity(revealOpacity(leftRevealWidth))
-
-                Spacer(minLength: 0)
-
-                // «Перенести» из свайпа убрана 09.09.2026 — срок ставится
-                // в карточке (см. TodayTaskRow, та же правка).
-                actionButton(
-                    icon: "checkmark", label: "Завершить",
-                    identifier: "row.swipe.complete", color: .tfGreen
-                ) { close(); onComplete() }
-                .frame(width: rightRevealWidth)
-                .opacity(revealOpacity(rightRevealWidth))
-            }
-            .frame(maxHeight: .infinity)
-
-            TFTaskRow(Self.model(for: task)) {
-                if settledOffset != 0 { close() } else { onOpen() }
-            }
-            // Порядок как в TodayTaskRow: `accessibilityElement(children:)`
-            // создаёт новый элемент и стирает всё, что задано выше.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(rowAccessibilityLabel)
-            .accessibilityIdentifier("upcoming.task-row")
-        // Строка ЯВЛЯЕТСЯ кнопкой, но `children: .ignore` собирает новый
-        // элемент и трейт кнопки при этом теряется: в дереве строка
-        // становится «Other», VoiceOver не говорит «кнопка», а тесты её не
-        // находят среди `app.buttons`. Трейт возвращаем руками.
-        .accessibilityAddTraits(.isButton)
-            // Непрозрачный фон (веб `bg-bg`), иначе текст задачи читается
-            // поверх цветной кнопки, пока строка над ней проезжает.
-            .background(Color.tfBackground)
-            .offset(x: offsetX)
-// Свайп — на UIKit-распознавателе, см. HorizontalPan.swift:
-            // SwiftUI-жест внутри ScrollView отбирает вертикальную прокрутку.
-            .gesture(
-                HorizontalPan(
-                    onBegin: { UIImpactFeedbackGenerator(style: .soft).impactOccurred() },
-                    onChange: { dx in dragOffset = dx },
-                    onEnd: { dx, velocity in settle(dx: dx, velocity: velocity) }
-                )
-            )
-        }
-        .clipped()
-        // Раскрыта всегда одна строка: как только реестр называет другую
-        // (или прокрутка гасит всё), эта закрывается сама.
-        .onChange(of: TFSwipeRowRegistry.shared.openRowID) { _, openID in
-            if openID != rowID, settledOffset != 0 { close() }
-        }
+        swipeBody
         .confirmationDialog("Отправить задачу в архив?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("В архив", role: .destructive, action: onDelete)
             Button("Отмена", role: .cancel) {}
         } message: {
             Text("«\(task.title)» будет отправлена в архив. Её можно восстановить.")
         }
+    }
+
+    @ViewBuilder
+    private var swipeBody: some View {
+            TFTaskRow(Self.model(for: task), action: onOpen)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(rowAccessibilityLabel)
+                .accessibilityIdentifier("upcoming.task-row")
+                .accessibilityAddTraits(.isButton)
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Image(systemName: "archivebox")
+                    }
+                    .tint(Color.tfSwipeDelete)
+                    .accessibilityLabel("В архив")
+                    .accessibilityIdentifier("row.swipe.delete")
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(action: onComplete) {
+                        Image(systemName: "checkmark")
+                    }
+                    .tint(Color.tfGreen)
+                    .accessibilityLabel("Завершить")
+                    .accessibilityIdentifier("row.swipe.complete")
+                }
     }
 
     /// Короткое имя для VoiceOver.
@@ -129,83 +85,7 @@ struct UpcomingTaskRow: View {
         )
     }
 
-    private var leftRevealWidth: CGFloat { max(offsetX, 0) }
-    private var rightRevealWidth: CGFloat { max(-offsetX, 0) }
-
-    private func revealOpacity(_ width: CGFloat) -> Double {
-        min(1, Double(width / actionWidth) * 1.3)
-    }
-
-    private func actionButton(
-        icon: String, label: String, identifier: String, color: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: TFIconSize.md))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(color)
-        }
-        .buttonStyle(.plain)
-        .clipped()
-        .allowsHitTesting(abs(offsetX) >= actionWidth * 0.7)
-        .accessibilityHidden(abs(offsetX) < actionWidth * 0.7)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(identifier)
-    }
-
-    private func close() {
-        withAnimation(TFRowSwipe.settleAnimation(velocity: 0)) {
-            settledOffset = 0
-            dragOffset = 0
-        }
-        TFSwipeRowRegistry.shared.didClose(rowID)
-    }
-
-    /// Пороги/резина — числа веба (`useRowSwipe.ts`): открытие >36px или
-    /// >280px/с, закрытие обратным сдвигом >25px или >250px/с, за ACTION_W —
-    /// «резина» `over×30/(30+over)`. Скорость приходит от UIKit в px/с.
-    private func settle(dx: CGFloat, velocity: CGFloat) {
-        let finalOffset = clamp(settledOffset + dx)
-        withAnimation(TFRowSwipe.settleAnimation(velocity: velocity)) {
-            if settledOffset == 0 {
-                if finalOffset < -openThreshold || velocity < -openVelocity {
-                    settledOffset = -actionWidth
-                } else if finalOffset > openThreshold || velocity > openVelocity {
-                    settledOffset = actionWidth
-                } else {
-                    settledOffset = 0
-                }
-            } else if settledOffset < 0 {
-                settledOffset = (dx > closeThreshold || velocity > closeVelocity) ? 0 : -2 * actionWidth
-            } else {
-                settledOffset = (dx < -closeThreshold || velocity < -closeVelocity) ? 0 : actionWidth
-            }
-            dragOffset = 0
-        }
-        if settledOffset == 0 {
-            TFSwipeRowRegistry.shared.didClose(rowID)
-        } else {
-            TFSwipeRowRegistry.shared.didOpen(rowID)
-        }
-    }
-
-    private func clamp(_ raw: CGFloat) -> CGFloat {
-        let limit = raw > 0 ? actionWidth : 2 * actionWidth
-        if raw > limit {
-            let over = raw - limit
-            return limit + (over * 30) / (30 + over)
-        } else if raw < -limit {
-            let over = -raw - limit
-            return -limit - (over * 30) / (30 + over)
-        }
-        return raw
-    }
 }
-
-// Высота строки больше не измеряется: кнопки свайпа растягиваются на высоту
-// ZStack, которую задаёт сама строка (веб: кнопка прибита `top: 0; bottom: 0`).
 
 /// Статус агента плоским текстом — spec §3.11 `AgentStateTag` (вариант «plain», без подложки).
 enum UpcomingAgentStateTag {
