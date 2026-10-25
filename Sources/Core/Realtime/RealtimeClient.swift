@@ -121,6 +121,7 @@ public final class RealtimeClient {
     private var isStopping = true
     private var reconnectAttempt = 0
     private var reconnectTask: Task<Void, Never>?
+    @ObservationIgnored private var authorizationRecoveryTask: Task<Void, Never>?
     private let allowsBackgroundConnection: Bool
     @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
     private var wantsConnection = false
@@ -178,6 +179,8 @@ public final class RealtimeClient {
         isStopping = true
         reconnectTask?.cancel()
         reconnectTask = nil
+        authorizationRecoveryTask?.cancel()
+        authorizationRecoveryTask = nil
         watchdogTask?.cancel()
         watchdogTask = nil
         // Отложенная инвалидация на разрыве связи не нужна: переподключение
@@ -236,12 +239,6 @@ public final class RealtimeClient {
             guard task === socketTask else { return }
             AppDiagnostics.shared.increment(.messages)
             lastTrafficAt = Date()
-            if !isConnected {
-                isConnected = true
-                if hasConnectedBefore { onReconnected?() }
-                hasConnectedBefore = true
-                reconnectAttempt = 0
-            }
             handle(message: message, task: socketTask)
             // Тот же сокет ещё актуален (не заменён переподключением) — читаем дальше.
             if task === socketTask {
@@ -250,9 +247,29 @@ public final class RealtimeClient {
         }
     }
 
+    /// Состояние соединения меняется отдельно от доставки событий.
+    /// Внутренняя точка проверки протокола, без настоящей сети.
+    func confirmConnection(for event: RealtimeEvent) {
+        // Только серверный handshake подтверждает вход. Кадр error раньше
+        // запускал onReconnected и сбрасывал backoff каждые 1,6 секунды.
+        guard case .connected = event else { return }
+        if !isConnected {
+            isConnected = true
+            if hasConnectedBefore { onReconnected?() }
+            hasConnectedBefore = true
+            reconnectAttempt = 0
+        }
+    }
+
     private func handle(message: URLSessionWebSocketTask.Message, task socketTask: URLSessionWebSocketTask) {
         guard case .string(let text) = message, let data = text.data(using: .utf8) else { return }
         guard let event = RealtimeEvent.parse(data) else { return }
+        if case .serverError(let message) = event,
+           message == "unauthorized" || message == "device_revoked" {
+            recoverAuthorization(revoked: message == "device_revoked")
+            return
+        }
+        confirmConnection(for: event)
         record(event)
         if case .ping = event {
             // Keepalive — сервер шлёт ping, клиент обязан ответить pong (spec §4).
@@ -268,6 +285,36 @@ public final class RealtimeClient {
             }
         }
         dispatchToSubscribers(event)
+    }
+
+    /// HTTP дома может пройти через LAN-вход даже с недействительным JWT;
+    /// WebSocket требует действующий токен. Обновляем его штатным LAN-входом
+    /// один раз после отказа, не принимая отказ за восстановление соединения.
+    private func recoverAuthorization(revoked: Bool) {
+        closeConnection()
+        if revoked {
+            rejectAuthorization()
+            return
+        }
+        authorizationRecoveryTask = Task { [weak self] in
+            do {
+                let response = try await APIClient().lanLogin()
+                guard !Task.isCancelled, let self, self.wantsConnection else { return }
+                KeychainService.shared.token = response.token
+                self.authorizationRecoveryTask = nil
+                self.connect()
+            } catch {
+                guard !Task.isCancelled, let self else { return }
+                self.authorizationRecoveryTask = nil
+                self.rejectAuthorization()
+            }
+        }
+    }
+
+    private func rejectAuthorization() {
+        disconnect()
+        KeychainService.shared.token = nil
+        NotificationCenter.default.post(name: .taskFlowUnauthorized, object: nil)
     }
 
     private func handleDisconnect() {
