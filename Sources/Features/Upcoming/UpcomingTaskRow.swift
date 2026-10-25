@@ -33,7 +33,7 @@ struct UpcomingTaskRow: View {
                 .accessibilityAddTraits(.isButton)
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
                     Button(role: .destructive) { confirmDelete = true } label: {
-                        Image(systemName: "archivebox")
+                        Label("В архив", systemImage: "archivebox")
                     }
                     .tint(Color.tfSwipeDelete)
                     .accessibilityLabel("В архив")
@@ -41,7 +41,7 @@ struct UpcomingTaskRow: View {
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(action: onComplete) {
-                        Image(systemName: "checkmark")
+                        Label("Завершить", systemImage: "checkmark")
                     }
                     .tint(Color.tfGreen)
                     .accessibilityLabel("Завершить")

@@ -94,7 +94,7 @@ struct DirectoryTaskRow: View {
                     Button(role: .destructive) {
                         if deleteConfirmTitle == nil { onDelete() } else { confirmDelete = true }
                     } label: {
-                        Image(systemName: deleteConfirmTitle == nil ? "archivebox" : "trash")
+                        Label(deleteConfirmTitle == nil ? "В архив" : "Удалить окончательно", systemImage: "archivebox")
                     }
                     .tint(Color.tfSwipeDelete)
                     .accessibilityLabel(deleteConfirmTitle == nil ? "В архив" : "Удалить окончательно")
@@ -103,7 +103,7 @@ struct DirectoryTaskRow: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     if let swipeAction {
                         Button(action: onSwipeAction) {
-                            Image(systemName: swipeAction.icon)
+                            Label(swipeAction.accessibilityLabel, systemImage: swipeAction.icon)
                         }
                         .tint(Color.tfGreen)
                         .accessibilityLabel(swipeAction.accessibilityLabel)

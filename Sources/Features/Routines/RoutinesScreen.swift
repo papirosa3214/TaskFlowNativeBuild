@@ -96,14 +96,14 @@ struct RoutinesScreen: View {
                         Button {
                             Task { await model.setPaused(schedule, paused: !schedule.isPaused) }
                         } label: {
-                            Image(systemName: schedule.isPaused ? "play" : "pause")
+                            Label(schedule.isPaused ? "Возобновить" : "Пауза", systemImage: schedule.isPaused ? "play" : "pause")
                         }
                         .accessibilityLabel(schedule.isPaused ? "Возобновить" : "Пауза")
                         .tint(schedule.isPaused ? Color.tfGreen : Color.tfSub)
                         Button {
                             Task { await model.runNow(schedule) }
                         } label: {
-                            Image(systemName: "play.circle")
+                            Label("Запустить сейчас", systemImage: "play.circle")
                         }
                         .accessibilityLabel("Запустить сейчас")
                         .tint(Color.tfBlue)
@@ -112,7 +112,7 @@ struct RoutinesScreen: View {
                         Button(role: .destructive) {
                             pendingDelete = schedule
                         } label: {
-                            Image(systemName: "trash")
+                            Label("Удалить", systemImage: "trash")
                         }
                         // Нейтральный `.tint(Color.tfText)` у списка иначе
                         // перекрашивает и смахивание: кнопка удаления выходила

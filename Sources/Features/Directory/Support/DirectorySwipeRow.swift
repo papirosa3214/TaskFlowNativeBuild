@@ -13,7 +13,7 @@ struct DirectorySwipeRow<Content: View>: View {
         content()
             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                 Button(role: .destructive, action: onDelete) {
-                    Image(systemName: deleteIcon)
+                    Label(deleteLabel, systemImage: deleteIcon)
                 }
                 .tint(Color.tfSwipeDelete)
                 .accessibilityLabel(deleteLabel)
@@ -22,7 +22,7 @@ struct DirectorySwipeRow<Content: View>: View {
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 if let onEdit {
                     Button(action: onEdit) {
-                        Image(systemName: "pencil")
+                        Label("Изменить", systemImage: "pencil")
                     }
                     .tint(Color.tfSwipeEdit)
                     .accessibilityLabel("Изменить")

@@ -27,7 +27,7 @@ struct TodayTaskRow: View {
             row
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
                     Button(role: .destructive, action: onDelete) {
-                        Image(systemName: "archivebox")
+                        Label("В архив", systemImage: "archivebox")
                     }
                     .tint(Color.tfSwipeDelete)
                     .accessibilityLabel("В архив")
@@ -36,7 +36,7 @@ struct TodayTaskRow: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     if let swipeAction {
                         Button(action: onSwipeAction) {
-                            Image(systemName: swipeAction.icon)
+                            Label(swipeAction.accessibilityLabel, systemImage: swipeAction.icon)
                         }
                         .tint(Color.tfGreen)
                         .accessibilityLabel(swipeAction.accessibilityLabel)
