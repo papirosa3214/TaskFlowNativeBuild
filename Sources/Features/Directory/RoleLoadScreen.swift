@@ -230,12 +230,12 @@ struct RoleLoadScreen: View {
     private func chatLanes(_ row: RoleLoadLayout.RoleRow) -> some View {
         ForEach(Array(row.chatLanes.enumerated()), id: \.offset) { laneIndex, lane in
             ForEach(lane) { item in
-                chatContour(item, laneIndex: laneIndex)
+                chatContour(item, laneIndex: laneIndex, row: row)
             }
         }
     }
 
-    private func chatContour(_ item: RoleLoadLayout.ChatContour, laneIndex: Int) -> some View {
+    private func chatContour(_ item: RoleLoadLayout.ChatContour, laneIndex: Int, row: RoleLoadLayout.RoleRow) -> some View {
         let top = CGFloat(rowLaneCount(row) + laneIndex) * RoleLoadLayout.laneStep
         return VStack(alignment: .leading, spacing: 2) {
             Text(item.title)
