@@ -824,20 +824,8 @@ struct RoleChatRoomScreen: View {
     @State private var noticeMessage: String?
     @State private var modelChoice = ChatModelChoice()
     // SwiftUI owns the scroll position, including user interaction and resizing.
-    //
-    // Позиция — ПО ИДЕНТИФИКАТОРУ, а не по смещению (Apple: «For a point,
-    // SwiftUI won't attempt to keep that exact offset scrolled when the content
-    // size changes nor will it update to a new offset when that changes»).
-    // Со смещением в позиции лента замирала: текст печатался, высота росла,
-    // а смещение оставалось прежним — и лента оказывалась либо в пустоте,
-    // либо с контентом под композером (владелец 26.10.2026).
-    //
-    // С идентификатором SwiftUI сам удерживает нужную строку в кадре, когда
-    // содержимое меняется, и не замораживает ленту.
-    @State private var chatScrollPosition = ScrollPosition(idType: String.self)
+    @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
-    /// Сообщение, текст которого сейчас выводится по словам.
-    /// Уже показанная часть текста этого сообщения.
     @FocusState private var composerFocused: Bool
     private let api = APIClient()
 
@@ -1589,32 +1577,17 @@ struct RoleChatRoomScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.bottom, for: .alignment)
-        .defaultScrollAnchor(.bottom, for: .sizeChanges)
+        .defaultScrollAnchor(chatScrollPosition.isPositionedByUser ? nil : .bottom, for: .sizeChanges)
         .background(Color.tfBackground)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
         .accessibilityIdentifier("chat.feed")
         .hideComposerScrollEdgeEffect()
-        .onScrollGeometryChange(for: ChatFeedHeightLog.self) { geometry in
-            ChatFeedHeightLog(offsetY: geometry.contentOffset.y,
-                              contentHeight: geometry.contentSize.height,
-                              distanceToBottom: geometry.contentSize.height - geometry.visibleRect.maxY,
-                              containerHeight: geometry.containerSize.height,
-                              insetBottom: geometry.contentInsets.bottom)
-        } action: { old, new in
-            // Наблюдение, команд прокрутки тут нет: положение ленты ведёт
-            // сама система (defaultScrollAnchor .bottom + isPositionedByUser).
-            chatIsNearBottom = new.distanceToBottom <= 80
-            let heightDelta = new.contentHeight - old.contentHeight
-            if abs(heightDelta) > 0.5 {
-                ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f, область %.0f, отступ снизу %.0f, позиция пользователя %@",
-                                                old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom,
-                                                new.containerHeight, new.insetBottom,
-                                                chatScrollPosition.isPositionedByUser ? "да" : "нет"))
-            }
-        }
-        .onChange(of: visibleTypists.count) { old, new in
-            ChatFeedDiagnostics.log("лента: «печатает…» \(old) -> \(new)")
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentSize.height - geometry.visibleRect.maxY <= 80
+        } action: { _, nearBottom in
+            // Observation only: this does not issue any scroll commands.
+            chatIsNearBottom = nearBottom
         }
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
@@ -1641,7 +1614,9 @@ struct RoleChatRoomScreen: View {
 
     private var visibleMessages: [RoleChatMessage] {
         messages.filter { message in
-            // Карточка обращения остаётся в истории: вопрос и ответ можно раскрыть.
+            // Служебная строка координации после ответа исчезает из ленты
+            // (владелец 21.10.2026): ответ получен — показывать нечего.
+            if message.isFinishedCoordinationRow { return false }
             // Прячем только то сообщение, которое закрыло живой ход: пока
             // ход доигрывает ответ, его текст уже в живом пузыре. Раньше
             // скрывалось ЛЮБОЕ сообщение того же автора, попавшее в окно
@@ -1654,20 +1629,6 @@ struct RoleChatRoomScreen: View {
                 return turn.isCompleted(by: message)
             }
         }
-    }
-
-    /// Срез геометрии ленты для диагностики: по нему видно, что именно
-    /// дёргает ленту — рост текста, появление «печатает…» или подмена
-    /// живого пузыря готовым сообщением.
-    private struct ChatFeedHeightLog: Equatable {
-        let offsetY: Double
-        let contentHeight: Double
-        let distanceToBottom: Double
-        /// Высота области ленты: под ней стоят плашка плана и поле ввода,
-        /// они в расчёт хвоста не входят.
-        let containerHeight: Double
-        /// Нижний отступ области ленты (safe area).
-        let insetBottom: Double
     }
 
     private struct FeedItem: Identifiable {
@@ -1781,7 +1742,8 @@ struct RoleChatRoomScreen: View {
         }
         if !mine && message.id != markedReadMessageID {
             let id = message.id
-            Task {                if (try? await api.markRoleChatRead(id: chat.id)) != nil { markedReadMessageID = id }
+            Task {
+                if (try? await api.markRoleChatRead(id: chat.id)) != nil { markedReadMessageID = id }
             }
         }
     }
@@ -1855,10 +1817,6 @@ struct RoleChatRoomScreen: View {
             RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
                                startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID),
                                onPlaybackComplete: {
-                                   // Живой пузырь уходит, его место занимает готовое
-                                   // сообщение — у него подвал с действиями, и
-                                   // высота строки в этот момент меняется.
-                                   ChatFeedDiagnostics.log("лента: живой пузырь сменён готовым сообщением")
                                    completingTurns[turn.playbackID] = nil
                                    endedTurnIDs.remove(turn.playbackID)
                                })
@@ -2284,10 +2242,6 @@ struct RoleChatRoomScreen: View {
         }
     }
 
-    /// Запустить вывод текста ответа по словам.
-    ///
-    /// Тот же pacer, что у живого ответа (`RoleLiveTextPacer`): сервер отдаёт
-    /// текст целиком, а в ленте он должен набегать — тогда высота строки
     private func copyMessage(_ message: RoleChatMessage) {
         UIPasteboard.general.string = message.text
         copiedMessageID = message.id
