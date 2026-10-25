@@ -1591,12 +1591,12 @@ struct RoleChatRoomScreen: View {
             // Observation only: this does not issue any scroll commands.
             chatIsNearBottom = new.distanceToBottom <= 80
             if abs(new.contentHeight - old.contentHeight) > 0.5 {
-                NSLog("[TaskFlow] лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f",
-                      old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom)
+                ChatFeedDiagnostics.log(String(format: "лента: высота %.0f -> %.0f, смещение %.1f -> %.1f, до хвоста %.1f",
+                                                old.contentHeight, new.contentHeight, old.offsetY, new.offsetY, new.distanceToBottom))
             }
         }
         .onChange(of: visibleTypists.count) { old, new in
-            NSLog("[TaskFlow] лента: «печатает…» %d -> %d", old, new)
+            ChatFeedDiagnostics.log("лента: «печатает…» \(old) -> \(new)")
         }
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
@@ -1838,7 +1838,7 @@ struct RoleChatRoomScreen: View {
                                    // Живой пузырь уходит, его место занимает готовое
                                    // сообщение — у него подвал с действиями, и
                                    // высота строки в этот момент меняется.
-                                   NSLog("[TaskFlow] лента: живой пузырь сменён готовым сообщением")
+                                   ChatFeedDiagnostics.log("лента: живой пузырь сменён готовым сообщением")
                                    completingTurns[turn.playbackID] = nil
                                    endedTurnIDs.remove(turn.playbackID)
                                })
