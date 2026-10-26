@@ -4,6 +4,17 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testDiscussionDeliveryHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-discussion-delivery" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.active?.step, "status")
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatDiscussionDelivery)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
+
     func testAgentPromptSettingsHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "agent-prompt-settings" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])

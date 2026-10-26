@@ -827,6 +827,7 @@ struct RoleChatRoomScreen: View {
     @State private var completedMessageIDByTurn: [String: String] = [:]
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
     @State private var pendingOutgoing: [PendingOutgoing] = []
+    @State private var discussionStatus: RoleChatDiscussion? = nil
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
     @State private var isStopping = false
     @State private var isSavingExecutionMode = false
@@ -1071,6 +1072,9 @@ struct RoleChatRoomScreen: View {
             composerRoom
         }
         .quickLookPreview($previewAttachmentURL)
+        .task(id: chat.id + ":" + (chat.taskID ?? "") + ":" + String(workPlanRevision) + ":" + String(refreshRevision)) {
+            await loadDiscussionStatus()
+        }
         .onChange(of: previewAttachmentURL) { oldURL, newURL in
             if newURL == nil, let oldURL {
                 try? FileManager.default.removeItem(at: oldURL.deletingLastPathComponent())
@@ -1109,6 +1113,42 @@ struct RoleChatRoomScreen: View {
     }
     #endif
 
+    /// Snapshot belongs to this room; cancelled requests cannot replace it.
+    private func loadDiscussionStatus() async {
+        let chatID = chat.id
+        guard let taskID = chat.taskID else {
+            discussionStatus = nil
+            return
+        }
+        do {
+            let all = try await api.taskDiscussions(taskID: taskID)
+            guard !Task.isCancelled, chat.id == chatID, chat.taskID == taskID else { return }
+            discussionStatus = all.first { $0.chatID == chatID }
+        } catch {
+            guard !Task.isCancelled, chat.id == chatID, chat.taskID == taskID else { return }
+            // Older servers have no discussion routes. Never invent a delivery state.
+            discussionStatus = nil
+        }
+    }
+
+    private var discussionStatusBar: some View {
+        Group {
+            if let discussion = discussionStatus {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text(discussion.statusTitle).tfText(.action)
+                    if let detail = discussion.statusDetail {
+                        Text(detail).tfText(.meta).foregroundStyle(Color.tfDim)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TFSpacing.lg)
+                .padding(.vertical, TFSpacing.xs)
+                .hintAnchor(HintAnchorID.chatDiscussionDelivery)
+                .accessibilityIdentifier("chat.discussionStatus")
+            }
+        }
+    }
+
     /// Личку ролей владелец читает, не будучи участником: писать в неё нельзя.
     private var isReadOnlyDirectRoom: Bool {
         chat.roomKind == "dm" && !chat.members.contains { $0.id == session.currentUser?.id }
@@ -1119,6 +1159,7 @@ struct RoleChatRoomScreen: View {
             // Панель участников переехала в корень раздела «Чаты» и стала
             // панелью комнат (владелец 21.10.2026); состав чата — в «О чате».
             messageScroll
+            discussionStatusBar
             // Рабочий план роли в этой сессии — над полем ввода (21.10.2026).
             ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision)
             if !mentionCandidates.isEmpty {
@@ -1680,12 +1721,27 @@ struct RoleChatRoomScreen: View {
         }
         // История уже упорядочена серверной последовательностью. Не сортируем
         // её повторно по часам: точность даты и порядок доставки различаются.
-        var ordered = history
-        for item in live {
-            let insertion = ordered.firstIndex { $0.date > item.date } ?? ordered.endIndex
-            ordered.insert(item, at: insertion)
+        let plan = ChatTimelineProjection.project(
+            messages: visibleMessages.map { .init(id: $0.id) },
+            turns: visibleLiveTurns.map {
+                .init(playbackID: $0.playbackID, anchorMessageID: $0.triggerMessageID)
+            })
+        // Keep the existing row IDs when a live reply becomes its saved message.
+        var messagesByID: [String: FeedItem] = [:]
+        for item in history {
+            if let id = item.message?.id { messagesByID[id] = item }
         }
-        return ordered
+        var turnsByID: [String: FeedItem] = [:]
+        for item in live {
+            if let id = item.turn?.playbackID { turnsByID[id] = item }
+        }
+        return plan.compactMap { item in
+            switch item.kind {
+            case .message: return item.messageID.flatMap { messagesByID[$0] }
+            case .liveTurn: return item.turnPlaybackID.flatMap { turnsByID[$0] }
+            case .pending: return nil // Pending rows retain their existing delivery path.
+            }
+        }
     }
 
     /// Keep the same row identity while a live reply becomes its saved message.

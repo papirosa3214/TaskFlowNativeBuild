@@ -247,3 +247,53 @@ public extension APIClient {
         return response.chat
     }
 }
+
+private struct RoleChatDiscussionEnvelope: Decodable { let discussion: RoleChatDiscussion }
+private struct RoleChatDiscussionsEnvelope: Decodable { let discussions: [RoleChatDiscussion] }
+
+public extension APIClient {
+    // Обсуждение работающей карточки (сервер: миграция 175_task_discussions,
+    // карточка 252c400e, этапы 3–4). Обсуждение — отдельная сущность: свой
+    // жизненный цикл, свой итог и своё обязательство для исполнителя.
+
+    /// Открыть обсуждение карточки: `POST /api/tasks/:taskId/discussions`.
+    /// Открывает владелец карточки.
+    func createTaskDiscussion(taskID: String, subtaskID: String, role: String,
+                              title: String? = nil) async throws -> RoleChatDiscussion {
+        struct Body: Encodable {
+            let subtask_id: String
+            let role: String
+            let title: String?
+        }
+        let response: RoleChatDiscussionEnvelope = try await request(
+            .post, "/tasks/\(taskID)/discussions",
+            body: Body(subtask_id: subtaskID, role: role, title: title))
+        return response.discussion
+    }
+
+    /// Обсуждения карточки: `GET /api/tasks/:taskId/discussions`.
+    func taskDiscussions(taskID: String) async throws -> [RoleChatDiscussion] {
+        let response: RoleChatDiscussionsEnvelope = try await request(.get, "/tasks/\(taskID)/discussions")
+        return response.discussions
+    }
+
+    /// Состояние обсуждения: `GET /api/discussions/:id`.
+    func taskDiscussion(id: String) async throws -> RoleChatDiscussion {
+        let response: RoleChatDiscussionEnvelope = try await request(.get, "/discussions/\(id)")
+        return response.discussion
+    }
+
+    /// Закрыть обсуждение: сервер собирает итог и обязательство для
+    /// исполнителя. Повторный вызов возвращает тот же итог, а не второй.
+    func closeTaskDiscussion(id: String, recipientSubtaskID: String? = nil) async throws -> RoleChatDiscussion {
+        let body: [String: JSONValue] = ["recipient_subtask_id": recipientSubtaskID.map { .string($0) } ?? .null]
+        let response: RoleChatDiscussionEnvelope = try await request(.post, "/discussions/\(id)/close", body: body)
+        return response.discussion
+    }
+
+    /// Принять обязательство: подтверждение, что итог доставлен исполнителю.
+    func acceptTaskDiscussion(id: String) async throws -> RoleChatDiscussion {
+        let response: RoleChatDiscussionEnvelope = try await request(.post, "/discussions/\(id)/accept", body: [String: JSONValue]())
+        return response.discussion
+    }
+}

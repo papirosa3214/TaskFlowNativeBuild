@@ -13,6 +13,7 @@ enum HintAnchorID {
     static let roleLoadRows = "role-load.rows"
     static let roleBehavior = "role.behavior"
     static let agentInstructions = "team.agent-instructions"
+    static let chatDiscussionDelivery = "chat.discussion-delivery"
     static let chatExecutionMode = "chat.execution-mode"
     static let noteMarkdownEditing = "note.markdown-editing"
     static let voiceMinimize = "voice.minimize"
@@ -60,7 +61,12 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatDiscussionDelivery, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+
+    static let chatDiscussionDelivery = HintScenario(
+        id: "chat-discussion-delivery", title: "Итог обсуждения", start: "status",
+        steps: ["status": HintStep(anchor: HintAnchorID.chatDiscussionDelivery, title: "Статус обсуждения",
+            text: "Здесь показан последний полученный статус обсуждения и доставки итога. «Ожидает доставки» означает, что итог сохранён; «Получен исполнителем» — что сервер подтвердил получение. Если получатель не найден, итог остаётся сохранённым.")])
 
     static let unifiedPlanner = HintScenario(
         id: "unified-planner", title: "Все задачи в одном списке", start: "list",

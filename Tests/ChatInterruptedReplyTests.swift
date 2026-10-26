@@ -22,6 +22,15 @@ final class ChatInterruptedReplyTests: XCTestCase {
         return try message("{" + parts.joined(separator: ",") + "}")
     }
 
+    func testNumericPartialFlagDecodesWithoutLosingMessage() throws {
+        let value = try message(#"{"id":"numeric","text":"Partial","is_session_marker":false,"partial":1}"#)
+        XCTAssertEqual(value.partial, true)
+        XCTAssertEqual(value.interruption, .unknown)
+        let complete = try message(#"{"id":"complete","text":"Complete","is_session_marker":false,"partial":0}"#)
+        XCTAssertEqual(complete.partial, false)
+        XCTAssertNil(complete.interruption)
+    }
+
     func testClarificationStopsTurnAndIsVisible() throws {
         let message = try roleMessage(stopReason: "owner_interrupt", partial: true)
         XCTAssertEqual(message.interruption, .ownerInterrupt)

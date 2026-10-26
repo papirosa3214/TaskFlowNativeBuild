@@ -210,7 +210,12 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// (почему прерван) и `partial` (сохранён частично). У сообщений человека
     /// оба поля пустые, у старого сервера их нет вовсе.
     public var stopReason: String? = nil
-    public var partial: Bool? = nil
+    public var partialFlag: RoleChatPartialFlag? = nil
+    /// Preserve the existing optional Bool interface, including legacy missing fields.
+    public var partial: Bool? {
+        get { partialFlag?.value }
+        set { partialFlag = newValue.map { RoleChatPartialFlag(value: $0) } }
+    }
 
     /// Состояние прерывания для показа в ленте: nil — ответ не прерывали.
     public var interruption: ChatMessageInterruption? {
@@ -258,7 +263,7 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case isSessionMarker = "is_session_marker"
         case queueDeliveryState = "queue_delivery_state"
         case stopReason = "stop_reason"
-        case partial
+        case partialFlag = "partial"
     }
 }
 
@@ -1017,5 +1022,24 @@ enum RoleChatMessageOrder {
         let a = RoleChatTime.date(lhs.createdAt) ?? .distantPast
         let b = RoleChatTime.date(rhs.createdAt) ?? .distantPast
         return a <= b
+    }
+}
+
+public struct RoleChatPartialFlag: Decodable, Sendable, Equatable {
+    public let value: Bool
+
+    public init(value: Bool) { self.value = value }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let flag = try? container.decode(Bool.self) {
+            value = flag
+        } else if let number = try? container.decode(Int.self) {
+            value = number != 0
+        } else if let text = try? container.decode(String.self) {
+            value = ["1", "true", "yes"].contains(text.lowercased())
+        } else {
+            value = false
+        }
     }
 }
