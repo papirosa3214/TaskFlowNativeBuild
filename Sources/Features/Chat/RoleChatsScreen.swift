@@ -2398,37 +2398,10 @@ struct RoleChatRoomScreen: View {
     }
 
     private func messageActionRow(_ message: RoleChatMessage) -> some View {
-        // Владелец 14.10.2026: значки были мелкие, пальцем не попасть;
-        // реакции убраны — пользы от них не было.
-        HStack(spacing: 0) {
-            replyFooter(message)
-                .padding(.leading, (TFHitTarget.min - 20) / 2)
-                .padding(.trailing, TFSpacing.sm)
-            messageActionButton("doc.on.doc", label: "Скопировать сообщение") {
-                copyMessage(message)
-            }
-            if copiedMessageID == message.id {
-                Text("Скопировано")
-                    .tfText(.meta)
-                    .padding(.trailing, TFSpacing.sm)
-                    .accessibilityIdentifier("chat.message.copied")
-            }
-            messageActionButton("text.cursor", label: "Выделить текст") {
-                selectingText = SelectableMessageText(text: message.text)
-            }
-            messageActionButton("square.and.arrow.up", label: "Сохранить или поделиться") {
-                exportMessage(message)
-            }
-            messageActionButton("arrow.triangle.branch", label: "Ответвление: обсудить в отдельном чате") {
-                Task { await openBranch(from: message) }
-            }
-            .disabled(isBranching)
-        }
-        .foregroundStyle(Color.tfSub)
-        .buttonStyle(.plain)
-        // Значок встаёт вровень с левым краем текста, зона нажатия шире его.
-        .padding(.leading, -(TFHitTarget.min - 20) / 2)
-        .padding(.bottom, -TFSpacing.sm)
+        // Владелец 26.10.2026: значки-действия под ответом убраны — копировать,
+        // выделить, поделиться и ответвление есть в меню по долгому нажатию.
+        // Под ответом осталась только подпись: кто ответил, сколько думал, время.
+        replyFooter(message)
     }
 
     /// Подпись ответа роли внизу: иконка, имя, сколько думала, время.
