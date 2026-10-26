@@ -1,4 +1,5 @@
 import XCTest
+@testable import TaskFlow
 
 /// Правило показа быстрых вариантов ответа (26.10.2026).
 ///
