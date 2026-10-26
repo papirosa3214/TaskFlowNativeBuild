@@ -86,9 +86,12 @@ struct RoleChatsScreen: View {
         ScrollView {
             VStack(spacing: 0) {
                 if isLoading && chats.isEmpty {
-                    ProgressView("Загрузка чатов")
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, TFSpacing.xl)
+                    HStack(spacing: TFSpacing.sm) {
+                        Spacer(minLength: 0)
+                        ProgressView("Загрузка чатов")
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, TFSpacing.xl)
                 } else if visibleChats.isEmpty {
                     Text(projectsOnly ? "Пока нет чатов по проектам." : "Пока нет сессий. Комнаты ролей — на панели справа.")
                         .tfText(.action)
@@ -637,6 +640,7 @@ private struct CreateRoleChatScreen: View {
     @Environment(\.dismiss) private var dismiss
     let onCreated: () -> Void
     @State private var roles: [RoleProfile] = []
+    @State private var isLoadingRoles = true
     @State private var selectedIDs: Set<String> = []
     @State private var title = ""
     @State private var isSaving = false
@@ -650,7 +654,13 @@ private struct CreateRoleChatScreen: View {
                     TextField("Необязательно", text: $title)
                 }
                 Section {
-                    if roles.isEmpty { ProgressView("Загрузка ролей") }
+                    if isLoadingRoles {
+                        ProgressView("Загрузка ролей").frame(maxWidth: .infinity)
+                    } else if roles.isEmpty {
+                        Text("Нет ролей, доступных для чата.")
+                            .tfText(.action).foregroundStyle(Color.tfDim)
+                            .frame(maxWidth: .infinity)
+                    }
                     ForEach(roles) { role in
                         Button {
                             guard let id = role.accountID else { return }
@@ -701,6 +711,8 @@ private struct CreateRoleChatScreen: View {
     }
 
     private func loadRoles() async {
+        isLoadingRoles = true
+        defer { isLoadingRoles = false }
         do {
             // Только роли с учёткой могут быть участниками серверного чата.
             roles = try await api.roles().filter(\.canJoinChat)
@@ -2783,6 +2795,7 @@ private struct RoleChatDetailsSheet: View {
     @State private var chat: RoleChat
     @State private var title: String
     @State private var roles: [RoleProfile] = []
+    @State private var isLoadingRoles = true
     @State private var isBusy = false
     @State private var errorMessage: String?
     @State private var isDeleteChatConfirmOpen = false
@@ -2881,7 +2894,9 @@ private struct RoleChatDetailsSheet: View {
                         Menu {
                             if isCreator {
                                 Menu {
-                                    if availableRoles.isEmpty {
+                                    if isLoadingRoles {
+                                        Text("Загрузка ролей…")
+                                    } else if availableRoles.isEmpty {
                                         Text("Все роли уже в чате")
                                     } else {
                                         ForEach(availableRoles) { profile in
@@ -2933,7 +2948,10 @@ private struct RoleChatDetailsSheet: View {
                 #if DEBUG
                 if ProcessInfo.processInfo.environment["TASKFLOW_MEMBER_SWIPE_PREVIEW"] == "1" { return }
                 #endif
-                roles = (try? await api.roles()) ?? []
+                isLoadingRoles = true
+                defer { isLoadingRoles = false }
+                do { roles = try await api.roles() }
+                catch { errorMessage = error.localizedDescription }
             }
         }
     }
