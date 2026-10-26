@@ -43,36 +43,154 @@ struct ChatContextControl: View {
     let onRefresh: () -> Void
     let onNewSession: (() -> Void)?
     let onCompact: (() -> Void)?
+    @State private var showsDetails = false
 
     var body: some View {
-        Menu {
-            Text(snapshot?.summary ?? "Контекст пока недоступен")
-            if let snapshot {
-                if let provider = snapshot.provider { Text("Провайдер: " + provider) }
-                if let model = snapshot.model { Text("Модель: " + model) }
-                if let measuredAt = snapshot.measuredAt {
-                    Text("Последний замер: " + (RoleChatTime.date(measuredAt)?.formatted(date: .abbreviated, time: .standard) ?? measuredAt))
-                }
-                Text(snapshot.isEstimate ? "Размер окна оценён Pi; новый текст ещё не учтён." : "Размер на последнем запросе; новый текст ещё не учтён.")
-                if snapshot.shouldConsiderReset { Text("Окно заполнено на 85% или больше. Можно сжать или начать новую сессию.") }
-            }
-            if let loadError { Text(loadError) }
-            Button("Обновить", systemImage: "arrow.clockwise", action: onRefresh)
-            if let onCompact { Button("Сжать контекст", systemImage: "arrow.down.right.and.arrow.up.left", action: onCompact) }
-            if let onNewSession { Button("Новая сессия", systemImage: "arrow.counterclockwise", action: onNewSession) }
-        } label: {
-            HStack(spacing: TFSpacing.xs) {
+        // Строка над полем ввода: итог и тонкая полоска; нажатие — расшифровка.
+        Button { showsDetails = true } label: {
+            HStack(spacing: TFSpacing.sm) {
                 if let roleName { Text(roleName).lineLimit(1) }
                 Text(snapshot?.summary ?? "Контекст пока недоступен")
                     .monospacedDigit().lineLimit(1)
-                Image(systemName: "chevron.down")
+                if let snapshot, snapshot.fraction != nil {
+                    ChatContextBar(snapshot: snapshot).frame(width: 48, height: 4)
+                }
+                Image(systemName: "chevron.up")
             }
             .tfText(.caption)
             .foregroundStyle(Color.tfSub)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("Контекст. " + (snapshot?.summary ?? "Нет замера"))
+        .accessibilityHint("Показать, из чего состоит контекст")
         .accessibilityIdentifier("chat.context-window")
         .hintAnchor(HintAnchorID.chatContextWindow)
+        .sheet(isPresented: $showsDetails) {
+            ChatContextSheet(snapshot: snapshot, loadError: loadError, onRefresh: onRefresh,
+                             onNewSession: onNewSession, onCompact: onCompact)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+/// Цвет части контекста — один и тот же в полосе и в расшифровке.
+enum ChatContextPalette {
+    static func color(_ id: String) -> Color {
+        switch id {
+        case "system": Color.tfBlue
+        case "tools": Color.tfPurple
+        case "user": Color.tfGreen
+        case "assistant": Color.tfOrange
+        case "toolResults": Color.tfTeal
+        default: Color.tfDim
+        }
+    }
+}
+
+/// Полоса заполнения окна: части по цветам, остаток — свободно.
+struct ChatContextBar: View {
+    let snapshot: ChatContextSnapshot
+
+    var body: some View {
+        GeometryReader { geo in
+            let window = Double(max(snapshot.contextWindow ?? 1, 1))
+            HStack(spacing: 0) {
+                if let breakdown = snapshot.breakdown {
+                    ForEach(breakdown.parts.filter { $0.tokens > 0 }) { part in
+                        ChatContextPalette.color(part.id)
+                            .frame(width: geo.size.width * min(1, Double(part.tokens) / window))
+                    }
+                } else if let fraction = snapshot.fraction {
+                    Color.tfBlue.frame(width: geo.size.width * min(1, fraction))
+                }
+                Spacer(minLength: 0)
+            }
+            .background(Color.tfStroke)
+            .clipShape(Capsule())
+        }
+    }
+}
+
+/// Расшифровка контекста (владелец 26.10.2026): из чего состоит окно и что с
+/// ним можно сделать — сжать, начать новую сессию, обновить замер.
+struct ChatContextSheet: View {
+    let snapshot: ChatContextSnapshot?
+    let loadError: String?
+    let onRefresh: () -> Void
+    let onNewSession: (() -> Void)?
+    let onCompact: (() -> Void)?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                        Text(snapshot?.summary ?? "Контекст пока недоступен")
+                            .tfText(.title).monospacedDigit()
+                        if let snapshot, snapshot.fraction != nil {
+                            ChatContextBar(snapshot: snapshot).frame(height: 12)
+                        }
+                        if let snapshot, snapshot.shouldConsiderReset {
+                            Text("Окно заполнено на 85% или больше: можно сжать или начать новую сессию.")
+                                .tfText(.meta).foregroundStyle(Color.tfOrange)
+                        }
+                    }
+                    .padding(.vertical, TFSpacing.xs)
+                }
+                if let snapshot, let breakdown = snapshot.breakdown, let window = snapshot.contextWindow, window > 0 {
+                    Section("Из чего состоит") {
+                        ForEach(breakdown.parts.filter { $0.tokens > 0 }) { part in
+                            row(color: ChatContextPalette.color(part.id), title: part.title, tokens: part.tokens, window: window)
+                        }
+                        row(color: Color.tfStroke, title: "Свободно",
+                            tokens: max(0, window - (snapshot.tokens ?? 0)), window: window)
+                    }
+                }
+                if let snapshot {
+                    Section {
+                        if let model = snapshot.model { LabeledContent("Модель", value: model) }
+                        if let provider = snapshot.provider {
+                            LabeledContent("Провайдер", value: RoleModelOption.providerNames[provider.lowercased()] ?? provider)
+                        }
+                        if let measuredAt = snapshot.measuredAt {
+                            LabeledContent("Замер", value: RoleChatTime.date(measuredAt)?.formatted(date: .omitted, time: .shortened) ?? measuredAt)
+                        }
+                    } footer: {
+                        Text(snapshot.isEstimate ? "Части — оценка по тексту; итог — по последнему ответу модели." : "Итог — по последнему ответу модели.")
+                    }
+                }
+                if let loadError { Section { Text(loadError).foregroundStyle(Color.tfSub) } }
+                Section {
+                    if let onCompact {
+                        Button("Сжать контекст", systemImage: "arrow.down.right.and.arrow.up.left") { onCompact(); dismiss() }
+                    }
+                    if let onNewSession {
+                        Button("Новая сессия", systemImage: "arrow.counterclockwise") { onNewSession(); dismiss() }
+                    }
+                    Button("Обновить", systemImage: "arrow.clockwise", action: onRefresh)
+                }
+            }
+            .navigationTitle("Контекст")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+        }
+    }
+
+    private func row(color: Color, title: String, tokens: Int, window: Int) -> some View {
+        HStack(spacing: TFSpacing.sm) {
+            Circle().fill(color).frame(width: 10, height: 10).accessibilityHidden(true)
+            Text(title)
+            Spacer()
+            Text(ChatContextSnapshot.compact(tokens) + " · " + (Double(tokens) / Double(window)).formatted(.percent.precision(.fractionLength(0...1))))
+                .monospacedDigit()
+                .foregroundStyle(Color.tfSub)
+        }
+        .tfText(.body)
+        .accessibilityElement(children: .combine)
     }
 }
 

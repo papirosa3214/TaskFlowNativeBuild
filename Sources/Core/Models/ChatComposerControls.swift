@@ -7,10 +7,19 @@ public struct RoleModelOption: Decodable, Identifiable, Hashable {
     public let modelID: String?
     public let contextWindow: Int?
 
+    /// Провайдер: из ответа сервера, а у старого ответа — из id вида
+    /// «провайдер/модель». Имя — как его пишет сам провайдер.
     var providerTitle: String {
-        guard let provider, !provider.isEmpty else { return "Провайдер не указан" }
-        return provider
+        let raw = (provider?.isEmpty == false ? provider : nil)
+            ?? (id.contains("/") ? String(id.split(separator: "/", maxSplits: 1)[0]) : nil)
+        guard let raw else { return "Другие" }
+        return Self.providerNames[raw.lowercased()] ?? raw
     }
+    static let providerNames: [String: String] = [
+        "opencode-go": "OpenCode Go", "opencode": "OpenCode", "anthropic": "Anthropic",
+        "openai": "OpenAI", "openai-codex": "OpenAI Codex", "minimax": "MiniMax",
+        "google": "Google", "deepseek": "DeepSeek", "openrouter": "OpenRouter", "ollama": "Ollama",
+    ]
     struct ProviderGroup: Identifiable {
         var id: String { provider }
         let provider: String
@@ -54,6 +63,31 @@ struct ChatComposerControls: Decodable {
     let commands: [ChatSlashCommand]
 }
 
+/// Из чего состоит занятое окно (сервер, 26.10.2026): оценка по частям,
+/// в сумме — настоящий итог `tokens`.
+struct ChatContextBreakdown: Decodable, Equatable {
+    let system: Int
+    let tools: Int
+    let user: Int
+    let assistant: Int
+    let toolResults: Int
+    let other: Int
+
+    struct Part: Identifiable {
+        let id: String
+        let title: String
+        let tokens: Int
+    }
+    var parts: [Part] {
+        [Part(id: "system", title: "Инструкция", tokens: system),
+         Part(id: "tools", title: "Инструменты", tokens: tools),
+         Part(id: "user", title: "Ваши сообщения", tokens: user),
+         Part(id: "assistant", title: "Ответы модели", tokens: assistant),
+         Part(id: "toolResults", title: "Результаты инструментов", tokens: toolResults),
+         Part(id: "other", title: "Прочее", tokens: other)]
+    }
+}
+
 struct ChatContextSnapshot: Decodable, Equatable {
     let roleID: String
     let sessionID: String?
@@ -64,6 +98,7 @@ struct ChatContextSnapshot: Decodable, Equatable {
     let measuredAt: String?
     let status: String
     let isEstimate: Bool
+    var breakdown: ChatContextBreakdown? = nil
 
     var fraction: Double? {
         guard status == "measured", let tokens, tokens >= 0,
@@ -76,7 +111,14 @@ struct ChatContextSnapshot: Decodable, Equatable {
         if status == "no_session" { return "Новая сессия · замера ещё нет" }
         if status == "after_compaction" { return "После сжатия · ждём новый замер" }
         guard let fraction, let tokens, let contextWindow else { return "Контекст пока недоступен" }
-        return "\(isEstimate ? "≈ " : "")\(tokens) / \(contextWindow) токенов · \(Int((fraction * 100).rounded()))%"
+        return "Контекст \(Self.compact(tokens)) из \(Self.compact(contextWindow)) · \(Int((fraction * 100).rounded()))%"
+    }
+
+    /// 36 900 → «36,9 тыс», 1 000 000 → «1 млн».
+    static func compact(_ value: Int) -> String {
+        if value >= 1_000_000 { return (Double(value) / 1_000_000).formatted(.number.precision(.fractionLength(0...1))) + " млн" }
+        if value >= 1_000 { return (Double(value) / 1_000).formatted(.number.precision(.fractionLength(0...1))) + " тыс" }
+        return String(value)
     }
 }
 

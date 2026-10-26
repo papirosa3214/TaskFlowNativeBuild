@@ -24,7 +24,7 @@ final class ChatModelChoice {
 
     var title: String {
         if let selected, let option = options.first(where: { $0.id == selected }) {
-            return option.title + " · " + option.providerTitle
+            return option.title
         }
         return "Модель"
     }
@@ -59,8 +59,9 @@ struct ChatModelMenu<MenuLabel: View>: View {
                     Text(choice.current.map { "По умолчанию · " + $0 } ?? "По умолчанию")
                 }
             }
+            // Как меню инструментов: все модели сразу, разделы по провайдерам.
             ForEach(RoleModelOption.grouped(choice.options)) { group in
-                Menu(group.provider) {
+                Section(group.provider) {
                     ForEach(group.models) { option in
                         Button { choice.selected = option.id } label: {
                             if choice.selected == option.id { Label(option.title, systemImage: "checkmark") }

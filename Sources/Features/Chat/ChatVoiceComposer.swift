@@ -123,12 +123,7 @@ struct ChatVoiceComposer: View {
             HStack(spacing: 0) {
                 promptAttachmentMenu
                 if showsMentionButton { mentionButton }
-                if let workMode {
-                    Text(workMode.wrappedValue.title)
-                        .tfText(.caption)
-                        .lineLimit(1)
-                        .padding(.horizontal, 4)
-                }
+                // Режим не дублируется подписью: он виден в меню настроек слева.
                 if let modelChoice, modelChoice.isAvailable {
                     // Тот же вид, что у пилюли режима слева от неё.
                     ChatModelMenu(choice: modelChoice) {
@@ -136,8 +131,9 @@ struct ChatVoiceComposer: View {
                             Image(systemName: "cpu")
                                 .font(.system(size: 14, weight: .medium))
                             Text(modelChoice.title)
-                                .tfText(.body)
+                                .tfText(.caption)
                                 .lineLimit(1)
+                                .frame(maxWidth: 140, alignment: .leading)
                         }
                         .padding(.horizontal, 10)
                         .frame(height: 32)
