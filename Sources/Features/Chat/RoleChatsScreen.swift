@@ -155,7 +155,9 @@ struct RoleChatsScreen: View {
         }
         .sheet(item: $openedRole) { role in
             if let rooms {
-                RoleRoomSheet(role: role, snapshot: rooms) { id in openRoute?(.roleChat(id: id)) }
+                RoleRoomSheet(role: role, snapshot: rooms,
+                              onOpen: { id in openRoute?(.roleChat(id: id)) },
+                              onNewChat: { Task { await startChat(with: role) } })
             }
         }
         .tfNativeHeader(projectsOnly ? "Чаты проектов" : "Чаты")
@@ -263,6 +265,16 @@ struct RoleChatsScreen: View {
             let room = try await api.personalRoom(roleID: agent.id)
             try await refreshList()
             openRoute?(.roleChat(id: room.id))
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Новый чат с ролью из панели — тот же `POST /api/chats`, что у
+    /// «Чат с участниками»; без названия: его даст первое сообщение.
+    private func startChat(with role: ChatRoomsSnapshot.RoleRoom) async {
+        do {
+            let chat = try await api.createRoleChat(title: nil, memberIDs: [role.id])
+            try await refreshList()
+            openRoute?(.roleChat(id: chat.id))
         } catch { errorMessage = error.localizedDescription }
     }
 

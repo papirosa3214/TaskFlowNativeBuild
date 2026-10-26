@@ -3,10 +3,13 @@ import SwiftUI
 /// Комната роли из панели «Комнаты» (владелец 21.10.2026): личный чат
 /// владельца с ролью и её лички с коллегами. Отсюда видно, что пришло роли
 /// от другой роли и что она ответила; лички открываются только на чтение.
+/// «Новый чат» (владелец 26.10.2026) заводит с ролью отдельную сессию: сервер
+/// назовёт её по первому сообщению, и она ляжет строкой в список чатов.
 struct RoleRoomSheet: View {
     let role: ChatRoomsSnapshot.RoleRoom
     let snapshot: ChatRoomsSnapshot
     let onOpen: (String) -> Void
+    let onNewChat: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     private let avatar: TFAvatar.Size = .taskList
@@ -15,6 +18,17 @@ struct RoleRoomSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
+                    Button {
+                        dismiss()
+                        onNewChat()
+                    } label: {
+                        ChatListRow(avatar: AnyView(RoleMemberAvatar(member: role.member, size: avatar)),
+                                    title: "Новый чат",
+                                    preview: "Название появится по первому сообщению",
+                                    time: nil, unread: 0)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("chats.room.newChat")
                     if let personal = role.personalChatID {
                         row(chatID: personal,
                             avatar: AnyView(RoleMemberAvatar(member: role.member, size: avatar)),
