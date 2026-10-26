@@ -4,6 +4,8 @@ struct RoleInstructionEditor: View {
     let role: String
     let canEdit: Bool
     let service: RoleInstructionService
+    let title: String?
+    let simple: Bool
     @State private var block: RoleInstructionBlock
     @State private var draft: RoleInstructionDraft
     @State private var team = false
@@ -14,8 +16,9 @@ struct RoleInstructionEditor: View {
     @State private var showDiscard = false
     @State private var showReset = false
     @Environment(\.dismiss) private var dismiss
-    init(role: String, block: RoleInstructionBlock, canEdit: Bool, service: RoleInstructionService) {
+    init(role: String, block: RoleInstructionBlock, canEdit: Bool, service: RoleInstructionService, title: String? = nil, simple: Bool = false) {
         self.role = role; self.canEdit = canEdit; self.service = service
+        self.title = title; self.simple = simple
         _block = State(initialValue: block)
         _draft = State(initialValue: RoleInstructionDraft(text: block.text, expectedVersion: block.version))
     }
@@ -34,29 +37,36 @@ struct RoleInstructionEditor: View {
     var body: some View {
         ScrollView {
           VStack(alignment: .leading, spacing: TFSpacing.lg) {
-            instructionSection("Источник и применение") {
-                Text(block.source).textSelection(.enabled)
-                Text("Режимы: " + modeLabels)
-                Text("Действует: " + sourceLabel)
-                if block.id == "role.system" {
-                    Text("SYSTEM.md — единые инструкции для всех ролей. Изменение этого документа применяется ко всей команде.")
+            if simple {
+                Text(block.id == "role.system"
+                     ? "Эти правила действуют для всех агентов. Изменения применятся со следующего обращения."
+                     : "Эти инструкции действуют только для этого агента. Изменения применятся со следующего обращения.")
+                    .tfText(.caption).foregroundStyle(Color.tfSub)
+            } else {
+                instructionSection("Источник и применение") {
+                    Text(block.source).textSelection(.enabled)
+                    Text("Режимы: " + modeLabels)
+                    Text("Действует: " + sourceLabel)
+                    if block.id == "role.system" {
+                        Text("SYSTEM.md — единые инструкции для всех ролей. Изменение этого документа применяется ко всей команде.")
+                    }
+                    if canEdit && block.editable && block.allowsTeam {
+                        Picker("Область правки", selection: Binding(get: { team }, set: { value in
+                                scopeDrafts[team] = draft
+                                team = value
+                                draft = scopeDrafts[value] ?? RoleInstructionDraft(text: value ? (block.teamText ?? block.defaultText) : block.text, expectedVersion: value ? block.commandVersion : block.version)
+                            })) {
+                                Text("Эта роль").tag(false)
+                                Text("Вся команда").tag(true)
+                            }
+                            .accessibilityIdentifier("roleContext.scope")
+                            .disabled(busy)
+                        if team { Text("Общая правка затронет роли, у которых нет личного переопределения.") }
+                    }
+                    if !block.placeholders.isEmpty { Text("Обязательные подстановки: " + block.placeholders.map { "{\($0)}" }.joined(separator: ", ")) }
                 }
-                if canEdit && block.editable && block.allowsTeam {
-                    Picker("Область правки", selection: Binding(get: { team }, set: { value in
-                            scopeDrafts[team] = draft
-                            team = value
-                            draft = scopeDrafts[value] ?? RoleInstructionDraft(text: value ? (block.teamText ?? block.defaultText) : block.text, expectedVersion: value ? block.commandVersion : block.version)
-                        })) {
-                            Text("Эта роль").tag(false)
-                            Text("Вся команда").tag(true)
-                        }
-                        .accessibilityIdentifier("roleContext.scope")
-                        .disabled(busy)
-                    if team { Text("Общая правка затронет роли, у которых нет личного переопределения.") }
-                }
-                if !block.placeholders.isEmpty { Text("Обязательные подстановки: " + block.placeholders.map { "{\($0)}" }.joined(separator: ", ")) }
             }
-            instructionSection("Инструкция") {
+            instructionSection(title ?? "Инструкция") {
                 if canEdit && block.editable {
                     TextEditor(text: $draft.text).frame(minHeight: 220)
                         .scrollContentBackground(.hidden)
@@ -99,15 +109,20 @@ struct RoleInstructionEditor: View {
                     }
                 }
             }
-            instructionSection("Исходный текст") { Text(block.defaultText).textSelection(.enabled) }
+            if !simple {
+                instructionSection("Исходный текст") { Text(block.defaultText).textSelection(.enabled) }
+            }
           }
           .padding(TFSpacing.lg)
         }
         .background(Color.tfBackground)
-        .navigationTitle(block.title)
+        .navigationTitle(title ?? block.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(draft.text != originalText)
         .toolbar {
+            if simple && draft.text == originalText {
+                ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
+            }
             if draft.text != originalText {
                 ToolbarItem(placement: .cancellationAction) { Button("Назад") { showDiscard = true } }
             }

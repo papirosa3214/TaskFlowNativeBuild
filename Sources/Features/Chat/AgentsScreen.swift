@@ -13,6 +13,7 @@ struct AgentsScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = AgentsViewModel()
     @State private var showAppearance = false
+    @State private var showCommonInstructions = false
     @State private var editorMode: RoleEditorSheet.Mode?
 
     var body: some View {
@@ -32,6 +33,7 @@ struct AgentsScreen: View {
                 }
 
                 if viewModel.isOwner {
+                    commonInstructionsEntry
                     runJobsEntry
                     memoryEntry
                 }
@@ -70,6 +72,11 @@ struct AgentsScreen: View {
             viewModel.configure(currentUser: session.currentUser)
             await viewModel.load()
         }
+        .sheet(isPresented: $showCommonInstructions) {
+            if let role = viewModel.profiles.first {
+                RolePromptSettingsSheet(role: role, blockID: "role.system", title: "Общие инструкции агентов")
+            }
+        }
         .sheet(isPresented: $showAppearance) {
             TeamAppearanceSheet()
         }
@@ -78,6 +85,18 @@ struct AgentsScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    private var commonInstructionsEntry: some View {
+        TFCard(padding: 0) {
+            TFListRow(icon: "text.alignleft", iconStyle: .plain,
+                      title: "Общие инструкции агентов",
+                      action: { showCommonInstructions = true })
+                .disabled(viewModel.profiles.isEmpty)
+                .accessibilityIdentifier("team.common-instructions")
+                .hintAnchor(HintAnchorID.agentInstructions)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
     private var runtimeDownBanner: some View {

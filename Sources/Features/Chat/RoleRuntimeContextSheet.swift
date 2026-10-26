@@ -26,7 +26,7 @@ struct RoleRuntimeContextSheet: View {
                                     RoleBehaviorTemplatesView(role: role.role, canEdit: context.canEdit == true)
                                 } label: {
                                     TFListRow(icon: "person.text.rectangle", iconStyle: .plain,
-                                              title: "ROLE.md · Личность и поведение",
+                                              title: "Личность",
                                               subtitle: "Характер, шаблоны и пол",
                                               trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
                                 }
@@ -101,5 +101,53 @@ struct RoleRuntimeContextSheet: View {
             if !groups.contains(group) { group = groups.first ?? "Роль" }
             errorText = nil
         } catch { errorText = error.localizedDescription }
+    }
+}
+
+
+/// Прямой вход в один из канонических промптов с тем же сохранением и историей.
+struct RolePromptSettingsSheet: View {
+    let role: RoleProfile
+    let blockID: String
+    let title: String
+    @State private var context: RoleRuntimeContext?
+    @State private var errorText: String?
+    @State private var loading = true
+    @State private var service = RoleInstructionService()
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if loading {
+                    ProgressView()
+                } else if let context, let block = context.blocks?.first(where: { $0.id == blockID }) {
+                    RoleInstructionEditor(role: role.role, block: block,
+                                          canEdit: context.canEdit == true, service: service,
+                                          title: title, simple: true)
+                } else {
+                    ContentUnavailableView {
+                        Label("Не удалось загрузить инструкцию", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(errorText ?? "Инструкция недоступна на сервере.")
+                    } actions: {
+                        Button("Повторить") { Task { await load() } }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .task { await load() }
+        }
+    }
+
+    @MainActor private func load() async {
+        loading = true
+        defer { loading = false }
+        do {
+            context = try await service.context(role: role.role)
+            errorText = nil
+        } catch {
+            errorText = error.localizedDescription
+        }
     }
 }

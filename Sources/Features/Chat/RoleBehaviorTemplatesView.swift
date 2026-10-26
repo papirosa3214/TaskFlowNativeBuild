@@ -3,6 +3,7 @@ import SwiftUI
 struct RoleBehaviorTemplatesView: View {
     let role: String
     let canEdit: Bool
+    var isStandalone = false
     @State private var service = RoleBehaviorService()
     @State private var active: RoleBehavior?
     @State private var draft: RoleBehaviorDraft?
@@ -99,6 +100,9 @@ struct RoleBehaviorTemplatesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(changed)
         .toolbar {
+            if isStandalone && !changed {
+                ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
+            }
             if changed { ToolbarItem(placement: .cancellationAction) { Button("Назад") { showDiscard = true } } }
         }
         .interactiveDismissDisabled(changed)

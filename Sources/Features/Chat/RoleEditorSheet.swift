@@ -51,6 +51,8 @@ struct RoleEditorSheet: View {
     @State private var isTogglingEnabled = false
     @State private var errorText: String?
     @State private var showsRuntimeContext = false
+    @State private var showsPersonality = false
+    @State private var showsPersonalInstructions = false
     /// Владельцу карточка профили была недостижима: тап по строке роли
     /// открывает только этот лист правки (LOCK-183 отдал `agentProfile`
     /// только тем, кто не владелец), а именно в профиле живёт раздел
@@ -128,6 +130,18 @@ struct RoleEditorSheet: View {
                 RoleRuntimeContextSheet(role: profile)
             }
         }
+        .sheet(isPresented: $showsPersonality) {
+            if let profile = mode.profile {
+                NavigationStack {
+                    RoleBehaviorTemplatesView(role: profile.role, canEdit: viewModel.isOwner, isStandalone: true)
+                }
+            }
+        }
+        .sheet(isPresented: $showsPersonalInstructions) {
+            if let profile = mode.profile {
+                RolePromptSettingsSheet(role: profile, blockID: "role.prompt", title: "Личные инструкции")
+            }
+        }
         .sheet(isPresented: $showsProfile) {
             if let profile = mode.profile {
                 NavigationStack {
@@ -169,20 +183,22 @@ struct RoleEditorSheet: View {
                     .foregroundStyle(Color.tfSub)
                 TFTextField("коротко, одна строка", text: $summary, icon: "text.alignleft")
             }
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text("Инструкция")
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfSub)
-                Text("Правила работы агента. Пустое поле возвращает исходную инструкцию.")
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfDim)
-                multiline(text: $prompt, placeholder: "Системный промпт…")
-                if !prompt.isEmpty {
-                    Button("Вернуть исходную инструкцию", action: { prompt = "" })
-                        .buttonStyle(.plain)
-                        .tfText(.action).fontWeight(.medium)
-                        .foregroundStyle(Color.tfText)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+            if !mode.isEdit {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text("Личные инструкции")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                    Text("Правила работы агента. Пустое поле возвращает исходную инструкцию.")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                    multiline(text: $prompt, placeholder: "Правила работы агента…")
+                    if !prompt.isEmpty {
+                        Button("Вернуть исходную инструкцию", action: { prompt = "" })
+                            .buttonStyle(.plain)
+                            .tfText(.action).fontWeight(.medium)
+                            .foregroundStyle(Color.tfText)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
             }
         }
@@ -193,13 +209,21 @@ struct RoleEditorSheet: View {
         if mode.isEdit, let profile = mode.profile {
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
+                    TFListRow(icon: "person.crop.circle", iconStyle: .plain,
+                              title: "Личность", action: { showsPersonality = true })
+                        .accessibilityIdentifier("role.personality")
+                    TFDivider(inset: TFSpacing.lg)
+                    TFListRow(icon: "text.alignleft", iconStyle: .plain,
+                              title: "Личные инструкции", action: { showsPersonalInstructions = true })
+                        .accessibilityIdentifier("role.personal-instructions")
+                    TFDivider(inset: TFSpacing.lg)
                     TFListRow(icon: "person.text.rectangle", iconStyle: .plain,
                               title: "Профиль и инструменты", action: { showsProfile = true })
                         .accessibilityHint("Открывает карточку роли: модель, навыки и полный список инструментов с описаниями")
                         .accessibilityIdentifier("role.openProfile")
                     TFDivider(inset: TFSpacing.lg)
                     TFListRow(icon: "text.alignleft", iconStyle: .plain,
-                              title: "Как запускается роль", action: { showsRuntimeContext = true })
+                              title: "Дополнительные настройки запуска", action: { showsRuntimeContext = true })
                         .accessibilityHint("Открывает постоянные правила и источники запуска \(profile.title)")
                     TFDivider(inset: TFSpacing.lg)
                     TFListRow(icon: profile.isEnabled ? "archivebox" : "tray.and.arrow.up", iconStyle: .plain,
