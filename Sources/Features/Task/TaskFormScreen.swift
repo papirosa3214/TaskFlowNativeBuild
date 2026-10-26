@@ -1948,10 +1948,10 @@ struct TaskCardContent: View {
                 // (владелец 11.09.2026).
                 if isRunning {
                     DisclosureGroup("Предыдущий результат") {
-                        TaskRoleReply(text: result)
+                        TaskRoleReply(text: result, serverBlocks: ChatServerBlock.list(from: subtask.displayResultBlocks))
                     }
                 } else {
-                    TaskRoleReply(text: result)
+                    TaskRoleReply(text: result, serverBlocks: ChatServerBlock.list(from: subtask.displayResultBlocks))
                 }
             }
             if isOwner, subtask.agentState == .review {
@@ -2104,7 +2104,7 @@ struct TaskCardContent: View {
             let isRole = comment.userId.map { author in
                 author == "u-secretary" || author.hasPrefix("role_") || viewModel.roles.contains { $0.accountID == author }
             } ?? false
-            TaskRoleReply(text: comment.text, isRole: isRole)
+            TaskRoleReply(text: comment.text, isRole: isRole, serverBlocks: ChatServerBlock.list(from: comment.textBlocks))
             // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
             // текст, и приложенные кадры в приложении не показывались
             // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`

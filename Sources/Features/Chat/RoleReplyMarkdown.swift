@@ -347,6 +347,20 @@ extension RoleReplyMarkdown {
         guard result.count > limit else { return result }
         return String(result.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
     }
+
+    /// Превью из готовых блоков сервера: первый блок текста, не длиннее
+    /// `limit` символов. Ответ начинается не с текста — превью пустое, как у
+    /// `preview(of:)`. `key` — исходный текст, для кэша разбора блоков.
+    static func previewSegments(of blocks: [ChatServerBlock], key: String, limit: Int = 220) -> [ChatRichSegment] {
+        let segments = ChatRichContent.segments(fromServer: blocks, key: key)
+        guard case .document(let document, _)? = segments.first, var first = document.first else { return [] }
+        let length = first.plainText.count
+        if length > limit, let cut = ChatRichContent.truncated([first], fraction: Double(limit) / Double(length)).first {
+            first = cut
+            first.runs.append(RichRun(text: "…"))
+        }
+        return [.document([first], chars: first.plainText.count)]
+    }
 }
 
 /// Таблица из ответа роли (`| a | b |`): шапка, чередование строк,

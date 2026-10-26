@@ -105,5 +105,27 @@ final class ChatServerBlockTests: XCTestCase {
         XCTAssertEqual(ChatServerBlock.list(fromFoundation: [["type": "pending", "kind": "html"]]), [.pending("html")])
         XCTAssertNil(ChatServerBlock.list(fromFoundation: nil))
     }
+
+    // MARK: - Карточка задачи (26.10.2026)
+
+    func testTaskCardModelsDecodeServerBlocks() throws {
+        let w = #"[{"type":"widget","json":"{}"}]"#
+        let subtask = try JSONDecoder().decode(ApiSubtask.self, from: Data(#"{"id":"s","title":"Шаг","done":0,"result":"ок","display_result_blocks":\#(w)}"#.utf8))
+        XCTAssertEqual(ChatServerBlock.list(from: subtask.displayResultBlocks), [.widget("{}")])
+        let outcome = try JSONDecoder().decode(ApiTaskOutcome.Node.self, from: Data(#"{"title":"Шаг","done":true,"result":"ок","display_result_blocks":\#(w)}"#.utf8))
+        XCTAssertEqual(outcome.displayResultBlocks, [.widget("{}")])
+    }
+
+    func testPreviewSegmentsCutFirstTextBlock() {
+        let doc: JSONValue = .object(["type": "doc", "content": .array([
+            .object(["type": "paragraph", "content": .array([.object(["type": "text", "text": .string(String(repeating: "а", count: 300))])])]),
+            .object(["type": "paragraph", "content": .array([.object(["type": "text", "text": "второй"])])]),
+        ])])
+        let preview = RoleReplyMarkdown.previewSegments(of: [.doc(doc, chars: 300)], key: "тест-превью")
+        guard case .document(let blocks, _)? = preview.first else { return XCTFail("нет превью") }
+        XCTAssertEqual(blocks.count, 1)
+        XCTAssertEqual(blocks[0].plainText.count, 221)
+        XCTAssertTrue(blocks[0].plainText.hasSuffix("…"))
+    }
 }
 

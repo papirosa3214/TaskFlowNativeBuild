@@ -7,6 +7,8 @@ public struct ApiComment: Codable, Identifiable, Sendable, Hashable {
     public let taskId: String?
     public let userId: String?
     public let text: String
+    /// Текст, уже разобранный сервером (26.10.2026); nil — старый сервер.
+    public var textBlocks: [JSONValue]? = nil
     public let createdAt: String?
     public let userName: String?
     public let userColor: String?
@@ -25,6 +27,7 @@ public struct ApiComment: Codable, Identifiable, Sendable, Hashable {
         case taskId = "task_id"
         case userId = "user_id"
         case text
+        case textBlocks = "text_blocks"
         case createdAt = "created_at"
         case userName = "user_name"
         case userColor = "user_color"

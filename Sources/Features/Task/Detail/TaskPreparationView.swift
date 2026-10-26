@@ -156,7 +156,7 @@ struct TaskPreparationView: View {
             .accessibilityIdentifier("preparation.status")
         if let preparation, preparation.status == "needs_clarification" || (preparation.status == "structure_review" && question != nil) {
             if let question {
-                RoleReplyMarkdown(text: question).tfText(.title)
+                RoleReplyMarkdown(text: question, serverBlocks: preparation.questionBlocks).tfText(.title)
                     .accessibilityIdentifier("preparation.question")
                 Text("Выберите подходящий вариант.")
                     .tfText(.body).foregroundStyle(Color.tfSub)
@@ -207,7 +207,7 @@ struct TaskPreparationView: View {
                 ForEach(proposal.workstreams) { stream in
                     VStack(alignment: .leading, spacing: TFSpacing.xs) {
                         Text(stream.title).tfText(.title)
-                        RoleReplyMarkdown(text: stream.result)
+                        RoleReplyMarkdown(text: stream.result, serverBlocks: stream.resultBlocks)
                         if let role = stream.role { Text(roles.first { $0.role == role }?.title ?? role).foregroundStyle(Color.tfSub) }
                     }
                 }

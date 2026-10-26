@@ -25,6 +25,8 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
     public var displayResult: String? {
         result.map(AgentTextSanitizer.sanitizeForOwner)
     }
+    /// `displayResult`, уже разобранный сервером (26.10.2026); nil — старый сервер.
+    public var displayResultBlocks: [JSONValue]? = nil
     public let agentSessionId: String?
     /// Derived, см. заголовок файла.
     public let state: SubtaskState?
@@ -45,6 +47,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         case agentHeartbeatAt = "agent_heartbeat_at"
         case agentStale = "agent_stale"
         case result
+        case displayResultBlocks = "display_result_blocks"
         case agentSessionId = "agent_session_id"
         case state
         case collaborationPlanId = "collaboration_plan_id"
@@ -69,6 +72,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         collaborationPlanId = try c.decodeIfPresent(String.self, forKey: .collaborationPlanId)
         planNodeKey = try c.decodeIfPresent(String.self, forKey: .planNodeKey)
         hostId = try c.decodeIfPresent(String.self, forKey: .hostId)
+        displayResultBlocks = try? c.decodeIfPresent([JSONValue].self, forKey: .displayResultBlocks)
     }
 
     public init(

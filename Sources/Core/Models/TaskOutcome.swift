@@ -8,9 +8,12 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
         public let findings: String
         public let reviewerID: String
         public let createdAt: String
+        /// Замечания, уже разобранные сервером (26.10.2026); nil — старый сервер.
+        public var findingsBlocks: [ChatServerBlock]? = nil
 
         enum CodingKeys: String, CodingKey {
             case verdict, findings
+            case findingsBlocks = "findings_blocks"
             case reviewerID = "reviewer_id"
             case createdAt = "created_at"
         }
@@ -42,6 +45,8 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
         /// (сервер, `lib/stepResults.ts`). nil — сервер пересказа не дал.
         public let humanTitle: String?
         public let humanResult: String?
+        /// `displayResult`, уже разобранный сервером (26.10.2026); nil — старый сервер.
+        public let displayResultBlocks: [ChatServerBlock]?
 
         public var id: String { (slotKey ?? "") + "|" + title }
 
@@ -66,6 +71,7 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
             case slotKey = "slot_key"
             case humanTitle = "human_title"
             case humanResult = "human_result"
+            case displayResultBlocks = "display_result_blocks"
         }
 
         public init(from decoder: Decoder) throws {
@@ -76,6 +82,7 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
             result = try c.decodeIfPresent(String.self, forKey: .result)
             humanTitle = try c.decodeIfPresent(String.self, forKey: .humanTitle)
             humanResult = try c.decodeIfPresent(String.self, forKey: .humanResult)
+            displayResultBlocks = try? c.decodeIfPresent([ChatServerBlock].self, forKey: .displayResultBlocks)
             // Сервер шлёт true/false, SQLite-ответы — 0/1: принимаем оба.
             if let flag = try? c.decode(Bool.self, forKey: .done) {
                 done = flag

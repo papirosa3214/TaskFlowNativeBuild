@@ -21,7 +21,7 @@ struct TaskOutcomeContent: View {
 
     var body: some View {
         if let verdict = outcome.verdict {
-            OutcomeTextRow(sheetTitle: "Вердикт проверяющего", markdown: verdict.findings) {
+            OutcomeTextRow(sheetTitle: "Вердикт проверяющего", markdown: verdict.findings, blocks: verdict.findingsBlocks) {
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: verdict.isApproved ? "checkmark.seal.fill" : "exclamationmark.bubble.fill")
                         .foregroundStyle(verdict.isApproved ? Color.tfGreen : Color.tfOrange)
@@ -44,7 +44,7 @@ struct TaskOutcomeContent: View {
         }
 
         ForEach(outcome.nodes) { node in
-            OutcomeTextRow(sheetTitle: nodeTitle(node), markdown: node.displayResult ?? "Роль ничего не написала.") {
+            OutcomeTextRow(sheetTitle: nodeTitle(node), markdown: node.displayResult ?? "Роль ничего не написала.", blocks: node.displayResultBlocks) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(nodeTitle(node))
                         .tfText(.action)
@@ -54,7 +54,8 @@ struct TaskOutcomeContent: View {
                         // первого абзаца: сырой `Text` показывал ответ роли
                         // звёздочками (`**жирный**`) и вертикальной чертой
                         // от markdown-таблицы (карточка 19f57bc9).
-                        RoleReplyMarkdown(text: RoleReplyMarkdown.preview(of: result))
+                        RoleReplyMarkdown(text: RoleReplyMarkdown.preview(of: result),
+                                          prepared: node.displayResultBlocks.map { RoleReplyMarkdown.previewSegments(of: $0, key: result) })
                             .lineLimit(2)
                     }
                 }
@@ -136,6 +137,7 @@ struct TaskOutcomeContent: View {
 private struct OutcomeTextRow<Label: View>: View {
     let sheetTitle: String
     let markdown: String
+    var blocks: [ChatServerBlock]? = nil
     @ViewBuilder let label: () -> Label
     @State private var isPresented = false
 
@@ -145,7 +147,7 @@ private struct OutcomeTextRow<Label: View>: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $isPresented) {
-            OutcomeTextSheet(title: sheetTitle, markdown: markdown)
+            OutcomeTextSheet(title: sheetTitle, markdown: markdown, blocks: blocks)
         }
     }
 }
@@ -159,12 +161,13 @@ private struct OutcomeTextRow<Label: View>: View {
 struct OutcomeTextSheet: View {
     let title: String
     let markdown: String
+    var blocks: [ChatServerBlock]? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                RoleReplyMarkdown(text: markdown)
+                RoleReplyMarkdown(text: markdown, serverBlocks: blocks)
                     .textSelection(.enabled)
                     .padding(.horizontal, TFSpacing.screenHorizontal)
                     .padding(.vertical, TFSpacing.md)
