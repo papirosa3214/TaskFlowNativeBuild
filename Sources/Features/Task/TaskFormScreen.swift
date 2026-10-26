@@ -3298,10 +3298,14 @@ private struct ExistingTaskDueEditor: View {
         }
     }
 
+    /// Пикер отдаёт дату в зоне устройства, срок хранится полночью дня в
+    /// зоне задачи (Москва) — на входе и выходе дату переводим в нужную зону.
+    /// Без этого выбранный день доезжал до сервера соседним, а на телефонах
+    /// западнее Москвы пикер показывал день, отличный от сохранённого.
     private var dueDateBinding: Binding<Date> {
         Binding(
-            get: { dueDate ?? moscowStartOfDay(offsetDays: 0) },
-            set: { dueDate = $0 }
+            get: { TaskFormViewModel.pickerDateForDisplay(dueDate ?? moscowStartOfDay(offsetDays: 0)) },
+            set: { dueDate = TaskFormViewModel.dueDateFromPicker($0) }
         )
     }
 
@@ -3324,10 +3328,7 @@ private struct ExistingTaskDueEditor: View {
     }
 
     private func moscowStartOfDay(offsetDays: Int) -> Date {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TaskDateText.moscow
-        let today = calendar.startOfDay(for: Date())
-        return calendar.date(byAdding: .day, value: offsetDays, to: today) ?? today
+        TaskDay.addingDays(offsetDays, to: Date())
     }
 }
 

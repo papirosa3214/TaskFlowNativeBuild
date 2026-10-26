@@ -136,6 +136,8 @@ public extension APIClient {
         public var parentId: String?
         public var labelIds: [String]?
         public var subtasks: [String]?
+        public var runRepeat: String?
+        public var repeatUntil: String?
         public var requiresReviewerReview: Bool?
 
         enum CodingKeys: String, CodingKey {
@@ -149,6 +151,8 @@ public extension APIClient {
             case parentId = "parent_id"
             case labelIds = "label_ids"
             case subtasks
+            case runRepeat = "run_repeat"
+            case repeatUntil = "repeat_until"
             case requiresReviewerReview = "requires_reviewer_review"
         }
 
@@ -156,12 +160,15 @@ public extension APIClient {
             title: String, description: String? = nil, dueDate: String? = nil,
             startTime: String? = nil, durationMin: Int? = nil, projectId: String? = nil,
             assigneeId: String? = nil, priority: Int? = nil, parentId: String? = nil,
-            labelIds: [String]? = nil, subtasks: [String]? = nil, requiresReviewerReview: Bool? = nil
+            labelIds: [String]? = nil, subtasks: [String]? = nil,
+            runRepeat: String? = nil, repeatUntil: String? = nil,
+            requiresReviewerReview: Bool? = nil
         ) {
             self.title = title; self.description = description; self.dueDate = dueDate
             self.startTime = startTime; self.durationMin = durationMin; self.projectId = projectId
             self.assigneeId = assigneeId; self.priority = priority; self.parentId = parentId
             self.labelIds = labelIds; self.subtasks = subtasks
+            self.runRepeat = runRepeat; self.repeatUntil = repeatUntil
             self.requiresReviewerReview = requiresReviewerReview
         }
 
@@ -178,6 +185,8 @@ public extension APIClient {
             if let v = parentId { try c.encode(v, forKey: .parentId) }
             if let v = labelIds { try c.encode(v, forKey: .labelIds) }
             if let v = subtasks { try c.encode(v, forKey: .subtasks) }
+            if let v = runRepeat { try c.encode(v, forKey: .runRepeat) }
+            if let v = repeatUntil { try c.encode(v, forKey: .repeatUntil) }
             if let v = requiresReviewerReview { try c.encode(v, forKey: .requiresReviewerReview) }
         }
     }

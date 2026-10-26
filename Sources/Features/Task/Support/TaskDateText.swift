@@ -9,7 +9,7 @@ import Foundation
 // устройства.
 enum TaskDateText {
 
-    static var moscow: TimeZone { TimeZone(identifier: "Europe/Moscow") ?? .current }
+    static var moscow: TimeZone { TaskDay.moscow }
 
     /// Родительный падеж без точки — ровно как в спеке.
     static let monthsShort = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
@@ -103,15 +103,8 @@ enum TaskDateText {
     /// Буквы дней недели для мини-календаря — неделя с понедельника (spec §3.6).
     static let weekdayLetters = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
-    /// `Date → "YYYY-MM-DD"` для `due_date` — В МОСКОВСКОЙ таймзоне, а НЕ
-    /// `DateFormats.calendarDateString` (та форматирует в UTC). `dueDate`
-    /// в форме собирается как московская полночь (`MiniCalendarView`,
-    /// быстрые кнопки «Сегодня»/«Завтра») — московская полночь это 21:00
-    /// UTC ПРЕДЫДУЩИХ суток, UTC-форматтер даёт дату на день раньше
-    /// выбранной. Разбор входящего `due_date` (`dueDateAsDate`, Core) тоже
-    /// в UTC, но UTC-полночь через этот форматтер даёт тот же день — цикл
-    /// «прочитать → показать → выбрать → сохранить» замкнут корректно.
+    /// День срока форматируется в зоне задачи через общий TaskDay.
     static func calendarDateStringMoscow(_ date: Date) -> String {
-        CalendarDateMath.dateString(date, timeZone: moscow)
+        TaskDay.string(from: date)
     }
 }

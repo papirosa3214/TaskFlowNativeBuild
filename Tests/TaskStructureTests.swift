@@ -23,7 +23,7 @@ final class TaskStructureTests: XCTestCase {
         XCTAssertEqual(viewModel.taskDescription, "Купить хлеб и молоко")
         XCTAssertEqual(viewModel.subtaskDrafts.map(\.title), ["Купить хлеб", "Купить молоко"])
         XCTAssertEqual(viewModel.priority, .high)
-        XCTAssertEqual(viewModel.dueDate.map(DateFormats.calendarDateString), "2026-09-12")
+        XCTAssertEqual(viewModel.dueDate.map { TaskDay.string(from: $0) }, "2026-09-12")
     }
 
     func testStructureShowsServerError() async {

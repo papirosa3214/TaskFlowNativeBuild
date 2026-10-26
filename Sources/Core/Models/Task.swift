@@ -405,8 +405,13 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public var createdAtDate: Date? { DateFormats.sqliteUTC(createdAt) }
     public var updatedAtDate: Date? { DateFormats.sqliteUTC(updatedAt) }
     public var completedAtDate: Date? { DateFormats.sqliteUTC(completedAt) }
-    public var dueDateAsDate: Date? { DateFormats.calendarDate(dueDate) }
-    public var isDueToday: Bool { dueDate == DateFormats.todayString() }
+    /// Срок задачи — календарный день (spec/API.md §1), поэтому разбирается
+    /// в зоне ЗАДАЧИ (Москва), а не в UTC и не в зоне устройства: полночь
+    /// московского дня в пикере показывалась на телефонах западнее Москвы
+    /// предыдущим числом. Владелец дня — `TaskDay`.
+    public var dueDateAsDate: Date? { TaskDay.date(from: dueDate) }
+    /// «Сегодня» — по Москве (spec/SCREENS-1.md §4.1), как на сервере.
+    public var isDueToday: Bool { dueDate == TaskDay.todayString() }
 }
 
 extension ApiTask {

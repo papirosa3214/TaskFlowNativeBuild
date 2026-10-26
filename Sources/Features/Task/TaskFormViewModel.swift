@@ -276,9 +276,9 @@ final class TaskFormViewModel {
         self.projectId = presetProjectID
         self.attachments = TaskAttachmentsController(apiClient: apiClient, taskId: taskID)
         if presetDueToday, taskID == nil {
-            var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = TaskDateText.moscow
-            dueDate = cal.startOfDay(for: Date())
+            // Срок — полночь дня в зоне задачи (Москва), иначе на телефонах
+            // восточнее Москвы дата уезжала на сутки назад.
+            dueDate = TaskDay.startOfDay(Date())
         }
     }
 
@@ -367,7 +367,7 @@ final class TaskFormViewModel {
         let structuredTitle = structured.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !structuredTitle.isEmpty { title = structuredTitle }
         if let description = structured.description { taskDescription = description }
-        if let dueDate = DateFormats.calendarDate(structured.dueDate) { self.dueDate = dueDate }
+        if let dueDate = TaskDay.date(from: structured.dueDate) { self.dueDate = dueDate }
         if let priority = structured.priority, let value = TaskPriority(rawValue: priority) {
             self.priority = value
         }
@@ -977,10 +977,31 @@ final class TaskFormViewModel {
         }
     }
 
-    /// Срок → `YYYY-MM-DD` по Москве: пикер и «Сегодня/Завтра» дают московскую
-    /// полночь (21:00 UTC прошлых суток), UTC-форматтер отдал бы день раньше.
+    /// Срок → `YYYY-MM-DD` по зоне задачи (Москва). Пикер отдаёт дату в зоне
+    /// устройства, поэтому она сперва переводится в полночь выбранного дня в
+    /// зоне задачи (`dueDateFromPicker`) — тогда на сервер уходит ровно тот
+    /// день, который показал пикер.
     nonisolated static func dueDateString(_ date: Date) -> String {
-        TaskDateText.calendarDateStringMoscow(date)
+        TaskDay.string(from: date)
+    }
+
+    /// Дата, выбранная в системном пикере (пикер отдаёт её в зоне устройства)
+    /// → срок: полночь того же календарного дня в зоне задачи.
+    nonisolated static func dueDateFromPicker(
+        _ pickerDate: Date,
+        deviceTimeZone: TimeZone = .autoupdatingCurrent
+    ) -> Date {
+        TaskDay.instant(forPickerDay: pickerDate, deviceTimeZone: deviceTimeZone)
+    }
+
+    /// Срок (полночь дня в зоне задачи) → дата для пикера: тот же
+    /// календарный день, собранный в зоне устройства, — иначе пикер на
+    /// телефонах западнее Москвы показывал бы соседний день.
+    nonisolated static func pickerDateForDisplay(
+        _ dueDate: Date,
+        deviceTimeZone: TimeZone = .autoupdatingCurrent
+    ) -> Date {
+        TaskDay.pickerDate(forTaskDay: dueDate, deviceTimeZone: deviceTimeZone)
     }
 
     private func saveEdit(taskID: String, trimmedTitle: String, taskStore: TaskStore) async throws {
@@ -1038,6 +1059,11 @@ final class TaskFormViewModel {
             parentId: parentId,
             labelIds: selectedLabelIds.isEmpty ? nil : Array(selectedLabelIds),
             subtasks: subtaskDrafts.isEmpty ? nil : subtaskDrafts.map(\.title),
+            // Повтор при СОЗДАНИИ раньше молча терялся: в теле создания не
+            // было полей `run_repeat`/`repeat_until`, и выбранный в форме
+            // повтор до сервера не доходил (правка списка их шла).
+            runRepeat: runRepeat == "none" ? nil : runRepeat,
+            repeatUntil: repeatUntil.map { Self.dayFormatter.string(from: $0) },
             // Флаг не шлём: маршрут новой карточки решает общая настройка
             // владельца «Сначала проверка Reviewer» (Обзор → Система).
             requiresReviewerReview: nil

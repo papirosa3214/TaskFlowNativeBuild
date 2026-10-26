@@ -17,14 +17,6 @@ public enum DateFormats {
         return formatter
     }()
 
-    private static let localDayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = .autoupdatingCurrent
-        formatter.locale = .autoupdatingCurrent
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
-
     private static let isoWithFraction: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -169,17 +161,7 @@ public enum DateFormats {
         CalendarDateMath.calendarDateString(date)
     }
 
-    /// Сегодняшняя календарная дата в формате `YYYY-MM-DD` — для сравнения с
-    /// `due_date` (бейдж таббара «Сегодня», экран «Сегодня»). Намеренно системная
-    /// таймзона устройства, НЕ UTC: due_date — это про календарный день
-    /// пользователя, а не абсолютный момент.
-    public static func todayString() -> String {
-        locked {
-            localDayFormatter.calendar = .autoupdatingCurrent
-            localDayFormatter.timeZone = .autoupdatingCurrent
-            return localDayFormatter.string(from: Date())
-        }
-    }
+    // Сегодняшний день задачи задаёт TaskDay.todayString() по Москве.
 
     /// `start_time` — `HH:MM`, локальное время суток, НЕ привязано к таймзоне.
     /// Разбирается в компоненты, а не в `Date` — абсолютного момента тут нет,

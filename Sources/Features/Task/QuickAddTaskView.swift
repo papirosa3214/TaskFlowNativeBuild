@@ -640,7 +640,10 @@ struct QuickAddTaskView: View {
         // пикеры были живыми, а не пустыми.
         .onAppear {
             if viewModel.dueDate == nil {
-                viewModel.dueDate = Calendar.current.startOfDay(for: Date())
+                // Срок — полночь дня в зоне задачи (Москва). Полночь зоны
+                // устройства уезжала на сутки назад на телефонах восточнее
+                // Москвы: выбрал 23-е, сохранилось 22-е.
+                viewModel.dueDate = TaskDay.startOfDay(Date())
             }
             if viewModel.startMinutes == nil { viewModel.startMinutes = 9 * 60 }
         }
@@ -682,7 +685,7 @@ struct QuickAddTaskView: View {
         Binding(
             get: { viewModel.dueDate != nil },
             set: { enabled in
-                if enabled { viewModel.dueDate = Calendar.current.startOfDay(for: Date()) }
+                if enabled { viewModel.dueDate = TaskDay.startOfDay(Date()) }
                 else {
                     viewModel.dueDate = nil
                     viewModel.startMinutes = nil
@@ -692,8 +695,14 @@ struct QuickAddTaskView: View {
         )
     }
 
+    /// Пикер отдаёт дату в зоне устройства, а срок хранится полночью дня в
+    /// зоне задачи — поэтому на входе и выходе дау переводим в ту зону, в
+    /// которой она нужна. Иначе выбранный день доезжал до сервера соседним.
     private var dueDateSelection: Binding<Date> {
-        Binding(get: { viewModel.dueDate ?? Date() }, set: { viewModel.dueDate = $0 })
+        Binding(
+            get: { TaskFormViewModel.pickerDateForDisplay(viewModel.dueDate ?? TaskDay.startOfDay(Date())) },
+            set: { viewModel.dueDate = TaskFormViewModel.dueDateFromPicker($0) }
+        )
     }
 
     private var hasStartTime: Binding<Bool> {

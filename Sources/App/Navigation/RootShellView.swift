@@ -374,7 +374,7 @@ struct RootShellView: View {
     /// Активные задачи со сроком «сегодня» — то же условие, что у веба
     /// (`due_date === todayStr() && status === "active"`, spec §2.1).
     private var todayBadgeCount: Int {
-        guard todayBadgeSeenDate != DateFormats.todayString() else { return 0 }
+        guard todayBadgeSeenDate != TaskDay.todayString() else { return 0 }
         return taskStore.tasks.count { $0.status == .active && $0.isDueToday }
     }
 
