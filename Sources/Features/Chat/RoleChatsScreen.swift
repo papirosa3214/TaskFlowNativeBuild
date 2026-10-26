@@ -2042,17 +2042,6 @@ struct RoleChatRoomScreen: View {
                 // (владелец 14.10.2026: «приходит только виджет»).
                 if !message.text.isEmpty || message.roleEnvelopeJSON != nil {
                     roleMessageContent(message, allowsCommands: session.currentUser?.role == .owner && !isSelecting)
-                        // Долгое нажатие — меню «Выделить текст» (как в ChatGPT).
-                        .contextMenu {
-                            if !isSelecting, !message.text.isEmpty {
-                                Button { selectingText = SelectableMessageText(text: message.text) } label: {
-                                    Label("Выделить текст", systemImage: "text.cursor")
-                                }
-                                Button { UIPasteboard.general.string = message.text } label: {
-                                    Label("Скопировать всё", systemImage: "doc.on.doc")
-                                }
-                            }
-                        }
                 }
                 if let handoff = message.handoff {
                     ChatHandoffCard(handoff: handoff)
@@ -2063,6 +2052,9 @@ struct RoleChatRoomScreen: View {
                 nonVoiceAttachments(message)
                 if isAgentReply(message) && !isSelecting { messageActions(message) }
             }
+            // Долгое нажатие по ответу собеседника открывает меню действий
+            // (владелец 26.10.2026): весь набор, включая ветвление.
+            .contextMenu { if !isSelecting { messageContextMenu(message, isMine: false) } }
         }
         .contentShape(Rectangle())
         .overlay {
@@ -2191,6 +2183,9 @@ struct RoleChatRoomScreen: View {
                     messageActions(message)
                 }
             }
+            // Долгое нажатие по своему сообщению даёт те же действия, кроме
+            // ветвления (владелец 26.10.2026).
+            .contextMenu { if !isSelecting { messageContextMenu(message, isMine: mine) } }
             .padding(hasAudio ? 0 : TFSpacing.md)
             // Подложка одна и та же у своих и у чужих — отличает их только
             // обводка (владелец 21.09.2026: «в моих сообщениях делай такую же
@@ -2360,6 +2355,32 @@ struct RoleChatRoomScreen: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel(label)
+    }
+
+    /// Меню действий по долгому нажатию (владелец 26.10.2026): у своих
+    /// сообщений — те же пункты, что обозначены иконками в конце сообщения
+    /// собеседника, кроме ветвления; у собеседника — весь набор вместе с
+    /// ветвлением. Набор описан в одном месте, чтобы новые действия не
+    /// приходилось проставлять дважды.
+    @ViewBuilder
+    private func messageContextMenu(_ message: RoleChatMessage, isMine: Bool) -> some View {
+        if !message.text.isEmpty {
+            Button { selectingText = SelectableMessageText(text: message.text) } label: {
+                Label("Выделить текст", systemImage: "text.cursor")
+            }
+            Button { copyMessage(message) } label: {
+                Label("Скопировать текст", systemImage: "doc.on.doc")
+            }
+        }
+        Button { exportMessage(message) } label: {
+            Label("Сохранить или поделиться", systemImage: "square.and.arrow.up")
+        }
+        if !isMine {
+            Button { Task { await openBranch(from: message) } } label: {
+                Label("Ответвление: обсудить в отдельном чате", systemImage: "arrow.triangle.branch")
+            }
+            .disabled(isBranching)
+        }
     }
 
     private func exportMessage(_ message: RoleChatMessage) {
