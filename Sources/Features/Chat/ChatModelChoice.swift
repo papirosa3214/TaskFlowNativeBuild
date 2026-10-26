@@ -44,9 +44,9 @@ final class ChatModelChoice {
 }
 
 /// Меню выбора модели: «По умолчанию» и модели агента.
-struct ChatModelMenu<Label: View>: View {
+struct ChatModelMenu<MenuLabel: View>: View {
     @Bindable var choice: ChatModelChoice
-    @ViewBuilder let label: () -> Label
+    @ViewBuilder let label: () -> MenuLabel
 
     var body: some View {
         Menu {
