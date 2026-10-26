@@ -1,5 +1,7 @@
 # Реестр ограничений работ
 
+| LOCK-CHAT-ROOM-SHEET-NATIVE-BG-20261026 | IN_PROGRESS | CHAT-ROOM-SHEET-NATIVE-BG | Чаты → «Комнаты» → роль → шторка с чатами роли: убрать серую заливку фона, чтобы панель рисовала система | `AGENT-WORK-SCOPES.md`, `Sources/Features/Chat/RoleRoomSheet.swift`, `docs/2026-10-26-chat-room-sheet-native-bg.md` (новый) | Прямое поручение владельца 26.10.2026: панель серая, сливается с фоном; убрать то, чем красим, чтобы было полностью на отрисовке Эпл | Codex | Правка фона; сторож дизайн-системы; без симулятора |
+
 | LOCK-REMOVE-TASK-SWIPE-START-20261025 | REVIEW | REMOVE-TASK-SWIPE-START | Удалить запуск из свайпов задач, не затрагивая согласование плана и рутины | `AGENT-WORK-SCOPES.md`, `Sources/Features/Today/TodayTaskRow.swift`, `Sources/Features/Today/TodayListView.swift`, `Sources/Features/Directory/Support/DirectoryTaskRow.swift`, `Sources/Features/Directory/ProjectTasksScreen.swift`, `Sources/Features/Chat/AgentWorkScreen.swift`, `Tests/TodayTaskSwipeActionTests.swift`, `Tools/test_task_swipe_actions.py`, `docs/2026-10-25-remove-task-swipe-start.md` | Прямое поручение владельца | Codex | Host Swift XCTest RED/GREEN; guard; без симулятора |
 
 
