@@ -34,21 +34,34 @@ final class ChatQuickReplyPolicyTests: XCTestCase {
         XCTAssertNil(ChatQuickReplyPolicy.replies(for: question, in: [question, owner], ownerID: "u1"))
     }
 
-    /// Новое предложение роли вытесняет старое.
-    func testOnlyLastRoleProposalKeepsVariants() {
+    /// Варианты принадлежат СВОЕМУ сообщению (26.10.2026, жалоба владельца:
+    /// «плашки видны только у последнего сообщения»). Ответ роли, пришедший
+    /// ПОЗЖЕ, не отменяет варианты вопроса — он живёт у своего сообщения.
+    func testVariantsSurviveLaterRoleMessage() {
+        let question = message("q", "role_secretary", ["Да", "Нет"])
+        let reply = message("r", "role_secretary", nil)
+        XCTAssertEqual(ChatQuickReplyPolicy.replies(for: question, in: [question, reply], ownerID: "u1"),
+                       ["Да", "Нет"])
+    }
+
+    /// Два предложения роли — у каждого свои варианты (владелец отвечает на
+    /// конкретный вопрос, а не на «последний вообще»).
+    func testEachProposalKeepsItsOwnVariants() {
         let first = message("q1", "role_secretary", ["Да"])
         let second = message("q2", "role_secretary", ["Первый", "Второй"])
         let feed = [first, second]
-        XCTAssertNil(ChatQuickReplyPolicy.replies(for: first, in: feed, ownerID: "u1"))
+        XCTAssertEqual(ChatQuickReplyPolicy.replies(for: first, in: feed, ownerID: "u1"), ["Да"])
         XCTAssertEqual(ChatQuickReplyPolicy.replies(for: second, in: feed, ownerID: "u1"),
                        ["Первый", "Второй"])
     }
 
-    /// Роль ответила без вариантов — старые варианты больше не в силе.
-    func testNewerRoleMessageWithoutVariantsEndsThem() {
+    /// Ответ владельца снимает актуальность вариантов вопроса — даже если
+    /// между вопросом и ответом стоял ответ роли.
+    func testOwnerReplyAfterRoleMessageStillRemovesVariants() {
         let question = message("q", "role_secretary", ["Да", "Нет"])
         let reply = message("r", "role_secretary", nil)
-        XCTAssertNil(ChatQuickReplyPolicy.replies(for: question, in: [question, reply], ownerID: "u1"))
+        let owner = message("o", "u1", nil)
+        XCTAssertNil(ChatQuickReplyPolicy.replies(for: question, in: [question, reply, owner], ownerID: "u1"))
     }
 
     func testAtMostThreeVariants() {
