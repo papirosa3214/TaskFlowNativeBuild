@@ -65,9 +65,11 @@ public struct ApiChatMessage: Codable, Identifiable, Sendable, Hashable {
     public let toUserColor: String?
     public let taskTitle: String?
     public let attachments: [ApiChatAttachment]?
+    /// Текст, уже разобранный сервером (26.10.2026); nil — старый сервер.
+    public var blocks: [JSONValue]? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, channel
+        case id, channel, blocks
         case fromUserId = "from_user_id"
         case toUserId = "to_user_id"
         case taskId = "task_id"

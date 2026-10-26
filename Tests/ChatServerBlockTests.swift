@@ -94,5 +94,16 @@ final class ChatServerBlockTests: XCTestCase {
         XCTAssertEqual(ChatRichContent.liveSegments(shown: "```widget\n{}\n```"), [.widget("{}")])
         XCTAssertNil(ChatRichContent.liveSegments(shown: "чужой текст"))
     }
+
+    // MARK: - Вокруг чата (26.10.2026)
+
+    func testNestedFieldsDecodeServerBlocks() throws {
+        let handoff = try JSONDecoder().decode(RoleChatHandoff.self, from: Data(#"{"note_id":"n","summary":"итог","summary_blocks":[{"type":"widget","json":"{}"}]}"#.utf8))
+        XCTAssertEqual(handoff.summaryBlocks, [.widget("{}")])
+        let general = try JSONDecoder().decode(ApiChatMessage.self, from: Data(#"{"id":"m","channel":"owner","text":"ок","blocks":[{"type":"html","html":"<b>1</b>"}]}"#.utf8))
+        XCTAssertEqual(ChatServerBlock.list(from: general.blocks), [.html("<b>1</b>")])
+        XCTAssertEqual(ChatServerBlock.list(fromFoundation: [["type": "pending", "kind": "html"]]), [.pending("html")])
+        XCTAssertNil(ChatServerBlock.list(fromFoundation: nil))
+    }
 }
 

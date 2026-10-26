@@ -527,7 +527,7 @@ private struct CardWidget: View {
                 }
             }
             if let bodyText = data.string("body") {
-                RoleReplyMarkdown(text: bodyText)
+                RoleReplyMarkdown(text: bodyText, serverBlocks: ChatServerBlock.list(fromFoundation: data.raw["body_blocks"]))
             }
             let rows = data.array("rows")
             if !rows.isEmpty {

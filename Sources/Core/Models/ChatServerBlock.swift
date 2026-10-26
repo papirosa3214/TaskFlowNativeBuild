@@ -101,3 +101,19 @@ public final class ChatLiveBlockRegistry: @unchecked Sendable {
         return nil
     }
 }
+
+public extension ChatServerBlock {
+    /// Блоки из уже разобранного JSON (`JSONValue` модели, которой нужна
+    /// `Codable`/`Hashable`): тот же формат, перекодированием.
+    static func list(from values: [JSONValue]?) -> [ChatServerBlock]? {
+        guard let values, let data = try? JSONEncoder().encode(values) else { return nil }
+        return try? JSONDecoder().decode([ChatServerBlock].self, from: data)
+    }
+
+    /// Блоки из словаря `JSONSerialization` (данные виджета).
+    static func list(fromFoundation value: Any?) -> [ChatServerBlock]? {
+        guard let value, JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value) else { return nil }
+        return try? JSONDecoder().decode([ChatServerBlock].self, from: data)
+    }
+}

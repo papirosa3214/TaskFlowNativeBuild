@@ -772,7 +772,9 @@ struct RoleLiveDetailSheet: View {
     private var content: some View {
         switch detail {
         case .thinking(let thinking):
-            RoleReplyMarkdown(text: RoleTranslator.shared.display(thinking.text), color: .tfText)
+            let shown = RoleTranslator.shared.display(thinking.text)
+            RoleReplyMarkdown(text: shown, color: .tfText,
+                              serverBlocks: shown == thinking.text ? ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block) : nil)
                 .italic()
                 .textSelection(.enabled)
         case .step(let step):

@@ -26,7 +26,7 @@ struct ChatHandoffCard: View {
             }
             .padding(.leading, TFSpacing.md)
             Divider()
-            RoleReplyMarkdown(text: handoff.summary)
+            RoleReplyMarkdown(text: handoff.summary, serverBlocks: handoff.summaryBlocks)
                 .equatable()
                 .padding(TFSpacing.md)
             Divider()

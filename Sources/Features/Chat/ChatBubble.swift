@@ -262,7 +262,7 @@ struct ChatBubble: View {
         if mine {
             Text(message.text)
         } else {
-            RoleReplyMarkdown(text: message.text)
+            RoleReplyMarkdown(text: message.text, serverBlocks: ChatServerBlock.list(from: message.blocks))
         }
     }
 

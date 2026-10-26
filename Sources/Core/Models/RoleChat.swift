@@ -302,6 +302,9 @@ public struct RoleChatCoordination: Decodable, Sendable {
     public let lastActivityAt: String
     public let answer: String?
     public let terminal: Bool
+    /// Вопрос и ответ, уже разобранные сервером (26.10.2026); nil — старый сервер.
+    public var questionBlocks: [ChatServerBlock]? = nil
+    public var answerBlocks: [ChatServerBlock]? = nil
 
     /// Ответ получен. Вопрос и ответ остаются доступны в карточке.
     /// Ошибка и отмена не считаются полученным ответом.
@@ -313,6 +316,8 @@ public struct RoleChatCoordination: Decodable, Sendable {
         case createdAt = "created_at"
         case lastActivityAt = "last_activity_at"
         case question, status, activity, answer, terminal
+        case questionBlocks = "question_blocks"
+        case answerBlocks = "answer_blocks"
     }
 }
 
@@ -321,9 +326,12 @@ public struct RoleChatHandoff: Decodable, Sendable, Equatable {
     public let noteID: String
     public let stepTitle: String?
     public let summary: String
+    /// Выжимка, уже разобранная сервером (26.10.2026); nil — старый сервер.
+    public var summaryBlocks: [ChatServerBlock]? = nil
 
     enum CodingKeys: String, CodingKey {
         case summary
+        case summaryBlocks = "summary_blocks"
         case noteID = "note_id"
         case stepTitle = "step_title"
     }
@@ -448,7 +456,7 @@ public struct RoleChatThinking: Decodable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, text, status
+        case id, text, status, blocks
         case startedAt = "started_at"
         case endedAt = "ended_at"
     }
@@ -460,6 +468,10 @@ public struct RoleChatThinking: Decodable, Sendable, Equatable {
         isRunning = (try container.decodeIfPresent(String.self, forKey: .status) ?? "running") == "running"
         startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
         endedAt = try container.decodeIfPresent(String.self, forKey: .endedAt)
+        // Размышление, разобранное сервером, — тем же реестром, что и реплики.
+        if let blocks = try? container.decodeIfPresent([ChatLiveBlock].self, forKey: .blocks), !blocks.isEmpty {
+            ChatLiveBlockRegistry.shared.register(blocks, for: text)
+        }
     }
 
     /// Сколько роль думала — для «Размышления · 12 с»; идёт — nil.

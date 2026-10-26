@@ -37,7 +37,7 @@ struct ChatStructuredOutputView: View {
                             blockView(block, widgetKey: widgetKey(in: blocks, before: index))
                         }
                     case .text(let text):
-                        RoleReplyMarkdown(text: text, checklist: checklist)
+                        RoleReplyMarkdown(text: text, checklist: checklist, serverBlocks: document.outputBlocks)
                     }
                 } else if let error = document.error {
                     errorBlock(error)
@@ -76,7 +76,7 @@ struct ChatStructuredOutputView: View {
         switch block.type {
         case "text":
             if let text = block.text, !text.isEmpty {
-                RoleReplyMarkdown(text: text, checklist: checklist)
+                RoleReplyMarkdown(text: text, checklist: checklist, serverBlocks: block.textBlocks)
                     .accessibilityIdentifier("chat.structured-output.text")
             }
         case "heading":
@@ -127,7 +127,10 @@ struct ChatStructuredOutputView: View {
                 if allowsCommands {
                     BashCommandBlock(command: command).id(command)
                 } else {
-                    RoleReplyMarkdown(text: "```bash\n" + command + "\n```")
+                    // Команда — готовым блоком кода, без разбора строки.
+                    RoleReplyMarkdown(text: command, prepared: [.document(
+                        [NoteBlock(kind: .codeBlock(language: "bash"), runs: [RichRun(text: command)])],
+                        chars: command.count)])
                 }
             }
             .accessibilityIdentifier("chat.structured-output.command")
@@ -504,6 +507,8 @@ private struct StructuredOutputEnvelope: Decodable {
     let contract: String?
     let ok: Bool
     let output: StructuredOutputContent
+    /// Текстовый `output`, разобранный сервером (26.10.2026); nil — старый сервер.
+    let outputBlocks: [ChatServerBlock]?
     let artifacts: [StructuredOutputMaterial]
     let error: StructuredOutputError?
     let nextHint: String?
@@ -514,6 +519,7 @@ private struct StructuredOutputEnvelope: Decodable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
         case contract, ok, output, artifacts, error
+        case outputBlocks = "output_blocks"
         case nextHint = "next_hint"
         case needsHuman = "needs_human"
     }
@@ -524,6 +530,7 @@ private struct StructuredOutputEnvelope: Decodable {
         contract = try values.decodeIfPresent(String.self, forKey: .contract)
         ok = try values.decode(Bool.self, forKey: .ok)
         output = try values.decode(StructuredOutputContent.self, forKey: .output)
+        outputBlocks = try? values.decodeIfPresent([ChatServerBlock].self, forKey: .outputBlocks)
         error = try values.decodeIfPresent(StructuredOutputError.self, forKey: .error)
         nextHint = try values.decodeIfPresent(String.self, forKey: .nextHint)
         // В описании карточки роль пишет конверт сама и `needs_human` часто
@@ -591,8 +598,11 @@ private struct StructuredOutputBlock: Decodable {
     let widget: JSONValue?
     /// Блок `html` контракта v1 — страница интерактива (`ChatHTMLView`).
     let html: String?
+    /// Текст блока, разобранный сервером (26.10.2026); nil — старый сервер.
+    let textBlocks: [ChatServerBlock]?
 
     enum CodingKeys: String, CodingKey {
+        case textBlocks = "text_blocks"
         case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary, command, url, widget, html
         case reportKind = "report_kind"
         case artifactKey = "artifact_key"
@@ -620,6 +630,7 @@ private struct StructuredOutputBlock: Decodable {
         command = try values.decodeIfPresent(String.self, forKey: .command)
         url = try values.decodeIfPresent(String.self, forKey: .url)
         html = try values.decodeIfPresent(String.self, forKey: .html)
+        textBlocks = try? values.decodeIfPresent([ChatServerBlock].self, forKey: .textBlocks)
         widget = try values.decodeIfPresent(JSONValue.self, forKey: .widget)
         ordered = try values.decodeIfPresent(Bool.self, forKey: .ordered)
         if type == "diagram" {
