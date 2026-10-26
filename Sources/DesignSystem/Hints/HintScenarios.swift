@@ -25,6 +25,8 @@ enum HintAnchorID {
     static let jevUsage = "jev.usage"
     static let jevConnection = "jev.connection"
     static let chatDictation = "chat.dictation"
+    static let chatComposerActions = "chat.composer.actions"
+    static let chatContextWindow = "chat.context-window"
     static let roleActions = "role.live-actions"
     static let chatMembersMenu = "chat.members-menu"
     /// Полоса чек-листа роли над полем ввода: серверные состояния пункта.
@@ -50,6 +52,17 @@ enum HintAnchorID {
 }
 
 enum HintScenarios {
+    static let chatComposerControls = HintScenario(
+        id: "chat-composer-controls", title: "Панель чата", start: "actions",
+        steps: [
+            "actions": HintStep(anchor: HintAnchorID.chatComposerActions, title: "Действия в одном меню",
+                text: "Здесь вложения и режимы: Работа, Планирование, Цель, а у помощницы и исследователя — Исследование. В личном чате помощница работает только в чате. Выбор модели находится рядом; модели разложены по провайдерам.", next: "context"),
+            "context": HintStep(anchor: HintAnchorID.chatContextWindow, title: "Сколько осталось контекста",
+                text: "Здесь размер последнего измеренного окна и лимит фактической модели, а не суммарный расход беседы. Откройте строку, чтобы увидеть свежесть замера, обновить его, сжать контекст или начать новую сессию. После сжатия до нового ответа замер может быть неизвестен. Процент — ориентир, не гарантия места для следующего запроса.", next: "commands"),
+            "commands": HintStep(anchor: HintAnchorID.chatComposerActions, title: "Навыки и инструменты",
+                text: "В личном чате наберите / или выберите «Навыки и инструменты» в меню. Список приходит от сервера для этого агента. Выбор вставит команду в поле; допишите поручение и отправьте сообщение. Сам выбор ничего не запускает.", next: nil)
+        ])
+
     static let agentPromptSettings = HintScenario(
         id: "agent-prompt-settings", title: "Инструкции агентов", start: "common",
         steps: ["common": HintStep(anchor: HintAnchorID.agentInstructions,
@@ -61,7 +74,7 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [chatDiscussionDelivery, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
 
     static let chatDiscussionDelivery = HintScenario(
         id: "chat-discussion-delivery", title: "Итог обсуждения", start: "status",

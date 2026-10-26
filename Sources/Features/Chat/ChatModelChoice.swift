@@ -23,7 +23,9 @@ final class ChatModelChoice {
     var isAvailable: Bool { !options.isEmpty }
 
     var title: String {
-        if let selected { return options.first { $0.id == selected }?.title ?? selected }
+        if let selected, let option = options.first(where: { $0.id == selected }) {
+            return option.title + " · " + option.providerTitle
+        }
         return "Модель"
     }
 
@@ -36,7 +38,7 @@ final class ChatModelChoice {
             let result = try await api.roleModels(role: role)
             options = result.models
             current = result.current
-            if let selected, !options.contains(where: { $0.id == selected }) { self.selected = nil }
+            self.selected = RoleModelOption.resolveSelection(selected, in: options)
         } catch {
             options = []
         }
@@ -50,10 +52,21 @@ struct ChatModelMenu<MenuLabel: View>: View {
 
     var body: some View {
         Menu {
-            Picker("Модель", selection: $choice.selected) {
-                Text(choice.current.map { "По умолчанию · " + $0 } ?? "По умолчанию").tag(String?.none)
-                ForEach(choice.options) { option in
-                    Text(option.title).tag(Optional(option.id))
+            Button { choice.selected = nil } label: {
+                if choice.selected == nil {
+                    Label(choice.current.map { "По умолчанию · " + $0 } ?? "По умолчанию", systemImage: "checkmark")
+                } else {
+                    Text(choice.current.map { "По умолчанию · " + $0 } ?? "По умолчанию")
+                }
+            }
+            ForEach(RoleModelOption.grouped(choice.options)) { group in
+                Menu(group.provider) {
+                    ForEach(group.models) { option in
+                        Button { choice.selected = option.id } label: {
+                            if choice.selected == option.id { Label(option.title, systemImage: "checkmark") }
+                            else { Text(option.title) }
+                        }
+                    }
                 }
             }
         } label: { label() }

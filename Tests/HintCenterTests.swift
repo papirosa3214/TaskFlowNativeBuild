@@ -25,6 +25,19 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains("agent-prompt-settings"))
     }
 
+    func testChatComposerControlsHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-composer-controls" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, "chat.composer.actions")
+        center.next()
+        XCTAssertEqual(center.currentStep?.anchor, "chat.context-window")
+        center.next()
+        XCTAssertEqual(center.active?.step, "commands")
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     func testTaskCoordinationHintCompletes() throws {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.taskCoordination])
         center.isEnabled = true

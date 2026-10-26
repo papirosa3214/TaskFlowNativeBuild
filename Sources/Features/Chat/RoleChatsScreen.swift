@@ -836,6 +836,8 @@ struct RoleChatRoomScreen: View {
     /// Столбец участников справа (владелец 20.10.2026) — помнит, открыт ли.
     @State private var noticeMessage: String?
     @State private var modelChoice = ChatModelChoice()
+    @State private var composerControls = ChatComposerControlStore()
+    @State private var showsComposerCommands = false
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
@@ -1154,7 +1156,7 @@ struct RoleChatRoomScreen: View {
         chat.roomKind == "dm" && !chat.members.contains { $0.id == session.currentUser?.id }
     }
 
-    private var composerRoom: some View {
+    private var composerContent: some View {
         VStack(spacing: 0) {
             // Панель участников переехала в корень раздела «Чаты» и стала
             // панелью комнат (владелец 21.10.2026); состав чата — в «О чате».
@@ -1164,6 +1166,27 @@ struct RoleChatRoomScreen: View {
             ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision)
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
+            }
+            let slashCommands = ChatSlashCommand.suggestions(for: draft, from: composerControls.commands)
+            if !slashCommands.isEmpty {
+                ChatSlashSuggestions(commands: slashCommands) { command in
+                    draft = command.inserting(into: draft)
+                    composerFocused = true
+                }
+            }
+            if !chat.composerRoleKeys.isEmpty {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
+                        ChatContextControl(snapshot: composerControls.contexts[member.id],
+                            roleName: chat.composerRoleKeys.count > 1 ? member.name : nil,
+                            loadError: composerControls.errorText,
+                            onRefresh: { Task { await composerControls.load(chat: chat) } },
+                            onNewSession: { Task { await newSession(roleID: member.id) } },
+                            onCompact: { Task { await compact(member) } })
+                    }
+                }
+                .padding(.horizontal, TFSpacing.lg)
+                .padding(.vertical, TFSpacing.xs)
             }
             if !pendingAttachments.isEmpty {
                 HStack {
@@ -1208,12 +1231,13 @@ struct RoleChatRoomScreen: View {
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in },
                     workMode: $workMode,
-                    executionMode: Binding(get: { chat.executionMode }, set: { mode in
+                    executionMode: chat.isAssistantOnly ? nil : Binding(get: { chat.executionMode }, set: { mode in
                         Task { await changeExecutionMode(mode) }
                     }),
                     canChangeExecutionMode: !isSavingExecutionMode && !isSending && !isUploadingAttachment,
                     availableModes: RoleChatWorkMode.available(in: chat),
                     modelChoice: modelChoice,
+                    onShowCommands: { showsComposerCommands = true },
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
                     // что у подсказок при наборе «@» (RoleChatsScreen
                     // mentionCandidates), только берётся по нажатию, а не по
@@ -1231,6 +1255,10 @@ struct RoleChatRoomScreen: View {
                 .disabled(isSavingExecutionMode)
             }
         }
+    }
+
+    private var composerNavigation: some View {
+        composerContent
         .tint(Color.tfText)
         .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
         .navigationBarTitleDisplayMode(.inline)
@@ -1427,77 +1455,11 @@ struct RoleChatRoomScreen: View {
                 .background(Color.tfCard)
             }
         }
-        .task {
-            if readingPreview { return }
-            // Живые события (22.09.2026): новое сообщение этого чата — сразу
-            // перечитываем ленту; «печатает» — ровно по сигналу сервера.
-            let chatID = chat.id
-            realtime.onEvent = { event in
-                switch event {
-                case .unknown(let type, _) where type == "chat:work_plan":
-                    workPlanRevision += 1
-                case .roleChatMessage(let id, let message) where id == chatID:
-                    roomEventRevision += 1
-                    workPlanRevision += 1
-                    // Сервер прислал готовое сообщение — вставляем его сразу,
-                    // без перечитывания ленты (01.10.2026: пузырь ответа
-                    // появлялся с задержкой и лента вздрагивала).
-                    if let message { insertIncoming(message) } else { Task { await refresh() } }
-                case .roleChatTyping(let id, let userID, let name, let active, let tool) where id == chatID:
-                    roomEventRevision += 1
-                    if active {
-                        typists[userID] = name.isEmpty ? "Участник" : name
-                        typistTools[userID] = tool
-                    } else {
-                        typists[userID] = nil
-                        typistTools[userID] = nil
-                    }
-                case .roleChatLive(let id, let userID, let turn, let messageID) where id == chatID:
-                    roomEventRevision += 1
-                    if let turn {
-                        guard !endedTurnIDs.contains(turn.playbackID) else { return }
-                        if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
-                        liveTurns[userID] = turn
-                    } else if let messageID, let message = messages.first(where: { $0.id == messageID }) {
-                        // REST may have loaded the final message before chat:new.
-                        // Use the same completion path as the socket delivery.
-                        insertIncoming(message)
-                    } else {
-                        typists[userID] = nil
-                        typistTools[userID] = nil
-                        markLiveTurnEnded(userID)
-                        // Ответа в ленте ещё нет (ход без ответа, потерянный
-                        // chat:new или старый сервер): сначала дочитываем
-                        // ленту и только потом убираем живой пузырь — без
-                        // мгновения пустоты между ними.
-                        let finishedStart = liveTurns[userID]?.startedAt
-                        Task {
-                            await refresh()
-                            guard liveTurns[userID]?.startedAt == finishedStart else { return }
-                            if let messageID, let message = messages.first(where: { $0.id == messageID }) {
-                                insertIncoming(message)
-                            } else {
-                                liveTurns[userID] = nil
-                            }
-                        }
-                    }
-                default:
-                    break
-                }
-            }
-            realtime.onReconnected = {
-                // За время разрыва сигнал «закончил» мог потеряться.
-                typists = [:]
-                typistTools = [:]
-                Task {
-                    await refresh()
-                    await loadLiveTurns()
-                }
-            }
-            realtime.connect()
-            // Чат открыт посреди ответа роли — подтягиваем, что уже сделано.
-            await loadLiveTurns()
-        }
+    }
+
+    private var composerSession: some View {
+        composerNavigation
+        .task { await connectRealtime() }
         .onDisappear { realtime.disconnect() }
         .task {
             if !readingPreview { await refresh() }
@@ -1529,6 +1491,10 @@ struct RoleChatRoomScreen: View {
                             titleVisibility: .visible) {
             Button("Удалить все", role: .destructive) { Task { await clearChat() } }
         }
+    }
+
+    private var composerRoom: some View {
+        composerSession
         .fileImporter(isPresented: $isFileImporterPresented, allowedContentTypes: [.item]) { result in
             handleFileImport(result)
         }
@@ -1558,8 +1524,93 @@ struct RoleChatRoomScreen: View {
             if !RoleChatWorkMode.available(in: chat).contains(workMode) { workMode = .work }
         }
         .task(id: chat.members.map(\.id)) { await modelChoice.load(chat: chat) }
+        .task(id: chat.members.map(\.id).joined(separator: ":") + ":" + (messages.last?.id ?? "")) {
+            await composerControls.load(chat: chat)
+        }
+        .sheet(isPresented: $showsComposerCommands) {
+            ChatCommandPicker(commands: composerControls.commands, errorText: composerControls.errorText,
+                              onRefresh: { Task { await composerControls.load(chat: chat) } }) { command in
+                draft = command.inserting(into: draft)
+                composerFocused = true
+            }
+        }
         .onDisappear { voice.cancel(); player.stop() }
         .taskCardSheet(taskID: $pendingTaskID)
+    }
+
+    private func connectRealtime() async {
+        if readingPreview { return }
+        // Живые события (22.09.2026): новое сообщение этого чата — сразу
+        // перечитываем ленту; «печатает» — ровно по сигналу сервера.
+        let chatID = chat.id
+        realtime.onEvent = { event in
+            switch event {
+            case .unknown(let type, _) where type == "chat:work_plan":
+                workPlanRevision += 1
+            case .roleChatMessage(let id, let message) where id == chatID:
+                roomEventRevision += 1
+                workPlanRevision += 1
+                // Сервер прислал готовое сообщение — вставляем его сразу,
+                // без перечитывания ленты (01.10.2026: пузырь ответа
+                // появлялся с задержкой и лента вздрагивала).
+                if let message { insertIncoming(message) } else { Task { await refresh() } }
+            case .roleChatTyping(let id, let userID, let name, let active, let tool) where id == chatID:
+                roomEventRevision += 1
+                if active {
+                    typists[userID] = name.isEmpty ? "Участник" : name
+                    typistTools[userID] = tool
+                } else {
+                    typists[userID] = nil
+                    typistTools[userID] = nil
+                }
+            case .roleChatLive(let id, let userID, let turn, let messageID) where id == chatID:
+                roomEventRevision += 1
+                if let turn {
+                    guard !endedTurnIDs.contains(turn.playbackID) else { return }
+                    if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
+                    liveTurns[userID] = turn
+                } else if let messageID, let message = messages.first(where: { $0.id == messageID }) {
+                    // REST may have loaded the final message before chat:new.
+                    // Use the same completion path as the socket delivery.
+                    insertIncoming(message)
+                } else {
+                    typists[userID] = nil
+                    typistTools[userID] = nil
+                    markLiveTurnEnded(userID)
+                    // Ответа в ленте ещё нет (ход без ответа, потерянный
+                    // chat:new или старый сервер): сначала дочитываем
+                    // ленту и только потом убираем живой пузырь — без
+                    // мгновения пустоты между ними.
+                    let finishedStart: String? = liveTurns[userID]?.startedAt
+                    Task { await finishLiveTurn(userID: userID, messageID: messageID, startedAt: finishedStart) }
+                }
+            default:
+                break
+            }
+        }
+        realtime.onReconnected = {
+            // За время разрыва сигнал «закончил» мог потеряться.
+            typists = [:]
+            typistTools = [:]
+            Task {
+                await refresh()
+                await loadLiveTurns()
+            }
+        }
+        realtime.connect()
+        // Чат открыт посреди ответа роли — подтягиваем, что уже сделано.
+        await loadLiveTurns()
+    }
+
+    private func finishLiveTurn(userID: String, messageID: String?, startedAt: String?) async {
+        await refresh()
+        let currentStart: String? = liveTurns[userID]?.startedAt
+        guard currentStart == startedAt else { return }
+        if let messageID, let message = messages.first(where: { $0.id == messageID }) {
+            insertIncoming(message)
+        } else {
+            liveTurns[userID] = nil
+        }
     }
 
     private var messageScroll: some View {
@@ -2020,14 +2071,16 @@ struct RoleChatRoomScreen: View {
         do {
             try await api.compactRoleChatSession(chatID: chat.id, roleID: member.id)
             noticeMessage = "Сессия «\(member.name)» сжата."
+            await composerControls.load(chat: chat)
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private func newSession() async {
-        guard let roleID = chat.others(excluding: session.currentUser?.id).first?.id else { return }
+    private func newSession(roleID selectedRoleID: String? = nil) async {
+        guard let roleID = selectedRoleID ?? chat.others(excluding: session.currentUser?.id).first?.id else { return }
         do {
             let marker = try await api.newRoleChatSession(chatID: chat.id, roleID: roleID)
             if !messages.contains(where: { $0.id == marker.id }) { messages.append(marker) }
+            await composerControls.load(chat: chat)
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -2631,7 +2684,7 @@ struct RoleChatRoomScreen: View {
     /// Отправка без ожидания сети: пузырь встаёт в ленту сразу, поле ввода
     /// очищается тем же нажатием, сеть догоняет в фоне.
     private func changeExecutionMode(_ mode: ChatExecutionMode) async {
-        guard !isSavingExecutionMode, mode != chat.executionMode else { return }
+        guard !chat.isAssistantOnly, !isSavingExecutionMode, mode != chat.executionMode else { return }
         isSavingExecutionMode = true
         defer { isSavingExecutionMode = false }
         do {
@@ -2646,7 +2699,7 @@ struct RoleChatRoomScreen: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment, !isSavingExecutionMode else { return }
         let pending = PendingOutgoing(id: "local-\(UUID().uuidString)", text: text,
-                                      attachments: pendingAttachments, mode: workMode, executionMode: chat.executionMode)
+                                      attachments: pendingAttachments, mode: workMode, executionMode: chat.composerExecutionMode)
         draft = ""
         pendingAttachments = []
         pendingOutgoing.append(pending)
@@ -2745,7 +2798,7 @@ struct RoleChatRoomScreen: View {
         if !pendingVoices.contains(where: { $0.id == message.id }) {
             pendingVoices.append(message)
             pendingVoiceModes[message.id] = workMode
-            pendingVoiceExecutionModes[message.id] = chat.executionMode
+            pendingVoiceExecutionModes[message.id] = chat.composerExecutionMode
         }
         await sendVoice(message.id)
         // Запись передана ленте; при сетевой ошибке в ней остаётся повтор.
@@ -2816,7 +2869,7 @@ struct RoleChatRoomScreen: View {
             let text: String
             if case .ready(let recognized) = message.transcript { text = recognized }
             else { text = "" }
-            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, executionMode: pendingVoiceExecutionModes[id] ?? chat.executionMode, model: modelChoice.selected)
+            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, executionMode: pendingVoiceExecutionModes[id] ?? chat.composerExecutionMode, model: modelChoice.selected)
             if !messages.contains(where: { $0.id == sent.id }) { messages.append(sent) }
             pendingVoices.removeAll { $0.id == id }
             pendingVoiceModes[id] = nil

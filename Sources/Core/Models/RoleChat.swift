@@ -875,22 +875,22 @@ public struct RoleChatLiveTurn: Decodable, Sendable, Equatable {
 }
 
 
-/// Selected before sending; retries retain the original mode.
-public enum RoleChatWorkMode: String, CaseIterable, Codable {
-    /// «Цель» (владелец 20.10.2026): роль работает ходами до результата,
-    /// потолок ходов — в настройках сервера.
-    case work, plan, goal, deepResearch = "deep_research"
-    var title: String {
-        switch self { case .work: "Работа"; case .plan: "Планирование"; case .goal: "Цель"; case .deepResearch: "Глубокое исследование" }
-    }
-    var symbol: String {
-        switch self { case .work: "bolt"; case .plan: "list.bullet.clipboard"; case .goal: "scope"; case .deepResearch: "magnifyingglass" }
-    }
+extension RoleChatWorkMode {
     static func available(in chat: RoleChat) -> [Self] {
-        chat.members.contains { $0.roleKey == "researcher" || $0.id == "role_researcher" }
-            ? [.work, .plan, .goal, .deepResearch] : [.work, .plan, .goal]
+        available(for: chat.composerRoleKeys)
     }
 }
+
+extension RoleChat {
+    var composerRoleKeys: [String] {
+        members.compactMap { member in
+            member.roleKey ?? (member.id == "u-secretary" ? "secretary" : member.id.hasPrefix("role_") ? String(member.id.dropFirst(5)) : nil)
+        }
+    }
+    var isAssistantOnly: Bool { ChatComposerPolicy.isAssistantOnly(composerRoleKeys) }
+    var composerExecutionMode: ChatExecutionMode { isAssistantOnly ? .chat : executionMode }
+}
+
 
 extension RoleChatLiveTurn {
     var playbackID: String { userID + ":" + (startedAt ?? "live") }

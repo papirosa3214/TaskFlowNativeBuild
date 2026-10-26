@@ -28,12 +28,6 @@ actor RolesCache {
     func invalidate() { stored.removeAll() }
 }
 
-/// Модель для пилюли в окне ввода чата.
-public struct RoleModelOption: Decodable, Identifiable, Hashable {
-    public let id: String
-    public let title: String
-}
-
 /// `GET /api/roles/:role/models` — список и текущая модель роли.
 public struct RoleModels: Decodable {
     public let current: String?

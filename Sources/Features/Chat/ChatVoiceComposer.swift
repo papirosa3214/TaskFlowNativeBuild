@@ -34,42 +34,30 @@ struct ChatVoiceComposer: View {
     var availableModes: [RoleChatWorkMode] = [.work, .plan]
     /// Пилюля модели рядом с режимом; nil или пустой список — не рисуется.
     var modelChoice: ChatModelChoice? = nil
+    var onShowCommands: (() -> Void)? = nil
     /// Роли, которым можно написать в этом чате — для кнопки-собачки.
     /// Владелец 11.10.2026: «чтобы я мог точечно писать, сразу же выбрать,
     /// кому я хочу написать из агентов… ее все время от руки писать не охоту».
     /// Пусто — кнопка не рисуется (например, в 1:1-чате или в другом
     /// композере, который список не передаёт).
     var mentionCandidates: [RoleChatMember] = []
-    /// Список ролей для кнопки «@» у ЭКСПЕРИМЕНТАЛЬНОГО поля. Старый вид
-    /// композера кнопку не показывает — там владелец её не просил, а места
-    /// в строке нет: там и так плюс, поле, режим и отправка.
+    /// Список ролей для кнопки «@» в единой панели чата.
     private var showsMentionButton: Bool {
-        experimentalPromptBox && !mentionCandidates.isEmpty
+        !mentionCandidates.isEmpty
     }
     var isResponding = false
     var isStopping = false
     var onStop: (() -> Void)? = nil
     var focus: FocusState<Bool>.Binding? = nil
 
-    @AppStorage("chat.experimentalPromptBox") private var experimentalPromptBox = true
     @State private var player = VoicePlayer()
     @State private var isRecording = false
     @State private var preview: VoiceMessage?
-    @State private var sendAfterTranscription = false
     @State private var isSendingVoice = false
     @FocusState private var isTextFieldFocused: Bool
     private var textFieldFocus: FocusState<Bool>.Binding { focus ?? $isTextFieldFocused }
     @Namespace private var composerNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// Единая высота элементов композера: круглая кнопка вложений и капсула —
-    /// одной высоты (владелец 21.09.2026: «у всех величины одинаковые всегда,
-    /// не одна маленькая, другая большая»). Владелец 25.09.2026: состояние
-    /// покоя было слишком высоким — снижено до `TFChatComposer.elementHeight`
-    /// (та же высота, что у остальных элементов композера, напр. адресата в
-    /// `ChatComposer.swift`); авто-рост под длинный текст не затронут —
-    /// им управляет `.lineLimit(1...4)` у `TextField`, не эта константа.
-    private let composerHeight: CGFloat = TFChatComposer.elementHeight
 
     @ViewBuilder private var executionModeMenu: some View {
         if let executionMode {
@@ -86,202 +74,60 @@ struct ChatVoiceComposer: View {
 
     var body: some View {
         ZStack {
-            // Поле не удаляется при морфинге, поэтому клавиатура остаётся на месте.
-            if experimentalPromptBox {
-                promptComposer
-                    .allowsHitTesting(!isRecording && preview == nil)
-                    .accessibilityHidden(isRecording || preview != nil)
-            } else { idleComposer }
-            if isRecording {
-                if experimentalPromptBox { promptRecordingComposer } else { recordingComposer }
-            }
-            if let preview {
-                // Владелец 10.10.2026: «я уже наговорил и мне пора отправлять —
-                // он переделывается опять в старое поле». Превью рендерилось
-                // единственным старым видом, и экспериментальное поле
-                // возвращалось назад ровно в момент отправки. У превью своя
-                // ветка на каждый режим.
-                if experimentalPromptBox {
-                    promptPreviewComposer(preview)
-                } else {
-                    previewComposer(preview)
-                }
-            }
+            promptComposer
+                .allowsHitTesting(!isRecording && preview == nil)
+                .accessibilityHidden(isRecording || preview != nil)
+            if isRecording { promptRecordingComposer }
+            if let preview { promptPreviewComposer(preview) }
         }
         .contentShape(Rectangle())
-        .onAppear {
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["TASKFLOW_PROMPT_BOX_PREVIEW"] == "1" {
-                experimentalPromptBox = true
-            }
-            #endif
-        }
         .onDisappear {
             voice.cancel()
             player.stop()
         }
     }
 
-    private var idleComposer: some View {
-        HStack(spacing: 12) {
-            Group {
-                if isResponding, let onStop {
-                    Button(action: onStop) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.tfText)
-                            .frame(width: composerHeight, height: composerHeight)
-                            .voiceCircleSurface()
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isStopping)
-                    .accessibilityLabel("Остановить ответ роли")
-                    .accessibilityIdentifier("chat.stop")
-                } else {
-                    Menu {
-                        Toggle("Диктовка в текст", isOn: $experimentalPromptBox)  // design-system-guard: ignore — пункт меню с галочкой, не тумблер
-                        Button { onAttachmentSource(.photo) } label: {
-                            Label("Фото", systemImage: "photo.on.rectangle")
-                        }
-                        Button { onAttachmentSource(.file) } label: {
-                            Label("Файл", systemImage: "doc")
-                        }
-                        Button { onAttachmentSource(.camera) } label: {
-                            Label("Камера", systemImage: "camera")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.tfText)
-                            .frame(width: composerHeight, height: composerHeight)
-                            .voiceCircleSurface()
-                    }
-                    .tint(.primary)
-                    .accessibilityLabel("Добавить вложение")
-                    .accessibilityIdentifier("chat.attachment")
-                }
-            }
-            .opacity(isRecording || preview != nil ? 0 : 1)
-            HStack(spacing: 8) {
-                TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
-                    .lineLimit(1...4)
-                    .frame(maxWidth: .infinity, minHeight: composerHeight, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .textInputAutocapitalization(.sentences)
-                    .focused(textFieldFocus)
-                    .onSubmit(onSendText)
-                    .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.primary)
-                    .accessibilityIdentifier("chat.message")
-                if let workMode {
-                    Menu {
-                        Picker("Режим работы", selection: workMode) {
-                            ForEach(availableModes, id: \.self) { mode in
-                                Label(mode.title, systemImage: mode.symbol).tag(mode)
-                            }
-                        }
-                        executionModeMenu
-                    } label: {
-                        Image(systemName: workMode.wrappedValue.symbol)
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.tfReadableSecondary)
-                            .frame(width: 36, height: 36)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("chat.mode")
-                    .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
-                    .accessibilityValue(executionMode?.wrappedValue.title ?? "")
-                    .hintAnchor(HintAnchorID.chatExecutionMode)
-                }
-                if let modelChoice, modelChoice.isAvailable {
-                    ChatModelMenu(choice: modelChoice) {
-                        Image(systemName: "cpu")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.tfReadableSecondary)
-                            .frame(width: 36, height: 36)
-                    }
-                    .buttonStyle(.plain)
-                }
-                if canSendText {
-                    actionButton("paperplane.fill", label: "Отправить", identifier: "chat.send", tint: Color.tfRed, action: onSendText)
-                } else {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(Color.tfReadableSecondary)
-                        .frame(width: 36, height: 36)
-                        .frame(width: workMode == nil ? composerHeight * 2 : 36, height: composerHeight, alignment: .trailing)
-                        .contentShape(Rectangle())
-                        .onLongPressGesture(minimumDuration: 0.18, perform: startVoiceRecording)
-                        .accessibilityLabel("Удерживайте для начала записи")
-                        .accessibilityIdentifier("chat.voice")
-                }
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: composerHeight)
-            .voiceCapsuleSurface()
-            .opacity(isRecording || preview != nil ? 0 : 1)
-            .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        }
-        .padding(.horizontal).padding(.vertical, 10)
-    }
-
     private var promptAttachmentMenu: some View {
         Menu {
-            Button { onAttachmentSource(.photo) } label: { Label("Фото", systemImage: "photo.on.rectangle") }
-            Button { onAttachmentSource(.file) } label: { Label("Файл", systemImage: "doc") }
-            Button { onAttachmentSource(.camera) } label: { Label("Камера", systemImage: "camera") }
-            Divider()
-            Toggle("Диктовка в текст", isOn: $experimentalPromptBox)  // design-system-guard: ignore — пункт меню с галочкой, не тумблер
+            Section("Вложения") {
+                Button { onAttachmentSource(.photo) } label: { Label("Фото", systemImage: "photo.on.rectangle") }
+                Button { onAttachmentSource(.file) } label: { Label("Файл", systemImage: "doc") }
+                Button { onAttachmentSource(.camera) } label: { Label("Камера", systemImage: "camera") }
+            }
+            if let workMode {
+                Section("Режим") {
+                    Picker("Режим работы", selection: workMode) {
+                        ForEach(availableModes, id: \.self) { mode in
+                            Label(mode.title, systemImage: mode.symbol).tag(mode)
+                        }
+                    }
+                }
+            }
+            executionModeMenu
+            if let onShowCommands {
+                Button("Навыки и инструменты", systemImage: "slash", action: onShowCommands)
+            }
         } label: {
-            promptIcon("plus")
+            promptIcon("slider.horizontal.3")
         }
-        .accessibilityLabel("Добавить вложение")
-        .accessibilityIdentifier("chat.attachment")
+        .disabled(!canChangeExecutionMode)
+        .accessibilityLabel("Действия чата" + (workMode.map { ": " + $0.wrappedValue.title } ?? ""))
+        .accessibilityIdentifier("chat.actions")
+        .hintAnchor(HintAnchorID.chatComposerActions)
     }
 
     private var promptComposer: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField(isRecording || preview != nil ? "" : placeholder, text: $text, axis: .vertical)
-                .lineLimit(2...5)
-                .textInputAutocapitalization(.sentences)
-                .focused(textFieldFocus)
-                .onSubmit { if !isRecording && preview == nil { onSendText() } }
-                .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.white)
-                .accessibilityIdentifier("chat.message")
-                .padding(.horizontal, 10).padding(.top, 10)
-            // Владелец 14.10.2026: значки собраны как в поле ввода Claude —
-            // слева «что добавить и кому», режим подписан словом, справа
-            // микрофон и одна круглая кнопка отправки.
+        ChatPromptPanel(text: $text, placeholder: placeholder,
+                        hidesText: isRecording || preview != nil,
+                        focus: textFieldFocus, onSubmit: onSendText) {
             HStack(spacing: 0) {
                 promptAttachmentMenu
                 if showsMentionButton { mentionButton }
                 if let workMode {
-                    Menu {
-                        Picker("Режим работы", selection: workMode) {
-                            ForEach(availableModes, id: \.self) { mode in
-                                Label(mode.title, systemImage: mode.symbol).tag(mode)
-                            }
-                        }
-                        executionModeMenu
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: workMode.wrappedValue.symbol)
-                                .font(.system(size: 14, weight: .medium))
-                            Text(workMode.wrappedValue.title)
-                                .tfText(.body)
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 10)
-                        .frame(height: 32)
-                        .background(Color.white.opacity(0.08), in: Capsule())
-                        // Зона нажатия — на всю высоту строки значков.
-                        .frame(height: 40)
-                        .contentShape(Rectangle())
-                    }
-                    .padding(.leading, 4)
-                    .accessibilityIdentifier("chat.mode")
-                    .accessibilityLabel("Режим работы: " + workMode.wrappedValue.title)
-                    .accessibilityValue(executionMode?.wrappedValue.title ?? "")
-                    .hintAnchor(HintAnchorID.chatExecutionMode)
+                    Text(workMode.wrappedValue.title)
+                        .tfText(.caption)
+                        .lineLimit(1)
+                        .padding(.horizontal, 4)
                 }
                 if let modelChoice, modelChoice.isAvailable {
                     // Тот же вид, что у пилюли режима слева от неё.
@@ -341,9 +187,6 @@ struct ChatVoiceComposer: View {
             }
             .foregroundStyle(Color.white.opacity(0.6))
         }
-        .padding(8)
-        .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12)))
         .opacity(isRecording || preview != nil ? 0 : 1)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.vertical, 10)
@@ -416,32 +259,7 @@ struct ChatVoiceComposer: View {
         .transition(.opacity)
     }
 
-    private var recordingComposer: some View {
-        HStack(spacing: 16) {
-            VoiceRecordingWaveformView(
-                level: recordingLevel, elapsed: recordingElapsed,
-                color: .red.mix(with: .black, by: 0.55), peakColor: .red
-            )
-                .frame(maxWidth: .infinity)
-                .frame(height: 32)
-            Text(recordingDuration).font(.title3.monospacedDigit()).foregroundStyle(.red)
-            Button(action: stopVoiceRecording) {
-                Image(systemName: "stop.fill")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.red)
-                    .frame(width: 36, height: 36)
-            }
-            .accessibilityLabel("Остановить запись")
-        }
-        .padding(.horizontal, 18).padding(.vertical, 8)
-        .frame(minHeight: composerHeight)
-        .voiceCapsuleSurface()
-        .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .padding(.horizontal).padding(.vertical, 10)
-        .transition(.opacity)
-    }
-
-    /// Превью записи в оформлении экспериментального поля (владелец
+    /// Превью записи в оформлении панели чата (владелец
     /// 10.10.2026). Тот же тёмный фон и та же кнопка отправки, что у нового
     /// поля, — иначе перед отправкой интерфейс выглядит старым.
     private func promptPreviewComposer(_ message: VoiceMessage) -> some View {
@@ -525,60 +343,6 @@ struct ChatVoiceComposer: View {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func previewComposer(_ message: VoiceMessage) -> some View {
-        HStack(spacing: 12) {
-            Button(action: discardPreview) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(Color.tfText)
-                    .frame(width: composerHeight, height: composerHeight)
-                    .voiceCircleSurface()
-            }
-            .tint(.primary)
-            .buttonStyle(.plain)
-            .accessibilityLabel("Удалить запись")
-            HStack(spacing: 12) {
-                actionButton(
-                    player.playingURL == message.audioURL ? "pause.fill" : "play.fill",
-                    label: "Воспроизвести запись"
-                ) { try? player.toggle(url: message.audioURL) }
-                WaveformView(levels: message.waveform, color: .secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 38)
-                Text(durationText(message.duration)).font(.body.monospacedDigit()).foregroundStyle(Color.tfReadableSecondary)
-                if isSendingVoice {
-                    ProgressView().frame(width: 36, height: 36)
-                } else {
-                    actionButton("arrow.up", label: "Отправить голосовое сообщение", tint: .accentColor, action: sendPreview)
-                }
-            }
-            .padding(.leading, 6).padding(.trailing, 4).padding(.vertical, 4)
-            .frame(minHeight: composerHeight)
-            .voiceCapsuleSurface()
-        }
-        .padding(.horizontal).padding(.vertical, 10)
-        .transition(.opacity.combined(with: .scale(scale: 0.97)))
-    }
-
-    /// Кнопки ВНУТРИ пилюли — плоские: без своего стекла/кружка, лежат прямо на
-    /// поверхности капсулы (владелец 21.09.2026: «не надо кругляшок в кругляшке,
-    /// там задвоение/затроение материала»). Как в прототипе: только иконка.
-    private func actionButton(
-        _ symbol: String, label: String, identifier: String? = nil,
-        tint: Color = .primary, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 36, height: 36)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(identifier ?? label)
-    }
-
     private var recordingElapsed: TimeInterval {
         guard case let .recording(elapsed, _) = voice.recordingState else { return 0 }
         return elapsed
@@ -649,19 +413,14 @@ struct ChatVoiceComposer: View {
         guard preview?.id == message.id else { return }
         preview?.transcript = transcript
         voice.complete()
-        if experimentalPromptBox {
-            if case .ready(let words) = transcript, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                placeTranscriptInDraft(words, from: message)
-            }
-            return
+        if case .ready(let words) = transcript, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            placeTranscriptInDraft(words, from: message)
         }
-        if sendAfterTranscription { await deliverPreview() }
     }
 
     private func placeTranscriptInDraft(_ words: String, from message: VoiceMessage) {
         guard preview?.id == message.id else { return }
         text = ChatDictationDraft.appending(words, to: text)
-        sendAfterTranscription = false
         isSendingVoice = false
         player.stop()
         voice.complete()
@@ -678,7 +437,6 @@ struct ChatVoiceComposer: View {
         player.stop()
         onDiscardVoice(message)
         try? VoiceRecorder.cancelRecordingFile(at: message.audioURL)
-        sendAfterTranscription = false
         voice.complete()
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
             preview = nil
@@ -686,40 +444,11 @@ struct ChatVoiceComposer: View {
     }
 
     private func sendPreview() {
-        guard let preview else { return }
-        if experimentalPromptBox, preview.transcript == .pending { return }
-        if preview.transcript == .pending {
-            sendAfterTranscription = true
-            isSendingVoice = true
-        } else {
-            Task { await deliverPreview() }
-        }
+        guard let message = preview, message.transcript != .pending,
+              let transcript = readyTranscript(message) else { return }
+        placeTranscriptInDraft(transcript, from: message)
     }
 
-    private func deliverPreview() async {
-        guard let message = preview else { return }
-        isSendingVoice = true
-
-        // Dictation becomes an editable draft. Sending remains the ordinary text action.
-        if experimentalPromptBox {
-            isSendingVoice = false
-            sendAfterTranscription = false
-            if let transcript = readyTranscript(message), !transcript.isEmpty {
-                placeTranscriptInDraft(transcript, from: message)
-            }
-            return
-        }
-
-        let accepted = await onSendVoice(message)
-        isSendingVoice = false
-        sendAfterTranscription = false
-        if accepted {
-            player.stop()
-            withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
-                preview = nil
-            }
-        }
-    }
 }
 
 // `voiceCircleSurface()`/`voiceCapsuleSurface()` переехали в

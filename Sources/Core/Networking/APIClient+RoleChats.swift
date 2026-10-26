@@ -248,6 +248,12 @@ public extension APIClient {
     }
 }
 
+extension APIClient {
+    func chatComposerControls(chatID: String, roleID: String) async throws -> ChatComposerControls {
+        try await request(.get, "/chats/\(chatID)/controls", query: [URLQueryItem(name: "role_id", value: roleID)])
+    }
+}
+
 private struct RoleChatDiscussionEnvelope: Decodable { let discussion: RoleChatDiscussion }
 private struct RoleChatDiscussionsEnvelope: Decodable { let discussions: [RoleChatDiscussion] }
 
