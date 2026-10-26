@@ -7,6 +7,14 @@ final class ChatMaterialDestinationTests: XCTestCase {
     func testLibraryLinkOpensOriginalNote() {
         XCTAssertEqual(ChatMaterialDestination.resolve("note://" + id), .note(id))
     }
+    func testLegacyTaskFlowLinkOpensOriginalNote() {
+        XCTAssertEqual(ChatMaterialDestination.resolve("taskflow://note/" + id), .note(id))
+        for suffix in ["/extra", "?secret=1", "#fragment"] {
+            XCTAssertNil(ChatMaterialDestination.resolve("taskflow://note/" + id + suffix))
+        }
+        XCTAssertNil(ChatMaterialDestination.resolve("taskflow://task/" + id))
+        XCTAssertNil(ChatMaterialDestination.resolve("taskflow://note/not-a-uuid"))
+    }
     func testExistingDocumentIDStillOpensNote() {
         XCTAssertEqual(ChatMaterialDestination.resolve(id, kind: "document"), .note(id))
         XCTAssertEqual(ChatMaterialDestination.resolve(id, kind: "artifact"), .note(id))

@@ -12,6 +12,14 @@ enum ChatMaterialDestination: Equatable {
         if ["document", "artifact"].contains(kind), UUID(uuidString: value) != nil { return .note(value) }
         guard let url = URL(string: value), let scheme = url.scheme?.lowercased() else { return nil }
         if ["http", "https"].contains(scheme), let host = url.host, !host.isEmpty { return .web(url) }
+        // Legacy role replies used taskflow://note/UUID before note://UUID.
+        if scheme == "taskflow", url.host?.lowercased() == "note",
+           url.query == nil, url.fragment == nil, url.user == nil,
+           url.password == nil, url.port == nil {
+            let id = String(url.path.dropFirst())
+            guard UUID(uuidString: id) != nil else { return nil }
+            return .note(id)
+        }
         guard ["note", "task"].contains(scheme), let id = url.host,
               UUID(uuidString: id) != nil, url.path.isEmpty || url.path == "/",
               url.query == nil, url.fragment == nil, url.user == nil, url.port == nil else { return nil }
