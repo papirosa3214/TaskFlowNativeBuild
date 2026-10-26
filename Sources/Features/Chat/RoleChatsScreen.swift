@@ -1717,7 +1717,11 @@ struct RoleChatRoomScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.bottom, for: .alignment)
-        .defaultScrollAnchor(chatScrollPosition.isPositionedByUser || !chatIsNearBottom ? nil : .bottom, for: .sizeChanges)
+        // Лента держится за низ, пока владелец сам не отлистал вверх. Раньше
+        // условие было «не листал И у низа»: высокий блок (живой ход, ответ)
+        // появлялся разом, лента на миг оказывалась «не у низа» и отпускала
+        // привязку — новое уходило под строку контекста (владелец 26.10.2026).
+        .defaultScrollAnchor(!chatScrollPosition.isPositionedByUser || chatIsNearBottom ? .bottom : nil, for: .sizeChanges)
         .background(Color.tfBackground)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
