@@ -22,18 +22,27 @@ struct RoutineFormScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TFSpacing.xl) {
                 titleBlock
+                taskBlock
                 ruleBlock
                 timeBlock
-                taskBlock
                 policyBlock
                 previewBlock
                 saveButton
+                if let schedule = model.editingSchedule {
+                    NavigationLink {
+                        RoutineRunsScreen(schedule: schedule)
+                    } label: {
+                        Label("История запусков", systemImage: "clock.arrow.circlepath")
+                    }
+                    .hintAnchor(HintAnchorID.routineHistory)
+                    .accessibilityIdentifier("routines.form.history")
+                }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.bottom, TFSpacing.xl)
         }
         .background(Color.tfBackground)
-        .tfNativeHeader(model.editingSchedule == nil ? "Новая автоматизация" : "Автоматизация", displayMode: .inline)
+        .tfNativeHeader(model.editingSchedule == nil ? "Новая рутина" : "Рутина", displayMode: .inline)
         .task {
             await model.loadRoles()
             await model.refreshPreview()
@@ -291,15 +300,13 @@ struct RoutineFormScreen: View {
 
     private var taskBlock: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Что создаст задачу")
+            Text("Задание рутины")
                 .tfText(.action)
                 .foregroundStyle(Color.tfSub)
             TFTextField("Название задачи", text: $model.taskTitle)
                 .accessibilityIdentifier("routines.form.taskTitle")
             Text("Задание агенту").tfText(.action).foregroundStyle(Color.tfSub)
-            TextEditor(text: $model.instructions)
-                .frame(minHeight: 120)
-                .accessibilityIdentifier("routines.form.instructions")
+            instructionsEditor
             Text("В «Итоге» должен быть сам материал: дайджест, урок или отчёт. Укажите содержание и нужный формат.")
                 .tfText(.caption).foregroundStyle(Color.tfSub)
             Menu {
@@ -372,6 +379,18 @@ struct RoutineFormScreen: View {
         }
     }
 
+    @ViewBuilder
+    private var instructionsEditor: some View {
+        let editor = TextEditor(text: $model.instructions)
+            .frame(minHeight: 120)
+            .accessibilityIdentifier("routines.form.instructions")
+        if model.editingSchedule != nil {
+            editor.hintAnchor(HintAnchorID.routineInstructions)
+        } else {
+            editor
+        }
+    }
+
     // MARK: - Пропуски и наложения
 
     private var policyBlock: some View {
@@ -424,7 +443,7 @@ struct RoutineFormScreen: View {
 
     private var saveButton: some View {
         VStack(spacing: TFSpacing.sm) {
-            TFButton(model.editingSchedule == nil ? "Создать автоматизацию" : "Сохранить автоматизацию", variant: .secondary, isEnabled: model.canSave && !model.isSaving) {
+            TFButton(model.editingSchedule == nil ? "Создать рутину" : "Сохранить изменения", variant: .secondary, isEnabled: model.canSave && !model.isSaving) {
                 Task {
                     if await model.create() {
                         dismiss()

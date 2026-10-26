@@ -3,7 +3,7 @@ import SwiftUI
 // «Мои рутины» — список рутин (крон-задач).
 // Экран по макетам дизайна (заметка «Рутины и расписание TaskFlow», п. 2.6):
 // строка рутины, свайп по строке — пауза, запуск сейчас, удаление; тап по
-// строке — история запусков. Отдельная вкладка не заводится: вкладок у
+// строке — задание и настройки; история доступна внутри редактора. Отдельная вкладка не заводится: вкладок у
 // клиента четыре, «Мои рутины» — строка на «Обзоре».
 struct RoutinesScreen: View {
     @State private var model = RoutinesViewModel()
@@ -87,7 +87,7 @@ struct RoutinesScreen: View {
             } else {
                 ForEach(model.schedules) { schedule in
                     NavigationLink {
-                        RoutineRunsScreen(schedule: schedule)
+                        RoutineFormScreen(schedule: schedule)
                     } label: {
                         RoutineRow(schedule: schedule, roleTitle: model.roleTitle(for: schedule.taskPayload.assigneeId))
                     }

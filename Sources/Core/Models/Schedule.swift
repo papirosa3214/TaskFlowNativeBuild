@@ -41,6 +41,21 @@ public struct ApiSchedulePayload: Codable, Hashable {
         self.needsResearch = needsResearch
     }
 
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+        // PATCH объединяет шаблон с прежним: отсутствие ключа сохраняет
+        // старое значение, поэтому снятие настройки передаём как null.
+        try container.encode(description, forKey: .description)
+        try container.encode(projectId, forKey: .projectId)
+        try container.encode(assigneeId, forKey: .assigneeId)
+        try container.encode(durationMin, forKey: .durationMin)
+        try container.encodeIfPresent(priority, forKey: .priority)
+        try container.encodeIfPresent(labels, forKey: .labels)
+        try container.encodeIfPresent(requiresReviewerReview, forKey: .requiresReviewerReview)
+        try container.encodeIfPresent(needsResearch, forKey: .needsResearch)
+    }
+
     enum CodingKeys: String, CodingKey {
         case title, description
         case projectId = "project_id"

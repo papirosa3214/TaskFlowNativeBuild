@@ -154,16 +154,16 @@ final class RoutineFormViewModel {
         errorMessage = nil
         defer { isSaving = false }
 
-        let payload = ApiSchedulePayload(
-            title: taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? name
-                : taskTitle.trimmingCharacters(in: .whitespacesAndNewlines),
-            description: instructions.isEmpty ? nil : instructions,
-            projectId: projectId,
-            assigneeId: assigneeRoleKey,
-            priority: priority.rawValue,
-            durationMin: durationMin
-        )
+        // Поля, которых нет в форме (метки, проверка, исследование),
+        // сохраняются из исходного шаблона при редактировании.
+        var payload = editingSchedule?.taskPayload ?? ApiSchedulePayload(title: name)
+        payload.title = taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? name : taskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        payload.description = instructions.isEmpty ? nil : instructions
+        payload.projectId = projectId
+        payload.assigneeId = assigneeRoleKey
+        payload.priority = priority.rawValue
+        payload.durationMin = durationMin
         let request = ApiScheduleCreateRequest(
             title: name,
             ruleKind: ruleKind,

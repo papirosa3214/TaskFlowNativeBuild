@@ -4,6 +4,8 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let routineInstructions = "routine.instructions"
+    static let routineHistory = "routine.history"
     static let taskCoordination = "task.coordination"
     static let chatItemBudget = "server.setting.chat_item_max_actions"
     static let chatOwnMessageCopy = "chat.own-message.copy"
@@ -76,7 +78,16 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion]
+    static let all: [HintScenario] = [routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion]
+
+    static let routineEditing = HintScenario(
+        id: "routine-editing", title: "Задание и настройки рутины", start: "instructions",
+        steps: [
+            "instructions": HintStep(anchor: HintAnchorID.routineInstructions, title: "Измените задание",
+                text: "Нажмите рутину в «Моих рутинах», чтобы открыть её настройки. Здесь можно прочитать и изменить полное задание агенту, исполнителя и расписание. Нажмите «Сохранить изменения»: новые настройки будут использоваться в будущих запусках. Уже созданные задачи останутся прежними.", next: "history"),
+            "history": HintStep(anchor: HintAnchorID.routineHistory, title: "Посмотрите прошлые запуски",
+                text: "Внизу настроек существующей рутины откройте «История запусков». Здесь видны созданные задачи, ошибки и пропуски. Нажмите созданную задачу, чтобы открыть её.", next: nil)
+        ])
 
     /// Уточнение роли у владельца (26.10.2026): форма под ответом роли.
     static let chatQuestion = HintScenario(
