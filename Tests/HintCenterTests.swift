@@ -84,6 +84,20 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains("chat-own-message-copy"))
     }
 
+    /// Уточнение роли у владельца (26.10.2026): подсказка ведёт к форме
+    /// ответа под сообщением роли.
+    func testChatQuestionHintCompletes() {
+        let scenario = HintScenarios.chatQuestion
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.chatQuestion, frame: frame)
+        XCTAssertEqual(center.active?.step, "answer")
+        XCTAssertEqual(scenario.steps["answer"]?.anchor, HintAnchorID.chatQuestion)
+        XCTAssertTrue(center.currentStep?.text.contains("Свой вариант") == true)
+        center.next()
+        XCTAssertTrue(center.completed.contains("chat-question"))
+    }
+
     func testUnifiedPlannerHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.unifiedPlanner])
         center.start("unified-planner")

@@ -214,6 +214,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// Ответ, разложенный сервером на готовые блоки (26.10.2026). nil — старый
     /// сервер: тогда текст раскладывает клиент, как раньше.
     public var blocks: [ChatServerBlock]? = nil
+    /// Уточнение роли у владельца (26.10.2026): вопрос с вариантами и его
+    /// состояние. nil — вопроса нет или сервер старый.
+    public var question: ChatQuestion? = nil
     /// Preserve the existing optional Bool interface, including legacy missing fields.
     public var partial: Bool? {
         get { partialFlag?.value }
@@ -268,8 +271,13 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case stopReason = "stop_reason"
         case partialFlag = "partial"
         case blocks
+        case question
     }
 }
+
+/// Сообщение с быстрыми вариантами ответа — правило показа живёт отдельно
+/// (`ChatQuickReplyPolicy`, 26.10.2026).
+extension RoleChatMessage: QuickReplyMessage {}
 
 /// Отметка одного пункта checklist-виджета. Ключи те же, что и в самом
 /// виджете: `key`/`id` пункта, иначе его номер строкой — так сервер ищет

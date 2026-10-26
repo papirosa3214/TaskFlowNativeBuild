@@ -127,6 +127,24 @@ public extension APIClient {
         return response.turns
     }
 
+    /// Ответ владельца на уточнение роли (26.10.2026): сервер сохраняет
+    /// ответ, кладёт его в чат обычным сообщением и поднимает новый ход роли
+    /// — работа продолжается с места остановки. Один POST, как у реакции.
+    func answerChatQuestion(chatID: String, questionID: String,
+                            answers: [ChatQuestionAnswerEntry],
+                            note: String? = nil) async throws -> RoleChatMessage {
+        struct Body: Encodable {
+            let answers: [ChatQuestionAnswerEntry]
+            let note: String?
+        }
+        let response: RoleChatMessageEnvelope = try await request(
+            .post,
+            "/chats/\(chatID)/questions/\(questionID)/answer",
+            body: Body(answers: answers, note: note)
+        )
+        return response.message
+    }
+
     /// `recipientSubtaskID` — шаг плана, которому адресовано сообщение: сервер
     /// доставляет его роли этого шага, а не всем участникам чата.
     func sendRoleChatMessage(chatID: String, text: String, attachmentIDs: [String] = [], mode: RoleChatWorkMode = .work, executionMode: ChatExecutionMode? = nil,

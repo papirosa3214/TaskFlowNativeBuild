@@ -49,6 +49,8 @@ enum HintAnchorID {
     static let webhookCodexThread = "webhooks.thread"
     static let webhookSave = "webhooks.save"
     static let webhookTest = "webhooks.test"
+    /// Форма уточнения у владельца под ответом роли (26.10.2026).
+    static let chatQuestion = "chat.question"
 }
 
 enum HintScenarios {
@@ -74,7 +76,13 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing]
+    static let all: [HintScenario] = [chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion]
+
+    /// Уточнение роли у владельца (26.10.2026): форма под ответом роли.
+    static let chatQuestion = HintScenario(
+        id: "chat-question", title: "Уточнение у владельца", start: "answer",
+        steps: ["answer": HintStep(anchor: HintAnchorID.chatQuestion, title: "Ответьте на вопрос роли",
+            text: "Когда роль не может решить сама, она задаёт вопрос с вариантами — под её ответом появляется форма. Нажмите подходящий вариант или напишите свой в поле «Свой вариант», затем «Отправить ответ». Роль продолжит работу с того места, где остановилась, и увидит ваш ответ в переписке. Можно добавить заметку для роли.", next: nil)])
 
     static let chatDiscussionDelivery = HintScenario(
         id: "chat-discussion-delivery", title: "Итог обсуждения", start: "status",

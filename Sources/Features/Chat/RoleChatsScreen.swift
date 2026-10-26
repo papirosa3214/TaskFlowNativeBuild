@@ -1639,9 +1639,12 @@ struct RoleChatRoomScreen: View {
                 // оверлеем над полем ввода — переехали в саму ленту,
                 // сразу под последним сообщением, и скроллятся вместе с
                 // перепиской.
-                if !isSelecting, let replies = lastQuickReplies {
-                    quickReplyRow(replies)
-                }
+                //
+                // 26.10.2026: плашка рисуется у СВОЕГО сообщения (в
+                // `flatReplyRow`), а не отдельной строкой в конце ленты:
+                // раньше проверка «последнее видимое сообщение» гасила
+                // варианты, когда следом лежало служебное сообщение, —
+                // вопрос стоял, а кнопок не было.
                 ForEach(pendingOutgoing) { pending in
                     pendingOutgoingRow(pending)
                         .id(pending.id)
@@ -2167,6 +2170,22 @@ struct RoleChatRoomScreen: View {
                 if let handoff = message.handoff {
                     ChatHandoffCard(handoff: handoff)
                 }
+                // Уточнение роли у владельца (26.10.2026): форма с вариантами
+                // ответа. Рисуется под ответом роли — там, где владелец её
+                // ждёт.
+                if let question = message.question {
+                    RoleQuestionCard(question: question) { answers, note in
+                        try await api.answerChatQuestion(chatID: chat.id,
+                                                          questionID: question.id,
+                                                          answers: answers,
+                                                          note: note)
+                        await refresh()
+                    }
+                }
+                // Быстрые варианты ответа — у своего сообщения (26.10.2026).
+                if !isSelecting, let replies = quickReplies(for: message) {
+                    quickReplyRow(replies)
+                }
                 if let taskID = message.taskID, taskID != chat.taskID {
                     SecretaryDraftCard(taskID: taskID) { pendingTaskID = taskID }
                 }
@@ -2604,16 +2623,15 @@ struct RoleChatRoomScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    /// Быстрые ответы (владелец 25.09.2026, docs/ПЛАН Супер Помощник владельца/) —
-    /// только у самого последнего сообщения, и только если оно не моё:
-    /// собственный ответ снимает актуальность предложенных вариантов.
-    /// Владелец 26.09.2026: модель иногда даёт 4 — обрезаем до 3, четвёртый
-    /// почти никогда не нужен и только загромождает ряд.
-    private var lastQuickReplies: [String]? {
-        guard let last = messages.last, last.fromUserID != session.currentUser?.id,
-              visibleMessages.last?.id == last.id,
-              let replies = last.quickReplies, !replies.isEmpty else { return nil }
-        return Array(replies.prefix(3))
+    /// Варианты у сообщения `message`: их место в ленте — сразу под ним.
+    /// Пусто, если сообщение не от роли, вариантов нет, сообщение не своё
+    /// или это не последнее видимое сообщение (своё сообщение владельца уже
+    /// сняло актуальность).
+    ///
+    /// Список — ВИДИМЫЕ сообщения: скрытые служебные строки варианты не
+    /// отменяют (26.10.2026, была жалоба «кнопок не видно у вопроса»).
+    private func quickReplies(for message: RoleChatMessage) -> [String]? {
+        ChatQuickReplyPolicy.replies(for: message, in: visibleMessages, ownerID: session.currentUser?.id)
     }
 
     /// То же стекло, что у капсулы поля ввода (`voiceCapsuleSurface`) —
