@@ -1948,10 +1948,10 @@ struct TaskCardContent: View {
                 // (владелец 11.09.2026).
                 if isRunning {
                     DisclosureGroup("Предыдущий результат") {
-                        RoleReplyMarkdown(text: result)
+                        TaskRoleReply(text: result)
                     }
                 } else {
-                    RoleReplyMarkdown(text: result)
+                    TaskRoleReply(text: result)
                 }
             }
             if isOwner, subtask.agentState == .review {
@@ -2101,14 +2101,10 @@ struct TaskCardContent: View {
                     Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
                 }
             }
-            // В ленте активности рисуем текст простым `Text` без парсинга
-            // markdown/таблиц/HTML — при сотнях комментариев парсинг каждого
-            // через RoleReplyMarkdown вешал открытие карточки. Полный вид
-            // (таблицы, виджеты) доступен в чате и в описании задачи.
-            Text(comment.text)
-                .tfText(.body)
-                .foregroundStyle(Color.tfText)
-                .textSelection(.enabled)
+            let isRole = comment.userId.map { author in
+                author == "u-secretary" || author.hasPrefix("role_") || viewModel.roles.contains { $0.accountID == author }
+            } ?? false
+            TaskRoleReply(text: comment.text, isRole: isRole)
             // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
             // текст, и приложенные кадры в приложении не показывались
             // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`

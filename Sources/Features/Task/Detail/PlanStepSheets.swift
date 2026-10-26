@@ -183,10 +183,10 @@ struct PlanStepDetailSheet: View {
                                 isPreviousResultExpanded = value
                                 TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".previous")
                             })) {
-                                RoleReplyMarkdown(text: result).textSelection(.enabled)
+                                TaskRoleReply(text: result).textSelection(.enabled)
                             }
                         } else {
-                            RoleReplyMarkdown(text: result).textSelection(.enabled)
+                            TaskRoleReply(text: result).textSelection(.enabled)
                         }
                         if let receipt = node.submissionReceipt, receipt.confirmed, receipt.authority == "primary" {
                             LabeledContent("Сдача подтверждена сервером") {
