@@ -35,6 +35,8 @@ struct ChatVoiceComposer: View {
     /// Пилюля модели рядом с режимом; nil или пустой список — не рисуется.
     var modelChoice: ChatModelChoice? = nil
     var onShowCommands: (() -> Void)? = nil
+    /// Кольца контекста — в ряду ярлычков слева.
+    var contextControls: AnyView? = nil
     /// Роли, которым можно написать в этом чате — для кнопки-собачки.
     /// Владелец 11.10.2026: «чтобы я мог точечно писать, сразу же выбрать,
     /// кому я хочу написать из агентов… ее все время от руки писать не охоту».
@@ -122,6 +124,7 @@ struct ChatVoiceComposer: View {
                         focus: textFieldFocus, onSubmit: onSendText) {
             HStack(spacing: 0) {
                 promptAttachmentMenu
+                if let contextControls { contextControls }
                 if showsMentionButton { mentionButton }
                 // Режим не дублируется подписью: он виден в меню настроек слева.
                 if let modelChoice, modelChoice.isAvailable {

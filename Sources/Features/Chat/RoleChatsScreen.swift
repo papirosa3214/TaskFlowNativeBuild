@@ -1199,20 +1199,6 @@ struct RoleChatRoomScreen: View {
                     composerFocused = true
                 }
             }
-            if !chat.composerRoleKeys.isEmpty {
-                VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                    ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
-                        ChatContextControl(snapshot: composerControls.contexts[member.id],
-                            roleName: chat.composerRoleKeys.count > 1 ? member.name : nil,
-                            loadError: composerControls.errorText,
-                            onRefresh: { Task { await composerControls.load(chat: chat) } },
-                            onNewSession: { Task { await newSession(roleID: member.id) } },
-                            onCompact: { Task { await compact(member) } })
-                    }
-                }
-                .padding(.horizontal, TFSpacing.lg)
-                .padding(.vertical, TFSpacing.xs)
-            }
             if !pendingAttachments.isEmpty {
                 HStack {
                     ForEach(pendingAttachments) { attachment in
@@ -1263,6 +1249,14 @@ struct RoleChatRoomScreen: View {
                     availableModes: RoleChatWorkMode.available(in: chat),
                     modelChoice: modelChoice,
                     onShowCommands: { showsComposerCommands = true },
+                    contextControls: chat.composerRoleKeys.isEmpty ? nil : AnyView(HStack(spacing: 0) {
+                        ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
+                            ChatContextControl(snapshot: composerControls.contexts[member.id],
+                                roleName: chat.composerRoleKeys.count > 1 ? member.name : nil,
+                                loadError: composerControls.errorText,
+                                onRefresh: { Task { await composerControls.load(chat: chat) } })
+                        }
+                    }),
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
                     // что у подсказок при наборе «@» (RoleChatsScreen
                     // mentionCandidates), только берётся по нажатию, а не по

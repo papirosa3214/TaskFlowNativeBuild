@@ -41,40 +41,46 @@ struct ChatContextControl: View {
     let roleName: String?
     let loadError: String?
     let onRefresh: () -> Void
-    let onNewSession: (() -> Void)?
-    let onCompact: (() -> Void)?
     @State private var showsDetails = false
 
     var body: some View {
-        // Строка над полем ввода: итог и тонкая полоска; нажатие — расшифровка.
+        // Кольцо в ряду ярлычков (владелец 26.10.2026): заполняется по мере
+        // расхода окна — белое, жёлтое, красное; нажатие — расшифровка листом.
         Button { showsDetails = true } label: {
-            HStack(spacing: TFSpacing.sm) {
-                if let roleName { Text(roleName).lineLimit(1) }
-                Text(snapshot?.summary ?? "Контекст пока недоступен")
-                    .monospacedDigit().lineLimit(1)
-                if let snapshot, snapshot.fraction != nil {
-                    ChatContextBar(snapshot: snapshot).frame(width: 48, height: 4)
-                }
-                Image(systemName: "chevron.up")
-            }
-            .tfText(.caption)
-            .foregroundStyle(Color.tfSub)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            ChatContextRing(fraction: snapshot?.fraction ?? 0)
+                .frame(width: 20, height: 20)
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Контекст. " + (snapshot?.summary ?? "Нет замера"))
+        .accessibilityLabel("Контекст" + (roleName.map { ", " + $0 } ?? "") + ". " + (snapshot?.summary ?? "Нет замера"))
         .accessibilityHint("Показать, из чего состоит контекст")
         .accessibilityIdentifier("chat.context-window")
         .hintAnchor(HintAnchorID.chatContextWindow)
-        // Как было: прозрачное всплывающее окно у самой строки, не отдельный лист.
-        .popover(isPresented: $showsDetails, arrowEdge: .bottom) {
-            ChatContextSheet(snapshot: snapshot, loadError: loadError, onRefresh: onRefresh,
-                             onNewSession: onNewSession, onCompact: onCompact)
-                .frame(minWidth: 300, idealWidth: 340, minHeight: 360, idealHeight: 460)
-                .presentationCompactAdaptation(.popover)
-                .presentationBackground(.ultraThinMaterial)
+        .sheet(isPresented: $showsDetails) {
+            ChatContextSheet(snapshot: snapshot, roleName: roleName, loadError: loadError, onRefresh: onRefresh)
+                .presentationDetents([.medium, .large])
         }
+    }
+}
+
+/// Кольцо заполнения окна: дорожка и дуга по доле; цвет — по порогам.
+struct ChatContextRing: View {
+    let fraction: Double
+
+    private var color: Color {
+        fraction >= 0.85 ? .red : fraction >= 0.6 ? .yellow : .white
+    }
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.2), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: min(1, max(0, fraction)))
+                .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -120,11 +126,9 @@ struct ChatContextBar: View {
 /// ним можно сделать — сжать, начать новую сессию, обновить замер.
 struct ChatContextSheet: View {
     let snapshot: ChatContextSnapshot?
+    var roleName: String? = nil
     let loadError: String?
     let onRefresh: () -> Void
-    let onNewSession: (() -> Void)?
-    let onCompact: (() -> Void)?
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -167,29 +171,28 @@ struct ChatContextSheet: View {
                 }
                 if let loadError { Section { Text(loadError).foregroundStyle(Color.tfSub) } }
                 Section {
-                    if let onCompact {
-                        Button("Сжать контекст", systemImage: "arrow.down.right.and.arrow.up.left") { onCompact(); dismiss() }
-                    }
-                    if let onNewSession {
-                        Button("Новая сессия", systemImage: "arrow.counterclockwise") { onNewSession(); dismiss() }
-                    }
                     Button("Обновить", systemImage: "arrow.clockwise", action: onRefresh)
                 }
             }
             .scrollContentBackground(.hidden)
-            .navigationTitle("Контекст")
+            .navigationTitle(roleName.map { "Контекст · " + $0 } ?? "Контекст")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
 
     private func row(color: Color, title: String, tokens: Int, window: Int) -> some View {
-        HStack(spacing: TFSpacing.sm) {
-            Circle().fill(color).frame(width: 10, height: 10).accessibilityHidden(true)
-            Text(title)
-            Spacer()
-            Text(ChatContextSnapshot.compact(tokens) + " · " + (Double(tokens) / Double(window)).formatted(.percent.precision(.fractionLength(0...1))))
-                .monospacedDigit()
-                .foregroundStyle(Color.tfSub)
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            HStack(spacing: TFSpacing.sm) {
+                Text(title)
+                Spacer()
+                Text(ChatContextSnapshot.compact(tokens) + " · " + (Double(tokens) / Double(window)).formatted(.percent.precision(.fractionLength(0...1))))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.tfSub)
+            }
+            // Полоска доли вместо точки (владелец 26.10.2026).
+            ProgressView(value: min(1, Double(tokens) / Double(window)))
+                .tint(color)
+                .accessibilityHidden(true)
         }
         .tfText(.body)
         .accessibilityElement(children: .combine)
