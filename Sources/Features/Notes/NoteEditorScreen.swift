@@ -211,7 +211,10 @@ struct NoteEditorScreen: View {
                 .onChange(of: viewModel.reading.draft) { _, _ in viewModel.markdownDidChange() }
         } else {
             ScrollView {
-                RoleReplyMarkdown(text: viewModel.reading.markdown)
+                // Заметка уже пришла документом: рисуем его, Markdown не разбираем.
+                RoleReplyMarkdown(text: viewModel.reading.markdown,
+                                  prepared: viewModel.document.isEffectivelyEmpty ? nil
+                                      : [.document(viewModel.document.blocks, chars: viewModel.reading.markdown.count)])
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, TFSpacing.screenHorizontal)
                     .padding(.vertical, TFSpacing.sm)

@@ -129,13 +129,13 @@ struct RootShellView: View {
                 #if DEBUG
                 if let html = ProcessInfo.processInfo.environment["TASKFLOW_PANEL_PREVIEW"] {
                     NavigationStack {
-                        ScrollView { RoleReplyMarkdown(text: "```html\n" + html + "\n```", allowsCommands: ProcessInfo.processInfo.environment["TASKFLOW_PANEL_DENIED"] != "1").padding() }
+                        ScrollView { RoleReplyMarkdown(text: html, allowsCommands: ProcessInfo.processInfo.environment["TASKFLOW_PANEL_DENIED"] != "1", prepared: [.html(html)]).padding() }
                             .navigationTitle("Панель роли")
                     }
                 } else if let command = ProcessInfo.processInfo.environment["TASKFLOW_OWNER_COMMAND_PREVIEW"] {
                     NavigationStack {
                         List {
-                            RoleReplyMarkdown(text: "```bash\n" + command + "\n```", allowsCommands: true)
+                            RoleReplyMarkdown(text: command, allowsCommands: true, prepared: [.document([NoteBlock(kind: .codeBlock(language: "bash"), runs: [RichRun(text: command)])], chars: command.count)])
                         }
                         .navigationTitle("Команда роли")
                     }

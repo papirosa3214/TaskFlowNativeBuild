@@ -13,6 +13,11 @@ struct WeeklySummary: Decodable {
     let productivity_score: Double
     let stats: Stats
     let generated_at: String
+    /// Тексты, уже разобранные сервером (26.10.2026); nil — старый сервер.
+    var greeting_blocks: [ChatServerBlock]? = nil
+    var accomplishments_blocks: [[ChatServerBlock]]? = nil
+    var missed_or_overdue_blocks: [[ChatServerBlock]]? = nil
+    var next_week_focus_blocks: [[ChatServerBlock]]? = nil
 }
 
 struct WeeklySummarySheet: View {
@@ -39,14 +44,14 @@ struct WeeklySummarySheet: View {
                     Section("Продуктивность · \(Int(summary.productivity_score))%") {
                         // Сводку недели пишет роль — общий рендер ответов
                         // (карточка 19f57bc9), а не сырой `Text`.
-                        RoleReplyMarkdown(text: summary.greeting)
+                        RoleReplyMarkdown(text: summary.greeting, serverBlocks: summary.greeting_blocks)
                         LabeledContent("Сделано", value: "\(summary.stats.completed_count)")
                         LabeledContent("Просрочено", value: "\(summary.stats.overdue_count)")
                         LabeledContent("В работе", value: "\(summary.stats.active_count)")
                     }
-                    items("Главные победы недели", summary.accomplishments)
-                    items("Долги и хвосты", summary.missed_or_overdue)
-                    items("Фокус на следующую неделю", summary.next_week_focus)
+                    items("Главные победы недели", summary.accomplishments, summary.accomplishments_blocks)
+                    items("Долги и хвосты", summary.missed_or_overdue, summary.missed_or_overdue_blocks)
+                    items("Фокус на следующую неделю", summary.next_week_focus, summary.next_week_focus_blocks)
                     Section { Text("Обновлено: " + summary.generated_at).font(.caption).foregroundStyle(Color.tfSub) }
                 }
             }
@@ -63,8 +68,15 @@ struct WeeklySummarySheet: View {
             .accessibilityIdentifier("overview.weekly-summary.sheet")
         }
     }
-    @ViewBuilder private func items(_ title: String, _ values: [String]) -> some View {
-        if !values.isEmpty { Section(title) { ForEach(values.indices, id: \.self) { RoleReplyMarkdown(text: values[$0]) } } }
+    @ViewBuilder private func items(_ title: String, _ values: [String], _ blocks: [[ChatServerBlock]]?) -> some View {
+        if !values.isEmpty {
+            Section(title) {
+                ForEach(values.indices, id: \.self) { index in
+                    RoleReplyMarkdown(text: values[index],
+                                      serverBlocks: blocks.flatMap { $0.indices.contains(index) ? $0[index] : nil })
+                }
+            }
+        }
     }
     private func load(refresh: Bool = false) async {
         busy = true; error = nil
