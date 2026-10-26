@@ -67,11 +67,13 @@ struct ChatContextControl: View {
         .accessibilityHint("Показать, из чего состоит контекст")
         .accessibilityIdentifier("chat.context-window")
         .hintAnchor(HintAnchorID.chatContextWindow)
-        .sheet(isPresented: $showsDetails) {
+        // Как было: прозрачное всплывающее окно у самой строки, не отдельный лист.
+        .popover(isPresented: $showsDetails, arrowEdge: .bottom) {
             ChatContextSheet(snapshot: snapshot, loadError: loadError, onRefresh: onRefresh,
                              onNewSession: onNewSession, onCompact: onCompact)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+                .frame(minWidth: 300, idealWidth: 340, minHeight: 360, idealHeight: 460)
+                .presentationCompactAdaptation(.popover)
+                .presentationBackground(.ultraThinMaterial)
         }
     }
 }
@@ -174,9 +176,9 @@ struct ChatContextSheet: View {
                     Button("Обновить", systemImage: "arrow.clockwise", action: onRefresh)
                 }
             }
+            .scrollContentBackground(.hidden)
             .navigationTitle("Контекст")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
         }
     }
 

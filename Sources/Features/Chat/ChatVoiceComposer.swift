@@ -127,16 +127,21 @@ struct ChatVoiceComposer: View {
                 if let modelChoice, modelChoice.isAvailable {
                     // Тот же вид, что у пилюли режима слева от неё.
                     ChatModelMenu(choice: modelChoice) {
-                        HStack(spacing: 6) {
+                        // По размеру содержимого: без выбора — только значок.
+                        HStack(spacing: 4) {
                             Image(systemName: "cpu")
                                 .font(.system(size: 14, weight: .medium))
-                            Text(modelChoice.title)
-                                .tfText(.caption)
-                                .lineLimit(1)
-                                .frame(maxWidth: 140, alignment: .leading)
+                            if modelChoice.selected != nil {
+                                Text(modelChoice.title)
+                                    .tfText(.caption)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: 110, alignment: .leading)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
                         }
-                        .padding(.horizontal, 10)
-                        .frame(height: 32)
+                        .padding(.horizontal, 8)
+                        .frame(height: 28)
                         .background(Color.white.opacity(0.08), in: Capsule())
                         .frame(height: 40)
                         .contentShape(Rectangle())
