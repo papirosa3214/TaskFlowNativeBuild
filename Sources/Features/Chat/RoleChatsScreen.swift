@@ -2175,11 +2175,11 @@ struct RoleChatRoomScreen: View {
                 // ждёт.
                 if let question = message.question {
                     RoleQuestionCard(question: question) { answers, note in
-                        try await api.answerChatQuestion(chatID: chat.id,
-                                                          questionID: question.id,
-                                                          answers: answers,
-                                                          note: note)
-                        await refresh()
+                        try await self.api.answerChatQuestion(chatID: self.chat.id,
+                                                             questionID: question.id,
+                                                             answers: answers,
+                                                             note: note)
+                        await self.refresh()
                     }
                 }
                 // Быстрые варианты ответа — у своего сообщения (26.10.2026).

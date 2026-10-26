@@ -56,7 +56,7 @@ struct RoleQuestionCard: View {
     private func questionBlock(index: Int, item: ChatQuestionItem) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if let header = item.header, !header.isEmpty {
-                TFBadge(header, color: .tfSub)
+                TFPill(header, color: .tfSub)
             }
             Text(item.question)
                 .tfText(.body)
@@ -81,7 +81,7 @@ struct RoleQuestionCard: View {
         FlowLayout(spacing: TFSpacing.sm) {
             ForEach(item.options) { option in
                 Button {
-                    toggle(index: index, option: option.label, multi: item.multiSelect)
+                    toggle(index: index, label: option.label, multi: item.multiSelect)
                 } label: {
                     optionPill(option, selected: isSelected(index: index, label: option.label),
                                multi: item.multiSelect)
