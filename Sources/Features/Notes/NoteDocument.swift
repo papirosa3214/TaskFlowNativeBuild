@@ -195,6 +195,17 @@ extension NoteDocument {
               let content = obj["content"] as? [Any]
         else { return .empty }
 
+        return decode(content: content)
+    }
+
+    /// Документ TipTap, уже разобранный из JSON (блоки ответа в чате приходят
+    /// с сервера объектом, а не строкой — повторно разбирать нечего).
+    static func decode(fromObject obj: [String: Any]) -> NoteDocument {
+        guard let content = obj["content"] as? [Any] else { return .empty }
+        return decode(content: content)
+    }
+
+    private static func decode(content: [Any]) -> NoteDocument {
         var blocks: [NoteBlock] = []
         decodeBlocks(content, level: 0, into: &blocks)
         return blocks.isEmpty ? .empty : NoteDocument(blocks: blocks)
@@ -299,7 +310,9 @@ extension NoteDocument {
         }
     }
 
-    private static func decodeInline(_ nodes: [Any]?) -> [RichRun] {
+    /// Строка TipTap (узлы text с отметками) → куски текста; ячейки таблиц в
+    /// блоках ответа приходят именно так.
+    static func decodeInline(_ nodes: [Any]?) -> [RichRun] {
         guard let nodes else { return [] }
         var runs: [RichRun] = []
         for case let node as [String: Any] in nodes {

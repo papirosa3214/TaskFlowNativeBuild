@@ -6,7 +6,7 @@ import SwiftUI
 /// `MarkdownParser` заметок (только чтение): второго парсера не заводим.
 struct RoleReplyMarkdown: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming
+        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks
     }
 
     let text: String
@@ -20,10 +20,16 @@ struct RoleReplyMarkdown: View, Equatable {
     /// но отметка никуда не уходит. В сравнении (`==`) не участвует: ключи и
     /// отправка привязаны к сообщению, а не к тексту куска.
     var checklist: ChecklistSyncContext? = nil
+    /// Ответ, уже разобранный сервером (26.10.2026): есть — рисуем блоки и
+    /// текст сам не раскладываем; nil — старый сервер или не чат.
+    var serverBlocks: [ChatServerBlock]? = nil
 
     var body: some View {
-        let segments = ChatRichContent.split(text, isStreaming: isStreaming)
-        if segments.count == 1, case .markdown = segments[0] {
+        let segments = serverBlocks.map { ChatRichContent.segments(fromServer: $0, key: text) }
+            ?? ChatRichContent.split(text, isStreaming: isStreaming)
+        if segments.count == 1, case .document(let blocks, _) = segments[0] {
+            documentBody(blocks)
+        } else if segments.count == 1, case .markdown = segments[0] {
             markdownBody(text)
         } else if segments.isEmpty {
             markdownBody(text)
@@ -66,6 +72,8 @@ struct RoleReplyMarkdown: View, Equatable {
         switch segment {
         case .markdown(let part):
             RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: fade)
+        case .document(let blocks, _):
+            documentBody(blocks)
         case .table(let table):
             ChatTableView(table: table, color: color)
         case .widget(let json):
@@ -110,9 +118,15 @@ struct RoleReplyMarkdown: View, Equatable {
         // Живой текст растёт на каждом кадре проявления: разбираем заново
         // только последний блок, устойчивая часть — из кэша. Разбор всего
         // текста на каждом кадре стоил 110 мкс на ответ в 388 символов.
-        let blocks = Self.numbered(isStreaming
+        documentBody(isStreaming
             ? MarkdownParser.parseIncremental(text)
             : MarkdownParser.parse(text))
+    }
+
+    /// Блоки текста — разобранные здесь или пришедшие с сервера готовыми.
+    @ViewBuilder
+    private func documentBody(_ parsed: [NoteBlock]) -> some View {
+        let blocks = Self.numbered(parsed)
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не id блока: парсер раздаёт новые UUID на каждый
             // разбор, а живой текст разбирается заново каждые 150 мс.
@@ -364,7 +378,7 @@ struct ChatTableView: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
-                        cell(title, column: column, width: columnWidths[column])
+                        cell(title, runs: headerRuns(column), column: column, width: columnWidths[column])
                             .font(.subheadline.weight(.semibold))
                     }
                 }
@@ -377,7 +391,7 @@ struct ChatTableView: View {
                     HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(row.enumerated()), id: \.offset) { column, value in
                             if column < columnWidths.count {
-                                cell(value, column: column, width: columnWidths[column])
+                                cell(value, runs: rowRuns(rowIndex, column), column: column, width: columnWidths[column])
                                 .tfText(.body)
                             }
                         }
@@ -398,9 +412,20 @@ struct ChatTableView: View {
         .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 
-    private func cell(_ text: String, column: Int, width: CGFloat) -> some View {
+    private func headerRuns(_ column: Int) -> [RichRun]? {
+        guard let runs = table.headerRuns, runs.indices.contains(column) else { return nil }
+        return runs[column]
+    }
+
+    private func rowRuns(_ row: Int, _ column: Int) -> [RichRun]? {
+        guard let rows = table.rowRuns, rows.indices.contains(row), rows[row].indices.contains(column) else { return nil }
+        return rows[row][column]
+    }
+
+    private func cell(_ text: String, runs: [RichRun]?, column: Int, width: CGFloat) -> some View {
         let alignment = column < table.alignments.count ? table.alignments[column] : .leading
-        return Text(RoleReplyMarkdown.attributed(MarkdownParser.parseInline(text)))
+        // Ячейка с сервера уже размечена; иначе — разбор строки на месте.
+        return Text(RoleReplyMarkdown.attributed(runs ?? MarkdownParser.parseInline(text)))
             .foregroundStyle(color)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .frame(width: max(1, width - TFSpacing.md * 2), alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)

@@ -17,6 +17,8 @@ import Foundation
 ///     JSON/HTML показываем заглушку.
 enum ChatRichSegment: Equatable {
     case markdown(String)
+    /// Текст, уже разобранный сервером в блоки; `chars` — его длина для проявления.
+    case document([NoteBlock], chars: Int)
     case table(ChatTable)
     case widget(String)
     case structuredJSON(String)
@@ -36,6 +38,9 @@ struct ChatTable: Equatable {
     var header: [String]
     var alignments: [Alignment]
     var rows: [[String]]
+    /// Ячейки, уже размеченные сервером; nil — разметку ячеек делает клиент.
+    var headerRuns: [[RichRun]]? = nil
+    var rowRuns: [[[RichRun]]]? = nil
 
     var columnCount: Int { header.count }
 }
@@ -203,9 +208,65 @@ enum ChatRichContent {
     static func characterCount(_ segment: ChatRichSegment) -> Int {
         switch segment {
         case .markdown(let text): return text.count + 1
+        case .document(_, let chars): return chars
         case .table(let table): return (table.header + table.rows.flatMap { $0 }).reduce(0) { $0 + $1.count }
         case .widget, .structuredJSON, .structuredJSONStreaming, .html, .pending: return 0
         }
+    }
+}
+
+// MARK: - Блоки сервера → куски ответа
+
+extension ChatRichContent {
+    /// Готовые блоки сервера (`ChatServerBlock`) → куски для отрисовки. Текст
+    /// не раскладывается: документ и ячейки приходят уже разобранными.
+    static func segments(fromServer blocks: [ChatServerBlock], key: String) -> [ChatRichSegment] {
+        if let cached = serverSegments.value(for: key) { return cached }
+        let segments = segmentsUncached(fromServer: blocks)
+        serverSegments.set(segments, for: key)
+        return segments
+    }
+
+    /// Готовые сообщения не меняются: перевод блоков в куски — один раз на текст.
+    private static let serverSegments = ParsedValueCache<[ChatRichSegment]>(limit: 64)
+
+    static func segmentsUncached(fromServer blocks: [ChatServerBlock]) -> [ChatRichSegment] {
+        blocks.compactMap { block in
+            switch block {
+            case .doc(let doc, let chars):
+                guard let object = doc.foundationValue as? [String: Any] else { return nil }
+                return .document(NoteDocument.decode(fromObject: object).blocks, chars: chars)
+            case .table(let header, let align, let rows, _):
+                let headerRuns = header.map(runs)
+                let rowRuns = rows.map { $0.map(runs) }
+                return .table(ChatTable(
+                    header: headerRuns.map(plain),
+                    alignments: align.map { $0 == "center" ? .center : $0 == "trailing" ? .trailing : .leading },
+                    rows: rowRuns.map { $0.map(plain) },
+                    headerRuns: headerRuns,
+                    rowRuns: rowRuns))
+            case .widget(let json): return .widget(json)
+            case .structuredJSON(let json): return .structuredJSON(json)
+            case .structuredJSONStreaming(let json): return .structuredJSONStreaming(json)
+            case .html(let html): return .html(html)
+            case .pending(let kind):
+                switch kind {
+                case "widget": return .pending(.widget)
+                case "structured_json": return .pending(.structuredJSON)
+                case "html": return .pending(.html)
+                default: return nil
+                }
+            case .unknown: return nil
+            }
+        }
+    }
+
+    private static func runs(_ cell: JSONValue) -> [RichRun] {
+        NoteDocument.decodeInline(cell.foundationValue as? [Any])
+    }
+
+    private static func plain(_ runs: [RichRun]) -> String {
+        runs.map(\.text).joined()
     }
 }
 

@@ -2366,7 +2366,7 @@ struct RoleChatRoomScreen: View {
                 .roleMessageReveal(text: message.text, messageID: message.id,
                                    animate: chatIsNearBottom && message.id == messages.last?.id)
         } else {
-            RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist)
+            RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
                 .equatable()
                 // Анимируем только новое сообщение и только когда лента внизу:
                 // иначе проявление старых строк при прокрутке дёргает

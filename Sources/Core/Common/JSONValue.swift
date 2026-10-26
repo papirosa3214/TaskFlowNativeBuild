@@ -89,6 +89,19 @@ extension JSONValue: ExpressibleByArrayLiteral {
 }
 
 public extension JSONValue {
+    /// Значение как обычный Foundation-объект (словарь, массив, строка, число,
+    /// Bool, NSNull) — для декодеров, написанных под `JSONSerialization`.
+    var foundationValue: Any {
+        switch self {
+        case .string(let v): return v
+        case .number(let v): return NSNumber(value: v)
+        case .bool(let v): return v
+        case .object(let v): return v.mapValues(\.foundationValue)
+        case .array(let v): return v.map(\.foundationValue)
+        case .null: return NSNull()
+        }
+    }
+
     /// Для полей вида `label_ids: string[]` в теле запроса.
     static func strings(_ values: [String]) -> JSONValue {
         .array(values.map { .string($0) })

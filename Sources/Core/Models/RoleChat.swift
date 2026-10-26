@@ -211,6 +211,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// оба поля пустые, у старого сервера их нет вовсе.
     public var stopReason: String? = nil
     public var partialFlag: RoleChatPartialFlag? = nil
+    /// Ответ, разложенный сервером на готовые блоки (26.10.2026). nil — старый
+    /// сервер: тогда текст раскладывает клиент, как раньше.
+    public var blocks: [ChatServerBlock]? = nil
     /// Preserve the existing optional Bool interface, including legacy missing fields.
     public var partial: Bool? {
         get { partialFlag?.value }
@@ -264,6 +267,7 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case queueDeliveryState = "queue_delivery_state"
         case stopReason = "stop_reason"
         case partialFlag = "partial"
+        case blocks
     }
 }
 
