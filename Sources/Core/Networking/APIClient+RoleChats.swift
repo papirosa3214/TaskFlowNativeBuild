@@ -239,6 +239,12 @@ public extension APIClient {
         return response.deleted
     }
 
+    /// Отозвать своё сообщение до начала исполнения. Сервер атомарно
+    /// отменяет очередь; 409 означает, что роль уже взяла сообщение.
+    func withdrawRoleChatMessage(chatID: String, messageID: String) async throws {
+        try await requestVoid(.post, "/chats/\(chatID)/messages/\(messageID)/withdraw")
+    }
+
     /// Удалить чат целиком (создатель). Сообщения уходят каскадом.
     func deleteRoleChat(id: String) async throws {
         try await requestVoid(.delete, "/chats/\(id)")

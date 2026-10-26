@@ -4,6 +4,16 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testOwnMessageActionsHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-own-message-copy" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatOwnMessageCopy)
+        XCTAssertTrue(center.currentStep?.text.contains("Убрать сообщение") == true)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     func testDiscussionDeliveryHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-discussion-delivery" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])

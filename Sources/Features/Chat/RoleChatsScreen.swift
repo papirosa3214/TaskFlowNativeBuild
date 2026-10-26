@@ -1564,6 +1564,11 @@ struct RoleChatRoomScreen: View {
         let chatID = chat.id
         realtime.onEvent = { event in
             switch event {
+            case .unknown("chat:withdrawn", .object(let payload)) where payload["chat_id"]?.stringValue == chatID:
+                if let id = payload["message_id"]?.stringValue {
+                    messages.removeAll { $0.id == id }
+                    selectedMessageIDs.remove(id)
+                }
             case .unknown(let type, _) where type == "chat:work_plan":
                 workPlanRevision += 1
             case .roleChatMessage(let id, let message) where id == chatID:
@@ -2275,7 +2280,12 @@ struct RoleChatRoomScreen: View {
                 // У ответа роли подпись внизу, рядом с кнопками (владелец
                 // 14.10.2026, по образцу: кто ответил и за сколько — в конце).
                 if !hasAudio && (mine || !isAgentReply(message)) {
-                    senderLine(message, color: Color.tfSub)
+                    if mine {
+                        senderLine(message, color: Color.tfSub)
+                            .hintAnchor(HintAnchorID.chatOwnMessageCopy)
+                    } else {
+                        senderLine(message, color: Color.tfSub)
+                    }
                 }
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
                 // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
@@ -2330,22 +2340,6 @@ struct RoleChatRoomScreen: View {
                 ) {
                     ChatDeliveryBadge(state: delivery)
                         .hintAnchor(HintAnchorID.chatDeliveryBadge)
-                }
-                if mine && !message.text.isEmpty && !isSelecting {
-                    HStack(spacing: TFSpacing.xs) {
-                        messageActionButton("doc.on.doc", label: "Скопировать своё сообщение") {
-                            copyMessage(message)
-                        }
-                        .accessibilityIdentifier("chat.message.copy.\(message.id)")
-                        .hintAnchor(HintAnchorID.chatOwnMessageCopy)
-                        if copiedMessageID == message.id {
-                            Text("Скопировано")
-                                .tfText(.meta)
-                                .accessibilityIdentifier("chat.message.copied")
-                        }
-                    }
-                    .foregroundStyle(Color.tfSub)
-                    .buttonStyle(.plain)
                 }
                 if !mine && isAgentReply(message) && !isSelecting {
                     messageActions(message)
@@ -2516,11 +2510,33 @@ struct RoleChatRoomScreen: View {
         Button { exportMessage(message) } label: {
             Label("Сохранить или поделиться", systemImage: "square.and.arrow.up")
         }
+        if isMine && message.canWithdraw == true
+            && !liveTurns.values.contains(where: { $0.triggerMessageID == message.id })
+            && !completingTurns.values.contains(where: { $0.triggerMessageID == message.id })
+            && !messages.contains(where: { $0.replyToMessageID == message.id && isAgentReply($0) }) {
+            Button(role: .destructive) { Task { await withdrawMessage(message) } } label: {
+                Label("Убрать сообщение", systemImage: "trash")
+            }
+        }
         if !isMine {
             Button { Task { await openBranch(from: message) } } label: {
                 Label("Ответвление: обсудить в отдельном чате", systemImage: "arrow.triangle.branch")
             }
             .disabled(isBranching)
+        }
+    }
+
+    private func withdrawMessage(_ message: RoleChatMessage) async {
+        guard message.fromUserID == session.currentUser?.id, message.canWithdraw == true else { return }
+        do {
+            try await api.withdrawRoleChatMessage(chatID: chat.id, messageID: message.id)
+            messages.removeAll { $0.id == message.id }
+            selectedMessageIDs.remove(message.id)
+        } catch {
+            // Состояние могло измениться, пока меню было открыто: сервер
+            // повторно проверяет начало работы и сохраняет взятое сообщение.
+            await refresh()
+            errorMessage = error.localizedDescription
         }
     }
 
