@@ -751,6 +751,13 @@ struct RoleChatRoomScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var chat: RoleChat
     @State private var messages: [RoleChatMessage] = []
+    /// Лента получена с сервера хотя бы раз. До этого пустой `messages`
+    /// значит «ещё грузится», а не «сообщений нет» (26.10.2026: при каждом
+    /// открытии чата мелькала пустая страница «Пока нет сообщений»).
+    @State private var hasLoadedMessages = false
+    /// Последняя лента каждого открытого чата в памяти: при повторном входе
+    /// переписка стоит сразу, сервер только досылает новое (26.10.2026).
+    @MainActor private static var lastMessages: [String: [RoleChatMessage]] = [:]
     @State private var draft = ""
     @State private var isSending = false
     @State private var errorMessage: String?
@@ -1017,11 +1024,17 @@ struct RoleChatRoomScreen: View {
 
     init(chat: RoleChat) {
         _chat = State(initialValue: chat)
+        if let cached = Self.lastMessages[chat.id] {
+            _messages = State(initialValue: cached)
+            _hasLoadedMessages = State(initialValue: true)
+        }
         let saved = UserDefaults.standard.string(forKey: "roleChat.mode." + chat.createdBy + "." + chat.id)
         let mode = saved.flatMap(RoleChatWorkMode.init(rawValue:)) ?? .work
         _workMode = State(initialValue: RoleChatWorkMode.available(in: chat).contains(mode) ? mode : .work)
         #if DEBUG
         if readingPreview {
+            // Предпросмотр задаёт ленту сразу, без запроса к серверу.
+            _hasLoadedMessages = State(initialValue: true)
             let structuredOutputPreview = ProcessInfo.processInfo.environment["TASKFLOW_STRUCTURED_OUTPUT_PREVIEW"] == "1"
             _messages = State(initialValue: structuredOutputPreview ? Self.structuredOutputPreviewMessages : Array(Self.readingPreviewMessages.prefix(1)))
             if structuredOutputPreview {
@@ -1618,9 +1631,14 @@ struct RoleChatRoomScreen: View {
         let dayDividers = dayDividerTitles(orderedFeed)
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
-                if messages.isEmpty {
+                if messages.isEmpty && hasLoadedMessages {
                     ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
                                            description: Text("Напишите первое сообщение."))
+                } else if messages.isEmpty {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, TFSpacing.xl)
+                        .accessibilityLabel("Загрузка сообщений")
                 }
                 // Перед первым сообщением нового дня — полоса с датой
                 // («когда заканчивается день», владелец 03.10.2026).
@@ -2609,6 +2627,8 @@ struct RoleChatRoomScreen: View {
                 }
                 let receivedAfterRequest = Set(messageEventRevisions.filter { $0.value > eventRevision }.map(\.key))
                 messages = RoleChatMessageOrder.mergingSnapshot(updatedMessages, current: messages, receivedAfterRequest: receivedAfterRequest)
+                hasLoadedMessages = true
+                Self.lastMessages[chat.id] = messages
             }
             // Комната открыта — всё в ней прочитано. Бейдж в списке сервер
             // считает от отметки прочтения, а двигает её только этот вызов
@@ -2620,7 +2640,10 @@ struct RoleChatRoomScreen: View {
                     markedReadMessageID = lastID
                 }
             }
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            errorMessage = error.localizedDescription
+            hasLoadedMessages = true
+        }
     }
 
     /// Варианты у сообщения `message`: их место в ленте — сразу под ним.

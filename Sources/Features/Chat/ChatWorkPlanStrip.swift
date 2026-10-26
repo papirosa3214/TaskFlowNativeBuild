@@ -16,7 +16,18 @@ struct ChatWorkPlanStrip: View {
     /// Растёт, когда сервер прислал `chat:work_plan` или новое сообщение.
     let revision: Int
 
-    @State private var plans: [ChatWorkPlan] = []
+    @State private var plans: [ChatWorkPlan]
+
+    /// Последний план чата в памяти: при повторном открытии строка стоит
+    /// сразу, а не выезжает после загрузки и не сдвигает ленту (26.10.2026).
+    @MainActor private static var lastPlans: [String: [ChatWorkPlan]] = [:]
+
+    init(chatID: String, members: [RoleChatMember], revision: Int) {
+        self.chatID = chatID
+        self.members = members
+        self.revision = revision
+        _plans = State(initialValue: Self.lastPlans[chatID] ?? [])
+    }
 
     var body: some View {
         ChatWorkPlanRows(plans: plans, members: members)
@@ -26,6 +37,7 @@ struct ChatWorkPlanStrip: View {
     private func load() async {
         guard let response: ChatWorkPlansResponse = try? await APIClient().request(.get, "/chats/\(chatID)/work-plans"),
               !Task.isCancelled else { return }
+        Self.lastPlans[chatID] = response.plans
         if response.plans != plans { plans = response.plans }
     }
 }
