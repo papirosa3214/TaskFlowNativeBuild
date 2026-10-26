@@ -42,3 +42,62 @@ public enum ChatServerBlock: Decodable, Sendable, Equatable {
         }
     }
 }
+
+/// Блок живого хода с исходным куском текста (`source`, 26.10.2026): пейсер
+/// проявляет исходный текст по словам, экран рисует блок, обрезанный по
+/// открытой части. Сам текст на телефоне не раскладывается.
+public struct ChatLiveBlock: Decodable, Sendable, Equatable {
+    public let block: ChatServerBlock
+    public let source: String
+
+    private enum CodingKeys: String, CodingKey { case source }
+
+    public init(block: ChatServerBlock, source: String) {
+        self.block = block
+        self.source = source
+    }
+
+    public init(from decoder: Decoder) throws {
+        block = try ChatServerBlock(from: decoder)
+        source = try decoder.container(keyedBy: CodingKeys.self).decodeIfPresent(String.self, forKey: .source) ?? ""
+    }
+
+    /// Обычный текст проявляется по словам; виджеты, таблицы и артефакты — сразу.
+    public var isProse: Bool {
+        if case .doc = block { return true }
+        return false
+    }
+}
+
+/// Блоки текущих живых ходов по полному тексту реплики. Заполняется при
+/// разборе снимка с сервера, читается пейсером и экраном. Хранит немного:
+/// живых реплик единицы, старые вытесняются.
+public final class ChatLiveBlockRegistry: @unchecked Sendable {
+    public static let shared = ChatLiveBlockRegistry()
+    private let lock = NSLock()
+    private var entries: [(text: String, blocks: [ChatLiveBlock])] = []
+    private let limit = 16
+
+    public func register(_ blocks: [ChatLiveBlock], for text: String) {
+        lock.lock(); defer { lock.unlock() }
+        entries.removeAll { $0.text == text }
+        entries.append((text, blocks))
+        if entries.count > limit { entries.removeFirst(entries.count - limit) }
+    }
+
+    public func blocks(for text: String) -> [ChatLiveBlock]? {
+        lock.lock(); defer { lock.unlock() }
+        return entries.last { $0.text == text }?.blocks
+    }
+
+    /// Блок, чей исходный кусок начинается с показанного текста (пейсер
+    /// показывает начало куска). Свежие реплики проверяются первыми.
+    public func block(startingWith shown: String) -> ChatLiveBlock? {
+        guard !shown.isEmpty else { return nil }
+        lock.lock(); defer { lock.unlock() }
+        for entry in entries.reversed() {
+            if let match = entry.blocks.last(where: { $0.source.hasPrefix(shown) && !$0.source.isEmpty }) { return match }
+        }
+        return nil
+    }
+}

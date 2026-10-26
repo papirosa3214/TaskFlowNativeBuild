@@ -213,7 +213,10 @@ struct RoleLiveItemsList: View {
         Group {
             switch item {
             case .text(let text):
-                RoleReplyMarkdown(text: RoleTranslator.shared.display(text), color: textColor, fade: fade, isStreaming: isStreaming)
+                let shown = RoleTranslator.shared.display(text)
+                // Блоки сервера — пока текст не подменён переводом.
+                RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
+                                  prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
             case .step(let step):
                 let hasDetail = !(step.detail ?? "").isEmpty
                 Button { detail = .step(step) } label: {

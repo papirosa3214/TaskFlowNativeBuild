@@ -261,6 +261,47 @@ extension ChatRichContent {
         }
     }
 
+    /// Живой ход: показанное начало реплики → блок сервера, обрезанный по
+    /// открытой доле исходного текста. nil — блоков нет (старый сервер).
+    static func liveSegments(shown: String) -> [ChatRichSegment]? {
+        guard let live = ChatLiveBlockRegistry.shared.block(startingWith: shown) else { return nil }
+        let full = segments(fromServer: [live.block], key: "live:" + live.source)
+        guard live.isProse, case .document(let blocks, _)? = full.first else { return full }
+        let fraction = live.source.isEmpty ? 1 : Double(shown.count) / Double(live.source.count)
+        return [.document(truncated(blocks, fraction: fraction), chars: shown.count + 1)]
+    }
+
+    /// Начало документа длиной в долю `fraction` его видимого текста: целые
+    /// блоки, затем последний — обрезанный по кускам текста.
+    static func truncated(_ blocks: [NoteBlock], fraction: Double) -> [NoteBlock] {
+        guard fraction < 1 else { return blocks }
+        let total = blocks.reduce(0) { $0 + $1.plainText.count }
+        var budget = Int((Double(total) * max(0, fraction)).rounded())
+        var result: [NoteBlock] = []
+        for block in blocks {
+            guard budget > 0 else { break }
+            let length = block.plainText.count
+            if length <= budget || block.runs.isEmpty {
+                result.append(block)
+                budget -= length
+                continue
+            }
+            var cut = block
+            var runs: [RichRun] = []
+            for run in block.runs {
+                guard budget > 0 else { break }
+                var piece = run
+                if run.text.count > budget { piece.text = String(run.text.prefix(budget)) }
+                budget -= piece.text.count
+                runs.append(piece)
+            }
+            cut.runs = runs
+            result.append(cut)
+            break
+        }
+        return result
+    }
+
     private static func runs(_ cell: JSONValue) -> [RichRun] {
         NoteDocument.decodeInline(cell.foundationValue as? [Any])
     }

@@ -52,4 +52,47 @@ final class ChatServerBlockTests: XCTestCase {
         let old = try JSONDecoder().decode(RoleChatMessage.self, from: Data(#"{"id":"m2","text":"ок","is_session_marker":false}"#.utf8))
         XCTAssertNil(old.blocks)
     }
+
+    // MARK: - Живой ход (26.10.2026)
+
+    private func liveBlocks(_ json: String) throws -> [ChatLiveBlock] {
+        try JSONDecoder().decode([ChatLiveBlock].self, from: Data(json.utf8))
+    }
+
+    private let liveJSON = #"""
+    [{"type":"doc","chars":6,"source":"Итог: всё","doc":{"type":"doc","content":[
+       {"type":"paragraph","content":[{"type":"text","text":"Итог: "},{"type":"text","text":"всё","marks":[{"type":"bold"}]}]}]}},
+     {"type":"widget","json":"{}","source":"```widget\n{}\n```"}]
+    """#
+
+    func testTruncatedDocumentCutsByVisibleShare() {
+        let blocks = [NoteBlock(kind: .heading(level: 2), runs: [RichRun(text: "Итог")]),
+                      NoteBlock(kind: .paragraph, runs: [RichRun(text: "всё готово")])]
+        let cut = ChatRichContent.truncated(blocks, fraction: 0.5)
+        XCTAssertEqual(cut.map(\.plainText), ["Итог", "всё"])
+        XCTAssertEqual(cut[0].id, blocks[0].id, "обрезка сохраняет блоки, а не пересобирает их")
+        XCTAssertEqual(ChatRichContent.truncated(blocks, fraction: 1), blocks)
+    }
+
+    func testPacerSplitsByServerBlocksWithoutSearchingFences() throws {
+        let text = "Итог: **всё**\n```widget\n{}\n```"
+        ChatLiveBlockRegistry.shared.register(try liveBlocks(liveJSON), for: text)
+        var pacer = RoleLiveTextPacer()
+        pacer.ingest([.text(text)])
+        XCTAssertEqual(pacer.target, [.text("Итог: всё"), .text("```widget\n{}\n```")])
+        // Виджет виден сразу, текст ещё не начал проявляться.
+        XCTAssertEqual(pacer.visibleItems, [.text("```widget\n{}\n```")])
+    }
+
+    func testLiveSegmentsFollowShownStart() throws {
+        ChatLiveBlockRegistry.shared.register(try liveBlocks(liveJSON), for: "живой ход")
+        guard case .document(let blocks, _)? = ChatRichContent.liveSegments(shown: "Итог: в")?.first else {
+            return XCTFail("нет документа")
+        }
+        XCTAssertEqual(blocks.first?.plainText, "Итог: в")
+        XCTAssertEqual(blocks.first?.runs.last?.bold, true)
+        XCTAssertEqual(ChatRichContent.liveSegments(shown: "```widget\n{}\n```"), [.widget("{}")])
+        XCTAssertNil(ChatRichContent.liveSegments(shown: "чужой текст"))
+    }
 }
+

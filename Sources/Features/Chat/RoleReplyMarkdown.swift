@@ -6,7 +6,7 @@ import SwiftUI
 /// `MarkdownParser` заметок (только чтение): второго парсера не заводим.
 struct RoleReplyMarkdown: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks
+        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks && lhs.prepared == rhs.prepared
     }
 
     let text: String
@@ -23,9 +23,13 @@ struct RoleReplyMarkdown: View, Equatable {
     /// Ответ, уже разобранный сервером (26.10.2026): есть — рисуем блоки и
     /// текст сам не раскладываем; nil — старый сервер или не чат.
     var serverBlocks: [ChatServerBlock]? = nil
+    /// Куски, уже собранные из блоков сервера (живой ход: блок, обрезанный по
+    /// открытой части). Есть — текст не раскладывается.
+    var prepared: [ChatRichSegment]? = nil
 
     var body: some View {
-        let segments = serverBlocks.map { ChatRichContent.segments(fromServer: $0, key: text) }
+        let segments = prepared
+            ?? serverBlocks.map { ChatRichContent.segments(fromServer: $0, key: text) }
             ?? ChatRichContent.split(text, isStreaming: isStreaming)
         if segments.count == 1, case .document(let blocks, _) = segments[0] {
             documentBody(blocks)

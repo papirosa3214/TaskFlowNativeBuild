@@ -408,13 +408,19 @@ public enum RoleChatLiveItem: Decodable, Sendable, Equatable, Identifiable {
         return false
     }
 
-    private enum CodingKeys: String, CodingKey { case kind, text }
+    private enum CodingKeys: String, CodingKey { case kind, text, blocks }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         switch try container.decode(String.self, forKey: .kind) {
         case "text":
-            self = .text(try container.decode(String.self, forKey: .text))
+            let text = try container.decode(String.self, forKey: .text)
+            // Сервер разложил реплику на блоки (26.10.2026) — запоминаем их
+            // для пейсера и экрана; старый сервер их не шлёт.
+            if let blocks = try? container.decodeIfPresent([ChatLiveBlock].self, forKey: .blocks), !blocks.isEmpty {
+                ChatLiveBlockRegistry.shared.register(blocks, for: text)
+            }
+            self = .text(text)
         case "thinking":
             self = .thinking(try RoleChatThinking(from: decoder))
         default:
@@ -760,6 +766,12 @@ struct RoleLiveTextPacer {
     private static let fenceRegex = try? NSRegularExpression(pattern: #"(?m)^[ \t]*```([^\r\n]*)(?:\r?\n|$)"#)
 
     private static func pacingParts(_ text: String) -> [(String, Bool)] {
+        // Куски по блокам сервера: обычный текст — по словам, остальное — сразу.
+        if let blocks = ChatLiveBlockRegistry.shared.blocks(for: text) {
+            let parts = blocks.filter { !$0.source.isEmpty }.map { ($0.source, !$0.isProse) }
+            if !parts.isEmpty { return parts }
+        }
+        // Старый сервер без блоков — границы блоков ищем в тексте сами.
         guard let regex = fenceRegex else { return [(text, false)] }
         let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
         var parts: [(String, Bool)] = []
