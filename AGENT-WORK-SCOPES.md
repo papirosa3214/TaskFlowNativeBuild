@@ -1,5 +1,7 @@
 # Реестр ограничений работ
 
+| LOCK-CHAT-ROOM-SHEET-NATIVE-BG-20261026 | IN_PROGRESS | CHAT-ROOM-SHEET-NATIVE-BG | Чаты → «Комнаты» → роль → шторка с чатами роли: убрать серую заливку фона, чтобы панель рисовала система | `AGENT-WORK-SCOPES.md`, `Sources/Features/Chat/RoleRoomSheet.swift`, `docs/2026-10-26-chat-room-sheet-native-bg.md` (новый) | Прямое поручение владельца 26.10.2026: панель серая, сливается с фоном; убрать то, чем красим, чтобы было полностью на отрисовке Эпл | Codex | Правка фона; сторож дизайн-системы; без симулятора |
+
 | LOCK-CHAT-SCROLL-TRACE-20261026 | REVIEW | CHAT-SCROLL-TRACE | Диагностика исчезновения ленты по записи владельца: геометрия и идентичность строк, без смены поведения | `AGENT-WORK-SCOPES.md`, `Sources/Features/Chat/RoleChatsScreen.swift` (только пассивная диагностика messageScroll и состояние регистратора), `Sources/Core/ChatScrollTrace.swift`, `Tests/ChatScrollTraceTests.swift`, `Tools/test_chat_scroll_trace.py`, `docs/2026-10-26-chat-scroll-trace.md` | Владелец: Antigravity закончил, продолжай | Codex | Регистратор: host RED 3/3 → GREEN 3/3; parse, guard, diff чисто. UI-баг не воспроизведён и не исправлен; установка на телефон требует отдельного поручения |
 
 

@@ -43,7 +43,8 @@ struct RoleRoomSheet: View {
                 }
                 .padding(.bottom, TFSpacing.xl)
             }
-            .background(Color.tfSheetBackground)
+            // Своей заливки нет: шторку рисует система (26.10.2026, владелец:
+            // серая заливка сливалась с фоном и портила нативный вид).
             .navigationTitle(role.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
