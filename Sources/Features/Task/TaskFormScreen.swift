@@ -267,7 +267,7 @@ struct TaskCardContent: View {
     }
 
     private var refreshSnapshot: TaskCardRefreshState.Snapshot {
-        .init(connectionRevision: realtime.connectionRevision,
+        .init(staleRevision: realtime.staleRevision,
               taskRevisions: realtime.taskRevisions,
               activityRevision: realtime.activityRevisions[taskID ?? "", default: 0])
     }

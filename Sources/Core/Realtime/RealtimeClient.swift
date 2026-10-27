@@ -15,31 +15,41 @@ import UIKit
 @Observable
 public final class RealtimeClient {
     public private(set) var isConnected = false
-    public private(set) var taskRevisions: [String: Int] = [:]
-    public private(set) var connectionRevision = 0
+    private(set) var revisions = TaskRevisions()
     public private(set) var rolesRevision = 0
     public private(set) var jobsRevision = 0
-    public private(set) var activityRevisions: [String: Int] = [:]
+
+    public var taskRevisions: [String: Int] { revisions.tasks }
+    public var activityRevisions: [String: Int] { revisions.activity }
+    /// Растёт на каждом подключении — для экранов ролей и работ, у которых
+    /// нет дельты. Карточки задач смотрят на `staleRevision`.
+    public var connectionRevision: Int { revisions.connection }
+    public var staleRevision: Int { revisions.stale }
 
     public func revision(for taskID: String) -> Int {
-        connectionRevision + (taskRevisions[taskID] ?? 0)
+        revisions.revision(for: taskID)
+    }
+
+    /// Итог догона после переподключения: изменившиеся id или `nil`, если
+    /// дельты не было.
+    func recordCatchUp(changedTaskIDs: Set<String>?) {
+        revisions.catchUp(changedTaskIDs: changedTaskIDs)
     }
 
     /// Invalidation events wake only affected screens; no screen polling timer.
     func record(_ event: RealtimeEvent) {
         switch event {
-        case .connected: connectionRevision += 1
-        case .taskChanged(let id), .taskDeleted(let id): taskRevisions[id, default: 0] += 1
+        case .connected: revisions.connected()
+        case .taskChanged(let id), .taskDeleted(let id): revisions.taskChanged(id)
         case .taskCreated(let task), .taskUpdated(let task), .taskState(let task), .taskCompleted(let task):
-            taskRevisions[task.id, default: 0] += 1
-            if let parent = task.parentId { taskRevisions[parent, default: 0] += 1 }
+            revisions.taskChanged(task.id, parent: task.parentId)
             // Списки ролей и работ перезагружаются по окну, а не на каждое
             // событие: во время работы агента события идут пачками, и каждый
             // экран уходил в сеть со своим запросом на каждое из них.
             scheduleCoalescedInvalidation()
         case .rolesChanged: rolesRevision += 1
         case .roleJobsChanged: jobsRevision += 1; rolesRevision += 1
-        case .taskActivity(let id?, _): activityRevisions[id, default: 0] += 1
+        case .taskActivity(let id?, _): revisions.activityChanged(id)
         default: break
         }
     }

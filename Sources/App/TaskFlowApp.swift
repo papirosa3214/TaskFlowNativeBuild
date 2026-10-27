@@ -176,7 +176,11 @@ struct RootView: View {
             // переподключение обновляем весь кэш, который мог протухнуть за
             // время разрыва, а не только задачи.
             Task {
-                async let tasksRefreshed: () = taskStore.refreshAfterReconnect()
+                async let tasksRefreshed: () = {
+                    // Открытые карточки обновятся, только если их назвала дельта.
+                    let changed = await taskStore.refreshAfterReconnect()
+                    realtimeClient.recordCatchUp(changedTaskIDs: changed)
+                }()
                 // Только непрочитанные: полная лента (463 КБ, 61 КБ в gzip)
                 // нужна на экране уведомлений, а при переподключении хватает
                 // счётчика непрочитанных.

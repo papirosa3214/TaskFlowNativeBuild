@@ -260,12 +260,16 @@ public final class TaskStore {
     /// Архив сюда НЕ входит: он весит ~547 КБ (95 КБ в gzip) и нужен
     /// только на экране «Архив», который грузит его сам. Раньше каждый
     /// разрыв связи тянул весь архив вместе со списком задач.
-    public func refreshAfterReconnect() async {
+    ///
+    /// Возвращает id карточек, изменившихся за разрыв, или `nil`, если
+    /// пришлось читать список целиком и что изменилось — неизвестно.
+    @discardableResult
+    public func refreshAfterReconnect() async -> Set<String>? {
         guard let cursor = syncCursor else {
             // Курсора нет (первый запуск сессии) — догонять нечего, читаем
             // список целиком.
             await load(silent: true)
-            return
+            return nil
         }
         do {
             let delta = try await apiClient.taskChanges(since: cursor)
@@ -273,14 +277,16 @@ public final class TaskStore {
                 // Журнал изменений не покрывает нужный момент — дешевле
                 // один полный список, чем догонять по одной.
                 await load(silent: true)
-                return
+                return nil
             }
             await apply(delta)
             syncCursor = delta.serverTime
+            return Set(delta.changedIds).union(delta.removedIds)
         } catch {
             // Дельта не вышла — список оставлять старым нельзя, читаем
             // целиком (старая цена, но правильные данные).
             await load(silent: true)
+            return nil
         }
     }
 

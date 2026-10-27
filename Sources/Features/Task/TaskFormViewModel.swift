@@ -1159,7 +1159,7 @@ final class TaskFormViewModel {
 /// после изменения релевантной ревизии или возвращения из фона.
 struct TaskCardRefreshState {
     struct Snapshot {
-        var connectionRevision: Int
+        var staleRevision: Int
         var taskRevisions: [String: Int]
         var activityRevision: Int
     }
@@ -1181,7 +1181,7 @@ struct TaskCardRefreshState {
             return false
         }
         guard ready, let previous = cardSnapshot else { return false }
-        let changed = cardResumed || snapshot.connectionRevision != previous.connectionRevision
+        let changed = cardResumed || snapshot.staleRevision != previous.staleRevision
             || taskIDs.contains { snapshot.taskRevisions[$0, default: 0] != previous.taskRevisions[$0, default: 0] }
         cardSnapshot = snapshot
         cardResumed = false

@@ -39,12 +39,12 @@ final class TaskCardLoadingTests: XCTestCase {
 
     func testInitialReadyDoesNotReloadButEventDuringInitialLoadDoes() {
         var state = TaskCardRefreshState()
-        let initial = TaskCardRefreshState.Snapshot(connectionRevision: 0, taskRevisions: [:], activityRevision: 0)
+        let initial = TaskCardRefreshState.Snapshot(staleRevision: 0, taskRevisions: [:], activityRevision: 0)
         state.begin(initial)
         XCTAssertFalse(state.cardNeedsRefresh(initial, taskIDs: ["card"], ready: true, active: true))
         XCTAssertFalse(state.activityNeedsRefresh(initial, ready: true, active: true))
         state.begin(initial)
-        let changed = TaskCardRefreshState.Snapshot(connectionRevision: 0, taskRevisions: ["card": 1], activityRevision: 1)
+        let changed = TaskCardRefreshState.Snapshot(staleRevision: 0, taskRevisions: ["card": 1], activityRevision: 1)
         XCTAssertFalse(state.cardNeedsRefresh(changed, taskIDs: ["card"], ready: false, active: true))
         XCTAssertFalse(state.activityNeedsRefresh(changed, ready: false, active: true))
         XCTAssertTrue(state.cardNeedsRefresh(changed, taskIDs: ["card"], ready: true, active: true))
@@ -55,7 +55,7 @@ final class TaskCardLoadingTests: XCTestCase {
 
     func testUnrelatedCardAndActivityDoNotReloadCardButChildAndReconnectDo() {
         var state = TaskCardRefreshState()
-        var snapshot = TaskCardRefreshState.Snapshot(connectionRevision: 0, taskRevisions: [:], activityRevision: 0)
+        var snapshot = TaskCardRefreshState.Snapshot(staleRevision: 0, taskRevisions: [:], activityRevision: 0)
         state.begin(snapshot)
         snapshot.taskRevisions["other"] = 1
         snapshot.activityRevision = 1
@@ -63,13 +63,13 @@ final class TaskCardLoadingTests: XCTestCase {
         XCTAssertTrue(state.activityNeedsRefresh(snapshot, ready: true, active: true))
         snapshot.taskRevisions["child"] = 1
         XCTAssertTrue(state.cardNeedsRefresh(snapshot, taskIDs: ["card", "child"], ready: true, active: true))
-        snapshot.connectionRevision = 1
+        snapshot.staleRevision = 1
         XCTAssertTrue(state.cardNeedsRefresh(snapshot, taskIDs: ["card", "child"], ready: true, active: true))
     }
 
     func testForegroundRestoresBothSnapshotsExactlyOnce() {
         var state = TaskCardRefreshState()
-        let snapshot = TaskCardRefreshState.Snapshot(connectionRevision: 0, taskRevisions: [:], activityRevision: 0)
+        let snapshot = TaskCardRefreshState.Snapshot(staleRevision: 0, taskRevisions: [:], activityRevision: 0)
         state.begin(snapshot)
         XCTAssertFalse(state.cardNeedsRefresh(snapshot, taskIDs: ["card"], ready: true, active: false))
         XCTAssertFalse(state.activityNeedsRefresh(snapshot, ready: true, active: false))
