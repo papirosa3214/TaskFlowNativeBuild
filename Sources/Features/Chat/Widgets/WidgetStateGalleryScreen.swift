@@ -1,5 +1,9 @@
 import SwiftUI
 
+// Галерея нужна только в Debug (вызывается из TaskFlowApp под #if DEBUG) и
+// берёт отладочные наборы вроде allCasesForPreview — в Release её нет.
+#if DEBUG
+
 /// ВРЕМЕННЫЙ экран для съёмки кадров состояний (пусто, загрузка) и проверки
 /// шести действующих типов. Открывается переменной окружения
 /// `TASKFLOW_WIDGET_GALLERY_PREVIEW`, в Debug, и удаляется после съёмки:
@@ -215,3 +219,4 @@ struct WidgetStateGalleryScreen: View {
     "left":{"label":"Текущий"},"right":{"label":"Новый"}}
     """
 }
+#endif
