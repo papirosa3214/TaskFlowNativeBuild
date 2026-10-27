@@ -220,30 +220,34 @@ struct ChatVoiceComposer: View {
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .overlay(alignment: .bottom) {
-            // Под полем, в зазоре: рабочая папка и модель, которой роль
-            // работает на деле (владелец 27.10.2026).
-            if let caption = workingCaption, !isRecording, preview == nil {
-                Text(caption)
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfDim)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 16)
-                    .alignmentGuide(.bottom) { $0[.top] - 2 }
-                    .accessibilityIdentifier("chat.workingCaption")
+        .padding(.horizontal).padding(.top, 10)
+        .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
+        // Под рамкой, в пустом месте ниже: папка у левого края, модель у
+        // правого (владелец 27.10.2026).
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if workingFolder != nil || workingModel != nil, !isRecording, preview == nil {
+                HStack(spacing: 8) {
+                    if let workingFolder { Text(workingFolder).truncationMode(.middle) }
+                    Spacer(minLength: 0)
+                    if let workingModel { Text(workingModel).truncationMode(.tail) }
+                }
+                .tfText(.caption)
+                .foregroundStyle(Color.tfDim)
+                .lineLimit(1)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 8)
+                .accessibilityIdentifier("chat.workingCaption")
             }
         }
-        .padding(.horizontal).padding(.vertical, 10)
     }
 
-    /// «папка · модель» под полем ввода; nil — показывать нечего.
-    private var workingCaption: String? {
-        let folder = workspaceChoice?.selected.map { ($0 as NSString).lastPathComponent }
-        let model = modelChoice?.effectiveTitle
-        let parts = [folder, model].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    /// Рабочая папка для подписи под рамкой; nil — не выбрана.
+    private var workingFolder: String? {
+        workspaceChoice?.selected.map { ($0 as NSString).lastPathComponent }
     }
+
+    /// Модель, которой роль работает на деле; nil — не известна.
+    private var workingModel: String? { modelChoice?.effectiveTitle }
 
     /// Выбор адресата рядом со скрепкой и режимом работы.
     private var mentionButton: some View {
