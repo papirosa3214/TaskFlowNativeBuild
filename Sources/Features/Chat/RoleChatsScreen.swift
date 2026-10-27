@@ -866,6 +866,7 @@ struct RoleChatRoomScreen: View {
     /// Столбец участников справа (владелец 20.10.2026) — помнит, открыт ли.
     @State private var noticeMessage: String?
     @State private var modelChoice = ChatModelChoice()
+    @State private var workspaceChoice = ChatWorkspaceChoice()
     @State private var composerControls = ChatComposerControlStore()
     @State private var showsComposerCommands = false
     // SwiftUI owns the scroll position, including user interaction and resizing.
@@ -1260,6 +1261,7 @@ struct RoleChatRoomScreen: View {
                     canChangeExecutionMode: !isSavingExecutionMode && !isSending && !isUploadingAttachment,
                     availableModes: RoleChatWorkMode.available(in: chat),
                     modelChoice: modelChoice,
+                    workspaceChoice: workspaceChoice,
                     onShowCommands: { showsComposerCommands = true },
                     contextControls: chat.composerRoleKeys.isEmpty ? nil : AnyView(HStack(spacing: 0) {
                         ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
@@ -1554,7 +1556,10 @@ struct RoleChatRoomScreen: View {
         .onChange(of: chat.members.map(\.id)) { _, _ in
             if !RoleChatWorkMode.available(in: chat).contains(workMode) { workMode = .work }
         }
-        .task(id: chat.members.map(\.id)) { await modelChoice.load(chat: chat) }
+        .task(id: chat.members.map(\.id)) {
+            await modelChoice.load(chat: chat)
+            await workspaceChoice.load(chat: chat)
+        }
         .task(id: chat.members.map(\.id).joined(separator: ":") + ":" + (messages.last?.id ?? "")) {
             await composerControls.load(chat: chat)
         }

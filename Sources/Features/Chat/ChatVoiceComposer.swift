@@ -34,6 +34,8 @@ struct ChatVoiceComposer: View {
     var availableModes: [RoleChatWorkMode] = [.work, .plan]
     /// Пилюля модели рядом с режимом; nil или пустой список — не рисуется.
     var modelChoice: ChatModelChoice? = nil
+    /// Рабочая папка (чат с Помощником владельца); nil — чипа нет.
+    var workspaceChoice: ChatWorkspaceChoice? = nil
     var onShowCommands: (() -> Void)? = nil
     /// Кольца контекста — в ряду ярлычков слева.
     var contextControls: AnyView? = nil
@@ -140,6 +142,29 @@ struct ChatVoiceComposer: View {
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                     .frame(maxWidth: 110, alignment: .leading)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .frame(height: 28)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                        .frame(height: 40)
+                        .contentShape(Rectangle())
+                    }
+                    .padding(.leading, 4)
+                }
+                if let workspaceChoice, workspaceChoice.isAvailable {
+                    // Тот же вид, что у пилюли модели слева.
+                    ChatWorkspaceMenu(choice: workspaceChoice) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 14, weight: .medium))
+                            if workspaceChoice.selected != nil {
+                                Text(workspaceChoice.title)
+                                    .tfText(.caption)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: 90, alignment: .leading)
                                     .fixedSize(horizontal: true, vertical: false)
                             }
                         }
