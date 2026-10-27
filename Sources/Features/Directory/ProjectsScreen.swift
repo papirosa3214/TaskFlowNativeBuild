@@ -52,18 +52,23 @@ struct ProjectsScreen: View {
         // (`QuickAddProjectView`), а не inline в списке.
         ZStack {
         Color.tfBackground.ignoresSafeArea()
-        List {
-            Group {
-                if !isSelecting {
-                    // Владелец 11.10.2026: верхняя полоса статусов убрана —
-                    // «нет необходимости, раз в каждом проекте они присутствуют».
-                    // Четыре плитки «В работе / На проверке / Заблокированы /
-                    // Пропали» повторяли ровно те же четыре числа, что стоят
-                    // в строке статусов каждой карточки проекта ниже.
-                    noProjectRow
-                }
-
-                ForEach(visibleProjects) { project in
+        // Плитки «Без проекта» и «Архив» — ВНЕ списка (27.10.2026, жалоба
+        // владельца: тап по «Без проекта» открывал «Архив»).
+        // Причина: после перехода «Проектов» со `ScrollView` на `List`
+        // (25.10.2026, e3d89b69) обе ссылки `NavigationLink` оказались в
+        // ОДНОЙ строке списка. В строке `List` тап отдаётся одной из ссылок —
+        // и открывался «Архив». Вне списка каждая плитка снова отдельная
+        // кнопка; вид и порядок плиток прежние.
+        VStack(spacing: 0) {
+            if !isSelecting {
+                noProjectRow
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.top, TFSpacing.sm)
+                    .padding(.bottom, TFSpacing.sm)
+            }
+            List {
+                Group {
+                    ForEach(visibleProjects) { project in
                     if editingID == project.id {
                         ProjectEditForm(project: project, apiClient: apiClient, onSaved: {
                             editingID = nil
@@ -113,15 +118,16 @@ struct ProjectsScreen: View {
                 TFErrorBanner(projectStore.errorMessage, variant: .inline)
                 TFErrorBanner(errorMessage, variant: .block)
 
+                }
             }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         // Штатный pull-to-refresh (iOS 15+). Прокрути вниз и потяни — вызовет
         // projectStore.load(). Сегодня не трогаю по требованию владельца.
         // Задачи тоже: фильтры по состоянию считаются по списку задач, и без
         // него проект с только что перенесённой карточкой оставался скрытым.
-        .refreshable { async let projects: Void = projectStore.load(); async let tasks: Void = taskStore.load(silent: true); _ = await (projects, tasks) }
+            .refreshable { async let projects: Void = projectStore.load(); async let tasks: Void = taskStore.load(silent: true); _ = await (projects, tasks) }
+        }
         }
         // Штатная SwiftUI-шапка. Системная стрелка назад добавляется стеком
         // навигации; пару кнопок группирует сам toolbar iOS.
@@ -278,17 +284,19 @@ struct ProjectsScreen: View {
         HStack(spacing: TFSpacing.sm) {
             sectionTile(
                 route: .noProjectTasks, title: "Без проекта",
-                count: noProjectCount, icon: "tray", tint: .tfBlue
+                count: noProjectCount, icon: "tray", tint: .tfBlue,
+                identifier: "projects.tile.noProject"
             )
             sectionTile(
                 route: .taskArchive, title: "Архив",
-                count: archiveCount, icon: "archivebox", tint: .tfOrange
+                count: archiveCount, icon: "archivebox", tint: .tfOrange,
+                identifier: "projects.tile.archive"
             )
         }
         .task { await taskStore.loadArchive(); await projectStore.loadArchive() }
     }
 
-    private func sectionTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color) -> some View {
+    private func sectionTile(route: AppRoute, title: String, count: Int, icon: String, tint: Color, identifier: String) -> some View {
         NavigationLink(value: route) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: icon)
@@ -302,6 +310,7 @@ struct ProjectsScreen: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title): \(count)")
+        .accessibilityIdentifier(identifier)
     }
 
     private func projectRow(_ project: ApiProject) -> some View {
