@@ -126,7 +126,6 @@ struct ChatVoiceComposer: View {
                         focus: textFieldFocus, onSubmit: onSendText) {
             HStack(spacing: 0) {
                 promptAttachmentMenu
-                if let contextControls { contextControls }
                 if showsMentionButton { mentionButton }
                 // Режим не дублируется подписью: он виден в меню настроек слева.
                 if let modelChoice, modelChoice.isAvailable {
@@ -177,6 +176,8 @@ struct ChatVoiceComposer: View {
                     }
                     .padding(.leading, 4)
                 }
+                // Кольцо контекста — крайнее справа из ярлычков (владелец 27.10.2026).
+                if let contextControls { contextControls }
                 Spacer(minLength: 8)
                 Button(action: startVoiceRecording) {
                     promptIcon("mic").contentShape(Rectangle())
@@ -219,7 +220,29 @@ struct ChatVoiceComposer: View {
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
+        .overlay(alignment: .bottom) {
+            // Под полем, в зазоре: рабочая папка и модель, которой роль
+            // работает на деле (владелец 27.10.2026).
+            if let caption = workingCaption, !isRecording, preview == nil {
+                Text(caption)
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 16)
+                    .alignmentGuide(.bottom) { $0[.top] - 2 }
+                    .accessibilityIdentifier("chat.workingCaption")
+            }
+        }
         .padding(.horizontal).padding(.vertical, 10)
+    }
+
+    /// «папка · модель» под полем ввода; nil — показывать нечего.
+    private var workingCaption: String? {
+        let folder = workspaceChoice?.selected.map { ($0 as NSString).lastPathComponent }
+        let model = modelChoice?.effectiveTitle
+        let parts = [folder, model].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// Выбор адресата рядом со скрепкой и режимом работы.

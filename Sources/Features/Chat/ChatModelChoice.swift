@@ -22,6 +22,13 @@ final class ChatModelChoice {
     /// Пилюля видна, когда в чате ровно один агент и у него есть выбор.
     var isAvailable: Bool { !options.isEmpty }
 
+    /// Модель, которой агент работает на деле: выбранная, иначе текущая.
+    var effectiveTitle: String? {
+        if let selected, let option = options.first(where: { $0.id == selected }) { return option.title }
+        guard let current else { return nil }
+        return options.first(where: { $0.id == current })?.title ?? current
+    }
+
     var title: String {
         if let selected, let option = options.first(where: { $0.id == selected }) {
             return option.title
