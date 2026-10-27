@@ -36,6 +36,9 @@ final class NotesViewModel {
     var hasSelection: Bool { !selectedFolderIDs.isEmpty || !selectedNoteIDs.isEmpty }
 
     func load() async {
+        // Сначала прошлый ответ из кэша — список виден сразу, сеть его обновит.
+        if folders.isEmpty, let cached = apiClient.cachedJournalFolders() { folders = cached }
+        if notes.isEmpty, let cached = apiClient.cachedNotesList() { notes = cached }
         isLoading = true
         defer { isLoading = false }
         async let foldersTask: Void = loadFolders()

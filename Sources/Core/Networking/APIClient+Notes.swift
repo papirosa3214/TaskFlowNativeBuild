@@ -33,10 +33,16 @@ public extension APIClient {
     /// «Документация» проекта не могла открыться ни на одну папку (просьба
     /// владельца 03.09.2026, подтверждено кадром с текстом реальной ошибки —
     /// `DecodingError.typeMismatch: expected Array, found a dictionary`).
+    private struct JournalFoldersResponse: Decodable { let folders: [ApiJournalFolder] }
+
     func journalFolders() async throws -> [ApiJournalFolder] {
-        struct Response: Decodable { let folders: [ApiJournalFolder] }
-        let response: Response = try await request(.get, "/journal/folders")
+        let response: JournalFoldersResponse = try await request(.get, "/journal/folders")
         return response.folders
+    }
+
+    /// Прошлый ответ `GET /journal/folders` из кэша — показать папки до сети.
+    func cachedJournalFolders() -> [ApiJournalFolder]? {
+        cached(JournalFoldersResponse.self, "/journal/folders")?.folders
     }
 
     func createJournalFolder(name: String, parentId: Int? = nil) async throws -> ApiJournalFolder {

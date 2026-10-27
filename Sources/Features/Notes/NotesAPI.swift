@@ -39,6 +39,11 @@ extension APIClient {
         return response.notes
     }
 
+    /// Прошлый ответ `GET /notes` из кэша — показать список до сети.
+    func cachedNotesList() -> [NoteListItem]? {
+        cached(NoteListResponse.self, "/notes")?.notes
+    }
+
     /// `DELETE /notes/:id` — сервер отвечает 204 с пустым телом
     /// (`server/src/routes/notes.ts`), поэтому `requestVoid`, а не
     /// декодирование в `APIOkResponse` (пустое тело уронило бы декодер).

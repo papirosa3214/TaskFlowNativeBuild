@@ -69,10 +69,26 @@ public final class APIClient: Sendable {
             try Self.throwIfError(status: http.statusCode, data: data, request: request)
         }
         do {
-            return try decoder.decode(Response.self, from: data)
+            let response = try decoder.decode(Response.self, from: data)
+            if method == .get, (200..<300).contains(http.statusCode) {
+                ResponseCache.shared.store(data, for: ResponseCache.key(path: path, query: query))
+            }
+            return response
         } catch {
             throw APIError.decoding(error)
         }
+    }
+
+    /// Прошлый ответ того же GET-запроса из `ResponseCache` — чтобы экран
+    /// показал данные сразу, не дожидаясь сети. `nil`, если ответа ещё не
+    /// было или после него была запись.
+    public func cached<Response: Decodable>(
+        _ type: Response.Type = Response.self,
+        _ path: String,
+        query: [URLQueryItem] = []
+    ) -> Response? {
+        guard let data = ResponseCache.shared.data(for: ResponseCache.key(path: path, query: query)) else { return nil }
+        return try? decoder.decode(type, from: data)
     }
 
     /// Вариант без ожидаемого тела ответа (сервер отвечает пустым телом) —
@@ -240,7 +256,10 @@ public final class APIClient: Sendable {
             let (data, response) = try await session.data(for: request)
             AppDiagnostics.shared.increment(.bytes, by: data.count)
             // Любая запись могла поменять роль (модель, включение, инструкцию) — кэш ролей сбрасываем.
-            if (request.httpMethod ?? "GET") != "GET" { await RolesCache.shared.invalidate() }
+            if (request.httpMethod ?? "GET") != "GET" {
+                await RolesCache.shared.invalidate()
+                ResponseCache.shared.removeAll()
+            }
             guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
             // Диагностика: статус, X-Request-ID (если сервер его выставил —
             // по нему лог с iPhone сопоставляется с серверным), длительность.
@@ -287,6 +306,7 @@ public final class APIClient: Sendable {
         switch status {
         case 401:
             KeychainService.shared.token = nil
+            ResponseCache.shared.removeAll()
             NotificationCenter.default.post(name: .taskFlowUnauthorized, object: nil)
             throw APIError.unauthorized(message: raw)
         case 403:
