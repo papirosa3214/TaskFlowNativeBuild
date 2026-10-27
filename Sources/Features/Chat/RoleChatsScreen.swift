@@ -1622,6 +1622,13 @@ struct RoleChatRoomScreen: View {
             case .roleChatLiveDelta(let delta) where delta.chatID == chatID:
                 roomEventRevision += 1
                 applyLiveDelta(delta)
+            case .roleChatLiveInterrupt(let event) where event.chatID == chatID:
+                // Ход ждёт ответа владельца: в живом ходе — «Ждёт вашего
+                // ответа», кнопки — карточка вопроса из его сообщения.
+                guard var state = liveDeltas[event.userID], state.apply(event) else { return }
+                roomEventRevision += 1
+                liveDeltas[event.userID] = state
+                showLiveTurn(state.liveTurn, userID: event.userID)
             default:
                 break
             }

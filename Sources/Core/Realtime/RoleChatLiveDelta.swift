@@ -167,6 +167,45 @@ public struct RoleChatLiveDeltaItem: Decodable, Sendable, Equatable {
     }
 }
 
+/// Пауза хода роли на решение владельца (27.10.2026, аналог interrupt из
+/// AG-UI). Роль задала вопрос `taskflow_ask_user_question` и ждёт: сервер
+/// шлёт `chats:live:interrupt`, после ответа (или когда ждать перестали) —
+/// `chats:live:resume`. Сам вопрос с кнопками приходит сообщением с полем
+/// `question` и рисуется карточкой вопроса; ответ продолжает тот же ход.
+public struct RoleChatLiveInterrupt: Decodable, Sendable, Equatable {
+    public enum Kind: Sendable, Equatable { case interrupt, resume }
+    static let awaitingPhrase = "Ждёт вашего ответа"
+
+    let kind: Kind
+    let chatID: String
+    let userID: String
+    let questionID: String
+    /// Сообщение с вопросом (только у паузы).
+    let messageID: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case chatID = "chat_id"
+        case userID = "user_id"
+        case questionID = "question_id"
+        case messageID = "message_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .type) {
+        case "chats:live:interrupt": kind = .interrupt
+        case "chats:live:resume": kind = .resume
+        case let type:
+            throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "не пауза хода: \(type)")
+        }
+        chatID = try c.decode(String.self, forKey: .chatID)
+        userID = try c.decode(String.self, forKey: .userID)
+        questionID = try c.decode(String.self, forKey: .questionID)
+        messageID = try c.decodeIfPresent(String.self, forKey: .messageID)
+    }
+}
+
 /// Идущий ход роли, собранный из дельт. Его же отдаёт снимок
 /// `GET /chats/:id/live` (с `turn_id` и `seq`) — с него клиент продолжает
 /// после переподключения.
@@ -196,6 +235,8 @@ public struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
     /// Роль думает: последняя фраза; "" — думает, фразы нет; nil — не думает.
     private(set) var thinking: String?
     private(set) var isEnded = false
+    /// Ход стоит на паузе на этом вопросе владельцу (`chats:live:interrupt`).
+    private(set) var awaitingQuestionID: String?
 
     private enum CodingKeys: String, CodingKey {
         case name, seq, items, thinking
@@ -246,6 +287,23 @@ public struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
             thinking = nil
             return .ended(messageID: messageID)
         }
+    }
+
+    /// Пауза хода на вопрос и её снятие. Событие идёт вне счёта `seq`:
+    /// оно не меняет состав хода, только то, что роль сейчас делает.
+    /// false — событие не к этому ходу.
+    mutating func apply(_ event: RoleChatLiveInterrupt) -> Bool {
+        guard !isEnded, event.chatID == chatID, event.userID == userID else { return false }
+        switch event.kind {
+        case .interrupt:
+            awaitingQuestionID = event.questionID
+            thinking = RoleChatLiveInterrupt.awaitingPhrase
+        case .resume:
+            guard awaitingQuestionID == event.questionID else { return false }
+            awaitingQuestionID = nil
+            thinking = ""
+        }
+        return true
     }
 
     private func check(turnID: String, seq: Int) -> Outcome? {
