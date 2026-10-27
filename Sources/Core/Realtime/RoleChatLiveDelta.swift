@@ -316,3 +316,22 @@ public indirect enum RoleChatLiveJSON: Codable, Sendable, Equatable {
         }
     }
 }
+
+/// Строка «печатает…/работает с …» над лентой (27.10.2026): выводится из
+/// хода дельтами, а не из отдельного события `chats:typing` — один поток,
+/// как TOOL_CALL_START/END в AG-UI.
+enum RoleChatActivity: Equatable {
+    case typing
+    case tool(String)
+}
+
+extension RoleChatLiveTurnState {
+    /// nil — ход закончен.
+    var activity: RoleChatActivity? {
+        guard !isEnded else { return nil }
+        if let last = items.last, last.kind == .step, (last.status ?? "running") == "running", let tool = last.tool {
+            return .tool(tool)
+        }
+        return .typing
+    }
+}

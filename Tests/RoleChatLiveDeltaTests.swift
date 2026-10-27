@@ -18,6 +18,22 @@ final class RoleChatLiveDeltaTests: XCTestCase {
         return state
     }
 
+    /// Строка «печатает…/работает с …» выводится из хода (27.10.2026).
+    @objc func testActivityTypingUntilStepThenToolThenTypingAgain() {
+        var state = started()
+        XCTAssertEqual(state.activity, .typing)
+        _ = state.apply(event(#"{"type":"chats:live:patch","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":1,"ops":[{"op":"item_add","item":{"id":"s1","kind":"step","tool":"bash","status":"running"}}]}"#))
+        XCTAssertEqual(state.activity, .tool("bash"))
+        _ = state.apply(event(#"{"type":"chats:live:patch","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":2,"ops":[{"op":"item_update","item_id":"s1","fields":{"status":"done"}}]}"#))
+        XCTAssertEqual(state.activity, .typing)
+    }
+
+    @objc func testActivityGoneAfterEnd() {
+        var state = started()
+        _ = state.apply(event(#"{"type":"chats:live:end","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":1,"message_id":"m1"}"#))
+        XCTAssertNil(state.activity)
+    }
+
     @objc func testStartCarriesPreallocatedMessageID() {
         let state = started()
         XCTAssertEqual(state.turnID, "t1")

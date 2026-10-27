@@ -1785,7 +1785,7 @@ struct RoleChatRoomScreen: View {
                 }
                 if !visibleTypists.isEmpty {
                     if chat.kind != "group", let onlyUserID = visibleTypists.keys.first,
-                       let tool = typistTools[onlyUserID] {
+                       let tool = typingTool(onlyUserID) {
                         RoleStepLine(name: visibleTypists[onlyUserID] ?? "Роль", tool: tool)
                             .id("typing-line")
                             .transition(.opacity)
@@ -2020,10 +2020,12 @@ struct RoleChatRoomScreen: View {
                         restoredTurnIDs.remove(turn.playbackID)
                         typists[author] = nil
                         typistTools[author] = nil
+                        liveDeltas[author] = nil
                     }
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
                     typistTools[author] = nil
+                    liveDeltas[author] = nil
                 }
             }
             if mine, let index = pendingOutgoing.firstIndex(where: { !$0.failed && $0.text == message.text }) {
@@ -2101,9 +2103,21 @@ struct RoleChatRoomScreen: View {
 
     /// «Печатает» — пока у роли нет ни текста, ни шагов; дальше вместо
     /// точек растёт её живой пузырь.
+    /// Роль, приславшая дельты хода, берёт строку из них; `chats:typing` —
+    /// только для старого сервера (27.10.2026).
     private var visibleTypists: [String: String] {
         let live = Set(visibleLiveTurns.map(\.userID))
-        return typists.filter { !live.contains($0.key) }
+        var result = typists.filter { !deltaUsers.contains($0.key) }
+        for (userID, state) in liveDeltas where state.activity != nil {
+            result[userID] = state.name.isEmpty ? "Участник" : state.name
+        }
+        return result.filter { !live.contains($0.key) }
+    }
+
+    private func typingTool(_ userID: String) -> String? {
+        guard deltaUsers.contains(userID) else { return typistTools[userID] }
+        if case .tool(let tool)? = liveDeltas[userID]?.activity { return tool }
+        return nil
     }
 
     private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
