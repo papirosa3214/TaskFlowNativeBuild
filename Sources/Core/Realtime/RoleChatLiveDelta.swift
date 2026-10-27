@@ -7,7 +7,7 @@ import Foundation
 /// изменениями, `end` после того, как ответ уже сохранён. `seq` растёт
 /// строго на 1: пропуск — значит что-то потеряли, нужен снимок
 /// `GET /chats/:id/live`.
-enum RoleChatLiveDelta: Decodable, Sendable, Equatable {
+public enum RoleChatLiveDelta: Decodable, Sendable, Equatable {
     case start(RoleChatLiveTurnState)
     case patch(chatID: String, userID: String, turnID: String, seq: Int, ops: [RoleChatLiveDeltaOp])
     case end(chatID: String, userID: String, turnID: String, seq: Int, messageID: String?)
@@ -20,7 +20,7 @@ enum RoleChatLiveDelta: Decodable, Sendable, Equatable {
         case messageID = "message_id"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
         if type == "chats:live:start" {
@@ -59,7 +59,7 @@ enum RoleChatLiveDelta: Decodable, Sendable, Equatable {
     }
 }
 
-enum RoleChatLiveDeltaOp: Sendable, Equatable {
+public enum RoleChatLiveDeltaOp: Sendable, Equatable {
     case itemAdd(RoleChatLiveDeltaItem)
     case textAppend(itemID: String, text: String)
     case textReplace(itemID: String, text: String)
@@ -93,8 +93,8 @@ private struct RoleChatLiveDeltaOpSlot: Decodable {
 
 /// Элемент хода в дельтах: у каждого есть id (у текстовых кусков он
 /// появился вместе с дельтами — в полном снимке его не было).
-struct RoleChatLiveDeltaItem: Decodable, Sendable, Equatable {
-    enum Kind: String, Decodable, Sendable { case text, step, thinking }
+public struct RoleChatLiveDeltaItem: Decodable, Sendable, Equatable {
+    public enum Kind: String, Decodable, Sendable { case text, step, thinking }
 
     let id: String
     let kind: Kind
@@ -108,7 +108,14 @@ struct RoleChatLiveDeltaItem: Decodable, Sendable, Equatable {
     var endedAt: String?
     /// Блоки разметки, как их разложил сервер; приходят отдельной операцией
     /// только когда меняется их состав.
-    var blocks: RoleChatLiveJSON?
+    var blocks: RoleChatLiveJSON? {
+        didSet { blocksText = text }
+    }
+    /// Текст, при котором пришли блоки: дописанная проза их не обновляет.
+    private var blocksText: String?
+    /// Блоки, если они соответствуют нынешнему тексту; иначе nil — экран
+    /// разбирает текст сам, как для старого сервера.
+    var currentBlocks: RoleChatLiveJSON? { blocksText == text ? blocks : nil }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, text, tool, detail, status, args, output, blocks
@@ -116,7 +123,7 @@ struct RoleChatLiveDeltaItem: Decodable, Sendable, Equatable {
         case endedAt = "ended_at"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         let rawKind = try c.decodeIfPresent(String.self, forKey: .kind) ?? "step"
@@ -130,6 +137,7 @@ struct RoleChatLiveDeltaItem: Decodable, Sendable, Equatable {
         startedAt = try c.decodeIfPresent(String.self, forKey: .startedAt)
         endedAt = try c.decodeIfPresent(String.self, forKey: .endedAt)
         blocks = try c.decodeIfPresent(RoleChatLiveJSON.self, forKey: .blocks)
+        if blocks != nil { blocksText = text }
     }
 
     mutating func merge(_ fields: [String: RoleChatLiveJSON]) {
@@ -153,7 +161,7 @@ struct RoleChatLiveDeltaItem: Decodable, Sendable, Equatable {
 /// Идущий ход роли, собранный из дельт. Его же отдаёт снимок
 /// `GET /chats/:id/live` (с `turn_id` и `seq`) — с него клиент продолжает
 /// после переподключения.
-struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
+public struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
     enum Outcome: Equatable {
         case applied
         /// Чужой ход или уже применённый номер — состояние не тронуто.
@@ -188,7 +196,7 @@ struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
         case triggerMessageID = "trigger_message_id"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         chatID = try c.decode(String.self, forKey: .chatID)
         userID = try c.decode(String.self, forKey: .userID)
@@ -260,7 +268,7 @@ struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
 
 /// Произвольный JSON из дельт (поля `item_update`, блоки разметки) —
 /// без зависимости от остального Core, чтобы обработчик проверялся сам.
-indirect enum RoleChatLiveJSON: Decodable, Sendable, Equatable {
+public indirect enum RoleChatLiveJSON: Codable, Sendable, Equatable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -268,7 +276,7 @@ indirect enum RoleChatLiveJSON: Decodable, Sendable, Equatable {
     case object([String: RoleChatLiveJSON])
     case null
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
         if c.decodeNil() { self = .null }
         else if let value = try? c.decode(Bool.self) { self = .bool(value) }
@@ -281,5 +289,17 @@ indirect enum RoleChatLiveJSON: Decodable, Sendable, Equatable {
     var string: String? {
         if case .string(let value) = self { return value }
         return nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try c.encode(value)
+        case .number(let value): try c.encode(value)
+        case .bool(let value): try c.encode(value)
+        case .array(let value): try c.encode(value)
+        case .object(let value): try c.encode(value)
+        case .null: try c.encodeNil()
+        }
     }
 }

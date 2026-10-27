@@ -841,6 +841,11 @@ struct RoleChatRoomScreen: View {
     @State private var liveTurns: [String: RoleChatLiveTurn] = [:]
     @State private var restoredTurnIDs: Set<String> = []
     @State private var endedTurnIDs: Set<String> = []
+    /// Ход дельтами (27.10.2026): состояние по роли и роли, у которых сервер
+    /// уже шлёт дельты, — их старый полный снимок `chats:live` пропускаем.
+    @State private var liveDeltas: [String: RoleChatLiveTurnState] = [:]
+    @State private var deltaUsers: Set<String> = []
+    @State private var liveSnapshotLoading = false
     /// Final messages stay in the paced queue until their text/actions are shown.
     @State private var completingTurns: [String: RoleChatLiveTurn] = [:]
     /// Строка ленты для каждого сообщения. Своя у каждого сообщения; у
@@ -1605,26 +1610,17 @@ struct RoleChatRoomScreen: View {
                     typistTools[userID] = nil
                 }
             case .roleChatLive(let id, let userID, let turn, let messageID) where id == chatID:
+                // Роль уже идёт дельтами — полный снимок того же хода лишний.
+                guard !deltaUsers.contains(userID) else { return }
                 roomEventRevision += 1
                 if let turn {
-                    guard !endedTurnIDs.contains(turn.playbackID) else { return }
-                    if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
-                    liveTurns[userID] = turn
-                } else if let messageID, let message = messages.first(where: { $0.id == messageID }) {
-                    // REST may have loaded the final message before chat:new.
-                    // Use the same completion path as the socket delivery.
-                    insertIncoming(message)
+                    showLiveTurn(turn, userID: userID)
                 } else {
-                    typists[userID] = nil
-                    typistTools[userID] = nil
-                    markLiveTurnEnded(userID)
-                    // Ответа в ленте ещё нет (ход без ответа, потерянный
-                    // chat:new или старый сервер): сначала дочитываем
-                    // ленту и только потом убираем живой пузырь — без
-                    // мгновения пустоты между ними.
-                    let finishedStart: String? = liveTurns[userID]?.startedAt
-                    Task { await finishLiveTurn(userID: userID, messageID: messageID, startedAt: finishedStart) }
+                    endLiveTurn(userID: userID, messageID: messageID)
                 }
+            case .roleChatLiveDelta(let delta) where delta.chatID == chatID:
+                roomEventRevision += 1
+                applyLiveDelta(delta)
             default:
                 break
             }
@@ -1651,6 +1647,59 @@ struct RoleChatRoomScreen: View {
         realtime.connect()
         // Чат открыт посреди ответа роли — подтягиваем, что уже сделано.
         await loadLiveTurns()
+    }
+
+    private func showLiveTurn(_ turn: RoleChatLiveTurn, userID: String) {
+        guard !endedTurnIDs.contains(turn.playbackID) else { return }
+        if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
+        liveTurns[userID] = turn
+    }
+
+    private func endLiveTurn(userID: String, messageID: String?) {
+        if let messageID, let message = messages.first(where: { $0.id == messageID }) {
+            // REST may have loaded the final message before chat:new.
+            // Use the same completion path as the socket delivery.
+            insertIncoming(message)
+            return
+        }
+        typists[userID] = nil
+        typistTools[userID] = nil
+        markLiveTurnEnded(userID)
+        // Ответа в ленте ещё нет (ход без ответа, потерянный
+        // chat:new или старый сервер): сначала дочитываем
+        // ленту и только потом убираем живой пузырь — без
+        // мгновения пустоты между ними.
+        let finishedStart: String? = liveTurns[userID]?.startedAt
+        Task { await finishLiveTurn(userID: userID, messageID: messageID, startedAt: finishedStart) }
+    }
+
+    /// Ход дельтами: start заводит состояние, patch дописывает, end
+    /// заканчивает ход тем же путём, что и старый снимок. Пропуск номера или
+    /// незнакомый ход — перечитываем снимок.
+    private func applyLiveDelta(_ delta: RoleChatLiveDelta) {
+        let userID = delta.userID
+        deltaUsers.insert(userID)
+        if case .start(let state) = delta {
+            liveDeltas[userID] = state
+            showLiveTurn(state.liveTurn, userID: userID)
+            return
+        }
+        guard var state = liveDeltas[userID] else {
+            Task { await loadLiveTurns() }
+            return
+        }
+        switch state.apply(delta) {
+        case .applied:
+            liveDeltas[userID] = state
+            showLiveTurn(state.liveTurn, userID: userID)
+        case .ended(let messageID):
+            liveDeltas[userID] = nil
+            endLiveTurn(userID: userID, messageID: messageID)
+        case .needsSnapshot:
+            Task { await loadLiveTurns() }
+        case .ignored:
+            break
+        }
     }
 
     private func finishLiveTurn(userID: String, messageID: String?, startedAt: String?) async {
@@ -2091,7 +2140,23 @@ struct RoleChatRoomScreen: View {
 
     private func loadLiveTurns() async {
         let revision = roomEventRevision
-        guard let turns = try? await api.roleChatLive(id: chat.id), revision == roomEventRevision else { return }
+        guard !liveSnapshotLoading else { return }
+        liveSnapshotLoading = true
+        defer { liveSnapshotLoading = false }
+        guard let snapshot = try? await api.roleChatLiveSnapshot(id: chat.id) else { return }
+        // Состояние дельт берём, даже если за время запроса пришли события:
+        // дельты идут каждые 150 мс, и снимок иначе не прижился бы никогда.
+        // Своё не трогаем, если оно того же хода и не старее снимка.
+        for state in snapshot.states {
+            deltaUsers.insert(state.userID)
+            if let current = liveDeltas[state.userID], current.turnID == state.turnID, current.seq >= state.seq { continue }
+            liveDeltas[state.userID] = state
+            let turn = state.liveTurn
+            restoredTurnIDs.insert(turn.playbackID)
+            showLiveTurn(turn, userID: state.userID)
+        }
+        guard revision == roomEventRevision else { return }
+        let turns = snapshot.turns
         liveTurns = Dictionary(turns.map { ($0.userID, $0) }, uniquingKeysWith: { _, last in last })
         restoredTurnIDs = Set(turns.map(\.playbackID))
         typists = Dictionary(turns.map { ($0.userID, $0.name) }, uniquingKeysWith: { _, last in last })

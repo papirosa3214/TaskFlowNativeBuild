@@ -41,6 +41,8 @@ public enum RealtimeEvent: Sendable {
     /// сообщение, которым лёг ответ (сервер шлёт его после `chat:new`, так
     /// что готовый пузырь к этому моменту уже в ленте).
     case roleChatLive(chatId: String, userId: String, turn: RoleChatLiveTurn?, messageID: String?)
+    /// Живой ход дельтами (`chats:live:start/patch/end`, 27.10.2026).
+    case roleChatLiveDelta(RoleChatLiveDelta)
     /// Команда сервера телефону (`device_op`) — ответ на неё ждёт сервер
     /// по `opId` (контракт ffaf800d-19ad-40e7-8616-9482019f432e).
     case deviceOp(DeviceOpRequest)
@@ -144,6 +146,11 @@ public enum RealtimeEvent: Sendable {
                 return .unknown(type: envelope.type, raw: raw)
             }
             return .roleChatLive(chatId: p.chat_id, userId: p.user_id, turn: p.turn, messageID: p.message_id)
+        case "chats:live:start", "chats:live:patch", "chats:live:end":
+            guard let delta = try? decoder.decode(RoleChatLiveDelta.self, from: data) else {
+                return .unknown(type: envelope.type, raw: raw)
+            }
+            return .roleChatLiveDelta(delta)
         case "device_op":
             guard let request = try? decoder.decode(DeviceOpRequest.self, from: data) else {
                 return .unknown(type: envelope.type, raw: raw)

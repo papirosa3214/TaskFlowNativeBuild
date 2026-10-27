@@ -6,6 +6,26 @@ private struct RoleChatMessagesEnvelope: Decodable { let messages: [RoleChatMess
 private struct RoleChatMessageEnvelope: Decodable { let message: RoleChatMessage }
 private struct RoleChatLiveEnvelope: Decodable { let turns: [RoleChatLiveTurn] }
 
+/// Снимок живых ходов: для отрисовки и, у сервера с дельтами, состояние, с
+/// которого продолжают `chats:live:patch` (turn_id, seq).
+struct RoleChatLiveSnapshot: Decodable {
+    let turns: [RoleChatLiveTurn]
+    let states: [RoleChatLiveTurnState]
+
+    private struct MaybeState: Decodable {
+        let state: RoleChatLiveTurnState?
+        init(from decoder: Decoder) throws { state = try? RoleChatLiveTurnState(from: decoder) }
+    }
+    private enum CodingKeys: String, CodingKey { case turns }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        turns = try c.decode([RoleChatLiveTurn].self, forKey: .turns)
+        // Старый сервер без turn_id — состояний нет, работаем по снимкам.
+        states = ((try? c.decode([MaybeState].self, forKey: .turns)) ?? []).compactMap(\.state)
+    }
+}
+
 private struct RoleChatChecklistEnvelope: Decodable { let checklist_state: [ChecklistItemState] }
 
 private struct CreateRoleChatBody: Encodable {
@@ -125,6 +145,10 @@ public extension APIClient {
     func roleChatLive(id: String) async throws -> [RoleChatLiveTurn] {
         let response: RoleChatLiveEnvelope = try await request(.get, "/chats/\(id)/live")
         return response.turns
+    }
+
+    internal func roleChatLiveSnapshot(id: String) async throws -> RoleChatLiveSnapshot {
+        try await request(.get, "/chats/\(id)/live")
     }
 
     /// Ответ владельца на уточнение роли (26.10.2026): сервер сохраняет

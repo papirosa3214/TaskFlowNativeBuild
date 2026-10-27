@@ -111,4 +111,16 @@ final class RoleChatLiveDeltaTests: XCTestCase {
         XCTAssertEqual(state.apply(event(#"{"type":"chats:live:patch","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":1,"ops":[{"op":"future_op","x":1},{"op":"item_add","item":{"id":"x1","kind":"text","text":"А"}}]}"#)), .applied)
         XCTAssertEqual(state.items.map(\.text), ["А"])
     }
+
+    /// Блоки разметки относятся к тексту, при котором пришли: дописанная
+    /// проза их не меняет, и экран не должен считать их блоками нового текста.
+    @objc func testBlocksRememberTheirText() {
+        var state = started()
+        _ = state.apply(event(#"{"type":"chats:live:patch","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":1,"ops":[{"op":"item_add","item":{"id":"x1","kind":"text","text":"Аб","blocks":[{"type":"doc","source":"Аб"}]}}]}"#))
+        XCTAssertEqual(state.items[0].currentBlocks, state.items[0].blocks)
+        _ = state.apply(event(#"{"type":"chats:live:patch","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":2,"ops":[{"op":"text_append","item_id":"x1","text":"в"}]}"#))
+        XCTAssertNil(state.items[0].currentBlocks)
+        _ = state.apply(event(#"{"type":"chats:live:patch","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":3,"ops":[{"op":"text_append","item_id":"x1","text":"\n|a|"},{"op":"blocks","item_id":"x1","blocks":[{"type":"doc","source":"Абв"},{"type":"table","source":"|a|"}]}]}"#))
+        XCTAssertNotNil(state.items[0].currentBlocks)
+    }
 }
