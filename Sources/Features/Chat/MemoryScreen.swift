@@ -220,6 +220,9 @@ struct MemoryScreen: View {
     // MARK: - Загрузка и действия
 
     private func load() async {
+        // Без поиска — прошлый список из кэша сразу, сеть его обновит.
+        if memories.isEmpty, search.trimmingCharacters(in: .whitespaces).isEmpty,
+           let cached = api.cachedMemories() { memories = cached }
         isLoading = true
         defer { isLoading = false }
         do { memories = try await api.memories(query: search.trimmingCharacters(in: .whitespaces)) }

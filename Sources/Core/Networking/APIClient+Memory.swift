@@ -16,6 +16,11 @@ public extension APIClient {
         return envelope.memories
     }
 
+    /// Прошлый ответ полного списка памяти из `ResponseCache` — показать до сети.
+    func cachedMemories() -> [ApiMemory]? {
+        cached(MemoriesEnvelope.self, "/memories")?.memories
+    }
+
     func memory(id: String) async throws -> (ApiMemory, [ApiMemoryChunk]) {
         let envelope: MemoryDetailEnvelope = try await request(.get, "/memories/\(id)")
         return (envelope.memory, envelope.chunks)
