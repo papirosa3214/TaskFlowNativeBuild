@@ -117,3 +117,26 @@ struct ChatWorkPlan: Decodable, Sendable, Equatable, Identifiable {
 }
 
 struct ChatWorkPlansResponse: Decodable { let plans: [ChatWorkPlan] }
+
+extension ChatWorkPlan {
+    /// План роли из события `chat:work_plan` ложится в список полосы без
+    /// повторного запроса (владелец 27.10.2026). Сброс плана (пустые пункты)
+    /// убирает строку роли; устаревшая ревизия список не меняет.
+    /// `nil` — событие не этого чата или не разобрано: тогда полоса стоит как была.
+    static func applyingEvent(_ payload: JSONValue, chatID: String, to plans: [ChatWorkPlan]) -> [ChatWorkPlan]? {
+        guard case .object(let fields) = payload, fields["chat_id"]?.stringValue == chatID,
+              let plan = fields["plan"], let data = try? JSONEncoder().encode(plan) else { return nil }
+        struct Reset: Decodable { let role_id: String; let items: [JSONValue] }
+        if let reset = try? JSONDecoder().decode(Reset.self, from: data), reset.items.isEmpty {
+            return plans.filter { $0.roleID != reset.role_id }
+        }
+        guard let incoming = try? JSONDecoder().decode(ChatWorkPlan.self, from: data) else { return nil }
+        var result = plans
+        if let index = result.firstIndex(where: { $0.roleID == incoming.roleID }) {
+            if result[index].revision <= incoming.revision { result[index] = incoming }
+        } else {
+            result.append(incoming)
+        }
+        return result
+    }
+}

@@ -827,6 +827,7 @@ struct RoleChatRoomScreen: View {
     @State private var roomEventRevision = 0
     /// Счётчик для строки рабочего плана роли (21.10.2026).
     @State private var workPlanRevision = 0
+    @State private var workPlanEvent: JSONValue?
     @State private var refreshRevision = 0
     @State private var messageEventRevisions: [String: Int] = [:]
     /// Кто сейчас готовит ответ: userId → имя. Наполняет только сервер
@@ -1206,7 +1207,7 @@ struct RoleChatRoomScreen: View {
             messageScroll
             discussionStatusBar
             // Рабочий план роли в этой сессии — над полем ввода (21.10.2026).
-            ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision)
+            ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent)
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
             }
@@ -1591,8 +1592,8 @@ struct RoleChatRoomScreen: View {
                     messages.removeAll { $0.id == id }
                     selectedMessageIDs.remove(id)
                 }
-            case .unknown(let type, _) where type == "chat:work_plan":
-                workPlanRevision += 1
+            case .unknown("chat:work_plan", let payload):
+                workPlanEvent = payload
             case .roleChatMessage(let id, let message) where id == chatID:
                 roomEventRevision += 1
                 workPlanRevision += 1

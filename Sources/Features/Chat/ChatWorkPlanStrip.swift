@@ -13,8 +13,11 @@ import SwiftUI
 struct ChatWorkPlanStrip: View {
     let chatID: String
     let members: [RoleChatMember]
-    /// Растёт, когда сервер прислал `chat:work_plan` или новое сообщение.
+    /// Растёт, когда сервер прислал новое сообщение.
     let revision: Int
+    /// Последнее событие `chat:work_plan`: план берётся прямо из него,
+    /// без повторного запроса (27.10.2026).
+    var event: JSONValue? = nil
 
     @State private var plans: [ChatWorkPlan]
 
@@ -22,16 +25,22 @@ struct ChatWorkPlanStrip: View {
     /// сразу, а не выезжает после загрузки и не сдвигает ленту (26.10.2026).
     @MainActor private static var lastPlans: [String: [ChatWorkPlan]] = [:]
 
-    init(chatID: String, members: [RoleChatMember], revision: Int) {
+    init(chatID: String, members: [RoleChatMember], revision: Int, event: JSONValue? = nil) {
         self.chatID = chatID
         self.members = members
         self.revision = revision
+        self.event = event
         _plans = State(initialValue: Self.lastPlans[chatID] ?? [])
     }
 
     var body: some View {
         ChatWorkPlanRows(plans: plans, members: members)
             .task(id: "\(chatID):\(revision)") { await load() }
+            .onChange(of: event) { _, event in
+                guard let event, let updated = ChatWorkPlan.applyingEvent(event, chatID: chatID, to: plans) else { return }
+                Self.lastPlans[chatID] = updated
+                if updated != plans { plans = updated }
+            }
     }
 
     private func load() async {
