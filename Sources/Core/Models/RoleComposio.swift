@@ -19,6 +19,8 @@ public struct ComposioToolkit: Decodable, Identifiable, Sendable {
     public let name: String
     /// Логотип сервиса от Composio.
     public let logo: URL?
+    /// Описание сервиса по-русски; nil — перевода нет.
+    public let description: String?
     public let connected: Bool
     public let noAuth: Bool
     public var id: String { slug }
@@ -43,6 +45,7 @@ public struct RoleIntegrationToolkit: Decodable, Identifiable, Sendable {
     /// Название от Composio; nil — каталог не ответил.
     public let name: String?
     public let logo: URL?
+    public let description: String?
     /// nil — состояние подключения неизвестно.
     public let connected: Bool?
     public var id: String { slug }

@@ -48,9 +48,9 @@ final class ComposioIntegrationsViewModel {
                      ComposioWorkspaceRole(id: "developer", title: "Разработчик", active: true),
                      ComposioWorkspaceRole(id: "reviewer", title: "Ревьюер", active: true)]
             policies = Dictionary(uniqueKeysWithValues: roles.map { ($0.id, ComposioAccessPolicy(enabled: false, toolkits: nil)) })
-            catalog = [ComposioToolkit(slug: "linear", name: "Linear", logo: nil, connected: true, noAuth: false),
-                       ComposioToolkit(slug: "github", name: "GitHub", logo: nil, connected: false, noAuth: false),
-                       ComposioToolkit(slug: "notion", name: "Notion", logo: nil, connected: false, noAuth: false)]
+            catalog = [ComposioToolkit(slug: "linear", name: "Linear", logo: nil, description: nil, connected: true, noAuth: false),
+                       ComposioToolkit(slug: "github", name: "GitHub", logo: nil, description: nil, connected: false, noAuth: false),
+                       ComposioToolkit(slug: "notion", name: "Notion", logo: nil, description: nil, connected: false, noAuth: false)]
             configured = true; available = true; loaded = true
             catalogCursor = nil; catalogTotalPages = nil
             return
@@ -222,7 +222,7 @@ struct ComposioIntegrationsScreen: View {
                                 ComposioServiceScreen(model: model, toolkit: toolkit)
                             } label: {
                                 TFListRow(icon: "link", iconStyle: .remote(toolkit.logo), title: toolkit.name,
-                                          subtitle: "\(toolkit.noAuth ? "Без авторизации" : toolkit.connected ? "Подключён" : "Не подключён") · \(model.selectedRoles(for: toolkit.slug).count) ролей",
+                                          subtitle: toolkit.description ?? "\(toolkit.noAuth ? "Без авторизации" : toolkit.connected ? "Подключён" : "Не подключён") · \(model.selectedRoles(for: toolkit.slug).count) ролей",
                                           trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
                             }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.service.\(toolkit.slug)")
                         }
@@ -283,6 +283,11 @@ private struct ComposioServiceScreen: View {
                         TFCard(padding: 0) {
                             TFListRow(icon: "link", iconStyle: .remote(toolkit.logo), title: toolkit.name,
                                       subtitle: toolkit.noAuth ? "Авторизация не требуется" : toolkit.connected ? "Общий аккаунт TaskFlow подключён" : "Подключите общий аккаунт TaskFlow")
+                        }
+                        if let description = toolkit.description {
+                            Text(description)
+                                .tfText(.action).foregroundStyle(Color.tfSub)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         if !toolkit.connected && !toolkit.noAuth {
                             TFButton("Подключить аккаунт", icon: "link", variant: .secondary, isEnabled: !model.loading && !model.saving) {

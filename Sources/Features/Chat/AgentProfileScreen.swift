@@ -274,7 +274,7 @@ struct AgentProfileScreen: View {
                 icon: "link",
                 iconStyle: .remote(toolkit.logo),
                 title: toolkit.name ?? toolkit.slug,
-                subtitle: toolkit.connected == true ? "Подключён" : toolkit.connected == false ? "Не подключён" : "Состояние неизвестно"
+                subtitle: toolkit.connected == false ? "Не подключён" : toolkit.description ?? (toolkit.connected == true ? "Подключён" : "Состояние неизвестно")
             )
             .accessibilityIdentifier("role.integration.\(toolkit.slug)")
         }
