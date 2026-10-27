@@ -9,7 +9,10 @@ private actor FixtureLinearAPI: LinearImportServing {
     let child = "00000000-0000-0000-0000-000000000002"
     func decode<T: Decodable>(_ type: T.Type, _ value: String) throws -> T { try JSONDecoder().decode(type, from: Data(value.utf8)) }
     func projects() async throws -> [ApiProject] { [] }
-    func linearIssues(cursor: String?) async throws -> LinearIssuePage {
+    func linearSourceProjects() async throws -> LinearSourceProjectList {
+        try decode(LinearSourceProjectList.self, #"{"workspace":{"id":"W","name":"Workspace"},"projects":[]}"#)
+    }
+    func linearIssues(cursor: String?, sourceProjectID: String?) async throws -> LinearIssuePage {
         try decode(LinearIssuePage.self, """
         {"workspace":{"id":"W","name":"Workspace"},"issues":[{"id":"\(root)","identifier":"TF-1","title":"Parent","description":null,"url":"https://linear.app/test/issue/TF-1","priority":0,"dueDate":null,"parent":null,"state":{"name":"Todo","type":"unstarted"}},{"id":"\(child)","identifier":"TF-2","title":"Child","description":"Body","url":"https://linear.app/test/issue/TF-2","priority":2,"dueDate":"2026-10-01","parent":{"id":"\(root)"},"state":{"name":"Done","type":"completed"}}],"cursor":null}
         """)

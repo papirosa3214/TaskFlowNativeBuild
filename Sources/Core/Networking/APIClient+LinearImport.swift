@@ -1,7 +1,8 @@
 import Foundation
 
 protocol LinearImportServing: Sendable {
-    func linearIssues(cursor: String?) async throws -> LinearIssuePage
+    func linearIssues(cursor: String?, sourceProjectID: String?) async throws -> LinearIssuePage
+    func linearSourceProjects() async throws -> LinearSourceProjectList
     func linearPreview(issueIDs: [String], projectID: String?) async throws -> LinearImportPreview
     func importLinear(previewID: String) async throws -> LinearImportResult
     func projects() async throws -> [ApiProject]
@@ -16,8 +17,11 @@ private struct LinearPreviewJob: Decodable {
 }
 
 extension APIClient: LinearImportServing {
-    func linearIssues(cursor: String?) async throws -> LinearIssuePage {
-        try await request(.get, "/integrations/linear/issues", query: cursor.map { [URLQueryItem(name: "cursor", value: $0)] } ?? [])
+    func linearIssues(cursor: String?, sourceProjectID: String?) async throws -> LinearIssuePage {
+        try await request(.get, "/integrations/linear/issues", query: LinearIssueQuery.items(cursor: cursor, projectID: sourceProjectID))
+    }
+    func linearSourceProjects() async throws -> LinearSourceProjectList {
+        try await request(.get, "/integrations/linear/projects")
     }
     func linearPreview(issueIDs: [String], projectID: String?) async throws -> LinearImportPreview {
         var body: [String: JSONValue] = ["issue_ids": .array(issueIDs.map(JSONValue.string)), "async": .bool(true)]

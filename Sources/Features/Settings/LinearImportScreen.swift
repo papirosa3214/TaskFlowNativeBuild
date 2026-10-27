@@ -8,6 +8,9 @@ final class LinearImportViewModel {
     var projects: [ApiProject] = []
     var selected = Set<String>()
     var projectID: String?
+    /// Проект Linear, откуда забираем; nil — все задачи «в работе».
+    var sourceProjects: [LinearSourceProject] = []
+    var sourceProjectID: String?
     var cursor: String?
     var search = ""
     var loading = false
@@ -23,21 +26,32 @@ final class LinearImportViewModel {
         return text.isEmpty ? issues : issues.filter { "\($0.identifier) \($0.title)".localizedCaseInsensitiveContains(text) }
     }
     var selectedProjectName: String { projects.first { $0.id == projectID }?.name ?? "Без проекта" }
+    var selectedSourceName: String { LinearSourceProject.title(of: sourceProjectID, in: sourceProjects) }
 
     func load(next: Bool = false) async {
         guard !loading else { return }
         loading = true; error = nil
         defer { loading = false }
         do {
-            let page = try await api.linearIssues(cursor: next ? cursor : nil)
+            let page = try await api.linearIssues(cursor: next ? cursor : nil, sourceProjectID: sourceProjectID)
             if next && workspace?.id != page.workspace.id { throw LinearImportClientError.workspaceChanged }
             if !next { issues = []; selected = []; preview = nil; result = nil }
             workspace = page.workspace
             var known = Set(issues.map(\.id))
             issues += page.issues.filter { known.insert($0.id).inserted }
             cursor = page.cursor
-            if !next { projects = try await api.projects() }
+            if !next {
+                projects = try await api.projects()
+                // Список проектов Linear необязателен: старый сервер его не
+                // отдаёт — импорт работает по-прежнему, без выбора.
+                sourceProjects = (try? await api.linearSourceProjects().projects) ?? sourceProjects
+            }
         } catch { self.error = error.localizedDescription }
+    }
+    func chooseSource(_ id: String?) async {
+        guard !loading, id != sourceProjectID else { return }
+        sourceProjectID = id
+        await load()
     }
     func toggle(_ id: String) {
         guard !loading else { return }
@@ -173,6 +187,15 @@ struct LinearImportScreen: View {
                     .buttonStyle(.plain)
             }
         } else {
+            Menu {
+                Button("Все задачи в работе") { Task { await model.chooseSource(nil) } }
+                ForEach(model.sourceProjects) { project in Button(project.name) { Task { await model.chooseSource(project.id) } } }
+            } label: {
+                TFCard(padding: 0) { TFListRow(icon: "tray.and.arrow.down", iconStyle: .plain, title: "Проект Linear", subtitle: model.selectedSourceName,
+                    trailing: AnyView(Image(systemName: "chevron.up.chevron.down").foregroundStyle(Color.tfDim))) }
+            }
+                .accessibilityIdentifier("linear.sourceProject")
+                .disabled(model.loading)
             Menu {
                 Button("Без проекта") { model.projectID = nil }
                 ForEach(model.projects) { project in Button(project.name) { model.projectID = project.id } }

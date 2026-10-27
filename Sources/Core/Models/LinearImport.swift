@@ -22,6 +22,32 @@ struct LinearIssuePage: Decodable, Sendable {
     let issues: [LinearSourceIssue]
     let cursor: String?
 }
+/// Проект Linear, из которого импорт забирает задачи (владелец 27.10.2026:
+/// «не могу выбрать, с какого проекта я забираю из Linear»).
+struct LinearSourceProject: Decodable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let state: String?
+
+    /// Подпись выбора; без проекта (или проект пропал) — прежний общий список.
+    static func title(of id: String?, in projects: [LinearSourceProject]) -> String {
+        projects.first { $0.id == id }?.name ?? "Все задачи в работе"
+    }
+}
+struct LinearSourceProjectList: Decodable, Sendable {
+    let workspace: LinearWorkspace
+    let projects: [LinearSourceProject]
+}
+/// Параметры `GET /integrations/linear/issues`: без проекта — все задачи
+/// «в работе», с проектом — незакрытые задачи только этого проекта.
+enum LinearIssueQuery {
+    static func items(cursor: String?, projectID: String?) -> [URLQueryItem] {
+        var items: [URLQueryItem] = []
+        if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
+        if let projectID { items.append(URLQueryItem(name: "project_id", value: projectID)) }
+        return items
+    }
+}
 struct LinearPreviewItem: Decodable, Identifiable, Sendable {
     let id: String
     let identifier: String
