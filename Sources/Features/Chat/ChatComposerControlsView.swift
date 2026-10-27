@@ -208,19 +208,10 @@ struct ChatSlashSuggestions: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(commands) { command in
                     Button { onSelect(command) } label: {
-                        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                            HStack {
-                                Text(command.invocation.trimmingCharacters(in: .whitespacesAndNewlines))
-                                Spacer()
-                                Text(command.kindTitle).foregroundStyle(Color.tfSub)
-                            }
-                            Text(command.description).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(2)
-                        }
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfText)
-                        .padding(TFSpacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                        ChatCommandCard(command: command)
+                            .padding(.horizontal, TFSpacing.md)
+                            .padding(.vertical, TFSpacing.sm)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -229,6 +220,70 @@ struct ChatSlashSuggestions: View {
         .frame(maxHeight: 220)
         .background(Color.tfBackground)
         .accessibilityIdentifier("chat.slash-suggestions")
+    }
+}
+
+/// Карточка навыка или инструмента (владелец 27.10.2026): значок, понятное
+/// название белым и что делает в двух словах. Без `/skill:` и английских
+/// имён — подробности на экране «Подробнее».
+struct ChatCommandCard: View {
+    let command: ChatSlashCommand
+
+    var body: some View {
+        HStack(spacing: TFSpacing.md) {
+            Image(systemName: command.cardIcon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color.tfText)
+                .frame(width: 34, height: 34)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(command.title)
+                    .tfText(.row)
+                    .foregroundStyle(Color.tfText)
+                    .lineLimit(1)
+                Text(command.cardSummary)
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfSub)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// «Подробнее»: полное описание и кнопка «Использовать».
+private struct ChatCommandDetailScreen: View {
+    let command: ChatSlashCommand
+    let onUse: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TFSpacing.lg) {
+                HStack(spacing: TFSpacing.md) {
+                    Image(systemName: command.cardIcon)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(Color.tfText)
+                        .frame(width: 52, height: 52)
+                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(command.title).tfText(.taskTitle).foregroundStyle(Color.tfText)
+                        Text(command.kind == "skill" ? "Навык" : "Инструмент")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+                Text(command.description)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfText)
+                    .textSelection(.enabled)
+                TFButton("Использовать", icon: "text.insert", variant: .secondary, action: onUse)
+            }
+            .padding(TFSpacing.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color.tfSheetBackground)
+        .tfNativeHeader("Подробнее", displayMode: .inline)
     }
 }
 
@@ -241,8 +296,11 @@ struct ChatCommandPicker: View {
     @Environment(\.dismiss) private var dismiss
 
     private var filtered: [ChatSlashCommand] {
-        commands.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || $0.invocation.localizedCaseInsensitiveContains(query) || $0.description.localizedCaseInsensitiveContains(query) }
+        commands.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || $0.cardSummary.localizedCaseInsensitiveContains(query) || $0.invocation.localizedCaseInsensitiveContains(query) || $0.description.localizedCaseInsensitiveContains(query) }
     }
+    private var skills: [ChatSlashCommand] { filtered.filter { $0.kind == "skill" } }
+    private var tools: [ChatSlashCommand] { filtered.filter { $0.kind != "skill" } }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -255,16 +313,9 @@ struct ChatCommandPicker: View {
                 } else if filtered.isEmpty {
                     ContentUnavailableView.search(text: query)
                 } else {
-                    List(filtered) { command in
-                        Button {
-                            onSelect(command)
-                            dismiss()
-                        } label: {
-                            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                                Text(command.invocation).tfText(.body)
-                                Text(command.description).tfText(.caption).foregroundStyle(Color.tfSub)
-                            }
-                        }
+                    List {
+                        if !skills.isEmpty { section("Навыки", skills) }
+                        if !tools.isEmpty { section("Инструменты", tools) }
                     }
                 }
             }
@@ -272,6 +323,21 @@ struct ChatCommandPicker: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Название команды")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+        }
+    }
+
+    private func section(_ title: String, _ items: [ChatSlashCommand]) -> some View {
+        Section(title) {
+            ForEach(items) { command in
+                NavigationLink {
+                    ChatCommandDetailScreen(command: command) {
+                        onSelect(command)
+                        dismiss()
+                    }
+                } label: {
+                    ChatCommandCard(command: command)
+                }
+            }
         }
     }
 }

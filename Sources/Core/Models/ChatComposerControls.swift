@@ -128,7 +128,18 @@ struct ChatSlashCommand: Decodable, Identifiable, Equatable {
     let kind: String
     let description: String
     let invocation: String
+    /// Карточка (сервер с 27.10.2026): что делает в двух словах и значок SF Symbol.
+    var summary: String? = nil
+    var icon: String? = nil
     var kindTitle: String { kind == "skill" ? "Навык" : "Инструмент / MCP" }
+
+    /// Подпись карточки; у старого сервера — первая фраза описания.
+    var cardSummary: String {
+        if let summary, !summary.isEmpty { return summary }
+        let first = description.components(separatedBy: CharacterSet(charactersIn: ".:;—")).first ?? description
+        return first.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    var cardIcon: String { icon ?? (kind == "skill" ? "sparkles" : "wrench.and.screwdriver") }
 
     static func suggestions(for draft: String, from commands: [Self]) -> [Self] {
         guard draft.hasPrefix("/"), !draft.dropFirst().contains(where: \.isWhitespace) else { return [] }
