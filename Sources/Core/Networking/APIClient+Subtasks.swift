@@ -7,6 +7,11 @@ public extension APIClient {
         try await request(.get, "/tasks/\(taskId)/subtasks")
     }
 
+    /// Прошлый ответ из `ResponseCache` — показать шаги до сети.
+    func cachedSubtasks(taskId: String) -> [ApiSubtask]? {
+        cached([ApiSubtask].self, "/tasks/\(taskId)/subtasks")
+    }
+
     /// `afterId` — вставить сразу после этой подзадачи вместо конца списка;
     /// сервер сдвигает позиции остальных транзакционно (spec §5.3).
     func createSubtask(taskId: String, title: String, afterId: String? = nil) async throws -> ApiSubtask {

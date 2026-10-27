@@ -36,6 +36,11 @@ public extension APIClient {
         return envelope.plans
     }
 
+    /// Прошлый ответ из `ResponseCache` — показать план до сети.
+    func cachedCollaborationPlans(taskId: String) -> [ApiCollaborationPlan]? {
+        cached(CollaborationPlansEnvelope.self, "/tasks/\(taskId)/collaboration-plans")?.plans
+    }
+
     /// `POST /api/tasks/:id/collaboration-plans/:planId/approve` — LOCK-249.
     /// Сервер сам проверяет владельца (403 иначе); клиент только показывает
     /// кнопку владельцу. Утверждение сразу материализует узлы плана как
