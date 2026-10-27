@@ -144,14 +144,6 @@ struct ChatVoiceComposer: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 20, height: 20)
-                            if modelChoice.selected != nil {
-                                Text(modelChoice.title)
-                                    .tfText(.caption)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .frame(maxWidth: 110, alignment: .leading)
-                                    .fixedSize(horizontal: true, vertical: false)
-                            }
                         }
                         .frame(minWidth: 40, minHeight: 40)
                         .contentShape(Rectangle())
