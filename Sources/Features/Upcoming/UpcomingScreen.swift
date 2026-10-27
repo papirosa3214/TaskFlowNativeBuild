@@ -11,8 +11,10 @@ private struct IdentifiableDate: Identifiable, Equatable {
 public struct UpcomingScreen: View {
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
+    @Environment(RealtimeClient.self) private var realtime
 
     @State private var routinePlanner = RoutinePlanner()
+    @State private var loadedRoutineRevision: Int?
     @State private var selectedOccurrence: RoutineOccurrence?
     @State private var agentsProvider = UpcomingAgentsProvider()
 
@@ -188,11 +190,15 @@ public struct UpcomingScreen: View {
         .sheet(item: $selectedOccurrence, onDismiss: { Task { await loadRoutineCalendar() } }) { occurrence in
             NavigationStack { RoutineOccurrenceDestination(occurrence: occurrence) }
         }
-        .task(id: routineRangeAnchor) {
-            while !Task.isCancelled {
-                await loadRoutineCalendar()
-                try? await Task.sleep(for: .seconds(30))
+        // Календарь рутин — по событиям сокета, а не опросом раз в 30 с.
+        // Пачку событий схлопывает пауза: следующее событие отменяет её.
+        .task(id: "\(routineRangeAnchor):\(routineRevision)") {
+            if loadedRoutineRevision != nil, routineRevision != loadedRoutineRevision {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
             }
+            loadedRoutineRevision = routineRevision
+            await loadRoutineCalendar()
         }
         .task { await agentsProvider.load() }
         .onAppear {
@@ -519,6 +525,10 @@ public struct UpcomingScreen: View {
 
     private var routineOccurrences: [RoutineOccurrence] {
         RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: view == .today && todayLayout == .list ? nil : effectivePlannerVisibleProjectIds)
+    }
+
+    private var routineRevision: Int {
+        realtime.staleRevision + realtime.taskRevisions.values.reduce(0, +)
     }
 
     private func loadRoutineCalendar() async {
