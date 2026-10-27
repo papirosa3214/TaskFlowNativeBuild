@@ -20,7 +20,6 @@
 | Сегодня          | `/today`                 | `TodayScreen`         | —                               |
 | Обзор            | `/overview`              | `OverviewScreen`      | —                               |
 | Планирование     | `/upcoming`              | `UpcomingScreen`      | —                               |
-| Лента дня        | `/timeline`              | `TimelineScreen`      | —                               |
 | Чат              | `/chat`                  | `ChatScreen`          | —                               |
 | Карточка задачи  | `/task/:id`              | `TaskDetailScreen`    | `taskID: String`                |
 | Создание задачи  | `/task/new`              | `TaskFormScreen`      | `taskID: String?` (nil — новая), `presetDueToday: Bool = false`, `startDictation: Bool = false` |
@@ -30,11 +29,9 @@
 | Задачи проекта   | `/projects/:id`          | `ProjectTasksScreen`  | `projectID: String`             |
 | Метки            | `/labels`                | `LabelsScreen`        | —                               |
 | Задачи метки     | `/labels/:id`            | `LabelTasksScreen`    | `labelID: String`               |
-| Поиск            | `/search`                | `SearchScreen`        | —                               |
 | Активность       | `/activity`              | `ActivityScreen`      | —                               |
 | Уведомления      | `/notifications`         | `NotificationsScreen` | —                               |
 | Агенты           | `/agents`                | `AgentsScreen`        | —                               |
-| Работа агента    | `/agent-work`            | `AgentWorkScreen`     | —                               |
 | Настройки        | `/settings`              | `SettingsScreen`      | —                               |
 | Интеграции       | `/settings/integrations` | `IntegrationsScreen`  | —                               |
 | Шаблоны          | `/settings/templates`    | `TemplatesScreen`     | —                               |

@@ -45,8 +45,6 @@ private func routeContent(_ route: AppRoute) -> some View {
         OverviewScreen()
     case .upcoming:
         UpcomingScreen()
-    case .timeline:
-        TimelineScreen()
     case .chat:
         // Вкладка «Чат» ведёт в СПИСОК чатов, а не сразу в открытый чат:
         // сначала меню чатов, потом конкретный чат (владелец 21.09.2026).
@@ -83,8 +81,6 @@ private func routeContent(_ route: AppRoute) -> some View {
         LabelsScreen()
     case .labelTasks(let labelID):
         LabelTasksScreen(labelID: labelID)
-    case .search:
-        SearchScreen()
     case .activity:
         AIUsageScreen()
     case .routines:
@@ -97,8 +93,6 @@ private func routeContent(_ route: AppRoute) -> some View {
         RoleRunJobsScreen()
     case .memory:
         MemoryScreen()
-    case .agentWork(let focus):
-        AgentWorkScreen(focus: focus)
     case .settings:
         SettingsScreen()
     case .integrations:
@@ -139,7 +133,5 @@ private func routeContent(_ route: AppRoute) -> some View {
         RoleChatsScreen(projectsOnly: true)
     case .projectGroupRoom(let id):
         RoleChatRoomLoader(chatID: id, opensGroupRoom: true)
-    case .secretaryChat:
-        SecretaryChatScreen()
     }
 }
