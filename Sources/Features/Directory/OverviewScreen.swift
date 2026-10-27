@@ -65,9 +65,9 @@ struct OverviewScreen: View {
     // ними линия. Справа живое значение; где значения нет — стрелка.
     private var navigationSection: some View {
         VStack(spacing: 0) {
-            NavigationLink {
-                RoleLoadScreen()
-            } label: {
+            // Через маршрут, как соседние строки: непустой путь стека
+            // скрывает таб-бар (RootShellView).
+            NavigationLink(value: AppRoute.roleLoad) {
                 navigationRowBody(title: "Загрузка ролей", value: busyRoles.map { $0 > 0 ? "работает: \($0)" : "свободны" })
             }
             .buttonStyle(.plain)
