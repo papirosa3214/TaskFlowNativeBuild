@@ -5,7 +5,7 @@ import XCTest
 #endif
 
 /// Приём живого хода роли дельтами (`chats:live:start/patch/end`,
-/// карточка TaskFlow 0d891d9e): события применяются по порядку `seq`,
+/// карточка TaskFlow 7b73b9c9, Linear MAK-137): события применяются по порядку `seq`,
 /// пропуск номера просит снимок, конец хода отдаёт номер готового сообщения.
 final class RoleChatLiveDeltaTests: XCTestCase {
     private func event(_ json: String) -> RoleChatLiveDelta {
