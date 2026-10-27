@@ -43,6 +43,8 @@ public enum RealtimeEvent: Sendable {
     case roleChatLive(chatId: String, userId: String, turn: RoleChatLiveTurn?, messageID: String?)
     /// Живой ход дельтами (`chats:live:start/patch/end`, 27.10.2026).
     case roleChatLiveDelta(RoleChatLiveDelta)
+    /// Пауза хода на вопрос владельцу (`chats:live:interrupt/resume`).
+    case roleChatLiveInterrupt(RoleChatLiveInterrupt)
     /// Ход шага карточки дельтами (`tasks:live:start/patch/end`). Клиент
     /// сокета собирает из них `.taskLive`, экраны его не видят.
     case taskLiveDelta(RoleChatLiveDelta)
@@ -154,6 +156,11 @@ public enum RealtimeEvent: Sendable {
                 return .unknown(type: envelope.type, raw: raw)
             }
             return .roleChatLiveDelta(delta)
+        case "chats:live:interrupt", "chats:live:resume":
+            guard let event = try? decoder.decode(RoleChatLiveInterrupt.self, from: data) else {
+                return .unknown(type: envelope.type, raw: raw)
+            }
+            return .roleChatLiveInterrupt(event)
         case "tasks:live:start", "tasks:live:patch", "tasks:live:end":
             guard let delta = try? decoder.decode(RoleChatLiveDelta.self, from: data) else {
                 return .unknown(type: envelope.type, raw: raw)

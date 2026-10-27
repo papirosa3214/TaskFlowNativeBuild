@@ -123,4 +123,27 @@ final class RoleChatLiveDeltaTests: XCTestCase {
         _ = state.apply(event(#"{"type":"chats:live:patch","chat_id":"c1","user_id":"role_builder","turn_id":"t1","seq":3,"ops":[{"op":"text_append","item_id":"x1","text":"\n|a|"},{"op":"blocks","item_id":"x1","blocks":[{"type":"doc","source":"Абв"},{"type":"table","source":"|a|"}]}]}"#))
         XCTAssertNotNil(state.items[0].currentBlocks)
     }
+
+    /// Пауза хода на вопрос владельцу (`chats:live:interrupt/resume`, аналог
+    /// interrupt из AG-UI): пока ход ждёт ответа, роль «ждёт вашего ответа».
+    @objc func testInterruptPausesAndResumeContinues() {
+        var state = started()
+        let pause = try! JSONDecoder().decode(RoleChatLiveInterrupt.self, from: Data(#"{"type":"chats:live:interrupt","chat_id":"c1","user_id":"role_builder","question_id":"q1","message_id":"mq","questions":[{"question":"А или Б?","options":[{"label":"А"},{"label":"Б"}]}]}"#.utf8))
+        XCTAssertEqual(pause.questionID, "q1")
+        XCTAssertEqual(pause.messageID, "mq")
+        XCTAssertTrue(state.apply(pause))
+        XCTAssertEqual(state.awaitingQuestionID, "q1")
+        XCTAssertEqual(state.thinking, RoleChatLiveInterrupt.awaitingPhrase)
+        let resume = try! JSONDecoder().decode(RoleChatLiveInterrupt.self, from: Data(#"{"type":"chats:live:resume","chat_id":"c1","user_id":"role_builder","question_id":"q1","outcome":"answered"}"#.utf8))
+        XCTAssertTrue(state.apply(resume))
+        XCTAssertNil(state.awaitingQuestionID)
+        XCTAssertEqual(state.thinking, "")
+    }
+
+    @objc func testResumeOfOtherQuestionIgnored() {
+        var state = started()
+        let resume = try! JSONDecoder().decode(RoleChatLiveInterrupt.self, from: Data(#"{"type":"chats:live:resume","chat_id":"c1","user_id":"role_builder","question_id":"qX","outcome":"expired"}"#.utf8))
+        XCTAssertFalse(state.apply(resume))
+        XCTAssertNil(state.thinking)
+    }
 }
