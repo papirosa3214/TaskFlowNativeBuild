@@ -2504,6 +2504,12 @@ struct RoleChatRoomScreen: View {
                 ChatInterruptionBadge(interruption: interruption, isPartial: message.partial == true)
             }
             if let usage = message.steps?.usage { RoleTurnUsageRow(usage: usage) }
+            if let changes = message.steps?.codeChanges {
+                TurnCodeChangesRow(changes: changes) { text in
+                    draft = draft.isEmpty ? text : draft + "\n\n" + text
+                    composerFocused = true
+                }
+            }
             messageActionRow(message)
         }
     }

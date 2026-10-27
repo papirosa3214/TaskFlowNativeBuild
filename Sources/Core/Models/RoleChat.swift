@@ -354,10 +354,13 @@ public struct RoleChatSteps: Decodable, Sendable, Equatable {
     public let items: [RoleChatLiveItem]
     /// Расход хода: токены, кэш, цена (сервер с 19.10.2026; старые — nil).
     public let usage: RoleTurnUsage?
+    /// Файлы, которые роль поменяла за ход (сервер с 27.10.2026; старые — nil).
+    let codeChanges: TurnCodeChanges?
 
     enum CodingKeys: String, CodingKey {
         case items, usage
         case durationMs = "duration_ms"
+        case codeChanges = "code_changes"
     }
 
     public var stepCount: Int { items.filter(\.isStep).count }

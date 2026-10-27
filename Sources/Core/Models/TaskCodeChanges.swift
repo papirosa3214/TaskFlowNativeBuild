@@ -35,7 +35,7 @@ struct TaskCodeChanges: Decodable, Sendable, Equatable {
 
     /// «3 файла · +42 −7» — строка в «Итоге».
     var summary: String {
-        "\(Self.filesWord(totals.files)) · +\(totals.additions) −\(totals.deletions)"
+        TurnCodeChanges(totals: totals, files: files).summary
     }
 
     static func filesWord(_ count: Int) -> String { plural(count, "файл", "файла", "файлов") }
@@ -48,6 +48,17 @@ struct TaskCodeChanges: Decodable, Sendable, Equatable {
         else if (2...4).contains(mod10) && !(12...14).contains(mod100) { word = few }
         else { word = many }
         return "\(count) \(word)"
+    }
+}
+
+/// Файлы, которые роль поменяла за один ход в чате (`steps.code_changes`,
+/// сервер с 27.10.2026). У хода нет ветки — только итог правок.
+struct TurnCodeChanges: Decodable, Sendable, Equatable {
+    let totals: TaskCodeChanges.Totals
+    let files: [CodeFile]
+
+    var summary: String {
+        "\(TaskCodeChanges.filesWord(totals.files)) · +\(totals.additions) −\(totals.deletions)"
     }
 }
 

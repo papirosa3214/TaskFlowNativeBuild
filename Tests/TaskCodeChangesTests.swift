@@ -62,4 +62,17 @@ final class TaskCodeChangesTests: XCTestCase {
         XCTAssertEqual(TaskCodeChanges.linesWord(1), "1 строка")
         XCTAssertEqual(TaskCodeChanges.linesWord(37), "37 строк")
     }
+
+    /// Ход чата: те же файлы и счётчики, без ветки и состояния.
+    @objc func testDecodesTurnChanges() throws {
+        let json = """
+        {"totals":{"files":1,"additions":1,"deletions":0},
+         "files":[{"path":"~/notes/a.md","old_path":null,"status":"added","additions":1,"deletions":0,
+                   "binary":false,"truncated":false,"hunks":[{"header":"@@ -0,0 +1 @@",
+                   "lines":[{"kind":"added","old":null,"new":1,"text":"x"}]}]}]}
+        """
+        let turn = try JSONDecoder().decode(TurnCodeChanges.self, from: Data(json.utf8))
+        XCTAssertEqual(turn.summary, "1 файл · +1 −0")
+        XCTAssertEqual(turn.files.first?.fileName, "a.md")
+    }
 }

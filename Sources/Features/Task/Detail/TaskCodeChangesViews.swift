@@ -12,14 +12,65 @@ struct TaskCodeChangesRow: View {
     @State private var isPresented = false
 
     var body: some View {
-        Button { isPresented = true } label: {
+        CodeChangesSummaryButton(totals: changes.totals, summary: changes.summary,
+                                 identifier: "outcome-code-changes") { isPresented = true }
+            .sheet(isPresented: $isPresented) {
+                NavigationStack {
+                    CodeChangesScreen(
+                        files: changes.files,
+                        footer: changes.state == .merged ? "Уже влито в основную ветку." : "Ветка \(changes.branch), ещё не влита.",
+                        sendTitle: "Отправить роли",
+                        onToast: onToast
+                    ) { text in
+                        // Все замечания — одним комментарием карточки: роль
+                        // прочтёт их при следующем запуске.
+                        _ = try await APIClient().createComment(taskId: taskID, text: text)
+                        onToast("Замечания отправлены роли")
+                    }
+                }
+            }
+    }
+}
+
+/// Ход роли в чате → под строкой токенов «Изменения кода» хода (владелец
+/// 27.10.2026: «то же самое по окончании хода в чате, там, где токены»).
+/// Замечания вставляются в поле ввода чата — владелец отправляет их сам.
+struct TurnCodeChangesRow: View {
+    let changes: TurnCodeChanges
+    let onInsert: (String) -> Void
+
+    @State private var isPresented = false
+
+    var body: some View {
+        CodeChangesSummaryButton(totals: changes.totals, summary: changes.summary,
+                                 identifier: "chat.message.code-changes") { isPresented = true }
+            .sheet(isPresented: $isPresented) {
+                NavigationStack {
+                    CodeChangesScreen(
+                        files: changes.files,
+                        footer: "Правки за этот ход. Изменения через команды терминала сюда не попадают.",
+                        sendTitle: "В сообщение"
+                    ) { text in onInsert(text) }
+                }
+            }
+    }
+}
+
+/// Строка «Изменения кода · 3 файла · +42 −7» — одна и в карточке, и в чате.
+private struct CodeChangesSummaryButton: View {
+    let totals: TaskCodeChanges.Totals
+    let summary: String
+    let identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
             HStack(spacing: TFSpacing.sm) {
                 Label("Изменения кода", systemImage: "chevron.left.forwardslash.chevron.right")
                     .tfText(.action)
                     .foregroundStyle(Color.tfText)
                 Spacer(minLength: 0)
-                CodeCountsText(files: changes.totals.files, additions: changes.totals.additions,
-                               deletions: changes.totals.deletions)
+                CodeCountsText(files: totals.files, additions: totals.additions, deletions: totals.deletions)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.tfDim)
@@ -27,13 +78,8 @@ struct TaskCodeChangesRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Изменения кода, \(changes.summary)")
-        .accessibilityIdentifier("outcome-code-changes")
-        .sheet(isPresented: $isPresented) {
-            NavigationStack {
-                TaskCodeChangesScreen(taskID: taskID, changes: changes, onToast: onToast)
-            }
-        }
+        .accessibilityLabel("Изменения кода, \(summary)")
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -56,11 +102,13 @@ private struct CodeCountsText: View {
     }
 }
 
-/// Список файлов и отправка замечаний роли.
-struct TaskCodeChangesScreen: View {
-    let taskID: String
-    let changes: TaskCodeChanges
+/// Список файлов и отправка замечаний — общая шторка карточки и чата.
+struct CodeChangesScreen: View {
+    let files: [CodeFile]
+    let footer: String
+    let sendTitle: String
     var onToast: (String) -> Void = { _ in }
+    let onSend: (String) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var comments: [CodeReviewComment] = []
@@ -69,7 +117,7 @@ struct TaskCodeChangesScreen: View {
     var body: some View {
         List {
             Section {
-                ForEach(changes.files) { file in
+                ForEach(files) { file in
                     NavigationLink {
                         TaskCodeFileScreen(file: file, comments: $comments)
                     } label: {
@@ -77,7 +125,7 @@ struct TaskCodeChangesScreen: View {
                     }
                 }
             } footer: {
-                Text(changes.state == .merged ? "Уже влито в основную ветку." : "Ветка \(changes.branch), ещё не влита.")
+                Text(footer)
             }
             if !comments.isEmpty {
                 Section("Замечания") {
@@ -100,7 +148,7 @@ struct TaskCodeChangesScreen: View {
             }
             if !comments.isEmpty {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isSending ? "Отправляю…" : "Отправить роли") { Task { await send() } }
+                    Button(isSending ? "Отправляю…" : sendTitle) { Task { await send() } }
                         .disabled(isSending)
                 }
             }
@@ -127,15 +175,13 @@ struct TaskCodeChangesScreen: View {
         }
     }
 
-    /// Все замечания — одним комментарием карточки: роль прочтёт их при
-    /// следующем запуске и поправит именно эти места.
+    /// Все замечания — одним текстом: файл, строка, код, что не так.
     private func send() async {
         isSending = true
         defer { isSending = false }
         do {
-            _ = try await APIClient().createComment(taskId: taskID, text: CodeReviewComment.message(comments))
+            try await onSend(CodeReviewComment.message(comments))
             comments = []
-            onToast("Замечания отправлены роли")
             dismiss()
         } catch {
             onToast("Не отправилось: \(error.localizedDescription)")
