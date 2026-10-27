@@ -138,6 +138,8 @@ struct TaskCardContent: View {
     @State private var outcome: ApiTaskOutcome?
     /// Строка очереди автослияния для «Итога». nil — нет строки или нет доступа.
     @State private var mergeRow: ApiMergeQueue.Row?
+    /// Изменения кода ветки роли (LOCK-TASK-CODE-CHANGES-20261027).
+    @State private var codeChanges: TaskCodeChanges?
     /// Выведена ли карточка в Dynamic Island — чтобы в «Ещё» был пункт
     /// «Убрать», а не второй раз «Вывести».
     @State private var isInDynamicIsland = false
@@ -1047,7 +1049,8 @@ struct TaskCardContent: View {
         // Секция есть и тогда, когда итога нет, а строка автослияния есть:
         // слитая карточка без отчёта иначе не показала бы, что с переносом.
         let hasOutcome = outcome.map { !$0.isEmpty } ?? false
-        if hasOutcome || mergeRow != nil {
+        let visibleCodeChanges = codeChanges.flatMap { $0.isEmpty ? nil : $0 }
+        if hasOutcome || mergeRow != nil || visibleCodeChanges != nil {
             collapsibleSection(.outcome, title: "Итог") {
                 if let outcome, hasOutcome {
                     TaskOutcomeContent(
@@ -1057,6 +1060,10 @@ struct TaskCardContent: View {
                         onOpenDocument: { openedReportNoteID = $0 },
                         onPreviewDocument: outcomePreviewDocument
                     )
+                }
+                if let visibleCodeChanges, let taskID = viewModel.taskID {
+                    TaskCodeChangesRow(taskID: taskID, changes: visibleCodeChanges,
+                                       onToast: { toast = TaskToastMessage($0) })
                 }
                 if let mergeRow {
                     OutcomeMergeRow(
@@ -2714,6 +2721,8 @@ struct TaskCardContent: View {
         guard let taskID = viewModel.taskID else { outcome = nil; return }
         outcome = try? await APIClient().taskOutcome(taskId: taskID)
         await loadMergeRow()
+        // Нет ветки, нет доступа или старый сервер — строки просто нет.
+        codeChanges = try? await APIClient().taskCodeChanges(taskID: taskID)
     }
 
     /// Нет доступа или нет строки — молча: карточка от автослияния не зависит.

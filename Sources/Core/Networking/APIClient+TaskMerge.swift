@@ -11,4 +11,9 @@ extension APIClient {
     func rollBackMerge(taskID: String) async throws {
         try await requestVoid(.post, "/merges/roll-back", body: ["task_id": taskID])
     }
+
+    /// Что роль поменяла в ветке карточки (владелец, только чтение).
+    func taskCodeChanges(taskID: String) async throws -> TaskCodeChanges {
+        try await request(.get, "/tasks/\(taskID)/code-changes")
+    }
 }
