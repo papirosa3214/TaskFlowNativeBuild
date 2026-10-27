@@ -1773,6 +1773,20 @@ struct RoleChatRoomScreen: View {
                 positionedByUser: chatScrollPosition.isPositionedByUser)
         }
         .onDisappear { chatScrollTrace.flush() }
+        // Контекст замеров: фаза прокрутки (сдвиг в idle — не жест),
+        // клавиатура и фокус поля ввода (владелец 27.10.2026).
+        .onScrollPhaseChange { _, phase in
+            chatScrollTrace.update({ $0.phase = String(describing: phase) }, event: "phase")
+        }
+        .onChange(of: composerFocused) { _, focused in
+            chatScrollTrace.update({ $0.composerFocused = focused }, event: "focus")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect) ?? .zero
+            let screen = note.object as? UIScreen
+            let height = screen.map { max(0, $0.bounds.maxY - frame.minY) } ?? frame.height
+            chatScrollTrace.update({ $0.keyboardHeight = Double(height) }, event: "keyboard")
+        }
         #endif
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
@@ -2790,6 +2804,9 @@ struct RoleChatRoomScreen: View {
         // Вставка пузыря и прокрутка к низу — одной транзакцией: SwiftUI
         // прокручивает после раскладки новой строки, без задержки-подпорки
         // (прежде — `Task.sleep(50 мс)`, промахивался на тяжёлом кадре).
+        #if DEBUG
+        chatScrollTrace.event("send")
+        #endif
         withAnimation(TFMotion.standard) {
             pendingOutgoing.append(pending)
             chatScrollPosition.scrollTo(edge: .bottom)
