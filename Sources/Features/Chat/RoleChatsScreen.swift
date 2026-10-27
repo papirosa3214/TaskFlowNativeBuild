@@ -1752,7 +1752,10 @@ struct RoleChatRoomScreen: View {
             ChatScrollGeometry(offsetY: Double(geometry.contentOffset.y),
                                contentHeight: Double(geometry.contentSize.height),
                                viewportHeight: Double(geometry.containerSize.height),
-                               visibleMaxY: Double(geometry.visibleRect.maxY))
+                               visibleMaxY: Double(geometry.visibleRect.maxY),
+                               offsetX: Double(geometry.contentOffset.x),
+                               contentWidth: Double(geometry.contentSize.width),
+                               viewportWidth: Double(geometry.containerSize.width))
         } action: { _, geometry in
             chatScrollTrace.record(geometry, rowIDs: orderedFeed.map(\.id),
                 liveTurnCount: visibleLiveTurns.count, nearBottom: chatIsNearBottom,

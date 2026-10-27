@@ -6,6 +6,11 @@ struct ChatScrollGeometry: Codable, Equatable, Sendable {
     let contentHeight: Double
     let viewportHeight: Double
     let visibleMaxY: Double
+    /// Горизонталь: лента у роли прижата к левому краю (владелец 27.10.2026) —
+    /// различить сдвиг всей ленты вбок и ширину содержимого больше экрана.
+    var offsetX: Double = 0
+    var contentWidth: Double = 0
+    var viewportWidth: Double = 0
 }
 
 struct ChatScrollTraceEntry: Codable, Sendable {
