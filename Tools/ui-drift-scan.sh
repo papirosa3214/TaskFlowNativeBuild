@@ -57,7 +57,6 @@ SHEET_OK = {
     "Features/Chat/RoleEditorSheet.swift": "редактор роли: List внутри шторки, фон задаёт материал",
     "Features/Chat/RoleChatsScreen.swift": "создание чата/редактирование — Form внутри шторки, фон задаёт материал",
     "Features/Chat/TeamAppearanceSheet.swift": "шторка внешнего вида команды, фон задаёт материал",
-    "Features/Directory/WeeklySummarySheet.swift": "шторка недельной сводки, фон задаёт материал",
     "Features/Notes/FolderPickerSheet.swift": "шторка выбора папки, фон задаёт материал",
     "Features/Settings/EscalationStepEditor.swift": "окно правки шага напоминания, фон задаёт материал",
     "Features/Task/Detail/PlanStepSheets.swift": "шторки шага плана, фон задаёт материал",

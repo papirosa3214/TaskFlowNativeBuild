@@ -77,8 +77,6 @@ Sources/Features/Directory/TaskArchiveScreen.swift	implicit-system-blue	Button("
 Sources/Features/Directory/TaskArchiveScreen.swift	implicit-system-blue	Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
 Sources/Features/Directory/TaskArchiveScreen.swift	red-button	Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
 Sources/Features/Directory/TaskArchiveScreen.swift	implicit-system-blue	Button("Готово") { selectedTask = nil }
-Sources/Features/Directory/WeeklySummarySheet.swift	implicit-system-blue	ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
-Sources/Features/Directory/WeeklySummarySheet.swift	implicit-system-blue	Button { Task { await load(refresh: true) } } label: { Image(systemName: "arrow.clockwise") }
 Sources/Features/Markdown/MarkdownDocumentRenderer.swift	implicit-system-blue	Button("Готово") { dismiss() }
 Sources/Features/Markdown/MarkdownKeyboardAccessoryBar.swift	red-button	return Button {
 Sources/Features/Notes/FolderPickerSheet.swift	implicit-system-blue	Button("Отмена") { dismiss() }

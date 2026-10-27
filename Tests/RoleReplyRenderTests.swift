@@ -72,7 +72,7 @@ final class RoleReplyRenderTests: XCTestCase {
 
     /// Экраны из карточки: результат шага плана, итог задачи, сводка сторожа,
     /// разбор вопроса между ролями, ответ Помощника владельца, подготовка
-    /// карточки, сводка недели.
+    /// карточки.
     private static let roleTextPlaces = [
         "Sources/Features/Task/Detail/SubtaskFeedView.swift",
         "Sources/Features/Task/TaskFormScreen.swift",
@@ -80,7 +80,6 @@ final class RoleReplyRenderTests: XCTestCase {
         "Sources/Features/Task/Detail/TaskOutcomeSection.swift",
         "Sources/Features/Task/Detail/TaskPreparationView.swift",
         "Sources/Features/Directory/Support/NotificationTicketDetailSheet.swift",
-        "Sources/Features/Directory/WeeklySummarySheet.swift",
         "Sources/Features/Chat/RoleCoordinationCard.swift",
         "Sources/Features/Chat/ChatBubble.swift",
     ]

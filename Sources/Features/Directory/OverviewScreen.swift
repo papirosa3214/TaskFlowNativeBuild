@@ -8,7 +8,6 @@ import SwiftUI
 // счётчики читаются из уже прогретого `TaskStore.tasks`, пока кэш пуст —
 // молча показывают 0.
 struct OverviewScreen: View {
-    @State private var summaryOpen = false
     @State private var depth: CGFloat = 0
     @State private var dragOrigin: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -44,7 +43,6 @@ struct OverviewScreen: View {
                     }
                 }
         )
-        .sheet(isPresented: $summaryOpen) { WeeklySummarySheet() }
         .task { await loadRowValues() }
         .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Кнопка поиска переехала из
@@ -63,28 +61,10 @@ struct OverviewScreen: View {
         .tfNativeHeader("Обзор", displayMode: .inline)
     }
 
-    // MARK: - Сводка недели
-
-    // Была фиолетово-красным градиентом иконка + коралловый тег "SECOND
-    // BRAIN" — просьба владельца 03.09.2026: «сводка недели осталась
-    // чёрно-бело-цветной» на фоне причёсанного остального «Обзора» (LOCK
-    // причёсывания под стиль «Моделей и голосов»). Нейтрально, как соседние
-    // навигационные строки.
-    //
-    // 12.10.2026 (LOCK-OVERVIEW-YELLOW-DISPLAY): иконка убрана совсем, как и
-    // подзаголовок-пояснение, заголовок стал жёлтым капсом (образец владельца).
-    private var weeklySummaryCard: some View {
-        Button { summaryOpen = true } label: {
-            navigationRowBody(title: "Сводка недели")
-        }.buttonStyle(.plain).accessibilityIdentifier("overview.weekly-summary")
-    }
-
     // Владелец 12.10.2026: без общей подложки — строки лежат на фоне, между
     // ними линия. Справа живое значение; где значения нет — стрелка.
     private var navigationSection: some View {
         VStack(spacing: 0) {
-            weeklySummaryCard
-            TFDivider()
             NavigationLink {
                 RoleLoadScreen()
             } label: {

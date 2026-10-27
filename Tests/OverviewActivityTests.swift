@@ -11,10 +11,4 @@ final class OverviewActivityTests: XCTestCase {
         XCTAssertEqual(days.first(where: { calendar.isDate($0.date, inSameDayAs: midnightUTC) })?.count, 2)
         XCTAssertEqual(days.reduce(0) { $0 + $1.count }, 2)
     }
-    func testWeeklySummaryMatchesServerPayload() throws {
-        let data = Data(#"{"greeting":"Неделя","accomplishments":["Готово"],"missed_or_overdue":[],"next_week_focus":["План"],"productivity_score":72,"stats":{"completed_count":3,"overdue_count":1,"active_count":2},"generated_at":"2026-10-11"}"#.utf8)
-        let value = try JSONDecoder().decode(WeeklySummary.self, from: data)
-        XCTAssertEqual(value.stats.completed_count, 3)
-        XCTAssertEqual(value.next_week_focus, ["План"])
-    }
 }
