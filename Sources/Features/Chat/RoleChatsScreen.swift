@@ -1653,15 +1653,28 @@ struct RoleChatRoomScreen: View {
                 }
                 // Перед первым сообщением нового дня — полоса с датой
                 // («когда заканчивается день», владелец 03.10.2026).
+                // Один элемент ленты — одна вью: полоса даты и строка лежат в
+                // общем контейнере, иначе LazyVStack ошибается в оценке высот
+                // и лента дёргается при прокрутке вверх (27.10.2026).
                 ForEach(orderedFeed) { item in
-                    if let title = dayDividers[item.id] {
-                        ChatFeedDivider(title: title)
+                    VStack(alignment: .leading, spacing: TFSpacing.md) {
+                        if let title = dayDividers[item.id] {
+                            ChatFeedDivider(title: title)
+                        }
+                        if let turn = item.turn {
+                            liveTurnRow(turn)
+                        } else if let pending = item.pending {
+                            outgoingRow(pendingMessage(pending), pending: pending)
+                        } else if let message = item.message {
+                            if isOutgoingRow(item) {
+                                outgoingRow(message, pending: nil)
+                            } else {
+                                messageRow(message)
+                            }
+                        }
                     }
-                    if let turn = item.turn {
-                        liveTurnRow(turn)
-                    } else if let message = item.message {
-                        messageRow(message).id(item.id)
-                    }
+                    .id(item.id)
+                    .transition(.opacity)
                 }
                 // Владелец 26.09.2026: плашки быстрых ответов должны
                 // крепиться к сообщению роли, а не болтаться отдельным
@@ -1674,10 +1687,6 @@ struct RoleChatRoomScreen: View {
                 // раньше проверка «последнее видимое сообщение» гасила
                 // варианты, когда следом лежало служебное сообщение, —
                 // вопрос стоял, а кнопок не было.
-                ForEach(pendingOutgoing) { pending in
-                    pendingOutgoingRow(pending)
-                        .id(pending.id)
-                }
                 ForEach(pendingVoices) { message in
                     VStack(alignment: .trailing, spacing: 4) {
                         // Ещё не отправленное голосовое: имя и иконка
@@ -1703,13 +1712,19 @@ struct RoleChatRoomScreen: View {
                        let tool = typistTools[onlyUserID] {
                         RoleStepLine(name: visibleTypists[onlyUserID] ?? "Роль", tool: tool)
                             .id("typing-line")
+                            .transition(.opacity)
                     } else {
                         RoleChatTypingLine(names: visibleTypists.values.sorted())
                             .id("typing-line")
+                            .transition(.opacity)
                     }
                 }
             }
             .scrollTargetLayout()
+            // Новые строки и строка «печатает…» появляются плавно, а не
+            // рывком на свою высоту (27.10.2026).
+            .animation(TFMotion.standard, value: orderedFeed.map(\.id))
+            .animation(TFMotion.standard, value: visibleTypists.isEmpty)
         }
         .contentMargins(TFSpacing.lg, for: .scrollContent)
         .scrollPosition($chatScrollPosition, anchor: .bottom)
@@ -1793,6 +1808,7 @@ struct RoleChatRoomScreen: View {
         let position: Int
         let message: RoleChatMessage?
         let turn: RoleChatLiveTurn?
+        var pending: PendingOutgoing? = nil
         let date: Date
     }
     private var feedItems: [FeedItem] {
@@ -1822,13 +1838,26 @@ struct RoleChatRoomScreen: View {
         for item in live {
             if let id = item.turn?.playbackID { turnsByID[id] = item }
         }
-        return plan.compactMap { item in
+        let timeline: [FeedItem] = plan.compactMap { item in
             switch item.kind {
             case .message: return item.messageID.flatMap { messagesByID[$0] }
             case .liveTurn: return item.turnPlaybackID.flatMap { turnsByID[$0] }
-            case .pending: return nil // Pending rows retain their existing delivery path.
+            case .pending: return nil
             }
         }
+        // Сообщения «в пути» — в той же ленте, в конце. После ответа сервера
+        // их строку занимает отправленное сообщение (`rowIDByMessageID`):
+        // тот же ForEach, тот же id и тот же вид — строка не пересоздаётся.
+        let outgoing = pendingOutgoing.enumerated().map { index, pending in
+            FeedItem(id: pending.id, dateString: nil, position: messages.count + live.count + index,
+                     message: nil, turn: nil, pending: pending, date: .distantFuture)
+        }
+        return timeline + outgoing
+    }
+
+    /// Строка своего сообщения, которое было пузырём «в пути».
+    private func isOutgoingRow(_ item: FeedItem) -> Bool {
+        item.pending != nil || item.id.hasPrefix("local-")
     }
 
     /// Keep the same row identity while a live reply becomes its saved message.
@@ -1921,13 +1950,15 @@ struct RoleChatRoomScreen: View {
 
     /// Своё сообщение в пути: тот же пузырь, что у отправленного, но
     /// приглушён; не ушло — подпись и «Повторить».
-    private func pendingOutgoingRow(_ pending: PendingOutgoing) -> some View {
+    /// Своё сообщение: пока оно «в пути» и после доставки — один и тот же вид,
+    /// меняется только прозрачность.
+    private func outgoingRow(_ message: RoleChatMessage, pending: PendingOutgoing?) -> some View {
         VStack(alignment: .trailing, spacing: TFSpacing.xs) {
             // Выбор и удаление для него не имеют смысла — на сервере его нет.
-            messageBubbleRow(pendingMessage(pending))
-                .allowsHitTesting(false)
-                .opacity(pending.failed ? 1 : 0.6)
-            if pending.failed {
+            messageBubbleRow(message)
+                .allowsHitTesting(pending == nil)
+                .opacity(pending.map { $0.failed ? 1 : 0.6 } ?? 1)
+            if let pending, pending.failed {
                 HStack(spacing: TFSpacing.sm) {
                     Label("Не отправлено", systemImage: "exclamationmark.circle")
                         .foregroundStyle(Color.tfRed)
@@ -2742,12 +2773,13 @@ struct RoleChatRoomScreen: View {
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.composerExecutionMode)
         draft = ""
         pendingAttachments = []
-        pendingOutgoing.append(pending)
-        // Скролл после вставки pending-пузыря: SwiftUI успевает добавить
-        // строку в ленту, и скролл попадает на неё, а не прыгает к дну
-        // до появления пузыря (жалоба владельца 26.10.2026).
-        try? await Task.sleep(for: .milliseconds(50))
-        chatScrollPosition.scrollTo(edge: .bottom)
+        // Вставка пузыря и прокрутка к низу — одной транзакцией: SwiftUI
+        // прокручивает после раскладки новой строки, без задержки-подпорки
+        // (прежде — `Task.sleep(50 мс)`, промахивался на тяжёлом кадре).
+        withAnimation(TFMotion.standard) {
+            pendingOutgoing.append(pending)
+            chatScrollPosition.scrollTo(edge: .bottom)
+        }
         await deliver(pending.id)
     }
 
