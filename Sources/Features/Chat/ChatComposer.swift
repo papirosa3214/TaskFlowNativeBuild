@@ -115,9 +115,19 @@ struct ChatComposer: View {
                                     .strokeBorder(Color.tfRed, style: StrokeStyle(lineWidth: TFBorder.width, dash: [4]))
                             }
                         }
-                    Image(systemName: addresseeIsAll ? "person.2.fill" : "cpu")
-                        .font(.system(size: 18))
-                        .foregroundStyle(addresseeForeground)
+                    Group {
+                        if addresseeIsAll {
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 18))
+                        } else {
+                            Image("ModelBrain")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+                    .foregroundStyle(addresseeForeground)
                 }
                 .frame(width: H, height: H)
             }

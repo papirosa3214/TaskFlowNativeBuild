@@ -219,7 +219,10 @@ struct SettingsScreen: View {
             }
             // Владелец 20.10.2026: «Интеграции» — из «Общих» сюда.
             TFDivider(inset: rowDividerInset)
-            navRow(icon: "link", title: "Интеграции", route: .integrations)
+            NavigationLink(value: AppRoute.integrations) {
+                TFListRow(icon: "link", iconStyle: .asset("IntegrationsLink"), title: "Интеграции", trailing: AnyView(chevron), titleStyle: .action, verticalPadding: TFSpacing.xs)
+            }
+            .buttonStyle(.plain)
         }
     }
 
