@@ -1291,6 +1291,9 @@ struct RoleChatRoomScreen: View {
                     onStop: { Task { await stopTurns() } },
                     focus: $composerFocused
                 )
+                // Панель ввода ниже на 8 pt (владелец 27.10.2026: «чуть выше
+                // требуемого»); общий компонент панели не трогаем.
+                .padding(.bottom, -8)
                 .disabled(isSavingExecutionMode)
             }
         }
@@ -1824,7 +1827,7 @@ struct RoleChatRoomScreen: View {
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
         .accessibilityIdentifier("chat.feed")
-        .hideComposerScrollEdgeEffect()
+        .tfSoftBottomScrollEdge()
         .onScrollGeometryChange(for: Bool.self) { geometry in
             geometry.contentSize.height - geometry.visibleRect.maxY <= 80
         } action: { _, nearBottom in

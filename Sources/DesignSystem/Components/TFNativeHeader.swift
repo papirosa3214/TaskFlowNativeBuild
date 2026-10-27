@@ -127,4 +127,15 @@ extension View {
             self
         }
     }
+
+    /// То же мягкое затухание у нижней кромки — под панелью ввода чата
+    /// (владелец 27.10.2026: «такое же затухание, как вверху экрана»).
+    @ViewBuilder
+    func tfSoftBottomScrollEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            self
+        }
+    }
 }
