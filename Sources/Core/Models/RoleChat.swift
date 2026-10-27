@@ -39,6 +39,8 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     /// Проект сессии — для группировки списка.
     public var projectName: String? = nil
     public var closedAt: String? = nil
+    /// Ход роли в этой комнате (27.10.2026). Старый сервер поля не шлёт.
+    public var turn: RoomTurn? = nil
 
     /// Постоянная комната: живёт в панели «Комнаты», а не в списке сессий.
     public var isPermanentRoom: Bool { roomKind == "personal" || roomKind == "dm" || roomKind == "common" }
@@ -58,6 +60,7 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case roomKind = "room_kind"
         case projectName = "project_name"
         case closedAt = "closed_at"
+        case turn
     }
 
     public var unread: Int { unreadCount ?? 0 }

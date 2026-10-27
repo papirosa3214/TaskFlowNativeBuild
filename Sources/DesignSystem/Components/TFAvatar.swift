@@ -13,6 +13,7 @@ public struct TFAvatar: View {
     /// Галочка «Анимировать» в «Внешнем виде»: когда включена, портреты ролей
     /// комплекта «Ретро-нуар» играют роликом, иначе остаются статичными.
     @AppStorage(TeamAvatarAnimation.storageKey) private var avatarsAnimated = false
+    @Environment(\.tfAvatarLiveTurn) private var liveTurn
     public enum Size: CGFloat {
         case xs = 18   // строка карточки доски
         case sm = 20   // строка задачи в списке
@@ -148,7 +149,7 @@ public struct TFAvatar: View {
     private var roleKey: String? { RoleAvatarAsset.role(forUserID: userID) }
 
     private var roleLoop: String? {
-        guard avatarsAnimated else { return nil }
+        guard avatarsAnimated || liveTurn else { return nil }
         return RoleAvatarAsset.loopName(forUserID: userID, appearance: roleAppearance)
     }
 

@@ -34,7 +34,8 @@ struct RoleRoomSheet: View {
                             avatar: AnyView(RoleMemberAvatar(member: role.member, size: avatar)),
                             title: "Личная комната",
                             preview: role.lastMessage?.text ?? "",
-                            time: role.lastMessage?.createdAt)
+                            time: role.lastMessage?.createdAt,
+                            turn: role.personalTurn)
                     }
                     if !role.dms.isEmpty {
                         Text("Переписка с коллегами")
@@ -51,7 +52,8 @@ struct RoleRoomSheet: View {
                                 avatar: AnyView(peerAvatar(peer, live: dm.live, pair: dm.pair)),
                                 title: peer?.name ?? "Роль",
                                 preview: preview(dm.lastMessage),
-                                time: dm.lastMessage?.createdAt)
+                                time: dm.lastMessage?.createdAt,
+                                turn: dm.turn)
                         }
                     }
                 }
@@ -70,12 +72,12 @@ struct RoleRoomSheet: View {
         .presentationDetents([.medium, .large])
     }
 
-    private func row(chatID: String, avatar: AnyView, title: String, preview: String, time: String?) -> some View {
+    private func row(chatID: String, avatar: AnyView, title: String, preview: String, time: String?, turn: RoomTurn?) -> some View {
         Button {
             dismiss()
             onOpen(chatID)
         } label: {
-            ChatListRow(avatar: avatar, title: title, preview: preview, time: ChatListTime.label(time), unread: 0)
+            ChatListRow(avatar: avatar, title: title, preview: preview, time: ChatListTime.label(time), unread: 0, turn: turn)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("chats.room.\(chatID)")

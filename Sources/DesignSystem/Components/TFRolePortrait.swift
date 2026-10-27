@@ -124,6 +124,12 @@ final class TFSharedLoopPlayers {
 /// в код (1,14×), и картинку от этого срезало по краям; теперь эти числа
 /// выставляются руками и по умолчанию равны единице — то есть ничего не
 /// трогается, пока владелец сам не попросит.
+extension EnvironmentValues {
+    /// Роль сейчас делает ход в этой комнате (владелец 27.10.2026): кружок
+    /// играет ролик, даже если анимация команды выключена.
+    @Entry var tfAvatarLiveTurn = false
+}
+
 struct TFRolePortrait: View {
     /// id роли (`researcher`, `qa`, …) — по нему берётся кадрирование.
     let role: String?
@@ -137,6 +143,7 @@ struct TFRolePortrait: View {
     var allowsAnimation: Bool = true
 
     @AppStorage(TeamAvatarAnimation.storageKey) private var avatarsAnimated = false
+    @Environment(\.tfAvatarLiveTurn) private var liveTurn
     @StateObject private var budget = TFPortraitVideoBudget.shared
     /// Личный пропуск в бюджет: один кружок — один id, снимается при уходе с экрана.
     @State private var budgetID = UUID()
@@ -146,8 +153,11 @@ struct TFRolePortrait: View {
         return AvatarCrop.value(for: role)
     }
 
+    /// Ролик нужен: анимация команды включена или роль сейчас делает ход здесь.
+    private var wantsLoop: Bool { (avatarsAnimated || liveTurn) && allowsAnimation && loopName != nil }
+
     private var showsLoop: Bool {
-        guard avatarsAnimated, allowsAnimation, let loopName,
+        guard wantsLoop, let loopName,
               !UIAccessibility.isReduceMotionEnabled else { return false }
         // Страховка от чёрного кружка: если файла в бандле нет (забыли положить
         // новую роль), показываем статику, а не пустой видеослой.
@@ -182,7 +192,11 @@ struct TFRolePortrait: View {
             .onAppear {
                 // Занимаем слот только если реально собираемся играть, иначе
                 // кружок без ролика зря съедал бы чужое место в бюджете.
-                if avatarsAnimated, allowsAnimation, let loopName { budget.acquire(budgetID, loop: loopName) }
+                if wantsLoop, let loopName { budget.acquire(budgetID, loop: loopName) }
+            }
+            // Ход начался или кончился, пока кружок на экране.
+            .onChange(of: wantsLoop) { _, wants in
+                if wants, let loopName { budget.acquire(budgetID, loop: loopName) } else { budget.release(budgetID) }
             }
             .onDisappear { budget.release(budgetID) }
     }

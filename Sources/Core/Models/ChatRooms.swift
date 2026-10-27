@@ -44,6 +44,8 @@ public struct ChatRoomsSnapshot: Decodable, Sendable {
         public let working: Bool
         public let lastMessage: RoomMessage?
         public let dms: [DirectRoom]
+        /// Ход роли в личной комнате. Старый сервер поля не шлёт.
+        public var personalTurn: RoomTurn? = nil
 
         enum CodingKeys: String, CodingKey {
             case id, name, initials, working, dms
@@ -52,6 +54,7 @@ public struct ChatRoomsSnapshot: Decodable, Sendable {
             case avatarURL = "avatar_url"
             case personalChatID = "personal_chat_id"
             case lastMessage = "last_message"
+            case personalTurn = "personal_turn"
         }
 
         /// Тот же вид участника, что в чатах: аватар рисуется общим компонентом.
@@ -70,10 +73,11 @@ public struct ChatRoomsSnapshot: Decodable, Sendable {
         public let pair: String
         public let live: Bool
         public let lastMessage: RoomMessage?
+        public var turn: RoomTurn? = nil
         public var id: String { chatID }
 
         enum CodingKeys: String, CodingKey {
-            case pair, live
+            case pair, live, turn
             case chatID = "chat_id"
             case peerID = "peer_id"
             case lastMessage = "last_message"
@@ -94,5 +98,31 @@ public struct ChatRoomsSnapshot: Decodable, Sendable {
     public func role(_ id: String?) -> RoleRoom? {
         guard let id else { return nil }
         return roles.first { $0.id == id }
+    }
+}
+
+/// Ход роли в комнате для строки списка (владелец 27.10.2026): идёт ход —
+/// аватарка играет ролик; после хода точка — ответила, отвалилась или
+/// кончился лимит. Итог сервер гасит сам, когда владелец открыл комнату.
+public struct RoomTurn: Decodable, Sendable, Equatable {
+    public enum Outcome: String, Sendable, Equatable {
+        case answered, failed, limit
+    }
+
+    public let running: Bool
+    /// `nil` — итога нет или сервер прислал незнакомый.
+    public let outcome: Outcome?
+
+    public init(running: Bool, outcome: Outcome?) {
+        self.running = running
+        self.outcome = outcome
+    }
+
+    enum CodingKeys: String, CodingKey { case running, outcome }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        running = try c.decodeIfPresent(Bool.self, forKey: .running) ?? false
+        outcome = try c.decodeIfPresent(String.self, forKey: .outcome).flatMap(Outcome.init(rawValue:))
     }
 }

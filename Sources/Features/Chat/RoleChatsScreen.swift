@@ -305,7 +305,8 @@ struct RoleChatsScreen: View {
             preview: previewText(chat),
             time: ChatListTime.label(chat.lastMessage?.createdAt),
             unread: chat.unread + chats.filter { $0.parentChatID == chat.id }.reduce(0) { $0 + $1.unread },
-            taskTitle: chat.taskTitle
+            taskTitle: chat.taskTitle,
+            turn: chat.turn
         )
     }
 
@@ -455,13 +456,17 @@ struct ChatListRow: View {
     let unread: Int
     /// Название задачи, за которой закреплён чат (`nil` — свободный).
     var taskTitle: String?
+    /// Ход роли в комнате: идёт — аватарка играет ролик; после — точка итога.
+    var turn: RoomTurn? = nil
 
     var body: some View {
         HStack(spacing: TFSpacing.sm) {
             // Аватар — украшение: имя стоит рядом текстом, и VoiceOver не
             // должен читать «Аватар: Q» перед ним. Без этого строка
             // «Помощник владельца» озвучивалась дважды («Помощник владельца, Помощник владельца»).
-            avatar.accessibilityHidden(true)
+            avatar
+                .environment(\.tfAvatarLiveTurn, turn?.running == true)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .tfText(.body)
@@ -488,7 +493,10 @@ struct ChatListRow: View {
                         .tfText(.meta)
                         .foregroundStyle(Color.tfDim)
                 }
-                if unread > 0 { badge }
+                HStack(spacing: TFSpacing.xs) {
+                    if let outcome = turn?.outcome { outcomeDot(outcome) }
+                    if unread > 0 { badge }
+                }
             }
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -508,6 +516,20 @@ struct ChatListRow: View {
             .frame(minWidth: 20, minHeight: 20)
             .background(Capsule().fill(Color.tfRedSolid))
             .accessibilityLabel("Непрочитанных: \(unread)")
+    }
+
+    /// Чем кончился ход (владелец 27.10.2026): зелёная — ответ пришёл,
+    /// жёлтая — ход отвалился, красная — кончился лимит.
+    private func outcomeDot(_ outcome: RoomTurn.Outcome) -> some View {
+        let (color, label): (Color, String) = switch outcome {
+        case .answered: (Color.tfGreen, "Ответ пришёл")
+        case .failed: (Color.tfYellow, "Ход отвалился, ответа нет")
+        case .limit: (Color.tfRedSolid, "Кончился лимит")
+        }
+        return Circle()
+            .fill(color)
+            .frame(width: 10, height: 10)
+            .accessibilityLabel(label)
     }
 }
 
