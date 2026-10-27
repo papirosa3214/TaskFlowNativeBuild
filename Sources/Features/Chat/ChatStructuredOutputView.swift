@@ -73,42 +73,42 @@ struct ChatStructuredOutputView: View {
 
     @ViewBuilder
     private func blockView(_ block: StructuredOutputBlock, widgetKey: String? = nil) -> some View {
-        switch block.type {
-        case "text":
+        switch AgentComponentRegistry.kind(for: block.type) {
+        case .text:
             if let text = block.text, !text.isEmpty {
                 RoleReplyMarkdown(text: text, checklist: checklist, serverBlocks: block.textBlocks)
                     .accessibilityIdentifier("chat.structured-output.text")
             }
-        case "heading":
+        case .heading:
             if let text = block.text, !text.isEmpty {
                 StructuredDocumentBlocksView(blocks: [
                     .heading(level: min(max(block.level ?? 2, 1), 3), runs: [RichRun(text: text)])
                 ])
                     .accessibilityIdentifier("chat.structured-output.heading")
             }
-        case "list":
+        case .list:
             listBlock(block)
-        case "table":
+        case .table:
             tableBlock(block)
-        case "status":
+        case .status:
             statusBlock(title: block.title ?? "Статус", code: block.code, text: block.text)
-        case "progress":
+        case .progress:
             progressBlock(block)
-        case "chart":
+        case .chart:
             chartBlock(block)
-        case "diagram":
+        case .diagram:
             diagramBlock(block)
-        case "report":
+        case .report:
             reportBlock(block)
-        case "handoff":
+        case .handoff:
             handoffBlock(block)
-        case "command":
+        case .command:
             commandBlock(block)
-        case "link":
+        case .link:
             linkBlock(block)
-        case "widget":
+        case .widget:
             widgetBlock(block, widgetKey: widgetKey)
-        case "html":
+        case .html:
             htmlBlock(block)
         default:
             unsupportedBlock("Тип блока «\(block.type)» пока не поддерживается")

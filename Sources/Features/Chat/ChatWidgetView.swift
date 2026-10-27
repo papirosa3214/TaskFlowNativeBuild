@@ -45,22 +45,21 @@ struct ChatWidgetView: View {
 
     @ViewBuilder
     private func widget(for data: WidgetData) -> some View {
-        let type = data.string("type") ?? ""
-        switch type {
-        case "weather": WeatherWidget(data: data)
-        case "metrics": metricsWidget(data)
-        case "progress": progressWidget(data)
-        case "checklist": checklistWidget(data)
-        case "card": cardWidget(data)
-        case "chart": chartWidget(data)
-        case "status_board": StatusBoardWidget(data: data)
-        case "bars_list": BarsListWidget(data: data)
-        case "chain": ChainWidget(data: data)
-        case "ladder": LadderWidget(data: data)
-        case "timeline": TimelineWidget(data: data)
-        case "calendar_grid": CalendarGridWidget(data: data)
-        case "heatmap": HeatmapWidget(data: data)
-        case "compare": CompareWidget(data: data)
+        switch AgentComponentRegistry.kind(for: data.string("type") ?? "") {
+        case .weather: WeatherWidget(data: data)
+        case .metrics: metricsWidget(data)
+        case .progress: progressWidget(data)
+        case .checklist: checklistWidget(data)
+        case .card: cardWidget(data)
+        case .chart: chartWidget(data)
+        case .statusBoard: StatusBoardWidget(data: data)
+        case .barsList: BarsListWidget(data: data)
+        case .chain: ChainWidget(data: data)
+        case .ladder: LadderWidget(data: data)
+        case .timeline: TimelineWidget(data: data)
+        case .calendarGrid: CalendarGridWidget(data: data)
+        case .heatmap: HeatmapWidget(data: data)
+        case .compare: CompareWidget(data: data)
         default: WidgetTextFallback(json: json, note: "Виджет этого типа пока не рисуется")
         }
     }
