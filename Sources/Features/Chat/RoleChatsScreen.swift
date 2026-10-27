@@ -115,6 +115,17 @@ struct RoleChatsScreen: View {
                                     // Без проекта: линия и сразу список, всегда раскрыт.
                                     TFDivider()
                                         .padding(.vertical, TFSpacing.sm)
+                                    // Подзаголовок, чтобы при раскрытом проекте
+                                    // было видно, где свои беспроектные сессии
+                                    // (владелец 27.10.2026). Вид — как у
+                                    // подзаголовка проекта, без сворачивания.
+                                    Text("Открытые сессии")
+                                        .tfText(.taskTitle)
+                                        .foregroundStyle(Color.tfText)
+                                        .lineLimit(1)
+                                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                                        .accessibilityAddTraits(.isHeader)
                                     ForEach(Array(group.chats.enumerated()), id: \.element.id) { index, chat in
                                         sessionLink(chat)
                                         if index < group.chats.count - 1 { rowDivider }
