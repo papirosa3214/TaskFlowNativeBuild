@@ -19,7 +19,7 @@ public enum ChatServerBlock: Decodable, Sendable, Equatable {
     case unknown
 
     private enum CodingKeys: String, CodingKey {
-        case type, doc, chars, header, align, rows, json, html, kind
+        case type, doc, chars, header, align, rows, json, html, kind, component
     }
 
     public init(from decoder: Decoder) throws {
@@ -33,7 +33,13 @@ public enum ChatServerBlock: Decodable, Sendable, Equatable {
                           align: try c.decodeIfPresent([String].self, forKey: .align) ?? [],
                           rows: try c.decode([[JSONValue]].self, forKey: .rows),
                           chars: try c.decodeIfPresent(Int.self, forKey: .chars) ?? 0)
-        case "widget": self = .widget(try c.decode(String.self, forKey: .json))
+        case "widget":
+            // Новый формат — `component` (имя + данные); нет его — прежний `json`.
+            if let props = (try? c.decodeIfPresent(AgentComponent.self, forKey: .component))?.propsJSON {
+                self = .widget(props)
+            } else {
+                self = .widget(try c.decode(String.self, forKey: .json))
+            }
         case "structured_json": self = .structuredJSON(try c.decode(String.self, forKey: .json))
         case "structured_json_streaming": self = .structuredJSONStreaming(try c.decode(String.self, forKey: .json))
         case "html": self = .html(try c.decode(String.self, forKey: .html))
