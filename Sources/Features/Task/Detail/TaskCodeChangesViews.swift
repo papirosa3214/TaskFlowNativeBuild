@@ -43,15 +43,19 @@ struct TurnCodeChangesRow: View {
 
     var body: some View {
         CodeChangesSummaryButton(totals: changes.totals, summary: changes.summary,
-                                 identifier: "chat.message.code-changes") { isPresented = true }
+                                 identifier: "chat.message.code-changes", quietIcon: true) { isPresented = true }
             .sheet(isPresented: $isPresented) {
+                // Шторка — сначала до половины экрана, файл — тоже шторкой
+                // снизу (владелец 27.10.2026).
                 NavigationStack {
                     CodeChangesScreen(
                         files: changes.files,
                         footer: "Правки за этот ход. Изменения через команды терминала сюда не попадают.",
-                        sendTitle: "В сообщение"
+                        sendTitle: "В сообщение",
+                        opensFileAsSheet: true
                     ) { text in onInsert(text) }
                 }
+                .presentationDetents([.medium, .large])
             }
     }
 }
@@ -61,14 +65,27 @@ private struct CodeChangesSummaryButton: View {
     let totals: TaskCodeChanges.Totals
     let summary: String
     let identifier: String
+    /// Значок как счётчики рядом: тот же шрифт и цвет (в чате, владелец 27.10.2026).
+    var quietIcon = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: TFSpacing.sm) {
-                Label("Изменения кода", systemImage: "chevron.left.forwardslash.chevron.right")
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfText)
+                if quietIcon {
+                    HStack(spacing: TFSpacing.xs) {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                        Text("Изменения кода")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfText)
+                    }
+                } else {
+                    Label("Изменения кода", systemImage: "chevron.left.forwardslash.chevron.right")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfText)
+                }
                 Spacer(minLength: 0)
                 CodeCountsText(files: totals.files, additions: totals.additions, deletions: totals.deletions)
                 Image(systemName: "chevron.right")
@@ -107,21 +124,29 @@ struct CodeChangesScreen: View {
     let files: [CodeFile]
     let footer: String
     let sendTitle: String
+    /// Файл открывается шторкой снизу, а не переходом вбок (чат).
+    var opensFileAsSheet = false
     var onToast: (String) -> Void = { _ in }
     let onSend: (String) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var comments: [CodeReviewComment] = []
     @State private var isSending = false
+    @State private var sheetFile: CodeFile?
 
     var body: some View {
         List {
             Section {
                 ForEach(files) { file in
-                    NavigationLink {
-                        TaskCodeFileScreen(file: file, comments: $comments)
-                    } label: {
-                        fileRow(file)
+                    if opensFileAsSheet {
+                        Button { sheetFile = file } label: { fileRow(file) }
+                            .foregroundStyle(Color.tfText)
+                    } else {
+                        NavigationLink {
+                            TaskCodeFileScreen(file: file, comments: $comments)
+                        } label: {
+                            fileRow(file)
+                        }
                     }
                 }
             } footer: {
@@ -142,6 +167,12 @@ struct CodeChangesScreen: View {
             }
         }
         .tfNativeHeader("Изменения кода", displayMode: .inline)
+        .sheet(item: $sheetFile) { file in
+            NavigationStack {
+                TaskCodeFileScreen(file: file, comments: $comments)
+            }
+            .presentationDetents([.medium, .large])
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Закрыть", systemImage: "xmark") { dismiss() }
