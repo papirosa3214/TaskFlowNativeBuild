@@ -3177,7 +3177,7 @@ private struct AutosaveFieldsModifierTail: ViewModifier {
 
 /// Тот же редактор срока, что в форме создания: быстрые даты,
 /// календарь, системный барабан времени и длительность.
-private struct ExistingTaskDueEditor: View {
+struct ExistingTaskDueEditor: View {
     private enum Field: Hashable {
         case date, time, duration, repeatRule
     }

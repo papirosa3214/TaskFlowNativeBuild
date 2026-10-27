@@ -29,8 +29,6 @@ final class RoutineFormViewModel {
     /// Что создаст рутина: шаблон карточки.
     var taskTitle = ""
     var assigneeRoleKey: String?
-    var projectId: String?
-    var priority: TaskPriority = .low
     var durationMin: Int?
 
     var roles: [RoleProfile] = []
@@ -53,9 +51,7 @@ final class RoutineFormViewModel {
             timezone = schedule.timezone
             taskTitle = schedule.taskPayload.title
             instructions = schedule.taskPayload.description ?? ""
-            projectId = schedule.taskPayload.projectId
             assigneeRoleKey = schedule.taskPayload.assigneeId
-            priority = TaskPriority(rawValue: schedule.taskPayload.priority ?? 1) ?? .low
             durationMin = schedule.taskPayload.durationMin
             skipOverlapping = schedule.overlapPolicy == "skip"
             catchUp = schedule.catchUp
@@ -69,6 +65,10 @@ final class RoutineFormViewModel {
                 let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd"
                 formatter.timeZone = TimeZone(identifier: timezone)
                 onceDate = formatter.date(from: expr) ?? Date()
+            }
+            // Барабан даты показывает ближайший день, подходящий правилу.
+            if ruleKind == "weekly" || ruleKind == "monthly" {
+                onceDate = Self.nearestDate(ruleKind: ruleKind, weekday: weeklyDay, monthDay: monthlyDay, timezone: timezone)
             }
         }
 
@@ -105,6 +105,53 @@ final class RoutineFormViewModel {
     }
 
     var timeLocal: String { RoutineFormat.timeLocalText(timeMinutes) }
+
+    /// Повтор в словах редактора срока карточки (`ExistingTaskDueEditor`):
+    /// «none» — однократно, «weekdays» — по будням. Интервал и выборочные дни
+    /// барабан не предлагает; такие рутины сохраняют правило, пока повтор
+    /// не выбран заново.
+    var repeatChoice: String {
+        get {
+            switch ruleKind {
+            case "once": return "none"
+            case "weekly_days": return weekdays == Set(1...5) ? "weekdays" : ruleKind
+            default: return ruleKind
+            }
+        }
+        set {
+            switch newValue {
+            case "none": ruleKind = "once"
+            case "weekdays": ruleKind = "weekly_days"; weekdays = Set(1...5)
+            default: ruleKind = newValue
+            }
+        }
+    }
+
+    /// Дата из барабана: день однократного запуска, а для «Еженедельно» и
+    /// «Ежемесячно» — день недели и число, с которых рутина повторяется.
+    var startDate: Date? {
+        get { onceDate }
+        set {
+            onceDate = newValue ?? Date()
+            weeklyDay = RoutineFormat.todayWeekday(timezone: timezone, now: onceDate)
+            monthlyDay = RoutineFormat.todayMonthDay(timezone: timezone, now: onceDate)
+        }
+    }
+
+    /// Минуты запуска для барабана времени (он работает с `Int?`).
+    var startMinutes: Int? {
+        get { timeMinutes }
+        set { timeMinutes = newValue ?? 9 * 60 }
+    }
+
+    static func nearestDate(ruleKind: String, weekday: Int, monthDay: Int, timezone: String, now: Date = Date()) -> Date {
+        for offset in 0..<62 {
+            let date = now.addingTimeInterval(Double(offset) * 86_400)
+            if ruleKind == "weekly", RoutineFormat.todayWeekday(timezone: timezone, now: date) == weekday { return date }
+            if ruleKind == "monthly", RoutineFormat.todayMonthDay(timezone: timezone, now: date) == monthDay { return date }
+        }
+        return now
+    }
 
     /// Интервалы, которые предлагает форма: меньше пяти минут планировщик не берёт.
     static let intervalOptions = [5, 10, 15, 30, 45, 60, 120, 180]
@@ -160,9 +207,7 @@ final class RoutineFormViewModel {
         payload.title = taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? name : taskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         payload.description = instructions.isEmpty ? nil : instructions
-        payload.projectId = projectId
         payload.assigneeId = assigneeRoleKey
-        payload.priority = priority.rawValue
         payload.durationMin = durationMin
         let request = ApiScheduleCreateRequest(
             title: name,

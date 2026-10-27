@@ -54,10 +54,11 @@ Task { @MainActor in
     check(payload["description"] as? String == "Новое задание", "edited instructions are sent")
     check(payload["labels"] as? [String] == ["news"] && payload["requires_reviewer_review"] as? Bool == true && payload["needs_research"] as? Bool == true, "editing preserves hidden template settings")
     check(body["status"] == nil && body["current_task_id"] == nil, "editing does not resume paused routine or replace existing task")
-    editor.instructions = ""; editor.assigneeRoleKey = nil; editor.projectId = nil; editor.durationMin = nil
+    editor.instructions = ""; editor.assigneeRoleKey = nil; editor.durationMin = nil
     _ = await editor.create()
     let cleared = (try! JSONSerialization.jsonObject(with: api.body!) as! [String: Any])["task_payload"] as! [String: Any]
-    check(["description", "assignee_id", "project_id", "duration_min"].allSatisfy { cleared[$0] is NSNull }, "clearing optional fields sends explicit null for server merge")
+    check(cleared["project_id"] as? String == "p1" && cleared["priority"] as? Int == 2, "project and priority are not in the form and survive editing")
+    check(["description", "assignee_id", "duration_min"].allSatisfy { cleared[$0] is NSNull }, "clearing optional fields sends explicit null for server merge")
     let freshAPI = APIClient(); freshAPI.response = response
     let fresh = RoutineFormViewModel(api: freshAPI); fresh.title = "Новая рутина"
     let created = await fresh.create()
