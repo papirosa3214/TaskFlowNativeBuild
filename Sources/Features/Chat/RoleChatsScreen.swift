@@ -336,6 +336,9 @@ struct RoleChatsScreen: View {
     // MARK: - Загрузка
 
     private func load() async {
+        // Прошлый список из кэша — виден сразу, сеть его обновит.
+        if chats.isEmpty, let cached = api.cachedRoleChats(includeClosed: showsClosed) { chats = cached }
+        if rooms == nil, isOwner, !projectsOnly { rooms = api.cachedChatRooms() }
         isLoading = true
         defer { isLoading = false }
         do { try await refreshList() }
@@ -1041,7 +1044,7 @@ struct RoleChatRoomScreen: View {
 
     init(chat: RoleChat) {
         _chat = State(initialValue: chat)
-        if let cached = Self.lastMessages[chat.id] {
+        if let cached = Self.lastMessages[chat.id] ?? APIClient().cachedRoleChatMessages(id: chat.id) {
             _messages = State(initialValue: cached)
             _hasLoadedMessages = State(initialValue: true)
         }

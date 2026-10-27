@@ -108,6 +108,20 @@ public extension APIClient {
         return response.messages
     }
 
+    /// Прошлые ответы из `ResponseCache` — показать до сети.
+    func cachedRoleChats(includeClosed: Bool = false) -> [RoleChat]? {
+        let query = includeClosed ? [URLQueryItem(name: "include_closed", value: "1")] : []
+        return cached(RoleChatsEnvelope.self, "/chats", query: query)?.chats
+    }
+
+    func cachedChatRooms() -> ChatRoomsSnapshot? {
+        cached(ChatRoomsSnapshot.self, "/chats/rooms")
+    }
+
+    func cachedRoleChatMessages(id: String) -> [RoleChatMessage]? {
+        cached(RoleChatMessagesEnvelope.self, "/chats/\(id)/messages")?.messages
+    }
+
     /// Идущие сейчас ходы ролей в чате — снимок для открывшего чат посреди
     /// ответа или после переподключения; дальше обновления идут `chats:live`.
     func reactToRoleChatMessage(chatID: String, messageID: String, emoji: String?) async throws -> RoleChatMessage {
