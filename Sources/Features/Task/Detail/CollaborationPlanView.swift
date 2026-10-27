@@ -460,6 +460,7 @@ public struct CollaborationPlanView: View {
                 entries: graphEntries(for: plan),
                 edges: graphEdges(for: plan),
                 returns: graphReturns(for: plan),
+                reworkReturns: graphReworkReturns(for: plan),
                 attemptRows: false,
                 limitExhausted: limitExhausted,
                 onTap: { slot in
@@ -585,17 +586,38 @@ public struct CollaborationPlanView: View {
                 )
             }
         }
-        return plan.nodes.map { node in
+        // Одиночная задача: круги доработки сведены к исходным местам,
+        // состояние места — у последней попытки (владелец 27.10.2026).
+        let collapsed = reworkCollapse(for: plan)
+        let byKey = Dictionary(plan.nodes.map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
+        return collapsed.slots.compactMap { slot in
+            guard let place = byKey[slot] else { return nil }
+            let node = collapsed.latest[slot].flatMap { byKey[$0] } ?? place
             let subtask = subtaskFor(plan: plan, slot: node.slotKey)
             return .init(
-                slotKey: node.slotKey,
-                roleKey: node.roleKey,
-                title: graphTitle(for: node.roleKey),
-                taskTitle: node.taskTitle,
+                slotKey: place.slotKey,
+                roleKey: place.roleKey,
+                title: graphTitle(for: place.roleKey),
+                taskTitle: place.taskTitle,
                 state: node.isSkipped ? "skipped" : node.executionState ?? baseState(for: subtask, plan: plan),
-                badge: node.responsible == true ? "ответственный" : Self.badge(for: node)
+                badge: place.responsible == true ? "ответственный" : Self.badge(for: place)
             )
         }
+    }
+
+    private func reworkCollapse(for plan: ApiCollaborationPlan) -> PlanReworkCollapse.Result {
+        PlanReworkCollapse.collapse(
+            nodes: plan.nodes.map { .init(slotKey: $0.slotKey, iteration: $0.iteration ?? 0, reworkOfKey: $0.reworkOfKey) },
+            edges: plan.edges.map { .init(from: $0.fromSlotKey, to: $0.toSlotKey) },
+            limitExhausted: limitExhausted
+        )
+    }
+
+    /// Стрелки возврата снизу вверх — только у одиночной задачи, где круги
+    /// доработки свёрнуты в исходные места.
+    private func graphReworkReturns(for plan: ApiCollaborationPlan) -> [PlanReworkCollapse.Return] {
+        guard focusTaskID == nil, plan.branchTeam == nil else { return [] }
+        return reworkCollapse(for: plan).returns
     }
 
     /// Пометка шага, который не из исходного шаблона.
@@ -616,7 +638,13 @@ public struct CollaborationPlanView: View {
                 slots.contains($0.fromSlotKey) && slots.contains($0.toSlotKey)
             }
         }
-        return plan.edges
+        guard plan.branchTeam == nil else { return plan.edges }
+        let condition = Dictionary(plan.edges.map { ("\($0.fromSlotKey)>\($0.toSlotKey)", $0.startCondition) },
+                                   uniquingKeysWith: { first, _ in first })
+        return reworkCollapse(for: plan).edges.map {
+            ApiCollaborationPlanEdge(fromSlotKey: $0.from, toSlotKey: $0.to,
+                                     startCondition: condition["\($0.from)>\($0.to)"] ?? "submitted")
+        }
     }
 
     /// Возвраты между ролями в общем плане ветки: ключ «кто вернул:кому»,
@@ -721,6 +749,9 @@ private struct CollaborationPlanGraph: View {
     /// Тап по шагу — подробности и правка (живой план, 01.10.2026).
     /// Круговой граф: возвраты между ролями, «кто вернул:кому» → отработан ли.
     var returns: [String: Bool] = [:]
+    /// Возвраты на доработку в свёрнутом графе: снизу вверх, от того, кто
+    /// вернул, к исполнителю. Цвет по кругу: 1 жёлтый, 2 оранжевый, 3 красный.
+    var reworkReturns: [PlanReworkCollapse.Return] = []
     /// Цепочка попыток: каждая попытка — своя горизонтальная строка, строки
     /// друг под другом (0 → I → II) и между собой НЕ соединяются ничем.
     /// Какой заход был и с кого начался — видно по номеру над строкой и по
@@ -975,6 +1006,13 @@ private struct CollaborationPlanGraph: View {
                             context.stroke(link.line, with: .color(Color.tfGreen), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                             context.stroke(link.head, with: .color(Color.tfGreen), lineWidth: 1.5)
                         }
+                        for item in reworkReturns {
+                            guard let fromCenter = centers[item.from], let toCenter = centers[item.to] else { continue }
+                            let link = chainReturnLink(from: fromCenter, to: toCenter)
+                            let color = Self.reworkColor(item.round)
+                            context.stroke(link.line, with: .color(color), style: StrokeStyle(lineWidth: 1.8, dash: [5, 4]))
+                            context.stroke(link.head, with: .color(color), lineWidth: 1.8)
+                        }
                     }
 
                     ForEach(laneFrames(width: canvasWidth), id: \.block.lane) { frame in
@@ -1203,6 +1241,15 @@ private struct CollaborationPlanGraph: View {
         let groups = Dictionary(grouping: entries.filter { $0.iteration > 0 || hasReworks }, by: \.iteration)
         return groups.keys.sorted().compactMap { key in
             groups[key]?.min { (levelOf[$0.slotKey] ?? 0) < (levelOf[$1.slotKey] ?? 0) }
+        }
+    }
+
+    /// Третий отказ — край: ход у владельца.
+    private static func reworkColor(_ round: Int) -> Color {
+        switch round {
+        case ...1: Color.tfYellow
+        case 2: Color.tfOrange
+        default: Color.tfRed
         }
     }
 
