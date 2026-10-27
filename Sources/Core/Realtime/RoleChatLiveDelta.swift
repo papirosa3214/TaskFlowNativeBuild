@@ -22,7 +22,9 @@ public enum RoleChatLiveDelta: Decodable, Sendable, Equatable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Ход шага карточки (`tasks:live:*`) идёт тем же форматом.
         let type = try container.decode(String.self, forKey: .type)
+            .replacingOccurrences(of: "tasks:live:", with: "chats:live:")
         if type == "chats:live:start" {
             self = .start(try RoleChatLiveTurnState(from: decoder))
             return
@@ -55,6 +57,13 @@ public enum RoleChatLiveDelta: Decodable, Sendable, Equatable {
         switch self {
         case .start(let state): return state.userID
         case .patch(_, let userID, _, _, _), .end(_, let userID, _, _, _): return userID
+        }
+    }
+
+    var turnID: String {
+        switch self {
+        case .start(let state): return state.turnID
+        case .patch(_, _, let turnID, _, _), .end(_, _, let turnID, _, _): return turnID
         }
     }
 }
@@ -180,6 +189,8 @@ public struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
     let name: String
     let startedAt: String?
     let triggerMessageID: String?
+    /// Шаг карточки (`tasks:live:*`); у чата — nil.
+    let subtaskID: String?
     private(set) var seq: Int
     private(set) var items: [RoleChatLiveDeltaItem]
     /// Роль думает: последняя фраза; "" — думает, фразы нет; nil — не думает.
@@ -194,6 +205,7 @@ public struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
         case messageID = "message_id"
         case startedAt = "started_at"
         case triggerMessageID = "trigger_message_id"
+        case subtaskID = "subtask_id"
     }
 
     public init(from decoder: Decoder) throws {
@@ -205,6 +217,7 @@ public struct RoleChatLiveTurnState: Decodable, Sendable, Equatable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         startedAt = try c.decodeIfPresent(String.self, forKey: .startedAt)
         triggerMessageID = try c.decodeIfPresent(String.self, forKey: .triggerMessageID)
+        subtaskID = try c.decodeIfPresent(String.self, forKey: .subtaskID)
         seq = try c.decodeIfPresent(Int.self, forKey: .seq) ?? 0
         items = try c.decodeIfPresent([RoleChatLiveDeltaItem].self, forKey: .items) ?? []
         thinking = try c.decodeIfPresent(String.self, forKey: .thinking)

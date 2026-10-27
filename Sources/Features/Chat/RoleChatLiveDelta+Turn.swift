@@ -10,6 +10,15 @@ extension RoleChatLiveTurnState {
     }
 }
 
+extension TaskLiveTurn {
+    /// Ход шага, собранный из дельт `tasks:live:*`: turn_id — прогон,
+    /// chat_id — задача.
+    init(state: RoleChatLiveTurnState, complete: Bool) {
+        self.init(taskID: state.chatID, subtaskID: state.subtaskID, runID: state.turnID,
+                  complete: complete, turn: state.liveTurn)
+    }
+}
+
 extension RoleChatLiveDeltaItem {
     var liveItem: RoleChatLiveItem {
         switch kind {

@@ -88,6 +88,8 @@ public final class RealtimeClient {
     /// шторки роли поднимал свой WebSocket — в журнале сервера это десятки
     /// переподключений в минуту.
     @ObservationIgnored private var observers: [UUID: (RealtimeEvent) -> Void] = [:]
+    /// Ход шага карточки дельтами → привычный `.taskLive` для экранов.
+    @ObservationIgnored private var taskLiveRouter = TaskLiveDeltaRouter()
 
     /// Подписаться на события. Возвращает токен подписки.
     @discardableResult
@@ -255,7 +257,11 @@ public final class RealtimeClient {
         guard case .connected = event else { return }
         if !isConnected {
             isConnected = true
-            if hasConnectedBefore { onReconnected?() }
+            if hasConnectedBefore {
+                // За разрыв дельты могли потеряться — прогоны на старые снимки.
+                taskLiveRouter.reset()
+                onReconnected?()
+            }
             hasConnectedBefore = true
             reconnectAttempt = 0
         }
@@ -283,6 +289,17 @@ public final class RealtimeClient {
                 let answer = await DeviceOpsChannel.shared.resultMessage(for: request)
                 socketTask.send(.string(answer)) { _ in }
             }
+        }
+        switch event {
+        case .taskLiveDelta(let delta):
+            if case .show(let state, let complete) = taskLiveRouter.route(delta) {
+                dispatchToSubscribers(.taskLive(TaskLiveTurn(state: state, complete: complete)))
+            }
+            return
+        case .taskLive(let turn) where taskLiveRouter.routeSnapshot(runID: turn.runID) == .drop:
+            return
+        default:
+            break
         }
         dispatchToSubscribers(event)
     }
