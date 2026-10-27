@@ -19,5 +19,25 @@ struct ChatWorkspaceState: Decodable, Sendable, Equatable {
     let branch: String?
     let options: [Option]
 
-    var title: String { selected ?? "Папка" }
+    /// На чипе — последнее имя пути: «New-Todoist/server» → «server».
+    var title: String { selected.map { ($0 as NSString).lastPathComponent } ?? "Папка" }
+}
+
+/// Одна папка в обзоре (`GET /api/chats/:id/workspace/browse?path=`).
+struct ChatFolderListing: Decodable, Sendable, Equatable {
+    struct Entry: Decodable, Sendable, Equatable, Identifiable {
+        let name: String
+        /// Путь от корня проектов — его и сохраняет выбор.
+        let path: String
+        let git: Bool
+        var id: String { path }
+    }
+
+    /// "" — корень проектов.
+    let path: String
+    /// Куда «наверх»; nil — уже в корне.
+    let parent: String?
+    let entries: [Entry]
+
+    var title: String { path.isEmpty ? "Проекты" : (path as NSString).lastPathComponent }
 }
