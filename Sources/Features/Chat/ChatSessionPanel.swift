@@ -67,10 +67,13 @@ struct ChatSessionPanel: View {
      ChatWorkspaceMenu(choice: workspace) {
       LabeledContent("Папка", value: workspace.selected ?? "По умолчанию")
      }
+     // Обычный цвет текста вместо синего (владелец 27.10.2026).
      Button { showsContext = true } label: {
       LabeledContent("Контекст", value: context?.summary ?? "Нет замера")
      }
+     .tint(.primary)
      Button("Навыки и инструменты", systemImage: "wrench.and.screwdriver") { showsCommands = true }
+      .tint(.primary)
     }
     Section {
      Button("Новая сессия", systemImage: "plus.bubble") {
@@ -87,6 +90,7 @@ struct ChatSessionPanel: View {
       }
      }
     } footer: { Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю в текущем разговоре.") }
+    .tint(.primary)
    }
    .disabled(choice.isSaving || actionRunning)
    .navigationTitle("Сессия")
