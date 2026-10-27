@@ -2,83 +2,123 @@ import Foundation
 import SwiftUI
 import Observation
 
-/// Выбор модели в окне ввода чата (владелец 19.10.2026): пилюля рядом с
-/// режимом «Работа / Планирование». Модели — у единственного агента чата
-/// (`GET /api/roles/:role/models`): у внешнего агента его каталог, у роли —
-/// модели Pi. Выбор хранится на устройстве для каждого чата, как режим, и
-/// уходит с сообщением полем `model`; `nil` — модель роли по умолчанию.
+/// Model and thinking preferences belong to the assistant conversation on the server.
 @MainActor
 @Observable
 final class ChatModelChoice {
-    private(set) var options: [RoleModelOption] = []
-    /// Чем агент работает сейчас (для подписи «По умолчанию»).
-    private(set) var current: String?
-    var selected: String? {
-        didSet { if let key { UserDefaults.standard.set(selected, forKey: key) } }
-    }
-    private var key: String?
-    private let api = APIClient()
+ private(set) var options: [RoleModelOption] = []
+ private(set) var current: String?
+ private(set) var selected: String?
+ private(set) var thinkingLevel: String?
+ private(set) var isSaving = false
+ private(set) var isReady = false
+ private(set) var errorText: String?
+ private var key: String?
+ private var chatID: String?
+ private var usesSessionPreferences = false
+ private var revision = 0
+ private let api = APIClient()
 
-    /// Пилюля видна, когда в чате ровно один агент и у него есть выбор.
-    var isAvailable: Bool { !options.isEmpty }
+ var isAvailable: Bool { !options.isEmpty }
+ var effectiveOption: RoleModelOption? { options.first { $0.id == (selected ?? current) } }
+ var availableThinkingLevels: [String] { effectiveOption?.availableThinkingLevels ?? [] }
+ var effectiveTitle: String? { effectiveOption?.title ?? selected ?? current }
+ var title: String { selected == nil ? "Модель" : effectiveTitle ?? "Модель" }
 
-    /// Модель, которой агент работает на деле: выбранная, иначе текущая.
-    var effectiveTitle: String? {
-        if let selected, let option = options.first(where: { $0.id == selected }) { return option.title }
-        guard let current else { return nil }
-        return options.first(where: { $0.id == current })?.title ?? current
+ func load(chat: RoleChat) async {
+  revision += 1
+  let version = revision
+  isReady = false
+  errorText = nil
+  let roles = chat.members.compactMap(\.roleKey)
+  guard roles.count == 1, let role = roles.first else { options = []; return }
+  chatID = chat.id
+  usesSessionPreferences = chat.isAssistantOnly
+  key = "roleChat.model." + chat.createdBy + "." + chat.id
+  do {
+   let result = try await api.roleModels(role: role)
+   guard revision == version else { return }
+   options = result.models
+   current = RoleModelOption.resolveSelection(result.current, in: options) ?? result.current
+   if usesSessionPreferences {
+    let state: ChatSessionPreferences = try await api.request(.get, "/chats/\(chat.id)/session-preferences")
+    guard revision == version else { return }
+    selected = state.model
+    thinkingLevel = state.thinkingLevel
+    // Migrate a former device choice once; explicit server defaults win thereafter.
+    if !state.configured, let legacy = key.flatMap({ UserDefaults.standard.string(forKey: $0) }),
+       let resolved = RoleModelOption.resolveSelection(legacy, in: options) {
+     await save(model: resolved, thinking: nil)
+     guard errorText == nil else { return }
     }
+   } else {
+    selected = RoleModelOption.resolveSelection(key.flatMap { UserDefaults.standard.string(forKey: $0) }, in: options)
+    thinkingLevel = nil
+   }
+   isReady = true
+  } catch {
+   guard revision == version else { return }
+   errorText = error.localizedDescription
+  }
+ }
 
-    var title: String {
-        if let selected, let option = options.first(where: { $0.id == selected }) {
-            return option.title
-        }
-        return "Модель"
-    }
-
-    func load(chat: RoleChat) async {
-        let agents = chat.members.compactMap(\.roleKey)
-        guard agents.count == 1, let role = agents.first else { options = []; return }
-        key = "roleChat.model." + chat.createdBy + "." + chat.id
-        selected = key.flatMap { UserDefaults.standard.string(forKey: $0) }
-        do {
-            let result = try await api.roleModels(role: role)
-            options = result.models
-            current = result.current
-            self.selected = RoleModelOption.resolveSelection(selected, in: options)
-        } catch {
-            options = []
-        }
-    }
+ func selectModel(_ model: String?) async {
+  guard model != selected else { return }
+  let option = options.first { $0.id == (model ?? current) }
+  let compatible = ChatSessionPreferences.validThinking(thinkingLevel, available: option?.availableThinkingLevels ?? [])
+  await save(model: model, thinking: compatible)
+ }
+ func selectThinking(_ level: String?) async {
+  guard level == nil || availableThinkingLevels.contains(level!) else { return }
+  await save(model: selected, thinking: level)
+ }
+ private func save(model: String?, thinking: String?) async {
+  guard !isSaving else { return }
+  isSaving = true
+  errorText = nil
+  defer { isSaving = false }
+  if usesSessionPreferences {
+   guard let chatID else { return }
+   let version = revision
+   do {
+    let state: ChatSessionPreferences = try await api.request(.put, "/chats/\(chatID)/session-preferences",
+        body: ["model": model.map(JSONValue.string) ?? .null,
+               "thinkingLevel": thinking.map(JSONValue.string) ?? .null])
+    guard version == revision else { return }
+    selected = state.model
+    thinkingLevel = state.thinkingLevel
+    isReady = true
+   } catch { if version == revision { errorText = error.localizedDescription } }
+  } else {
+   selected = model
+   thinkingLevel = nil
+   if let key { UserDefaults.standard.set(model, forKey: key) }
+  }
+ }
 }
 
-/// Меню выбора модели: «По умолчанию» и модели агента.
 struct ChatModelMenu<MenuLabel: View>: View {
-    @Bindable var choice: ChatModelChoice
-    @ViewBuilder let label: () -> MenuLabel
-
-    var body: some View {
-        Menu {
-            Button { choice.selected = nil } label: {
-                if choice.selected == nil {
-                    Label(choice.current.map { "По умолчанию · " + $0 } ?? "По умолчанию", systemImage: "checkmark")
-                } else {
-                    Text(choice.current.map { "По умолчанию · " + $0 } ?? "По умолчанию")
-                }
-            }
-            // Как меню инструментов: все модели сразу, разделы по провайдерам.
-            ForEach(RoleModelOption.grouped(choice.options)) { group in
-                Section(group.provider) {
-                    ForEach(group.models) { option in
-                        Button { choice.selected = option.id } label: {
-                            if choice.selected == option.id { Label(option.title, systemImage: "checkmark") }
-                            else { Text(option.title) }
-                        }
-                    }
-                }
-            }
-        } label: { label() }
-        .accessibilityIdentifier("chat.model")
-        .accessibilityLabel("Модель: " + choice.title)
+ @Bindable var choice: ChatModelChoice
+ @ViewBuilder let label: () -> MenuLabel
+ var body: some View {
+  Menu {
+   Button { Task { await choice.selectModel(nil) } } label: {
+    if choice.selected == nil { Label("По умолчанию", systemImage: "checkmark") }
+    else { Text("По умолчанию") }
+   }
+   ForEach(RoleModelOption.grouped(choice.options)) { group in
+    Section(group.provider) {
+     ForEach(group.models) { option in
+      Button { Task { await choice.selectModel(option.id) } } label: {
+       if choice.selected == option.id { Label(option.title, systemImage: "checkmark") }
+       else { Text(option.title) }
+      }
+     }
     }
+   }
+  } label: { label() }
+  .disabled(choice.isSaving)
+  .accessibilityIdentifier("chat.model")
+  .accessibilityLabel("Модель: " + choice.title)
+ }
 }

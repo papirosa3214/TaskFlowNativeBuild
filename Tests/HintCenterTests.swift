@@ -4,6 +4,15 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testAssistantSessionHintCompletes() {
+        let scenario = HintScenarios.assistantSession
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatSession)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     func testRoutineEditingHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "routine-editing" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])

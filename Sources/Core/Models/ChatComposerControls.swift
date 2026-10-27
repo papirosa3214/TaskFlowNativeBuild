@@ -6,6 +6,9 @@ public struct RoleModelOption: Decodable, Identifiable, Hashable {
     public let provider: String?
     public let modelID: String?
     public let contextWindow: Int?
+    public var thinkingLevels: [String]? = nil
+    public var thinkingLevelLabels: [String: String]? = nil
+    var availableThinkingLevels: [String] { thinkingLevels ?? [] }
 
     /// Провайдер: из ответа сервера, а у старого ответа — из id вида
     /// «провайдер/модель». Имя — как его пишет сам провайдер.

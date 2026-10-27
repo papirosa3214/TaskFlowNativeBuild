@@ -36,6 +36,7 @@ struct ChatVoiceComposer: View {
     var modelChoice: ChatModelChoice? = nil
     /// Рабочая папка (чат с Помощником владельца); nil — чипа нет.
     var workspaceChoice: ChatWorkspaceChoice? = nil
+    var sessionControls: AnyView? = nil
     var onShowCommands: (() -> Void)? = nil
     /// Кольца контекста — в ряду ярлычков слева.
     var contextControls: AnyView? = nil
@@ -128,6 +129,9 @@ struct ChatVoiceComposer: View {
                 promptAttachmentMenu
                 if showsMentionButton { mentionButton }
                 // Режим не дублируется подписью: он виден в меню настроек слева.
+                if let sessionControls {
+                    sessionControls
+                } else {
                 if let modelChoice, modelChoice.isAvailable {
                     // Тот же вид, что у пилюли режима слева от неё.
                     ChatModelMenu(choice: modelChoice) {
@@ -170,6 +174,7 @@ struct ChatVoiceComposer: View {
                 }
                 // Кольцо контекста — крайнее справа из ярлычков (владелец 27.10.2026).
                 if let contextControls { contextControls }
+                }
                 Spacer(minLength: 8)
                 Button(action: startVoiceRecording) {
                     promptIcon("mic").contentShape(Rectangle())

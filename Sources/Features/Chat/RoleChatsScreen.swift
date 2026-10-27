@@ -875,6 +875,7 @@ struct RoleChatRoomScreen: View {
     @State private var workspaceChoice = ChatWorkspaceChoice()
     @State private var composerControls = ChatComposerControlStore()
     @State private var showsComposerCommands = false
+    @State private var showsSessionPanel = false
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
@@ -1248,7 +1249,8 @@ struct RoleChatRoomScreen: View {
                     text: $draft,
                     placeholder: "Сообщение",
                     canSendText: (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
-                        && !isSending && !isUploadingAttachment && !isSavingExecutionMode,
+                        && !isSending && !isUploadingAttachment && !isSavingExecutionMode
+                        && (!chat.isAssistantOnly || (modelChoice.isReady && !modelChoice.isSaving)),
                     voice: voice,
                     onAttachmentSource: { source in
                         switch source {
@@ -1268,6 +1270,16 @@ struct RoleChatRoomScreen: View {
                     availableModes: RoleChatWorkMode.available(in: chat),
                     modelChoice: modelChoice,
                     workspaceChoice: workspaceChoice,
+                    sessionControls: chat.isAssistantOnly ? AnyView(
+                        Button { showsSessionPanel = true } label: {
+                            Label("Сессия", systemImage: "bubble.left.and.text.bubble.right")
+                                .tfText(.caption)
+                                .frame(minWidth: 40, minHeight: 40)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("chat.session")
+                        .hintAnchor(HintAnchorID.chatSession)
+                    ) : nil,
                     onShowCommands: { showsComposerCommands = true },
                     contextControls: chat.composerRoleKeys.isEmpty ? nil : AnyView(HStack(spacing: 0) {
                         ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
@@ -1461,10 +1473,12 @@ struct RoleChatRoomScreen: View {
                             // Владелец 25.09.2026: «очистить чат не надо —
                             // надо по сессиям потом полистать». История не
                             // трогается, сбрасывается только память роли.
-                            Button { Task { await newSession() } } label: {
-                                Label("Новая сессия", systemImage: "arrow.triangle.2.circlepath")
+                            if !chat.isAssistantOnly {
+                                Button { Task { await newSession() } } label: {
+                                    Label("Новая сессия", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                                compactMenuItem
                             }
-                            compactMenuItem
                             ShareLink(item: RoleChatTranscript(title: chat.displayTitle(excluding: session.currentUser?.id),
                                                                messages: visibleMessages),
                                       preview: SharePreview("Чат")) {
@@ -1571,6 +1585,35 @@ struct RoleChatRoomScreen: View {
         }
         .task(id: chat.members.map(\.id).joined(separator: ":") + ":" + (messages.last?.id ?? "")) {
             await composerControls.load(chat: chat)
+        }
+        .sheet(isPresented: $showsSessionPanel) {
+            ChatSessionPanel(chat: chat, choice: modelChoice, workspace: workspaceChoice,
+                context: composerControls.contexts["u-secretary"], controls: composerControls,
+                isWorking: !liveTurns.isEmpty || !typists.isEmpty,
+                onRefresh: {
+                    await modelChoice.load(chat: chat)
+                    await workspaceChoice.load(chat: chat)
+                    await composerControls.load(chat: chat)
+                },
+                onRename: { title in
+                    do { chat = try await api.renameRoleChat(id: chat.id, title: title) }
+                    catch { errorMessage = error.localizedDescription }
+                },
+                onNewSession: { Task { await createAssistantSession() } },
+                onCompact: {
+                    if let member = chat.members.first(where: { $0.id == "u-secretary" || $0.roleKey == "secretary" }) {
+                        await compact(member)
+                    }
+                },
+                onResetContext: { await newSession(roleID: "u-secretary") },
+                onClose: {
+                    do { chat = try await api.closeRoleChat(id: chat.id, closed: true); dismiss() }
+                    catch { errorMessage = error.localizedDescription }
+                },
+                onSelectCommand: { command in
+                    draft = command.inserting(into: draft)
+                    composerFocused = true
+                })
         }
         .sheet(isPresented: $showsComposerCommands) {
             ChatCommandPicker(commands: composerControls.commands, errorText: composerControls.errorText,
@@ -2276,6 +2319,14 @@ struct RoleChatRoomScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
+    private func createAssistantSession() async {
+        do {
+            let next = try await api.createRoleChat(title: nil, memberIDs: ["u-secretary"])
+            branchChat = next
+            isBranchPresented = true
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     private func newSession(roleID selectedRoleID: String? = nil) async {
         guard let roleID = selectedRoleID ?? chat.others(excluding: session.currentUser?.id).first?.id else { return }
         do {
@@ -2907,6 +2958,10 @@ struct RoleChatRoomScreen: View {
     }
 
     private func send() async {
+        guard !chat.isAssistantOnly || (modelChoice.isReady && !modelChoice.isSaving) else {
+            errorMessage = modelChoice.errorText ?? "Дождитесь сохранения настроек сессии."
+            return
+        }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment, !isSavingExecutionMode else { return }
         let pending = PendingOutgoing(id: "local-\(UUID().uuidString)", text: text,
@@ -2938,7 +2993,7 @@ struct RoleChatRoomScreen: View {
         do {
             let message = try await api.sendRoleChatMessage(chatID: chat.id, text: pending.text,
                                                             attachmentIDs: pending.attachments.map(\.id), mode: pending.mode, executionMode: pending.executionMode,
-                                                            model: modelChoice.selected)
+                                                            model: chat.isAssistantOnly ? nil : modelChoice.selected)
             pendingOutgoing.removeAll { $0.id == pendingID }
             if !messages.contains(where: { $0.id == message.id }) {
                 // Своё отправленное сообщение занимает строку пузыря «в
@@ -3065,6 +3120,10 @@ struct RoleChatRoomScreen: View {
     }
 
     private func sendVoice(_ id: UUID) async {
+        guard !chat.isAssistantOnly || (modelChoice.isReady && !modelChoice.isSaving) else {
+            errorMessage = modelChoice.errorText ?? "Дождитесь сохранения настроек сессии."
+            return
+        }
         guard let message = pendingVoices.first(where: { $0.id == id }),
               message.transcript != .pending,
               sendingVoiceIDs.insert(id).inserted else { return }
@@ -3084,7 +3143,7 @@ struct RoleChatRoomScreen: View {
             let text: String
             if case .ready(let recognized) = message.transcript { text = recognized }
             else { text = "" }
-            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, executionMode: pendingVoiceExecutionModes[id] ?? chat.composerExecutionMode, model: modelChoice.selected)
+            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, executionMode: pendingVoiceExecutionModes[id] ?? chat.composerExecutionMode, model: chat.isAssistantOnly ? nil : modelChoice.selected)
             if !messages.contains(where: { $0.id == sent.id }) { messages.append(sent) }
             pendingVoices.removeAll { $0.id == id }
             pendingVoiceModes[id] = nil
