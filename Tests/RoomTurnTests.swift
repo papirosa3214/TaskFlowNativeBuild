@@ -32,6 +32,20 @@ final class RoomTurnTests: XCTestCase {
         XCTAssertEqual(snapshot.roles[0].dms[0].turn?.outcome, .limit)
     }
 
+    func testRolePendingOutcomeTakesMostUrgentAcrossRooms() throws {
+        let snapshot = try decode(ChatRoomsSnapshot.self, #"""
+        {"common":{"chat_id":"common","live":false,"last_message":null},
+         "roles":[{"id":"u-secretary","name":"Помощник","working":false,"personal_chat_id":"chat-secretary",
+           "personal_turn":{"running":false,"outcome":"answered"},"last_message":null,
+           "dms":[{"chat_id":"dm1","peer_id":"role_qa","pair":"a:b","live":false,"last_message":null,"turn":{"running":false,"outcome":"failed"}},
+                  {"chat_id":"dm2","peer_id":"role_x","pair":"a:c","live":false,"last_message":null,"turn":{"running":false,"outcome":null}}]},
+          {"id":"role_qa","name":"Тестировщик","working":false,"personal_chat_id":"p2",
+           "personal_turn":{"running":false,"outcome":null},"last_message":null,"dms":[]}]}
+        """#)
+        XCTAssertEqual(snapshot.roles[0].pendingOutcome, .failed)
+        XCTAssertNil(snapshot.roles[1].pendingOutcome)
+    }
+
     func testOldServerWithoutTurnStillDecodes() throws {
         let snapshot = try decode(ChatRoomsSnapshot.self, #"""
         {"common":{"chat_id":"common","live":false,"last_message":null},

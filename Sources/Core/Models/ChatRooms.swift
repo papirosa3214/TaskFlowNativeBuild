@@ -64,6 +64,17 @@ public struct ChatRoomsSnapshot: Decodable, Sendable {
 
         /// Живые лички роли — по ним горит облачко.
         public var liveDMs: [DirectRoom] { dms.filter(\.live) }
+
+        /// Итог для аватарки роли в боковой панели (владелец 27.10.2026): в
+        /// какой-то из её комнат ход кончился, а владелец туда не заходил.
+        /// Важнее то, что требует внимания: лимит, потом сбой, потом ответ.
+        public var pendingOutcome: RoomTurn.Outcome? {
+            let outcomes = ([personalTurn] + dms.map(\.turn)).compactMap { $0?.outcome }
+            for outcome in [RoomTurn.Outcome.limit, .failed, .answered] where outcomes.contains(outcome) {
+                return outcome
+            }
+            return nil
+        }
     }
 
     public struct DirectRoom: Decodable, Identifiable, Sendable {

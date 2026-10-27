@@ -494,7 +494,7 @@ struct ChatListRow: View {
                         .foregroundStyle(Color.tfDim)
                 }
                 HStack(spacing: TFSpacing.xs) {
-                    if let outcome = turn?.outcome { outcomeDot(outcome) }
+                    if let outcome = turn?.outcome { RoomTurnOutcomeDot(outcome: outcome) }
                     if unread > 0 { badge }
                 }
             }
@@ -516,20 +516,6 @@ struct ChatListRow: View {
             .frame(minWidth: 20, minHeight: 20)
             .background(Capsule().fill(Color.tfRedSolid))
             .accessibilityLabel("Непрочитанных: \(unread)")
-    }
-
-    /// Чем кончился ход (владелец 27.10.2026): зелёная — ответ пришёл,
-    /// жёлтая — ход отвалился, красная — кончился лимит.
-    private func outcomeDot(_ outcome: RoomTurn.Outcome) -> some View {
-        let (color, label): (Color, String) = switch outcome {
-        case .answered: (Color.tfGreen, "Ответ пришёл")
-        case .failed: (Color.tfYellow, "Ход отвалился, ответа нет")
-        case .limit: (Color.tfRedSolid, "Кончился лимит")
-        }
-        return Circle()
-            .fill(color)
-            .frame(width: 10, height: 10)
-            .accessibilityLabel(label)
     }
 }
 

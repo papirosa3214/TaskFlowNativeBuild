@@ -49,7 +49,10 @@ struct ChatRoomsPanel: View {
     }
 
     private func roleAvatar(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
+        // Роль делает ход — аватарка играет ролик (как в строке комнаты),
+        // зелёной точки «работает» больше нет (владелец 27.10.2026).
         RoleMemberAvatar(member: role.member, size: ChatEdgeRailMetrics.avatar)
+            .environment(\.tfAvatarLiveTurn, role.working)
             .overlay(alignment: .topTrailing) {
                 // Одно облачко, поделённое на полосы — по цвету каждого живого
                 // собеседника, до трёх: пара видна на обоих концах (21.10.2026).
@@ -59,11 +62,10 @@ struct ChatRoomsPanel: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                if role.working {
-                    Circle()
-                        .fill(Color.tfGreen)
-                        .frame(width: avatarSide * 0.26, height: avatarSide * 0.26)
-                        .overlay { Circle().strokeBorder(Color.tfBackground, lineWidth: 2) }
+                // Точка — в какой-то комнате роли ход кончился, а владелец
+                // туда не заходил: зайти в её список и посмотреть.
+                if !role.working, let outcome = role.pendingOutcome {
+                    RoomTurnOutcomeDot(outcome: outcome, diameter: avatarSide * 0.26, ringed: true)
                 }
             }
     }
@@ -71,6 +73,7 @@ struct ChatRoomsPanel: View {
     private func label(for role: ChatRoomsSnapshot.RoleRoom, in snapshot: ChatRoomsSnapshot) -> String {
         var parts = [role.name]
         if role.working { parts.append("работает") }
+        else if let outcome = role.pendingOutcome { parts.append(RoomTurnOutcomeDot(outcome: outcome).label) }
         let peers = role.liveDMs.compactMap { snapshot.role($0.peerID)?.name }
         if !peers.isEmpty { parts.append("на связи с: " + peers.joined(separator: ", ")) }
         return parts.joined(separator: ", ")
