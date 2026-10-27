@@ -74,7 +74,7 @@ extension APIClient {
     /// вне этого экрана.
     func journalAssist(text: String, action: JournalAssistAction) async throws -> String {
         let body: [String: JSONValue] = ["text": .string(text), "action": .string(action.rawValue)]
-        let response: JournalAssistResponse = try await request(.post, "/ai/journal-assist", body: body)
+        let response: JournalAssistResponse = try await request(.post, "/ai/journal-assist", body: body, timeout: APIClient.aiTimeout)
         return response.result
     }
 }

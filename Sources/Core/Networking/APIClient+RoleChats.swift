@@ -197,7 +197,7 @@ public extension APIClient {
     func compactRoleChatSession(chatID: String, roleID: String) async throws {
         struct Body: Encodable { let role_id: String }
         struct Result: Decodable { let ok: Bool }
-        let _: Result = try await request(.post, "/chats/\(chatID)/compact", body: Body(role_id: roleID))
+        let _: Result = try await request(.post, "/chats/\(chatID)/compact", body: Body(role_id: roleID), timeout: APIClient.aiTimeout)
     }
 
     /// Остановить идущий ход роли (или всех ролей, если `roleID == nil`).

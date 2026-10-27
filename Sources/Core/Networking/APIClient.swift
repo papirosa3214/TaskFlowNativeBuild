@@ -29,6 +29,10 @@ public final class APIClient: Sendable {
     }()
 
 
+    static let defaultTimeout: TimeInterval = 15
+    /// Запросы, где сервер отвечает после работы модели и молчит до ответа.
+    static let aiTimeout: TimeInterval = 120
+
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -153,7 +157,10 @@ public final class APIClient: Sendable {
         // идут десятки секунд — дефолтных 60с не хватает, и запрос обрывается
         // с «не удалось», хотя сервер доводит работу до конца. Явный таймаут
         // для таких маршрутов.
-        if let timeout { request.timeoutInterval = timeout }
+        // Это таймаут простоя (сколько ждать следующих байтов), а не всего
+        // запроса: долгая выгрузка с идущими данными не обрывается. 60 с по
+        // умолчанию держали экран «думающим» минуту при потерянной сети.
+        request.timeoutInterval = timeout ?? Self.defaultTimeout
         Self.applyIdentity(to: &request)
         // Дополнительные заголовки запроса (If-None-Match и подобные).
         for (name, value) in headers {

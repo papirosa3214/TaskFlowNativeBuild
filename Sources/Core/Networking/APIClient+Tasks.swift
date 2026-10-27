@@ -109,7 +109,7 @@ public extension APIClient {
     }
 
     func structureTask(text: String) async throws -> StructuredTask {
-        try await request(.post, "/ai/structure-task", body: StructureTaskRequest(text: text))
+        try await request(.post, "/ai/structure-task", body: StructureTaskRequest(text: text), timeout: APIClient.aiTimeout)
     }
 
     /// Тело создания — строго типизированная структура (в отличие от PATCH,

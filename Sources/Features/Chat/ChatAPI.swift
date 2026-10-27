@@ -56,7 +56,7 @@ public extension APIClient {
         if let taskId { body["task_id"] = .string(taskId) }
         if let kind { body["kind"] = .string(kind.rawValue) }
         if !attachmentIds.isEmpty { body["attachment_ids"] = .strings(attachmentIds) }
-        return try await request(.post, "/chat", body: body)
+        return try await request(.post, "/chat", body: body, timeout: APIClient.aiTimeout)
     }
 
     /// Ключи дословно русские — тот же приём, что у `ApiChatStats` в Core.

@@ -39,7 +39,7 @@ extension APIClient {
         if !trimmed.isEmpty {
             body["system_prompt"] = .string(trimmed)
         }
-        let response: ExtractTasksResponse = try await request(.post, "/ai/extract-tasks", body: body)
+        let response: ExtractTasksResponse = try await request(.post, "/ai/extract-tasks", body: body, timeout: APIClient.aiTimeout)
         return response.tasks
     }
 }
