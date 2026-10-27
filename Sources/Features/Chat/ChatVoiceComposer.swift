@@ -162,14 +162,6 @@ struct ChatVoiceComposer: View {
                             Image(systemName: "folder")
                                 .font(.system(size: 20, weight: .regular))
                                 .frame(width: 20, height: 20)
-                            if workspaceChoice.selected != nil {
-                                Text(workspaceChoice.title)
-                                    .tfText(.caption)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .frame(maxWidth: 90, alignment: .leading)
-                                    .fixedSize(horizontal: true, vertical: false)
-                            }
                         }
                         .frame(minWidth: 40, minHeight: 40)
                         .contentShape(Rectangle())
