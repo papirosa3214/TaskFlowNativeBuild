@@ -7,6 +7,9 @@ public struct RoleComposio: Decodable, Sendable {
     public let configured: Bool
     public let available: Bool
     public let catalog: [ComposioToolkit]
+    /// Курсор следующей страницы каталога; nil — каталог кончился.
+    public let catalogCursor: String?
+    public let catalogTotalPages: Int?
     public let error: String?
 }
 

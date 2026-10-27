@@ -19,6 +19,10 @@ final class ComposioIntegrationsViewModel {
     var error: String?
     var search = ""
     var awaitingAuthorization = false
+    /// Курсор следующей страницы каталога; nil — больше грузить нечего.
+    var catalogCursor: String?
+    var catalogTotalPages: Int?
+    var loadingMore = false
     private let api = APIClient()
     private(set) var loaded = false
 
@@ -72,6 +76,8 @@ final class ComposioIntegrationsViewModel {
             configured = settings?.configured ?? false
             available = fetched.values.allSatisfy(\.available) && !fetched.isEmpty
             catalog = settings?.catalog ?? []
+            catalogCursor = settings?.catalogCursor ?? nil
+            catalogTotalPages = settings?.catalogTotalPages ?? nil
             error = fetched.values.compactMap(\.error).first
             loaded = true
         } catch { self.error = error.localizedDescription }
@@ -85,7 +91,29 @@ final class ComposioIntegrationsViewModel {
         do {
             let result = try await api.roleComposio(role: role.id, search: search)
             catalog = result.catalog
+            catalogCursor = result.catalogCursor ?? nil
+            catalogTotalPages = result.catalogTotalPages ?? nil
             available = result.available
+            error = result.error
+        } catch { self.error = error.localizedDescription }
+    }
+
+    /// Догружает следующую страницу каталога по курсору сервера.
+    func loadMore() async {
+        guard let role = roles.first, let cursor = catalogCursor, !cursor.isEmpty,
+              !loading, !loadingMore, !saving, !fixture else { return }
+        loadingMore = true
+        defer { loadingMore = false }
+        do {
+            let result = try await api.roleComposio(role: role.id, search: search, cursor: cursor)
+            var merged = catalog
+            var seen = Set(catalog.map(\.slug))
+            for toolkit in result.catalog where seen.insert(toolkit.slug).inserted {
+                merged.append(toolkit)
+            }
+            catalog = merged
+            catalogCursor = result.catalogCursor ?? nil
+            catalogTotalPages = result.catalogTotalPages ?? nil
             error = result.error
         } catch { self.error = error.localizedDescription }
     }
@@ -197,6 +225,13 @@ struct ComposioIntegrationsScreen: View {
                     }
                 }
                 if displayCatalog.isEmpty { TFEmptyState(text: "Сервисы не найдены", description: "Попробуйте другое название.") }
+                if model.catalogCursor != nil {
+                    TFButton(model.loadingMore ? "Загружаем…" : "Показать ещё", icon: "arrow.down.circle",
+                             variant: .secondary, isEnabled: !model.loading && !model.loadingMore && !model.saving) {
+                        Task { await model.loadMore() }
+                    }
+                    .accessibilityIdentifier("composio.loadMore")
+                }
             } else if model.loading { TFLoading(.block) }
             TFButton("Обновить", icon: "arrow.clockwise", variant: .secondary, isEnabled: !model.loading && !model.saving) {
                 Task { await model.load() }
