@@ -14,7 +14,6 @@ public enum AppRoute: Hashable {
     case today
     case overview
     case upcoming
-    case timeline
     case chat
     case taskDetail(taskID: String)
     /// Единственный отдельный сценарий формы — создание новой задачи.
@@ -48,7 +47,6 @@ public enum AppRoute: Hashable {
     case taskArchive
     case labels
     case labelTasks(labelID: String)
-    case search
     case activity
     /// Рутины (крон-задачи) — экран «Мои рутины».
     case routines
@@ -62,12 +60,6 @@ public enum AppRoute: Hashable {
     case roleRunJobs
     /// Память ролей (02.10.2026) — что команда знает; владелец видит и правит.
     case memory
-    /// `focus` — с какого состояния открыть сводку. Четыре плитки «Обзора»
-    /// («В работе», «На проверке», «Заблокированы», «Пропали») вели сюда без
-    /// параметра, и каждая показывала один и тот же полный список: владелец
-    /// 09.09.2026 — «зачем нам эти четыре кнопки, если все ведут в одно
-    /// место». `nil` — открыть всё, как раньше.
-    case agentWork(focus: AgentWorkFocus? = nil)
     case settings
     case integrations
     case templates

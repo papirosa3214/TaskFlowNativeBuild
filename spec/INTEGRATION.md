@@ -20,7 +20,6 @@
 | Сегодня          | `/today`                 | `TodayScreen`         | —                               |
 | Обзор            | `/overview`              | `OverviewScreen`      | —                               |
 | Планирование     | `/upcoming`              | `UpcomingScreen`      | —                               |
-| Лента дня        | `/timeline`              | `TimelineScreen`      | —                               |
 | Чат              | `/chat`                  | `ChatScreen`          | —                               |
 | Карточка задачи  | `/task/:id`              | `TaskDetailScreen`    | `taskID: String`                |
 | Создание задачи  | `/task/new`              | `TaskFormScreen`      | `taskID: String?` (nil — новая), `presetDueToday: Bool = false`, `startDictation: Bool = false` |
@@ -30,11 +29,9 @@
 | Задачи проекта   | `/projects/:id`          | `ProjectTasksScreen`  | `projectID: String`             |
 | Метки            | `/labels`                | `LabelsScreen`        | —                               |
 | Задачи метки     | `/labels/:id`            | `LabelTasksScreen`    | `labelID: String`               |
-| Поиск            | `/search`                | `SearchScreen`        | —                               |
 | Активность       | `/activity`              | `ActivityScreen`      | —                               |
 | Уведомления      | `/notifications`         | `NotificationsScreen` | —                               |
 | Агенты           | `/agents`                | `AgentsScreen`        | —                               |
-| Работа агента    | `/agent-work`            | `AgentWorkScreen`     | —                               |
 | Настройки        | `/settings`              | `SettingsScreen`      | —                               |
 | Интеграции       | `/settings/integrations` | `IntegrationsScreen`  | —                               |
 | Шаблоны          | `/settings/templates`    | `TemplatesScreen`     | —                               |
@@ -47,6 +44,10 @@
 
 Маршрута `/inbox` в приложении нет — экран убран из веба 26.08.2026, нативный
 аналог не делаем.
+
+Маршрутов `/timeline`, `/search` и `/agent-work` в приложении тоже нет: их
+экраны ниоткуда не открывались (создавались только самим маршрутом), поэтому
+27.10.2026 удалены вместе с маршрутами. Нативного аналога не делаем.
 
 ## Что экран может ждать от ядра
 
