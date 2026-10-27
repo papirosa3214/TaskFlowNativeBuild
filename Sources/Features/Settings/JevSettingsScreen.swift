@@ -154,6 +154,15 @@ struct JevSettingsScreen: View {
                     scenario("Навыки под задачу", id: "skills",
                              enabled: settings.skillsEnabled,
                              description: "У ролей с числом навыков больше шести JEV отбирает нужные карточке и текущему шагу. Если ничего не выбрал или не ответил, роль получает все навыки.") { .init(skillsEnabled: $0) }
+                    if let thoughtReview = settings.thoughtReviewEnabled {
+                        TFDivider(inset: rowDividerInset)
+                        scenario("Разбор мыслей роли", id: "thoughts",
+                                 enabled: thoughtReview,
+                                 description: "Каждые три ответа роли JEV читает её рассуждения. Если роль не поняла задачу, ходит по кругу или ушла в сторону, сервер подсказывает ей, что делать: перечитать карточку, поискать в памяти и базе знаний или задать вам вопрос. Не чаще раза за шесть ответов.") { .init(thoughtReviewEnabled: $0) }
+                        if let confidence = settings.thoughtReviewMinConfidence {
+                            thoughtReviewThreshold(confidence)
+                        }
+                    }
                 }
             }
         }
@@ -186,6 +195,20 @@ struct JevSettingsScreen: View {
     }
 
     private var rowDividerInset: CGFloat { TFSpacing.lg }
+
+    /// Порог уверенности разбора мыслей: ниже него подсказка роли не уходит.
+    private func thoughtReviewThreshold(_ confidence: Double) -> some View {
+        Stepper(value: Binding(get: { confidence },
+                               set: { value in Task { await save(.init(thoughtReviewMinConfidence: value), updateDraft: false) } }),
+                in: 0.5...0.95, step: 0.05) {
+            Text("Порог уверенности: \(Int((confidence * 100).rounded())) %")
+                .tfText(.action).foregroundStyle(Color.tfText)
+        }
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.bottom, TFSpacing.md)
+        .accessibilityIdentifier("jev-thoughts-threshold")
+        .disabled(busy || settings?.hasApiKey != true || settings?.thoughtReviewEnabled != true)
+    }
 
     private func apply(_ value: JevSettings, updateDraft: Bool) {
         settings = value

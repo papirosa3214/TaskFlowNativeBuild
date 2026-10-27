@@ -10,6 +10,9 @@ struct JevSettings: Decodable, Sendable {
     let memoryRecallEnabled: Bool
     let memoryWriteEnabled: Bool
     let skillsEnabled: Bool
+    // Разбор мыслей роли (27.10.2026). Необязательные: старый сервер их не присылает.
+    let thoughtReviewEnabled: Bool?
+    let thoughtReviewMinConfidence: Double?
 }
 
 /// Only changed fields are sent. An empty key never deletes the saved key.
@@ -23,6 +26,8 @@ struct JevSettingsPatch: Encodable, Sendable {
     var memoryRecallEnabled: Bool?
     var memoryWriteEnabled: Bool?
     var skillsEnabled: Bool?
+    var thoughtReviewEnabled: Bool?
+    var thoughtReviewMinConfidence: Double?
 }
 
 struct JevConnectionResult: Decodable, Sendable {
