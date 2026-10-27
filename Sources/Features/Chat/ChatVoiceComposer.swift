@@ -134,8 +134,13 @@ struct ChatVoiceComposer: View {
                     ChatModelMenu(choice: modelChoice) {
                         // По размеру содержимого: без выбора — только значок.
                         HStack(spacing: 4) {
-                            Image(systemName: "cpu")
-                                .font(.system(size: 14, weight: .medium))
+                            // «Мозги» — как на кнопке адресата (LOCK-BRAIN-INTEGRATIONS-ICONS),
+                            // по размеру SF-символа 14 pt.
+                            Image("ModelBrain")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 16, height: 16)
                             if modelChoice.selected != nil {
                                 Text(modelChoice.title)
                                     .tfText(.caption)
