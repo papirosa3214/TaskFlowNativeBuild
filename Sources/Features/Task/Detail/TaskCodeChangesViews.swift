@@ -65,7 +65,7 @@ private struct CodeChangesSummaryButton: View {
     let totals: TaskCodeChanges.Totals
     let summary: String
     let identifier: String
-    /// Значок как счётчики рядом: тот же шрифт и цвет (в чате, владелец 27.10.2026).
+    /// Значок и надпись как счётчики рядом: тот же шрифт и цвет (в чате, владелец 27.10.2026).
     var quietIcon = false
     let action: () -> Void
 
@@ -78,8 +78,8 @@ private struct CodeChangesSummaryButton: View {
                             .tfText(.meta)
                             .foregroundStyle(Color.tfSub)
                         Text("Изменения кода")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfText)
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
                     }
                 } else {
                     Label("Изменения кода", systemImage: "chevron.left.forwardslash.chevron.right")
