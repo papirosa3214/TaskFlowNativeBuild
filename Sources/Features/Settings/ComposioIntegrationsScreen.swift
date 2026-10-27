@@ -19,6 +19,11 @@ final class ComposioIntegrationsViewModel {
     var error: String?
     var search = ""
     var awaitingAuthorization = false
+    /// Курсор следующей страницы каталога (nil — страниц больше нет).
+    var catalogCursor: String?
+    /// Сколько страниц в каталоге всего.
+    var catalogTotalPages: Int?
+    var loadingMore = false
     private let api = APIClient()
     private(set) var loaded = false
 
@@ -43,10 +48,11 @@ final class ComposioIntegrationsViewModel {
                      ComposioWorkspaceRole(id: "developer", title: "Разработчик", active: true),
                      ComposioWorkspaceRole(id: "reviewer", title: "Ревьюер", active: true)]
             policies = Dictionary(uniqueKeysWithValues: roles.map { ($0.id, ComposioAccessPolicy(enabled: false, toolkits: nil)) })
-            catalog = [ComposioToolkit(slug: "linear", name: "Linear", connected: true, noAuth: false),
-                       ComposioToolkit(slug: "github", name: "GitHub", connected: false, noAuth: false),
-                       ComposioToolkit(slug: "notion", name: "Notion", connected: false, noAuth: false)]
+            catalog = [ComposioToolkit(slug: "linear", name: "Linear", logo: nil, connected: true, noAuth: false),
+                       ComposioToolkit(slug: "github", name: "GitHub", logo: nil, connected: false, noAuth: false),
+                       ComposioToolkit(slug: "notion", name: "Notion", logo: nil, connected: false, noAuth: false)]
             configured = true; available = true; loaded = true
+            catalogCursor = nil; catalogTotalPages = nil
             return
         }
         do {
@@ -72,6 +78,8 @@ final class ComposioIntegrationsViewModel {
             configured = settings?.configured ?? false
             available = fetched.values.allSatisfy(\.available) && !fetched.isEmpty
             catalog = settings?.catalog ?? []
+            catalogCursor = settings?.catalogCursor
+            catalogTotalPages = settings?.catalogTotalPages
             error = fetched.values.compactMap(\.error).first
             loaded = true
         } catch { self.error = error.localizedDescription }
@@ -85,7 +93,31 @@ final class ComposioIntegrationsViewModel {
         do {
             let result = try await api.roleComposio(role: role.id, search: search)
             catalog = result.catalog
+            catalogCursor = result.catalogCursor
+            catalogTotalPages = result.catalogTotalPages
             available = result.available
+            error = result.error
+        } catch { self.error = error.localizedDescription }
+    }
+
+    /// Догрузить следующую страницу каталога: сервисов больше тысячи, на
+    /// экране помещается строка за раз — список листается постранично.
+    func loadMoreCatalog() async {
+        guard let role = roles.first, let cursor = catalogCursor, !loading, !saving, !loadingMore else { return }
+        if fixture { return }
+        loadingMore = true
+        defer { loadingMore = false }
+        do {
+            let result = try await api.roleComposio(role: role.id, search: search, cursor: cursor)
+            var merged = catalog
+            var seen = Set(catalog.map(\.slug))
+            for toolkit in result.catalog where !seen.contains(toolkit.slug) {
+                seen.insert(toolkit.slug)
+                merged.append(toolkit)
+            }
+            catalog = merged
+            catalogCursor = result.catalogCursor
+            catalogTotalPages = result.catalogTotalPages
             error = result.error
         } catch { self.error = error.localizedDescription }
     }
@@ -189,7 +221,7 @@ struct ComposioIntegrationsScreen: View {
                             NavigationLink {
                                 ComposioServiceScreen(model: model, toolkit: toolkit)
                             } label: {
-                                TFListRow(icon: "link", iconStyle: .plain, title: toolkit.name,
+                                TFListRow(icon: "link", iconStyle: .remote(toolkit.logo), title: toolkit.name,
                                           subtitle: "\(toolkit.noAuth ? "Без авторизации" : toolkit.connected ? "Подключён" : "Не подключён") · \(model.selectedRoles(for: toolkit.slug).count) ролей",
                                           trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
                             }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.service.\(toolkit.slug)")
@@ -197,6 +229,16 @@ struct ComposioIntegrationsScreen: View {
                     }
                 }
                 if displayCatalog.isEmpty { TFEmptyState(text: "Сервисы не найдены", description: "Попробуйте другое название.") }
+                if model.catalogCursor != nil {
+                    TFButton(model.loadingMore ? "Загружаем…" : "Показать ещё", icon: "arrow.down", variant: .secondary, isEnabled: !model.loading && !model.loadingMore) {
+                        Task { await model.loadMoreCatalog() }
+                    }
+                    .accessibilityIdentifier("composio.loadMore")
+                    if let pages = model.catalogTotalPages {
+                        Text("Показана часть каталога — всего страниц: \(pages).")
+                            .tfText(.caption).foregroundStyle(Color.tfDim)
+                    }
+                }
             } else if model.loading { TFLoading(.block) }
             TFButton("Обновить", icon: "arrow.clockwise", variant: .secondary, isEnabled: !model.loading && !model.saving) {
                 Task { await model.load() }
@@ -239,7 +281,7 @@ private struct ComposioServiceScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     if let toolkit = currentToolkit {
                         TFCard(padding: 0) {
-                            TFListRow(icon: "link", iconStyle: .plain, title: toolkit.name,
+                            TFListRow(icon: "link", iconStyle: .remote(toolkit.logo), title: toolkit.name,
                                       subtitle: toolkit.noAuth ? "Авторизация не требуется" : toolkit.connected ? "Общий аккаунт TaskFlow подключён" : "Подключите общий аккаунт TaskFlow")
                         }
                         if !toolkit.connected && !toolkit.noAuth {

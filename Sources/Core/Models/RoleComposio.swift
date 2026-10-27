@@ -7,14 +7,44 @@ public struct RoleComposio: Decodable, Sendable {
     public let configured: Bool
     public let available: Bool
     public let catalog: [ComposioToolkit]
+    /// Курсор следующей страницы каталога (nil — страниц больше нет).
+    public let catalogCursor: String?
+    /// Сколько страниц в каталоге всего (nil — неизвестно).
+    public let catalogTotalPages: Int?
     public let error: String?
 }
 
 public struct ComposioToolkit: Decodable, Identifiable, Sendable {
     public let slug: String
     public let name: String
+    /// Логотип сервиса от Composio.
+    public let logo: URL?
     public let connected: Bool
     public let noAuth: Bool
+    public var id: String { slug }
+}
+
+/// Блок `integrations` профиля роли (`GET /api/roles/:role`): сервисы
+/// Composio, которые роли разрешены, и подключены ли они у владельца.
+public struct RoleIntegrations: Decodable, Sendable {
+    public let enabled: Bool
+    public let toolkits: [RoleIntegrationToolkit]
+    public let connectedKnown: Bool
+    public let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case enabled, toolkits, error
+        case connectedKnown = "connected_known"
+    }
+}
+
+public struct RoleIntegrationToolkit: Decodable, Identifiable, Sendable {
+    public let slug: String
+    /// Название от Composio; nil — каталог не ответил.
+    public let name: String?
+    public let logo: URL?
+    /// nil — состояние подключения неизвестно.
+    public let connected: Bool?
     public var id: String { slug }
 }
 

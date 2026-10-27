@@ -22,6 +22,8 @@ struct AgentProfileScreen: View {
     @State private var isInstructionsExpanded = false
     /// Развёрнут ли список инструментов MCP (тап по строке «Инструменты»).
     @State private var isToolsExpanded = false
+    /// Интеграции Composio роли — отдельным запросом профиля одной роли.
+    @State private var integrations: RoleIntegrations?
 
     private var profile: RoleProfile? { viewModel.profile(for: roleID) }
 
@@ -45,6 +47,7 @@ struct AgentProfileScreen: View {
             viewModel.configure(currentUser: session.currentUser)
             await viewModel.load()
             await viewModel.loadModelsIfNeeded()
+            integrations = try? await APIClient().roleIntegrations(id: roleID)
         }
         .taskCardSheet(taskID: $sheetTaskID)
     }
@@ -103,6 +106,12 @@ struct AgentProfileScreen: View {
 
             if profile.role == "secretary" {
                 ExternalAppAccessSection()
+            }
+
+            if let integrations, integrations.enabled, !integrations.toolkits.isEmpty {
+                section(title: "Интеграции") {
+                    integrationsRows(integrations)
+                }
             }
 
             section(title: "Возможности") {
@@ -252,6 +261,22 @@ struct AgentProfileScreen: View {
             Button(action: action) { row }.buttonStyle(TFTapRowStyle())
         } else {
             row
+        }
+    }
+
+    /// Сервисы Composio, которые роли разрешены: логотип и название — как
+    /// у Composio, справа — подключён ли сервис у владельца.
+    @ViewBuilder
+    private func integrationsRows(_ integrations: RoleIntegrations) -> some View {
+        ForEach(Array(integrations.toolkits.enumerated()), id: \.element.id) { index, toolkit in
+            if index > 0 { rowDivider }
+            TFListRow(
+                icon: "link",
+                iconStyle: .remote(toolkit.logo),
+                title: toolkit.name ?? toolkit.slug,
+                subtitle: toolkit.connected == true ? "Подключён" : toolkit.connected == false ? "Не подключён" : "Состояние неизвестно"
+            )
+            .accessibilityIdentifier("role.integration.\(toolkit.slug)")
         }
     }
 

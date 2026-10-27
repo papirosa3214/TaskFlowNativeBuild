@@ -68,6 +68,15 @@ public extension APIClient {
         try await request(.get, "/roles/\(id)")
     }
 
+    /// Интеграции Composio роли — блок `integrations` того же профиля. Список
+    /// ролей его не отдаёт: сервер спрашивает каталог Composio только для
+    /// одной роли.
+    func roleIntegrations(id: String) async throws -> RoleIntegrations? {
+        struct Envelope: Decodable { let integrations: RoleIntegrations? }
+        let envelope: Envelope = try await request(.get, "/roles/\(id)")
+        return envelope.integrations
+    }
+
     /// `GET /api/roles/:role/runtime-context` — постоянные правила запуска
     /// роли с серверным происхождением каждого слоя. Карточки, история чатов,
     /// сессии и секреты этим маршрутом намеренно не выдаются.

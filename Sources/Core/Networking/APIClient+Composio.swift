@@ -1,8 +1,11 @@
 import Foundation
 
 public extension APIClient {
-    func roleComposio(role: String, search: String = "") async throws -> RoleComposio {
-        try await request(.get, "/roles/\(role)/composio", query: [URLQueryItem(name: "search", value: search)])
+    func roleComposio(role: String, search: String = "", cursor: String? = nil, limit: Int? = nil) async throws -> RoleComposio {
+        var query = [URLQueryItem(name: "search", value: search)]
+        if let cursor, !cursor.isEmpty { query.append(URLQueryItem(name: "cursor", value: cursor)) }
+        if let limit { query.append(URLQueryItem(name: "limit", value: String(limit))) }
+        return try await request(.get, "/roles/\(role)/composio", query: query)
     }
 
     func saveRoleComposio(role: String, enabled: Bool, toolkits: [String]?) async throws {

@@ -61,6 +61,9 @@ public struct TFListRow: View {
         case tinted
         case plain
         case asset(String)
+        /// Логотип по ссылке (сервисы Composio). Пока не загрузился или
+        /// ссылки нет — `icon` как у `.plain`.
+        case remote(URL?)
     }
 
     let icon: String
@@ -156,6 +159,17 @@ public struct TFListRow: View {
                 .font(.system(size: TFIconSize.sm))
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 40, height: 40)
+        case .remote(let url):
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFit()
+                    .frame(width: 28, height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
+            } placeholder: {
+                Image(systemName: icon)
+                    .font(.system(size: TFIconSize.sm))
+                    .foregroundStyle(Color.tfDim)
+            }
+            .frame(width: 40, height: 40)
         }
     }
 }
