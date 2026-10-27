@@ -158,8 +158,11 @@ struct ChatVoiceComposer: View {
                     // Тот же вид, что у пилюли модели слева.
                     ChatWorkspaceMenu(choice: workspaceChoice) {
                         HStack(spacing: 4) {
+                            // Папка — как «мозги» рядом: 20 pt в поле 40, без
+                            // своей подложки (владелец 27.10.2026).
                             Image(systemName: "folder")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.system(size: 20, weight: .regular))
+                                .frame(width: 20, height: 20)
                             if workspaceChoice.selected != nil {
                                 Text(workspaceChoice.title)
                                     .tfText(.caption)
@@ -169,10 +172,7 @@ struct ChatVoiceComposer: View {
                                     .fixedSize(horizontal: true, vertical: false)
                             }
                         }
-                        .padding(.horizontal, 8)
-                        .frame(height: 28)
-                        .background(Color.white.opacity(0.08), in: Capsule())
-                        .frame(height: 40)
+                        .frame(minWidth: 40, minHeight: 40)
                         .contentShape(Rectangle())
                     }
                     .padding(.leading, 4)
