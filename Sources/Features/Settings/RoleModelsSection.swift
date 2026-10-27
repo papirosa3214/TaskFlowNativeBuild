@@ -17,6 +17,11 @@ final class RoleModelsViewModel {
     var errorMessage: String?
 
     func load() async {
+        // Прошлые данные из кэша — раздел виден сразу, сеть его обновит.
+        if roles.isEmpty, let cached = api.cachedRuntimeProfiles() {
+            roles = cached.filter { $0.id != AgentProfile.autoAssignID }
+        }
+        if failover == nil { failover = api.cachedFailoverStatus() }
         do {
             roles = try await api.runtimeProfiles().filter { $0.id != AgentProfile.autoAssignID }
             failover = try await api.failoverStatus()

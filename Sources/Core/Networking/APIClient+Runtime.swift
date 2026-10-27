@@ -248,6 +248,15 @@ public extension APIClient {
         try await request(.get, "/runtime/failover")
     }
 
+    /// Прошлые ответы из `ResponseCache` — показать модели ролей до сети.
+    func cachedRuntimeProfiles() -> [AgentProfile]? {
+        cached(RuntimeProfilesEnvelope.self, "/runtime/profiles")?.profiles
+    }
+
+    func cachedFailoverStatus() -> FailoverStatus? {
+        cached(FailoverStatus.self, "/runtime/failover")
+    }
+
     /// `PUT /api/runtime/failover` — общие тумблеры; не переданный не меняется.
     func setFailover(autoSwitch: Bool? = nil, autoReturn: Bool? = nil) async throws {
         var body: [String: JSONValue] = [:]

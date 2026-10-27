@@ -69,6 +69,11 @@ extension APIClient {
         try await request(.get, "/integrations/status")
     }
 
+    /// Прошлый ответ из `ResponseCache` — показать статус до сети.
+    func cachedIntegrationsStatus() -> IntegrationStatusResponse? {
+        cached(IntegrationStatusResponse.self, "/integrations/status")
+    }
+
     func googleAuthURL(redirectURI: String) async throws -> GoogleAuthURLResponse {
         try await request(.get, "/integrations/google/auth-url", query: [URLQueryItem(name: "redirect_uri", value: redirectURI)])
     }

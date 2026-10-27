@@ -106,6 +106,8 @@ final class IntegrationsViewModel {
     }
 
     func loadGoogleStatus() async {
+        // Прошлый статус из кэша — виден сразу, сеть его обновит.
+        if status == nil { status = apiClient.cachedIntegrationsStatus() }
         isStatusLoading = true
         defer { isStatusLoading = false }
         do {
