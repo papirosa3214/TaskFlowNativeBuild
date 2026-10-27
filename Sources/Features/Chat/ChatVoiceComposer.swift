@@ -134,13 +134,13 @@ struct ChatVoiceComposer: View {
                     ChatModelMenu(choice: modelChoice) {
                         // По размеру содержимого: без выбора — только значок.
                         HStack(spacing: 4) {
-                            // «Мозги» — как на кнопке адресата (LOCK-BRAIN-INTEGRATIONS-ICONS),
-                            // по размеру SF-символа 14 pt.
+                            // «Мозги» — размером как кольцо контекста и значок вложений
+                            // (20 pt в поле 40), без своей подложки (владелец 27.10.2026).
                             Image("ModelBrain")
                                 .renderingMode(.template)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 16, height: 16)
+                                .frame(width: 20, height: 20)
                             if modelChoice.selected != nil {
                                 Text(modelChoice.title)
                                     .tfText(.caption)
@@ -150,13 +150,9 @@ struct ChatVoiceComposer: View {
                                     .fixedSize(horizontal: true, vertical: false)
                             }
                         }
-                        .padding(.horizontal, 8)
-                        .frame(height: 28)
-                        .background(Color.white.opacity(0.08), in: Capsule())
-                        .frame(height: 40)
+                        .frame(minWidth: 40, minHeight: 40)
                         .contentShape(Rectangle())
                     }
-                    .padding(.leading, 4)
                 }
                 if let workspaceChoice, workspaceChoice.isAvailable {
                     // Тот же вид, что у пилюли модели слева.
