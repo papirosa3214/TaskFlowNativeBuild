@@ -871,6 +871,7 @@ struct RoleChatRoomScreen: View {
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
+    @State private var eventBatch = ChatEventCoalescer<RealtimeEvent>()
     #if DEBUG
     @State private var chatScrollTrace = ChatScrollTrace()
     #endif
@@ -1573,7 +1574,7 @@ struct RoleChatRoomScreen: View {
         // Живые события (22.09.2026): новое сообщение этого чата — сразу
         // перечитываем ленту; «печатает» — ровно по сигналу сервера.
         let chatID = chat.id
-        realtime.onEvent = { event in
+        let apply: (RealtimeEvent) -> Void = { event in
             switch event {
             case .unknown("chat:withdrawn", .object(let payload)) where payload["chat_id"]?.stringValue == chatID:
                 if let id = payload["message_id"]?.stringValue {
@@ -1621,6 +1622,16 @@ struct RoleChatRoomScreen: View {
                 }
             default:
                 break
+            }
+        }
+        // События, пришедшие почти разом (ход роли, «печатает», готовое
+        // сообщение), применяются одним обновлением: лента перекладывается
+        // один раз, а не на каждое событие (владелец 27.10.2026).
+        realtime.onEvent = { event in
+            guard eventBatch.enqueue(event) else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: ChatEventCoalescer<RealtimeEvent>.window)
+                eventBatch.drain().forEach(apply)
             }
         }
         realtime.onReconnected = {
