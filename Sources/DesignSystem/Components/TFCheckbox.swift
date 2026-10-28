@@ -47,7 +47,7 @@ public struct TFCheckbox: View {
                 // 12 из 21 — та же пропорция, что у StateMark в вебе (галочка мельче поля).
                 Image(systemName: "checkmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tfPaper)
             }
         }
         .frame(width: 21, height: 21)
@@ -110,7 +110,7 @@ public struct TFSubtaskStatusRing: View {
                     .overlay {
                         Image(systemName: "checkmark")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tfPaper)
                     }
             case .running:
                 // Была `DashedRing(active: true)` (пунктирное кольцо, волна

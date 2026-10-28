@@ -159,7 +159,7 @@ public struct TFAvatar: View {
             TFRolePortrait(role: roleKey, imageAsset: asset, loopName: roleLoop, side: side)
         } else {
             Circle().fill(tint).frame(width: side, height: side)
-                .overlay { Text(initials).font(.system(size: side * 0.43, weight: .semibold)).foregroundStyle(.white) }
+                .overlay { Text(initials).font(.system(size: side * 0.43, weight: .semibold)).foregroundStyle(Color.tfPaper) }
         }
     }
 
@@ -200,7 +200,7 @@ public struct TFAvatar: View {
                         // поэтому инициалы увеличиваются вместе с кружком.
                         Text(initials)
                             .font(.system(size: side * 0.43, weight: .semibold))  // design-system-guard: ignore — инициалы растут вместе с кружком
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tfPaper)
                     }
             }
         }

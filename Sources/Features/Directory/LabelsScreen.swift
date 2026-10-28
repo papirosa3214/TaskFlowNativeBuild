@@ -291,7 +291,7 @@ private struct LabelEditForm: View {
                         .frame(height: 44)
                         .tfText(.row)
                         .fontWeight(.semibold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tfPaper)
                         .background(Color.tfRedSolid)
                         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                 }

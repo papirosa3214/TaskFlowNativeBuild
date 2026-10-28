@@ -89,7 +89,7 @@ struct WidgetInk {
     }
 
     /// Трек полосы: «пустая» часть шкалы.
-    var track: Color { isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.12) }
+    var track: Color { isDark ? Color.tfPaper.opacity(0.06) : Color.black.opacity(0.12) }
 
     /// Пять ступеней шкалы плотности (тепловая карта, сетка дней). Здесь цвет —
     /// единственный носитель количества, поэтому категориальная палитра не

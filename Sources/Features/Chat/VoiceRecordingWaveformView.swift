@@ -250,7 +250,7 @@ struct VoiceRecordingWaveformPreview: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(white: 0.125))
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.tfPaper)
         .task {
             guard let url = Self.speechURL, let fixture = try? Self.speechSamples(from: url) else { return }
             for value in fixture {

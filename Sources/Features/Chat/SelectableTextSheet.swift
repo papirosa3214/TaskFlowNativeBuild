@@ -36,7 +36,7 @@ private struct SelectableTextView: UIViewRepresentable {
         view.backgroundColor = .clear
         view.adjustsFontForContentSizeCategory = true
         view.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 15))
-        view.textColor = .label
+        view.textColor = UIColor(Color.tfText)
         view.textContainerInset = UIEdgeInsets(top: 12, left: 0, bottom: 24, right: 0)
         view.textContainer.lineFragmentPadding = 0
         view.dataDetectorTypes = [.link]

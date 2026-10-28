@@ -194,7 +194,7 @@ private struct HangUpSlider: View {
                     .overlay {
                         Image(systemName: "phone.down.fill")
                             .font(.system(size: TFIconSize.md))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tfPaper)
                     }
                     .offset(x: inset + offset)
                     .gesture(
