@@ -116,26 +116,25 @@ private enum TabIconContours {
                 p.closeSubpath()
             })
         case "TabIconPlanning":
+            // «Входящие»: лоток для входящих (28.10.2026, вместо календаря).
             paths.append(Path { p in
-                p.addRoundedRect(in: CGRect(x: 3.0, y: 5.0, width: 18.0, height: 16.0), cornerSize: CGSize(width: 2.0, height: 2.0))
+                p.move(to: CGPoint(x: 6.5, y: 5))
+                p.addLine(to: CGPoint(x: 17.5, y: 5))
+                p.addLine(to: CGPoint(x: 21, y: 13))
+                p.addLine(to: CGPoint(x: 21, y: 19))
+                arc(&p, from: CGPoint(x: 21, y: 19), to: CGPoint(x: 20, y: 20), radius: 1, large: false, sweep: true)
+                p.addLine(to: CGPoint(x: 4, y: 20))
+                arc(&p, from: CGPoint(x: 4, y: 20), to: CGPoint(x: 3, y: 19), radius: 1, large: false, sweep: true)
+                p.addLine(to: CGPoint(x: 3, y: 13))
+                p.closeSubpath()
             })
             paths.append(Path { p in
-                p.move(to: CGPoint(x: 3, y: 10))
-                p.addLine(to: CGPoint(x: 21, y: 10))
-            })
-            paths.append(Path { p in
-                p.move(to: CGPoint(x: 8, y: 3))
-                p.addLine(to: CGPoint(x: 8, y: 7))
-                p.move(to: CGPoint(x: 16, y: 3))
-                p.addLine(to: CGPoint(x: 16, y: 7))
-            })
-            paths.append(Path { p in
-                p.move(to: CGPoint(x: 9, y: 10))
-                p.addLine(to: CGPoint(x: 9, y: 21))
-                p.move(to: CGPoint(x: 15, y: 10))
-                p.addLine(to: CGPoint(x: 15, y: 21))
-                p.move(to: CGPoint(x: 3, y: 15.5))
-                p.addLine(to: CGPoint(x: 21, y: 15.5))
+                p.move(to: CGPoint(x: 3, y: 13))
+                p.addLine(to: CGPoint(x: 8, y: 13))
+                p.addLine(to: CGPoint(x: 9.5, y: 15.5))
+                p.addLine(to: CGPoint(x: 14.5, y: 15.5))
+                p.addLine(to: CGPoint(x: 16, y: 13))
+                p.addLine(to: CGPoint(x: 21, y: 13))
             })
         case "TabIconChat":
             paths.append(Path { p in
