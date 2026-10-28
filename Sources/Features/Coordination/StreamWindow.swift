@@ -77,7 +77,7 @@ public struct StreamWindow<RowContent: View>: View {
             if unread > 0 {
                 Text("\(unread)")
                     .tfText(.caption).fontWeight(.bold)
-                    .foregroundStyle(Color.tfPaper)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.tfRed)

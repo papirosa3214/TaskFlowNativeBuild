@@ -238,7 +238,7 @@ struct QuickAddTaskView: View {
             Button(action: save) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: TFIconSize.xs, weight: .semibold))
-                    .foregroundStyle(Color.tfPaper)
+                    .foregroundStyle(.white)
                     .frame(width: 36, height: 36)
                     // Кнопка — наоборот выпуклая: блик сверху, затемнение снизу,
                     // светлая кромка по верхней дуге и падающая тень под кругом.

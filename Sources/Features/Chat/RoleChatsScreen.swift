@@ -511,7 +511,7 @@ struct ChatListRow: View {
         Text(unread > 99 ? "99+" : "\(unread)")
             .tfText(.caption)
             .fontWeight(.semibold)
-            .foregroundStyle(Color.tfPaper)
+            .foregroundStyle(.white)
             .padding(.horizontal, TFSpacing.xs + 2)
             .frame(minWidth: 20, minHeight: 20)
             .background(Capsule().fill(Color.tfRedSolid))
@@ -2511,7 +2511,7 @@ struct RoleChatRoomScreen: View {
                         player: player,
                         api: api,
                         isOwn: mine,
-                        header: AnyView(senderLine(message, color: mine ? Color.tfSub : Color.tfPaper.opacity(0.85)))
+                        header: AnyView(senderLine(message, color: mine ? Color.tfSub : .white.opacity(0.85)))
                     )
                 }
                 nonVoiceAttachments(message)

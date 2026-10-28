@@ -330,7 +330,7 @@ struct NotificationsScreen: View {
                 .fill(n.actorColor.map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned))
                 .frame(width: 36, height: 36)
                 .overlay {
-                    Text(n.actorInitials ?? "?").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.tfPaper)  // design-system-guard: ignore — инициалы в кружке 36 pt, размер привязан к кружку
+                    Text(n.actorInitials ?? "?").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)  // design-system-guard: ignore — инициалы в кружке 36 pt, размер привязан к кружку
                 }
         } else {
             Circle()

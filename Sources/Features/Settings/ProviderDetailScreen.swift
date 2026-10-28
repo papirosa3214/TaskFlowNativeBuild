@@ -228,7 +228,7 @@ struct ProviderDetailScreen: View {
                     } label: {
                         Text(viewModel.isSavingKey ? "Сохраняю…" : "Сохранить ключ")
                             .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, TFSpacing.lg)
                             .frame(height: 44)
                             .background(Color.tfRedSolid)
@@ -255,7 +255,7 @@ struct ProviderDetailScreen: View {
                     } label: {
                         Text(viewModel.provider?.status == .connected ? "Переподключить" : "Подключить через браузер")
                             .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, TFSpacing.lg)
                             .frame(height: 44)
                             .background(Color.tfRedSolid)
@@ -289,7 +289,7 @@ struct ProviderDetailScreen: View {
                             } label: {
                                 Text("Открыть браузер")
                                     .tfText(.row).fontWeight(.semibold)
-                                    .foregroundStyle(Color.tfPaper)
+                                    .foregroundStyle(.white)
                                     .padding(.horizontal, TFSpacing.lg)
                                     .frame(height: 44)
                                     .background(Color.tfBlue)
@@ -307,7 +307,7 @@ struct ProviderDetailScreen: View {
                             } label: {
                                 Text("Отправить")
                                     .tfText(.row).fontWeight(.semibold)
-                                    .foregroundStyle(Color.tfPaper)
+                                    .foregroundStyle(.white)
                                     .padding(.horizontal, TFSpacing.lg)
                                     .frame(height: 44)
                                     .background(Color.tfRedSolid)

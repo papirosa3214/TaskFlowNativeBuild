@@ -278,7 +278,7 @@ struct ChatVoiceComposer: View {
         HStack(spacing: 12) {
             HStack(spacing: 6) {
                 Circle().fill(.red).frame(width: 8, height: 8)
-                Text(recordingDuration).font(.callout.monospacedDigit()).foregroundStyle(Color.tfPaper)
+                Text(recordingDuration).font(.callout.monospacedDigit()).foregroundStyle(.white)
             }
             VoiceRecordingWaveformView(level: recordingLevel, elapsed: recordingElapsed,
                                        color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 30)
@@ -313,7 +313,7 @@ struct ChatVoiceComposer: View {
             if let transcript = readyTranscript(message) {
                 Text(transcript)
                     .font(.body)
-                    .foregroundStyle(Color.tfPaper)
+                    .foregroundStyle(.white)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("chat.voice.transcript")
@@ -329,7 +329,7 @@ struct ChatVoiceComposer: View {
                 Button(action: discardPreview) {
                     Image(systemName: "xmark")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(Color.tfPaper)
+                        .foregroundStyle(.white)
                         .frame(width: 40, height: 40)
                         .contentShape(Circle())
                 }
@@ -372,7 +372,7 @@ struct ChatVoiceComposer: View {
                     .disabled(readyTranscript(message)?.isEmpty != false)
                 }
             }
-            .foregroundStyle(Color.tfPaper)
+            .foregroundStyle(.white)
         }
         .padding(14)
         .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))

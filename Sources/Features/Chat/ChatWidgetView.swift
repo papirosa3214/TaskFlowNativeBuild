@@ -307,7 +307,7 @@ private struct WeatherWidget: View {
                 }
             }
         }
-        .foregroundStyle(Color.tfPaper)
+        .foregroundStyle(.white)
         .padding(TFSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(

@@ -90,7 +90,7 @@ struct RoleAvatarView: View {
                     .overlay {
                         Text(initials)
                             .font(.system(size: size * 0.4, weight: .semibold))  // design-system-guard: ignore — инициалы растут вместе с кружком
-                            .foregroundStyle(Color.tfPaper)
+                            .foregroundStyle(.white)
                     }
             }
         }

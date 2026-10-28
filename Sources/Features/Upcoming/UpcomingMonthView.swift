@@ -187,7 +187,7 @@ struct UpcomingMonthView: View {
                 .tfText(.meta)
                 .monospacedDigit()
                 .fontWeight(isToday ? .semibold : .regular)
-                .foregroundStyle(isToday ? Color.tfPaper : (startsMonth ? Color.tfRed : Color.tfText))
+                .foregroundStyle(isToday ? .white : (startsMonth ? Color.tfRed : Color.tfText))
                 .frame(minWidth: isToday ? 18 : nil, minHeight: isToday ? 18 : nil)
                 .background(isToday ? Circle().fill(Color.tfRed) : nil)
 

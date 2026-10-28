@@ -62,7 +62,7 @@ public struct TFHeaderBackdrop: View {
     ZStack(alignment: .top) {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(0..<12, id: \.self) { _ in
-                Text("Строка задачи, которая уходит под шапку").foregroundStyle(Color.tfPaper)
+                Text("Строка задачи, которая уходит под шапку").foregroundStyle(.white)
             }
         }
         .padding(.top, 40)

@@ -302,7 +302,7 @@ struct ServiceAccountsScreen: View {
                     } label: {
                         Text("Завести")
                             .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, TFSpacing.lg)
                             .frame(height: 44)
                             .background(Color.tfRedSolid)
@@ -343,7 +343,7 @@ struct ServiceAccountsScreen: View {
                     } label: {
                         Text(isKeyCopied ? "Скопировано" : "Скопировать")
                             .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, TFSpacing.lg)
                             .frame(height: 44)
                             .background(Color.tfRedSolid)
@@ -543,7 +543,7 @@ struct ServiceAccountsScreen: View {
                     Button { Task { _ = await viewModel.saveToken(account.id) } } label: {  // design-system-guard: ignore — две компактные кнопки в строку, TFButton полноширинная
                         Text("Сохранить")
                             .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, TFSpacing.lg)
                             .frame(height: 36)
                             .background(Color.tfRedSolid)

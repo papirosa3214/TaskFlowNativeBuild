@@ -16,7 +16,7 @@ struct ChatPromptPanel<Controls: View>: View {
                 .textInputAutocapitalization(.sentences)
                 .focused(focus)
                 .onSubmit { if !hidesText { onSubmit() } }
-                .foregroundStyle(hidesText ? Color.clear : Color.tfPaper)
+                .foregroundStyle(hidesText ? Color.clear : Color.white)
                 .accessibilityIdentifier("chat.message")
                 .padding(.horizontal, 10).padding(.top, 10)
             controls()
