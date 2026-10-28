@@ -35,7 +35,7 @@ struct RoutinesScreen: View {
                         }
                         .accessibilityIdentifier("routines.create")
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "ellipsis")
                     }
                     .accessibilityLabel("Ещё")
                     .accessibilityIdentifier("routines.more")
@@ -45,7 +45,7 @@ struct RoutinesScreen: View {
                 RoutineFormScreen()
             }
             .navigationDestination(isPresented: $isShowingPlan) {
-                UpcomingScreen()
+                UpcomingScreen(routinesOnly: true)
             }
             .task { await model.load() }
             .refreshable { await model.load() }

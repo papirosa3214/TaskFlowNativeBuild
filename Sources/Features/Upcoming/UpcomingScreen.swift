@@ -153,7 +153,12 @@ public struct UpcomingScreen: View {
         }
     }
 
-    public init() {}
+    /// Календарь открыт из «Моих рутин» (владелец 28.10.2026: «там смотрим
+    /// исключительно рутины, проекты уже не смотрим») — задачи проектов и
+    /// фильтры в этом режиме не показываются, остаются одни рутины.
+    public let routinesOnly: Bool
+
+    public init(routinesOnly: Bool = false) { self.routinesOnly = routinesOnly }
 
     // 15.09.2026: см. карточку задачи — тип экрана стирается на границе,
     // чтобы цепочка обёрток не копила неразворачиваемый обобщённый тип.
@@ -179,7 +184,9 @@ public struct UpcomingScreen: View {
             if view != .today {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 0) {
-                        filterMenu.tfPlannerWideControl()
+                        // Фильтр (проекты/метки/исполнитель) в календаре рутин
+                        // не нужен — владелец 28.10.2026.
+                        if !routinesOnly { filterMenu.tfPlannerWideControl() }
                         viewSwitcherMenu.tfPlannerWideControl()
                     }
                 }
@@ -684,7 +691,7 @@ public struct UpcomingScreen: View {
     }
 
     private var tasks: [ApiTask] { plannerPlan.tasks }
-    private var byDate: [String: [ApiTask]] { plannerPlan.byDate }
+    private var byDate: [String: [ApiTask]] { routinesOnly ? [:] : plannerPlan.byDate }
 
     private var hourDays: [UpcomingHourColumn] { plannerPlan.hourDays }
 
@@ -697,7 +704,9 @@ public struct UpcomingScreen: View {
     /// пунктом внутри Menu фильтров, и всё. Здесь — случай, что не покрыт
     /// загрузкой/ошибкой: фильтры вычистили список подчистую.
     private var emptyFilterBanner: AnyView? {
-        guard view != .today, selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
+        // Владелец 28.10.2026: красного текста «ничего не подошло» не надо —
+        // пусто значит пусто. Код оставлен на случай возврата фильтров.
+        guard !routinesOnly, view != .today, selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
               plannerPlan.hasDatedTasks, plannerPlan.tasks.isEmpty else { return nil }
         return AnyView(
             HStack(spacing: 6) {
