@@ -28,4 +28,23 @@ final class TaskOutcomeTests: XCTestCase {
         let outcome = try JSONDecoder().decode(ApiTaskOutcome.self, from: Data(#"{"verdict":null,"nodes":[],"documents":[],"branch":null}"#.utf8))
         XCTAssertTrue(outcome.isEmpty)
     }
+    func testSubtaskResultsAloneDoNotShowOutcomeSection() throws {
+        let data = Data(#"{"nodes":[{"title":"Шаг","result":"Полный ответ","done":true}],"documents":[]}"#.utf8)
+        let outcome = try JSONDecoder().decode(ApiTaskOutcome.self, from: data)
+        XCTAssertTrue(outcome.isEmpty)
+        XCTAssertEqual(outcome.nodes.first?.result, "Полный ответ", "Полный ответ сохраняется")
+    }
+
+    func testStandaloneOutcomeContentRemainsVisible() throws {
+        for fragment in [
+            #""verdict":{"verdict":"approved","findings":"Итог","reviewer_id":"r","created_at":"2026-10-29 10:00:00"}"#,
+            #""branch":{"name":"main","commit":"abc","subject":"Готово","ahead":1}"#,
+            #""documents":[{"id":"n","title":"Итог задачи","is_outcome":true}]"#
+        ] {
+            let base = fragment.hasPrefix("\"documents") ? #"{"nodes":[],"# : #"{"nodes":[],"documents":[],"#
+            let outcome = try JSONDecoder().decode(ApiTaskOutcome.self, from: Data((base + fragment + "}").utf8))
+            XCTAssertFalse(outcome.isEmpty, fragment)
+        }
+    }
+
 }

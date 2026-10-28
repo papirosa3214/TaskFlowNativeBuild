@@ -1950,16 +1950,24 @@ struct TaskCardContent: View {
     private func subtaskDetails(_ subtask: ApiSubtask, isRunning: Bool) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if let result = subtask.displayResult, !result.isEmpty {
-                // Итог шага — главное, ради чего эту карточку открывают:
-                // виден целиком и всегда, без сворачивания и усечения
-                // (владелец 11.09.2026).
-                if isRunning {
-                    DisclosureGroup("Предыдущий результат") {
-                        TaskRoleReply(text: result, serverBlocks: ChatServerBlock.list(from: subtask.displayResultBlocks))
-                    }
-                } else {
-                    TaskRoleReply(text: result, serverBlocks: ChatServerBlock.list(from: subtask.displayResultBlocks))
+                OutcomeTextRow(
+                    sheetTitle: subtask.title,
+                    markdown: result,
+                    blocks: ChatServerBlock.list(from: subtask.displayResultBlocks)
+                ) {
+                    // Один Text даёт настоящее усечение в две строки, в том числе
+                    // для многоабзацного ответа. В шторку выше передан весь result.
+                    Text((try? AttributedString(
+                        markdown: result,
+                        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                    )) ?? AttributedString(result))
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .accessibilityHint("Открывает полный ответ подзадачи")
             }
             if isOwner, subtask.agentState == .review {
                 Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }

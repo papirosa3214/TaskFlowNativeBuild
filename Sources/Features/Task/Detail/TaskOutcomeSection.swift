@@ -2,8 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Содержимое секции «Итог» карточки (владелец 01.10.2026): что решили и
-/// что сдали — одним местом. Вердикт проверяющего и итог каждой роли
-/// открываются шторкой целиком; документы — заметки проекта, открываются
+/// что сдали — одним местом. Ответы подзадач читаются на самих шагах.
+/// Вердикт проверяющего открывается шторкой целиком; документы — заметки проекта, открываются
 /// как заметка, в меню — «В базу знаний» и «Сохранить на телефон».
 /// Строки — прямо в `Section` списка карточки (оборачивает
 /// `collapsibleSection` в `TaskFormScreen`), без своих фонов.
@@ -40,26 +40,6 @@ struct TaskOutcomeContent: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.tfReadableTertiary)
                 }
-            }
-        }
-
-        ForEach(outcome.nodes) { node in
-            OutcomeTextRow(sheetTitle: nodeTitle(node), markdown: node.displayResult ?? "Роль ничего не написала.", blocks: node.displayResultBlocks) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(nodeTitle(node))
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfText)
-                    if let result = node.displayResult, !result.isEmpty {
-                        // Превью строки — тот же общий рендер, короткий кусок
-                        // первого абзаца: сырой `Text` показывал ответ роли
-                        // звёздочками (`**жирный**`) и вертикальной чертой
-                        // от markdown-таблицы (карточка 19f57bc9).
-                        RoleReplyMarkdown(text: RoleReplyMarkdown.preview(of: result),
-                                          prepared: node.displayResultBlocks.map { RoleReplyMarkdown.previewSegments(of: $0, key: result) })
-                            .lineLimit(2)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
 
@@ -117,11 +97,6 @@ struct TaskOutcomeContent: View {
         }
     }
 
-    private func nodeTitle(_ node: ApiTaskOutcome.Node) -> String {
-        guard let role = node.role else { return node.displayTitle }
-        return "\(roleTitle(role)) — \(node.displayTitle)"
-    }
-
     private func pushToKnowledge(_ document: ApiTaskOutcome.Document) async {
         do {
             try await api.pushNoteToKnowledge(noteId: document.id)
@@ -134,7 +109,7 @@ struct TaskOutcomeContent: View {
 
 /// Строка, тап по которой открывает полный текст шторкой. Шторка своя у
 /// каждой строки: один `.sheet` на весь набор строк в `List` не сработал бы.
-private struct OutcomeTextRow<Label: View>: View {
+struct OutcomeTextRow<Label: View>: View {
     let sheetTitle: String
     let markdown: String
     var blocks: [ChatServerBlock]? = nil

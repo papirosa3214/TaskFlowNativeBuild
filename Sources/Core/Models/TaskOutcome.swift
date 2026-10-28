@@ -117,8 +117,8 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
     public let documents: [Document]
     public let branch: Branch?
 
-    /// Показывать ли секцию вообще: у обычной карточки итога нет.
+    /// Ответы шагов читаются под подзадачами и не создают отдельную секцию итога.
     public var isEmpty: Bool {
-        verdict == nil && nodes.isEmpty && documents.isEmpty && branch == nil
+        verdict == nil && documents.isEmpty && branch == nil
     }
 }
