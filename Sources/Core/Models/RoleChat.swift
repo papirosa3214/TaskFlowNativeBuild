@@ -319,6 +319,10 @@ public struct RoleChatCoordination: Decodable, Sendable {
     /// Вопрос и ответ, уже разобранные сервером (26.10.2026); nil — старый сервер.
     public var questionBlocks: [ChatServerBlock]? = nil
     public var answerBlocks: [ChatServerBlock]? = nil
+    /// Кого позвали и где он работает: комната субагента (28.10.2026).
+    /// Комната совпадает с чатом карточки — у обращения своей комнаты нет.
+    public var recipientID: String? = nil
+    public var childChatID: String? = nil
 
     /// Ответ получен. Вопрос и ответ остаются доступны в карточке.
     /// Ошибка и отмена не считаются полученным ответом.
@@ -332,6 +336,8 @@ public struct RoleChatCoordination: Decodable, Sendable {
         case question, status, activity, answer, terminal
         case questionBlocks = "question_blocks"
         case answerBlocks = "answer_blocks"
+        case recipientID = "recipient_id"
+        case childChatID = "child_chat_id"
     }
 }
 

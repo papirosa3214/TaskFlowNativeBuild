@@ -811,6 +811,9 @@ struct RoleChatRoomScreen: View {
     @State private var isDetailsPresented = false
     @State private var isContentsPresented = false
     @State private var branchChat: RoleChat?
+    /// Панель субагентов чата открыта (владелец 28.10.2026).
+    @State private var isSubagentsOpen = false
+    @Environment(\.openRoute) private var openRoute
     @State private var isBranchPresented = false
     @State private var isBranching = false
     /// Сообщение, которое только что скопировали: рядом со значком на
@@ -1113,6 +1116,16 @@ struct RoleChatRoomScreen: View {
             // до этого места физически не достаёт.
             Color.tfBackground.ignoresSafeArea()
             composerRoom
+        }
+        // Роли, которых позвали субагентами, — та же выезжающая панель, что
+        // у комнат; портрет открывает комнату субагента (владелец 28.10.2026).
+        .overlay(alignment: .trailing) {
+            let subagents = SubagentRailItem.items(messages: messages, members: chat.members, chatID: chat.id)
+            if !subagents.isEmpty {
+                ChatEdgeRail(isOpen: $isSubagentsOpen, openLabel: "Субагенты", closedLabel: "Показать субагентов", identifier: "chat.subagentsRail") {
+                    SubagentRailPanel(items: subagents) { openRoute?(.roleChat(id: $0.id)) }
+                }
+            }
         }
         .quickLookPreview($previewAttachmentURL)
         .task(id: chat.id + ":" + (chat.taskID ?? "") + ":" + String(workPlanRevision) + ":" + String(refreshRevision)) {
