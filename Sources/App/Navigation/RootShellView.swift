@@ -38,7 +38,7 @@ struct RootShellView: View {
             switch self {
             case .overview: "Обзор"
             case .projects: "Проекты"
-            case .upcoming: "План"
+            case .upcoming: "Входящие"
             case .chat: "Чат"
             }
         }

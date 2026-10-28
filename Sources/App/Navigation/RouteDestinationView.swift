@@ -44,7 +44,7 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .overview:
         OverviewScreen()
     case .upcoming:
-        UpcomingScreen()
+        AttentionScreen()
     case .chat:
         // Вкладка «Чат» ведёт в СПИСОК чатов, а не сразу в открытый чат:
         // сначала меню чатов, потом конкретный чат (владелец 21.09.2026).
