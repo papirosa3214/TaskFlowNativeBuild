@@ -19,6 +19,7 @@ enum HintAnchorID {
     static let chatDiscussionDelivery = "chat.discussion-delivery"
     static let chatExecutionMode = "chat.execution-mode"
     static let noteMarkdownEditing = "note.markdown-editing"
+    static let voiceScreenShare = "voice.screen-share"
     static let voiceMinimize = "voice.minimize"
     static let voiceMiniPlayer = "voice.mini-player"
     static let roleExternalApps = "role.external-apps"
@@ -85,7 +86,7 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion]
+    static let all: [HintScenario] = [voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion]
 
     static let routineEditing = HintScenario(
         id: "routine-editing", title: "Задание и настройки рутины", start: "instructions",
@@ -141,6 +142,12 @@ enum HintScenarios {
         id: "note-markdown-editing", title: "Чтение и правка заметки", start: "edit",
         steps: ["edit": HintStep(anchor: HintAnchorID.noteMarkdownEditing, title: "Карандаш открывает Markdown",
             text: "Заметка открывается для чтения, как ответ в чате. Нажмите карандаш рядом с меню «…», чтобы править исходный Markdown. Изменения сохраняются автоматически; галочка завершает правку и возвращает просмотр. При ошибке сохранения редактор остаётся открытым.", next: nil)])
+
+    static let voiceScreenShare = HintScenario(
+        id: "voice-screen-share", title: "Показать экран Помощнику", start: "start",
+        steps: ["start": HintStep(anchor: HintAnchorID.voiceScreenShare,
+            title: "Экран в том же разговоре",
+            text: "Нажмите «Показать экран Помощнику», выберите TaskFlow и подтвердите «Начать трансляцию» в системном окне. Затем откройте другое приложение: голосовой разговор продолжится, а экран будет передаваться Помощнику из этого чата. Микрофон трансляции оставьте выключенным — разговор использует свой микрофон. Остановить показ можно здесь или через системный индикатор записи.")])
 
     static let voiceConversation = HintScenario(
         id: "voice-conversation", title: "Голос и переписка", start: "minimize",

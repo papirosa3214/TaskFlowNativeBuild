@@ -191,6 +191,11 @@ struct RootShellView: View {
         )) {
             SecretaryVoiceScreen(viewModel: voiceSession, onOpenChat: openVoiceChat)
         }
+        .onOpenURL { url in
+            if url.scheme == "taskflow", url.host == "voice", voiceSession.presentation.isActive {
+                voiceSession.expand()
+            }
+        }
         .onChange(of: session.currentUser?.id) { _, _ in
             Task { await voiceSession.stop() }
         }

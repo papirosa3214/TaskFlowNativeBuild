@@ -179,6 +179,16 @@ final class HintCenterTests: XCTestCase {
         center.next()
         XCTAssertTrue(center.completed.contains("note-markdown-editing"))
     }
+    func testVoiceScreenShareHintRequiresSystemStart() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "voice-screen-share" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, "voice.screen-share")
+        XCTAssertTrue(center.currentStep?.text.contains("Начать трансляцию") == true)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     private var defaults: UserDefaults!
     private let frame = CGRect(x: 10, y: 10, width: 40, height: 40)
 

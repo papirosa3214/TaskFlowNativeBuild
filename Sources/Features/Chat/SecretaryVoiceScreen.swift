@@ -1,6 +1,8 @@
 import SwiftUI
 import AVFoundation
 import LiveKit
+import Combine
+import ActivityKit
 
 /// Голосовой разговор с Помощником владельца через LiveKit (Задача 5 плана Супер
 /// Помощник владельца). Состояния `.speaking`/`.listening` запитаны событиями комнаты
@@ -24,8 +26,66 @@ final class SecretaryVoiceViewModel {
     var micLevel: Double = 0
     var agentLevel: Double = 0
 
+    private(set) var isScreenSharing = false
+    var screenShareError: String?
+    @ObservationIgnored private var broadcastObserver: AnyCancellable?
+    @ObservationIgnored private var voiceActivity: Activity<TaskActivityAttributes>?
+
+    init() {
+        BroadcastManager.shared.shouldPublishTrack = false
+    }
+
+    /// Shows Apple's consent UI; capture starts only after the owner's system confirmation.
+    func requestScreenShare() {
+        guard room?.connectionState == .connected else { return }
+        if isScreenSharing { BroadcastManager.shared.requestStop() }
+        else { BroadcastManager.shared.requestActivation() }
+    }
+
+    private func broadcastChanged(_ started: Bool) async {
+        guard let room, room.connectionState == .connected, presentation.isActive else {
+            if started { BroadcastManager.shared.requestStop() }
+            return
+        }
+        do {
+            let publication = try await room.localParticipant.setScreenShare(enabled: started)
+            guard self.room === room else { return }
+            isScreenSharing = started && publication != nil
+            screenShareError = nil
+        } catch {
+            isScreenSharing = false
+            screenShareError = error.localizedDescription
+            BroadcastManager.shared.requestStop()
+        }
+        await updateVoiceActivity()
+    }
+
+    private func updateVoiceActivity() async {
+        guard presentation.isActive else { return }
+        let state = TaskActivityAttributes.ContentState(
+            status: "in_progress",
+            statusLabel: isScreenSharing ? "Голос и экран" : "Голосовой разговор",
+            currentSubtask: isScreenSharing ? "Экран передаётся в разговор" : "Микрофон включён",
+            assigneeName: "Помощник", assigneeInitials: "П",
+            taskTitle: "Разговор с Помощником", startedAt: callStartedAt)
+        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(120))
+        if let voiceActivity { await voiceActivity.update(content) }
+        else if let chatID = presentation.chatID {
+            voiceActivity = try? Activity.request(
+                attributes: TaskActivityAttributes(taskId: "voice", voiceChatID: chatID),
+                content: content, pushType: nil)
+        }
+    }
+
+    private func endVoiceActivity() async {
+        let activity = voiceActivity
+        voiceActivity = nil
+        await activity?.end(nil, dismissalPolicy: .immediate)
+    }
+
     private var room: Room?
     private var connectionID: UUID?
+    private var callStartedAt = Date()
     private let api = APIClient()
     private var agentIdentity: Participant.Identity?
     @ObservationIgnored private lazy var micMeter = AudioLevelMeter { [weak self] in self?.micLevel = $0 }
@@ -34,9 +94,11 @@ final class SecretaryVoiceViewModel {
     func start(chatID: String) async {
         guard presentation.begin(chatID: chatID) else { return }
         state = .connecting
+        callStartedAt = Date()
         let connectionID = UUID()
         self.connectionID = connectionID
-        let room = Room()
+        let room = Room(roomOptions: RoomOptions(defaultScreenShareCaptureOptions:
+            ScreenShareCaptureOptions(fps: 5, appAudio: false, useBroadcastExtension: true)))
         self.room = room
         do {
             room.add(delegate: self)
@@ -50,6 +112,12 @@ final class SecretaryVoiceViewModel {
                 mic.add(audioRenderer: micMeter)
             }
             state = .listening
+            broadcastObserver = BroadcastManager.shared.isBroadcastingPublisher
+                .dropFirst()
+                .sink { [weak self] started in
+                    Task { @MainActor [weak self] in await self?.broadcastChanged(started) }
+                }
+            await updateVoiceActivity()
         } catch {
             guard self.connectionID == connectionID else { return }
             state = .failed(error.localizedDescription)
@@ -60,6 +128,10 @@ final class SecretaryVoiceViewModel {
     func expand() { presentation.expand() }
 
     func stop() async {
+        broadcastObserver = nil
+        BroadcastManager.shared.requestStop()
+        isScreenSharing = false
+        screenShareError = nil
         connectionID = nil
         presentation.end()
         let previousRoom = room
@@ -68,6 +140,7 @@ final class SecretaryVoiceViewModel {
         micLevel = 0
         agentLevel = 0
         previousRoom?.remove(delegate: self)
+        await endVoiceActivity()
         await previousRoom?.disconnect()
     }
 
@@ -85,6 +158,7 @@ extension SecretaryVoiceViewModel: RoomDelegate {
             guard self.room === room else { return }
             if case .failed = self.state { return }
             self.state = agentSpeaking ? .speaking : .listening
+            await self.updateVoiceActivity()
         }
     }
 
@@ -102,6 +176,9 @@ extension SecretaryVoiceViewModel: RoomDelegate {
         Task { @MainActor in
             guard self.room === room else { return }
             self.state = .failed(error?.localizedDescription ?? "соединение разорвано")
+            BroadcastManager.shared.requestStop()
+            self.isScreenSharing = false
+            await self.endVoiceActivity()
         }
     }
 }
@@ -255,6 +332,17 @@ struct SecretaryVoiceScreen: View {
                 .accessibilityHint(viewModel.state == .speaking ? "Перебить Помощника владельца" : "")
             caption
                 .frame(minHeight: 44, alignment: .top)
+            Button(viewModel.isScreenSharing ? "Остановить трансляцию экрана" : "Показать экран Помощнику",
+                   systemImage: viewModel.isScreenSharing ? "stop.circle" : "rectangle.on.rectangle") {
+                viewModel.requestScreenShare()
+            }
+            .buttonStyle(.plain)
+            .tfText(.action)
+            .disabled(viewModel.state == .connecting || isFailed)
+            .hintAnchor(HintAnchorID.voiceScreenShare)
+            if let error = viewModel.screenShareError {
+                Text(error).tfText(.body).foregroundStyle(Color.tfRed)
+            }
             Spacer()
             // Завершить звонок — свайп внизу, под большим пальцем, а не
             // крестик сверху (владелец 26.09.2026).

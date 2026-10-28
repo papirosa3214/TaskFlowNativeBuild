@@ -109,7 +109,7 @@ struct TaskActivityWidget: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: TaskActivityAttributes.self) { context in
       // ── Виджет на экране блокировки (Lock Screen Banner) ──
-      LockScreenActivityView(state: context.state, taskId: context.attributes.taskId)
+      LockScreenActivityView(state: context.state, taskId: context.attributes.taskId, voiceChatID: context.attributes.voiceChatID)
         .activityBackgroundTint(Color.black.opacity(0.85))
         .activitySystemActionForegroundColor(Color.white)
     } dynamicIsland: { context in
@@ -136,7 +136,9 @@ struct TaskActivityWidget: Widget {
 
         DynamicIslandExpandedRegion(.trailing) {
           Group {
-            if context.state.totalSubtasks > 0 {
+            if context.attributes.voiceChatID != nil {
+              Image(systemName: "waveform")
+            } else if context.state.totalSubtasks > 0 {
               Text("\(context.state.doneSubtasks)/\(context.state.totalSubtasks)")
             } else {
               Text("\(Int(context.state.progress * 100))%")
@@ -172,6 +174,7 @@ struct TaskActivityWidget: Widget {
               }
             }
 
+            if context.attributes.voiceChatID == nil {
             // Шкала прогресса
             GeometryReader { geo in
               ZStack(alignment: .leading) {
@@ -193,6 +196,8 @@ struct TaskActivityWidget: Widget {
               }
             }
             .frame(height: 6)
+
+            }
 
             // Нижняя строка: проект и статус слева, время справа. Счёт шагов
             // сюда не дублируем — он крупно стоит наверху, у выреза.
@@ -244,7 +249,9 @@ struct TaskActivityWidget: Widget {
         )
       } compactTrailing: {
         // 3. КОМПАКТНЫЙ ВИД СПРАВА
-        if context.state.totalSubtasks > 0 {
+        if context.attributes.voiceChatID != nil {
+          Image(systemName: "waveform")
+        } else if context.state.totalSubtasks > 0 {
           Text("\(context.state.doneSubtasks)/\(context.state.totalSubtasks)")
             .font(.system(size: 11, weight: .bold, design: .rounded))
             .foregroundColor(tfAccent(for: context.state.status))
@@ -270,7 +277,7 @@ struct TaskActivityWidget: Widget {
           size: 20
         )
       }
-      .widgetURL(URL(string: "taskflow://task/\(context.attributes.taskId)"))
+      .widgetURL(URL(string: context.attributes.voiceChatID == nil ? "taskflow://task/\(context.attributes.taskId)" : "taskflow://voice"))
     }
   }
 
@@ -289,6 +296,7 @@ struct TaskActivityWidget: Widget {
 struct LockScreenActivityView: View {
   let state: TaskActivityAttributes.ContentState
   let taskId: String
+  var voiceChatID: String? = nil
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -339,6 +347,7 @@ struct LockScreenActivityView: View {
         }
       }
 
+      if voiceChatID == nil {
       // Прогресс
       VStack(spacing: 4) {
         GeometryReader { geo in
@@ -374,9 +383,12 @@ struct LockScreenActivityView: View {
             .foregroundColor(tfAccent(for: state.status))
         }
       }
+      } else {
+        Text(state.statusLabel).font(.caption).foregroundColor(.white)
+      }
     }
     .padding(14)
-    .widgetURL(URL(string: "taskflow://task/\(taskId)"))
+    .widgetURL(URL(string: voiceChatID == nil ? "taskflow://task/\(taskId)" : "taskflow://voice"))
   }
 }
 

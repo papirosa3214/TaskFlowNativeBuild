@@ -64,6 +64,10 @@ targets:
       # приложение заполняет. Один файл на два таргета — чтобы поля не
       # разъехались молча.
       - path: Widgets/TaskActivityAttributes.swift
+    entitlements:
+      path: Resources/TaskFlow.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.maksim.taskflow.native]
     dependencies:
       # Распознавание речи на устройстве (просьба владельца 03.09.2026 —
       # «подключи уже искусственный интеллект»): NVIDIA Parakeet TDT v3,
@@ -78,6 +82,7 @@ targets:
       - package: LiveKit
       # Расширение с виджетом: без явной зависимости xcodegen не вложит его
       # в бандл приложения, и Live Activity не за что будет зацепиться.
+      - target: TaskFlowBroadcast
       - target: TaskFlowWidgets
     # Сторож дизайн-системы (LOCK-DESIGN-SYSTEM-GUARD-20261016): не даёт
     # собрать приложение, если в Sources/ есть правка, нарисованная мимо
@@ -155,6 +160,7 @@ targets:
         # через пуши закрыт бесплатным аккаунтом (10.09.2026).
         UIBackgroundModes:
           - location
+          - audio
         # Пиксельный шрифт метки даты заведения в строке задачи
         # (LOCK-TASK-CREATED-STAMP). Ключ живёт ЗДЕСЬ, а не в
         # `Resources/Info.plist`: xcodegen генерирует plist из `properties`
@@ -177,6 +183,34 @@ targets:
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIconClassic AppIconDark AppIconRecessedCheck AppIconFlowRibbon AppIconTaskOrbit AppIconStepBlocks AppIconFoldedFlight
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: true
         TARGETED_DEVICE_FAMILY: "1"
+
+  TaskFlowBroadcast:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Broadcast
+    dependencies:
+      - package: LiveKit
+    entitlements:
+      path: Broadcast/TaskFlowBroadcast.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.maksim.taskflow.native]
+    info:
+      path: Broadcast/Info.plist
+      properties:
+        CFBundleDisplayName: TaskFlow
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).SampleHandler"
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maksim.taskflow.native.broadcast
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: true
+        APPLICATION_EXTENSION_API_ONLY: true
 
   VoiceMessageLab:
     type: application

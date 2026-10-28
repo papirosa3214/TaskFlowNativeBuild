@@ -66,9 +66,11 @@ public struct TaskActivityAttributes: ActivityAttributes {
     }
   }
 
+  public var voiceChatID: String?
   public var taskId: String
 
-  public init(taskId: String) {
+  public init(taskId: String, voiceChatID: String? = nil) {
+    self.voiceChatID = voiceChatID
     self.taskId = taskId
   }
 }

@@ -104,7 +104,8 @@ enum LiveActivityService {
 
     private static var activeActivities: [Activity<TaskActivityAttributes>] {
         Activity<TaskActivityAttributes>.activities.filter {
-            $0.activityState == .active || $0.activityState == .stale
+            $0.attributes.voiceChatID == nil &&
+            ($0.activityState == .active || $0.activityState == .stale)
         }
     }
 
