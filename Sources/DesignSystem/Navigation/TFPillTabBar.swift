@@ -146,7 +146,8 @@ public struct TFPillTabBar<Content: View>: View {
         switch icon {
         case "TabIconHome": ("house", "house.fill")
         case "TabIconProjects": ("folder", "folder.fill")
-        case "TabIconPlanning", "TabIconToday": ("calendar", "calendar")
+        case "TabIconPlanning": ("tray", "tray.fill")
+        case "TabIconToday": ("calendar", "calendar")
         case "TabIconChat": ("ellipsis.bubble", "ellipsis.bubble.fill")
         default: nil
         }

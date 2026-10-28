@@ -68,7 +68,7 @@ final class AttentionViewModel {
         if data == nil { isLoading = true }
         errorMessage = nil
         do {
-            data = try await api.request(.get, "/api/attention")
+            data = try await api.request(.get, "/attention")
         } catch {
             errorMessage = error.localizedDescription
         }
