@@ -1214,10 +1214,13 @@ struct RoleChatRoomScreen: View {
         VStack(spacing: 0) {
             // Панель участников переехала в корень раздела «Чаты» и стала
             // панелью комнат (владелец 21.10.2026); состав чата — в «О чате».
+            // Рабочий план роли — висячей карточкой поверх ленты (28.10.2026):
+            // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent)
+                }
             discussionStatusBar
-            // Рабочий план роли в этой сессии — над полем ввода (21.10.2026).
-            ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent)
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
             }

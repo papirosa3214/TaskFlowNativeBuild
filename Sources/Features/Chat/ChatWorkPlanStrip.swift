@@ -34,7 +34,7 @@ struct ChatWorkPlanStrip: View {
     }
 
     var body: some View {
-        ChatWorkPlanRows(plans: plans, members: members)
+        ChatWorkPlanRows(plans: plans, members: members, floating: true)
             .task(id: "\(chatID):\(revision)") { await load() }
             .onChange(of: event) { _, event in
                 guard let event, let updated = ChatWorkPlan.applyingEvent(event, chatID: chatID, to: plans) else { return }
@@ -57,14 +57,33 @@ struct ChatWorkPlanRows: View {
     let members: [RoleChatMember]
     /// Развёрнуто сразу — для кадров отладочной галереи; в чате свёрнуто.
     var initiallyExpanded: Bool = false
+    /// Висячая карточка над лентой, как пул задач в «Дне» (владелец 28.10.2026):
+    /// подложка не до краёв, вокруг неё лента остаётся видна.
+    var floating: Bool = false
     @State private var expanded: Set<String> = []
 
     var body: some View {
+        if floating {
+            if !plans.isEmpty {
+                list(divided: false)
+                    .background(Color.tfCard)
+                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
+                    .tfShadow(TFShadow.dropdown)
+                    .padding(.horizontal, TFSpacing.lg)
+                    .padding(.bottom, TFSpacing.sm)
+            }
+        } else {
+            list(divided: true)
+        }
+    }
+
+    private func list(divided: Bool) -> some View {
         VStack(spacing: 0) {
-            ForEach(plans) { plan in
+            ForEach(Array(plans.enumerated()), id: \.element.id) { index, plan in
+                if !divided && index > 0 { TFDivider() }
                 row(plan)
                 if expanded.contains(plan.roleID) { items(plan) }
-                TFDivider()
+                if divided { TFDivider() }
             }
         }
         .onAppear {
