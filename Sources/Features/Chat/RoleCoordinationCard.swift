@@ -13,7 +13,7 @@ struct RoleCoordinationCard: View {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     Text("Вопрос").tfText(.meta)
                     RoleReplyMarkdown(text: coordination.question, serverBlocks: coordination.questionBlocks).textSelection(.enabled)
-                    if let answer = coordination.answer, !answer.isEmpty {
+                    if !coordination.isAnswered, let answer = coordination.answer, !answer.isEmpty {
                         Text(coordination.status == "error" ? "Причина ошибки" : "Ответ").tfText(.meta)
                         RoleReplyMarkdown(text: answer, serverBlocks: coordination.answerBlocks).textSelection(.enabled)
                     }
@@ -23,6 +23,17 @@ struct RoleCoordinationCard: View {
                     Label(coordination.requesterName + " → " + coordination.recipientName,
                           systemImage: "person.2")
                     Text(coordination.activity).tfText(.meta)
+                }
+            }
+            // Ответ роли виден сразу, не под раскрытием (владелец 28.10.2026:
+            // «хотелось бы, чтобы он выделялся, этот ответ»).
+            if coordination.isAnswered, let answer = coordination.answer, !answer.isEmpty {
+                GroupBox {
+                    RoleReplyMarkdown(text: answer, serverBlocks: coordination.answerBlocks)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Label("Ответ: " + coordination.recipientName, systemImage: "arrowshape.turn.up.left")
                 }
             }
             if !coordination.terminal {
