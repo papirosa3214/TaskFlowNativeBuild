@@ -184,9 +184,14 @@ struct AttentionScreen: View {
             header(title, tint: tint)
             ForEach(items) { item in
                 NavigationLink(value: Self.route(for: item)) {
-                    HStack(spacing: TFSpacing.sm) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title).tfText(.body).foregroundStyle(Color.tfText).lineLimit(2)
+                    HStack(spacing: TFSpacing.md) {
+                        Image(systemName: Self.icon(for: item.kind))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(tint)
+                            .frame(width: 28, height: 28)
+                            .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: TFRadius.md))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.title).tfText(.body).foregroundStyle(Color.tfText).lineLimit(3)
                             HStack(spacing: TFSpacing.xs) {
                                 if let role = item.role {
                                     Text(role).tfText(.caption).foregroundStyle(Color.tfSub)
@@ -194,19 +199,24 @@ struct AttentionScreen: View {
                                 if let context = item.context, !context.isEmpty {
                                     Text(context).tfText(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
                                 }
-                                Spacer()
                                 if let s = item.age_seconds {
                                     Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
                                 }
+                                Spacer()
+                                Text(Self.actionTitle(for: item))
+                                    .tfText(.caption)
+                                    .foregroundStyle(tint)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(tint)
                             }
                         }
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.tfDim)
                     }
+                    .padding(.vertical, TFSpacing.xs)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(Color.tfCard)
             }
         }
     }
@@ -215,6 +225,26 @@ struct AttentionScreen: View {
         HStack(spacing: TFSpacing.sm) {
             Circle().fill(tint).frame(width: 8, height: 8)
             Text(title).tfText(.action).foregroundStyle(Color.tfText)
+        }
+    }
+
+    static func icon(for kind: String) -> String {
+        switch kind {
+        case "task": "square.stack.3d.up"
+        case "step": "list.bullet.rectangle"
+        case "chat": "bubble.left.and.bubble.right"
+        case "attempt": "exclamationmark.triangle"
+        case "silent": "clock.badge.exclamationmark"
+        default: "bell"
+        }
+    }
+
+    /// Что владелец сделает, если ткнёт: подпись прямо в карточке.
+    static func actionTitle(for item: ApiAttentionItem) -> String {
+        switch item.kind {
+        case "chat": "Ответить"
+        case "attempt", "silent": "Перезапустить"
+        default: item.actions?.contains("approve") == true ? "Принять" : "Открыть"
         }
     }
 
