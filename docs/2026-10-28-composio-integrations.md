@@ -27,3 +27,11 @@ UI-тесты, симулятор, сборка и установка на iPhon
 Инструкции Composio: PR New-Todoist #13 влит; SYSTEM.md обновлён у 11 ролей.
 Сервер «Входящих»: PR New-Todoist #14 влит. Ранее накопленная iOS-работа
 опубликована PR TaskFlowNativeBuild #2; новая правка Composio публикуется отдельно.
+
+Финальная проверка доступа: Composio GitHub ACTIVE; через MCP роли выполнены
+два запроса прав к New-Todoist и TaskFlowNativeBuild, оба успешны, admin/push.
+Инструкции реально развёрнуты в SYSTEM.md 11 ролей. Сервер #14 выложен
+7f922301, health 200. iOS PR #3: https://github.com/papirosa3214/TaskFlowNativeBuild/pull/3
+В iOS main пока нет workflow CI: PR #1, который добавляет CI, остаётся открытым.
+Поэтому PR #2/#3 не имеют проверок и автоматически ещё не влились; установка
+приложения по отдельному поручению не выполнялась.
