@@ -20,25 +20,39 @@ struct OutcomeMergeRow: View {
     var onChanged: () async -> Void = {}
 
     @State private var isRollingBack = false
+    @Environment(\.openURL) private var openURL
 
     private let api = APIClient()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: TFSpacing.sm) {
-                Label("Автослияние: \(row.state.title)", systemImage: row.state.symbol)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(2)
-                    .accessibilityIdentifier("outcome-merge-state")
+                Label {
+                    Text("Автослияние: \(row.state.title)")
+                        .foregroundStyle(Color.tfText)
+                } icon: {
+                    Image(systemName: symbol).foregroundStyle(symbolTint)
+                }
+                .tfText(.action)
+                .lineLimit(2)
+                .accessibilityIdentifier("outcome-merge-state")
                 Spacer(minLength: 0)
-                if row.state.canRollBack {
+                // Через PR влитое откатывается на GitHub, не здесь.
+                if row.state.canRollBack && row.prNumber == nil {
                     Button(isRollingBack ? "Откатываю…" : "Откатить") {
                         Task { await rollBack() }
                     }
                     .disabled(isRollingBack)
                     .accessibilityIdentifier("outcome-merge-rollback")
                 }
+            }
+            if let number = row.prNumber {
+                Button("PR #\(number) на GitHub") {
+                    if let url = row.prURL { openURL(url) }
+                }
+                .tfText(.meta)
+                .disabled(row.prURL == nil)
+                .accessibilityIdentifier("outcome-merge-pr")
             }
             if let sha = row.shortSHA {
                 Text("main \(sha)")
@@ -51,6 +65,22 @@ struct OutcomeMergeRow: View {
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(3)
             }
+        }
+    }
+
+    /// Как значок PR в Claude и на GitHub: открыт — зелёный, влит —
+    /// фиолетовый. Без PR — прежние значки состояния.
+    private var symbol: String {
+        if row.prNumber != nil, row.state == .merged { return "arrow.triangle.merge" }
+        return row.state.symbol
+    }
+
+    private var symbolTint: Color {
+        guard row.prNumber != nil else { return Color.tfText }
+        switch row.state {
+        case .prOpen: return Color.tfGreen
+        case .merged: return Color.tfPurple
+        default: return Color.tfText
         }
     }
 

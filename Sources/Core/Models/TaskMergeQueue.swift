@@ -24,6 +24,10 @@ public struct ApiMergeQueue: Decodable, Sendable, Equatable {
         public let resultSha: String?
         public let error: String?
         public let createdAt: String?
+        /// PR на GitHub, через который вливается ветка роли (режим `pr`
+        /// очереди; старый сервер полей не шлёт — тогда nil).
+        public let prNumber: Int?
+        public let prURL: URL?
 
         public var id: String { taskID }
 
@@ -34,6 +38,8 @@ public struct ApiMergeQueue: Decodable, Sendable, Equatable {
             case mainShaBefore = "main_sha_before"
             case resultSha = "result_sha"
             case createdAt = "created_at"
+            case prNumber = "pr_number"
+            case prURL = "pr_url"
         }
 
         /// Короткий SHA для показа — полный не влезает в строку и не нужен.
@@ -57,6 +63,8 @@ public struct ApiMergeQueue: Decodable, Sendable, Equatable {
 public enum ApiMergeState: Decodable, Sendable, Equatable, Hashable {
     case queued
     case running
+    /// PR на GitHub открыт: идут проверки, зелёный без конфликтов вольётся сам.
+    case prOpen
     case merged
     case dryRun
     case conflict
@@ -71,6 +79,7 @@ public enum ApiMergeState: Decodable, Sendable, Equatable, Hashable {
     private static let byRaw: [String: ApiMergeState] = [
         "queued": .queued,
         "running": .running,
+        "pr_open": .prOpen,
         "merged": .merged,
         "dry_run": .dryRun,
         "conflict": .conflict,
@@ -94,6 +103,7 @@ public enum ApiMergeState: Decodable, Sendable, Equatable, Hashable {
         switch self {
         case .queued: return "queued"
         case .running: return "running"
+        case .prOpen: return "pr_open"
         case .merged: return "merged"
         case .dryRun: return "dry_run"
         case .conflict: return "conflict"
@@ -107,7 +117,7 @@ public enum ApiMergeState: Decodable, Sendable, Equatable, Hashable {
     }
 
     public static let allCases: [ApiMergeState] = [
-        .queued, .running, .merged, .dryRun, .conflict, .testFailed,
+        .queued, .running, .prOpen, .merged, .dryRun, .conflict, .testFailed,
         .blockedDirtyMain, .dirtyWorktree, .nothingToMerge, .missingBranch,
     ]
 
@@ -116,6 +126,7 @@ public enum ApiMergeState: Decodable, Sendable, Equatable, Hashable {
         switch self {
         case .queued: return "В очереди на слияние"
         case .running: return "Сливается"
+        case .prOpen: return "PR открыт — вливается"
         case .merged: return "Влито в основную ветку"
         case .dryRun: return "Проверено, main не тронут"
         case .conflict: return "Конфликт — ждёт интегратора"
@@ -136,6 +147,7 @@ public enum ApiMergeState: Decodable, Sendable, Equatable, Hashable {
     public var symbol: String {
         switch self {
         case .queued, .running: return "clock.arrow.circlepath"
+        case .prOpen: return "arrow.triangle.pull"
         case .merged: return "checkmark.circle.fill"
         case .dryRun: return "eye.circle"
         case .conflict, .testFailed, .blockedDirtyMain, .dirtyWorktree: return "exclamationmark.triangle.fill"
