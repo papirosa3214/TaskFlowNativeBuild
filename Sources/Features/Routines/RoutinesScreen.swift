@@ -9,6 +9,7 @@ struct RoutinesScreen: View {
     @State private var model = RoutinesViewModel()
     @State private var pendingDelete: ApiSchedule?
     @State private var isCreating = false
+    @State private var isShowingPlan = false
 
     var body: some View {
         list
@@ -16,18 +17,35 @@ struct RoutinesScreen: View {
             .tint(Color.tfText)
             .tfNativeHeader("Мои рутины", displayMode: .inline)
             .toolbar {
+                // Владелец 28.10.2026: вместо плюса — троеточие, а внутрь
+                // переехали календарь и создание рутины. Календарь здесь как
+                // раз тот самый «План», который переехал в рутины.
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        RoutineFormScreen()
+                    Menu {
+                        Button {
+                            isShowingPlan = true
+                        } label: {
+                            Label("Календарь", systemImage: "calendar")
+                        }
+                        .accessibilityIdentifier("routines.calendar")
+                        Button {
+                            isCreating = true
+                        } label: {
+                            Label("Новая рутина", systemImage: "plus")
+                        }
+                        .accessibilityIdentifier("routines.create")
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .accessibilityLabel("Создать рутину")
-                    .accessibilityIdentifier("routines.create")
+                    .accessibilityLabel("Ещё")
+                    .accessibilityIdentifier("routines.more")
                 }
             }
             .navigationDestination(isPresented: $isCreating) {
                 RoutineFormScreen()
+            }
+            .navigationDestination(isPresented: $isShowingPlan) {
+                UpcomingScreen()
             }
             .task { await model.load() }
             .refreshable { await model.load() }

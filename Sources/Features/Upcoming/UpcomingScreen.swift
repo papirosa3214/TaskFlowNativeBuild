@@ -27,9 +27,19 @@ public struct UpcomingScreen: View {
     /// `todayLayout`.
     enum PlannerSection: String, CaseIterable { case list, hours, threeDays, week, month }
 
-    @AppStorage("plannerSection") private var upcomingLayoutRaw = ViewMode.today.rawValue
+    /// Владелец 28.10.2026: в календаре остаются только «Неделя» и «Месяц».
+    /// Один день (Список/Часы) и «Три дня» убраны из меню разделов; сохранённое
+    /// у владельца старое значение молча ведёт на неделю. Сами виды не удалены —
+    /// вернуть их потом можно одним списком `selectableModes`.
+    private static let selectableModes: [ViewMode] = [.week, .month]
+
+    @AppStorage("plannerSection") private var upcomingLayoutRaw = ViewMode.week.rawValue
     private var view: ViewMode {
-        get { ViewMode(rawValue: upcomingLayoutRaw) ?? .today }
+        get {
+            guard let mode = ViewMode(rawValue: upcomingLayoutRaw),
+                  Self.selectableModes.contains(mode) else { return .week }
+            return mode
+        }
         nonmutating set { upcomingLayoutRaw = newValue.rawValue }
     }
 
@@ -456,9 +466,9 @@ public struct UpcomingScreen: View {
                 get: { plannerSection },
                 set: { plannerSection = $0 }
             )) {
-                Label("Список", systemImage: "list.bullet").tag(PlannerSection.list)
-                Label("Часы", systemImage: "clock").tag(PlannerSection.hours)
-                Label("Три дня", systemImage: "calendar.day.timeline.left").tag(PlannerSection.threeDays)
+                // Владелец 28.10.2026: «календарь оставь только неделя и месяц,
+                // а один день и 3 дня не отображай». Пункты «Список», «Часы»,
+                // «Три дня» живут в коде (PlannerSection), но в меню их нет.
                 Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(PlannerSection.week)
                 Label("Месяц", systemImage: "calendar").tag(PlannerSection.month)
             }
