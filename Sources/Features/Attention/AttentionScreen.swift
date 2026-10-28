@@ -135,19 +135,7 @@ struct AttentionScreen: View {
                     Section {
                         header("Идёт сейчас", tint: Color.tfTeal)
                         ForEach(data.running) { run in
-                            NavigationLink(value: run.task_id.map { AppRoute.taskDetail(taskID: $0) } ?? .agentWork(focus: nil)) {
-                                HStack(spacing: TFSpacing.sm) {
-                                    Text(run.role ?? "Роль").tfText(.action).foregroundStyle(Color.tfText)
-                                    Text(run.title).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
-                                    Spacer()
-                                    if let s = run.since_seconds {
-                                        Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
-                                    }
-                                    Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Color.tfDim)
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
+                            runningRow(run)
                         }
                     }
                 }
@@ -176,6 +164,24 @@ struct AttentionScreen: View {
         .background(Color.tfBackground)
         .refreshable { await model.load() }
         .task { await model.load() }
+    }
+
+    private func runningRow(_ run: ApiAttentionRunning) -> some View {
+        let destination: AppRoute = run.task_id.map { AppRoute.taskDetail(taskID: $0) }
+            ?? .roleLoad
+        return NavigationLink(value: destination) {
+            HStack(spacing: TFSpacing.sm) {
+                Text(run.role ?? "Роль").tfText(.action).foregroundStyle(Color.tfText)
+                Text(run.title).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
+                Spacer()
+                if let seconds = run.since_seconds {
+                    Text(Self.ago(seconds)).tfText(.caption).foregroundStyle(Color.tfDim)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Color.tfDim)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
