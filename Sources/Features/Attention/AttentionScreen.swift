@@ -14,6 +14,8 @@ struct ApiAttentionItem: Decodable, Identifiable {
     let role: String?
     let age_seconds: Int?
     let actions: [String]?
+    /// Карточка, к которой относится событие: тап открывает её.
+    let task_id: String?
 }
 
 struct ApiAttentionToday: Decodable, Identifiable {
@@ -112,12 +114,20 @@ struct AttentionScreen: View {
                     Section {
                         header("Сроки сегодня", tint: Color.tfBlue)
                         ForEach(data.today) { item in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title).tfText(.body).foregroundStyle(Color.tfText)
-                                if let project = item.project, !project.isEmpty {
-                                    Text(project).tfText(.caption).foregroundStyle(Color.tfSub)
+                            NavigationLink(value: AppRoute.taskDetail(taskID: item.id)) {
+                                HStack(spacing: TFSpacing.sm) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.title).tfText(.body).foregroundStyle(Color.tfText)
+                                        if let project = item.project, !project.isEmpty {
+                                            Text(project).tfText(.caption).foregroundStyle(Color.tfSub)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Color.tfDim)
                                 }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -125,14 +135,19 @@ struct AttentionScreen: View {
                     Section {
                         header("Идёт сейчас", tint: Color.tfTeal)
                         ForEach(data.running) { run in
-                            HStack(spacing: TFSpacing.sm) {
-                                Text(run.role ?? "Роль").tfText(.action).foregroundStyle(Color.tfText)
-                                Text(run.title).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
-                                Spacer()
-                                if let s = run.since_seconds {
-                                    Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
+                            NavigationLink(value: run.task_id.map { AppRoute.taskDetail(taskID: $0) } ?? .agentWork(focus: nil)) {
+                                HStack(spacing: TFSpacing.sm) {
+                                    Text(run.role ?? "Роль").tfText(.action).foregroundStyle(Color.tfText)
+                                    Text(run.title).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
+                                    Spacer()
+                                    if let s = run.since_seconds {
+                                        Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
+                                    }
+                                    Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Color.tfDim)
                                 }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -168,21 +183,30 @@ struct AttentionScreen: View {
         Section {
             header(title, tint: tint)
             ForEach(items) { item in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title).tfText(.body).foregroundStyle(Color.tfText).lineLimit(2)
-                    HStack(spacing: TFSpacing.xs) {
-                        if let role = item.role {
-                            Text(role).tfText(.caption).foregroundStyle(Color.tfSub)
+                NavigationLink(value: Self.route(for: item)) {
+                    HStack(spacing: TFSpacing.sm) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title).tfText(.body).foregroundStyle(Color.tfText).lineLimit(2)
+                            HStack(spacing: TFSpacing.xs) {
+                                if let role = item.role {
+                                    Text(role).tfText(.caption).foregroundStyle(Color.tfSub)
+                                }
+                                if let context = item.context, !context.isEmpty {
+                                    Text(context).tfText(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
+                                }
+                                Spacer()
+                                if let s = item.age_seconds {
+                                    Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
+                                }
+                            }
                         }
-                        if let context = item.context, !context.isEmpty {
-                            Text(context).tfText(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
-                        }
-                        Spacer()
-                        if let s = item.age_seconds {
-                            Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
-                        }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.tfDim)
                     }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -192,6 +216,15 @@ struct AttentionScreen: View {
             Circle().fill(tint).frame(width: 8, height: 8)
             Text(title).tfText(.action).foregroundStyle(Color.tfText)
         }
+    }
+
+    /// Куда ведёт строка: вопрос роли — в чат с этой ролью, всё остальное —
+    /// в карточку задачи, где владелец отвечает, принимает или перезапускает шаг.
+    /// Владелец 28.10.2026: «нажимаю — и меня перекидывает на само событие».
+    static func route(for item: ApiAttentionItem) -> AppRoute {
+        if item.kind == "chat" { return .roleChat(id: item.id) }
+        if let taskId = item.task_id { return .taskDetail(taskID: taskId) }
+        return .roleChat(id: item.id)
     }
 
     static func ago(_ seconds: Int) -> String {
