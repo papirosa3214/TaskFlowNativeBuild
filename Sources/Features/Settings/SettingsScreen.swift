@@ -110,8 +110,6 @@ struct SettingsScreen: View {
 
     // MARK: - Внешний вид (просьба владельца 28.10.2026)
 
-    private var selectedTone: TFTextTone { TFTextTone(rawValue: textToneRaw) ?? .pure }
-
     /// Образцы ступеней шкалы для выбора размера: кегль берётся из `Typography`,
     /// а не задаётся числом в разметке (правило дизайн-системы).
     private static let scaleSamples: [TFTextStyle] = [.action, .body, .title, .titleLarge]
@@ -134,7 +132,7 @@ struct SettingsScreen: View {
                                 Text("Аа")
                                     .tfText(.title)
                                     .foregroundStyle(tone.color)
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
                                     .background(Color.tfCard2)
                                     .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
                                     .overlay(
