@@ -8,6 +8,9 @@ import SDWebImageWebPCoder
 @main
 struct TaskFlowApp: App {
     @AppStorage(AppAppearance.storageKey) private var appearanceRaw = AppAppearance.dark.rawValue
+    // Внешний вид (28.10.2026): тон текста и размер шрифта из «Настроек».
+    @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
+    @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
     @State private var apiClient: APIClient
     @State private var session: SessionStore
     @State private var realtimeClient = RealtimeClient()
@@ -74,6 +77,15 @@ struct TaskFlowApp: App {
                 // руками. Модификатор действует на вложенные прокрутки,
                 // поэтому ставится один раз здесь.
                 .tfSoftTopScrollEdge()
+                // Тон и размер текста из «Настройки → Внешний вид»: цвет — на
+                // корне (наследуется всем текстом без своего цвета; токен
+                // `tfText` читает тот же выбор сам), размер — через Dynamic Type,
+                // чтобы шкала `.tfText(...)` пересчиталась во всех экранах.
+                .foregroundStyle(Color.tfText)
+                .dynamicTypeSize((TFTextScale(rawValue: textScaleRaw) ?? .standard).dynamicTypeSize)
+                // Смена настройки пересоздаёт дерево: токены цвета статические,
+                // иначе уже открытые экраны остались бы с прежним оттенком.
+                .id("appearance-\(textToneRaw)-\(textScaleRaw)")
                 .environment(session)
                 .environment(taskStore)
                 .environment(projectStore)

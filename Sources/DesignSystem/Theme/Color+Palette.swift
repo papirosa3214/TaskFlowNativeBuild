@@ -23,8 +23,21 @@ public extension Color {
     static let tfCard = dynamic(dark: "#242424", light: "#ffffff")
     /// Элемент внутри карточки: подложка тумблера, выпадающее меню, чип.
     static let tfCard2 = dynamic(dark: "#2b2b2b", light: "#ececee")
-    /// Основной текст, активная иконка таббара.
-    static let tfText = dynamic(dark: "#ffffff", light: "#171717")
+    /// Основной текст, активная иконка таббара. Тон в тёмной теме выбирает
+    /// владелец в «Настройках → Внешний вид» (28.10.2026), поэтому цвет читает
+    /// сохранённый выбор при каждой отрисовке: `static let` так не умеет.
+    static var tfText: Color {
+        Color(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(hex: TFTextTone.saved.hex)
+                : UIColor(hex: "#171717")
+        })
+    }
+
+    /// Текст и символы ПОВЕРХ цветных плашек (акцентная кнопка, аватар, бейдж):
+    /// подложка там всегда цветная, светлая тема тёмный текст сделала бы нечитаемым —
+    /// поэтому берём выбранный тон напрямую, без переключения по теме.
+    static var tfPaper: Color { TFTextTone.saved.color }
     /// Вторичный текст (подписи, второй уровень важности).
     static let tfSub = dynamic(dark: "#a6a6a6", light: "#424242")
     /// Приглушённые подписи и неактивные иконки; текст остаётся читаемым.

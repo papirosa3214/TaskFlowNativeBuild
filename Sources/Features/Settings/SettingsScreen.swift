@@ -20,12 +20,16 @@ struct SettingsScreen: View {
     @AppStorage("settings.ai.expanded") private var aiExpanded = true
     @AppStorage(SecretaryVoice.storageKey) private var secretaryVoice = SecretaryVoice.default.rawValue
     @AppStorage("settings.server.expanded") private var serverExpanded = true
+    @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
+    @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
+    @AppStorage("settings.appearance.expanded") private var appearanceExpanded = true
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.xl) {
                     accountSection
+                    appearanceSection
                     userSettingsSection
                     aiSection
                     serverSection
@@ -102,6 +106,90 @@ struct SettingsScreen: View {
                 appearanceRaw = (isDark ? AppAppearance.dark : .light).rawValue
             }
         )
+    }
+
+    // MARK: - Внешний вид (просьба владельца 28.10.2026)
+
+    private var selectedTone: TFTextTone { TFTextTone(rawValue: textToneRaw) ?? .pure }
+
+    /// Образцы ступеней шкалы для выбора размера: кегль берётся из `Typography`,
+    /// а не задаётся числом в разметке (правило дизайн-системы).
+    private static let scaleSamples: [TFTextStyle] = [.action, .body, .title, .titleLarge]
+
+    /// Тон основного текста и размер шрифта на всё приложение. Обе настройки
+    /// живут в `@AppStorage`: тон читает токен `tfText` в корне приложения,
+    /// размер — `.dynamicTypeSize(...)` там же.
+    @ViewBuilder
+    private var appearanceSection: some View {
+        section(title: "Внешний вид", isExpanded: $appearanceExpanded) {
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                Text("Тон текста")
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
+                HStack(spacing: TFSpacing.sm) {
+                    ForEach(TFTextTone.allCases) { tone in
+                        let isSelected = textToneRaw == tone.rawValue
+                        Button { textToneRaw = tone.rawValue } label: {
+                            VStack(spacing: TFSpacing.xs) {
+                                Text("Аа")
+                                    .tfText(.title)
+                                    .foregroundStyle(tone.color)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .background(Color.tfCard2)
+                                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: TFRadius.md)
+                                            .strokeBorder(isSelected ? Color.tfRed : Color.tfStroke,
+                                                          lineWidth: isSelected ? 2 : TFBorder.width)
+                                    )
+                                Text(tone.title)
+                                    .tfText(.micro)
+                                    .foregroundStyle(isSelected ? Color.tfText : Color.tfDim)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("settings.text-tone.\(tone.rawValue)")
+                    }
+                }
+            }
+            .padding(.horizontal, TFSpacing.md)
+            .padding(.vertical, TFSpacing.md)
+
+            TFDivider(inset: rowDividerInset)
+            Text("Размер текста")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.top, TFSpacing.md)
+            ForEach(Array(TFTextScale.allCases.enumerated()), id: \.element.id) { index, scale in
+                if index > 0 { TFDivider(inset: rowDividerInset) }
+                let isSelected = textScaleRaw == scale.rawValue
+                Button { textScaleRaw = scale.rawValue } label: {
+                    HStack(spacing: TFSpacing.md) {
+                        Text("Аа")
+                            .tfText(Self.scaleSamples[index])
+                            .foregroundStyle(Color.tfText)
+                            .frame(width: 34, alignment: .leading)
+                        Text(scale.title)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfText)
+                        Spacer()
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.tfRed)
+                        }
+                    }
+                    .padding(.horizontal, TFSpacing.md)
+                    .frame(minHeight: TFHitTarget.min)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.text-scale.\(scale.rawValue)")
+            }
+        }
     }
 
     @ViewBuilder
