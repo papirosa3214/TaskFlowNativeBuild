@@ -88,3 +88,31 @@ enum ComposioAccessError: LocalizedError {
         "У роли открыт весь каталог. Сначала измените доступ в разделе «Весь каталог»."
     }
 }
+
+/// Сервисы общего аккаунта TaskFlow, включая разрешённые роли сервисы вне страницы каталога.
+public struct ComposioConnectionOverview: Decodable, Sendable {
+    public let catalog: [ComposioToolkit]
+    public let services: [RoleIntegrationToolkit]
+    public let configured: Bool?
+    public let available: Bool?
+    public let roles: [ComposioWorkspacePolicy]?
+    public let catalogCursor: String?
+    public let catalogTotalPages: Int?
+    public let error: String?
+
+    public var connectedServices: [RoleIntegrationToolkit] {
+        var bySlug = Dictionary(catalog.map { item in
+            (item.slug, RoleIntegrationToolkit(slug: item.slug, name: item.name, logo: item.logo, description: item.description, connected: item.connected))
+        }, uniquingKeysWith: { _, latest in latest })
+        for service in services { bySlug[service.slug] = service }
+        return bySlug.values.filter { $0.connected == true }.sorted {
+            ($0.name ?? $0.slug).localizedCaseInsensitiveCompare($1.name ?? $1.slug) == .orderedAscending
+        }
+    }
+}
+
+public struct ComposioWorkspacePolicy: Decodable, Sendable {
+    public let role: String
+    public let enabled: Bool
+    public let toolkits: [String]?
+}

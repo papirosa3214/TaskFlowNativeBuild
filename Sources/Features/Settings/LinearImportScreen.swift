@@ -167,7 +167,7 @@ struct LinearImportScreen: View {
 
     private var connectionRow: some View {
         TFListRow(icon: "link", iconStyle: .plain, title: "Подключение аккаунта Linear",
-            subtitle: "Сервер MCP → Composio",
+            subtitle: "Интеграции → Composio → Linear",
             trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)),
             titleStyle: .action, verticalPadding: TFSpacing.xs)
     }
@@ -183,7 +183,7 @@ struct LinearImportScreen: View {
                 Button(action: onOpenConnection) { connectionRow }
                     .buttonStyle(.plain)
             } else {
-                NavigationLink { ServiceAccountsScreen(composioExpanded: true) } label: { connectionRow }
+                NavigationLink { ComposioIntegrationsScreen() } label: { connectionRow }
                     .buttonStyle(.plain)
             }
         } else {

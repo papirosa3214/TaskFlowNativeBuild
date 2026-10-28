@@ -290,6 +290,8 @@ struct IntegrationsScreen: View {
     @State private var viewModel = IntegrationsViewModel()
     @State private var isLinearOpen = false
     @State private var isGmailOpen = false
+    @State private var isComposioOpen = false
+    @State private var composio = ComposioIntegrationsViewModel()
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
@@ -335,6 +337,22 @@ struct IntegrationsScreen: View {
                             IntegrationAccordionCard(icon: "envelope", title: "Gmail", subtitle: externalApps.gmailDetail, badge: externalApps.gmailStatus, badgeColor: externalApps.accounts.contains(where: \.connected) ? .tfTeal : .tfSub, isExpanded: $isGmailOpen, identifier: "integrations.gmail") {
                                 GmailIntegrationCard()
                             }
+                            ForEach(composio.connections.filter { !["gmail", "linear"].contains($0.slug) }) { service in
+                                TFDivider(inset: dividerInset)
+                                NavigationLink {
+                                    ComposioServiceScreen(model: composio, toolkit: ComposioToolkit(slug: service.slug, name: service.name ?? service.slug, logo: service.logo, description: service.description, connected: true, noAuth: false))
+                                } label: {
+                                    TFListRow(icon: "link", iconStyle: .remote(service.logo), title: service.name ?? service.slug, subtitle: "Подключение TaskFlow", trailing: AnyView(Text("Подключено").tfText(.meta).foregroundStyle(Color.tfTeal)), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("integrations.connected.\(service.slug)")
+                            }
+
+                        }
+                        integrationGroup("Composio") {
+                            IntegrationAccordionCard(icon: "puzzlepiece.extension", asset: "IntegrationComposio", title: "Composio", subtitle: "Подключение сервисов и доступ ролей", badge: nil, isExpanded: $isComposioOpen, identifier: "integrations.composio") {
+                                ComposioIntegrationsScreen(embedded: true, model: composio)
+                            }
                         }
                         appleSection
                         thingsSection
@@ -348,11 +366,12 @@ struct IntegrationsScreen: View {
         }
         .tfNativeHeader("Интеграции")
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await externalApps.refresh() } }
+            if phase == .active { Task { await externalApps.refresh(); await composio.load() } }
         }
         .task {
             viewModel.loadAppleState()
             await externalApps.refresh()
+            await composio.load()
             await viewModel.loadWebhookStatus()
             await viewModel.loadGoogleStatus()
         }

@@ -12,6 +12,7 @@ final class ComposioIntegrationsViewModel {
     var roles: [ComposioWorkspaceRole] = []
     var policies: [String: ComposioAccessPolicy] = [:]
     var catalog: [ComposioToolkit] = []
+    var connections: [RoleIntegrationToolkit] = []
     var configured = false
     var available = false
     var loading = false
@@ -57,30 +58,22 @@ final class ComposioIntegrationsViewModel {
         }
         do {
             let profiles = try await api.roles(all: true)
-            let fetchedRoles = profiles.map { ComposioWorkspaceRole(id: $0.role, title: $0.title, active: $0.isEnabled) }
-            var fetched: [String: RoleComposio] = [:]
-            // Bound hosted-MCP inspection to three concurrent processes.
-            for start in stride(from: 0, to: fetchedRoles.count, by: 3) {
-                let batch = Array(fetchedRoles[start..<min(start + 3, fetchedRoles.count)])
-                let results = try await withThrowingTaskGroup(of: (String, RoleComposio).self) { group in
-                    for role in batch {
-                        group.addTask { let result = try await APIClient().roleComposio(role: role.id); return (role.id, result) }
-                    }
-                    var values: [(String, RoleComposio)] = []
-                    for try await result in group { values.append(result) }
-                    return values
-                }
-                for (id, settings) in results { fetched[id] = settings }
+            let overview = try await api.composioConnections()
+            roles = profiles.map { ComposioWorkspaceRole(id: $0.role, title: $0.title, active: $0.isEnabled) }
+            let access = Dictionary((overview.roles ?? []).map { ($0.role, $0) }, uniquingKeysWith: { _, latest in latest })
+            policies = Dictionary(uniqueKeysWithValues: roles.map { role in
+                (role.id, ComposioAccessPolicy(enabled: access[role.id]?.enabled ?? false, toolkits: access[role.id]?.toolkits))
+            })
+            configured = overview.configured ?? false
+            available = overview.available ?? false
+            catalog = overview.catalog
+            for service in overview.services where !catalog.contains(where: { $0.slug == service.slug }) {
+                catalog.append(ComposioToolkit(slug: service.slug, name: service.name ?? service.slug, logo: service.logo, description: service.description, connected: service.connected ?? false, noAuth: false))
             }
-            roles = fetchedRoles
-            policies = fetched.mapValues { ComposioAccessPolicy(enabled: $0.enabled, toolkits: $0.toolkits) }
-            let settings = roles.first.flatMap { fetched[$0.id] }
-            configured = settings?.configured ?? false
-            available = fetched.values.allSatisfy(\.available) && !fetched.isEmpty
-            catalog = settings?.catalog ?? []
-            catalogCursor = settings?.catalogCursor
-            catalogTotalPages = settings?.catalogTotalPages
-            error = fetched.values.compactMap(\.error).first
+            connections = overview.connectedServices
+            catalogCursor = overview.catalogCursor
+            catalogTotalPages = overview.catalogTotalPages
+            error = overview.error
             loaded = true
         } catch { self.error = error.localizedDescription }
     }
@@ -170,7 +163,10 @@ struct ComposioIntegrationsScreen: View {
     @Environment(\.scenePhase) private var scenePhase
 
     let embedded: Bool
-    init(embedded: Bool = false) { self.embedded = embedded }
+    init(embedded: Bool = false, model: ComposioIntegrationsViewModel? = nil) {
+        self.embedded = embedded
+        _model = State(initialValue: model ?? ComposioIntegrationsViewModel())
+    }
 
     var body: some View {
         Group {
@@ -259,7 +255,7 @@ struct ComposioIntegrationsScreen: View {
     }
 }
 
-private struct ComposioServiceScreen: View {
+struct ComposioServiceScreen: View {
     @Bindable var model: ComposioIntegrationsViewModel
     let toolkit: ComposioToolkit?
     @Environment(\.openURL) private var openURL
@@ -283,6 +279,10 @@ private struct ComposioServiceScreen: View {
                         TFCard(padding: 0) {
                             TFListRow(icon: "link", iconStyle: .remote(toolkit.logo), title: toolkit.name,
                                       subtitle: toolkit.noAuth ? "Авторизация не требуется" : toolkit.connected ? "Общий аккаунт TaskFlow подключён" : "Подключите общий аккаунт TaskFlow")
+                        }
+                        if toolkit.name == "GitHub MCP" {
+                            Text("Это отдельный сервис. Для обычного подключения аккаунта выберите «GitHub» в каталоге.")
+                                .tfText(.action).foregroundStyle(Color.tfSub)
                         }
                         if let description = toolkit.description {
                             Text(description)

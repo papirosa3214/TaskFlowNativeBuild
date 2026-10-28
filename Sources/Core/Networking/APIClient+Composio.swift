@@ -1,6 +1,10 @@
 import Foundation
 
 public extension APIClient {
+    func composioConnections() async throws -> ComposioConnectionOverview {
+        try await request(.get, "/integrations/composio")
+    }
+
     func roleComposio(role: String, search: String = "", cursor: String? = nil, limit: Int? = nil) async throws -> RoleComposio {
         var query = [URLQueryItem(name: "search", value: search)]
         if let cursor, !cursor.isEmpty { query.append(URLQueryItem(name: "cursor", value: cursor)) }
