@@ -211,19 +211,18 @@ struct PlanStepDetailSheet: View {
                     }
                     .onChange(of: result) { copiedResult = false }
                 }
-                if let onControl, let subtask, !subtask.done, !node.isSkipped {
+                if let onControl, subtask != nil {
                     Section {
                         if stateLabel == "В работе" {
                             Button { pendingControl = .cancel } label: { Label("Прервать", systemImage: "stop.circle") }
                                 .accessibilityIdentifier("plan-step-cancel")
-                        } else {
-                            Button { onControl(.run) } label: { Label("Запустить", systemImage: "play.circle") }
-                                .accessibilityIdentifier("plan-step-run")
                         }
+                        Button { onControl(.run) } label: { Label("Запустить", systemImage: "play.circle") }
+                            .accessibilityIdentifier("plan-step-run")
                         Button { pendingControl = .reset } label: { Label("Сбросить попытку", systemImage: "arrow.counterclockwise") }
                             .accessibilityIdentifier("plan-step-reset")
                     } footer: {
-                        Text("Действия касаются только этого шага: карточка и остальные шаги не меняются.")
+                        Text("Ручной запуск возобновляет выбранный шаг, даже после сбоя или завершения.")
                             .foregroundStyle(Color.tfSub)
                     }
                 }
