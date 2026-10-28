@@ -24,6 +24,15 @@ DEVICE_ID="00008150-001545400144401C"
 
 шаг() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 
+шаг "Забираю свежий main с GitHub"
+# Правки iOS вливаются через PR на GitHub (28.10.2026) — папка на маке сама
+# не обновляется. Только перемотка вперёд: чужие локальные коммиты не трогаем.
+if [ "$(git branch --show-current)" != "main" ]; then
+  git switch main || { echo "Не могу перейти на main: в папке незакоммиченные правки агента. Сборка остановлена."; exit 1; }
+fi
+git pull --ff-only github main || { echo "main на маке разошёлся с GitHub — нужен агент. Сборка остановлена."; exit 1; }
+git log -1 --format='Версия: %h %s'
+
 шаг "Пересобираю проект из project.yml"
 xcodegen generate
 
