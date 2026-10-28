@@ -719,7 +719,7 @@ private struct QuickAddProjectView: View {
             Button(action: save) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: TFIconSize.xs, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tfPaper)
                     .frame(width: 36, height: 36)
                     .background {
                         Circle()
@@ -908,7 +908,7 @@ private struct ProjectEditForm: View {
                         .frame(height: 44)
                         .tfText(.row)
                         .fontWeight(.semibold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tfPaper)
                         .background(Color.tfRedSolid)
                         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                 }

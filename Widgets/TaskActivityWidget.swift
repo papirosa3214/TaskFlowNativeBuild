@@ -60,7 +60,7 @@ struct AssigneeBadge: View {
         .overlay(
           Text(initials)
             .font(.system(size: size * 0.5, weight: .bold))
-            .foregroundColor(.white)
+            .foregroundColor(Color(hex: "#F6F0E4"))
         )
     }
   }
@@ -111,7 +111,7 @@ struct TaskActivityWidget: Widget {
       // ── Виджет на экране блокировки (Lock Screen Banner) ──
       LockScreenActivityView(state: context.state, taskId: context.attributes.taskId)
         .activityBackgroundTint(Color.black.opacity(0.85))
-        .activitySystemActionForegroundColor(Color.white)
+        .activitySystemActionForegroundColor(Color(hex: "#F6F0E4"))
     } dynamicIsland: { context in
       // ── Dynamic Island ──
       DynamicIsland {
@@ -154,7 +154,7 @@ struct TaskActivityWidget: Widget {
             // не хуже.
             Text(context.state.taskTitle)
               .font(.system(size: 15, weight: .bold))
-              .foregroundColor(.white)
+              .foregroundColor(Color(hex: "#F6F0E4"))
               .lineLimit(2)
               .fixedSize(horizontal: false, vertical: true)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -167,7 +167,7 @@ struct TaskActivityWidget: Widget {
                   .foregroundColor(tfAccent(for: context.state.status))
                 Text(sub)
                   .font(.system(size: 12, weight: .medium))
-                  .foregroundColor(.white.opacity(0.9))
+                  .foregroundColor(Color(hex: "#F6F0E4").opacity(0.9))
                   .lineLimit(1)
               }
             }
@@ -316,14 +316,14 @@ struct LockScreenActivityView: View {
           )
           Text(state.assigneeName)
             .font(.system(size: 12, weight: .medium))
-            .foregroundColor(.white)
+            .foregroundColor(Color(hex: "#F6F0E4"))
         }
       }
 
       // Заголовок задачи
       Text(state.taskTitle)
         .font(.system(size: 15, weight: .bold))
-        .foregroundColor(.white)
+        .foregroundColor(Color(hex: "#F6F0E4"))
         .lineLimit(2)
 
       // Текущая подзадача
@@ -334,7 +334,7 @@ struct LockScreenActivityView: View {
             .foregroundColor(tfAccent(for: state.status))
           Text(sub)
             .font(.system(size: 13, weight: .medium))
-            .foregroundColor(.white.opacity(0.9))
+            .foregroundColor(Color(hex: "#F6F0E4").opacity(0.9))
             .lineLimit(1)
         }
       }

@@ -103,7 +103,7 @@ struct TeamAppearanceSheet: View {
                                         if secretaryVariant == variant.rawValue {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .symbolRenderingMode(.palette)
-                                                .foregroundStyle(Color.tfRed, .white)
+                                                .foregroundStyle(Color.tfRed, Color.tfPaper)
                                                 .offset(x: 5, y: -5)
                                         }
                                     }

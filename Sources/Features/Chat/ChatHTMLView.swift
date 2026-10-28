@@ -111,7 +111,7 @@ struct ChatHTMLView: View {
         html, body { margin: 0; background: transparent; }
         body { padding: 12px; font: -apple-system-body; font-family: -apple-system, system-ui, sans-serif;
                color: #171717; -webkit-text-size-adjust: 100%; }
-        @media (prefers-color-scheme: dark) { body { color: #ffffff; } }
+        @media (prefers-color-scheme: dark) { body { color: #f6f0e4; } }
         button { font: inherit; }
         </style>
         </head><body>
