@@ -244,7 +244,7 @@ struct RoleRunJobsScreen: View {
             loadError = error.localizedDescription
             return
         }
-        if roleTitles.isEmpty, let roles = try? await api.roles(all: true) {
+        if roleTitles.isEmpty, let roles = try? await api.rolesList(all: true) {
             roleTitles = Dictionary(roles.map { ($0.role, $0.title) }, uniquingKeysWith: { first, _ in first })
         }
         // Карточки, которых нет в сторе (закрытые, чужой проект), — по одной.

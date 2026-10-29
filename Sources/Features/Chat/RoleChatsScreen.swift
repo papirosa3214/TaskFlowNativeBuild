@@ -734,7 +734,7 @@ private struct CreateRoleChatScreen: View {
         defer { isLoadingRoles = false }
         do {
             // Только роли с учёткой могут быть участниками серверного чата.
-            roles = try await api.roles().filter(\.canJoinChat)
+            roles = try await api.rolesList().filter(\.canJoinChat)
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -2405,6 +2405,20 @@ struct RoleChatRoomScreen: View {
         }
     }
 
+    /// Тело шага по запросу.
+    ///
+    /// В истории сообщений шаги приходят без вывода инструмента и аргументов
+    /// вызова (29.10.2026, «телефон — чисто окошко»): они весили 3,2 МБ на
+    /// 20 чатов, а рисуются только в раскрытой шторке шага. Владелец раскрыл
+    /// шаг — телефон спросил ровно этот шаг.
+    private func stepDetailLoader(for message: RoleChatMessage) -> ((String) async -> RoleChatLiveStep?)? {
+        let chatID = chat.id
+        let messageID = message.id
+        return { stepID in
+            try? await api.messageStep(chatID: chatID, messageID: messageID, stepID: stepID)
+        }
+    }
+
     private func flatReplyRow(_ message: RoleChatMessage) -> some View {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
             if isSelecting {
@@ -2419,7 +2433,7 @@ struct RoleChatRoomScreen: View {
                 if !isAgentReply(message) { senderLine(message, color: Color.tfSub) }
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
                 if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items)
+                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
                 }
                 // Текст и карточка задачи — вместе, а не вместо: раньше
                 // карточка подменяла всё сообщение, и вопрос роли пропадал
@@ -2517,7 +2531,7 @@ struct RoleChatRoomScreen: View {
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
                 // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
                 if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items)
+                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
                 }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
                     RoleChatRemoteVoiceBubble(
@@ -3344,7 +3358,7 @@ private struct RoleChatDetailsSheet: View {
                 #endif
                 isLoadingRoles = true
                 defer { isLoadingRoles = false }
-                do { roles = try await api.roles() }
+                do { roles = try await api.rolesList() }
                 catch { errorMessage = error.localizedDescription }
             }
         }

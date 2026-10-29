@@ -149,7 +149,7 @@ struct LabelTasksScreen: View {
                     // Дата и время заведения заявки — пиксельной меткой в
                     // квадратных скобках (LOCK-TASK-CREATED-STAMP).
                     TFTaskCreatedStamp(createdAt: task.createdAt)
-                    TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
+                    TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.listSubtasksDone, subtasksTotal: task.listSubtasksTotal, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                     ForEach(task.labels, id: \.id) { label in
                         TFLabelPill(label.name, color: Color(hex: label.color ?? TFHexDefault.unassigned)).layoutPriority(-1)
                     }

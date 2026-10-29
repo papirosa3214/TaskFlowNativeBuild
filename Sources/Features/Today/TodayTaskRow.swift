@@ -65,7 +65,7 @@ struct TodayTaskRow: View {
                 // Дата и время заведения заявки — пиксельной меткой в квадратных
                 // скобках (LOCK-TASK-CREATED-STAMP, владелец 12.10.2026).
                 TFTaskCreatedStamp(createdAt: task.createdAt)
-                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
+                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.listSubtasksDone, subtasksTotal: task.listSubtasksTotal, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                 if let status = TodayAgentStateTag.text(task) {
                     Text(status).foregroundStyle(TodayAgentStateTag.color(task)).layoutPriority(-1)
                 }

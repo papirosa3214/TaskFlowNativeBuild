@@ -136,7 +136,7 @@ struct TaskPreparationView: View {
         .interactiveDismissDisabled(isApplying)
         .task(id: "\(taskID):\(scenePhase):\(realtime.revision(for: taskID))") {
             guard scenePhase == .active else { return }
-            do { roles = try await api.roles() }
+            do { roles = try await api.rolesList() }
             catch { roles = [] }
             await load()
         }

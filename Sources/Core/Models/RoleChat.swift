@@ -851,6 +851,11 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
     /// владелец разбирает сбой шага сам. У старых снимков — nil.
     public var args: String? = nil
     public var output: String? = nil
+    /// В лёгкой проекции истории (29.10.2026) тела шага не присылаются, но
+    /// сервер говорит, что они есть. Тогда телефон достанет их по шагу —
+    /// когда владелец раскроет шаг, а не заранее.
+    public var hasArgs = false
+    public var hasOutput = false
 
     public init(id: String, tool: String, detail: String?, status: Status,
                 startedAt: String? = nil, endedAt: String? = nil, resultReceived: Bool? = nil) {
@@ -867,6 +872,8 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
         case id, tool, detail, status, args, output
         case startedAt = "started_at"
         case endedAt = "ended_at"
+        case hasArgs = "has_args"
+        case hasOutput = "has_output"
     }
 
     /// Сколько шёл шаг — для шторки с подробностями; идёт — nil.
@@ -888,6 +895,8 @@ public struct RoleChatLiveStep: Decodable, Sendable, Equatable {
         endedAt = try container.decodeIfPresent(String.self, forKey: .endedAt)
         args = try container.decodeIfPresent(String.self, forKey: .args)
         output = try container.decodeIfPresent(String.self, forKey: .output)
+        hasArgs = try container.decodeIfPresent(Bool.self, forKey: .hasArgs) ?? false
+        hasOutput = try container.decodeIfPresent(Bool.self, forKey: .hasOutput) ?? false
     }
 }
 

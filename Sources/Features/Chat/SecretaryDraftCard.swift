@@ -305,7 +305,7 @@ struct SecretaryDraftCard: View {
     /// ошибки поверх ответа Помощника владельца.
     private func loadRoleTitles() async {
         do {
-            let all = try await api.roles(all: true)
+            let all = try await api.rolesList(all: true)
             roleTitleByKey = Dictionary(uniqueKeysWithValues: all.map { ($0.role, $0.title) })
         } catch {
             roleTitleByKey = [:]

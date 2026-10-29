@@ -158,7 +158,7 @@ final class RoutineFormViewModel {
 
     func loadRoles() async {
         if roles.isEmpty {
-            roles = (try? await api.roles()) ?? []
+            roles = (try? await api.rolesList()) ?? []
         }
     }
 

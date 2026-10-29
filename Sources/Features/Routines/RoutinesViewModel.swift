@@ -50,7 +50,7 @@ final class RoutinesViewModel {
         // уже готов: не держим его за загрузкой вспомогательных данных.
         isLoading = false
         if roles.isEmpty {
-            roles = (try? await api.roles()) ?? []
+            roles = (try? await api.rolesList()) ?? []
         }
     }
 

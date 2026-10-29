@@ -171,6 +171,15 @@ struct RoleLiveItemsList: View {
     /// Проявление текста из пустоты — только у идущего хода.
     var fade: RoleTextFade?
     var isStreaming = false
+    /// Тело шага по его id — когда шаг раскрыли, а тела в списке нет.
+    ///
+    /// В истории сообщений вывод инструмента и аргументы вызова не присылаются
+    /// (29.10.2026, «телефон — чисто окошко»): они весили 3,2 МБ на 20 чатов,
+    /// а рисуются только в раскрытой шторке шага. Владелец раскрыл шаг —
+    /// телефон спросил ровно этот шаг.
+    ///
+    /// У идущего хода загрузчика нет: там тела приходят с самим ходом.
+    var stepDetailLoader: ((String) async -> RoleChatLiveStep?)?
     /// Превью последнего действия — у каждой полосы, и одиночное действие
     /// тоже полосой. Пока ход идёт, высота пузыря не меняется: ни полоса не
     /// появляется вместо строки, ни превью не пропадает из-под полосы, когда
@@ -219,7 +228,7 @@ struct RoleLiveItemsList: View {
                                   prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
             case .step(let step):
                 let hasDetail = !(step.detail ?? "").isEmpty
-                Button { detail = .step(step) } label: {
+                Button { openStep(step) } label: {
                     VStack(alignment: .leading, spacing: TFSpacing.xs) {
                         RoleLiveStepRow(step: step, showsDetail: !(expanded && hasDetail))
                         if expanded, hasDetail, let text = step.detail {
@@ -256,6 +265,26 @@ struct RoleLiveItemsList: View {
             }
         }
         .modifier(RoleItemAppearance(animate: fade?.isAnimating == true && Self.isAction(item)))
+    }
+
+    /// Раскрыть шаг.
+    ///
+    /// Тела вызова и ответа в истории не присылаются — телефон достанет их
+    /// по этому шагу, когда владелец его раскроет (29.10.2026). Если тела
+    /// уже на месте (старый сервер, идущий ход) — открываем сразу, без сети.
+    private func openStep(_ step: RoleChatLiveStep) {
+        let hasBodies = (step.args?.isEmpty == false) || (step.output?.isEmpty == false)
+        guard !hasBodies, step.hasArgs || step.hasOutput, let loader = stepDetailLoader else {
+            detail = .step(step)
+            return
+        }
+        Task {
+            if let loaded = await loader(step.id) {
+                detail = .step(loaded)
+            } else {
+                detail = .step(step)
+            }
+        }
     }
 
     /// Реплики и законченные размышления, которые уже не растут: у идущего

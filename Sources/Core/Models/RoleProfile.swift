@@ -91,8 +91,12 @@ public struct RoleProfile: Codable, Sendable, Hashable, Identifiable {
     public let runtimeReady: Bool
     /// Проблемы САМОЙ роли (промпт/профиль/учётка/модель). Пусто — всё цело.
     public let problems: [String]
-    public let prompt: String
-    public let skills: [RoleSkill]
+    /// Системный промпт роли. `nil` — в лёгкой проекции списка (29.10.2026,
+    /// «телефон — чисто окошко»): промпты всех ролей весили 258 КБ из 839 КБ
+    /// ответа, а список их не рисует. Полный профиль — `GET /api/roles/:role`.
+    public let prompt: String?
+    /// Навыки роли. `nil` — в лёгкой проекции списка (см. `prompt`).
+    public let skills: [RoleSkill]?
     public let tools: [String]
     /// Те же инструменты с серверными описаниями. `nil` у прежних сборок
     /// сервера — тогда экран рисует одни имена, ничего не выдумывая.

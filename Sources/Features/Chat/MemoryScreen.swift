@@ -231,7 +231,7 @@ struct MemoryScreen: View {
     }
 
     private func loadRoles() async {
-        if let list = try? await api.roles() {
+        if let list = try? await api.rolesList() {
             roles = list.map { PlanRoleOption(key: $0.role, title: $0.title) }
         }
     }

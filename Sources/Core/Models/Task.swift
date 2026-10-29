@@ -148,6 +148,16 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let projectColor: String?
     public let labels: [ApiLabel]
     public let subtasks: [ApiSubtask]
+    /// Сколько шагов у задачи и сколько из них сделано — приходит вместо
+    /// самих подзадач в лёгкой проекции списка (29.10.2026, «телефон — чисто
+    /// окошко»). Подзадачи были 1,85 МБ из 2,9 МБ ответа списка, а строка
+    /// рисует только чип «2/5 шагов».
+    ///
+    /// На старом сервере этих полей нет, и тогда шаги считаются по
+    /// `subtasks` — так клиент работает и со старым, и с новым сервером.
+    public let subtaskTotal: Int?
+    /// Сколько шагов сделано (см. `subtaskTotal`).
+    public let subtaskDone: Int?
     /// Только `GET /api/tasks/:id` — дочерние задачи (`parent_id` = этот id).
     public let children: [ApiTask]?
     /// Только `GET /api/tasks/:id` — вся цепочка предков от корня к
@@ -248,6 +258,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case projectName = "project_name"
         case projectColor = "project_color"
         case labels, subtasks, children, ancestors, comments, events, chats, attachments
+        case subtaskTotal = "subtask_total"
+        case subtaskDone = "subtask_done"
         case attemptLadder = "attempt_ladder"
         case role
         case ownerSelectedRole = "owner_selected_role"
@@ -315,6 +327,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         projectColor = try c.decodeIfPresent(String.self, forKey: .projectColor)
         labels = try c.decodeIfPresent([ApiLabel].self, forKey: .labels) ?? []
         subtasks = try c.decodeIfPresent([ApiSubtask].self, forKey: .subtasks) ?? []
+        subtaskTotal = try c.decodeIfPresent(Int.self, forKey: .subtaskTotal)
+        subtaskDone = try c.decodeIfPresent(Int.self, forKey: .subtaskDone)
         children = try c.decodeIfPresent([ApiTask].self, forKey: .children)
         ancestors = try c.decodeIfPresent([ApiTaskAncestor].self, forKey: .ancestors)
         comments = try c.decodeIfPresent([ApiComment].self, forKey: .comments)
@@ -388,6 +402,8 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encodeIfPresent(projectColor, forKey: .projectColor)
         try c.encode(labels, forKey: .labels)
         try c.encode(subtasks, forKey: .subtasks)
+        try c.encodeIfPresent(subtaskTotal, forKey: .subtaskTotal)
+        try c.encodeIfPresent(subtaskDone, forKey: .subtaskDone)
         try c.encodeIfPresent(children, forKey: .children)
         try c.encodeIfPresent(ancestors, forKey: .ancestors)
         try c.encodeIfPresent(comments, forKey: .comments)
@@ -415,6 +431,22 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
 }
 
 extension ApiTask {
+    /// Сколько шагов показать в строке списка.
+    ///
+    /// В лёгкой проекции списка (29.10.2026) подзадачи не присылаются вовсе —
+    /// приходят два числа. На старом сервере чисел нет, и тогда шаги считаются
+    /// по `subtasks`. Оба пути дают одно и то же, поэтому строка списка не
+    /// знает, с какого сервера пришли данные.
+    var listSubtasksTotal: Int? {
+        if let subtaskTotal { return subtaskTotal }
+        return subtasks.isEmpty ? nil : subtasks.count
+    }
+    /// Сколько шагов сделано (см. `listSubtasksTotal`).
+    var listSubtasksDone: Int? {
+        if let subtaskDone { return subtaskDone }
+        return subtasks.isEmpty ? nil : subtasks.filter(\.done).count
+    }
+
     /// Кого показывать аватаркой в строке списка: настоящего исполнителя,
     /// а если его нет — одного ответственного по плану (см. `planResponsibleId`).
     /// Картинка аватара с сервера (`avatar_url`): исполнителя, а если его нет — ответственного по плану.

@@ -103,9 +103,35 @@ public extension APIClient {
         return response.chat
     }
 
-    func roleChatMessages(id: String) async throws -> [RoleChatMessage] {
-        let response: RoleChatMessagesEnvelope = try await request(.get, "/chats/\(id)/messages")
+    /// Проекция истории сообщений.
+    ///
+    /// `.list` (29.10.2026, «телефон — чисто окошко»): сервер не присылает
+    /// вывод инструмента и аргументы вызова в шагах — они весили 3,2 МБ на
+    /// 20 чатов, а рисуются только в раскрытой шторке шага. Полные тела
+    /// телефон берёт по шагу, когда владелец его раскрывает.
+    /// `.full` — прежний полный ответ.
+    public enum ChatMessageProjection: String, Sendable {
+        case list
+        case full
+    }
+
+    func roleChatMessages(id: String, projection: ChatMessageProjection = .list) async throws -> [RoleChatMessage] {
+        var query: [URLQueryItem] = []
+        if projection == .list { query.append(URLQueryItem(name: "projection", value: "list")) }
+        let response: RoleChatMessagesEnvelope = try await request(.get, "/chats/\(id)/messages", query: query)
         return response.messages
+    }
+
+    /// `GET /api/chats/:chatId/messages/:messageId/steps/:stepId` — тело
+    /// одного шага: аргументы вызова и вывод инструмента (29.10.2026).
+    ///
+    /// В истории эти тела не присылаются: телефон разбирал бы мегабайты,
+    /// нужные одному шагу за раз. Владелец раскрыл шаг — телефон спросил
+    /// ровно этот шаг.
+    func messageStep(chatID: String, messageID: String, stepID: String) async throws -> RoleChatLiveStep {
+        struct Envelope: Decodable { let step: RoleChatLiveStep }
+        let envelope: Envelope = try await request(.get, "/chats/\(chatID)/messages/\(messageID)/steps/\(stepID)")
+        return envelope.step
     }
 
     /// Прошлые ответы из `ResponseCache` — показать до сети.
@@ -119,7 +145,8 @@ public extension APIClient {
     }
 
     func cachedRoleChatMessages(id: String) -> [RoleChatMessage]? {
-        cached(RoleChatMessagesEnvelope.self, "/chats/\(id)/messages")?.messages
+        cached(RoleChatMessagesEnvelope.self, "/chats/\(id)/messages",
+               query: [URLQueryItem(name: "projection", value: "list")])?.messages
     }
 
     /// Идущие сейчас ходы ролей в чате — снимок для открывшего чат посреди

@@ -67,8 +67,8 @@ struct RoleEditorSheet: View {
             // этого они живут в `@State`, и любая правка идёт через них.
             _title = State(initialValue: profile.title)
             _summary = State(initialValue: profile.summary ?? "")
-            _prompt = State(initialValue: profile.prompt)
-            _promptBaseline = State(initialValue: profile.prompt)
+            _prompt = State(initialValue: profile.prompt ?? "")
+            _promptBaseline = State(initialValue: profile.prompt ?? "")
         }
     }
 
@@ -95,7 +95,7 @@ struct RoleEditorSheet: View {
                     Button("Принять новую версию, оставить мою правку") {
                         Task {
                             if let fresh = try? await APIClient().role(id: profile.role) {
-                                promptBaseline = fresh.prompt
+                                promptBaseline = fresh.prompt ?? ""
                                 promptConflict = false
                                 errorText = nil
                             }
@@ -115,8 +115,8 @@ struct RoleEditorSheet: View {
                 Task {
                     if let fresh = try? await APIClient().role(id: profile.role) {
                         if prompt == promptBaseline {
-                            prompt = fresh.prompt
-                            promptBaseline = fresh.prompt
+                            prompt = fresh.prompt ?? ""
+                            promptBaseline = fresh.prompt ?? ""
                             promptConflict = false
                         } else if fresh.prompt != promptBaseline {
                             promptConflict = true

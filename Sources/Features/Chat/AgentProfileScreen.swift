@@ -99,8 +99,8 @@ struct AgentProfileScreen: View {
                 }
                 rowDivider
                 instructionsRow(profile)
-                if isInstructionsExpanded && !profile.prompt.isEmpty {
-                    instructionsBlock(profile.prompt)
+                if isInstructionsExpanded && !(profile.prompt ?? "").isEmpty {
+                    instructionsBlock(profile.prompt ?? "")
                 }
             }
 
@@ -123,7 +123,7 @@ struct AgentProfileScreen: View {
                 infoRow(
                     icon: "graduationcap",
                     title: "Навыки",
-                    subtitle: joined(profile.skills.map(\.name), empty: "не установлены")
+                    subtitle: joined(profile.skills?.map(\.name) ?? [], empty: "не установлены")
                 )
                 if let permissions = profile.permissions, !permissions.isEmpty {
                     rowDivider
@@ -239,8 +239,8 @@ struct AgentProfileScreen: View {
         infoRow(
             icon: "text.alignleft",
             title: "Инструкции",
-            subtitle: profile.prompt.isEmpty ? "не заданы" : "Системный промпт роли",
-            action: profile.prompt.isEmpty ? nil : {
+            subtitle: (profile.prompt ?? "").isEmpty ? "не заданы" : "Системный промпт роли",
+            action: (profile.prompt ?? "").isEmpty ? nil : {
                 withAnimation(.easeInOut(duration: TFDuration.fast)) {
                     isInstructionsExpanded.toggle()
                 }

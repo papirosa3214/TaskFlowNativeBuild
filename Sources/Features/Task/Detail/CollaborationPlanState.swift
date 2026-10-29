@@ -53,7 +53,7 @@ public final class CollaborationPlanState {
         let isOwner = request.isOwner
         async let plansRequest = api.collaborationPlans(taskId: taskID)
         async let subtasksRequest = api.subtasks(taskId: taskID)
-        async let rolesRequest = api.roles()
+        async let rolesRequest = api.rolesList()
         guard let plans = try? await plansRequest else { return }
         let steps = ((try? await subtasksRequest) ?? []).filter { $0.collaborationPlanId != nil }
         let titles = ((try? await rolesRequest) ?? []).reduce(into: [String: String]()) { $0[$1.role] = $1.title }

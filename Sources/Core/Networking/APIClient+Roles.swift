@@ -5,23 +5,40 @@ import Foundation
 
 private struct RolesEnvelope: Decodable { let roles: [RoleProfile] }
 
+/// Проекция каталога ролей.
+///
+/// `.list` — лёгкий ответ для экранов списков: без системного промпта,
+/// навыков и описаний операций (29.10.2026, «телефон — чисто окошко»).
+/// Эти три поля весили 517 КБ из 839 КБ ответа, а списки их не рисуют.
+/// `.full` — прежний полный ответ: карточка роли и редактор инструкции.
+public enum RoleListProjection: String, Sendable {
+    case list
+    case full
+}
+
 /// Общий кэш `GET /api/roles` (20.10.2026). Ответ — 640 КБ с промптами всех
 /// ролей, а запрашивали его 8 экранов, карточка задачи — дважды на каждое
 /// открытие. Одновременные запросы склеиваются в один, свежий ответ живёт 30 с.
+///
+/// Ключ кэша — пара «все роли / проекция»: лёгкий список и полный профиль
+/// разные ответы, и держать их в одной ячейке нельзя (29.10.2026).
 actor RolesCache {
     static let shared = RolesCache()
     private let ttl: TimeInterval = 30
-    private var stored: [Bool: (at: Date, roles: [RoleProfile])] = [:]
-    private var inflight: [Bool: Task<[RoleProfile], Error>] = [:]
+    private struct Key: Hashable { let all: Bool; let projection: RoleListProjection }
+    private var stored: [Key: (at: Date, roles: [RoleProfile])] = [:]
+    private var inflight: [Key: Task<[RoleProfile], Error>] = [:]
 
-    func roles(all: Bool, fetch: @escaping @Sendable () async throws -> [RoleProfile]) async throws -> [RoleProfile] {
-        if let hit = stored[all], Date().timeIntervalSince(hit.at) < ttl { return hit.roles }
-        if let running = inflight[all] { return try await running.value }
+    func roles(all: Bool, projection: RoleListProjection,
+               fetch: @escaping @Sendable () async throws -> [RoleProfile]) async throws -> [RoleProfile] {
+        let key = Key(all: all, projection: projection)
+        if let hit = stored[key], Date().timeIntervalSince(hit.at) < ttl { return hit.roles }
+        if let running = inflight[key] { return try await running.value }
         let task = Task { try await fetch() }
-        inflight[all] = task
-        defer { inflight[all] = nil }
+        inflight[key] = task
+        defer { inflight[key] = nil }
         let roles = try await task.value
-        stored[all] = (Date(), roles)
+        stored[key] = (Date(), roles)
         return roles
     }
 
@@ -44,7 +61,27 @@ public extension APIClient {
     /// `GET /api/roles?all=1` — вместе с отключёнными: экрану «Команда» их
     /// надо показать, чтобы было что включить обратно. Без `all=1` — только
     /// рабочие роли (LOCK-205, ссылка на `server/src/routes/roles.ts:278-285`).
+    ///
+    /// Полный ответ: нужен карточке роли и редактору инструкции — они
+    /// показывают системный промпт, навыки и описания операций.
     func roles(all: Bool) async throws -> [RoleProfile] {
+        try await roles(all: all, projection: .full)
+    }
+
+    /// Лёгкий каталог ролей для экранов списков (29.10.2026, «телефон —
+    /// чисто окошко»).
+    ///
+    /// Без системного промпта, навыков и описаний операций: они весили
+    /// 517 КБ из 839 КБ ответа, а списки (чаты, карточка задачи, рутины,
+    /// память, план) рисуют только имя, статус и аватар.
+    ///
+    /// На сервере без проекции (старый) ответ прежний — список просто
+    /// получит лишние поля.
+    func rolesList(all: Bool = false) async throws -> [RoleProfile] {
+        try await roles(all: all, projection: .list)
+    }
+
+    private func roles(all: Bool, projection: RoleListProjection) async throws -> [RoleProfile] {
         #if DEBUG
         // UI fixtures must not depend on the mutable live role catalogue or cached titles.
         if ProcessInfo.processInfo.environment["TASKFLOW_ROLE_CONTEXT_FIXTURE"] == "1" {
@@ -52,8 +89,11 @@ public extension APIClient {
             return [try JSONDecoder().decode(RoleProfile.self, from: data)]
         }
         #endif
-        return try await RolesCache.shared.roles(all: all) {
-            let query = all ? [URLQueryItem(name: "all", value: "1")] : []
+        return try await RolesCache.shared.roles(all: all, projection: projection) {
+            var query = all ? [URLQueryItem(name: "all", value: "1")] : []
+            if projection == .list {
+                query.append(URLQueryItem(name: "projection", value: "list"))
+            }
             let envelope: RolesEnvelope = try await self.request(.get, "/roles", query: query)
             return envelope.roles
         }

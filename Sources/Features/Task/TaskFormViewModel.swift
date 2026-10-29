@@ -509,7 +509,7 @@ final class TaskFormViewModel {
     /// формулировка справочников, что и раньше.
     func loadRoles() async {
         do {
-            roles = try await apiClient.roles()
+            roles = try await apiClient.rolesList()
         } catch {
             directoriesErrorMessage = "Не удалось загрузить проекты, метки или агентов. Проверьте соединение."
         }

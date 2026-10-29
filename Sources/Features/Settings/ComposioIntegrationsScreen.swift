@@ -57,7 +57,7 @@ final class ComposioIntegrationsViewModel {
             return
         }
         do {
-            let profiles = try await api.roles(all: true)
+            let profiles = try await api.rolesList(all: true)
             let overview = try await api.composioConnections()
             roles = profiles.map { ComposioWorkspaceRole(id: $0.role, title: $0.title, active: $0.isEnabled) }
             let access = Dictionary((overview.roles ?? []).map { ($0.role, $0) }, uniquingKeysWith: { _, latest in latest })

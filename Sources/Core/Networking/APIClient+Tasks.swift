@@ -36,11 +36,23 @@ public extension APIClient {
         }
     }
 
+    /// Проекция ответа со списком задач.
+    ///
+    /// `.list` — лёгкий ответ для экрана списка: без подзадач, описание в
+    /// одну строку, вместо подзадач — два числа (29.10.2026, «телефон —
+    /// чисто окошко»). `.full` — прежний полный ответ.
+    public enum TaskListProjection: String, Sendable {
+        case list
+        case full
+    }
+
     /// `includeChildren` — query `include_children` (spec §5.1).
-    func tasks(includeChildren: Bool = false, archived: Bool = false) async throws -> [ApiTask] {
+    func tasks(includeChildren: Bool = false, archived: Bool = false,
+               projection: TaskListProjection = .list) async throws -> [ApiTask] {
         var query: [URLQueryItem] = []
         if includeChildren { query.append(URLQueryItem(name: "include_children", value: "true")) }
         if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
+        if projection == .list { query.append(URLQueryItem(name: "projection", value: "list")) }
         return try await request(.get, "/tasks", query: query)
     }
 
@@ -58,10 +70,21 @@ public extension APIClient {
         let etag: String?
     }
 
-    func taskList(includeChildren: Bool = false, archived: Bool = false, etag: String? = nil) async throws -> TaskListPage {
+    /// `projection=list` — лёгкий ответ для списка (29.10.2026, «телефон —
+    /// чисто окошко»).
+    ///
+    /// Сервер в списке не присылает подзадачи и обрезает описание до одной
+    /// строки: подзадачи были 1,85 МБ из 2,9 МБ ответа, а строка рисует
+    /// только чип «2/5 шагов». Вместо подзадач приходят два числа.
+    ///
+    /// На сервере без проекции (старый) ответ прежний, и клиент считает шаги
+    /// по пришедшим подзадачам — так он работает с обоими.
+    func taskList(includeChildren: Bool = false, archived: Bool = false, etag: String? = nil,
+                  projection: TaskListProjection = .list) async throws -> TaskListPage {
         var query: [URLQueryItem] = []
         if includeChildren { query.append(URLQueryItem(name: "include_children", value: "true")) }
         if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
+        if projection == .list { query.append(URLQueryItem(name: "projection", value: "list")) }
         var headers: [String: String] = [:]
         if let etag { headers["If-None-Match"] = etag }
         let (data, http) = try await requestRaw(

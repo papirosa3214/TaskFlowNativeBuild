@@ -137,7 +137,7 @@ struct DirectoryTaskRow: View {
                 if let timestamp, !timestamp.isEmpty {
                     Text(timestamp).layoutPriority(-1)
                 }
-                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.subtasks.isEmpty ? nil : task.subtasks.count { $0.done }, subtasksTotal: task.subtasks.isEmpty ? nil : task.subtasks.count, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
+                TFTaskStructureIndicators(priority: TaskPriority(rawValue: task.priority), subtasksDone: task.listSubtasksDone, subtasksTotal: task.listSubtasksTotal, childrenCount: task.childrenCount, hasCollaborationPlan: task.hasCollaborationPlan)
                 if task.needsResearch {
                     TFPill("Исследование", color: .tfSub, solidBackground: .tfCard)
                 }
