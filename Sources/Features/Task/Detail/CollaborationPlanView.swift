@@ -901,7 +901,7 @@ private struct CollaborationPlanGraph: View {
                             if returns["\(edge.fromSlotKey):\(edge.toSlotKey)"] != nil {
                                 let dashed = entries.contains(where: \.isParticipant)
                                     ? participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
-                                    : chainReturnLink(from: fromCenter, to: toCenter)
+                                    : chainReturnLink(from: fromCenter, to: toCenter, width: canvasWidth)
                                 context.stroke(dashed.line, with: .color(Color.tfOrange), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                                 context.stroke(dashed.head, with: .color(Color.tfOrange), lineWidth: 1.5)
                                 continue
@@ -999,13 +999,13 @@ private struct CollaborationPlanGraph: View {
                             guard let fromCenter = centers[edge.toSlotKey], let toCenter = centers[edge.fromSlotKey] else { continue }
                             let link = entries.contains(where: \.isParticipant)
                                 ? participantConnection(from: fromCenter, to: toCenter, maxBend: returnBend)
-                                : chainReturnLink(from: fromCenter, to: toCenter)
+                                : chainReturnLink(from: fromCenter, to: toCenter, width: canvasWidth)
                             context.stroke(link.line, with: .color(Color.tfGreen), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                             context.stroke(link.head, with: .color(Color.tfGreen), lineWidth: 1.5)
                         }
                         for item in reworkReturns {
                             guard let fromCenter = centers[item.from], let toCenter = centers[item.to] else { continue }
-                            let link = chainReturnLink(from: fromCenter, to: toCenter)
+                            let link = chainReturnLink(from: fromCenter, to: toCenter, width: canvasWidth)
                             let color = Self.reworkColor(item.round)
                             context.stroke(link.line, with: .color(color), style: StrokeStyle(lineWidth: 1.8, dash: [5, 4]))
                             context.stroke(link.head, with: .color(color), lineWidth: 1.8)
@@ -1420,39 +1420,17 @@ private struct CollaborationPlanGraph: View {
         return (line, head)
     }
 
-    /// Пунктир возврата в линейной цепочке: идёт рядом с обычной связью, чуть
-    /// выше неё, чтобы не перечёркивать ни аватарки, ни саму связь. Подъём
-    /// небольшой — в высоту цепочки укладывается без обрезки.
-    private func chainReturnLink(from source: CGPoint, to target: CGPoint) -> (line: Path, head: Path) {
-        if abs(target.x - source.x) > abs(target.y - source.y) {
-            // Соседние по строке: дуга рядом с обычной связью, чуть выше неё.
-            let direction: CGFloat = target.x >= source.x ? 1 : -1
-            let start = CGPoint(x: source.x + direction * nodeWidth / 2, y: source.y)
-            let end = CGPoint(x: target.x - direction * nodeWidth / 2, y: target.y)
-            let control = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 10)
-            var line = Path()
-            line.move(to: start)
-            line.addQuadCurve(to: end, control: control)
-            var head = Path()
-            head.move(to: CGPoint(x: end.x - direction * 5, y: end.y - 5))
-            head.addLine(to: end)
-            head.addLine(to: CGPoint(x: end.x - direction * 5, y: end.y + 5))
-            return (line, head)
-        }
-        // Друг под другом: обход сбоку, чтобы не идти сквозь аватарки.
-        let downward = target.y >= source.y
-        let start = CGPoint(x: source.x, y: source.y + (downward ? nodeHeight / 2 : -nodeHeight / 2))
-        let end = CGPoint(x: target.x, y: target.y + (downward ? -nodeHeight / 2 : nodeHeight / 2))
-        let sideX = max(8, min(source.x, target.x) - nodeWidth)
+    /// Возврат соединяет боковые порты кругов; геометрия учитывает ширину канвы.
+    /// Цвет круга и пунктир задаёт вызывающий Canvas.
+    private func chainReturnLink(from source: CGPoint, to target: CGPoint, width: CGFloat) -> (line: Path, head: Path) {
+        let route = PlanReturnGeometry.route(from: source, to: target, radius: nodeWidth / 2, width: width)
         var line = Path()
-        line.move(to: start)
-        line.addLine(to: CGPoint(x: sideX, y: start.y))
-        line.addLine(to: CGPoint(x: sideX, y: end.y))
-        line.addLine(to: end)
+        line.move(to: route.start)
+        line.addCurve(to: route.end, control1: route.control1, control2: route.control2)
         var head = Path()
-        head.move(to: CGPoint(x: end.x - 5, y: end.y + (downward ? 5 : -5)))
-        head.addLine(to: end)
-        head.addLine(to: CGPoint(x: end.x - 5, y: end.y - (downward ? 5 : -5)))
+        head.move(to: route.headLeft)
+        head.addLine(to: route.end)
+        head.addLine(to: route.headRight)
         return (line, head)
     }
 
