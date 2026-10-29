@@ -62,18 +62,22 @@ public enum ComposioIconStore {
     }
 
     /// Простой кэш: словарь с защитой от гонок (список прокручивается быстро).
+    /// Кэш знаков с пределом: каталог «Все интеграции» — это 1600 строк, и
+    /// без предела все знаки остались бы в памяти (по 57 КБ каждый).
+    /// `NSCache` сам вытесняет старые, когда память понадобится системе.
     private final class Cache {
-        private var images: [String: UIImage] = [:]
-        private let lock = NSLock()
+        private let images = NSCache<NSString, UIImage>()
+
+        init() {
+            images.countLimit = 300
+        }
 
         func image(for slug: String) -> UIImage? {
-            lock.lock(); defer { lock.unlock() }
-            return images[slug]
+            images.object(forKey: slug as NSString)
         }
 
         func set(_ image: UIImage, for slug: String) {
-            lock.lock(); defer { lock.unlock() }
-            images[slug] = image
+            images.setObject(image, forKey: slug as NSString)
         }
     }
 }

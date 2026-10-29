@@ -283,7 +283,9 @@ struct ComposioIntegrationsScreen: View {
                 .tfText(.caption)
                 .foregroundStyle(Color.tfDim)
             TFCard(padding: 0) {
-                VStack(spacing: 0) {
+                // LazyVStack: рисуются только видимые строки, а не весь
+                // раздел разом.
+                LazyVStack(spacing: 0) {
                     ForEach(Array(section.toolkits.enumerated()), id: \.element.id) { index, toolkit in
                         if index > 0 { TFDivider(inset: TFSpacing.lg) }
                         ComposioConnectorRow(
@@ -343,7 +345,9 @@ struct ComposioCatalogScreen: View {
             TFErrorBanner(model.error, variant: .block)
             if model.loaded {
                 TFCard(padding: 0) {
-                    VStack(spacing: 0) {
+                    // LazyVStack: в каталоге до 1600 строк, рисуются только
+                    // видимые.
+                    LazyVStack(spacing: 0) {
                         ForEach(Array(displayCatalog.enumerated()), id: \.element.id) { index, toolkit in
                             if index > 0 { TFDivider(inset: TFSpacing.lg) }
                             ComposioConnectorRow(

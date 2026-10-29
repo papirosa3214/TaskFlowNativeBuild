@@ -28,8 +28,8 @@ func html(for svg: String) -> String {
     /* Некоторые логотипы перекрашиваются по теме (prefers-color-scheme) —
        берём светлую ветку, иначе белый знак на тёмном фоне стал бы пустым. */
     html{color-scheme:light}
-    #wrap{width:60px;height:60px}
-    svg{width:60px;height:60px;display:block}
+    #wrap{width:36px;height:36px}
+    svg{width:36px;height:36px;display:block}
     svg image{filter:grayscale(1)}
     </style></head><body><div id="wrap">\(svg)</div></body></html>
     """
@@ -43,7 +43,9 @@ final class IconRenderer {
     init() {
         let config = WKWebViewConfiguration()
         config.suppressesIncrementalRendering = true
-        let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 60, height: 60), configuration: config)
+        // 36 pt → 72 px на Retina: знак рисуется в 22 pt, то есть 66 px на
+        // экране @3x. Больше не нужно: в памяти знак занимает втрое меньше.
+        let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 36, height: 36), configuration: config)
         // Прозрачный фон: иконка должна лечь на плитку приложения, а не на белое поле.
         view.underPageBackgroundColor = .clear
         view.setValue(false, forKey: "drawsBackground")
