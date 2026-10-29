@@ -20,6 +20,10 @@ struct ApiAttentionGroup: Decodable, Identifiable {
     let title: String
     let count: Int
     let tasks: [ApiAttentionTask]
+    /// Идентификатор для `ForEach` — ключ группы. Без него структура не
+    /// соответствует `Identifiable`, и проект не собирается (внесено
+    /// коммитом b5cce4a6 29.10.2026).
+    var id: String { key }
 }
 
 struct ApiAttention: Decodable {
