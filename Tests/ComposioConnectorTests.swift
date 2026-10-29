@@ -47,6 +47,38 @@ final class ComposioConnectorTests: XCTestCase {
         XCTAssertEqual([toggles.pending.count], [1])
     }
 
+    // MARK: - Разделы основных интеграций
+
+    private func toolkit(_ slug: String, connected: Bool = false) -> ComposioToolkit {
+        ComposioToolkit(slug: slug, name: slug, logo: nil, description: nil, connected: connected, noAuth: false)
+    }
+
+    func testConnectedServicesGoFirst() {
+        let sections = ComposioPrimaryServices.sections(from: [toolkit("gmail", connected: true), toolkit("notion")])
+        XCTAssertEqual([sections.first?.id], ["connected"])
+        XCTAssertEqual([sections.first?.toolkits.count], [1])
+        XCTAssertEqual([sections.first?.toolkits.first?.slug], ["gmail"])
+    }
+
+    func testConnectedServiceIsNotRepeatedInThemeSections() {
+        let sections = ComposioPrimaryServices.sections(from: [toolkit("gmail", connected: true)])
+        XCTAssertEqual([sections.count], [1])
+        XCTAssertEqual([sections.first?.id], ["connected"])
+    }
+
+    func testThemeSectionsKeepGroupOrderAndSkipEmpty() {
+        let sections = ComposioPrimaryServices.sections(from: [toolkit("notion"), toolkit("gmail"), toolkit("github")])
+        XCTAssertEqual([sections.count], [3])
+        XCTAssertEqual([sections.first?.id], ["mail"])
+        XCTAssertEqual([sections.last?.id], ["code"])
+    }
+
+    func testEverySectionExplainsItsPurpose() {
+        let sections = ComposioPrimaryServices.sections(from: [toolkit("gmail"), toolkit("github")])
+        let empty = sections.filter { $0.note.isEmpty }.count
+        XCTAssertEqual([empty], [0])
+    }
+
     // MARK: - Аккаунты сервиса
 
     func testAccountsAreDecodedFromServerAnswer() throws {

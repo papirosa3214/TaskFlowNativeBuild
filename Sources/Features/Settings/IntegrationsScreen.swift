@@ -290,7 +290,6 @@ struct IntegrationsScreen: View {
     @State private var viewModel = IntegrationsViewModel()
     @State private var isLinearOpen = false
     @State private var isGmailOpen = false
-    @State private var isComposioOpen = false
     @State private var composio = ComposioIntegrationsViewModel()
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
@@ -347,12 +346,15 @@ struct IntegrationsScreen: View {
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("integrations.connected.\(service.slug)")
                             }
-
-                        }
-                        integrationGroup("Composio") {
-                            IntegrationAccordionCard(icon: "puzzlepiece.extension", asset: "IntegrationComposio", title: "Composio", subtitle: "Подключение сервисов и доступ ролей", badge: nil, isExpanded: $isComposioOpen, identifier: "integrations.composio") {
-                                ComposioIntegrationsScreen(embedded: true, model: composio)
+                            TFDivider(inset: dividerInset)
+                            NavigationLink {
+                                ComposioIntegrationsScreen()
+                            } label: {
+                                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio", subtitle: "Основные интеграции и каталог сервисов", trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)), titleStyle: .action, verticalPadding: TFSpacing.xs)
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("integrations.composio")
+
                         }
                         appleSection
                         thingsSection

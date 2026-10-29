@@ -77,6 +77,84 @@ public struct ComposioAccountList: Decodable, Sendable {
     public let items: [ComposioAccount]
 }
 
+/// Тематический раздел основных интеграций: название и что в нём делается.
+public struct ComposioPrimaryGroup: Sendable, Identifiable {
+    public let id: String
+    public let title: String
+    /// Что в разделе делается — одной строкой.
+    public let note: String
+    /// Ключи сервисов в порядке показа.
+    public let slugs: [String]
+
+    public init(id: String, title: String, note: String, slugs: [String]) {
+        self.id = id
+        self.title = title
+        self.note = note
+        self.slugs = slugs
+    }
+}
+
+/// Раздел на экране: заголовок, пояснение и сервисы, которые в нём есть.
+public struct ComposioPrimarySection: Sendable, Identifiable {
+    public let id: String
+    public let title: String
+    public let note: String
+    public let toolkits: [ComposioToolkit]
+
+    public init(id: String, title: String, note: String, toolkits: [ComposioToolkit]) {
+        self.id = id
+        self.title = title
+        self.note = note
+        self.toolkits = toolkits
+    }
+}
+
+/// Основные интеграции — по разделам, как на странице каталога Composio
+/// (там категории с фильтром), только по-русски и с пояснением, что в разделе
+/// делается. Полный каталог (1687 сервисов) живёт на отдельном экране «Все
+/// интеграции»: в главном списке портянка из тысячи строк только мешала бы и
+/// грузила телефон.
+public enum ComposioPrimaryServices {
+    /// Разделы в порядке показа.
+    public static let groups: [ComposioPrimaryGroup] = [
+        ComposioPrimaryGroup(id: "mail", title: "Почта и календарь", note: "письма, встречи и напоминания",
+                              slugs: ["gmail", "outlook", "googlecalendar", "calendly"]),
+        ComposioPrimaryGroup(id: "tasks", title: "Задачи и проекты", note: "доски, карточки и планы",
+                              slugs: ["notion", "linear", "trello", "asana", "jira", "airtable", "googletasks"]),
+        ComposioPrimaryGroup(id: "code", title: "Код и разработка", note: "репозитории, ошибки и базы",
+                              slugs: ["github", "bitbucket", "sentry", "supabase", "snowflake"]),
+        ComposioPrimaryGroup(id: "chat", title: "Общение", note: "чаты, сообщества и соцсети",
+                              slugs: ["slack", "discord", "microsoft_teams", "reddit", "twitter", "linkedin", "youtube"]),
+        ComposioPrimaryGroup(id: "docs", title: "Документы и таблицы", note: "файлы, документы и таблицы",
+                              slugs: ["googledrive", "googlesheets", "googledocs"]),
+        ComposioPrimaryGroup(id: "sales", title: "Продажи и маркетинг", note: "сделки, клиенты и магазин",
+                              slugs: ["hubspot", "salesforce", "shopify"]),
+        ComposioPrimaryGroup(id: "design", title: "Дизайн", note: "макеты и графика",
+                              slugs: ["figma"]),
+        ComposioPrimaryGroup(id: "search", title: "Поиск и исследование", note: "поиск и данные из сети",
+                              slugs: ["exa", "perplexityai", "serpapi", "firecrawl", "composio_search"]),
+    ]
+
+    /// Что показывать на главном экране: сверху подключённые (владелец их уже
+    /// выбрал), ниже — разделы со знаковыми сервисами. Остальные сервисы
+    /// доступны на экране «Все интеграции».
+    public static func sections(from catalog: [ComposioToolkit]) -> [ComposioPrimarySection] {
+        let bySlug = Dictionary(catalog.map { ($0.slug, $0) }, uniquingKeysWith: { first, _ in first })
+        let connected = catalog.filter { $0.connected }
+        var result: [ComposioPrimarySection] = []
+        if !connected.isEmpty {
+            result.append(ComposioPrimarySection(id: "connected", title: "Подключённые",
+                                                  note: "уже работают в TaskFlow", toolkits: connected))
+        }
+        for group in groups {
+            let toolkits = group.slugs.compactMap { bySlug[$0] }.filter { !$0.connected }
+            guard !toolkits.isEmpty else { continue }
+            result.append(ComposioPrimarySection(id: group.id, title: group.title, note: group.note, toolkits: toolkits))
+        }
+        return result
+    }
+}
+
 /// Состояние тумблеров подключения к сервисам Composio.
 ///
 /// Пока идёт авторизация, тумблер должен показывать то, на что владелец

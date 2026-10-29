@@ -1,12 +1,13 @@
 import SwiftUI
 import UIKit
 
-/// Иконка сервиса Composio — серый силуэт логотипа на плитке одного цвета.
+/// Иконка сервиса Composio — серый знак без подложки, как остальные знаки
+/// в настройках (`TFListRow.IconStyle.plain`).
 ///
 /// Логотипы Composio приходят как SVG (`https://logos.composio.dev/api/<slug>`),
 /// а iOS SVG не рисует: в списке подключений вместо иконок был generic-значок
 /// «link». Поэтому иконки заранее нарисованы в серый (`Tools/composio_icons/`)
-/// и лежат в бандле как `ComposioIcons/<slug>.png`. Сервис без иконки (у 52
+/// и лежат в бандле как `ComposioIcons/<slug>.png`. Сервис без иконки (у 53
 /// из 1687 логотип ведёт на чужую страницу) показывается общим значком.
 public struct ComposioServiceIcon: View {
     let slug: String
@@ -19,10 +20,7 @@ public struct ComposioServiceIcon: View {
     }
 
     public var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: TFRadius.md)
-                .fill(Color.tfDim.opacity(0.16))
-                .frame(width: 40, height: 40)
+        Group {
             if let image = ComposioIconStore.image(for: slug) {
                 Image(uiImage: image)
                     .renderingMode(.template)

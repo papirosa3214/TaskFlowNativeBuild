@@ -126,6 +126,12 @@ final class ComposioIntegrationsViewModel {
         Set(roles.filter { policies[$0.id]?.allows(toolkit) == true }.map(\.id))
     }
 
+    /// Основные интеграции — по разделам: подключённые и знаковые сервисы.
+    /// Остальные живут на экране «Все интеграции».
+    var primarySections: [ComposioPrimarySection] {
+        ComposioPrimaryServices.sections(from: catalog)
+    }
+
     /// Состояние тумблера сервиса: пока идёт подключение, показываем то,
     /// на что владелец нажал, — иначе переключатель отпрыгивает назад.
     func isOn(_ toolkit: ComposioToolkit) -> Bool {
@@ -204,33 +210,29 @@ final class ComposioIntegrationsViewModel {
     /// владельца на страницу авторизации Composio.
 }
 
+/// Отдельная страница раздела Composio: основные интеграции и вход в полный
+/// каталог. В окне «Интеграции» Composio — строка, по которой открывается
+/// эта страница.
 struct ComposioIntegrationsScreen: View {
     @State private var model = ComposioIntegrationsViewModel()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
 
-    let embedded: Bool
-    init(embedded: Bool = false, model: ComposioIntegrationsViewModel? = nil) {
-        self.embedded = embedded
+    init(model: ComposioIntegrationsViewModel? = nil) {
         _model = State(initialValue: model ?? ComposioIntegrationsViewModel())
     }
 
     var body: some View {
-        Group {
-            if embedded { content }
-            else {
-                ScrollView { content.padding(TFSpacing.lg) }
-                    .background(Color.tfBackground)
-                    .tfNativeHeader("Composio", displayMode: .inline)
+        ScrollView { content.padding(TFSpacing.lg) }
+            .background(Color.tfBackground)
+            .tfNativeHeader("Composio", displayMode: .inline)
+            .task { if !model.loaded { await model.load() } }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active && model.awaitingAuthorization {
+                    model.awaitingAuthorization = false
+                    Task { await model.load() }
+                }
             }
-        }
-        .task { if !model.loaded { await model.load() } }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active && model.awaitingAuthorization {
-                model.awaitingAuthorization = false
-                Task { await model.load() }
-            }
-        }
     }
 
     private var content: some View {
@@ -244,10 +246,102 @@ struct ComposioIntegrationsScreen: View {
                 .tfText(.action).foregroundStyle(Color.tfSub)
             TFErrorBanner(model.error, variant: .block)
             if model.loaded {
-                TFSectionHeader("Сервисы")
-                TFTextField("Найти сервис", text: $model.search, icon: "magnifyingglass")
-                    .onSubmit { Task { await model.searchCatalog() } }
-                    .accessibilityIdentifier("composio.search")
+                ForEach(model.primarySections) { section in
+                    sectionView(section)
+                }
+                NavigationLink {
+                    ComposioCatalogScreen()
+                } label: {
+                    TFCard(padding: 0) {
+                        TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Все интеграции",
+                                  subtitle: "полный каталог сервисов Composio",
+                                  trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                    }
+                }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.all")
+                TFSectionHeader("Доступ к каталогу")
+                NavigationLink {
+                    ComposioServiceScreen(model: model, toolkit: nil)
+                } label: {
+                    TFCard(padding: 0) {
+                        TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Весь каталог",
+                                  subtitle: accessSummary(nil), trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                    }
+                }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.catalog")
+            } else if model.loading { TFLoading(.block) }
+            TFButton("Обновить", icon: "arrow.clockwise", variant: .secondary, isEnabled: !model.loading && !model.saving) {
+                Task { await model.load() }
+            }
+        }
+    }
+
+    /// Раздел основных интеграций: заголовок, что в нём делается и строки
+    /// сервисов с тумблером.
+    private func sectionView(_ section: ComposioPrimarySection) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFSectionHeader(section.title)
+            Text(section.note)
+                .tfText(.caption)
+                .foregroundStyle(Color.tfDim)
+            TFCard(padding: 0) {
+                VStack(spacing: 0) {
+                    ForEach(Array(section.toolkits.enumerated()), id: \.element.id) { index, toolkit in
+                        if index > 0 { TFDivider(inset: TFSpacing.lg) }
+                        ComposioConnectorRow(
+                            toolkit: toolkit,
+                            isOn: model.isOn(toolkit),
+                            isBusy: model.busy.contains(toolkit.slug),
+                            destination: AnyView(ComposioServiceScreen(model: model, toolkit: toolkit)),
+                            onToggle: { newValue in toggle(toolkit, newValue) }
+                        )
+                        .accessibilityIdentifier("composio.service.\(toolkit.slug)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func toggle(_ toolkit: ComposioToolkit, _ isOn: Bool) {
+        Task {
+            guard let url = await model.setConnected(toolkit, isOn) else { return }
+            openURL(url)
+        }
+    }
+
+    private func accessSummary(_ toolkit: String?) -> String {
+        let count = model.selectedRoles(for: toolkit).count
+        return count == 0 ? "Роли не выбраны" : count == model.roles.count ? "Все роли" : "Ролей: \(count)"
+    }
+}
+
+/// Полный каталог сервисов Composio — то, что не вошло в основные разделы.
+///
+/// Основные интеграции лежат на странице «Composio» (по разделам), здесь
+/// весь список: поиск и постраничная догрузка.
+struct ComposioCatalogScreen: View {
+    @State private var model = ComposioIntegrationsViewModel()
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        ScrollView { content.padding(TFSpacing.lg) }
+            .background(Color.tfBackground)
+            .tfNativeHeader("Все интеграции", displayMode: .inline)
+            .task { if !model.loaded { await model.load() } }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active && model.awaitingAuthorization {
+                    model.awaitingAuthorization = false
+                    Task { await model.load() }
+                }
+            }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.lg) {
+            TFTextField("Найти сервис", text: $model.search, icon: "magnifyingglass")
+                .onSubmit { Task { await model.searchCatalog() } }
+                .accessibilityIdentifier("composio.search")
+            TFErrorBanner(model.error, variant: .block)
+            if model.loaded {
                 TFCard(padding: 0) {
                     VStack(spacing: 0) {
                         ForEach(Array(displayCatalog.enumerated()), id: \.element.id) { index, toolkit in
@@ -274,19 +368,7 @@ struct ComposioIntegrationsScreen: View {
                             .tfText(.caption).foregroundStyle(Color.tfDim)
                     }
                 }
-                TFSectionHeader("Доступ к каталогу")
-                NavigationLink {
-                    ComposioServiceScreen(model: model, toolkit: nil)
-                } label: {
-                    TFCard(padding: 0) {
-                        TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Весь каталог",
-                                  subtitle: accessSummary(nil), trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
-                    }
-                }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.catalog")
             } else if model.loading { TFLoading(.block) }
-            TFButton("Обновить", icon: "arrow.clockwise", variant: .secondary, isEnabled: !model.loading && !model.saving) {
-                Task { await model.load() }
-            }
         }
     }
 
@@ -302,11 +384,6 @@ struct ComposioIntegrationsScreen: View {
             if a.connected != b.connected { return a.connected }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
-    }
-
-    private func accessSummary(_ toolkit: String?) -> String {
-        let count = model.selectedRoles(for: toolkit).count
-        return count == 0 ? "Роли не выбраны" : count == model.roles.count ? "Все роли" : "Ролей: \(count)"
     }
 }
 
