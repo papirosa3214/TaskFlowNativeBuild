@@ -5,31 +5,11 @@ import Observation
 // а три статуса, на которые владелец обязан смотреть — «Заблокировано»,
 // «В работе», «На проверке». Строка списка — карточка задачи; тап открывает
 // ту же стандартную карточку задачи (`AppRoute.taskDetail`), без боковых панелей.
-
-struct ApiAttentionTask: Decodable, Identifiable {
-    let id: String
-    let title: String
-    let project: String?
-    let role: String?
-    let age_seconds: Int?
-    let overdue: Bool?
-}
-
-struct ApiAttentionGroup: Decodable, Identifiable {
-    let key: String
-    let title: String
-    let count: Int
-    let tasks: [ApiAttentionTask]
-    /// Идентификатор для `ForEach` — ключ группы. Без него структура не
-    /// соответствует `Identifiable`, и проект не собирается (внесено
-    /// коммитом b5cce4a6 29.10.2026).
-    var id: String { key }
-}
-
-struct ApiAttention: Decodable {
-    let ok: Bool
-    let groups: [ApiAttentionGroup]
-}
+//
+// Наводящая строка (владелец 29.10.2026): под названием задачи — строка о том,
+// что с ней делать, чтобы не открывать карточку и вникать заново. Строку
+// собирает сервер (`Sources/Core/Models/AttentionFeed.swift`), телефон её
+// только рисует.
 
 @MainActor
 @Observable
@@ -144,6 +124,14 @@ struct AttentionScreen: View {
                     .tfText(.body)
                     .foregroundStyle(Color.tfText)
                     .lineLimit(2)
+                // Наводящая строка — что с задачей делать, не открывая её.
+                if let hint = task.hintLine {
+                    Text(hint)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 HStack(spacing: TFSpacing.xs) {
                     if let project = task.project, !project.isEmpty {
                         Text(project).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
