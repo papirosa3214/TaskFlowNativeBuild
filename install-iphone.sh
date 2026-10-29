@@ -22,12 +22,24 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 DEVICE_ID="00008150-001545400144401C"
 
+# Конфигурация сборки — по умолчанию Release, то есть оптимизированная.
+#
+# Почему Release (владелец 29.10.2026): на телефоне стояла Debug-сборка, и
+# TaskFlow ел 50–100% CPU — профиль iPhone показал 13 срабатываний за 11 дней,
+# всегда во фронте. В Debug нет оптимизации Swift, а SwiftUI в Debug тяжелее
+# в разы: даже разбор JSON (Foundation собран заранее и одинаков) стоит
+# одинаково, а вот отрисовка и собственная логика — заметно дороже.
+#
+# Debug-сборка нужна только для отладки. Взять её можно так:
+#   CONFIG=Debug ./install-iphone.sh
+CONFIGURATION="${CONFIG:-Release}"
+
 шаг() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 
 шаг "Пересобираю проект из project.yml"
 xcodegen generate
 
-шаг "Собираю и подписываю"
+шаг "Собираю и подписываю ($CONFIGURATION)"
 # `-allowProvisioningUpdates` — чтобы xcodebuild мог САМ перевыпустить профиль
 # бесплатной подписи. Без флага, когда профиль истёк, сборка падает на
 # «No profiles for 'com.maksim.taskflow.native' were found… Automatic signing is
@@ -35,17 +47,27 @@ xcodegen generate
 # 22.09.2026 — владелец ловил именно это). В Xcode профиль обновляется молча,
 # из командной строки для этого нужно разрешение явно; иначе пришлось бы каждый
 # раз открывать Xcode руками.
+#
+# `-configuration Release` обязателен: без него xcodebuild берёт конфигурацию
+# схемы, а в схеме TaskFlow стоит `run: config: Debug` — отсюда и тянулась
+# неоптимизированная сборка.
 xcodebuild \
   -project TaskFlow.xcodeproj \
   -scheme TaskFlow \
+  -configuration "$CONFIGURATION" \
   -destination "id=$DEVICE_ID" \
   -derivedDataPath build_device \
   -allowProvisioningUpdates \
   build
 
+APP="build_device/Build/Products/$CONFIGURATION-iphoneos/TaskFlow.app"
+if [ ! -d "$APP" ]; then
+  printf '\n\033[31m✗ Сборка не найдена: %s\033[0m\n' "$APP"
+  exit 1
+fi
+
 шаг "Ставлю на телефон"
-xcrun devicectl device install app --device "$DEVICE_ID" \
-  build_device/Build/Products/Debug-iphoneos/TaskFlow.app
+xcrun devicectl device install app --device "$DEVICE_ID" "$APP"
 
 шаг "Запускаю на телефоне"
 # Телефон должен быть разблокирован и доверен: иначе запуск падает

@@ -186,6 +186,17 @@ targets:
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIconClassic AppIconDark AppIconRecessedCheck AppIconFlowRibbon AppIconTaskOrbit AppIconStepBlocks AppIconFoldedFlight
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: true
         TARGETED_DEVICE_FAMILY: "1"
+      configs:
+        Release:
+          # Отладочный автопереход на экран (`TASKFLOW_DEBUG_ROUTE`) нужен и в
+          # оптимизированной сборке: с 29.10.2026 владелец ставит на телефон
+          # Release (Debug-сборка ела процессор — профиль iPhone, 50–100% CPU),
+          # а роутом «открыть нужный экран» он пользуется и там.
+          #
+          # Это единственное, что Release-сборка наследует из отладки: сами
+          # отладочные стенды (галерея кадров, превью ленты, фикстуры) остаются
+          # только в Debug — они для агентов, не для телефона.
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) TASKFLOW_DEV_ROUTES
 
   TaskFlowBroadcast:
     type: app-extension

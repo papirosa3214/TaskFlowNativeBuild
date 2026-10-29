@@ -98,7 +98,7 @@ struct RootShellView: View {
     /// Тумблер «Таббар-пилюля» в настройках; по умолчанию пилюля — этого просил
     /// владелец 18.10.2026. Ключ общий с `SettingsViewModel`.
     @AppStorage(SettingsViewModel.pillTabBarKey) private var isPillTabBarEnabled = true
-    #if DEBUG
+    #if DEBUG || TASKFLOW_DEV_ROUTES
     /// Debug-роут `tasksheet:<id>` открывает ту же единую карточку, что и приложение.
     @State private var debugTaskSheetID: String?
     #endif
@@ -146,7 +146,7 @@ struct RootShellView: View {
                 mainTabContent
                 #endif
             }
-            #if DEBUG
+            #if DEBUG || TASKFLOW_DEV_ROUTES
             // Отдельный узел (не тот, что несёт `.sheet(item: $quickAddDraft)`
             // ниже) — два `.sheet` на одном модификаторе в SwiftUI ненадёжны.
             // Копия шторки задачи из `TodaySectionView.swift` (detents/индикатор/
@@ -247,11 +247,16 @@ struct RootShellView: View {
             }
             .taskCardSheetPresentation()
         }
-        #if DEBUG
+        #if DEBUG || TASKFLOW_DEV_ROUTES
         // Отладочный автопереход: снять экран в симуляторе иначе нечем —
         // тапать по нему из командной строки нельзя, а показывать владельцу
         // нужно конкретный экран, а не только стартовый. Задаётся переменной
-        // окружения при запуске, в релиз не попадает.
+        // окружения при запуске.
+        //
+        // В Release этот блок собирается тоже: условие `TASKFLOW_DEV_ROUTES`
+        // включает его в конфигурации Release (см. project.yml) — с 29.10.2026
+        // владелец ставит на телефон оптимизированную сборку, а роутом
+        // «открыть нужный экран» он пользуется и там.
         .task {
             guard let raw = ProcessInfo.processInfo.environment["TASKFLOW_DEBUG_ROUTE"],
                   raw.isEmpty == false else { return }
