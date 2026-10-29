@@ -29,10 +29,16 @@ public enum ChatComposerLayoutPolicy {
     /// начат: как только поле в фокусе или в черновике есть текст, панель
     /// разворачивается в полную; когда клавиатуру сворачивают и текста нет,
     /// панель сжимается обратно.
-    public static func layout(style: ChatComposerStyle, isFocused: Bool, hasText: Bool) -> ChatComposerLayout {
+    ///
+    /// `holdsFull` — панель уже развернулась, а фокус в поле ещё не вернулся:
+    /// раскладку держим. Иначе панель мигает между двумя видами, а каретка
+    /// теряется (владелец 29.10.2026: «каретка не ставится на окно ввода
+    /// совсем, если я на него тыкаю… после того, как я коснулся сообщения,
+    /// уже и микрофон не нажимается»).
+    public static func layout(style: ChatComposerStyle, isFocused: Bool, hasText: Bool, holdsFull: Bool = false) -> ChatComposerLayout {
         switch style {
         case .standard: return .full
-        case .unified: return (isFocused || hasText) ? .full : .compact
+        case .unified: return (isFocused || hasText || holdsFull) ? .full : .compact
         }
     }
 

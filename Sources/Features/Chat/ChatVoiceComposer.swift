@@ -97,6 +97,10 @@ struct ChatVoiceComposer: View {
     @State private var isSendingVoice = false
     @FocusState private var isTextFieldFocused: Bool
     private var textFieldFocus: FocusState<Bool>.Binding { focus ?? $isTextFieldFocused }
+    /// Панель развернулась, а фокус в поле ещё не вернулся: раскладку держим,
+    /// иначе панель мигает, каретка теряется и кнопка микрофона уезжает из-под
+    /// пальца (владелец 29.10.2026).
+    @State private var holdsFullLayout = false
     @Namespace private var composerNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -128,6 +132,15 @@ struct ChatVoiceComposer: View {
             if let preview { promptPreviewComposer(preview) }
         }
         .contentShape(Rectangle())
+        .onChange(of: composerLayout) { _, layout in
+            // Развернулись — возвращаем каретку в новое поле и держим
+            // раскладку, пока фокус не встанет.
+            if layout == .full { holdFullLayout() }
+        }
+        .onChange(of: textFieldFocus.wrappedValue) { _, focused in
+            // Фокус встал — держать раскладку больше не нужно.
+            if focused { holdsFullLayout = false }
+        }
         .onDisappear {
             voice.cancel()
             player.stop()
@@ -328,12 +341,29 @@ struct ChatVoiceComposer: View {
     private var composerLayout: ChatComposerLayout {
         ChatComposerLayoutPolicy.layout(style: composerStyle,
                                         isFocused: textFieldFocus.wrappedValue,
-                                        hasText: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                        hasText: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                        holdsFull: holdsFullLayout)
     }
     /// Вернуть каретку в поле после смены вью: старое поле исчезает, и без
     /// этого каретка бы пропала.
     private func keepFocus() {
         DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
+    }
+
+    /// Панель переключилась на полную: поле в ней — другое, поэтому каретку
+    /// надо вернуть в него, а раскладку — подержать, пока фокус не встанет.
+    /// Без этого панель мигает между видами, каретка не появляется, а кнопка
+    /// микрофона уезжает из-под пальца (владелец 29.10.2026: «каретка не
+    /// ставится на окно ввода совсем, если я на него тыкаю… после того, как я
+    /// коснулся сообщения, уже и микрофон не нажимается»).
+    private func holdFullLayout() {
+        holdsFullLayout = true
+        keepFocus()
+        // Если фокус так и не вернулся (пользователь свернул клавиатуру) —
+        /// раскладку отпускаем, иначе панель застрянет в полной.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            if !textFieldFocus.wrappedValue { holdsFullLayout = false }
+        }
     }
 
     /// Отправка по кнопке «вверх» на клавиатуре.
