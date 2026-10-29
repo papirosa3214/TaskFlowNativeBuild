@@ -1,6 +1,10 @@
 import SwiftUI
 
 /// One entry point for existing assistant session capabilities.
+///
+/// С 29.10.2026 панель — общее окно сессии в чате с ролью: левая круглая
+/// кнопка в новой панели ввода открывает её вместо выпадающего меню, а
+/// то, что было в меню (вложения, режим работы), переехало сюда.
 struct ChatSessionPanel: View {
  let chat: RoleChat
  @Bindable var choice: ChatModelChoice
@@ -15,10 +19,16 @@ struct ChatSessionPanel: View {
  let onResetContext: () async -> Void
  let onClose: () async -> Void
  let onSelectCommand: (ChatSlashCommand) -> Void
+ /// Вложения: фото, файл, камера — раньше были в меню действий чата.
+ var onAttachmentSource: ((ChatAttachmentSource) -> Void)? = nil
+ /// Режим работы: Работа, Планирование, Цель, Исследование.
+ var workMode: Binding<RoleChatWorkMode>? = nil
+ var availableWorkModes: [RoleChatWorkMode] = [.work]
  @Environment(\.dismiss) private var dismiss
  @State private var title = ""
  @State private var showsCommands = false
  @State private var showsContext = false
+ @State private var showsModelPicker = false
  @State private var confirmsReset = false
  @State private var actionRunning = false
 
@@ -33,16 +43,10 @@ struct ChatSessionPanel: View {
      LabeledContent("Состояние", value: chat.closedAt != nil ? "Закрыта" : isWorking ? "Работает" : "Готова")
     }
     Section {
-     Picker("Модель чата", selection: Binding(get: { choice.selected ?? "" }, set: { model in
-      Task { await choice.selectModel(model.isEmpty ? nil : model) }
-     })) {
-      Text("По умолчанию").tag("")
-      ForEach(RoleModelOption.grouped(choice.options)) { group in
-       Section(group.provider) {
-        ForEach(group.models) { option in Text(option.title).tag(option.id) }
-       }
-      }
+     Button { showsModelPicker = true } label: {
+      LabeledContent("Модель чата", value: choice.effectiveTitle ?? "По умолчанию")
      }
+     .tint(.primary)
      .accessibilityIdentifier("chat.session.model")
      if !choice.availableThinkingLevels.isEmpty {
       Picker("Размышления", selection: Binding(get: { choice.thinkingLevel ?? "" }, set: { level in
@@ -55,7 +59,6 @@ struct ChatSessionPanel: View {
       }
       .accessibilityIdentifier("chat.session.thinking")
      }
-     if let name = choice.effectiveTitle { LabeledContent("Выбрана", value: name) }
      if choice.isSaving { ProgressView("Сохранение") }
      if let error = choice.errorText {
       Text(error).foregroundStyle(.red)
@@ -74,6 +77,30 @@ struct ChatSessionPanel: View {
      .tint(.primary)
      Button("Навыки и инструменты", systemImage: "wrench.and.screwdriver") { showsCommands = true }
       .tint(.primary)
+    }
+    // Вложения и режим работы — из меню действий чата (владелец 29.10.2026:
+    // «в полосках то, что там есть, просто добавь в эту страничку»).
+    if let onAttachmentSource {
+     Section("Вложения") {
+      Button { onAttachmentSource(.photo) } label: { Label("Фото", systemImage: "photo.on.rectangle") }
+       .tint(.primary)
+      Button { onAttachmentSource(.file) } label: { Label("Файл", systemImage: "doc") }
+       .tint(.primary)
+      Button { onAttachmentSource(.camera) } label: { Label("Камера", systemImage: "camera") }
+       .tint(.primary)
+     }
+    }
+    if let workMode {
+     Section {
+      Picker("Режим работы", selection: workMode) {
+       ForEach(availableWorkModes, id: \.self) { mode in
+        Label(mode.title, systemImage: mode.symbol).tag(mode)
+       }
+      }
+      .pickerStyle(.inline)
+      .accessibilityIdentifier("chat.session.workMode")
+     } header: { Text("Режим работы") }
+      footer: { Text("Режим определяет, как роль будет работать над задачей.") }
     }
     Section {
      Button("Новая сессия", systemImage: "plus.bubble") {
@@ -99,6 +126,9 @@ struct ChatSessionPanel: View {
    .sheet(isPresented: $showsContext) {
     ChatContextSheet(snapshot: context, roleName: nil, loadError: controls.errorText,
        onRefresh: { Task { await onRefresh() } })
+   }
+   .sheet(isPresented: $showsModelPicker) {
+    ChatModelPickerSheet(choice: choice)
    }
    .sheet(isPresented: $showsCommands) {
     ChatCommandPicker(commands: controls.commands, errorText: controls.errorText,

@@ -109,46 +109,22 @@ final class ChatModelChoice {
  }
 }
 
+/// «Мозг» в панели ввода: открывает список моделей с описаниями, галочкой,
+/// звёздочками избранного и строкой «Усилия» (владелец 29.10.2026, образец
+/// из другого приложения). Раньше это был выпадающий список без описаний.
 struct ChatModelMenu<MenuLabel: View>: View {
  @Bindable var choice: ChatModelChoice
  @ViewBuilder let label: () -> MenuLabel
+ @State private var showsPicker = false
+
  var body: some View {
-  Menu {
-   Button { Task { await choice.selectModel(nil) } } label: {
-    if choice.selected == nil { Label("По умолчанию", systemImage: "checkmark") }
-    else { Text("По умолчанию") }
+  Button { showsPicker = true } label: { label() }
+   .buttonStyle(.plain)
+   .disabled(choice.isSaving)
+   .accessibilityIdentifier("chat.model")
+   .accessibilityLabel("Модель: " + choice.title)
+   .sheet(isPresented: $showsPicker) {
+    ChatModelPickerSheet(choice: choice)
    }
-   ForEach(RoleModelOption.grouped(choice.options)) { group in
-    Section(group.provider) {
-     ForEach(group.models) { option in
-      Button { Task { await choice.selectModel(option.id) } } label: {
-       if choice.selected == option.id { Label(option.title, systemImage: "checkmark") }
-       else { Text(option.title) }
-      }
-     }
-    }
-   }
-   // Уровень размышлений — в том же «мозге» (владелец 29.10.2026: «мозг,
-   // где можно выбирать модели с уровнем рассуждений»). Раньше он жил только
-   // в панели сессии Помощника.
-   if choice.supportsThinkingLevels && !choice.availableThinkingLevels.isEmpty {
-    Section("Размышления") {
-     Button { Task { await choice.selectThinking(nil) } } label: {
-      if choice.thinkingLevel == nil { Label("По настройке роли", systemImage: "checkmark") }
-      else { Text("По настройке роли") }
-     }
-     ForEach(choice.availableThinkingLevels, id: \.self) { level in
-      Button { Task { await choice.selectThinking(level) } } label: {
-       let title = choice.effectiveOption?.thinkingLevelLabels?[level] ?? ChatSessionPreferences.thinkingTitle(level)
-       if choice.thinkingLevel == level { Label(title, systemImage: "checkmark") }
-       else { Text(title) }
-      }
-     }
-    }
-   }
-  } label: { label() }
-  .disabled(choice.isSaving)
-  .accessibilityIdentifier("chat.model")
-  .accessibilityLabel("Модель: " + choice.title)
  }
 }

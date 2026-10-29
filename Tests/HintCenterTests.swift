@@ -76,6 +76,15 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains(scenario.id))
     }
 
+    func testRoleSessionHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "role-session" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatSession)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     func testChatRoleStartHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-role-start" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])

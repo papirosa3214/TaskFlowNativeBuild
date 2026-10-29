@@ -63,6 +63,16 @@ struct ChatVoiceComposer: View {
     /// Рабочая папка (чат с Помощником владельца); nil — чипа нет.
     var workspaceChoice: ChatWorkspaceChoice? = nil
     var sessionControls: AnyView? = nil
+    /// Открыть панель сессии (владелец 29.10.2026: «в левую точку нужно
+    /// добавить… как в чате с помощником, там называется она сессия»).
+    /// nil — окна сессии в этом чате нет, и левая кнопка остаётся меню
+    /// действий.
+    var onOpenSession: (() -> Void)? = nil
+    /// Вложения и режим работы — в панель сессии (владелец 29.10.2026: «в
+    /// полосках то, что там есть, просто добавь в эту страничку»).
+    var sessionAttachments: ((ChatAttachmentSource) -> Void)? = nil
+    var sessionWorkMode: Binding<RoleChatWorkMode>? = nil
+    var sessionAvailableWorkModes: [RoleChatWorkMode] = [.work]
     var onShowCommands: (() -> Void)? = nil
     /// Кольца контекста — в ряду ярлычков слева.
     var contextControls: AnyView? = nil
@@ -230,7 +240,7 @@ struct ChatVoiceComposer: View {
     /// микрофон — на него нажимают, не поднимая клавиатуру.
     private var compactPromptPanel: some View {
         HStack(spacing: 8) {
-            attachmentMenu(circle: true)
+            compactLeadingButton
             HStack(spacing: 4) {
                 TextField(placeholder, text: $text, axis: .vertical)
                     .lineLimit(1...4)
@@ -288,6 +298,29 @@ struct ChatVoiceComposer: View {
         .modifier(workingCaption)
     }
 
+    /// Левая кнопка в новой панели: открывает окно сессии, если оно есть в
+    /// этом чате (владелец 29.10.2026). Иначе — прежнее меню действий.
+    @ViewBuilder private var compactLeadingButton: some View {
+        if let onOpenSession {
+            Button(action: onOpenSession) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.6))
+                    .frame(width: 36, height: 36)
+                    .background(Color(white: 0.125), in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12)))
+                    .frame(width: 40, height: 40)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Сессия")
+            .accessibilityIdentifier("chat.session")
+            .hintAnchor(HintAnchorID.chatSession)
+        } else {
+            attachmentMenu(circle: true)
+        }
+    }
+
     /// Микрофон отдельной круглой кнопкой справа — на месте отправки, пока
     /// текста нет. Нажатие не ставит каретку: клавиатура не поднимается
     /// (владелец 29.10.2026).
@@ -316,7 +349,6 @@ struct ChatVoiceComposer: View {
     /// Панель уже развернулась: пользователь начал ввод или вставил текст.
     /// Обратно не сжимается — сжатие отняло бы каретку посреди набора.
     @State private var hasExpandedPanel = false
-
     /// Развернуть панель и вернуть каретку в новое поле: после смены вью
     /// старое поле исчезает, и без этого каретка бы пропала.
     private func expandPanelKeepingFocus() {
@@ -324,7 +356,6 @@ struct ChatVoiceComposer: View {
         hasExpandedPanel = true
         DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
     }
-
 
     /// Отправка по кнопке «вверх» на клавиатуре.
     private func onSubmitText() {

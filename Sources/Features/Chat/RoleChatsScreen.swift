@@ -1313,6 +1313,20 @@ struct RoleChatRoomScreen: View {
                         .accessibilityIdentifier("chat.session")
                         .hintAnchor(HintAnchorID.chatSession)
                     ) : nil,
+                    // Левая кнопка новой панели открывает окно сессии
+                    // (владелец 29.10.2026: «в левую точку нужно добавить…
+                    // как в чате с помощником, там называется она сессия»).
+                    // Окно есть в личном чате с одной ролью: там оно и нужно.
+                    onOpenSession: chat.composerRoleKeys.count == 1 ? { showsSessionPanel = true } : nil,
+                    sessionAttachments: { source in
+                        switch source {
+                        case .photo: isPhotoPickerPresented = true
+                        case .file: isFileImporterPresented = true
+                        case .camera: isCameraPresented = true
+                        }
+                    },
+                    sessionWorkMode: $workMode,
+                    sessionAvailableWorkModes: RoleChatWorkMode.available(in: chat),
                     onShowCommands: { showsComposerCommands = true },
                     // Кольца контекста — в комнате ролей: по одному на роль,
                     // там своя схема (владелец 29.10.2026: «в чате с
@@ -1650,7 +1664,16 @@ struct RoleChatRoomScreen: View {
                 onSelectCommand: { command in
                     draft = command.inserting(into: draft)
                     composerFocused = true
-                })
+                },
+                onAttachmentSource: { source in
+                    switch source {
+                    case .photo: isPhotoPickerPresented = true
+                    case .file: isFileImporterPresented = true
+                    case .camera: isCameraPresented = true
+                    }
+                },
+                workMode: $workMode,
+                availableWorkModes: RoleChatWorkMode.available(in: chat))
         }
         .sheet(isPresented: $showsComposerCommands) {
             ChatCommandPicker(commands: composerControls.commands, errorText: composerControls.errorText,

@@ -82,6 +82,15 @@ enum HintScenarios {
             title: "Один разговор — одна сессия",
             text: "Нажмите «Сессия»: здесь модель и поддерживаемые уровни размышлений, рабочая папка, контекст и инструменты. Настройки сохраняются для этого разговора. «Новая сессия» создаёт отдельный чат; прежний остаётся в списке. Сжатие и сброс контекста сохраняют историю.")])
 
+    /// Окно сессии в чате с ролью (29.10.2026): левая кнопка новой панели
+    /// ввода открывает его, и то, что раньше было в меню действий, живёт
+    /// здесь же.
+    static let roleSession = HintScenario(
+        id: "role-session", title: "Сессия роли", start: "session",
+        steps: ["session": HintStep(anchor: HintAnchorID.chatSession,
+            title: "Сессия роли",
+            text: "Левая круглая кнопка в панели ввода открывает сессию: здесь модель с её описанием, уровни размышлений, рабочая папка, контекст, вложения и режим работы. Модель можно пометить звездочкой — избранные показываются первыми. Настройки сохраняются для этого разговора.", next: nil)])
+
     static let agentPromptSettings = HintScenario(
         id: "agent-prompt-settings", title: "Инструкции агентов", start: "common",
         steps: ["common": HintStep(anchor: HintAnchorID.agentInstructions,
@@ -107,7 +116,7 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart]
+    static let all: [HintScenario] = [allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
