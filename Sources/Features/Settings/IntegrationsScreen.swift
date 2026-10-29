@@ -342,7 +342,7 @@ struct IntegrationsScreen: View {
                                 NavigationLink {
                                     ComposioServiceScreen(model: composio, toolkit: ComposioToolkit(slug: service.slug, name: service.name ?? service.slug, logo: service.logo, description: service.description, connected: true, noAuth: false))
                                 } label: {
-                                    TFListRow(icon: "link", iconStyle: .remote(service.logo), title: service.name ?? service.slug, subtitle: "Подключение TaskFlow", trailing: AnyView(Text("Подключено").tfText(.meta).foregroundStyle(Color.tfTeal)), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                                    TFListRow(icon: "link", iconStyle: .bundledLogo(service.slug), title: service.name ?? service.slug, subtitle: "Подключение TaskFlow", trailing: AnyView(Text("Подключено").tfText(.meta).foregroundStyle(Color.tfTeal)), titleStyle: .action, verticalPadding: TFSpacing.xs)
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("integrations.connected.\(service.slug)")

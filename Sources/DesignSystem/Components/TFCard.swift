@@ -64,6 +64,10 @@ public struct TFListRow: View {
         /// Логотип по ссылке (сервисы Composio). Пока не загрузился или
         /// ссылки нет — `icon` как у `.plain`.
         case remote(URL?)
+        /// Логотип сервиса, нарисованный заранее и положенный в бандл
+        /// (`Resources/ComposioIcons`): серый силуэт на плитке одного цвета.
+        /// Ключ сервиса — `github`, `linear` и т. п.
+        case bundledLogo(String)
     }
 
     let icon: String
@@ -170,6 +174,8 @@ public struct TFListRow: View {
                     .foregroundStyle(Color.tfDim)
             }
             .frame(width: 40, height: 40)
+        case .bundledLogo(let slug):
+            ComposioServiceIcon(slug: slug, fallback: icon)
         }
     }
 }

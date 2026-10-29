@@ -20,6 +20,12 @@ final class ComposioIntegrationsViewModel {
     var error: String?
     var search = ""
     var awaitingAuthorization = false
+    /// Сервисы, у которых тумблер меняется прямо сейчас: slug → новое
+    /// состояние (показываем его, а не серверное, чтобы переключатель не
+    /// отпрыгивал назад во время авторизации).
+    private(set) var toggles = ComposioToggleState()
+    /// Сервисы, для которых сейчас идёт запрос к серверу.
+    private(set) var busy: Set<String> = []
     /// Курсор следующей страницы каталога (nil — страниц больше нет).
     var catalogCursor: String?
     /// Сколько страниц в каталоге всего.
@@ -75,6 +81,7 @@ final class ComposioIntegrationsViewModel {
             catalogTotalPages = overview.catalogTotalPages
             error = overview.error
             loaded = true
+            reconcilePending()
         } catch { self.error = error.localizedDescription }
     }
 
@@ -119,6 +126,56 @@ final class ComposioIntegrationsViewModel {
         Set(roles.filter { policies[$0.id]?.allows(toolkit) == true }.map(\.id))
     }
 
+    /// Состояние тумблера сервиса: пока идёт подключение, показываем то,
+    /// на что владелец нажал, — иначе переключатель отпрыгивает назад.
+    func isOn(_ toolkit: ComposioToolkit) -> Bool {
+        toggles.isOn(toolkit.slug, connected: toolkit.connected)
+    }
+
+    /// Включение сервиса уводит владельца на страницу авторизации Composio:
+    /// ссылку отдаёт сервер, дальше — браузер. Выключение отключает
+    /// подключённые аккаунты сервиса.
+    /// Возвращает ссылку авторизации, если её удалось получить.
+    func setConnected(_ toolkit: ComposioToolkit, _ isOn: Bool) async -> URL? {
+        guard !busy.contains(toolkit.slug), !saving else { return nil }
+        busy.insert(toolkit.slug)
+        toggles.begin(toolkit.slug, isOn: isOn)
+        defer { busy.remove(toolkit.slug) }
+        do {
+            if isOn {
+                let authorization = try await api.composioLinkAccount(toolkit: toolkit.slug)
+                guard let url = URL(string: authorization.url), url.scheme == "https" else {
+                    toggles.cancel(toolkit.slug)
+                    error = "Сервис не вернул ссылку подключения"
+                    return nil
+                }
+                // Пока владелец ходит в браузере, тумблер остаётся включённым:
+                // состояние снимется, когда каталог вернёт «подключено».
+                awaitingAuthorization = true
+                return url
+            }
+            let accounts = try await api.composioAccounts(toolkit: toolkit.slug)
+            for account in accounts {
+                try await api.composioDeleteAccount(toolkit: toolkit.slug, id: account.id)
+            }
+            await load()
+            toggles.cancel(toolkit.slug)
+            return nil
+        } catch {
+            toggles.cancel(toolkit.slug)
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// После ответа сервера сверяем тумблеры с каталогом: если сервис уже в
+    /// нужном состоянии, ожидание заканчивается.
+    private func reconcilePending() {
+        var connected: [String: Bool] = [:]
+        for toolkit in catalog { connected[toolkit.slug] = toolkit.connected }
+        toggles.reconcile(connected: connected)
+    }
+
     func save(toolkit: String?, selected: Set<String>) async -> Bool {
         guard loaded, !loading, !saving else { return false }
         saving = true; error = nil
@@ -143,24 +200,14 @@ final class ComposioIntegrationsViewModel {
         }
     }
 
-    func connect(_ toolkit: String) async -> URL? {
-        guard let role = roles.first, !loading, !saving, !fixture else { return nil }
-        loading = true; error = nil
-        defer { loading = false }
-        do {
-            let result = try await api.authorizeRoleComposio(role: role.id, toolkit: toolkit)
-            guard let url = URL(string: result.url), url.scheme == "https" else {
-                error = "Сервис не вернул ссылку подключения"; return nil
-            }
-            awaitingAuthorization = true
-            return url
-        } catch { self.error = error.localizedDescription; return nil }
-    }
+    /// Подключение сервиса делает тумблер в списке: он сразу уводит
+    /// владельца на страницу авторизации Composio.
 }
 
 struct ComposioIntegrationsScreen: View {
     @State private var model = ComposioIntegrationsViewModel()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
 
     let embedded: Bool
     init(embedded: Bool = false, model: ComposioIntegrationsViewModel? = nil) {
@@ -197,15 +244,6 @@ struct ComposioIntegrationsScreen: View {
                 .tfText(.action).foregroundStyle(Color.tfSub)
             TFErrorBanner(model.error, variant: .block)
             if model.loaded {
-                TFSectionHeader("Доступ к каталогу")
-                NavigationLink {
-                    ComposioServiceScreen(model: model, toolkit: nil)
-                } label: {
-                    TFCard(padding: 0) {
-                        TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Весь каталог",
-                                  subtitle: accessSummary(nil), trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
-                    }
-                }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.catalog")
                 TFSectionHeader("Сервисы")
                 TFTextField("Найти сервис", text: $model.search, icon: "magnifyingglass")
                     .onSubmit { Task { await model.searchCatalog() } }
@@ -214,13 +252,14 @@ struct ComposioIntegrationsScreen: View {
                     VStack(spacing: 0) {
                         ForEach(Array(displayCatalog.enumerated()), id: \.element.id) { index, toolkit in
                             if index > 0 { TFDivider(inset: TFSpacing.lg) }
-                            NavigationLink {
-                                ComposioServiceScreen(model: model, toolkit: toolkit)
-                            } label: {
-                                TFListRow(icon: "link", iconStyle: .remote(toolkit.logo), title: toolkit.name,
-                                          subtitle: toolkit.description ?? "\(toolkit.noAuth ? "Без авторизации" : toolkit.connected ? "Подключён" : "Не подключён") · \(model.selectedRoles(for: toolkit.slug).count) ролей",
-                                          trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
-                            }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.service.\(toolkit.slug)")
+                            ComposioConnectorRow(
+                                toolkit: toolkit,
+                                isOn: model.isOn(toolkit),
+                                isBusy: model.busy.contains(toolkit.slug),
+                                destination: AnyView(ComposioServiceScreen(model: model, toolkit: toolkit)),
+                                onToggle: { newValue in toggle(toolkit, newValue) }
+                            )
+                            .accessibilityIdentifier("composio.service.\(toolkit.slug)")
                         }
                     }
                 }
@@ -235,10 +274,26 @@ struct ComposioIntegrationsScreen: View {
                             .tfText(.caption).foregroundStyle(Color.tfDim)
                     }
                 }
+                TFSectionHeader("Доступ к каталогу")
+                NavigationLink {
+                    ComposioServiceScreen(model: model, toolkit: nil)
+                } label: {
+                    TFCard(padding: 0) {
+                        TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Весь каталог",
+                                  subtitle: accessSummary(nil), trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
+                    }
+                }.buttonStyle(TFTapRowStyle()).accessibilityIdentifier("composio.catalog")
             } else if model.loading { TFLoading(.block) }
             TFButton("Обновить", icon: "arrow.clockwise", variant: .secondary, isEnabled: !model.loading && !model.saving) {
                 Task { await model.load() }
             }
+        }
+    }
+
+    private func toggle(_ toolkit: ComposioToolkit, _ isOn: Bool) {
+        Task {
+            guard let url = await model.setConnected(toolkit, isOn) else { return }
+            openURL(url)
         }
     }
 
@@ -258,7 +313,6 @@ struct ComposioIntegrationsScreen: View {
 struct ComposioServiceScreen: View {
     @Bindable var model: ComposioIntegrationsViewModel
     let toolkit: ComposioToolkit?
-    @Environment(\.openURL) private var openURL
     @State private var selected = Set<String>()
     @State private var baseline = Set<String>()
     @State private var saved = false
@@ -277,8 +331,22 @@ struct ComposioServiceScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     if let toolkit = currentToolkit {
                         TFCard(padding: 0) {
-                            TFListRow(icon: "link", iconStyle: .remote(toolkit.logo), title: toolkit.name,
-                                      subtitle: toolkit.noAuth ? "Авторизация не требуется" : toolkit.connected ? "Общий аккаунт TaskFlow подключён" : "Подключите общий аккаунт TaskFlow")
+                            HStack(spacing: TFSpacing.md) {
+                                ComposioServiceIcon(slug: toolkit.slug)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(toolkit.name)
+                                        .tfText(.body)
+                                        .foregroundStyle(Color.tfText)
+                                        .lineLimit(1)
+                                    Text(toolkit.noAuth ? "Авторизация не требуется" : toolkit.connected ? "Общий аккаунт TaskFlow подключён" : "Подключите общий аккаунт TaskFlow")
+                                        .tfText(.action)
+                                        .foregroundStyle(Color.tfSub)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, TFSpacing.lg)
+                            .padding(.vertical, TFSpacing.md)
                         }
                         if toolkit.name == "GitHub MCP" {
                             Text("Это отдельный сервис. Для обычного подключения аккаунта выберите «GitHub» в каталоге.")
@@ -290,9 +358,8 @@ struct ComposioServiceScreen: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if !toolkit.connected && !toolkit.noAuth {
-                            TFButton("Подключить аккаунт", icon: "link", variant: .secondary, isEnabled: !model.loading && !model.saving) {
-                                Task { if let url = await model.connect(toolkit.slug) { openURL(url) } }
-                            }.accessibilityIdentifier("composio.connect")
+                            Text("Подключение — тумблером в списке сервисов: включили и прошли авторизацию.")
+                                .tfText(.caption).foregroundStyle(Color.tfDim)
                         }
                     } else {
                         Text("Выбранные роли получат доступ ко всем сервисам каталога через общие аккаунты TaskFlow.")
@@ -356,5 +423,65 @@ struct ComposioServiceScreen: View {
         TFListRow(icon: title == "Все роли" ? "person.2" : "person.crop.rectangle", iconStyle: .plain,
                   title: title, trailing: AnyView(Image(systemName: checked ? "largecircle.fill.circle" : "circle").foregroundStyle(checked ? Color.tfText : Color.tfDim)), action: action)
             .disabled(model.saving || model.loading)
+    }
+}
+
+/// Строка коннектора: серая иконка сервиса, название, описание и переключатель.
+///
+/// Оформление — как у крупных агентов: список коннекторов с иконками, где
+/// включение тумблера сразу уводит на авторизацию. Само название — ссылка
+/// на экран сервиса (какие роли могут им пользоваться), тумблер — отдельный
+/// элемент, поэтому нажатие на него не открывает экран.
+private struct ComposioConnectorRow: View {
+    let toolkit: ComposioToolkit
+    let isOn: Bool
+    let isBusy: Bool
+    let destination: AnyView
+    let onToggle: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: TFSpacing.md) {
+            NavigationLink(destination: destination) {
+                HStack(spacing: TFSpacing.md) {
+                    ComposioServiceIcon(slug: toolkit.slug)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(toolkit.name)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfText)
+                            .lineLimit(1)
+                        Text(subtitle)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, TFSpacing.lg)
+                .padding(.vertical, TFSpacing.md)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(TFTapRowStyle())
+            accessory
+                .padding(.trailing, TFSpacing.lg)
+        }
+    }
+
+    private var subtitle: String {
+        if let description = toolkit.description, !description.isEmpty { return description }
+        return toolkit.noAuth ? "Без авторизации" : "Описание сервиса пока нет"
+    }
+
+    @ViewBuilder
+    private var accessory: some View {
+        if toolkit.noAuth {
+            Text("Без авторизации")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfDim)
+        } else {
+            TFToggle(isOn: Binding(get: { isOn }, set: onToggle))
+                .disabled(isBusy)
+                .accessibilityLabel(toolkit.name)
+        }
     }
 }

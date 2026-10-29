@@ -48,6 +48,14 @@ targets:
       # 2,5 МБ восьми mp4 — они идут в бандл как файлы, а не в asset catalog.
       - path: Resources/TeamAvatarLoops
         buildPhase: resources
+      # Иконки сервисов Composio (LOCK-COMPOSIO-CONNECTORS): логотипы приходят
+      # из Composio как SVG, iOS их не рисует — поэтому знаки нарисованы заранее
+      # серым силуэтом (`Tools/composio_icons/`) и лежат в бандле как файлы.
+      # `type: folder` — ссылка на каталог: подкаталог `ComposioIcons` внутри
+      # бандла сохраняется, и картинка ищется по нему.
+      - path: Resources/ComposioIcons
+        type: folder
+        buildPhase: resources
       # Инструкция, на которую ссылается обучающая подсказка вебхуков.
       - path: docs/2026-10-18-role-external-apps.md
         buildPhase: resources

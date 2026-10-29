@@ -272,7 +272,7 @@ struct AgentProfileScreen: View {
             if index > 0 { rowDivider }
             TFListRow(
                 icon: "link",
-                iconStyle: .remote(toolkit.logo),
+                iconStyle: .bundledLogo(toolkit.slug),
                 title: toolkit.name ?? toolkit.slug,
                 subtitle: toolkit.connected == false ? "Не подключён" : toolkit.description ?? (toolkit.connected == true ? "Подключён" : "Состояние неизвестно")
             )

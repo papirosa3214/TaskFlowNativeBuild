@@ -55,6 +55,64 @@ public struct ComposioAuthorization: Decodable, Sendable {
     public let url: String
 }
 
+/// Подключённый аккаунт сервиса (у одного сервиса бывает несколько адресов).
+public struct ComposioAccount: Decodable, Sendable, Identifiable {
+    public let id: String
+    /// Адрес аккаунта (почта); nil — сервис адрес не отдаёт.
+    public let address: String?
+    /// Подпись, которую владелец дал аккаунту.
+    public let alias: String?
+    /// Состояние подключения у Composio (`ACTIVE` и другие).
+    public let status: String
+    public let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, address, alias, status
+        case createdAt = "created_at"
+    }
+}
+
+/// Ответ сервера со списком аккаунтов сервиса.
+public struct ComposioAccountList: Decodable, Sendable {
+    public let items: [ComposioAccount]
+}
+
+/// Состояние тумблеров подключения к сервисам Composio.
+///
+/// Пока идёт авторизация, тумблер должен показывать то, на что владелец
+/// нажал, а не серверное состояние: иначе переключатель отпрыгивает назад
+/// и кажется, что ничего не произошло. Как только сервер подтвердил
+/// состояние (каталог вернул «подключено»), ожидание заканчивается.
+public struct ComposioToggleState: Sendable {
+    /// Сервисы, у которых тумблер меняется: ключ сервиса → новое состояние.
+    public private(set) var pending: [String: Bool] = [:]
+
+    public init() {}
+
+    /// Владелец нажал тумблер: запоминаем новое состояние.
+    public mutating func begin(_ slug: String, isOn: Bool) {
+        pending[slug] = isOn
+    }
+
+    /// Запрос не удался (или состояние сняли) — возвращаем серверное.
+    public mutating func cancel(_ slug: String) {
+        pending[slug] = nil
+    }
+
+    /// Что показывать на тумблере.
+    public func isOn(_ slug: String, connected: Bool) -> Bool {
+        pending[slug] ?? connected
+    }
+
+    /// Сервер ответил: ожидание снимается там, где состояние совпало.
+    public mutating func reconcile(connected: [String: Bool]) {
+        for (slug, value) in pending {
+            guard let serverValue = connected[slug] else { continue }
+            if serverValue == value { pending[slug] = nil }
+        }
+    }
+}
+
 /// Changes one service without replacing unrelated role permissions.
 struct ComposioAccessPolicy: Equatable, Sendable {
     var enabled: Bool
