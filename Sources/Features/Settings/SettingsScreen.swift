@@ -22,6 +22,8 @@ struct SettingsScreen: View {
     @AppStorage("settings.server.expanded") private var serverExpanded = true
     @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
     @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
+    /// Вид панели ввода в чатах: три варианта (владелец 29.10.2026).
+    @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
     @AppStorage("settings.appearance.expanded") private var appearanceExpanded = true
 
     var body: some View {
@@ -186,6 +188,42 @@ struct SettingsScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings.text-scale.\(scale.rawValue)")
+            }
+
+            // Панель ввода в чатах: три варианта (владелец 29.10.2026 —
+            // «свою панель ввода предложить, а мою туда закинуть, чтобы можно
+            // было переключать, если что»).
+            TFDivider(inset: rowDividerInset)
+            Text("Панель ввода")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.top, TFSpacing.md)
+                .hintAnchor(HintAnchorID.chatComposerStyle)
+            ForEach(ChatComposerStyle.allCases) { style in
+                let isSelected = composerStyleRaw == style.rawValue
+                Button { composerStyleRaw = style.rawValue } label: {
+                    HStack(spacing: TFSpacing.md) {
+                        Text(style.title)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfText)
+                        Text(style.note)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(2)
+                        Spacer(minLength: TFSpacing.sm)
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.tfRed)
+                        }
+                    }
+                    .padding(.horizontal, TFSpacing.md)
+                    .frame(minHeight: TFHitTarget.min)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.chat-composer-style.\(style.rawValue)")
             }
         }
     }

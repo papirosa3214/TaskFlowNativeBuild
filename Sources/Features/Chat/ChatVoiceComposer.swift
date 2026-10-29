@@ -18,7 +18,33 @@ enum ChatAttachmentSource {
     case photo, file, camera
 }
 
-/// Тот же трёхсостоянийный композер, что в VoiceMessageLabScreen.
+/// Подпись под рамкой поля: папка у левого края, модель у правого
+/// (владелец 27.10.2026). Обе раскладки поля ввода используют её одинаково.
+private struct ChatWorkingCaptionInset: ViewModifier {
+    let folder: String?
+    let model: String?
+    let shows: Bool
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            if shows, folder != nil || model != nil {
+                HStack(spacing: 8) {
+                    if let folder { Text(folder).truncationMode(.middle) }
+                    Spacer(minLength: 0)
+                    if let model { Text(model).truncationMode(.tail) }
+                }
+                .tfText(.caption)
+                .foregroundStyle(Color.tfDim)
+                .lineLimit(1)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 8)
+                .accessibilityIdentifier("chat.workingCaption")
+            }
+        }
+    }
+}
+
+/// Голосовой композер: панель ввода чата.
 struct ChatVoiceComposer: View {
     @Binding var text: String
     let placeholder: String
@@ -64,6 +90,12 @@ struct ChatVoiceComposer: View {
     @Namespace private var composerNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Вид панели ввода: три варианта, переключаются в настройках
+    /// (владелец 29.10.2026 — «свою панель ввода предложить, а мою туда
+    /// закинуть, чтобы можно было переключать, если что»).
+    @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
+    private var composerStyle: ChatComposerStyle { ChatComposerStyle.resolve(composerStyleRaw) }
+
     @ViewBuilder private var executionModeMenu: some View {
         if let executionMode {
             Divider()
@@ -93,6 +125,12 @@ struct ChatVoiceComposer: View {
     }
 
     private var promptAttachmentMenu: some View {
+        attachmentMenu(circle: false)
+    }
+
+    /// Меню действий чата. `circle` — круглая подложка: так кнопка выглядит
+    /// в новой раскладке, где она стоит вне капсулы поля.
+    private func attachmentMenu(circle: Bool) -> some View {
         Menu {
             Section("Вложения") {
                 Button { onAttachmentSource(.photo) } label: { Label("Фото", systemImage: "photo.on.rectangle") }
@@ -113,7 +151,16 @@ struct ChatVoiceComposer: View {
                 Button("Навыки и инструменты", systemImage: "slash", action: onShowCommands)
             }
         } label: {
-            promptIcon("slider.horizontal.3")
+            if circle {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.6))
+                    .frame(width: 40, height: 40)
+                    .background(Color(white: 0.125), in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12)))
+            } else {
+                promptIcon("slider.horizontal.3")
+            }
         }
         .disabled(!canChangeExecutionMode)
         .accessibilityLabel("Действия чата" + (workMode.map { ": " + $0.wrappedValue.title } ?? ""))
@@ -121,89 +168,52 @@ struct ChatVoiceComposer: View {
         .hintAnchor(HintAnchorID.chatComposerActions)
     }
 
-    private var promptComposer: some View {
+    /// Нынешняя раскладка: капсула, поле сверху, ряд действий под ним.
+    private var stackedPromptPanel: some View {
         ChatPromptPanel(text: $text, placeholder: placeholder,
                         hidesText: isRecording || preview != nil,
-                        focus: textFieldFocus, onSubmit: onSendText) {
+                        focus: textFieldFocus, onSubmit: onSubmitText) {
             HStack(spacing: 0) {
                 promptAttachmentMenu
                 if showsMentionButton { mentionButton }
                 // Режим не дублируется подписью: он виден в меню настроек слева.
                 if let sessionControls {
                     sessionControls
-                } else {
-                if let modelChoice, modelChoice.isAvailable {
-                    // Тот же вид, что у пилюли режима слева от неё.
-                    ChatModelMenu(choice: modelChoice) {
-                        // По размеру содержимого: без выбора — только значок.
-                        HStack(spacing: 4) {
-                            // «Мозги» — размером как кольцо контекста и значок вложений
-                            // (20 pt в поле 40), без своей подложки (владелец 27.10.2026).
-                            Image("ModelBrain")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 20, height: 20)
+                } else if composerStyle.showsToolChips {
+                    if let modelChoice, modelChoice.isAvailable {
+                        // «Мозги» — размером как кольцо контекста и значок вложений
+                        // (20 pt в поле 40), без своей подложки (владелец 27.10.2026).
+                        ChatModelMenu(choice: modelChoice) {
+                            HStack(spacing: 4) {
+                                Image("ModelBrain")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                            }
+                            .frame(minWidth: 40, minHeight: 40)
+                            .contentShape(Rectangle())
                         }
-                        .frame(minWidth: 40, minHeight: 40)
-                        .contentShape(Rectangle())
                     }
-                }
-                if let workspaceChoice, workspaceChoice.isAvailable {
-                    // Тот же вид, что у пилюли модели слева.
-                    ChatWorkspaceMenu(choice: workspaceChoice) {
-                        HStack(spacing: 4) {
-                            // Папка — как «мозги» рядом: 20 pt в поле 40, без
-                            // своей подложки (владелец 27.10.2026).
-                            Image(systemName: "folder")
-                                .font(.system(size: 20, weight: .regular))
-                                .frame(width: 20, height: 20)
+                    if let workspaceChoice, workspaceChoice.isAvailable {
+                        // Тот же вид, что у пилюли модели слева от неё.
+                        ChatWorkspaceMenu(choice: workspaceChoice) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "folder")
+                                    .font(.system(size: 20, weight: .regular))
+                                    .frame(width: 20, height: 20)
+                            }
+                            .frame(minWidth: 40, minHeight: 40)
+                            .contentShape(Rectangle())
                         }
-                        .frame(minWidth: 40, minHeight: 40)
-                        .contentShape(Rectangle())
+                        .padding(.leading, 4)
                     }
-                    .padding(.leading, 4)
-                }
-                // Кольцо контекста — крайнее справа из ярлычков (владелец 27.10.2026).
-                if let contextControls { contextControls }
+                    // Кольцо контекста — крайнее справа из ярлычков (владелец 27.10.2026).
+                    if let contextControls { contextControls }
                 }
                 Spacer(minLength: 8)
-                Button(action: startVoiceRecording) {
-                    promptIcon("mic").contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Начать диктовку")
-                .accessibilityIdentifier("chat.voice")
-                .hintAnchor(HintAnchorID.chatDictation)
-                if isResponding, !canSendText, let onStop {
-                    Button(action: onStop) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.black)
-                            .frame(width: 36, height: 36)
-                            .background(.white, in: Circle())
-                            .frame(width: 40, height: 40)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isStopping)
-                    .accessibilityLabel("Остановить ответ роли")
-                    .accessibilityIdentifier("chat.stop")
-                } else {
-                    Button(action: onSendText) {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.black)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(canSendText ? 1 : 0.25), in: Circle())
-                            .frame(width: 40, height: 40)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canSendText)
-                    .accessibilityLabel("Отправить")
-                    .accessibilityIdentifier("chat.send")
-                }
+                micButton
+                sendButton
             }
             .foregroundStyle(Color.white.opacity(0.6))
         }
@@ -211,22 +221,136 @@ struct ChatVoiceComposer: View {
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.top, 10)
         .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
-        // Под рамкой, в пустом месте ниже: папка у левого края, модель у
-        // правого (владелец 27.10.2026).
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if workingFolder != nil || workingModel != nil, !isRecording, preview == nil {
-                HStack(spacing: 8) {
-                    if let workingFolder { Text(workingFolder).truncationMode(.middle) }
-                    Spacer(minLength: 0)
-                    if let workingModel { Text(workingModel).truncationMode(.tail) }
+        .modifier(workingCaption)
+    }
+
+    /// Новая раскладка (макет 29.10.2026): всё в одну строку — круглая кнопка
+    /// действий слева, капсула с полем и чипами, круглая отправка справа.
+    private var unifiedPromptPanel: some View {
+        HStack(spacing: 8) {
+            attachmentMenu(circle: true)
+            HStack(spacing: 4) {
+                TextField(placeholder, text: $text, axis: .vertical)
+                    .lineLimit(1...4)
+                    .textInputAutocapitalization(.sentences)
+                    .focused(textFieldFocus)
+                    .onSubmit { onSubmitText() }
+                    .foregroundStyle(Color.tfPaper)
+                    .accessibilityIdentifier("chat.message")
+                if showsMentionButton { mentionButton }
+                // Как и в нынешней раскладке: у чата с Помощником вместо
+                // «мозга» и папки — кнопка «Сессия».
+                if let sessionControls {
+                    sessionControls
+                } else {
+                    if let modelChoice, modelChoice.isAvailable {
+                        ChatModelMenu(choice: modelChoice) {
+                            HStack(spacing: 4) {
+                                Image("ModelBrain")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                            }
+                            .frame(minWidth: 40, minHeight: 40)
+                            .contentShape(Rectangle())
+                        }
+                    }
+                    if let workspaceChoice, workspaceChoice.isAvailable {
+                        ChatWorkspaceMenu(choice: workspaceChoice) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "folder")
+                                    .font(.system(size: 20, weight: .regular))
+                                    .frame(width: 20, height: 20)
+                            }
+                            .frame(minWidth: 40, minHeight: 40)
+                            .contentShape(Rectangle())
+                        }
+                    }
+                    // Кольца контекста — по роли в комнате ролей.
+                    if let contextControls { contextControls }
                 }
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-                .lineLimit(1)
-                .padding(.horizontal, 28)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("chat.workingCaption")
+                micButton
             }
+            .padding(.leading, 14)
+            .padding(.trailing, 4)
+            .padding(.vertical, 2)
+            .frame(minHeight: 40)
+            .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.white.opacity(0.12)))
+            .foregroundStyle(Color.white.opacity(0.6))
+            // В морфинг уходит сама капсула: кнопки по краям остаются на месте.
+            .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
+            sendButton
+        }
+        .opacity(isRecording || preview != nil ? 0 : 1)
+        .padding(.horizontal).padding(.top, 10)
+        .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
+        .modifier(workingCaption)
+    }
+
+    /// Отправка по кнопке «вверх» на клавиатуре.
+    private func onSubmitText() {
+        guard !isRecording, preview == nil else { return }
+        onSendText()
+    }
+
+    /// Кнопка диктовки — в обоих вариантах одна и та же.
+    private var micButton: some View {
+        Button(action: startVoiceRecording) {
+            promptIcon("mic").contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Начать диктовку")
+        .accessibilityIdentifier("chat.voice")
+        .hintAnchor(HintAnchorID.chatDictation)
+    }
+
+    /// Отправка или остановка ответа — в обоих вариантах одна и та же.
+    @ViewBuilder private var sendButton: some View {
+        if isResponding, !canSendText, let onStop {
+            Button(action: onStop) {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .frame(width: 36, height: 36)
+                    .background(.white, in: Circle())
+                    .frame(width: 40, height: 40)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isStopping)
+            .accessibilityLabel("Остановить ответ роли")
+            .accessibilityIdentifier("chat.stop")
+        } else {
+            Button(action: onSendText) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(canSendText ? 1 : 0.25), in: Circle())
+                    .frame(width: 40, height: 40)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSendText)
+            .accessibilityLabel("Отправить")
+            .accessibilityIdentifier("chat.send")
+        }
+    }
+
+    /// Подпись под рамкой: папка у левого края, модель у правого
+    /// (владелец 27.10.2026).
+    private var workingCaption: ChatWorkingCaptionInset {
+        ChatWorkingCaptionInset(folder: workingFolder, model: workingModel,
+                                shows: !isRecording && preview == nil)
+    }
+
+    @ViewBuilder private var promptComposer: some View {
+        if composerStyle.isSingleRow {
+            unifiedPromptPanel
+        } else {
+            stackedPromptPanel
         }
     }
 
