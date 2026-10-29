@@ -145,7 +145,7 @@ public final class APIClient: Sendable {
         headers: [String: String] = [:]
     ) throws -> URLRequest {
         guard var components = URLComponents(
-            url: Self.baseURL.appendingPathComponent("/api" + path),
+            url: APIEndpoint.url(path, base: Self.baseURL),
             resolvingAgainstBaseURL: false
         ) else { throw APIError.invalidResponse }
         if !query.isEmpty { components.queryItems = query }
@@ -194,7 +194,7 @@ public final class APIClient: Sendable {
         mime: String
     ) async throws -> Response {
         guard var components = URLComponents(
-            url: Self.baseURL.appendingPathComponent("/api" + path),
+            url: APIEndpoint.url(path, base: Self.baseURL),
             resolvingAgainstBaseURL: false
         ) else { throw APIError.invalidResponse }
         components.queryItems = query
