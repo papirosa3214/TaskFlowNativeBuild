@@ -179,7 +179,7 @@ struct ChatVoiceComposer: View {
                 // Режим не дублируется подписью: он виден в меню настроек слева.
                 if let sessionControls {
                     sessionControls
-                } else if composerStyle.showsToolChips {
+                } else {
                     if let modelChoice, modelChoice.isAvailable {
                         // «Мозги» — размером как кольцо контекста и значок вложений
                         // (20 pt в поле 40), без своей подложки (владелец 27.10.2026).

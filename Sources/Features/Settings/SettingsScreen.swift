@@ -22,8 +22,16 @@ struct SettingsScreen: View {
     @AppStorage("settings.server.expanded") private var serverExpanded = true
     @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
     @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
-    /// Вид панели ввода в чатах: три варианта (владелец 29.10.2026).
+    /// Панель ввода в чатах: родная или новая (владелец 29.10.2026).
     @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
+    /// Тумблер «Новая панель ввода» — как у нижней панели: включена новая,
+    /// выключена родная.
+    private var composerStyleBinding: Binding<Bool> {
+        Binding(
+            get: { ChatComposerStyle.resolve(composerStyleRaw) == .unified },
+            set: { composerStyleRaw = ($0 ? ChatComposerStyle.unified : .standard).rawValue }
+        )
+    }
     @AppStorage("settings.appearance.expanded") private var appearanceExpanded = true
 
     var body: some View {
@@ -189,42 +197,6 @@ struct SettingsScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings.text-scale.\(scale.rawValue)")
             }
-
-            // Панель ввода в чатах: три варианта (владелец 29.10.2026 —
-            // «свою панель ввода предложить, а мою туда закинуть, чтобы можно
-            // было переключать, если что»).
-            TFDivider(inset: rowDividerInset)
-            Text("Панель ввода")
-                .tfText(.meta)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.top, TFSpacing.md)
-                .hintAnchor(HintAnchorID.chatComposerStyle)
-            ForEach(ChatComposerStyle.allCases) { style in
-                let isSelected = composerStyleRaw == style.rawValue
-                Button { composerStyleRaw = style.rawValue } label: {
-                    HStack(spacing: TFSpacing.md) {
-                        Text(style.title)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                        Text(style.note)
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
-                            .lineLimit(2)
-                        Spacer(minLength: TFSpacing.sm)
-                        if isSelected {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.tfRed)
-                        }
-                    }
-                    .padding(.horizontal, TFSpacing.md)
-                    .frame(minHeight: TFHitTarget.min)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings.chat-composer-style.\(style.rawValue)")
-            }
         }
     }
 
@@ -265,6 +237,12 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             toggleRow(icon: "rectangle.bottomhalf.filled", title: "Системный таббар",
                       isOn: $viewModel.isPillTabBarEnabled, toggleIdentifier: "settings.pillTabBar")
+            // Панель ввода в чатах — по образцу таббара выше: родная или новая
+            // (владелец 29.10.2026: «переключатель сделать наподобие, как вот
+            // эта нижняя таб-бар»).
+            TFDivider(inset: rowDividerInset)
+            toggleRow(icon: "text.bubble", title: "Новая панель ввода",
+                      isOn: composerStyleBinding, toggleIdentifier: "settings.chat-composer-style")
             // Владелец 20.10.2026: «Шаблоны задач» и «Метки» — из «Общих» сюда.
             TFDivider(inset: rowDividerInset)
             navRow(icon: "bookmark", title: "Шаблоны задач", route: .templates)

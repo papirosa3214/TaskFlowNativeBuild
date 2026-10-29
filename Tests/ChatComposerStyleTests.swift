@@ -12,13 +12,12 @@ final class ChatComposerStyleTests: XCTestCase {
 
     func testKnownStoredValuesResolveToThemselves() {
         XCTAssertEqual(ChatComposerStyle.resolve("standard"), .standard)
-        XCTAssertEqual(ChatComposerStyle.resolve("classic"), .classic)
         XCTAssertEqual(ChatComposerStyle.resolve("unified"), .unified)
     }
 
-    func testThreeVariantsWithTitlesAndNotes() {
-        XCTAssertEqual(ChatComposerStyle.allCases.count, 3)
-        XCTAssertEqual(ChatComposerStyle.allCases.map(\.title), ["Текущая", "Старая", "Новая"])
+    func testTwoVariantsWithTitlesAndNotes() {
+        XCTAssertEqual(ChatComposerStyle.allCases.count, 2)
+        XCTAssertEqual(ChatComposerStyle.allCases.map(\.title), ["Родная", "Новая"])
         XCTAssertTrue(ChatComposerStyle.allCases.allSatisfy { !$0.note.isEmpty })
     }
 
@@ -30,15 +29,8 @@ final class ChatComposerStyleTests: XCTestCase {
         XCTAssertEqual(ChatComposerStyle.storageKey, "taskflow_chat_composer_style")
     }
 
-    func testOnlyOldVariantHidesToolChips() {
-        XCTAssertFalse(ChatComposerStyle.classic.showsToolChips)
-        XCTAssertTrue(ChatComposerStyle.standard.showsToolChips)
-        XCTAssertTrue(ChatComposerStyle.unified.showsToolChips)
-    }
-
     func testOnlyNewVariantUsesSingleRowLayout() {
         XCTAssertFalse(ChatComposerStyle.standard.isSingleRow)
-        XCTAssertFalse(ChatComposerStyle.classic.isSingleRow)
         XCTAssertTrue(ChatComposerStyle.unified.isSingleRow)
     }
 }
