@@ -137,14 +137,27 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
     let title: String
     let description: String?
     let isDone: Bool
+    /// Сколько строк занимает описание. По умолчанию одна — как во всех
+    /// списках задач; «Входящие» отдаёт в этом месте наводящую строку (что
+    /// делать с задачей), и ей нужны две.
+    let descriptionLines: Int
     let horizontalPadding: CGFloat
     let avatar: Avatar
     let metadata: Metadata
 
-    init(title: String, description: String?, isDone: Bool, horizontalPadding: CGFloat = TFSpacing.lg, @ViewBuilder avatar: () -> Avatar, @ViewBuilder metadata: () -> Metadata) {
+    init(
+        title: String,
+        description: String?,
+        isDone: Bool,
+        descriptionLines: Int = 1,
+        horizontalPadding: CGFloat = TFSpacing.lg,
+        @ViewBuilder avatar: () -> Avatar,
+        @ViewBuilder metadata: () -> Metadata
+    ) {
         self.title = title
         self.description = description
         self.isDone = isDone
+        self.descriptionLines = descriptionLines
         self.horizontalPadding = horizontalPadding
         self.avatar = avatar()
         self.metadata = metadata()
@@ -168,7 +181,7 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
                     Text(description.components(separatedBy: .newlines).joined(separator: " "))
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
+                        .lineLimit(descriptionLines)
                 }
                 HStack(spacing: TFSpacing.xs) {
                     metadata

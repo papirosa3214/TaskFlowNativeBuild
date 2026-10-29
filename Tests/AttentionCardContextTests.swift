@@ -38,4 +38,30 @@ final class AttentionCardContextTests: XCTestCase {
         let task = try decode(#"{"id":"t4","title":"Проверить окно","hint":"  Нужен ваш ответ: уточните исполнителя  "}"#)
         XCTAssertEqual(task.hintLine, "Нужен ваш ответ: уточните исполнителя")
     }
+
+    func testDecodesFieldsForTheRowLikeOtherLists() throws {
+        let task = try decode(
+            #"{"id":"t5","title":"Проверить окно","project":"TaskFlow","role":"Лайф-тестировщик","age_seconds":60,"overdue":false,"hint":"Проверка заблокирована.","role_id":"role_qa","priority":2,"subtask_total":6,"subtask_done":4}"#
+        )
+        XCTAssertEqual(task.role_id, "role_qa")
+        XCTAssertEqual(task.priority, 2)
+        XCTAssertEqual(task.subtask_total, 6)
+        XCTAssertEqual(task.subtask_done, 4)
+    }
+
+    func testOldServerWithoutNewFieldsStillDecodes() throws {
+        let task = try decode(
+            #"{"id":"t6","title":"Проверить окно","project":null,"role":null,"age_seconds":null,"overdue":false}"#
+        )
+        XCTAssertNil(task.role_id)
+        XCTAssertNil(task.priority)
+        XCTAssertNil(task.subtask_total)
+        XCTAssertNil(task.subtask_done)
+        XCTAssertNil(task.roleInitials)
+    }
+
+    func testRoleInitialsTakeFirstLettersOfTwoWords() throws {
+        let task = try decode(#"{"id":"t7","title":"Проверить окно","role":"Лайф-тестировщик","role_id":"role_qa"}"#)
+        XCTAssertEqual(task.roleInitials, "ЛТ")
+    }
 }

@@ -79,9 +79,11 @@ struct AttentionScreen: View {
                     if !group.tasks.isEmpty {
                         Section {
                             groupHeader(group)
+                                .listRowBackground(Color.tfCard)
+                                .listRowSeparator(.hidden)
                             ForEach(group.tasks) { task in
                                 NavigationLink(value: AppRoute.taskDetail(taskID: task.id)) {
-                                    taskRow(task, tint: AttentionViewModel.tint(for: group.key))
+                                    taskRow(task)
                                 }
                                 .buttonStyle(.plain)
                                 .listRowBackground(Color.tfCard)
@@ -117,43 +119,56 @@ struct AttentionScreen: View {
         }
     }
 
-    private func taskRow(_ task: ApiAttentionTask, tint: Color) -> some View {
-        HStack(spacing: TFSpacing.md) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(task.title)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(2)
-                // Наводящая строка — что с задачей делать, не открывая её.
-                if let hint = task.hintLine {
-                    Text(hint)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfText)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                HStack(spacing: TFSpacing.xs) {
-                    if let project = task.project, !project.isEmpty {
-                        Text(project).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
-                    }
-                    if let role = task.role, !role.isEmpty {
-                        Text(role).tfText(.caption).foregroundStyle(Color.tfDim)
-                    }
-                    if task.overdue == true {
-                        Text("просрочено").tfText(.caption).foregroundStyle(Color.tfRed)
-                    }
-                    if let s = task.age_seconds {
-                        Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
-                    }
-                }
+    /// Строка задачи — та же геометрия, что строки задач в остальных списках
+    /// (`TFTaskRowContent`): аватар роли слева, название, наводящая строка и
+    /// ряд меток. Свой шеврон у строки не рисуется: у `NavigationLink` он
+    /// свой, и вместе они давали два шеврона подряд.
+    private func taskRow(_ task: ApiAttentionTask) -> some View {
+        TFTaskRowContent(
+            title: task.title,
+            description: task.hintLine,
+            isDone: false,
+            descriptionLines: 2
+        ) {
+            if let initials = task.roleInitials {
+                TFAvatar(
+                    size: .taskList,
+                    initials: initials,
+                    tint: Color(hex: TFHexDefault.unassigned),
+                    userID: task.role_id
+                )
             }
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(tint)
+        } metadata: {
+            if let project = task.project, !project.isEmpty {
+                Text("#\(project)")
+                    .foregroundStyle(Color.tfSub)
+                    .lineLimit(1)
+                    .layoutPriority(-1)
+            }
+            TFTaskStructureIndicators(
+                priority: task.priority.flatMap { TaskPriority(rawValue: $0) },
+                subtasksDone: task.subtask_done,
+                subtasksTotal: task.subtask_total,
+                childrenCount: 0,
+                hasCollaborationPlan: false
+            )
+            if let role = task.role, !role.isEmpty {
+                Text(role)
+                    .foregroundStyle(Color.tfDim)
+                    .lineLimit(1)
+                    .layoutPriority(-1)
+            }
+            if task.overdue == true {
+                Text("просрочено")
+                    .foregroundStyle(Color.tfRed)
+                    .layoutPriority(-1)
+            }
+            if let s = task.age_seconds {
+                Text(Self.ago(s))
+                    .foregroundStyle(Color.tfDim)
+                    .layoutPriority(-1)
+            }
         }
-        .padding(.vertical, TFSpacing.xs)
-        .contentShape(Rectangle())
     }
 
     static func ago(_ seconds: Int) -> String {
