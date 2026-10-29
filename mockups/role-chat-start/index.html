@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow — стартовый экран чата с ролью (макет)</title>
+<style>
+  :root{
+    --bg:#171717; --card:#242424; --card2:#2b2b2b; --sheet:#1D1D1D;
+    --text:#ffffff; --sub:#a6a6a6; --dim:#949494;
+    --stroke:rgba(255,255,255,.09);
+    --red:#e44332; --redSolid:#d63a28; --orange:#ff9a14; --blue:#4a9fd8;
+    --green:#15937e; --teal:#35b8a3; --purple:#a78bfa; --pink:#ff7a8a;
+    --yellow:#f7d038; --coral:#ff6b6b;
+    --shell:#0e0e0e; --shellCard:#1a1a1a; --shellText:#e8e8e8; --shellSub:#8d8d8d;
+  }
+  body.light{
+    --bg:#f4f4f5; --card:#ffffff; --card2:#ececee; --sheet:#ffffff;
+    --text:#111113; --sub:#6b6b73; --dim:#8b8b93;
+    --stroke:rgba(0,0,0,.09);
+    --shell:#ececee; --shellCard:#ffffff; --shellText:#111113; --shellSub:#6b6b73;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--shell); color:var(--shellText);
+    -webkit-font-smoothing:antialiased;
+    display:flex; min-height:100vh;
+  }
+  .panel{
+    width:322px; flex:none; border-right:1px solid var(--stroke);
+    padding:22px 18px 28px; display:flex; flex-direction:column; gap:16px;
+    position:sticky; top:0; height:100vh; overflow:auto;
+  }
+  .panel h1{font-size:15px;font-weight:600;letter-spacing:.2px}
+  .panel .lead{font-size:12px;line-height:1.45;color:var(--shellSub);margin-top:-8px}
+  .roles{display:flex;flex-direction:column;gap:2px}
+  .role{
+    display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;
+    background:none;border:0;width:100%;text-align:left;cursor:pointer;
+    color:var(--shellText);font:inherit;
+  }
+  .role:hover{background:var(--shellCard)}
+  .role[aria-pressed="true"]{background:var(--shellCard);box-shadow:inset 0 0 0 1px var(--stroke)}
+  .role img,.role .ini{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;background:var(--card2)}
+  .role .ini{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--sub)}
+  .role .t{display:block;font-size:13px;font-weight:500}
+  .role .s{display:block;font-size:11px;color:var(--shellSub);margin-top:1px}
+  .role[aria-pressed="true"] .t{color:var(--red)}
+  .seg{display:flex;gap:4px;background:var(--shellCard);border-radius:10px;padding:4px}
+  .seg button{
+    flex:1;border:0;background:none;color:var(--shellSub);font:inherit;font-size:12px;
+    padding:7px 6px;border-radius:7px;cursor:pointer
+  }
+  .seg button[aria-pressed="true"]{background:var(--bg);color:var(--text);font-weight:600}
+  .ctl{display:flex;flex-direction:column;gap:7px}
+  .ctl .lbl{font-size:11px;color:var(--shellSub);text-transform:uppercase;letter-spacing:.6px}
+  .hint{font-size:11.5px;line-height:1.5;color:var(--shellSub);border-top:1px solid var(--stroke);padding-top:12px;margin-top:auto}
+  .hint b{color:var(--shellText);font-weight:600}
+
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:30px}
+  .phone{
+    width:430px;height:902px;border-radius:56px;padding:14px;flex:none;
+    background:linear-gradient(160deg,#3a3a3c,#1c1c1e 45%,#000);
+    box-shadow:0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07) inset;
+    transform-origin:top center; transform:scale(var(--s,1));
+  }
+  .screen{
+    width:402px;height:874px;border-radius:44px;overflow:hidden;background:var(--bg);
+    color:var(--text);display:flex;flex-direction:column;position:relative;
+  }
+  .statusbar{
+    height:52px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 30px 6px;font-size:14px;font-weight:600;letter-spacing:.2px
+  }
+  .statusbar .right{display:flex;align-items:center;gap:5px}
+  .navbar{
+    flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;
+    border-bottom:.5px solid var(--stroke);background:var(--bg)
+  }
+  .navbar .back{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--text);opacity:.85}
+  .navbar .who{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
+  .navbar .who img,.navbar .who .ini{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--card2)}
+  .navbar .who .ini{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--sub)}
+  .navbar .nm{font-size:17px;font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .navbar .sub{font-size:12px;font-weight:500;color:var(--sub);line-height:1.2}
+  .navbar .acts{display:flex;align-items:center;gap:4px;color:var(--text)}
+  .navbar .acts svg{width:22px;height:22px}
+
+  .feed{flex:1;overflow:auto;padding:0 16px}
+  .empty{min-height:100%;display:flex;flex-direction:column;justify-content:center;padding:14px 0 22px}
+
+  .hero{text-align:center;padding:6px 6px 22px}
+  .hero img,.hero .ini{width:92px;height:92px;border-radius:50%;object-fit:cover;margin:0 auto;display:block;background:var(--card2)}
+  .hero .ini{display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:600;color:var(--sub)}
+  .hero .tier{
+    display:inline-flex;align-items:center;gap:5px;margin-top:14px;padding:3px 9px;border-radius:999px;
+    background:var(--card2);color:var(--sub);font-size:11px;font-weight:500;letter-spacing:.3px
+  }
+  .hero .tier i{width:6px;height:6px;border-radius:50%;background:var(--red);display:block}
+  .hero .name{font-size:28px;font-weight:700;line-height:1.15;margin-top:12px;letter-spacing:-.3px}
+  .hero .sum{font-size:15px;line-height:1.45;color:var(--sub);margin-top:8px}
+  .hero .say{
+    font-size:15px;line-height:1.45;color:var(--text);margin-top:16px;padding:0 6px;
+  }
+  .hero .say::before{content:"«";color:var(--dim)}
+  .hero .say::after{content:"»";color:var(--dim)}
+
+  .sec{
+    display:flex;align-items:center;gap:10px;padding:0 2px 10px;
+    font-size:12px;font-weight:500;color:var(--dim);letter-spacing:.2px
+  }
+  .sec .ln{flex:1;height:1px;background:var(--stroke)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .cmd{
+    text-align:left;background:var(--card);border:1px solid var(--stroke);border-radius:12px;
+    padding:12px 12px 13px;color:var(--text);font:inherit;cursor:pointer;min-height:88px;
+    display:flex;flex-direction:column;gap:6px;transition:transform .12s ease, background .12s ease
+  }
+  .cmd:hover{background:var(--card2);transform:translateY(-1px)}
+  .cmd:active{transform:scale(.985)}
+  .cmd .ic{width:24px;height:24px;color:var(--red)}
+  .cmd .ttl{font-size:15px;font-weight:500;line-height:1.25}
+  .cmd .hn{font-size:12px;line-height:1.35;color:var(--dim)}
+
+  .hello{display:flex;gap:12px;align-items:center;padding:4px 2px 14px}
+  .hello img,.hello .ini{width:52px;height:52px;border-radius:50%;object-fit:cover;flex:none;background:var(--card2)}
+  .hello .ini{display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:var(--sub)}
+  .hello .nm{font-size:17px;font-weight:600}
+  .hello .sum{font-size:13px;color:var(--sub);line-height:1.35;margin-top:2px}
+  .say2{font-size:15px;line-height:1.45;color:var(--text);padding:0 2px 22px}
+  .say2::before{content:"«";color:var(--dim)} .say2::after{content:"»";color:var(--dim)}
+  .pills{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{
+    border:1px solid rgba(228,67,50,.35);background:var(--card);color:var(--text);
+    border-radius:999px;padding:8px 12px;font:inherit;font-size:15px;cursor:pointer;
+    transition:background .12s ease
+  }
+  .pill:hover{background:var(--card2)}
+  .pill:active{transform:scale(.98)}
+
+  .composer{flex:none;padding:8px 12px 10px;background:var(--bg)}
+  /* Родная панель: поле сверху, ряд действий под ним — как в приложении сейчас */
+  .cap.native{flex-direction:column;align-items:stretch;gap:2px;border-radius:24px;padding:8px}
+  .cap.native .txt{font-size:16px;padding:4px 6px}
+  .cap.native .row{gap:0;align-items:center}
+  .cap.native .chip{margin:0 2px}
+  .cap.native .send{margin-left:auto}
+  .composer .row{display:flex;align-items:flex-end;gap:8px}
+  .cap{
+    flex:1;display:flex;align-items:center;gap:8px;min-height:38px;
+    background:var(--card2);border-radius:19px;padding:6px 10px 6px 12px
+  }
+  .cap .txt{flex:1;font-size:16px;color:var(--sub);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cap .txt.filled{color:var(--text)}
+  .chip{
+    width:30px;height:30px;border-radius:15px;background:var(--card);display:flex;align-items:center;
+    justify-content:center;color:var(--sub);flex:none
+  }
+  .chip svg{width:19px;height:19px}
+  .plus{
+    width:38px;height:38px;border-radius:19px;background:var(--card2);display:flex;align-items:center;
+    justify-content:center;color:var(--text);flex:none
+  }
+  .send{
+    width:38px;height:38px;border-radius:19px;background:var(--redSolid);display:flex;align-items:center;
+    justify-content:center;color:#fff;flex:none;border:0
+  }
+  .send:disabled{background:var(--card2);color:var(--dim)}
+  .home{height:22px;display:flex;align-items:center;justify-content:center;flex:none}
+  .home i{width:134px;height:5px;border-radius:3px;background:var(--text);opacity:.28;display:block}
+
+  .caption{max-width:430px;font-size:12.5px;line-height:1.55;color:var(--shellSub)}
+  .caption b{color:var(--shellText);font-weight:600}
+  .toast{
+    position:absolute;left:50%;bottom:96px;transform:translate(-50%,8px);background:var(--card2);
+    color:var(--text);font-size:13px;padding:8px 14px;border-radius:10px;opacity:0;pointer-events:none;
+    transition:opacity .18s ease, transform .18s ease;border:1px solid var(--stroke)
+  }
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<aside class="panel">
+  <h1>Чат с ролью — стартовый экран</h1>
+  <div class="lead">Пустой чат: приветствие роли и четыре быстрые команды. Список ролей взят из живого реестра сервера (11 включённых).</div>
+
+  <div class="ctl">
+    <div class="lbl">Подача</div>
+    <div class="seg" id="segVariant">
+      <button data-v="card" aria-pressed="true">Карточка</button>
+      <button data-v="pills" aria-pressed="false">Пилюли</button>
+    </div>
+  </div>
+
+  <div class="ctl">
+    <div class="lbl">Панель ввода</div>
+    <div class="seg" id="segComposer">
+      <button data-c="native" aria-pressed="true">Родная</button>
+      <button data-c="new" aria-pressed="false">Новая</button>
+    </div>
+  </div>
+
+  <div class="ctl">
+    <div class="lbl">Тема</div>
+    <div class="seg" id="segTheme">
+      <button data-t="dark" aria-pressed="true">Тёмная</button>
+      <button data-t="light" aria-pressed="false">Светлая</button>
+    </div>
+  </div>
+
+  <div class="roles" id="roles"></div>
+
+  <div class="hint">
+    <b>Как смотреть.</b> Тап по роли — переключает экран. Тап по команде — подставляет текст в поле ввода, как в живом чате. Макет одноразовый, в приложение пока не внесён.
+  </div>
+</aside>
+
+<main class="stage">
+  <div class="phone">
+    <div class="screen" id="screen">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="right">
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 11.2 6.2 9.3a2.6 2.6 0 0 1 3.6 0L8 11.2ZM3.6 6.7a6.6 6.6 0 0 1 8.8 0l-1.3 1.4a4.8 4.8 0 0 0-6.2 0L3.6 6.7ZM.9 4a10.4 10.4 0 0 1 14.2 0l-1.3 1.4a8.6 8.6 0 0 0-11.6 0L.9 4Z"/></svg>
+          <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x=".6" y=".6" width="21" height="10.8" rx="3" stroke="currentColor" stroke-opacity=".4"/><rect x="2.2" y="2.2" width="14" height="7.6" rx="1.8" fill="currentColor"/><path d="M23.4 4.2v3.6a2 2 0 0 0 0-3.6Z" fill="currentColor" fill-opacity=".5"/></svg>
+        </span>
+      </div>
+
+      <div class="navbar">
+        <div class="back"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4 6.5 10l6 6"/></svg></div>
+        <div class="who">
+          <div id="navAvatar"></div>
+          <div style="min-width:0">
+            <div class="nm" id="navName">—</div>
+            <div class="sub" id="navSub">личный чат</div>
+          </div>
+        </div>
+        <div class="acts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h8"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+        </div>
+      </div>
+
+      <div class="feed" id="feed"><div class="empty" id="empty"></div></div>
+
+      <div class="composer">
+        <div class="row" id="composerRow"></div>
+      </div>
+      <div class="home"><i></i></div>
+      <div class="toast" id="toast">Отправлено</div>
+    </div>
+  </div>
+
+  <div class="caption" id="caption"></div>
+</main>
+
+<script>
+const ICONS = {
+  search:'<circle cx="11" cy="11" r="6.4"/><path d="M15.8 15.8 21 21"/>',
+  doc:'<path d="M7 3.5h6.2L17 7.4V20.5H7z"/><path d="M13.2 3.5v4h3.9"/><path d="M9.5 12h5M9.5 15.5h5"/>',
+  chart:'<path d="M4 19.5h16"/><path d="M7.5 16V9.5M12 16V5M16.5 16v-4.5"/>',
+  shield:'<path d="M12 3.4 19 6v5.3c0 4.2-2.9 7.7-7 9.3-4.1-1.6-7-5.1-7-9.3V6l7-2.6Z"/><path d="M9 12.2l2.2 2.2 4-4.4"/>',
+  layers:'<path d="M12 3.6 20 7.5l-8 3.9-8-3.9 8-3.9Z"/><path d="M4 12.2 12 16l8-3.8"/><path d="M4 16.6 12 20.4l8-3.8"/>',
+  gear:'<circle cx="12" cy="12" r="3.1"/><path d="M12 3.5v2.2M12 18.3v2.2M4.6 7.8l1.9 1.1M17.5 15.1l1.9 1.1M4.6 16.2l1.9-1.1M17.5 8.9l1.9-1.1"/>',
+  brush:'<path d="M4.5 19.5s.6-2.9 2.6-3.9l6.6-6.6 3.4 3.4-6.6 6.6c-1 1-2.4 2.5-4.2 2.5-1.4 0-1.8-1-1.8-2Z"/><path d="M14.2 6.8 17.8 3.2"/>',
+  bell:'<path d="M6.5 16.2v-4.7a5.5 5.5 0 0 1 11 0v4.7l1.4 1.8H5.1l1.4-1.8Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  calendar:'<rect x="3.8" y="5.4" width="16.4" height="15" rx="3"/><path d="M3.8 10.2h16.4M8.4 3.4v4M15.6 3.4v4"/>',
+  flow:'<rect x="3.5" y="4.5" width="6.5" height="4.6" rx="1.5"/><rect x="14" y="14.9" width="6.5" height="4.6" rx="1.5"/><path d="M10 6.8h4.2a2 2 0 0 1 2 2v6.1"/>',
+  server:'<rect x="3.6" y="4.2" width="16.8" height="6.6" rx="2"/><rect x="3.6" y="13.2" width="16.8" height="6.6" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  cpu:'<rect x="6.8" y="6.8" width="10.4" height="10.4" rx="2.2"/><path d="M9.6 3.2v3.6M14.4 3.2v3.6M9.6 17.2v3.6M14.4 17.2v3.6M3.2 9.6h3.6M3.2 14.4h3.6M17.2 9.6h3.6M17.2 14.4h3.6"/>',
+  list:'<path d="M8.5 6.5h11.5M8.5 12h11.5M8.5 17.5h11.5M4.4 6.5h.01M4.4 12h.01M4.4 17.5h.01"/>',
+  clock:'<circle cx="12" cy="12" r="8.4"/><path d="M12 7v5.2l3.4 2"/>',
+  coins:'<ellipse cx="12" cy="7" rx="7.6" ry="3"/><path d="M4.4 7v4.4c0 1.7 3.4 3 7.6 3s7.6-1.3 7.6-3V7"/><path d="M4.4 11.4v4.4c0 1.7 3.4 3 7.6 3s7.6-1.3 7.6-3v-4.4"/>',
+  branch:'<path d="M6.5 5v9.5a3.5 3.5 0 0 0 3.5 3.5h6.5"/><circle cx="6.5" cy="4.6" r="2.1"/><circle cx="17.2" cy="18" r="2.1"/>',
+  warn:'<path d="M12 4.2 20.6 19.5H3.4L12 4.2Z"/><path d="M12 9.8v4.1M12 16.6h.01"/>',
+  compare:'<path d="M8.4 7.5 3.8 12l4.6 4.5M3.8 12h16.4M15.6 7.5 20.2 12l-4.6 4.5"/>',
+  check:'<circle cx="12" cy="12" r="8.6"/><path d="M8.4 12.2l2.5 2.5 4.8-5.3"/>',
+  phone:'<rect x="7" y="2.6" width="10" height="18.8" rx="2.6"/><path d="M10.6 5.4h2.8"/>',
+  text:'<path d="M5 6.5h14M5 12h10M5 17.5h7"/>',
+  access:'<circle cx="12" cy="5" r="1.9"/><path d="M4.8 8.4c2.4 1 4.7 1.5 7.2 1.5s4.8-.5 7.2-1.5"/><path d="M12 9.9v4.6M9 20.6l3-6.1 3 6.1"/>',
+  people:'<circle cx="9.2" cy="8" r="3.2"/><path d="M3.4 19.4c0-3.2 2.6-5.3 5.8-5.3s5.8 2.1 5.8 5.3"/><circle cx="17.2" cy="9" r="2.3"/><path d="M15.2 14.6c2.9.2 5.4 1.9 5.4 4.8"/>',
+  mic:'<rect x="9.4" y="2.8" width="5.2" height="10.4" rx="2.6"/><path d="M5.6 11.6a6.4 6.4 0 0 0 12.8 0M12 18v3.2"/>',
+  bolt:'<path d="M13.4 3 5.8 13.2h5.3L10.6 21l7.6-10.2h-5.3L13.4 3Z"/>',
+  send:'<path d="M3.6 10.4 17.4 3.8 12.8 17l-2.5-5.1-6.7-1.5Z"/>'
+};
+function icon(name, cls){
+  return '<svg class="'+(cls||'ic')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+ICONS[name]+'</svg>';
+}
+
+// Живой реестр ролей: New-Todoist/server, таблица roles (11 включённых).
+const ROLES = [
+  { key:"researcher", id:"role_researcher", name:"Исследователь", tier:"Проектирование", avatar:"Researcher",
+    sum:"узнать, найти, сравнить варианты вне нашего кода и свести найденное в выводы или документ.",
+    say:"Скажите тему — найду источники, сравню варианты и соберу выводы.",
+    cmds:[
+      {t:"Сравни варианты решения", h:"и скажи, какой лучше", p:"Сравни варианты решения и скажи, какой лучше", i:"compare"},
+      {t:"Найди документацию", h:"по API, со ссылками", p:"Найди свежую документацию по API и приведи ссылки", i:"search"},
+      {t:"Разберись в нашем коде", h:"как это устроено", p:"Разберись, как это устроено у нас в коде", i:"doc"},
+      {t:"Собери выводы", h:"короткий документ", p:"Собери найденное в короткий документ", i:"text"}
+    ]},
+  { key:"analyst", id:"role_analyst", name:"Аналитик", tier:"Проектирование", avatar:"Analyst",
+    sum:"посчитать цифры, метрики, деньги.",
+    say:"Назову цифры и покажу, откуда они. Чего не хватит — скажу сразу.",
+    cmds:[
+      {t:"Посчитай метрики", h:"время по задачам за неделю", p:"Посчитай, сколько времени уходит на задачи за неделю", i:"chart"},
+      {t:"Сколько стоит сервер", h:"расходы по месяцу", p:"Посчитай, сколько стоит месяц работы сервера", i:"coins"},
+      {t:"Где больше всего тратится", h:"времени и денег", p:"Покажи, где тратится больше всего времени и денег", i:"chart"},
+      {t:"Сравни периоды", h:"эта неделя и прошлая", p:"Сравни эту неделю с прошлой: что изменилось в цифрах", i:"compare"}
+    ]},
+  { key:"critic_verifier", id:"role_critic_verifier", name:"Критик-проверяющий", tier:"Проверка", avatar:"CriticVerifier",
+    sum:"проверить готовую работу и вынести вердикт.",
+    say:"Дайте результат — проверю по критериям и вынесу вердикт: готово к приёмке или нет.",
+    cmds:[
+      {t:"Проверь задачу", h:"выполнена ли полностью", p:"Проверь, выполнена ли задача полностью", i:"shield"},
+      {t:"Найди слабые места", h:"в этом решении", p:"Найди слабые места в этом решении", i:"warn"},
+      {t:"Дай вердикт", h:"принимать или дорабатывать", p:"Дай вердикт: принимать или дорабатывать", i:"check"},
+      {t:"Проверь соседнее", h:"ничего не сломано рядом", p:"Проверь, что ничего не сломано рядом", i:"branch"}
+    ]},
+  { key:"architect", id:"role_architect", name:"Архитектор", tier:"Проектирование", avatar:"Architect",
+    sum:"продумать устройство системы до кода, когда решений несколько.",
+    say:"Разберу варианты и предложу решение: интерфейсы, данные, риски, откат.",
+    cmds:[
+      {t:"Предложи архитектуру", h:"для новой функции", p:"Предложи архитектуру для новой функции", i:"layers"},
+      {t:"Как разбить на модули", h:"границы и зависимости", p:"Как лучше разбить это на модули, где границы", i:"flow"},
+      {t:"Что сломается", h:"при таком изменении", p:"Что сломается при таком изменении", i:"warn"},
+      {t:"Сравни два подхода", h:"и выбери один", p:"Сравни два технических подхода и выбери один", i:"compare"}
+    ]},
+  { key:"builder", id:"role_builder", name:"Разработчик", tier:"Исполнение", avatar:"Builder",
+    sum:"пишет и чинит код: сервер, приложение, веб. «Сделать, чтобы работало».",
+    say:"Опишите задачу — сделаю код и проверю результат.",
+    cmds:[
+      {t:"Исправь баг", h:"описание — что сломалось", p:"Исправь баг: ", i:"gear"},
+      {t:"Добавь эндпоинт", h:"новый маршрут на сервере", p:"Добавь новый эндпоинт на сервере", i:"server"},
+      {t:"Почини тесты", h:"красные — разберись почему", p:"Разберись, почему падают тесты, и почини", i:"bolt"},
+      {t:"Найди причину падения", h:"по логам и коду", p:"Найди причину падения по логам и коду", i:"search"}
+    ]},
+  { key:"qa", id:"role_qa", name:"Лайф-тестировщик", tier:"Проверка", avatar:"QA",
+    sum:"пройти сценарии в живом приложении и найти баги.",
+    say:"Пройду сценарий в живом приложении и принесу баги со скриншотами и шагами.",
+    cmds:[
+      {t:"Пройди сценарий", h:"создать и закрыть задачу", p:"Пройди сценарий: создай задачу и закрой её", i:"phone"},
+      {t:"Найди, где ломается", h:"в интерфейсе", p:"Найди, где ломается интерфейс", i:"warn"},
+      {t:"Проверь чат с ролями", h:"открытие и ответ", p:"Проверь чат с ролями: открытие и ответ", i:"check"},
+      {t:"Составь план проверки", h:"по новой фиче", p:"Составь план проверки по новой фиче", i:"list"}
+    ]},
+  { key:"designer", id:"role_designer", name:"Дизайнер", tier:"Проектирование", avatar:"Designer",
+    sum:"как выглядит: макет, экран, отступы, цвета. Не пишет серверную логику.",
+    say:"Сделаю макет экрана и спецификацию поведения — по дизайн-системе проекта.",
+    cmds:[
+      {t:"Нарисуй макет", h:"экрана или сцена", p:"Нарисуй макет экрана: ", i:"brush"},
+      {t:"Проверь пустое состояние", h:"и ошибки", p:"Проверь пустое состояние и состояние ошибки", i:"layers"},
+      {t:"Придумай тексты", h:"для этого экрана", p:"Придумай тексты для этого экрана", i:"text"},
+      {t:"Оцени доступность", h:"интерфейса", p:"Оцени доступность этого интерфейса", i:"access"}
+    ]},
+  { key:"secretary", id:"u-secretary", name:"Помощник владельца", tier:"Управление", avatar:"Secretary",
+    sum:"личный помощник владельца: разговор, вопросы, разбор надиктовки задач.",
+    say:"Я рядом. Расскажите, что случилось, — разберу, заведу задачи и соберу сводку.",
+    cmds:[
+      {t:"Разбери надиктовку", h:"в задачи", p:"Разбери надиктовку в задачи", i:"mic"},
+      {t:"Собери сводку за день", h:"что горит и что нет", p:"Собери сводку за день: что горит и что нет", i:"list"},
+      {t:"Напомни мне про…", h:"поставить напоминание", p:"Напомни мне про: ", i:"bell"},
+      {t:"Поставь задачу в работу", h:"и назначь роли", p:"Поставь задачу в работу и назначь роли", i:"send"}
+    ]},
+  { key:"code_orchestrator", id:"role_code_orchestrator", name:"Оркестратор", tier:"Управление", avatar:"Orchestrator",
+    sum:"координация независимых ветвей: раскладывает работу по ролям, ведёт план, собирает результат.",
+    say:"Разложу задачу на этапы, назначу роли и соберу итог в один ответ.",
+    cmds:[
+      {t:"Разложи на этапы", h:"и назначь роли", p:"Разложи задачу на этапы и назначь роли", i:"flow"},
+      {t:"Кто свободен", h:"сейчас", p:"Кто из ролей сейчас свободен?", i:"people"},
+      {t:"Собери итог по задаче", h:"по всем ветвям", p:"Собери итог по задаче: ", i:"list"},
+      {t:"Что застряло", h:"и где затык", p:"Что застряло и где затык?", i:"clock"}
+    ]},
+  { key:"infra_engineer", id:"role_infra_engineer", name:"Инженер .110", tier:"Исполнение", avatar:"InfraEngineer",
+    sum:"дежурит по серверу .110: сервисы, сеть, модели, интеграции; чинит поломки из «Состояния системы».",
+    say:"Скажите, что отвалилось на .110, — проверю сервисы и починю.",
+    cmds:[
+      {t:"Что сломано на .110", h:"сервисы и интеграции", p:"Что сейчас не работает на .110: сервисы и интеграции", i:"server"},
+      {t:"Проверь нагрузку и место", h:"диски и процессы", p:"Проверь нагрузку на сервере и свободное место на дисках", i:"chart"},
+      {t:"Подними упавший сервис", h:"и проверь, что жив", p:"Подними упавший сервис и проверь, что он жив", i:"bolt"},
+      {t:"Разбери интеграцию", h:"которая падает", p:"Разберись с интеграцией, которая падает", i:"branch"}
+    ]},
+  { key:"claude_code", id:"role_claude_code", name:"Claude Code", tier:"Внешний агент", avatar:null,
+    sum:"внешний агент Claude Code в своём окружении: память, MCP, скиллы. Код, разбор, исследование.",
+    say:"Разбираю код в своём окружении: память, MCP и скиллы доступны.",
+    cmds:[
+      {t:"Разбери модуль", h:"как он работает", p:"Разберись, как работает модуль: ", i:"cpu"},
+      {t:"Найди реализацию", h:"фичи в коде", p:"Найди, где реализована фича: ", i:"search"},
+      {t:"Исправь и открой PR", h:"с коммитом", p:"Исправь, закоммить и открой PR", i:"branch"},
+      {t:"Изучи логи", h:"и объясни причину", p:"Изучи логи и объясни причину", i:"doc"}
+    ]}
+];
+
+let variant = "card";
+let current = ROLES[0];
+
+const $ = s => document.querySelector(s);
+
+function avatarHTML(role, cls){
+  if(role.avatar) return '<img class="'+cls+'" src="assets/'+role.avatar+'.png" alt="">';
+  return '<div class="'+cls+'">CC</div>';
+}
+
+function renderRoles(){
+  $('#roles').innerHTML = ROLES.map((r,i)=>
+    '<button class="role" data-i="'+i+'" aria-pressed="'+(i===0)+'">'+
+      avatarHTML(r,'')+'<span style="min-width:0"><span class="t">'+r.name+'</span>'+
+      '<span class="s">'+r.tier+' · '+r.key+'</span></span></button>').join('');
+  document.querySelectorAll('.role').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.role').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+    current = ROLES[+b.dataset.i];
+    render();
+  });
+}
+
+function render(){
+  const r = current;
+  $('#navName').textContent = r.name;
+  $('#navSub').textContent = 'личный чат · 1 участник';
+  $('#navAvatar').innerHTML = avatarHTML(r,'');
+
+  const cmdCards = r.cmds.map(c=>
+    '<button class="cmd" data-p="'+esc(c.p)+'">'+icon(c.i)+'<span class="ttl">'+esc(c.t)+'</span><span class="hn">'+esc(c.h)+'</span></button>').join('');
+  const cmdPills = r.cmds.map(c=>'<button class="pill" data-p="'+esc(c.p)+'">'+esc(c.p)+'</button>').join('');
+
+  $('#empty').className = 'empty';
+  if(variant === 'card'){
+    $('#empty').innerHTML =
+      '<div class="hero">'+avatarHTML(r,'')+
+        '<div class="tier"><i></i>'+r.tier+'</div>'+
+        '<div class="name">'+esc(r.name)+'</div>'+
+        '<div class="sum">'+esc(r.sum)+'</div>'+
+        '<div class="say">'+esc(r.say)+'</div>'+
+      '</div>'+
+      '<div class="sec"><span>Быстрые команды</span><span class="ln"></span></div>'+
+      '<div class="grid">'+cmdCards+'</div>';
+  } else {
+    $('#empty').innerHTML =
+      '<div class="hello">'+avatarHTML(r,'')+'<div style="min-width:0">'+
+        '<div class="nm">'+esc(r.name)+'</div><div class="sum">'+esc(r.sum)+'</div></div></div>'+
+      '<div class="say2">'+esc(r.say)+'</div>'+
+      '<div class="sec"><span>Быстрые команды</span><span class="ln"></span></div>'+
+      '<div class="pills">'+cmdPills+'</div>';
+  }
+
+  document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{
+    draftText = b.dataset.p;
+    renderComposer();
+    $('#send').disabled = false;
+  });
+
+  $('#caption').innerHTML = variant === 'card'
+    ? '<b>Вариант А — карточка.</b> Приветствие роль говорит о себе крупно: портрет, звено в команде, чем она занимается и что она предлагает. Ниже — четыре быстрые команды с подсказкой, что будет дальше.'
+    : '<b>Вариант Б — пилюли.</b> То же приветствие, но компактно, а команды — пилюлями в один поток, как плашки быстрых ответов под сообщениями роли.';
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+$('#segVariant').onclick = e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  variant = b.dataset.v;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+  render();
+};
+$('#segComposer').onclick = e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  composerStyle = b.dataset.c;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+  renderComposer();
+};
+$('#segTheme').onclick = e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.body.classList.toggle('light', b.dataset.t === 'light');
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+};
+
+
+let composerStyle = 'native';
+let draftText = '';
+
+const CHIP_BRAIN = '<div class="chip" title="Мозг — модель"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9 4.5a3 3 0 0 0-3 3V9a2.5 2.5 0 0 0 0 5v1.5a3 3 0 0 0 6 0V4.5Z"/><path d="M15 4.5a3 3 0 0 1 3 3V9a2.5 2.5 0 0 1 0 5v1.5a3 3 0 0 1-6 0V4.5Z"/></svg></div>';
+const CHIP_FOLDER = '<div class="chip" title="Папка"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3.2l1.6 2h8.2A1.5 1.5 0 0 1 20 9.5v7A1.5 1.5 0 0 1 18.5 18h-13A1.5 1.5 0 0 1 4 16.5v-9Z"/></svg></div>';
+const CHIP_MIC = '<div class="chip" title="Голос"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9.5" y="3" width="5" height="10" rx="2.5"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></div>';
+const BTN_MENU = '<div class="plus"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg></div>';
+const BTN_SESSION = '<div class="plus" title="Сессия"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h12M4 13h12"/></svg></div>';
+const BTN_MIC = '<div class="plus" title="Микрофон"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9.5" y="3" width="5" height="10" rx="2.5"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></div>';
+const BTN_SEND = '<button class="send" id="send" disabled><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 17 3.5 12.5 17l-2.6-5.4L3 10Z"/></svg></button>';
+
+function renderComposer(){
+  const txt = '<div class="txt' + (draftText ? ' filled' : '') + '" id="draft">' + (draftText || 'Напишите роль…') + '</div>';
+  const row = $('#composerRow');
+  if(composerStyle === 'new'){
+    // Новая: слева круглая кнопка открывает сессию, справа — микрофон.
+    const right = draftText ? BTN_SEND : BTN_MIC;
+    row.innerHTML = BTN_SESSION +
+      '<div class="cap">' + txt + CHIP_BRAIN + CHIP_FOLDER + '</div>' + right;
+  } else {
+    row.innerHTML = '<div class="cap native">' + txt +
+      '<div class="row">' + BTN_MENU + CHIP_BRAIN + CHIP_FOLDER + CHIP_MIC + BTN_SEND + '</div></div>';
+  }
+  $('#send').onclick = () => {
+    if($('#send').disabled) return;
+    const t = $('#toast'); t.classList.add('on');
+    setTimeout(()=>t.classList.remove('on'), 1200);
+    draftText = ''; renderComposer();
+  };
+}
+
+renderRoles();
+
+// Ссылка на конкретный вид: #pills / #card, #light / #dark, #role=builder
+const hash = location.hash.replace('#','');
+if(hash){
+  hash.split('&').forEach(part=>{
+    const [k,v] = part.split('=');
+    if(k === 'variant' && v) { variant = v; }
+    if(k === 'theme' && v) { document.body.classList.toggle('light', v === 'light'); }
+    if(k === 'role'){
+      const i = ROLES.findIndex(r => r.key === v);
+      if(i >= 0){
+        current = ROLES[i];
+        document.querySelectorAll('.role').forEach((x,xi)=>x.setAttribute('aria-pressed', String(xi === i)));
+      }
+    }
+    if(k === 'solo' && v === '1') document.querySelector('.panel').style.display = 'none';
+  });
+  document.querySelectorAll('#segVariant button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v === variant)));
+  document.querySelectorAll('#segTheme button').forEach(b=>b.setAttribute('aria-pressed', String((b.dataset.t === 'light') === document.body.classList.contains('light'))));
+}
+render();
+
+// Макет должен помещаться в окно: телефон 902 px высотой и 430 px шириной.
+function fit(){
+  const stageW = Math.max(260, window.innerWidth - 340);
+  const s = Math.min(1, (window.innerHeight - 96) / 902, stageW / 430);
+  document.documentElement.style.setProperty('--s', s.toFixed(3));
+  const p = document.querySelector('.phone');
+  p.style.marginBottom = (902 * (s - 1)) + 'px';
+  document.querySelector('.caption').style.maxWidth = Math.round(430 * s) + 'px';
+}
+window.addEventListener('resize', fit);
+fit();
+</script>
+</body>
+</html>

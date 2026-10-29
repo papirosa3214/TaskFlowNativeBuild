@@ -250,34 +250,32 @@ struct ChatVoiceComposer: View {
                     .foregroundStyle(Color.tfPaper)
                     .accessibilityIdentifier("chat.message")
                 if showsMentionButton { mentionButton }
-                // Как и в нынешней раскладке: у чата с Помощником вместо
-                // «мозга» и папки — кнопка «Сессия».
-                if let sessionControls {
-                    sessionControls
-                } else {
-                    if let modelChoice, modelChoice.isAvailable {
-                        ChatModelMenu(choice: modelChoice) {
-                            HStack(spacing: 4) {
-                                Image("ModelBrain")
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 20, height: 20)
-                            }
-                            .frame(minWidth: 40, minHeight: 40)
-                            .contentShape(Rectangle())
+                // В новой панели в капсуле — только папка и мозги (владелец
+                // 29.10.2026: «с краю останется только папочка и мозги»).
+                // Сессия открывается с левой кнопки, поэтому отдельной кнопки
+                // «Сессия» здесь не нужно.
+                if let modelChoice, modelChoice.isAvailable {
+                    ChatModelMenu(choice: modelChoice) {
+                        HStack(spacing: 4) {
+                            Image("ModelBrain")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
                         }
+                        .frame(minWidth: 40, minHeight: 40)
+                        .contentShape(Rectangle())
                     }
-                    if let workspaceChoice, workspaceChoice.isAvailable {
-                        ChatWorkspaceMenu(choice: workspaceChoice) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 20, weight: .regular))
-                                    .frame(width: 20, height: 20)
-                            }
-                            .frame(minWidth: 40, minHeight: 40)
-                            .contentShape(Rectangle())
+                }
+                if let workspaceChoice, workspaceChoice.isAvailable {
+                    ChatWorkspaceMenu(choice: workspaceChoice) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 20, weight: .regular))
+                                .frame(width: 20, height: 20)
                         }
+                        .frame(minWidth: 40, minHeight: 40)
+                        .contentShape(Rectangle())
                     }
                 }
             }
