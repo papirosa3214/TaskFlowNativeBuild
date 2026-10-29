@@ -24,34 +24,46 @@ final class ChatModelChoice {
  var availableThinkingLevels: [String] { effectiveOption?.availableThinkingLevels ?? [] }
  var effectiveTitle: String? { effectiveOption?.title ?? selected ?? current }
  var title: String { selected == nil ? "Модель" : effectiveTitle ?? "Модель" }
+ /// Уровень размышлений сервер умеет хранить для чата — только тогда его и
+ /// показываем (владелец 29.10.2026: «мозг, где можно выбирать модели с
+ /// уровнем рассуждений»).
+ var supportsThinkingLevels: Bool { usesSessionPreferences }
 
  func load(chat: RoleChat) async {
   revision += 1
   let version = revision
   isReady = false
   errorText = nil
-  let roles = chat.members.compactMap(\.roleKey)
+  // Роль в чате: ровно одна — к ней привязан выбор модели. В комнате ролей
+  // их несколько, там своя схема (кольца контекста; владелец 29.10.2026:
+  // «в чате с помощником там немножечко другая схема»).
+  let roles = chat.composerRoleKeys
   guard roles.count == 1, let role = roles.first else { options = []; return }
   chatID = chat.id
-  usesSessionPreferences = chat.isAssistantOnly
   key = "roleChat.model." + chat.createdBy + "." + chat.id
   do {
    let result = try await api.roleModels(role: role)
    guard revision == version else { return }
    options = result.models
    current = RoleModelOption.resolveSelection(result.current, in: options) ?? result.current
-   if usesSessionPreferences {
-    let state: ChatSessionPreferences = try await api.request(.get, "/chats/\(chat.id)/session-preferences")
-    guard revision == version else { return }
+   // Выбор модели и уровень размышлений хранит сервер — для любого личного
+   // чата с ролью (29.10.2026). Если сервер их не дал (чат не личный) —
+   // остаётся прежний выбор на устройстве, без уровня размышлений.
+   var state: ChatSessionPreferences? = nil
+   do { state = try await api.request(.get, "/chats/\(chat.id)/session-preferences") } catch { state = nil }
+   if let state {
+    usesSessionPreferences = true
     selected = state.model
     thinkingLevel = state.thinkingLevel
-    // Migrate a former device choice once; explicit server defaults win thereafter.
+    // Перенос прежнего выбора с устройства — один раз; дальше выбор хранит
+    // сервер.
     if !state.configured, let legacy = key.flatMap({ UserDefaults.standard.string(forKey: $0) }),
        let resolved = RoleModelOption.resolveSelection(legacy, in: options) {
      await save(model: resolved, thinking: nil)
      guard errorText == nil else { return }
     }
    } else {
+    usesSessionPreferences = false
     selected = RoleModelOption.resolveSelection(key.flatMap { UserDefaults.standard.string(forKey: $0) }, in: options)
     thinkingLevel = nil
    }
@@ -112,6 +124,24 @@ struct ChatModelMenu<MenuLabel: View>: View {
       Button { Task { await choice.selectModel(option.id) } } label: {
        if choice.selected == option.id { Label(option.title, systemImage: "checkmark") }
        else { Text(option.title) }
+      }
+     }
+    }
+   }
+   // Уровень размышлений — в том же «мозге» (владелец 29.10.2026: «мозг,
+   // где можно выбирать модели с уровнем рассуждений»). Раньше он жил только
+   // в панели сессии Помощника.
+   if choice.supportsThinkingLevels && !choice.availableThinkingLevels.isEmpty {
+    Section("Размышления") {
+     Button { Task { await choice.selectThinking(nil) } } label: {
+      if choice.thinkingLevel == nil { Label("По настройке роли", systemImage: "checkmark") }
+      else { Text("По настройке роли") }
+     }
+     ForEach(choice.availableThinkingLevels, id: \.self) { level in
+      Button { Task { await choice.selectThinking(level) } } label: {
+       let title = choice.effectiveOption?.thinkingLevelLabels?[level] ?? ChatSessionPreferences.thinkingTitle(level)
+       if choice.thinkingLevel == level { Label(title, systemImage: "checkmark") }
+       else { Text(title) }
       }
      }
     }

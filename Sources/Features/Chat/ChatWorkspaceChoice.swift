@@ -2,9 +2,9 @@ import Foundation
 import SwiftUI
 import Observation
 
-/// Рабочая папка в окне ввода чата с Помощником владельца (владелец
-/// 27.10.2026: «как во всех других системах»). Выбор хранится на сервере за
-/// чатом и действует со следующего хода роли.
+/// Рабочая папка в окне ввода чата с ролью (владелец 27.10.2026: «как во всех
+/// других системах»). Выбор хранится на сервере за чатом и действует со
+/// следующего хода роли.
 @MainActor
 @Observable
 final class ChatWorkspaceChoice {
@@ -16,9 +16,12 @@ final class ChatWorkspaceChoice {
     var title: String { state?.title ?? "Папка" }
     var selected: String? { state?.selected }
 
-    /// Только чат с Помощником владельца; в остальных чатах чипа нет.
+    /// Рабочая папка есть в личном чате с одной ролью — у любой роли, а не
+    /// только у Помощника (владелец 29.10.2026: «с другими всеми ролями
+    /// должна быть именно та схема — мозг и папка»). В комнате ролей выбор
+    /// папки не показывается: там своя схема (кольца контекста).
     func load(chat: RoleChat) async {
-        guard chat.members.contains(where: { $0.id == "u-secretary" || $0.roleKey == "secretary" }) else {
+        guard chat.composerRoleKeys.count == 1 else {
             state = nil
             return
         }

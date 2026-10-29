@@ -1293,14 +1293,18 @@ struct RoleChatRoomScreen: View {
                         .hintAnchor(HintAnchorID.chatSession)
                     ) : nil,
                     onShowCommands: { showsComposerCommands = true },
-                    contextControls: chat.composerRoleKeys.isEmpty ? nil : AnyView(HStack(spacing: 0) {
+                    // Кольца контекста — в комнате ролей: по одному на роль,
+                    // там своя схема (владелец 29.10.2026: «в чате с
+                    // помощником там немножечко другая схема»). В личном чате
+                    // с одной ролью ряд ярлычков — это «мозг» и папка.
+                    contextControls: chat.composerRoleKeys.count > 1 ? AnyView(HStack(spacing: 0) {
                         ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
                             ChatContextControl(snapshot: composerControls.contexts[member.id],
-                                roleName: chat.composerRoleKeys.count > 1 ? member.name : nil,
+                                roleName: member.name,
                                 loadError: composerControls.errorText,
                                 onRefresh: { Task { await composerControls.load(chat: chat) } })
                         }
-                    }),
+                    }) : nil,
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
                     // что у подсказок при наборе «@» (RoleChatsScreen
                     // mentionCandidates), только берётся по нажатию, а не по
