@@ -4,6 +4,11 @@ import SwiftUI
 /// её описание, четыре быстрые команды (владелец 29.10.2026, макет
 /// `mockups/role-chat-start/`).
 ///
+/// Быстрые команды владелец может переписать под свои задачи: «троеточие» в
+/// правом верхнем углу → «Быстрые действия» → тап по квадратику → окошечко
+/// снизу вверх с названием и промптом. На карточке видно только название —
+/// текст промпта не показывается.
+///
 /// Собран из готовых компонентов дизайн-системы: `TFAvatar` (портрет роли),
 /// шкала `tfText` и палитра `tf*`.
 struct RoleChatStartView: View {
@@ -15,6 +20,12 @@ struct RoleChatStartView: View {
     let roleSummary: String?
     /// Команда подставляется в поле ввода (владелец может дописать своё).
     let onCommand: (String) -> Void
+    /// Правка быстрого действия: индекс карточки.
+    let onEditCommand: (Int) -> Void
+    /// Включён ли режим правки карточек.
+    var isEditingCommands = false
+    /// Включить или выключить режим правки.
+    let onToggleEditing: () -> Void
 
     private var roleName: String {
         member?.name ?? "Роль"
@@ -70,9 +81,16 @@ struct RoleChatStartView: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: TFSpacing.sm),
                                 GridItem(.flexible(), spacing: TFSpacing.sm)],
                       spacing: TFSpacing.sm) {
-                ForEach(starter.commands) { command in
-                    commandCard(command)
+                ForEach(Array(starter.commands.enumerated()), id: \.offset) { index, command in
+                    commandCard(command, index: index)
                 }
+            }
+            if isEditingCommands {
+                Button("Готово", action: onToggleEditing)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfText)
+                    .padding(.top, TFSpacing.xs)
+                    .accessibilityIdentifier("chat.start.editDone")
             }
         }
     }
@@ -85,20 +103,52 @@ struct RoleChatStartView: View {
             Rectangle()
                 .fill(Color.tfStroke)
                 .frame(height: 1)
+            // «Троеточие» с правкой быстрых действий (владелец 29.10.2026).
+            Menu {
+                Button {
+                    onToggleEditing()
+                } label: {
+                    Label(isEditingCommands ? "Готово" : "Быстрые действия",
+                          systemImage: "square.grid.2x2")
+                }
+                .accessibilityIdentifier("chat.start.quickActions")
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.tfDim)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Быстрые действия")
+            .accessibilityIdentifier("chat.start.menu")
+            .hintAnchor(HintAnchorID.chatRoleStart)
         }
     }
 
-    private func commandCard(_ command: RoleChatStarterCommand) -> some View {
+    private func commandCard(_ command: RoleChatStarterCommand, index: Int) -> some View {
         Button {
-            onCommand(command.prompt)
+            if isEditingCommands {
+                onEditCommand(index)
+            } else {
+                onCommand(command.prompt)
+            }
         } label: {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                Image(systemName: command.icon)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Color.tfText)
-                    .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.08),
-                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                HStack {
+                    Image(systemName: command.icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(Color.tfText)
+                        .frame(width: 38, height: 38)
+                        .background(Color.white.opacity(0.08),
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    Spacer(minLength: 0)
+                    // В режиме правки карточка показывает, что её можно менять.
+                    if isEditingCommands {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.tfDim)
+                    }
+                }
                 Text(command.title)
                     .tfText(.body)
                     .foregroundStyle(Color.tfText)

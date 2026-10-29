@@ -1288,6 +1288,50 @@ struct RoleChatRoomScreen: View {
         }
     }
 
+    /// Правки быстрых действий владельцем (владелец 29.10.2026).
+    @State private var quickActionStore = RoleChatQuickActionStore()
+    /// Режим правки карточек на стартовом экране.
+    @State private var isEditingQuickActions = false
+    /// Карточка, которую правят сейчас.
+    @State private var editedQuickActionIndex: Int?
+
+    /// Ключ роли для хранения правок быстрых действий.
+    private var quickActionRoleKey: String {
+        starterRoleKey ?? ""
+    }
+
+    /// Карточки быстрых действий с учётом правок владельца.
+    private func starterWithOverrides(for member: RoleChatMember) -> RoleChatStarter {
+        let base = RoleChatStarters.starter(for: starterRoleKey)
+        let overrides = quickActionStore.overrides(for: quickActionRoleKey)
+        guard !overrides.isEmpty else { return base }
+        return RoleChatStarter(
+            roleKey: base.roleKey,
+            greeting: base.greeting,
+            commands: RoleChatQuickActions.effectiveCommands(for: base, overrides: overrides))
+    }
+
+    /// Лист правки карточки: название и промпт.
+    private var quickActionEditorSheet: some View {
+        let base = RoleChatStarters.starter(for: starterRoleKey)
+        guard starterMember != nil,
+              let index = editedQuickActionIndex,
+              base.commands.indices.contains(index) else {
+            return AnyView(EmptyView())
+        }
+        let command = base.commands[index]
+        return AnyView(RoleChatQuickActionEditor(
+            stockCommand: command,
+            initial: RoleChatQuickActions.override(for: index, in: base,
+                                                  overrides: quickActionStore.overrides(for: quickActionRoleKey)),
+            onSave: { override in
+                quickActionStore.setOverride(override, index: index, roleKey: quickActionRoleKey)
+            },
+            onReset: {
+                quickActionStore.reset(index: index, roleKey: quickActionRoleKey)
+            }))
+    }
+
     /// Описания ролей из реестра: ключ роли — «чем занимается».
     private func loadRoleSummaries() async {
         guard roleSummaries.isEmpty else { return }
@@ -1674,6 +1718,12 @@ struct RoleChatRoomScreen: View {
             get: { noticeMessage != nil },
             set: { if !$0 { noticeMessage = nil } }
         )) { Button("Готово", role: .cancel) { noticeMessage = nil } }
+        .sheet(isPresented: Binding(
+            get: { editedQuickActionIndex != nil },
+            set: { if !$0 { editedQuickActionIndex = nil } }
+        )) {
+            quickActionEditorSheet
+        }
         .sheet(isPresented: $isDetailsPresented) {
             RoleChatDetailsSheet(chat: chat, onChanged: { updated in
                 chat = updated
@@ -1894,11 +1944,19 @@ struct RoleChatRoomScreen: View {
                     // макет `mockups/role-chat-start/`).
                     if let starterMember {
                         RoleChatStartView(member: starterMember,
-                                          starter: RoleChatStarters.starter(for: starterRoleKey),
-                                          roleSummary: roleSummary(for: starterMember)) { prompt in
+                                          starter: starterWithOverrides(for: starterMember),
+                                          roleSummary: roleSummary(for: starterMember),
+                                          onCommand: { prompt in
                             draft = prompt
                             composerFocused = true
-                        }
+                          },
+                                          onEditCommand: { index in
+                                            editedQuickActionIndex = index
+                                          },
+                                          isEditingCommands: isEditingQuickActions,
+                                          onToggleEditing: {
+                                            isEditingQuickActions.toggle()
+                                          })
                         .hintAnchor(HintAnchorID.chatRoleStart)
                     } else {
                         ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
