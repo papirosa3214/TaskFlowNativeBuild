@@ -39,15 +39,18 @@ final class RoutinesViewModel {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
-        if roles.isEmpty {
-            roles = (try? await api.roles()) ?? []
-        }
         do {
             schedules = try await api.schedules()
         } catch is CancellationError {
             return
         } catch {
             errorMessage = Self.message(error)
+        }
+        // Каталог нужен только для подписи исполнителя. Список (или ошибка)
+        // уже готов: не держим его за загрузкой вспомогательных данных.
+        isLoading = false
+        if roles.isEmpty {
+            roles = (try? await api.roles()) ?? []
         }
     }
 

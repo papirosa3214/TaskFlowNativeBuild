@@ -12,9 +12,15 @@ struct RoutinesScreen: View {
     @State private var isShowingPlan = false
 
     var body: some View {
-        list
+        Group {
+            if model.isLoading && model.schedules.isEmpty {
+                ProgressView("Загрузка")
+            } else {
+                list
+                    .tint(Color.tfText)
+            }
+        }
             .listStyle(.plain)
-            .tint(Color.tfText)
             .tfNativeHeader("Мои рутины", displayMode: .inline)
             .toolbar {
                 // Владелец 28.10.2026: вместо плюса — троеточие, а внутрь
@@ -85,12 +91,7 @@ struct RoutinesScreen: View {
                 }
                 .listRowSeparator(.hidden)
             }
-            if model.isLoading && model.schedules.isEmpty {
-                ForEach(0..<3, id: \.self) { _ in
-                    RoutineRowSkeleton()
-                        .listRowSeparator(.hidden)
-                }
-            } else if model.schedules.isEmpty {
+            if model.schedules.isEmpty {
                 Section {
                     TFEmptyState(
                         icon: "arrow.triangle.2.circlepath",
@@ -219,24 +220,5 @@ private struct RoutineRow: View {
         parts.append(nextRunText)
         if schedule.isPaused { parts.append("на паузе") }
         return parts.joined(separator: ", ")
-    }
-}
-
-/// Скелет строки на время загрузки — три строки без скачка высоты.
-private struct RoutineRowSkeleton: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            RoundedRectangle(cornerRadius: TFRadius.sm)
-                .fill(Color.tfCard2)
-                .frame(height: 18)
-            RoundedRectangle(cornerRadius: TFRadius.sm)
-                .fill(Color.tfCard2)
-                .frame(height: 14)
-            RoundedRectangle(cornerRadius: TFRadius.sm)
-                .fill(Color.tfCard2)
-                .frame(height: 12)
-        }
-        .padding(.vertical, TFSpacing.md)
-        .accessibilityLabel("Загрузка рутин")
     }
 }
