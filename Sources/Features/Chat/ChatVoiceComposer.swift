@@ -90,7 +90,7 @@ struct ChatVoiceComposer: View {
     @Namespace private var composerNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Вид панели ввода: три варианта, переключаются в настройках
+    /// Вид панели ввода: два варианта, переключаются в настройках
     /// (владелец 29.10.2026 — «свою панель ввода предложить, а мою туда
     /// закинуть, чтобы можно было переключать, если что»).
     @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
@@ -224,9 +224,11 @@ struct ChatVoiceComposer: View {
         .modifier(workingCaption)
     }
 
-    /// Новая раскладка (макет 29.10.2026): всё в одну строку — круглая кнопка
-    /// действий слева, капсула с полем и чипами, круглая отправка справа.
-    private var unifiedPromptPanel: some View {
+    /// Новая раскладка в покое (владелец 29.10.2026): всё в одну строку —
+    /// круглое меню действий слева, капсула с полем и значками, круглый микрофон
+    /// справа. Отправки в покое нет: текста ещё не написано, а место занял
+    /// микрофон — на него нажимают, не поднимая клавиатуру.
+    private var compactPromptPanel: some View {
         HStack(spacing: 8) {
             attachmentMenu(circle: true)
             HStack(spacing: 4) {
@@ -267,10 +269,7 @@ struct ChatVoiceComposer: View {
                             .contentShape(Rectangle())
                         }
                     }
-                    // Кольца контекста — по роли в комнате ролей.
-                    if let contextControls { contextControls }
                 }
-                micButton
             }
             .padding(.leading, 14)
             .padding(.trailing, 4)
@@ -281,13 +280,51 @@ struct ChatVoiceComposer: View {
             .foregroundStyle(Color.white.opacity(0.6))
             // В морфинг уходит сама капсула: кнопки по краям остаются на месте.
             .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-            sendButton
+            compactMicButton
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
         .padding(.horizontal).padding(.top, 10)
         .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
         .modifier(workingCaption)
     }
+
+    /// Микрофон отдельной круглой кнопкой справа — на месте отправки, пока
+    /// текста нет. Нажатие не ставит каретку: клавиатура не поднимается
+    /// (владелец 29.10.2026).
+    private var compactMicButton: some View {
+        Button(action: startVoiceRecording) {
+            Image(systemName: "mic")
+                .font(.system(size: 19, weight: .regular))
+                .foregroundStyle(Color.tfText)
+                .frame(width: 36, height: 36)
+                .background(Color.white.opacity(0.12), in: Circle())
+                .frame(width: 40, height: 40)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Начать диктовку")
+        .accessibilityIdentifier("chat.voice")
+        .hintAnchor(HintAnchorID.chatDictation)
+    }
+
+    /// Вид панели ввода в покое: однострочная, пока пользователь не начал
+    /// ввод; дальше — привычная панель целиком (владелец 29.10.2026).
+    private var composerLayout: ChatComposerLayout {
+        ChatComposerLayoutPolicy.layout(style: composerStyle, hasExpanded: hasExpandedPanel)
+    }
+
+    /// Панель уже развернулась: пользователь начал ввод или вставил текст.
+    /// Обратно не сжимается — сжатие отняло бы каретку посреди набора.
+    @State private var hasExpandedPanel = false
+
+    /// Развернуть панель и вернуть каретку в новое поле: после смены вью
+    /// старое поле исчезает, и без этого каретка бы пропала.
+    private func expandPanelKeepingFocus() {
+        guard !hasExpandedPanel else { return }
+        hasExpandedPanel = true
+        DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
+    }
+
 
     /// Отправка по кнопке «вверх» на клавиатуре.
     private func onSubmitText() {
@@ -347,9 +384,15 @@ struct ChatVoiceComposer: View {
     }
 
     @ViewBuilder private var promptComposer: some View {
-        if composerStyle.isSingleRow {
-            unifiedPromptPanel
-        } else {
+        switch composerLayout {
+        case .compact:
+            compactPromptPanel
+                // Касание поля — намерение писать: панель разворачивается в
+                // привычную (владелец 29.10.2026 — два состояния панели).
+                .onChange(of: textFieldFocus.wrappedValue) { _, focused in
+                    if focused { expandPanelKeepingFocus() }
+                }
+        case .full:
             stackedPromptPanel
         }
     }
@@ -394,7 +437,11 @@ struct ChatVoiceComposer: View {
     private func insertMention(_ member: RoleChatMember) {
         let needsSpace = !text.isEmpty && !text.hasSuffix(" ")
         text += (needsSpace ? " " : "") + "@\(member.name) "
-        textFieldFocus.wrappedValue = true
+        // Упоминание вставлено по тапу на «@» — здесь каретка нужна.
+        if ChatComposerLayoutPolicy.focusesField(.mentionInserted) {
+            textFieldFocus.wrappedValue = true
+        }
+        hasExpandedPanel = true
     }
 
     private var promptRecordingComposer: some View {
@@ -537,8 +584,12 @@ struct ChatVoiceComposer: View {
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
             isRecording = true
         }
-        // После смены ветки повторно удерживаем фокус того же поля.
-        DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
+        // Каретку в поле не ставим: на неё реагирует клавиатура, а при
+        // диктовке она владельцу не нужна (владелец 29.10.2026: «когда я
+        // сразу на микрофон нажимаю, клавиатура не должна реагировать»).
+        if ChatComposerLayoutPolicy.focusesField(.microphonePressed) {
+            DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
+        }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #if DEBUG
         if ProcessInfo.processInfo.environment["TASKFLOW_DICTATION_PREVIEW"] == "1" { return }
@@ -567,7 +618,6 @@ struct ChatVoiceComposer: View {
         }
         #endif
         guard voice.phase == .recording else { return }
-        textFieldFocus.wrappedValue = true
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
             isRecording = false
             preview = voice.finish()
@@ -599,7 +649,13 @@ struct ChatVoiceComposer: View {
         }
         onDiscardVoice(message)
         try? VoiceRecorder.cancelRecordingFile(at: message.audioURL)
-        textFieldFocus.wrappedValue = true
+        // Текст появился — панель разворачивается в обычную (владелец
+        // 29.10.2026). Каретку в поле не ставим: расшифровка сама вставила
+        // текст, клавиатура после диктовки не нужна.
+        hasExpandedPanel = true
+        if ChatComposerLayoutPolicy.focusesField(.transcriptionInserted) {
+            textFieldFocus.wrappedValue = true
+        }
     }
 
     private func discardPreview() {
