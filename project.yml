@@ -113,6 +113,9 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Задачи
+        CFBundleURLTypes:
+          - CFBundleURLName: com.maksim.taskflow.native
+            CFBundleURLSchemes: [taskflow]
         # ProMotion (20.10.2026): без ключа iOS держит собственные анимации
         # приложения (CADisplayLink, TimelineView(.animation)) на 60 Гц даже
         # на экране 120 Гц — плавность «тяжеловата». Ключ снимает потолок.
