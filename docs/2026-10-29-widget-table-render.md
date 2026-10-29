@@ -2,7 +2,7 @@
 
 **Дата:** 29.10.2026 · **Карточка:** 6556fa2d-78fe-44e3-82db-ac8edadebf66
 **Шаг:** 47e6f5e3-5d72-490f-81e8-2c575d8b6681 «Реализация» (Разработчик)
-**Ветка:** `roles/6556fa2d-78fe-44e3-82db-ac8edadebf66` (worktree `.worktrees/6556fa2d-78fe-44e3-82db-ac8edadebf66`), от `main` = `b5eaf39e`
+**Ветка:** `roles/6556fa2d-78fe-44e3-82db-ac8edadebf66` (worktree `.worktrees/6556fa2d-78fe-44e3-82db-ac8edadebf66`), от `main` = `b5eaf39e`, затем подтянут `main` = `b5cce4a6` (merge `01e26acd`, конфликтов нет)
 **Решение:** документ архитектора `note://8f63152e-de19-40b6-bcb1-7b91716dae47`
 
 ---
@@ -69,7 +69,9 @@
 
 ## Материалы
 
-- Коммит: `22c98a5a` — ветка `roles/6556fa2d-78fe-44e3-82db-ac8edadebf66`.
+- Ветка `roles/6556fa2d-78fe-44e3-82db-ac8edadebf66`, поверх `main` = `b5cce4a6`.
+- Коммиты: `22c98a5a` (правка и тест), `c26a0ac0` (этот отчёт), `01e26acd` (merge актуального main).
+- Ветка опубликована в общий репозиторий (`taskflow_host_push`: gitea и origin — отправлено).
 - Изменённые файлы: `Sources/Features/Chat/Widgets/WidgetTable.swift` (новый),
   `Sources/Features/Chat/ChatWidgetView.swift`,
   `Sources/Features/Chat/Widgets/WidgetSemantics.swift`,
