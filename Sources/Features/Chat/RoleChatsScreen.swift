@@ -1210,6 +1210,27 @@ struct RoleChatRoomScreen: View {
         chat.roomKind == "dm" && !chat.members.contains { $0.id == session.currentUser?.id }
     }
 
+    /// Роль, с которой открыт личный чат: в комнате ролей и в общей комнате
+    /// стартовый экран не показываем — там приветствовать некого.
+    private var starterMember: RoleChatMember? {
+        // Личка двух ролей: владелец в ней не участвует — приветствовать некого.
+        guard chat.members.contains(where: { $0.id == session.currentUser?.id }) else { return nil }
+        let roles = chat.members.filter { member in
+            member.roleKey != nil || member.id == "u-secretary" || member.id.hasPrefix("role_")
+        }
+        guard roles.count == 1 else { return nil }
+        return roles.first
+    }
+
+    /// Ключ роли для каталога приветствий.
+    private var starterRoleKey: String? {
+        guard let member = starterMember else { return nil }
+        if let key = member.roleKey { return key }
+        if member.id == "u-secretary" { return "secretary" }
+        if member.id.hasPrefix("role_") { return String(member.id.dropFirst(5)) }
+        return nil
+    }
+
     private var composerContent: some View {
         VStack(spacing: 0) {
             // Панель участников переехала в корень раздела «Чаты» и стала
@@ -1789,8 +1810,20 @@ struct RoleChatRoomScreen: View {
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
                 if messages.isEmpty && hasLoadedMessages {
-                    ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
-                                           description: Text("Напишите первое сообщение."))
+                    // Личный чат с ролью: вместо пустого состояния —
+                    // приветствие роли и быстрые команды (владелец 29.10.2026,
+                    // макет `mockups/role-chat-start/`).
+                    if let starterMember {
+                        RoleChatStartView(member: starterMember,
+                                          starter: RoleChatStarters.starter(for: starterRoleKey)) { prompt in
+                            draft = prompt
+                            composerFocused = true
+                        }
+                        .hintAnchor(HintAnchorID.chatRoleStart)
+                    } else {
+                        ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
+                                               description: Text("Напишите первое сообщение."))
+                    }
                 } else if messages.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity)

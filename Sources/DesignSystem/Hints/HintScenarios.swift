@@ -8,6 +8,7 @@ enum HintAnchorID {
     static let allTasksFilter = "all-tasks.filter"
     static let chatSession = "chat.session"
     static let routineInstructions = "routine.instructions"
+    static let routinePlanTemplate = "routine.planTemplate"
     static let routineHistory = "routine.history"
     static let taskCoordination = "task.coordination"
     static let chatItemBudget = "server.setting.chat_item_max_actions"
@@ -57,8 +58,10 @@ enum HintAnchorID {
     static let webhookTest = "webhooks.test"
     /// Форма уточнения у владельца под ответом роли (26.10.2026).
     static let chatQuestion = "chat.question"
-    /// Выбор вида панели ввода в настройках (29.10.2026).
+    /// Вид панели ввода в настройках (29.10.2026).
     static let chatComposerStyle = "settings.chat-composer-style"
+    /// Стартовый экран личного чата с ролью (29.10.2026).
+    static let chatRoleStart = "chat.role-start"
 }
 
 enum HintScenarios {
@@ -92,12 +95,19 @@ enum HintScenarios {
             title: "Две панели ввода",
             text: "Выключен тумблер — родная панель: поле в капсуле, а под ним ряд действий. Включён — новая: всё в одну строку, поле и значки в одной капсуле, кнопка действий слева, отправка справа. Переключение мгновенное, перезапуск не нужен. Обе панели работают одинаково: диктовка, вложения, модель, папка и кольца контекста на месте.", next: nil)])
 
+    /// Стартовый экран личного чата с ролью (29.10.2026).
+    static let chatRoleStart = HintScenario(
+        id: "chat-role-start", title: "Начало чата с ролью", start: "start",
+        steps: ["start": HintStep(anchor: HintAnchorID.chatRoleStart,
+            title: "С чего начать разговор",
+            text: "Пока в чате нет сообщений, здесь приветствие роли и четыре быстрые команды — типичные для неё задачи. Нажмите команду: текст подставится в поле ввода, его можно дописать своим или отправить сразу. Команды подсказывают направление, а не ограничивают: обычное сообщение работает так же.", next: nil)])
+
     static let taskCoordination = HintScenario(
         id: "task-coordination", title: "Почему шаг ждёт", start: "step",
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle]
+    static let all: [HintScenario] = [allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
@@ -112,7 +122,9 @@ enum HintScenarios {
         id: "routine-editing", title: "Задание и настройки рутины", start: "instructions",
         steps: [
             "instructions": HintStep(anchor: HintAnchorID.routineInstructions, title: "Измените задание",
-                text: "Нажмите рутину в «Моих рутинах», чтобы открыть её настройки. Здесь можно прочитать и изменить полное задание агенту, исполнителя и расписание. Нажмите «Сохранить изменения»: новые настройки будут использоваться в будущих запусках. Уже созданные задачи останутся прежними.", next: "history"),
+                text: "Нажмите рутину в «Моих рутинах», чтобы открыть её настройки. Здесь можно прочитать и изменить полное задание агенту, исполнителя и расписание. Нажмите «Сохранить изменения»: новые настройки будут использоваться в будущих запусках. Уже созданные задачи останутся прежними.", next: "planTemplate"),
+            "planTemplate": HintStep(anchor: HintAnchorID.routinePlanTemplate, title: "Выберите исполнение",
+                text: "Откройте «Исполнитель». Здесь те же шаблоны, что в карточке задачи, в том числе «Один исполнитель». Выбранный шаблон будет использоваться в будущих запусках без второго автоплана. «Автоматически» снимает выбор: план подбирается при создании задачи. Нажмите «Сохранить изменения».", next: "history"),
             "history": HintStep(anchor: HintAnchorID.routineHistory, title: "Посмотрите прошлые запуски",
                 text: "Внизу настроек существующей рутины откройте «История запусков». Здесь видны созданные задачи, ошибки и пропуски. Нажмите созданную задачу, чтобы открыть её.", next: nil)
         ])
