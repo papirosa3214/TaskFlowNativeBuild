@@ -1,52 +1,30 @@
 import SwiftUI
 import Observation
 
-// «Входящие» (владелец 28.10.2026): один экран со всем, что требует внимания —
-// решения по шагам и карточкам, вопросы ролей с кнопками, сбои и зависшие ходы,
-// сроки на сегодня, кто работает сейчас и что ближайшее. Данные — одним ответом
-// GET /api/attention, сервер собирает сам.
+// «Входящие» (владелец 28.10.2026, переделка 29.10.2026): это не лента событий,
+// а три статуса, на которые владелец обязан смотреть — «Заблокировано»,
+// «В работе», «На проверке». Строка списка — карточка задачи; тап открывает
+// ту же стандартную карточку задачи (`AppRoute.taskDetail`), без боковых панелей.
 
-struct ApiAttentionItem: Decodable, Identifiable {
-    let kind: String
+struct ApiAttentionTask: Decodable, Identifiable {
     let id: String
     let title: String
-    let context: String?
+    let project: String?
     let role: String?
     let age_seconds: Int?
-    let actions: [String]?
-    /// Карточка, к которой относится событие: тап открывает её.
-    let task_id: String?
+    let overdue: Bool?
 }
 
-struct ApiAttentionToday: Decodable, Identifiable {
-    let id: String
+struct ApiAttentionGroup: Decodable, Identifiable {
+    let key: String
     let title: String
-    let due_date: String?
-    let project: String?
-}
-
-struct ApiAttentionRunning: Decodable, Identifiable {
-    let id: String
-    let task_id: String?
-    let title: String
-    let role: String?
-    let since_seconds: Int?
-}
-
-struct ApiAttentionUpcoming: Decodable, Identifiable {
-    let id: String
-    let kind: String
-    let title: String
-    let at: String?
+    let count: Int
+    let tasks: [ApiAttentionTask]
 }
 
 struct ApiAttention: Decodable {
     let ok: Bool
-    let decisions: [ApiAttentionItem]
-    let failures: [ApiAttentionItem]
-    let today: [ApiAttentionToday]
-    let running: [ApiAttentionRunning]
-    let upcoming: [ApiAttentionUpcoming]
+    let groups: [ApiAttentionGroup]
 }
 
 @MainActor
@@ -62,19 +40,28 @@ final class AttentionViewModel {
 
     var isEmpty: Bool {
         guard let data else { return false }
-        return data.decisions.isEmpty && data.failures.isEmpty && data.today.isEmpty
-            && data.running.isEmpty && data.upcoming.isEmpty
+        return data.groups.allSatisfy { $0.tasks.isEmpty }
     }
 
     func load() async {
         if data == nil { isLoading = true }
         errorMessage = nil
         do {
-            data = try await api.request(.get, "/attention")
+            data = try await api.request(.get, "/api/attention")
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    /// Цвет маркера группы — смысл тот же, что у статусов на доске.
+    static func tint(for key: String) -> Color {
+        switch key {
+        case "blocked": Color.tfRed
+        case "in_progress": Color.tfTeal
+        case "review": Color.tfBlue
+        default: Color.tfDim
+        }
     }
 }
 
@@ -99,57 +86,21 @@ struct AttentionScreen: View {
                         TFEmptyState(
                             icon: "checkmark.circle",
                             text: "Всё чисто",
-                            description: "Ничего не ждёт решения, ничего не сломалось."
+                            description: "Ни одной задачи в работе, на проверке или в блоке."
                         )
                     }
                     .listRowSeparator(.hidden)
                 }
-                if !data.decisions.isEmpty {
-                    attentionSection("Нужно твоё решение", tint: Color.tfRed, items: data.decisions)
-                }
-                if !data.failures.isEmpty {
-                    attentionSection("Сломалось", tint: Color.tfOrange, items: data.failures)
-                }
-                if !data.today.isEmpty {
-                    Section {
-                        header("Сроки сегодня", tint: Color.tfBlue)
-                        ForEach(data.today) { item in
-                            NavigationLink(value: AppRoute.taskDetail(taskID: item.id)) {
-                                HStack(spacing: TFSpacing.sm) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title).tfText(.body).foregroundStyle(Color.tfText)
-                                        if let project = item.project, !project.isEmpty {
-                                            Text(project).tfText(.caption).foregroundStyle(Color.tfSub)
-                                        }
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Color.tfDim)
+                ForEach(data.groups) { group in
+                    if !group.tasks.isEmpty {
+                        Section {
+                            groupHeader(group)
+                            ForEach(group.tasks) { task in
+                                NavigationLink(value: AppRoute.taskDetail(taskID: task.id)) {
+                                    taskRow(task, tint: AttentionViewModel.tint(for: group.key))
                                 }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                if !data.running.isEmpty {
-                    Section {
-                        header("Идёт сейчас", tint: Color.tfTeal)
-                        ForEach(data.running) { run in
-                            runningRow(run)
-                        }
-                    }
-                }
-                if !data.upcoming.isEmpty {
-                    Section {
-                        header("Ближайшее", tint: Color.tfDim)
-                        ForEach(data.upcoming) { item in
-                            HStack(spacing: TFSpacing.sm) {
-                                Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(Color.tfDim)
-                                Text(item.title).tfText(.action).foregroundStyle(Color.tfText).lineLimit(1)
-                                Spacer()
-                                if let at = item.at {
-                                    Text(Self.when(at)).tfText(.caption).foregroundStyle(Color.tfDim)
-                                }
+                                .buttonStyle(.plain)
+                                .listRowBackground(Color.tfCard)
                             }
                         }
                     }
@@ -166,101 +117,51 @@ struct AttentionScreen: View {
         .task { await model.load() }
     }
 
-    private func runningRow(_ run: ApiAttentionRunning) -> some View {
-        let destination: AppRoute = run.task_id.map { AppRoute.taskDetail(taskID: $0) }
-            ?? .roleLoad
-        return NavigationLink(value: destination) {
-            HStack(spacing: TFSpacing.sm) {
-                Text(run.role ?? "Роль").tfText(.action).foregroundStyle(Color.tfText)
-                Text(run.title).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
-                Spacer()
-                if let seconds = run.since_seconds {
-                    Text(Self.ago(seconds)).tfText(.caption).foregroundStyle(Color.tfDim)
-                }
-                Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(Color.tfDim)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func attentionSection(_ title: String, tint: Color, items: [ApiAttentionItem]) -> some View {
-        Section {
-            header(title, tint: tint)
-            ForEach(items) { item in
-                NavigationLink(value: Self.route(for: item)) {
-                    HStack(spacing: TFSpacing.md) {
-                        Image(systemName: Self.icon(for: item.kind))
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(tint)
-                            .frame(width: 28, height: 28)
-                            .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: TFRadius.md))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.title).tfText(.body).foregroundStyle(Color.tfText).lineLimit(3)
-                            HStack(spacing: TFSpacing.xs) {
-                                if let role = item.role {
-                                    Text(role).tfText(.caption).foregroundStyle(Color.tfSub)
-                                }
-                                if let context = item.context, !context.isEmpty {
-                                    Text(context).tfText(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
-                                }
-                                if let s = item.age_seconds {
-                                    Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
-                                }
-                                Spacer()
-                                Text(Self.actionTitle(for: item))
-                                    .tfText(.caption)
-                                    .foregroundStyle(tint)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(tint)
-                            }
-                        }
-                    }
-                    .padding(.vertical, TFSpacing.xs)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(Color.tfCard)
-            }
-        }
-    }
-
-    private func header(_ title: String, tint: Color) -> some View {
+    /// Подзаголовок раздела — тот же вход, что у разделов «Обзора» и «Настроек»
+    /// (`tfSectionDisplay(.taskTitle)`), плюс счётчик и цветная точка статуса.
+    private func groupHeader(_ group: ApiAttentionGroup) -> some View {
         HStack(spacing: TFSpacing.sm) {
-            Circle().fill(tint).frame(width: 8, height: 8)
-            Text(title).tfText(.action).foregroundStyle(Color.tfText)
+            Circle()
+                .fill(AttentionViewModel.tint(for: group.key))
+                .frame(width: 8, height: 8)
+            Text(group.title)
+                .tfSectionDisplay(style: .taskTitle)
+            Spacer()
+            Text("\(group.count)")
+                .tfText(.action)
+                .foregroundStyle(Color.tfDim)
         }
     }
 
-    static func icon(for kind: String) -> String {
-        switch kind {
-        case "task": "square.stack.3d.up"
-        case "step": "list.bullet.rectangle"
-        case "chat": "bubble.left.and.bubble.right"
-        case "attempt": "exclamationmark.triangle"
-        case "silent": "clock.badge.exclamationmark"
-        default: "bell"
+    private func taskRow(_ task: ApiAttentionTask, tint: Color) -> some View {
+        HStack(spacing: TFSpacing.md) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(task.title)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfText)
+                    .lineLimit(2)
+                HStack(spacing: TFSpacing.xs) {
+                    if let project = task.project, !project.isEmpty {
+                        Text(project).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(1)
+                    }
+                    if let role = task.role, !role.isEmpty {
+                        Text(role).tfText(.caption).foregroundStyle(Color.tfDim)
+                    }
+                    if task.overdue == true {
+                        Text("просрочено").tfText(.caption).foregroundStyle(Color.tfRed)
+                    }
+                    if let s = task.age_seconds {
+                        Text(Self.ago(s)).tfText(.caption).foregroundStyle(Color.tfDim)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(tint)
         }
-    }
-
-    /// Что владелец сделает, если ткнёт: подпись прямо в карточке.
-    static func actionTitle(for item: ApiAttentionItem) -> String {
-        switch item.kind {
-        case "chat": "Ответить"
-        case "attempt", "silent": "Перезапустить"
-        default: item.actions?.contains("approve") == true ? "Принять" : "Открыть"
-        }
-    }
-
-    /// Куда ведёт строка: вопрос роли — в чат с этой ролью, всё остальное —
-    /// в карточку задачи, где владелец отвечает, принимает или перезапускает шаг.
-    /// Владелец 28.10.2026: «нажимаю — и меня перекидывает на само событие».
-    static func route(for item: ApiAttentionItem) -> AppRoute {
-        if item.kind == "chat" { return .roleChat(id: item.id) }
-        if let taskId = item.task_id { return .taskDetail(taskID: taskId) }
-        return .roleChat(id: item.id)
+        .padding(.vertical, TFSpacing.xs)
+        .contentShape(Rectangle())
     }
 
     static func ago(_ seconds: Int) -> String {
@@ -268,16 +169,5 @@ struct AttentionScreen: View {
         if seconds < 3600 { return "\(seconds / 60) мин" }
         if seconds < 86_400 { return "\(seconds / 3600) ч" }
         return "\(seconds / 86_400) дн"
-    }
-
-    static func when(_ iso: String) -> String {
-        let parser = ISO8601DateFormatter()
-        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = parser.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
-        guard let date else { return "" }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
-        formatter.dateFormat = "d MMM, HH:mm"
-        return formatter.string(from: date)
     }
 }
