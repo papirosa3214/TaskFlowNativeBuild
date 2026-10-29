@@ -3,7 +3,9 @@ import Foundation
 /// Свёртка кругов доработки в исходные места графа (владелец 27.10.2026).
 ///
 /// Сервер на каждый возврат заводит новый узел-доработку (`rework_of_key`
-/// ведёт к узлу прошлого круга). На экране у исполнителя одно место: все его
+/// может означать прошлую попытку ИЛИ источник межролевого возврата).
+/// Сворачиваем только точную ссылку на попытку той же роли; новый исполнитель
+/// сохраняет собственный slot, даже когда эта роль уже есть в плане. Все его
 /// попытки сводятся к исходному узлу, состояние берётся у последней попытки,
 /// а сам возврат рисуется отдельной стрелкой снизу вверх — от того, кто
 /// вернул, к тому, кого вернули. Цвет — по номеру круга: 1 жёлтый,
@@ -14,6 +16,7 @@ enum PlanReworkCollapse {
         let slotKey: String
         let iteration: Int
         let reworkOfKey: String?
+        let roleKey: String
     }
 
     struct Edge: Hashable {
@@ -44,7 +47,9 @@ enum PlanReworkCollapse {
         func root(_ slot: String) -> String {
             var current = slot
             var seen: Set<String> = []
-            while let next = byKey[current]?.reworkOfKey, byKey[next] != nil, seen.insert(current).inserted {
+            while let node = byKey[current], let next = node.reworkOfKey,
+                  let previous = byKey[next], node.roleKey == previous.roleKey,
+                  seen.insert(current).inserted {
                 current = next
             }
             return current
@@ -85,7 +90,11 @@ enum PlanReworkCollapse {
             guard let a = rootOf[edge.from], let b = rootOf[edge.to], a != b,
                   let source = byKey[edge.from], let target = byKey[edge.to] else { continue }
             let pair = Edge(from: a, to: b)
-            if target.iteration > source.iteration, reaches(b, a) {
+            // op rework у QA/критика: ссылка ведёт к проверяющему,
+            // а исправление другой роли — отдельное место. Оно ещё не
+            // имеет пути в исходном графе, но ребро точно задаёт возврат.
+            let crossRoleReturn = target.reworkOfKey == source.slotKey && a != b
+            if target.iteration > source.iteration, reaches(b, a) || crossRoleReturn {
                 rounds[pair] = max(rounds[pair] ?? 0, target.iteration)
             } else if !reaches(b, a), plainSeen.insert(pair).inserted {
                 plain.append(pair)

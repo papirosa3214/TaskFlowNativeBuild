@@ -470,12 +470,9 @@ public struct CollaborationPlanView: View {
                         sheet = .detail(planID: plan.id, slot: slot)
                         return
                     }
-                    let assignments = plan.nodes.filter { $0.roleKey == slot && !$0.isSkipped }
-                    let node = assignments.first { $0.executionState == "active" }
-                        ?? assignments.first { ["blocked", "returned", "review"].contains($0.executionState ?? "") }
-                        ?? assignments.first { $0.executionState != "accepted" }
-                        ?? assignments.first
-                    sheet = .detail(planID: plan.id, slot: plan.branchTeam == nil ? slot : (node?.slotKey ?? slot))
+                    // Детали того же конкретного шага, от которого взято состояние.
+                    let latest = reworkCollapse(for: plan).latest[slot] ?? slot
+                    sheet = .detail(planID: plan.id, slot: latest)
                 }
             )
             ownerControls(for: plan)
@@ -607,7 +604,7 @@ public struct CollaborationPlanView: View {
 
     private func reworkCollapse(for plan: ApiCollaborationPlan) -> PlanReworkCollapse.Result {
         PlanReworkCollapse.collapse(
-            nodes: plan.nodes.map { .init(slotKey: $0.slotKey, iteration: $0.iteration ?? 0, reworkOfKey: $0.reworkOfKey) },
+            nodes: plan.nodes.map { .init(slotKey: $0.slotKey, iteration: $0.iteration ?? 0, reworkOfKey: $0.reworkOfKey, roleKey: $0.roleKey) },
             edges: plan.edges.map { .init(from: $0.fromSlotKey, to: $0.toSlotKey) },
             limitExhausted: limitExhausted
         )
