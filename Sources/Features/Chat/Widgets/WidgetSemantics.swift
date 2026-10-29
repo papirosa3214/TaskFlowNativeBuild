@@ -341,6 +341,7 @@ enum WidgetFallback {
         case "calendar_grid": return calendarGrid(data)
         case "heatmap": return heatmap(data)
         case "compare": return compare(data)
+        case "table": return table(data)
         default: return generic(data)
         }
     }
@@ -424,6 +425,13 @@ enum WidgetFallback {
 
     /// Тип не в реестре: собираем хоть что-то понятное из типовых полей, чтобы
     /// блок не выглядел поломкой. Если данных нет — честный прочерк.
+    /// Таблица: колонки и число строк. Общий `generic` ищет поля вида
+    /// «label/value», которых у таблицы нет, — сводка была пустой, и клиент,
+    /// который таблицу не рисует, показывал только сырой JSON.
+    private static func table(_ data: WidgetData) -> String? {
+        WidgetTableParser.summary(data.raw)
+    }
+
     private static func generic(_ data: WidgetData) -> String? {
         if let title = data.string("title"), let text = data.string("text"), title.isEmpty == false {
             return "\(title): \(text)"

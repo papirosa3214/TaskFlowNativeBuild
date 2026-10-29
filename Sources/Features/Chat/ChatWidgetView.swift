@@ -60,11 +60,38 @@ struct ChatWidgetView: View {
         case .calendarGrid: CalendarGridWidget(data: data)
         case .heatmap: HeatmapWidget(data: data)
         case .compare: CompareWidget(data: data)
+        case .table: tableWidget(data)
         default: WidgetTextFallback(json: json, note: "Виджет этого типа пока не рисуется")
         }
     }
 
     // MARK: Компоновки К1–К6 поверх шести действующих типов
+
+    /// Таблица виджета (карточка 6556fa2d): сервер учит роль отдавать таблицу
+    /// виджетом, а клиент такой тип не рисовал — блок уходил в текстовую
+    /// заглушку. Рисуем тем же `ChatTableView`, что и markdown-таблицу в тексте
+    /// ответа, поэтому обе формы выглядят одинаково.
+    @ViewBuilder
+    private func tableWidget(_ data: WidgetData) -> some View {
+        switch WidgetTableParser.parse(data.raw) {
+        case .success(let table):
+            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                if let title = table.title {
+                    Text(title).tfText(.action).foregroundStyle(Color.tfText)
+                }
+                ChatTableView(table: ChatTable(
+                    header: table.columns,
+                    alignments: Array(repeating: .leading, count: table.columns.count),
+                    rows: table.rows
+                ))
+                if let note = table.truncatedNote {
+                    Text(note).tfText(.meta).foregroundStyle(Color.tfSub)
+                }
+            }
+        case .failure(let problem):
+            WidgetTextFallback(json: json, note: problem.note)
+        }
+    }
 
     /// Ветка включается наличием НОВЫХ полей, а не флагом: старый блок без них
     /// уходит в прежний вид и рисуется ровно как раньше.
