@@ -77,10 +77,41 @@ public enum RealtimeEvent: Sendable {
         let message_id: String?
     }
 
+    /// Дешёвое чтение одного поля `type` — без разбора тела события. Нужно,
+    /// чтобы в фоне отбросить тяжёлые события ДО полного разбора.
+    public static func typeName(of data: Data) -> String? {
+        struct TypeOnly: Decodable { let type: String }
+        return (try? JSONDecoder().decode(TypeOnly.self, from: data))?.type
+    }
+
+    /// Живой ход чата и задачи: в этих событиях весь текст и разметка шагов,
+    /// то есть самый тяжёлый разбор. В фоне их никто не видит — сокет там
+    /// держится только ради карточки Live Activity (она живёт на `task:*`).
+    private static let backgroundIrrelevant: Set<String> = [
+        "chats:live", "chats:live:start", "chats:live:patch", "chats:live:end",
+        "chats:live:interrupt", "chats:live:resume",
+        "tasks:live", "tasks:live:start", "tasks:live:patch", "tasks:live:end",
+    ]
+
+    public static func isBackgroundIrrelevant(_ type: String) -> Bool {
+        backgroundIrrelevant.contains(type)
+    }
+
     public static func parse(_ data: Data) -> RealtimeEvent? {
         let decoder = JSONDecoder()
         guard let envelope = try? decoder.decode(Envelope.self, from: data) else { return nil }
-        let raw = (try? decoder.decode(JSONValue.self, from: data)) ?? .null
+        // `raw` нужен только трём редким событиям (`task:activity`, `chat:typing`,
+        // `unknown`). Раньше он разбирался ВСЕГДА — вторым полным проходом по
+        // тому же JSON на каждое сообщение сокета, и именно этот проход висел в
+        // профиле CPU (29.10.2026). Теперь разбор отложен и происходит один раз
+        // и только если он действительно понадобился.
+        var cachedRaw: JSONValue?
+        func rawValue() -> JSONValue {
+            if let cachedRaw { return cachedRaw }
+            let value = (try? decoder.decode(JSONValue.self, from: data)) ?? .null
+            cachedRaw = value
+            return value
+        }
 
         func decodeTask() -> ApiTask? {
             struct Wrapped: Decodable { let task: ApiTask }
@@ -94,33 +125,33 @@ public enum RealtimeEvent: Sendable {
         case "pong": return .pong
         case "task:changed":
             guard let id = (try? decoder.decode(TaskIdField.self, from: data))?.task_id else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .taskChanged(taskID: id)
         case "roles:changed": return .rolesChanged
         case "role-jobs:changed": return .roleJobsChanged
         case "task:created":
-            return decodeTask().map(RealtimeEvent.taskCreated) ?? .unknown(type: envelope.type, raw: raw)
+            return decodeTask().map(RealtimeEvent.taskCreated) ?? .unknown(type: envelope.type, raw: rawValue())
         case "task:updated":
-            return decodeTask().map(RealtimeEvent.taskUpdated) ?? .unknown(type: envelope.type, raw: raw)
+            return decodeTask().map(RealtimeEvent.taskUpdated) ?? .unknown(type: envelope.type, raw: rawValue())
         case "task:archived", "task:restored":
             struct ArchiveEnvelope: Decodable { let task: ApiTask }
             return (try? decoder.decode(ArchiveEnvelope.self, from: data)).map { .taskUpdated($0.task) }
-                ?? decodeTask().map(RealtimeEvent.taskUpdated) ?? .unknown(type: envelope.type, raw: raw)
+                ?? decodeTask().map(RealtimeEvent.taskUpdated) ?? .unknown(type: envelope.type, raw: rawValue())
         case "task:completed":
-            return decodeTask().map(RealtimeEvent.taskCompleted) ?? .unknown(type: envelope.type, raw: raw)
+            return decodeTask().map(RealtimeEvent.taskCompleted) ?? .unknown(type: envelope.type, raw: rawValue())
         case "task:deleted":
             if let task = decodeTask() { return .taskDeleted(id: task.id) }
             if let bare = try? decoder.decode(BareID.self, from: data) { return .taskDeleted(id: bare.id) }
-            return .unknown(type: envelope.type, raw: raw)
+            return .unknown(type: envelope.type, raw: rawValue())
         case "task:state":
-            return decodeTask().map(RealtimeEvent.taskState) ?? .unknown(type: envelope.type, raw: raw)
+            return decodeTask().map(RealtimeEvent.taskState) ?? .unknown(type: envelope.type, raw: rawValue())
         case "task:activity":
             let taskId = (try? decoder.decode(TaskIdField.self, from: data))?.task_id
-            return .taskActivity(taskId: taskId, raw: raw)
+            return .taskActivity(taskId: taskId, raw: rawValue())
         case "notification:new":
             guard let n = try? decoder.decode(ApiNotification.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .notificationNew(n)
         case "chat:new":
@@ -133,49 +164,49 @@ public enum RealtimeEvent: Sendable {
                 return .roleChatMessage(chatId: chatId, message: full)
             }
             guard let m = try? decoder.decode(ApiChatMessage.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .chatNew(m)
         case "chat:typing":
-            return .chatTyping(raw: raw)
+            return .chatTyping(raw: rawValue())
         case "chats:typing":
             guard let p = try? decoder.decode(RoleTypingPayload.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .roleChatTyping(chatId: p.chat_id, userId: p.user_id, name: p.name ?? "", active: p.active, tool: p.tool)
         case "tasks:live":
-            guard let turn = try? decoder.decode(TaskLiveTurn.self, from: data) else { return .unknown(type: envelope.type, raw: raw) }
+            guard let turn = try? decoder.decode(TaskLiveTurn.self, from: data) else { return .unknown(type: envelope.type, raw: rawValue()) }
             return .taskLive(turn)
         case "chats:live":
             guard let p = try? decoder.decode(RoleLivePayload.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .roleChatLive(chatId: p.chat_id, userId: p.user_id, turn: p.turn, messageID: p.message_id)
         case "chats:live:start", "chats:live:patch", "chats:live:end":
             guard let delta = try? decoder.decode(RoleChatLiveDelta.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .roleChatLiveDelta(delta)
         case "chats:live:interrupt", "chats:live:resume":
             guard let event = try? decoder.decode(RoleChatLiveInterrupt.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .roleChatLiveInterrupt(event)
         case "tasks:live:start", "tasks:live:patch", "tasks:live:end":
             guard let delta = try? decoder.decode(RoleChatLiveDelta.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .taskLiveDelta(delta)
         case "device_op":
             guard let request = try? decoder.decode(DeviceOpRequest.self, from: data) else {
-                return .unknown(type: envelope.type, raw: raw)
+                return .unknown(type: envelope.type, raw: rawValue())
             }
             return .deviceOp(request)
         case "error":
             let payload = try? decoder.decode(ErrorPayload.self, from: data)
             return .serverError(message: payload?.message ?? payload?.error)
         default:
-            return .unknown(type: envelope.type, raw: raw)
+            return .unknown(type: envelope.type, raw: rawValue())
         }
     }
 }

@@ -26,16 +26,26 @@ public enum JSONValue: Codable, Sendable, Hashable {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
-        } else if let value = try? container.decode(Bool.self) {
-            self = .bool(value)
-        } else if let value = try? container.decode(Double.self) {
-            self = .number(value)
-        } else if let value = try? container.decode(String.self) {
+            return
+        }
+        // Порядок проб — от частого к редкому, и это не придирка к стилю.
+        // Каждая НЕУДАЧНАЯ попытка в `JSONDecoder` дорогая: Foundation строит
+        // `DecodingError` вместе с путём кодирования. В горячем стеке профиля
+        // (iPhone, 29.10.2026, 62% CPU) это `_CodingPathNode.path.getter` и
+        // `Array.append(contentsOf:)` на каждом уровне вложенности.
+        // Текст в чатах — строки, объекты и массивы; числа и булевы значения
+        // редки, поэтому они последние. Для прозаического JSON строка теперь
+        // не стоит ни одной неудачной попытки, объект — одну, массив — две.
+        if let value = try? container.decode(String.self) {
             self = .string(value)
         } else if let value = try? container.decode([String: JSONValue].self) {
             self = .object(value)
         } else if let value = try? container.decode([JSONValue].self) {
             self = .array(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
         } else {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Неподдерживаемый JSON-узел")
         }

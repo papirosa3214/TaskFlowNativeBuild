@@ -279,6 +279,15 @@ public final class RealtimeClient {
 
     private func handle(message: URLSessionWebSocketTask.Message, task socketTask: URLSessionWebSocketTask) {
         guard case .string(let text) = message, let data = text.data(using: .utf8) else { return }
+        // В фоне этот сокет держится только ради карточки Live Activity, а она
+        // живёт на событиях `task:*`. Живой ход чата и задачи в фоне не видит
+        // никто, а весит он больше всего: телефон разбирал весь выросший текст
+        // и получал watchdog `0x8BADF00D` в фоне (отчёты 03–28.10.2026, до
+        // 48 с CPU за 10-секундное окно). Отбрасываем по одному дешёвому полю.
+        if allowsBackgroundConnection, UIApplication.shared.applicationState != .active,
+           let type = RealtimeEvent.typeName(of: data), RealtimeEvent.isBackgroundIrrelevant(type) {
+            return
+        }
         guard let event = RealtimeEvent.parse(data) else { return }
         if case .serverError(let message) = event,
            message == "unauthorized" || message == "device_revoked" {
