@@ -73,10 +73,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         ProjectTasksScreen(projectID: projectID)
     case .taskArchive:
         TaskArchiveScreen()
-    case .noProjectTasks:
-        ProjectTasksScreen(projectID: nil)
     case .allTasks:
-        ProjectTasksScreen(projectID: nil, showsAllProjects: true)
+        ProjectTasksScreen(projectID: nil)
     case .labels:
         LabelsScreen()
     case .labelTasks(let labelID):

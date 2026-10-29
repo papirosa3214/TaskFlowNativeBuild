@@ -4,6 +4,8 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let projectsAllTasks = "projects.all-tasks"
+    static let allTasksFilter = "all-tasks.filter"
     static let chatSession = "chat.session"
     static let routineInstructions = "routine.instructions"
     static let routineHistory = "routine.history"
@@ -86,7 +88,16 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion]
+    static let all: [HintScenario] = [allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion]
+
+    static let allTasks = HintScenario(
+        id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
+        steps: [
+            "entry": HintStep(anchor: HintAnchorID.projectsAllTasks, title: "Откройте все задачи",
+                text: "Плитка «Все задачи» рядом с архивом открывает общий список, включая задачи без проекта.", next: "filter"),
+            "filter": HintStep(anchor: HintAnchorID.allTasksFilter, title: "Выберите статус",
+                text: "В меню выберите один статус: «В работе», «На проверке», «Заблокированы» или «Ожидающие запуска». Для обычного просмотра выберите «Не выполненные» или «Все, включая выполненные».", next: nil)
+        ])
 
     static let routineEditing = HintScenario(
         id: "routine-editing", title: "Задание и настройки рутины", start: "instructions",

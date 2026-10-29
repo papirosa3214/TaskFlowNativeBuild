@@ -37,8 +37,6 @@ public enum AppRoute: Hashable {
     /// Смысловой поиск по документации всех проектов (KnowledgeScreen).
     case knowledge
     case projectTasks(projectID: String)
-    /// Задачи без проекта — тот же экран списка, но `projectID == nil`.
-    case noProjectTasks
     /// Все задачи всех проектов разом — корневые, тем же списком
     /// (`ProjectTasksScreen` в режиме «все проекты»). Просьба владельца
     /// 11.10.2026: после снятия верхней полосы статусов из «Проектов» не

@@ -17,53 +17,9 @@ import os
 // («переносит не туда, куда надо»). Заведён `AppRoute.noteFolder(folderID:)`
 // сверх контракта (`.notes` без параметра не тронут) — `NotesScreen` теперь
 // умеет открыться сразу на нужной папке.
-/// Чем отфильтрован список задач проекта (меню «⋯» в шапке, владелец 06.10.2026).
-enum ProjectTaskFilter: String, CaseIterable, Identifiable {
-    case open, all, working, review, stuck, done
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .open: "Не выполненные"
-        case .all: "Все, включая выполненные"
-        case .working: "В работе"
-        case .review: "На проверке"
-        case .stuck: "Застряли или ждут"
-        case .done: "Выполненные"
-        }
-    }
-    var icon: String {
-        switch self {
-        case .open: "circle.dashed"
-        case .all: "list.bullet"
-        case .working: "hammer"
-        case .review: "eye"
-        case .stuck: "exclamationmark.triangle"
-        case .done: "checkmark.circle"
-        }
-    }
-    /// Сама задача подходит под фильтр.
-    func matches(_ task: ApiTask) -> Bool {
-        switch self {
-        case .open: task.status != .completed
-        case .all: true
-        case .working: task.status != .completed && task.agentState == .inProgress
-        case .review: task.status != .completed && task.agentState == .review
-        case .stuck: task.status != .completed && (task.agentState == .blocked || task.agentState == .todo)
-        case .done: task.status == .completed
-        }
-    }
-}
-
 struct ProjectTasksScreen: View {
-    /// `nil` — раздел «Без проекта»: все задачи без проекта, тем же списком.
+    /// `nil` — общий список всех задач, включая задачи без проекта.
     let projectID: String?
-    /// Корневые задачи ВСЕХ проектов разом, тем же списком (просьба владельца
-    /// 11.10.2026, пункт «Все задачи» в меню «…» раздела «Проекты»).
-    /// Раздел «Связанные задачи» (дочерние) в этом режиме не подгружается —
-    /// он строится запросом по каждому проекту, а общий список он только
-    /// раздувает; корневые задачи показывают тот же состав работы.
-    var showsAllProjects: Bool = false
-
     @Environment(ProjectStore.self) private var projectStore
     @Environment(TaskStore.self) private var taskStore
     @Environment(SessionStore.self) private var session
@@ -78,8 +34,13 @@ struct ProjectTasksScreen: View {
     @State private var expandedIDs: Set<String> = []
     /// Фильтр списка; помнится по проекту.
     @State private var filter: ProjectTaskFilter = .open
+    private var showsAllProjects: Bool { projectID == nil }
+    private var isStatusFilter: Bool { showsAllProjects && [.working, .review, .blocked, .waiting].contains(filter) }
+    private var availableFilters: [ProjectTaskFilter] {
+        showsAllProjects ? ProjectTaskFilter.allTasksCases : ProjectTaskFilter.allCases.filter { $0 != .waiting && $0 != .blocked }
+    }
     private var filterKey: String {
-        showsAllProjects ? "all-projects.filter" : "project.filter.\(projectID ?? "none")"
+        showsAllProjects ? "all-projects.filter" : "project.filter.\(projectID ?? "all")"
     }
 
     @State private var showNewTask = false
@@ -109,10 +70,14 @@ struct ProjectTasksScreen: View {
     /// гарантированно стабилен, а спека и веб-код требуют стабильность).
     private var tasks: [ApiTask] {
         let source = relationshipTasks.isEmpty ? taskStore.tasks : relationshipTasks
-        // В режиме «все проекты» (`showsAllProjects`) проверка проекта снимается:
-        // иначе в общий список попадали бы только задачи без проекта, то есть
-        /// ровно то, что уже показывает «Без проекта».
+        // Общий список включает задачи с проектом и без него.
         let inScope: (ApiTask) -> Bool = { showsAllProjects || $0.projectId == projectID }
+        if isStatusFilter {
+            // Каждая карточка попадает ровно в один статус. Родителя с другим
+            // состоянием не добавляем как контекст: это нарушило бы исключительность.
+            let matched = source.filter(filter.matches)
+            return matched.filter { $0.pinned } + matched.filter { !$0.pinned }
+        }
         if filter != .open {
             // Фильтр по состоянию: корень остаётся, если подходит он сам или кто-то из потомков.
             let byParent = Dictionary(grouping: source, by: \.parentId)
@@ -154,12 +119,13 @@ struct ProjectTasksScreen: View {
     /// проекта нет по определению.
     private var screenTitle: String {
         if showsAllProjects { return "Все задачи" }
-        return projectID == nil ? "Без проекта" : (project?.name ?? "Проект")
+        return project?.name ?? "Проект"
     }
 
     private var emptyText: String {
+        if filter != .open && filter != .all { return "Нет задач с выбранным статусом" }
         if showsAllProjects { return "Задач нет" }
-        return projectID == nil ? "Задач без проекта нет" : "В проекте пока нет задач"
+        return "В проекте пока нет задач"
     }
 
     var body: some View {
@@ -173,7 +139,7 @@ struct ProjectTasksScreen: View {
                 if notFound {
                     notFoundView
                 } else if projectID == nil || project != nil {
-                    if tasks.isEmpty {
+                    if tasks.isEmpty && !projectStore.isLoading && !taskStore.isLoading {
                         TFEmptyState(
                             icon: "tray",
                             text: emptyText
@@ -225,10 +191,10 @@ struct ProjectTasksScreen: View {
                         .lineLimit(1)
                 }
             }
-            if project != nil {
+            if project != nil || showsAllProjects {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        ForEach(ProjectTaskFilter.allCases) { f in
+                        ForEach(availableFilters) { f in
                             Button {
                                 filter = f
                                 UserDefaults.standard.set(f.rawValue, forKey: filterKey)
@@ -254,11 +220,12 @@ struct ProjectTasksScreen: View {
                         Image(systemName: "ellipsis")
                     }
                     .accessibilityLabel("Фильтр и действия")
+                    .hintAnchor(showsAllProjects ? HintAnchorID.allTasksFilter : "project.tasks.filter")
                 }
             }
         }
         .onAppear {
-            if let raw = UserDefaults.standard.string(forKey: filterKey), let f = ProjectTaskFilter(rawValue: raw) { filter = f }
+            if let raw = UserDefaults.standard.string(forKey: filterKey), let f = ProjectTaskFilter(rawValue: raw), availableFilters.contains(f) { filter = f }
         }
         .task {
             if projectStore.projects.isEmpty { await projectStore.load() }
@@ -284,6 +251,7 @@ struct ProjectTasksScreen: View {
 
     /// Прямые потомки задачи; незакрытые впереди, порядок внутри групп стабильный.
     private func children(of task: ApiTask) -> [ApiTask] {
+        if isStatusFilter { return [] }
         let byParent = Dictionary(grouping: relationshipTasks, by: \.parentId)
         func hit(_ t: ApiTask) -> Bool {
             filter.matches(t) || (byParent[t.id] ?? []).contains(where: hit)

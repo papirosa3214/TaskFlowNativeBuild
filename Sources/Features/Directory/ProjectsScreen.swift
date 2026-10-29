@@ -52,16 +52,10 @@ struct ProjectsScreen: View {
         // (`QuickAddProjectView`), а не inline в списке.
         ZStack {
         Color.tfBackground.ignoresSafeArea()
-        // Плитки «Без проекта» и «Архив» — ВНЕ списка (27.10.2026, жалоба
-        // владельца: тап по «Без проекта» открывал «Архив»).
-        // Причина: после перехода «Проектов» со `ScrollView` на `List`
-        // (25.10.2026, e3d89b69) обе ссылки `NavigationLink` оказались в
-        // ОДНОЙ строке списка. В строке `List` тап отдаётся одной из ссылок —
-        // и открывался «Архив». Вне списка каждая плитка снова отдельная
-        // кнопка; вид и порядок плиток прежние.
+        // Основные разделы находятся вне List: каждая плитка — отдельная ссылка.
         VStack(spacing: 0) {
             if !isSelecting {
-                noProjectRow
+                taskSectionsRow
                     .padding(.horizontal, TFSpacing.screenHorizontal)
                     .padding(.top, TFSpacing.sm)
                     .padding(.bottom, TFSpacing.sm)
@@ -170,15 +164,6 @@ struct ProjectsScreen: View {
     private var projectActionsMenu: some View {
         Menu {
             Button { searchPresented = true } label: { Label("Поиск проектов", systemImage: "magnifyingglass") }
-            if !isSelecting {
-                // Общий список задач (просьба владельца 11.10.2026): после
-                // снятия верхней полосы статусов из «Проектов» входа к нему не
-                // осталось, а раздел «Без проекта» показывает только задачи
-                // вне проектов — не то же самое.
-                NavigationLink(value: AppRoute.allTasks) {
-                    Label("Все задачи", systemImage: "tray.full")
-                }
-            }
             if isSelecting {
                 Button(role: .destructive) {
                     requestDeleteSelected()
@@ -262,13 +247,9 @@ struct ProjectsScreen: View {
     /// владелец 08.09.2026 попросил видеть в списке жизнь проекта, а не одно
     /// число. Сам ряд остался кнопкой в тот же маршрут и по-прежнему живёт
     /// внутри `DirectorySwipeRow` (правка/удаление свайпом).
-    /// «Без проекта» — синтетический раздел рядом со списком проектов: все
-    /// задачи без проекта аккумулируются в один список. Владелец 19.09.2026:
-    /// неназначенные задачи терялись по спискам, хочу видеть их
-    /// централизованно, как проект. Это не проектная сущность: ни свайпа,
-    /// ни выбора, ни формы — только переход в список.
-    private var noProjectCount: Int {
-        taskStore.tasks.filter { $0.projectId == nil && $0.status == .active }.count
+    /// Общее число открытых задач независимо от проекта.
+    private var allTasksCount: Int {
+        taskStore.tasks.filter { $0.parentId == nil && $0.status == .active }.count
     }
 
     private var archiveCount: Int { taskStore.archivedTasks.count + projectStore.archivedProjects.count }
@@ -280,13 +261,14 @@ struct ProjectsScreen: View {
     /// одними наверху — и на фоне карточек проекта выглядели «мизерными».
     /// Значок и подпись теперь одного кегля с остальным содержимым экрана
     /// (`.body`), как у обычной строки раздела.
-    private var noProjectRow: some View {
+    private var taskSectionsRow: some View {
         HStack(spacing: TFSpacing.sm) {
             sectionTile(
-                route: .noProjectTasks, title: "Без проекта",
-                count: noProjectCount, icon: "tray", tint: .tfBlue,
-                identifier: "projects.tile.noProject"
+                route: .allTasks, title: "Все задачи",
+                count: allTasksCount, icon: "tray.full", tint: .tfBlue,
+                identifier: "projects.tile.allTasks"
             )
+            .hintAnchor(HintAnchorID.projectsAllTasks)
             sectionTile(
                 route: .taskArchive, title: "Архив",
                 count: archiveCount, icon: "archivebox", tint: .tfOrange,
