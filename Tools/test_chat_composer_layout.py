@@ -9,13 +9,14 @@ import subprocess, tempfile
 
 root = Path(__file__).resolve().parents[1]
 style = root / 'Sources/Core/Models/ChatComposerStyle.swift'
+controls = root / 'Sources/Core/Models/ChatComposerControls.swift'
 layout = root / 'Sources/Core/Models/ChatComposerLayout.swift'
 tests = root / 'Tests/ChatComposerLayoutTests.swift'
-for f in (style, layout, tests):
+for f in (style, controls, layout, tests):
     if not f.exists():
         raise SystemExit(f'нет файла: {f}')
 
-source = style.read_text() + '\n' + layout.read_text()
+source = style.read_text() + '\n' + controls.read_text() + '\n' + layout.read_text()
 source += '\n' + tests.read_text().replace('@testable import TaskFlow', '').replace('    func test', '    @objc func test')
 source += '\nlet suite = ChatComposerLayoutTests.defaultTestSuite\nsuite.run()\nexit(suite.testRun!.hasSucceeded ? 0 : 1)\n'
 

@@ -1222,6 +1222,104 @@ struct RoleChatRoomScreen: View {
         return roles.first
     }
 
+    /// Окно сессии. Отдельное свойство, а не вызов в `.sheet`: длинный список
+    /// аргументов иначе не компилируется («unable to type-check»).
+    private var sessionPanelSheet: some View {
+        // Контекст — по роли чата: у Помощника это `u-secretary`, у остальных
+        // ролей — их учётка. Раньше здесь было жёстко `u-secretary`, и в чате
+        // с любой другой ролью показывалось «Нет замера» (владелец 29.10.2026).
+        let contextSnapshot = composerControls.contexts[sessionContextRoleID]
+        let sessionRoles = chat.composerRoleKeys
+        let working = !liveTurns.isEmpty || !typists.isEmpty
+        return ChatSessionPanel(
+            chat: chat,
+            choice: modelChoice,
+            workspace: workspaceChoice,
+            context: contextSnapshot,
+            controls: composerControls,
+            isWorking: working,
+            onRefresh: refreshSession,
+            onRename: renameChat,
+            onNewSession: { Task { await createAssistantSession() } },
+            onCompact: { await compactSessionRole() },
+            onResetContext: { await resetSessionContext() },
+            onClose: { await closeSession() },
+            onSelectCommand: { command in
+                draft = command.inserting(into: draft)
+                composerFocused = true
+            },
+            onAttachmentSource: handleAttachmentSource,
+            workMode: $workMode,
+            chatRoles: sessionRoles)
+    }
+
+    private func refreshSession() async {
+        await modelChoice.load(chat: chat)
+        await workspaceChoice.load(chat: chat)
+        await composerControls.load(chat: chat)
+    }
+
+    private func renameChat(_ title: String) async {
+        do { chat = try await api.renameRoleChat(id: chat.id, title: title) }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    private func compactSessionRole() async {
+        guard let member = chat.members.first(where: { $0.id == "u-secretary" || $0.roleKey == "secretary" })
+        else { return }
+        await compact(member)
+    }
+
+    private func resetSessionContext() async {
+        await newSession(roleID: "u-secretary")
+    }
+
+    private func closeSession() async {
+        do { chat = try await api.closeRoleChat(id: chat.id, closed: true); dismiss() }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Вложения из окна сессии: фото, файл, камера.
+    private func handleAttachmentSource(_ source: ChatAttachmentSource) {
+        switch source {
+        case .photo: isPhotoPickerPresented = true
+        case .file: isFileImporterPresented = true
+        case .camera: isCameraPresented = true
+        }
+    }
+
+    /// Описания ролей из реестра: ключ роли — «чем занимается».
+    private func loadRoleSummaries() async {
+        guard roleSummaries.isEmpty else { return }
+        guard let list = try? await api.rolesList(all: true) else { return }
+        var next: [String: String] = [:]
+        for profile in list {
+            guard let summary = profile.summary, !summary.isEmpty else { continue }
+            next[profile.role] = summary
+            if let account = profile.accountID { next[account] = summary }
+        }
+        roleSummaries = next
+    }
+
+    /// Описание роли из реестра ролей: чем она занимается (владелец
+    /// 29.10.2026: стартовый экран должен быть «богат information», а не
+    /// только приветствием).
+    @State private var roleSummaries: [String: String] = [:]
+
+    private func roleSummary(for member: RoleChatMember) -> String? {
+        if let key = member.roleKey, let summary = roleSummaries[key], !summary.isEmpty {
+            return summary
+        }
+        if let summary = roleSummaries[member.id], !summary.isEmpty { return summary }
+        return nil
+    }
+
+    /// Учётка роли, чей контекст показываем в окне сессии.
+    private var sessionContextRoleID: String {
+        if let member = starterMember { return member.id }
+        return "u-secretary"
+    }
+
     /// Ключ роли для каталога приветствий.
     private var starterRoleKey: String? {
         guard let member = starterMember else { return nil }
@@ -1285,13 +1383,7 @@ struct RoleChatRoomScreen: View {
                         && !isSending && !isUploadingAttachment && !isSavingExecutionMode
                         && (!chat.isAssistantOnly || (modelChoice.isReady && !modelChoice.isSaving)),
                     voice: voice,
-                    onAttachmentSource: { source in
-                        switch source {
-                        case .photo: isPhotoPickerPresented = true
-                        case .file: isFileImporterPresented = true
-                        case .camera: isCameraPresented = true
-                        }
-                    },
+                    onAttachmentSource: handleAttachmentSource,
                     onSendText: { Task { await send() } },
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in },
@@ -1633,48 +1725,12 @@ struct RoleChatRoomScreen: View {
         .task(id: chat.members.map(\.id)) {
             await modelChoice.load(chat: chat)
             await workspaceChoice.load(chat: chat)
+            await loadRoleSummaries()
         }
         .task(id: chat.members.map(\.id).joined(separator: ":") + ":" + (messages.last?.id ?? "")) {
             await composerControls.load(chat: chat)
         }
-        .sheet(isPresented: $showsSessionPanel) {
-            ChatSessionPanel(chat: chat, choice: modelChoice, workspace: workspaceChoice,
-                context: composerControls.contexts["u-secretary"], controls: composerControls,
-                isWorking: !liveTurns.isEmpty || !typists.isEmpty,
-                onRefresh: {
-                    await modelChoice.load(chat: chat)
-                    await workspaceChoice.load(chat: chat)
-                    await composerControls.load(chat: chat)
-                },
-                onRename: { title in
-                    do { chat = try await api.renameRoleChat(id: chat.id, title: title) }
-                    catch { errorMessage = error.localizedDescription }
-                },
-                onNewSession: { Task { await createAssistantSession() } },
-                onCompact: {
-                    if let member = chat.members.first(where: { $0.id == "u-secretary" || $0.roleKey == "secretary" }) {
-                        await compact(member)
-                    }
-                },
-                onResetContext: { await newSession(roleID: "u-secretary") },
-                onClose: {
-                    do { chat = try await api.closeRoleChat(id: chat.id, closed: true); dismiss() }
-                    catch { errorMessage = error.localizedDescription }
-                },
-                onSelectCommand: { command in
-                    draft = command.inserting(into: draft)
-                    composerFocused = true
-                },
-                onAttachmentSource: { source in
-                    switch source {
-                    case .photo: isPhotoPickerPresented = true
-                    case .file: isFileImporterPresented = true
-                    case .camera: isCameraPresented = true
-                    }
-                },
-                workMode: $workMode,
-                availableWorkModes: RoleChatWorkMode.available(in: chat))
-        }
+        .sheet(isPresented: $showsSessionPanel) { sessionPanelSheet }
         .sheet(isPresented: $showsComposerCommands) {
             ChatCommandPicker(commands: composerControls.commands, errorText: composerControls.errorText,
                               onRefresh: { Task { await composerControls.load(chat: chat) } }) { command in
@@ -1838,7 +1894,8 @@ struct RoleChatRoomScreen: View {
                     // макет `mockups/role-chat-start/`).
                     if let starterMember {
                         RoleChatStartView(member: starterMember,
-                                          starter: RoleChatStarters.starter(for: starterRoleKey)) { prompt in
+                                          starter: RoleChatStarters.starter(for: starterRoleKey),
+                                          roleSummary: roleSummary(for: starterMember)) { prompt in
                             draft = prompt
                             composerFocused = true
                         }

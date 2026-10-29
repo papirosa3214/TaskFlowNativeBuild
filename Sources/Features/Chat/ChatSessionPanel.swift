@@ -1,10 +1,19 @@
 import SwiftUI
 
-/// One entry point for existing assistant session capabilities.
+/// Окно сессии в чате с ролью.
 ///
-/// С 29.10.2026 панель — общее окно сессии в чате с ролью: левая круглая
-/// кнопка в новой панели ввода открывает её вместо выпадающего меню, а
-/// то, что было в меню (вложения, режим работы), переехало сюда.
+/// С 29.10.2026 это общее окно: левая круглая кнопка новой панели ввода
+/// открывает его вместо выпадающего меню, и то, что было в меню (вложения,
+/// режим работы), переехало сюда.
+///
+/// Замечания владельца (29.10.2026), которые здесь учтены:
+/// - никакого синего: всё в обычном цвете текста;
+/// - сверху — одна аккуратная строка с названием, без «Сохранить название»,
+///   без «Состояние» и без повторов «Готово»;
+/// - вложения — блоками (фото, файл, камера), а не списком;
+/// - режимы работы — четырьмя блоками;
+/// - контекст — такими же полосками, как в панели ввода, с раскрытием в
+///   окно разбора.
 struct ChatSessionPanel: View {
  let chat: RoleChat
  @Bindable var choice: ChatModelChoice
@@ -23,7 +32,8 @@ struct ChatSessionPanel: View {
  var onAttachmentSource: ((ChatAttachmentSource) -> Void)? = nil
  /// Режим работы: Работа, Планирование, Цель, Исследование.
  var workMode: Binding<RoleChatWorkMode>? = nil
- var availableWorkModes: [RoleChatWorkMode] = [.work]
+ /// Роли чата — по ним решается, доступно ли глубокое исследование.
+ var chatRoles: [String] = []
  @Environment(\.dismiss) private var dismiss
  @State private var title = ""
  @State private var showsCommands = false
@@ -32,15 +42,26 @@ struct ChatSessionPanel: View {
  @State private var confirmsReset = false
  @State private var actionRunning = false
 
+ /// Режимы работы: все четыре блоком. Глубокое исследование сервер
+ /// принимает только у Исследователя и Помощника — у остальных блок остаётся
+ /// видимым, но нажать его нельзя.
+ private var workModes: [RoleChatWorkMode] {
+  ChatSessionWorkModePolicy.allModes
+ }
+
+ private var allowsResearch: Bool {
+  ChatSessionWorkModePolicy.allowsResearch(roles: chatRoles)
+ }
+
  var body: some View {
   NavigationStack {
    Form {
-    Section("Сессия") {
+    // Название — одна строка, без кнопки «Сохранить» и без «Состояние»
+    // (владелец 29.10.2026: «лучше уж одну аккуратненькую полянку… просто
+    // оставить линию, подчёркнутую»).
+    Section {
      TextField("Название", text: $title)
       .onSubmit { Task { await onRename(title) } }
-     Button("Сохранить название") { Task { await onRename(title) } }
-      .disabled(title == (chat.title ?? ""))
-     LabeledContent("Состояние", value: chat.closedAt != nil ? "Закрыта" : isWorking ? "Работает" : "Готова")
     }
     Section {
      Button { showsModelPicker = true } label: {
@@ -57,6 +78,7 @@ struct ChatSessionPanel: View {
         Text(choice.effectiveOption?.thinkingLevelLabels?[level] ?? ChatSessionPreferences.thinkingTitle(level)).tag(level)
        }
       }
+      .tint(.primary)
       .accessibilityIdentifier("chat.session.thinking")
      }
      if choice.isSaving { ProgressView("Сохранение") }
@@ -65,42 +87,61 @@ struct ChatSessionPanel: View {
       Button("Повторить загрузку") { Task { await onRefresh() } }
      }
     } header: { Text("Модель и размышления") }
-      footer: { Text("Настройки сохраняются для этой сессии и действуют со следующего сообщения.") }
     Section("Рабочее пространство") {
      ChatWorkspaceMenu(choice: workspace) {
-      LabeledContent("Папка", value: workspace.selected ?? "По умолчанию")
+      LabeledContent("Рабочая папка", value: workspace.selected ?? "По умолчанию")
      }
-     // Обычный цвет текста вместо синего (владелец 27.10.2026).
-     Button { showsContext = true } label: {
-      LabeledContent("Контекст", value: context?.summary ?? "Нет замера")
-     }
-     .tint(.primary)
+     // Контекст — теми же полосками, что в панели ввода: общая и по
+     // составляющим. Нажатие открывает окно разбора (владелец 29.10.2026).
+     Button { showsContext = true } label: { contextRow }
+      .tint(.primary)
+      .accessibilityIdentifier("chat.session.context")
      Button("Навыки и инструменты", systemImage: "wrench.and.screwdriver") { showsCommands = true }
       .tint(.primary)
     }
-    // Вложения и режим работы — из меню действий чата (владелец 29.10.2026:
-    // «в полосках то, что там есть, просто добавь в эту страничку»).
+    // Вложения — блоками в ряд (владелец 29.10.2026: «фото, файл, камера в
+    // самом начале сделано прикольно»).
     if let onAttachmentSource {
      Section("Вложения") {
-      Button { onAttachmentSource(.photo) } label: { Label("Фото", systemImage: "photo.on.rectangle") }
-       .tint(.primary)
-      Button { onAttachmentSource(.file) } label: { Label("Файл", systemImage: "doc") }
-       .tint(.primary)
-      Button { onAttachmentSource(.camera) } label: { Label("Камера", systemImage: "camera") }
-       .tint(.primary)
-     }
-    }
-    if let workMode {
-     Section {
-      Picker("Режим работы", selection: workMode) {
-       ForEach(availableWorkModes, id: \.self) { mode in
-        Label(mode.title, systemImage: mode.symbol).tag(mode)
+      HStack(spacing: TFSpacing.sm) {
+       ForEach(ChatSessionAttachment.allCases) { attachment in
+        Button { onAttachmentSource(source(for: attachment)) } label: {
+         VStack(spacing: TFSpacing.xs) {
+          Image(systemName: attachment.symbol)
+           .font(.system(size: 18, weight: .medium))
+           .foregroundStyle(Color.tfText)
+           .frame(width: 38, height: 38)
+           .background(Color.white.opacity(0.08),
+                       in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+          Text(attachment.title)
+           .tfText(.caption)
+           .foregroundStyle(Color.tfText)
+         }
+         .frame(maxWidth: .infinity)
+         .padding(.vertical, TFSpacing.xs)
+         .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous))
+         .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("chat.session.attachment.\(attachment.rawValue)")
        }
       }
-      .pickerStyle(.inline)
-      .accessibilityIdentifier("chat.session.workMode")
-     } header: { Text("Режим работы") }
-      footer: { Text("Режим определяет, как роль будет работать над задачей.") }
+      .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.md, bottom: TFSpacing.sm, trailing: TFSpacing.md))
+     }
+    }
+    // Режимы работы — четырьмя блоками (владелец 29.10.2026: «4 блока
+    // поставить, режима работы, как минимум»).
+    if let workMode {
+     Section("Режим работы") {
+      LazyVGrid(columns: [GridItem(.flexible(), spacing: TFSpacing.sm),
+                           GridItem(.flexible(), spacing: TFSpacing.sm)],
+                spacing: TFSpacing.sm) {
+       ForEach(workModes, id: \.self) { mode in
+        workModeBlock(mode, selection: workMode)
+       }
+      }
+      .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.md, bottom: TFSpacing.sm, trailing: TFSpacing.md))
+     }
     }
     Section {
      Button("Новая сессия", systemImage: "plus.bubble") {
@@ -119,10 +160,12 @@ struct ChatSessionPanel: View {
     } footer: { Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю в текущем разговоре.") }
     .tint(.primary)
    }
+   // Обычный цвет текста вместо синего (владелец 29.10.2026).
+   .tint(.primary)
    .disabled(choice.isSaving || actionRunning)
    .navigationTitle("Сессия")
    .navigationBarTitleDisplayMode(.inline)
-   .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+   .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() }.tint(.primary) } }
    .sheet(isPresented: $showsContext) {
     ChatContextSheet(snapshot: context, roleName: nil, loadError: controls.errorText,
        onRefresh: { Task { await onRefresh() } })
@@ -132,10 +175,10 @@ struct ChatSessionPanel: View {
    }
    .sheet(isPresented: $showsCommands) {
     ChatCommandPicker(commands: controls.commands, errorText: controls.errorText,
-       onRefresh: { Task { await onRefresh() } }, onSelect: { command in
+       onRefresh: { Task { await onRefresh() } }) { command in
         dismiss()
         onSelectCommand(command)
-       })
+       }
    }
    .confirmationDialog("Сбросить контекст этой сессии?", isPresented: $confirmsReset, titleVisibility: .visible) {
     Button("Сбросить контекст") { Task { await perform(onResetContext) } }
@@ -144,10 +187,76 @@ struct ChatSessionPanel: View {
   }
   .task { title = chat.title ?? "" }
  }
+
  private func perform(_ action: () async -> Void) async {
   guard !actionRunning else { return }
   actionRunning = true
   defer { actionRunning = false }
   await action()
+ }
+
+ private func source(for attachment: ChatSessionAttachment) -> ChatAttachmentSource {
+  switch attachment {
+  case .photo: .photo
+  case .file: .file
+  case .camera: .camera
+  }
+ }
+
+ /// Контекст: полоска общая и полоски по составляющим — как в панели ввода.
+ @ViewBuilder private var contextRow: some View {
+  VStack(alignment: .leading, spacing: TFSpacing.xs) {
+   HStack {
+    Text("Контекст")
+     .tfText(.body)
+     .foregroundStyle(Color.tfText)
+    Spacer(minLength: TFSpacing.sm)
+    Text(context?.summary ?? "Нет замера")
+     .tfText(.caption)
+     .foregroundStyle(Color.tfSub)
+   }
+   if let snapshot = context, snapshot.fraction != nil {
+    ChatContextBar(snapshot: snapshot).frame(height: 10)
+   }
+  }
+  .contentShape(Rectangle())
+ }
+
+ /// Блок режима работы: значок, название и отметка выбранного.
+ private func workModeBlock(_ mode: RoleChatWorkMode, selection: Binding<RoleChatWorkMode>) -> some View {
+  let isSelected = selection.wrappedValue == mode
+  let isEnabled = mode != .deepResearch || allowsResearch
+  return Button {
+   selection.wrappedValue = mode
+  } label: {
+   VStack(alignment: .leading, spacing: TFSpacing.xs) {
+    HStack {
+     Image(systemName: mode.symbol)
+      .font(.system(size: 16, weight: .medium))
+      .foregroundStyle(isSelected ? Color.tfText : Color.tfSub)
+     Spacer(minLength: 0)
+     if isSelected {
+      Image(systemName: "checkmark")
+       .font(.system(size: 13, weight: .semibold))
+       .foregroundStyle(Color.tfText)
+     }
+    }
+    Text(mode.title)
+     .tfText(.body)
+     .foregroundStyle(isEnabled ? Color.tfText : Color.tfDim)
+    if mode == .deepResearch && !allowsResearch {
+     Text("Только у Исследователя и Помощника")
+      .tfText(.caption)
+      .foregroundStyle(Color.tfDim)
+    }
+   }
+   .frame(maxWidth: .infinity, alignment: .leading)
+   .padding(TFSpacing.md)
+   .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous))
+   .contentShape(Rectangle())
+  }
+  .buttonStyle(.plain)
+  .disabled(!isEnabled)
+  .accessibilityIdentifier("chat.session.workMode.\(mode.rawValue)")
  }
 }

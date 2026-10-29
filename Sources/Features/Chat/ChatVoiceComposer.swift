@@ -250,41 +250,17 @@ struct ChatVoiceComposer: View {
                     .foregroundStyle(Color.tfPaper)
                     .accessibilityIdentifier("chat.message")
                 if showsMentionButton { mentionButton }
-                // В новой панели в капсуле — только папка и мозги (владелец
-                // 29.10.2026: «с краю останется только папочка и мозги»).
-                // Сессия открывается с левой кнопки, поэтому отдельной кнопки
-                // «Сессия» здесь не нужно.
-                if let modelChoice, modelChoice.isAvailable {
-                    ChatModelMenu(choice: modelChoice) {
-                        HStack(spacing: 4) {
-                            Image("ModelBrain")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 20, height: 20)
-                        }
-                        .frame(minWidth: 40, minHeight: 40)
-                        .contentShape(Rectangle())
-                    }
-                }
-                if let workspaceChoice, workspaceChoice.isAvailable {
-                    ChatWorkspaceMenu(choice: workspaceChoice) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "folder")
-                                .font(.system(size: 20, weight: .regular))
-                                .frame(width: 20, height: 20)
-                        }
-                        .frame(minWidth: 40, minHeight: 40)
-                        .contentShape(Rectangle())
-                    }
-                }
+                // Мозга и папки в капсуле нет: окно сессии с левой кнопки уже
+                // показывает и модель, и рабочую папку (владелец 29.10.2026:
+                // «оставил мозги эти и папку в панели ввода — зачем
+                // дублировать?»).
             }
             .padding(.leading, 14)
             .padding(.trailing, 4)
             .padding(.vertical, 2)
-            .frame(minHeight: 40)
-            .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.white.opacity(0.12)))
+            .frame(minHeight: Self.compactKnobSize)
+            .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.12)))
             .foregroundStyle(Color.white.opacity(0.6))
             // В морфинг уходит сама капсула: кнопки по краям остаются на месте.
             .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
@@ -304,10 +280,9 @@ struct ChatVoiceComposer: View {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 19, weight: .regular))
                     .foregroundStyle(Color.white.opacity(0.6))
-                    .frame(width: 36, height: 36)
+                    .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
                     .background(Color(white: 0.125), in: Circle())
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.12)))
-                    .frame(width: 40, height: 40)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -319,6 +294,11 @@ struct ChatVoiceComposer: View {
         }
     }
 
+    /// Высота круглых кнопок новой панели — по высоте самой панели ввода
+    /// (владелец 29.10.2026: «почему он, и правый шарик, они меньше, чем
+    /// высота панели ввода. Надо, чтобы одинаковые были по высоте»).
+    private static let compactKnobSize: CGFloat = 44
+
     /// Микрофон отдельной круглой кнопкой справа — на месте отправки, пока
     /// текста нет. Нажатие не ставит каретку: клавиатура не поднимается
     /// (владелец 29.10.2026).
@@ -326,10 +306,10 @@ struct ChatVoiceComposer: View {
         Button(action: startVoiceRecording) {
             Image(systemName: "mic")
                 .font(.system(size: 19, weight: .regular))
-                .foregroundStyle(Color.tfText)
-                .frame(width: 36, height: 36)
-                .background(Color.white.opacity(0.12), in: Circle())
-                .frame(width: 40, height: 40)
+                .foregroundStyle(Color.white.opacity(0.6))
+                .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
+                .background(Color(white: 0.125), in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -340,18 +320,19 @@ struct ChatVoiceComposer: View {
 
     /// Вид панели ввода в покое: однострочная, пока пользователь не начал
     /// ввод; дальше — привычная панель целиком (владелец 29.10.2026).
+    ///
+    /// Разворачивается панель по двум признакам: поле в фокусе или в
+    /// черновике есть текст. Когда клавиатуру сворачивают и текста нет, панель
+    /// сжимается обратно (владелец 29.10.2026: «когда я сворачиваю опять
+    /// клавиатуру, он опять в маленький не превращается»).
     private var composerLayout: ChatComposerLayout {
-        ChatComposerLayoutPolicy.layout(style: composerStyle, hasExpanded: hasExpandedPanel)
+        ChatComposerLayoutPolicy.layout(style: composerStyle,
+                                        isFocused: textFieldFocus.wrappedValue,
+                                        hasText: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
-
-    /// Панель уже развернулась: пользователь начал ввод или вставил текст.
-    /// Обратно не сжимается — сжатие отняло бы каретку посреди набора.
-    @State private var hasExpandedPanel = false
-    /// Развернуть панель и вернуть каретку в новое поле: после смены вью
-    /// старое поле исчезает, и без этого каретка бы пропала.
-    private func expandPanelKeepingFocus() {
-        guard !hasExpandedPanel else { return }
-        hasExpandedPanel = true
+    /// Вернуть каретку в поле после смены вью: старое поле исчезает, и без
+    /// этого каретка бы пропала.
+    private func keepFocus() {
         DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
     }
 
@@ -416,11 +397,6 @@ struct ChatVoiceComposer: View {
         switch composerLayout {
         case .compact:
             compactPromptPanel
-                // Касание поля — намерение писать: панель разворачивается в
-                // привычную (владелец 29.10.2026 — два состояния панели).
-                .onChange(of: textFieldFocus.wrappedValue) { _, focused in
-                    if focused { expandPanelKeepingFocus() }
-                }
         case .full:
             stackedPromptPanel
         }
@@ -470,7 +446,6 @@ struct ChatVoiceComposer: View {
         if ChatComposerLayoutPolicy.focusesField(.mentionInserted) {
             textFieldFocus.wrappedValue = true
         }
-        hasExpandedPanel = true
     }
 
     private var promptRecordingComposer: some View {
@@ -678,10 +653,9 @@ struct ChatVoiceComposer: View {
         }
         onDiscardVoice(message)
         try? VoiceRecorder.cancelRecordingFile(at: message.audioURL)
-        // Текст появился — панель разворачивается в обычную (владелец
-        // 29.10.2026). Каретку в поле не ставим: расшифровка сама вставила
-        // текст, клавиатура после диктовки не нужна.
-        hasExpandedPanel = true
+        // Каретку в поле не ставим: расшифровка сама вставила текст,
+        // клавиатура после диктовки не нужна. Панель развернётся сама — по
+        // наличию текста в черновике.
         if ChatComposerLayoutPolicy.focusesField(.transcriptionInserted) {
             textFieldFocus.wrappedValue = true
         }
