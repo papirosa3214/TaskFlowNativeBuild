@@ -13,9 +13,21 @@ tests = root / 'Tests/AttentionCardContextTests.swift'
 if not model.exists():
     raise SystemExit(f'нет модели: {model}')
 
-source = model.read_text()
+source = (root / 'Sources/Core/Models/ChatQuestion.swift').read_text() + '\n' + model.read_text()
+for name in ['HintModels', 'HintScenarios', 'HintCenter']:
+    source += '\n' + (root / f'Sources/DesignSystem/Hints/{name}.swift').read_text()
 source += '\n' + tests.read_text().replace('@testable import TaskFlow', '').replace('    func test', '    @objc func test')
-source += '\nlet suite = AttentionCardContextTests.defaultTestSuite\nsuite.run()\nexit(suite.testRun!.hasSucceeded ? 0 : 1)\n'
+hints = (root / 'Tests/HintCenterTests.swift').read_text()
+start = hints.index('    func testInboxHintCompletes()')
+opening = hints.index('{', start)
+end, depth = opening + 1, 1
+while depth:
+    depth += (hints[end] == '{') - (hints[end] == '}')
+    end += 1
+method = hints[start:end].replace('    func test', '    @objc func test')
+source += '\n@MainActor final class InboxHintHostTests: XCTestCase {\n' + method + '\n}\n'
+source += '\nlet suites = [AttentionCardContextTests.defaultTestSuite, InboxHintHostTests.defaultTestSuite]\nfor suite in suites { suite.run() }\nexit(suites.allSatisfy { $0.testRun!.hasSucceeded } ? 0 : 1)\n'
+
 
 d = Path(subprocess.check_output(['xcode-select', '-p'], text=True).strip())
 f = d / 'Platforms/MacOSX.platform/Developer/Library/Frameworks'

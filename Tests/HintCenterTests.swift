@@ -4,6 +4,18 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testInboxHintCompletes() {
+        let name = "inbox-hint-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.inboxTickets])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.inboxTickets, frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+        XCTAssertEqual(center.currentScenario?.id, "inbox-tickets")
+        center.next()
+        XCTAssertTrue(center.completed.contains("inbox-tickets"))
+        XCTAssertNil(center.active)
+    }
     func testAllTasksHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "projects-all-tasks" })
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
