@@ -197,19 +197,17 @@ struct RoleLiveItemsList: View {
         // по номеру строки пересоздавались от прихода текста в середину хода.
         let identities = RoleLiveSegment.identities(segments)
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            ForEach(segments.indices, id: \.self) { index in
-                switch segments[index] {
+            ForEach(Array(zip(identities, segments)), id: \.0) { identity, segment in
+                switch segment {
                 case .single(let item):
                     itemView(item)
-                        .id(identities[index])
                 case .actions(let group):
                     // «Стандарт» (владелец 20.10.2026): подряд идущие шаги и
                     // размышления — одной строкой, тап раскрывает весь список.
-                    RoleActionGroup(items: group, isLive: isStreaming && index == segments.count - 1,
+                    RoleActionGroup(items: group, isLive: isStreaming && identity == identities.last,
                                     showsPreview: showsActionPreview) { item in
                         itemView(item)
                     }
-                    .id(identities[index])
                 }
             }
         }
@@ -890,15 +888,14 @@ final class RoleTextRevealHistory {
             appearanceTimes = []
             return
         }
-        // Инвариант `revealedUpTo + appearanceTimes.count <= count` держим жёстко:
-        // всё, что выходит за пределы текста, — проявившийся глиф, хвост обрезаем
-        // с начала и прибавляем к `revealedUpTo`. Смысл тот же, что у старого кода
-        // при укорочении текста: показанное начало остаётся показанным.
-        let overflow = revealedUpTo + appearanceTimes.count - count
-        if overflow > 0 {
-            let drop = min(overflow, appearanceTimes.count)
-            appearanceTimes.removeFirst(drop)
-            revealedUpTo -= drop
+        // При укорочении/переносе сохраняем уже видимое начало и времена
+        // оставшегося хвоста. Удаление с начала хвоста и уменьшение префикса
+        // заново гасило показанные буквы; при пустом хвосте префикс мог даже
+        // оказаться длиннее всего текста.
+        revealedUpTo = min(revealedUpTo, count)
+        let tailCapacity = count - revealedUpTo
+        if appearanceTimes.count > tailCapacity {
+            appearanceTimes.removeLast(appearanceTimes.count - tailCapacity)
         }
         // Хвост, доживший до конца проявления, оседает разом — с этого момента
         // по уже показанным глифам больше не ходим.
@@ -948,7 +945,7 @@ struct RoleRevealRenderer: TextRenderer {
             var lineCount = 0
             for run in line { lineCount += run.count }
             // Строка целиком проявилась — рисуем одним вызовом.
-            if index >= history.revealedUpTo {
+            if index + lineCount <= history.revealedUpTo {
                 ctx.draw(line)
                 index += lineCount
                 continue
