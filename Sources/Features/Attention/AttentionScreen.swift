@@ -149,7 +149,7 @@ struct AttentionScreen: View {
             if let summary = ticket.cardSummary {
                 Text(summary)
                     .tfText(.body)
-                    .foregroundStyle(Color.tfSub)
+                    .foregroundStyle(Color.tfText)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -162,15 +162,7 @@ struct AttentionScreen: View {
                 .tfText(.meta)
                 .foregroundStyle(Color.tfDim)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                HStack(spacing: TFSpacing.xs) {
-                    Text(ticket.actionTitle)
-                    if ticket.action != nil {
-                        Image(systemName: "chevron.right")
-                            .accessibilityHidden(true)
-                    }
-                }
-                .tfText(.action)
-                .foregroundStyle(Color.tfText)
+
             }
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
