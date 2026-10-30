@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>TaskFlow — согласование плана: семь состояний (макет)</title>
 <style>
   :root{
@@ -62,6 +63,11 @@
   .hint b{color:var(--shellText);font-weight:600}
   .hint ul{margin:6px 0 0 16px}
   .hint li{margin-bottom:4px}
+  .hint summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--shellText);list-style:none;padding:2px 0}
+  .hint summary::-webkit-details-marker{display:none}
+  .hint summary::after{content:" \25BE";color:var(--shellSub);font-weight:400}
+  .hint[open] summary::after{content:" \25B4"}
+  .hintbody{padding-bottom:4px}
 
   .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:26px}
   .phone{
@@ -294,15 +300,45 @@
   }
 
   @media (max-width:900px){
-    body{flex-direction:column}
-    .panel{width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--stroke)}
-    .hint{margin-top:8px}
-    .stage{padding:16px}
+    body{flex-direction:column;align-items:stretch}
+    .panel{
+      width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--stroke);
+      padding:12px 14px 8px;gap:10px;overflow:visible
+    }
+    .panel h1{font-size:16px}
+    .panel .lead{
+      margin-top:0;font-size:12px;line-height:1.4;
+      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden
+    }
+    .ctl{gap:6px}
+    .ctl .lbl{font-size:10px}
+    .states{flex-direction:row;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+    .states::-webkit-scrollbar{display:none}
+    .state{
+      width:auto;flex:none;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;
+      border:1px solid var(--stroke);background:var(--shellCard);min-height:44px
+    }
+    .state .n{width:22px;height:22px;margin-top:0}
+    .state .s{display:none}
+    .state[aria-pressed="true"]{border-color:var(--red);background:var(--shellCard)}
+    .seg{width:100%;max-width:240px}
+    .hint{margin-top:2px;border-top:0;padding-top:0}
+    .hint summary{font-size:13px;min-height:44px;display:flex;align-items:center;padding:6px 0}
+    .hintbody{font-size:12px;padding-bottom:8px}
+    .stage{padding:10px 6px 18px;align-items:stretch;gap:10px;justify-content:flex-start}
+    .phone{
+      width:100%;max-width:430px;height:auto;padding:8px;border-radius:36px;transform:none;align-self:center
+    }
+    .screen{width:100%;height:auto;min-height:calc(100vh - 210px);border-radius:28px}
+    .demo,.demo.sm{max-width:100%;flex-wrap:wrap;white-space:normal;row-gap:2px}
+    .owner{max-width:100%;flex-wrap:wrap;row-gap:2px}
+    .caption{max-width:430px;font-size:13px;align-self:center}
+    .caption .st{font-size:14px}
   }
   @media (prefers-reduced-motion:reduce){ .spin{animation:none} .toast{transition:none} }
 </style>
 </head>
-<body>
+<body class="light">
 <aside class="panel">
   <h1>Согласование плана — макет на iPhone</h1>
   <div class="lead">Экран карточки TaskFlow: владелец смотрит план до запуска, правит неначатый этап и утверждает. Семь состояний из спецификации сценария. Данные вымышленные, запросы не выполняются.</div>
@@ -315,12 +351,14 @@
   <div class="ctl">
     <div class="lbl">Тема</div>
     <div class="seg" id="segTheme">
-      <button data-t="dark" aria-pressed="true">Тёмная</button>
-      <button data-t="light" aria-pressed="false">Светлая</button>
+      <button data-t="dark" aria-pressed="false">Тёмная</button>
+      <button data-t="light" aria-pressed="true">Светлая</button>
     </div>
   </div>
 
-  <div class="hint">
+  <details class="hint" id="howto">
+    <summary>Как проверять и замечание</summary>
+    <div class="hintbody">
     <b>Как проверять.</b>
     <ul>
       <li>Все семь состояний доступны слева.</li>
@@ -331,7 +369,8 @@
     </ul>
     <b style="display:block;margin-top:10px">Замечание.</b>
     В текущем приложении пункт «Утвердить план совместной работы» лежит в соседнем меню «Работа» (значок людей). Макет держит решение владельца: утверждение — в меню «Ещё».
-  </div>
+    </div>
+  </details>
 </aside>
 
 <main class="stage">
@@ -644,7 +683,9 @@ function show(key){
   caption.innerHTML = '<span class="st">'+(STATES.indexOf(st)+1)+'. '+st.t+'</span>'+st.cap+
     '<div class="dnote">ДЕМО · вымышленные данные</div>';
   Array.prototype.forEach.call(stateBox.querySelectorAll('.state'), function(b){
-    b.setAttribute('aria-pressed', b.getAttribute('data-k') === key ? 'true' : 'false');
+    const on = b.getAttribute('data-k') === key;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if(on && window.innerWidth <= 900) b.scrollIntoView({block:'nearest', inline:'center'});
   });
 }
 stateBox.addEventListener('click', function(e){
@@ -672,9 +713,11 @@ document.getElementById('segTheme').addEventListener('click', function(e){
 });
 
 function fit(){
-  const avail = window.innerHeight - 130;
-  const s = Math.min(1, avail / 902);
-  document.getElementById('phone').style.setProperty('--s', s);
+  const narrow = window.innerWidth <= 900;
+  const s = narrow ? 1 : Math.min(1, (window.innerHeight - 130) / 902);
+  document.documentElement.style.setProperty('--s', s);
+  const howto = document.getElementById('howto');
+  if(howto) howto.open = !narrow;
 }
 window.addEventListener('resize', fit);
 fit();
