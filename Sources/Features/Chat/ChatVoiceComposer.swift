@@ -242,7 +242,7 @@ struct ChatVoiceComposer: View {
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .padding(.horizontal).padding(.top, 10)
+        .padding(.horizontal).padding(.top, TFSpacing.lg)
         .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
         .modifier(workingCaption)
     }
@@ -280,7 +280,7 @@ struct ChatVoiceComposer: View {
             compactMicButton
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
-        .padding(.horizontal).padding(.top, 10)
+        .padding(.horizontal).padding(.top, TFSpacing.lg)
         .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
         .modifier(workingCaption)
     }
