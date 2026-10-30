@@ -122,67 +122,67 @@ struct AttentionScreen: View {
     }
 
     private func ticketCard(_ ticket: ApiAttentionTicket) -> some View {
-        TFCard {
-            VStack(alignment: .leading, spacing: TFSpacing.md) {
-                HStack(alignment: .top, spacing: TFSpacing.sm) {
-                    Image(systemName: ticket.kind == "question" ? "questionmark.bubble" :
-                            ticket.kind == "approval" ? "checkmark.shield" : "hand.raised")
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfBlue)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                        Text(ticket.role ?? "Команда")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfText)
-                        Text(ticket.kindTitle)
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+                Image(systemName: ticket.kind == "question" ? "questionmark.bubble" :
+                        ticket.kind == "approval" ? "checkmark.shield" : "hand.raised")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfBlue)
+                    .accessibilityHidden(true)
+                Text(ticket.role ?? "Команда")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfText)
+                    .lineLimit(1)
+                Spacer(minLength: TFSpacing.xs)
+                Text(ticket.kindTitle)
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
+            }
+            Text(ticket.title)
+                .tfText(.taskTitle)
+                .foregroundStyle(Color.tfText)
+                .fixedSize(horizontal: false, vertical: true)
+            if !ticket.body.isEmpty {
+                Text(ticket.body)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfSub)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(alignment: .bottom, spacing: TFSpacing.sm) {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    if let context = ticket.context_title {
+                        Text(context)
                             .tfText(.meta)
                             .foregroundStyle(Color.tfSub)
+                            .lineLimit(2)
                     }
-                    Spacer(minLength: TFSpacing.xs)
-                    if let date = ticket.createdDate {
-                        Text(date, style: .relative)
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfDim)
-                            .multilineTextAlignment(.trailing)
+                    HStack(spacing: TFSpacing.sm) {
+                        if let project = ticket.project, !project.isEmpty {
+                            Text(project).lineLimit(1)
+                        }
+                        if let date = ticket.createdDate {
+                            Text(date, style: .relative)
+                        }
                     }
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfDim)
                 }
-                Text(ticket.title)
-                    .tfText(.taskTitle)
-                    .foregroundStyle(Color.tfText)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !ticket.body.isEmpty {
-                    Text(ticket.body)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let context = ticket.context_title {
-                    Text(context)
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfDim)
-                        .lineLimit(2)
-                }
-                if let project = ticket.project, !project.isEmpty {
-                    Text(project)
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfDim)
-                        .lineLimit(1)
-                }
-                HStack {
+                .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: TFSpacing.xs) {
                     Text(ticket.actionTitle)
-                        .tfText(.action)
-                    Spacer()
                     if ticket.action != nil {
                         Image(systemName: "arrow.up.right")
-                            .tfText(.action)
                             .accessibilityHidden(true)
                     }
                 }
+                .tfText(.action)
                 .foregroundStyle(Color.tfBlue)
-                .frame(minHeight: 44)
             }
         }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.vertical, TFSpacing.sm)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("inbox.ticket." + ticket.id)
     }
