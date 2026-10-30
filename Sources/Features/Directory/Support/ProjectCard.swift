@@ -6,11 +6,9 @@ import SwiftUI
 // список строк, разделённых тонкими линиями, — так список читается как список,
 // а не как стопка плиток.
 //
-// Общие числа приходят готовыми из `GET /api/projects` (`task_count`,
-// `completed_count`, `overdue_count`, `last_activity_at`, `docs_count`).
-// Разбиение активных задач на review/blocked/остальные берётся из уже
-// загруженного общего `TaskStore`: отдельного запроса на каждый проект нет,
-// а realtime-изменение задачи сразу перерисовывает соответствующую строку.
+// Числа задач, процент и полоска считаются по одному снимку TaskStore.
+// Серверные агрегаты проекта могут отставать от realtime, поэтому не
+// смешиваются с этим снимком. Документы/просрочка/дата — из GET /api/projects.
 //
 // Цвет проекта живёт теперь в СЕКЦИОННЫХ ПОЛОСКАХ (владелец 11.10.2026:
 // «не рисовать точки, вот как раз будут полоски эти цветными»). Точка у
@@ -113,42 +111,24 @@ struct ProjectCard: View {
         return Double(completed) / Double(total)
     }
 
-    /// Главная сводка — без фонов и слов: системная иконка и число одним
-    /// цветом. Порядок постоянный, поэтому карточки легко сравнивать глазами;
-    /// полные названия остаются доступны VoiceOver.
+    /// Пять подписанных ярлычков: смысл понятен без расшифровки значков.
+    /// FlowLayout переносит их целиком при узком экране или крупном шрифте.
     private var statusLine: some View {
-        HStack(spacing: 10) {
-            statusMetric("tray.full", value: status.total, color: .tfText, label: "Всего задач")
-            statusMetric("checkmark.circle.fill", value: status.completed, color: .tfGreen, label: "Выполнено")
-            stateMetric(.review, value: status.review, label: "На проверке")
-            stateMetric(.blocked, value: status.blocked, label: "Заблокировано")
-            statusMetric("clock", value: status.pending, color: .tfDim, label: "Ещё не начаты")
-            stateMetric(.running, value: status.inWork, label: "В работе")
-            stateMetric(.stale, value: status.stale, label: "Пропали")
-            Spacer(minLength: 0)
+        FlowLayout(spacing: TFSpacing.sm) {
+            statusMetric(value: status.total, color: .tfSub, label: "Всего")
+            statusMetric(value: status.inWork, color: .tfTeal, label: "В работе")
+            statusMetric(value: status.blocked, color: .tfOrange, label: "Заблокировано")
+            statusMetric(value: status.review, color: .tfPurple, label: "На проверке")
+            statusMetric(value: status.pending, color: .tfSub, label: "Ожидают")
         }
     }
 
-    private func stateMetric(_ kind: ProjectStatusIcon.Kind, value: Int, label: String) -> some View {
-        HStack(spacing: 4) {
-            ProjectStatusIcon(kind: kind, size: 13)
-            Text("\(value)").monospacedDigit().foregroundStyle(Color.tfText)
-        }.tfText(.caption).accessibilityElement(children: .ignore)
-            .accessibilityLabel(label).accessibilityValue("\(value)")
-    }
-
-    private func statusMetric(_ icon: String, value: Int, color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .accessibilityHidden(true)
-            Text("\(value)")
-                .monospacedDigit()
-        }
-        .tfText(.caption)
-        .foregroundStyle(Color.tfReadableText(color))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
-        .accessibilityValue("\(value)")
+    private func statusMetric(value: Int, color: Color, label: String) -> some View {
+        TFPill("\(label) \(value)", color: color)
+            .monospacedDigit()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label == "Всего" ? "Всего задач" : label)
+            .accessibilityValue("\(value)")
     }
 
     /// Вторичная строка: просрочка, документы, последнее движение. Пункты
@@ -215,10 +195,9 @@ struct ProjectCard: View {
     }
 }
 
-/// Статусы в сервере двухуровневые: `status` отвечает только за active /
-/// completed, а `agent_state` уточняет активную задачу. Поэтому «в работе» —
-/// активные задачи за вычетом review и blocked; сюда входят и реально
-/// запущенные (`in_progress`), и ещё не взятые в работу задачи.
+/// Один снимок для всех пяти ярлычков и прогресса. Выполненные входят в
+/// знаменатель, но не в четыре взаимоисключающих состояния открытых задач.
+/// Используем тот же effective state, что и фильтры списка задач.
 struct ProjectTaskStatusSummary {
     let total: Int
     let completed: Int
@@ -226,18 +205,15 @@ struct ProjectTaskStatusSummary {
     let blocked: Int
     let inWork: Int
     let pending: Int
-    let stale: Int
 
     init(project: ApiProject, tasks: [ApiTask]) {
-        let scoped = tasks.filter { $0.projectId == project.id }
-        let active = project.taskCount ?? scoped.count { $0.status == .active }
-        completed = project.completedCount ?? scoped.count { $0.status == .completed }
-        review = scoped.count { $0.status == .active && $0.agentState == .review }
-        blocked = scoped.count { $0.status == .active && $0.agentState == .blocked }
-        stale = scoped.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale == true }
-        inWork = scoped.count { $0.status == .active && $0.agentState == .inProgress && $0.agentStale != true }
-        pending = max(0, active - review - blocked - inWork - stale)
-        total = active + completed
+        let scoped = tasks.filter { $0.projectId == project.id && !$0.isArchived }
+        total = scoped.count
+        completed = scoped.count { $0.status == .completed }
+        review = scoped.count { ProjectTaskFilter.review.matches($0) }
+        blocked = scoped.count { ProjectTaskFilter.blocked.matches($0) }
+        inWork = scoped.count { ProjectTaskFilter.working.matches($0) }
+        pending = scoped.count { ProjectTaskFilter.waiting.matches($0) }
     }
 }
 
