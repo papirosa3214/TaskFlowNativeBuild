@@ -863,6 +863,10 @@ struct RoleChatRoomScreen: View {
     /// Какое сообщение закрыло живой ход: ход прячет из ленты ровно ЭТО
     /// сообщение, а не все ответы того же автора подряд.
     @State private var completedMessageIDByTurn: [String: String] = [:]
+    /// Сообщения, которые закрыли живой ход. Их шаги рисуются в той же форме,
+    /// что и в живом пузыре: иначе на смене строки лента теряет сотни пунктов
+    /// высоты и шатается (владелец 30.10.2026).
+    @State private var closedTurnMessageIDs: Set<String> = []
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
     @State private var pendingOutgoing: [PendingOutgoing] = []
     @State private var discussionStatus: RoleChatDiscussion? = nil
@@ -1976,6 +1980,11 @@ struct RoleChatRoomScreen: View {
     private var messageScroll: some View {
         let orderedFeed = feedItems
         let dayDividers = dayDividerTitles(orderedFeed)
+        // Выдержки «в ответ на» — один проход по ленте на кадр. Раньше каждая
+        // строка искала свой вопрос по всей истории (`first(where:)`), то есть
+        // квадратичный поиск на каждое обновление живым ходом (разбор
+        // 25-26.10.2026, `docs/2026-10-25-chat-window-behaviour.md`).
+        let replyExcerpts = Self.replyExcerpts(from: messages)
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
                 if messages.isEmpty && hasLoadedMessages {
@@ -2019,14 +2028,15 @@ struct RoleChatRoomScreen: View {
                             ChatFeedDivider(title: title)
                         }
                         if let turn = item.turn {
-                            liveTurnRow(turn)
+                            liveTurnRow(turn, replyExcerpts: replyExcerpts)
                         } else if let pending = item.pending {
-                            outgoingRow(pendingMessage(pending), pending: pending)
+                            outgoingRow(pendingMessage(pending), pending: pending,
+                                        replyExcerpts: replyExcerpts)
                         } else if let message = item.message {
                             if isOutgoingRow(item) {
-                                outgoingRow(message, pending: nil)
+                                outgoingRow(message, pending: nil, replyExcerpts: replyExcerpts)
                             } else {
-                                messageRow(message)
+                                messageRow(message, replyExcerpts: replyExcerpts)
                             }
                         }
                     }
@@ -2328,6 +2338,7 @@ struct RoleChatRoomScreen: View {
                     completedMessageIDByTurn[parked.playbackID] = message.id
                     rowIDByMessageID[message.id] = RoleChatRowID.turn(parked.playbackID)
                     endedTurnIDs.insert(parked.playbackID)
+                    closedTurnMessageIDs.insert(message.id)
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
                     typistTools[author] = nil
@@ -2356,6 +2367,7 @@ struct RoleChatRoomScreen: View {
         completedMessageIDByTurn[turn.playbackID] = message.id
         rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
         endedTurnIDs.insert(turn.playbackID)
+        closedTurnMessageIDs.insert(message.id)
         if message.stopReason != nil { stoppedTurnIDs.insert(turn.playbackID) }
     }
 
@@ -2374,10 +2386,11 @@ struct RoleChatRoomScreen: View {
     /// приглушён; не ушло — подпись и «Повторить».
     /// Своё сообщение: пока оно «в пути» и после доставки — один и тот же вид,
     /// меняется только прозрачность.
-    private func outgoingRow(_ message: RoleChatMessage, pending: PendingOutgoing?) -> some View {
+    private func outgoingRow(_ message: RoleChatMessage, pending: PendingOutgoing?,
+                             replyExcerpts: [String: String]) -> some View {
         VStack(alignment: .trailing, spacing: TFSpacing.xs) {
             // Выбор и удаление для него не имеют смысла — на сервере его нет.
-            messageBubbleRow(message)
+            messageBubbleRow(message, replyExcerpts: replyExcerpts)
                 .allowsHitTesting(pending == nil)
                 .opacity(pending.map { $0.failed ? 1 : 0.6 } ?? 1)
             if let pending, pending.failed {
@@ -2447,9 +2460,9 @@ struct RoleChatRoomScreen: View {
         return nil
     }
 
-    private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
+    private func liveTurnRow(_ turn: RoleChatLiveTurn, replyExcerpts: [String: String]) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            replyContext(messageID: turn.triggerMessageID, sender: nil)
+            replyContext(messageID: turn.triggerMessageID, sender: nil, excerpts: replyExcerpts)
             RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID),
                                isStopped: stoppedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
                                // Законченный ход показывается сразу: если
@@ -2641,7 +2654,7 @@ struct RoleChatRoomScreen: View {
     }
 
     @ViewBuilder
-    private func messageRow(_ message: RoleChatMessage) -> some View {
+    private func messageRow(_ message: RoleChatMessage, replyExcerpts: [String: String]) -> some View {
         if let coordination = message.coordination {
             RoleCoordinationCard(coordination: coordination) {
                 try await api.stopRoleCoordination(chatID: chat.id, messageID: message.id)
@@ -2650,9 +2663,9 @@ struct RoleChatRoomScreen: View {
         } else if message.isSessionMarker {
             sessionMarkerRow(message)
         } else if isFlatReply(message) {
-            flatReplyRow(message)
+            flatReplyRow(message, replyExcerpts: replyExcerpts)
         } else {
-            messageBubbleRow(message)
+            messageBubbleRow(message, replyExcerpts: replyExcerpts)
         }
     }
 
@@ -2666,10 +2679,10 @@ struct RoleChatRoomScreen: View {
     }
 
     @ViewBuilder
-    private func replyContext(messageID: String?, sender: String?) -> some View {
-        if let messageID, let original = messages.first(where: { $0.id == messageID }) {
-            let excerpt = original.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            Text("В ответ на: " + (excerpt.isEmpty ? "Вложение" : excerpt))
+    private func replyContext(messageID: String?, sender: String?,
+                              excerpts: [String: String]) -> some View {
+        if let messageID, let excerpt = excerpts[messageID] {
+            Text("В ответ на: " + excerpt)
                 .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
                 .lineLimit(2)
@@ -2679,6 +2692,18 @@ struct RoleChatRoomScreen: View {
                 .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
         }
+    }
+
+    /// Тексты сообщений по id — для строки «В ответ на». Один проход вместо
+    /// поиска по всей ленте в каждой строке.
+    static func replyExcerpts(from messages: [RoleChatMessage]) -> [String: String] {
+        var result: [String: String] = [:]
+        result.reserveCapacity(messages.count)
+        for message in messages {
+            let text = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            result[message.id] = text.isEmpty ? "Вложение" : text
+        }
+        return result
     }
 
     /// Тело шага по запросу.
@@ -2695,7 +2720,7 @@ struct RoleChatRoomScreen: View {
         }
     }
 
-    private func flatReplyRow(_ message: RoleChatMessage) -> some View {
+    private func flatReplyRow(_ message: RoleChatMessage, replyExcerpts: [String: String]) -> some View {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
             if isSelecting {
                 Image(systemName: selectedMessageIDs.contains(message.id)
@@ -2707,9 +2732,11 @@ struct RoleChatRoomScreen: View {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 // Ответ роли подписан внизу (replyFooter), сверху — только чужой.
                 if !isAgentReply(message) { senderLine(message, color: Color.tfSub) }
-                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
+                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName,
+                             excerpts: replyExcerpts)
                 if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
+                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message),
+                                      showsActionPreview: closedTurnMessageIDs.contains(message.id))
                 }
                 // Текст и карточка задачи — вместе, а не вместо: раньше
                 // карточка подменяла всё сообщение, и вопрос роли пропадал
@@ -2772,7 +2799,7 @@ struct RoleChatRoomScreen: View {
         }
     }
 
-    private func messageBubbleRow(_ message: RoleChatMessage) -> some View {
+    private func messageBubbleRow(_ message: RoleChatMessage, replyExcerpts: [String: String]) -> some View {
         let mine = message.fromUserID == session.currentUser?.id
         let hasAudio = message.attachments?.contains { $0.isVoiceRecording } ?? false
         return HStack(alignment: .top, spacing: TFSpacing.sm) {
@@ -2804,10 +2831,12 @@ struct RoleChatRoomScreen: View {
                         senderLine(message, color: Color.tfSub)
                     }
                 }
-                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName)
+                replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName,
+                             excerpts: replyExcerpts)
                 // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
                 if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
+                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message),
+                                      showsActionPreview: closedTurnMessageIDs.contains(message.id))
                 }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
                     RoleChatRemoteVoiceBubble(

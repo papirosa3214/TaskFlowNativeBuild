@@ -529,6 +529,24 @@ enum RoleChatTime {
     }
 }
 
+/// Правило роста живого хода: список показанных действий только растёт.
+///
+/// Снимок хода приходит и позже дельт — после переподключения, разрыва
+/// нумерации или сброса состояния, когда владелец написал новое сообщение. В
+/// таком снимке пунктов может быть меньше, чем уже видно. Принять его значит
+/// схлопнуть живой пузырь на десятки-сотни пунктов — а лента держится за низ,
+/// поэтому она уезжает вниз и возвращается обратно (владелец 30.10.2026;
+/// замер и разбор — `docs/2026-10-25-chat-shake.md`).
+///
+/// Исключение — законченный ход: там список заменяется содержимым готового
+/// ответа один раз и это и есть смена строки.
+enum RoleLiveTurnGrowth {
+    static func accepts(shown: [String], incoming: [String], isFinal: Bool = false) -> Bool {
+        if isFinal { return true }
+        return Set(shown).isSubset(of: Set(incoming))
+    }
+}
+
 /// Локальная очередь показа ответа. Сервер присылает накопленные снимки
 /// раз в 150 мс, а экран выпускает текст с ровной скоростью по словам:
 /// скорость плавно подстраивается под очередь, поэтому поток не идёт
@@ -589,19 +607,30 @@ struct RoleLiveTextPacer {
     /// Сколько ждать продолжения оборванного слова в конце снимка.
     static let tailWait: TimeInterval = 0.15
 
-    mutating func ingest(_ incoming: [RoleChatLiveItem]) {
+    mutating func ingest(_ incoming: [RoleChatLiveItem], isFinal: Bool = false) {
         // Rich blocks bypass the prose clock, including unfinished blocks whose
         // renderer shows a placeholder. Keep raw fences for the existing parser.
         var items: [RoleChatLiveItem] = []
-        immediateText = []
+        var immediate: Set<Int> = []
         for item in incoming {
             if case .text(let text) = item {
-                for (part, immediate) in Self.pacingParts(text) {
-                    if immediate { immediateText.insert(items.count) }
+                for (part, isImmediate) in Self.pacingParts(text) {
+                    if isImmediate { immediate.insert(items.count) }
                     items.append(.text(part))
                 }
             } else { items.append(item) }
         }
+        // Показанный живой ход не укорачивается. Снимок хода приходит и позже
+        // дельт (переподключение, разрыв нумерации, сброс после нового
+        // сообщения владельца) и вправе убрать пункт, который уже виден.
+        // Принять такой список — схлопнуть пузырь и уронить ленту вниз, а
+        // потом уронить её обратно, когда пункты проявятся заново (владелец
+        // 30.10.2026; разбор 25.10.2026 `docs/2026-10-25-chat-shake.md`).
+        guard isFinal || RoleLiveTurnGrowth.accepts(
+            shown: target.compactMap { Self.actionID($0) },
+            incoming: items.compactMap { Self.actionID($0) }
+        ) else { return }
+        immediateText = immediate
         // Текст узнаём по порядку среди текстовых пунктов: сервер их только
         // дописывает, поэтому номер текста не меняется. Действия — по id.
         var oldTexts: [(chars: [Character], visible: Int)] = []
