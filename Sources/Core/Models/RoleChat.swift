@@ -1022,7 +1022,19 @@ extension RoleChatLiveTurn {
         // на десятки-сотни пунктов, и `refresh()` возвращал их обратно. Это
         // второй вид «шатания» — не движение прокрутки, а усадка строки под
         // ней (ревью ленты п.1.3, владелец 30.10.2026).
-        var merged = items
+        // Текст сохранённого снимка заменяет промежуточные версии по порядку,
+        // а не добавляется рядом: иначе остаются обрывки и полный дубль.
+        let savedTexts = (message.steps?.items ?? []).compactMap { item -> String? in
+            if case .text(let text) = item { return text }; return nil
+        }
+        var replacedTexts = 0
+        var merged = savedTexts.isEmpty ? items : items.compactMap { item -> RoleChatLiveItem? in
+            guard case .text = item else { return item }
+            defer { replacedTexts += 1 }
+            guard replacedTexts < savedTexts.count else { return nil }
+            return .text(savedTexts[replacedTexts])
+        }
+        var savedTextIndex = 0
         var known = Set<String>()
         for item in items {
             switch item {
@@ -1034,7 +1046,8 @@ extension RoleChatLiveTurn {
         for item in message.steps?.items ?? [] {
             switch item {
             case .text:
-                merged.append(item)
+                if savedTextIndex >= replacedTexts { merged.append(item) }
+                savedTextIndex += 1
             case .step(let step):
                 guard !known.contains("step:" + step.id) else { continue }
                 known.insert("step:" + step.id)
