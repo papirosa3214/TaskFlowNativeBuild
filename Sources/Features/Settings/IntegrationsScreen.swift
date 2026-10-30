@@ -368,7 +368,9 @@ struct IntegrationsScreen: View {
         }
         .tfNativeHeader("Интеграции")
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await externalApps.refresh(); await composio.load() } }
+            // Возврат в приложение — каталог Composio берём заново: пока
+            // владелец ходил в браузере, набор подключений мог измениться.
+            if phase == .active { Task { await externalApps.refresh(); await composio.load(force: true) } }
         }
         .task {
             viewModel.loadAppleState()
