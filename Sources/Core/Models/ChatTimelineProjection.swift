@@ -21,11 +21,17 @@ public enum ChatTimelineProjection {
         public let id: String
         public let text: String
         public let isOwn: Bool
+        /// Строка стоит сразу после этого сообщения. Так ложится ответ роли,
+        /// закрытый остановкой: он отвечает на вопрос, который стоял выше
+        /// написанного за время работы сообщения.
+        public let anchorMessageID: String?
 
-        public init(id: String, text: String = "", isOwn: Bool = false) {
+        public init(id: String, text: String = "", isOwn: Bool = false,
+                    anchorMessageID: String? = nil) {
             self.id = id
             self.text = text
             self.isOwn = isOwn
+            self.anchorMessageID = anchorMessageID
         }
     }
 
@@ -80,18 +86,45 @@ public enum ChatTimelineProjection {
     ///
     /// - Parameters:
     ///   - messages: сообщения в серверном порядке (как их отдаёт `sequence`).
+    ///     У сообщения с `anchorMessageID` своё место — сразу после якоря.
     ///   - turns: живые ходы ролей; порядок между собой сохраняется.
     ///   - pending: свои сообщения «в пути».
     public static func project(messages: [MessageRef],
                                turns: [TurnRef],
                                pending: [PendingRef] = []) -> [Item] {
-        var items: [Item] = messages.map { message in
+        // Ответ роли, закрытый остановкой, сервер записывает уже ПОСЛЕ
+        // сообщения, из-за которого ход прервали. В серверном порядке два
+        // вопроса встают подряд, а работа роли уходит ниже второго — владелец
+        // читает это как «действий роли не было» (30.10.2026). Такая строка
+        // возвращается туда, где стоял её живой ход: сразу после вопроса.
+        let known = Set(messages.map(\.id))
+        var anchored: [MessageRef] = []
+        var straight: [MessageRef] = []
+        for message in messages {
+            if let anchor = message.anchorMessageID, anchor != message.id, known.contains(anchor) {
+                anchored.append(message)
+            } else {
+                straight.append(message)
+            }
+        }
+        // Якорь у каждого ответа — свой: у сообщений владельца якоря нет,
+        // поэтому порядок групп между собой не важен.
+        var answersByAnchor: [String: [MessageRef]] = [:]
+        for message in anchored {
+            guard let anchor = message.anchorMessageID else { continue }
+            answersByAnchor[anchor, default: []].append(message)
+        }
+        var items: [Item] = straight.map { message in
             Item(id: "msg:\(message.id)", kind: .message, messageID: message.id)
         }
-
-        // Живой ход — сразу после якоря. Якорь не найден — хвост.
-        // Несколько ходов на одном якоре стоят после якоря по порядку ходов.
-        var turnsAfterAnchor: [String: Int] = [:]
+        for (anchor, group) in answersByAnchor {
+            guard let anchorIndex = items.firstIndex(where: { $0.messageID == anchor }) else { continue }
+            for (offset, message) in group.enumerated() {
+                items.insert(Item(id: "msg:\(message.id)", kind: .message, messageID: message.id),
+                             at: anchorIndex + 1 + offset)
+            }
+        }
+        var turnsAfterAnchor: [String: Int] = answersByAnchor.mapValues(\.count)
         var tail: [Item] = []
         for turn in turns {
             let item = Item(id: "turn:\(turn.playbackID)", kind: .liveTurn,

@@ -97,4 +97,44 @@ final class ChatTimelineProjectionTests: XCTestCase {
                     ChatTimelineProjection.TurnRef(playbackID: "early", anchorMessageID: "q2")])
         XCTAssertEqual(items.map(\.id), ["msg:q1", "turn:late", "msg:q2", "turn:early"])
     }
+
+    /// Ответ, закрытый остановкой, стоит там, где стоял его живой ход: сразу
+    /// после своего вопроса. Сервер дописывает такой ответ уже после нового
+    /// сообщения владельца — и без правила в ленте два вопроса подряд
+    /// (владелец 30.10.2026).
+    func testStoppedAnswerStandsRightAfterItsQuestion() {
+        let items = ChatTimelineProjection.project(
+            messages: [message("q1"),
+                       message("q2"),
+                       ChatTimelineProjection.MessageRef(id: "a1", anchorMessageID: "q1")],
+            turns: [ChatTimelineProjection.TurnRef(playbackID: "t2", anchorMessageID: "q2")])
+        XCTAssertEqual(items.map(\.id), ["msg:q1", "msg:a1", "msg:q2", "turn:t2"])
+    }
+
+    /// Обычный ответ (без остановки) остаётся в серверной последовательности.
+    func testAnswerWithoutStopKeepsServerOrder() {
+        let items = ChatTimelineProjection.project(
+            messages: [message("q1"), message("a1"), message("q2")], turns: [])
+        XCTAssertEqual(items.map(\.id), ["msg:q1", "msg:a1", "msg:q2"])
+    }
+
+    /// Два ответа на один вопрос сохраняют порядок между собой.
+    func testTwoStoppedAnswersOnSameQuestionKeepOrder() {
+        let items = ChatTimelineProjection.project(
+            messages: [message("q1"), message("q2"),
+                       ChatTimelineProjection.MessageRef(id: "a1", anchorMessageID: "q1"),
+                       ChatTimelineProjection.MessageRef(id: "a2", anchorMessageID: "q1")],
+            turns: [])
+        XCTAssertEqual(items.map(\.id), ["msg:q1", "msg:a1", "msg:a2", "msg:q2"])
+    }
+
+    /// Вопроса в загруженной истории нет — сообщение не теряется и не улетает
+    /// в хвост, остаётся на своём месте.
+    func testAnswerWithUnknownQuestionKeepsItsPlace() {
+        let items = ChatTimelineProjection.project(
+            messages: [ChatTimelineProjection.MessageRef(id: "a1", anchorMessageID: "gone"),
+                       message("q2")],
+            turns: [])
+        XCTAssertEqual(items.map(\.id), ["msg:a1", "msg:q2"])
+    }
 }

@@ -24,14 +24,25 @@ class NativeChatScrollingTests(unittest.TestCase):
         self.absent('.onGeometryChange(', self.feed)
 
     def test_native_position_owns_user_scrolling_without_packet_scroll_requests(self):
-        self.present('.scrollPosition($chatScrollPosition, anchor: .bottom)', self.feed)
-        self.present('chatScrollPosition.isPositionedByUser', self.feed)
-        for token in ['ScrollViewReader', '.onScrollPhaseChange', '.onChange(of: feedItems.last?.id)', 'Task.yield()']:
+        # Якорь у привязки позиции не задан: «быть у низа» держит
+        # `defaultScrollAnchor`, а не два механизма сразу (владелец 30.10.2026).
+        self.present('.scrollPosition($chatScrollPosition)', self.feed)
+        self.absent('.scrollPosition($chatScrollPosition, anchor: .bottom)', self.feed)
+        self.present('.defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)', self.feed)
+        for token in ['ScrollViewReader', '.onChange(of: feedItems.last?.id)', 'Task.yield()']:
             self.absent(token, self.feed)
 
-    def test_feed_does_not_apply_custom_motion_transactions(self):
-        for token in ['withAnimation', '.animation(', '.transition(']:
-            self.absent(token, self.feed)
+    def test_bottom_following_changes_only_from_the_owners_scroll(self):
+        # Рост ответа тоже двигает геометрию; привязка к низу не должна от
+        # этого мигать (владелец 30.10.2026).
+        self.present('if chatScrollPhase == .tracking || chatScrollPhase == .interacting', self.feed)
+        self.absent('isPositionedByUser || chatIsNearBottom', self.feed)
+
+    def test_feed_does_not_animate_row_insertions(self):
+        # Анимация всей ленты на вставку строк не успевала за ростом ответа и
+        # удерживала ленту между двумя положениями — качели (30.10.2026).
+        self.absent('.animation(TFMotion.standard, value: orderedFeed', self.feed)
+        self.absent('withAnimation', self.feed)
 
     def test_keyboard_uses_native_focus_and_interactive_dismissal(self):
         self.present('.scrollDismissesKeyboard(.interactively)', self.feed)

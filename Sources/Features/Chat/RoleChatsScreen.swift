@@ -841,6 +841,9 @@ struct RoleChatRoomScreen: View {
     @State private var liveTurns: [String: RoleChatLiveTurn] = [:]
     @State private var restoredTurnIDs: Set<String> = []
     @State private var endedTurnIDs: Set<String> = []
+    /// Ходы, чей ответ сервер закрыл остановкой: подпись «Ответ получен»
+    /// под ними была бы неправдой (владелец 30.10.2026).
+    @State private var stoppedTurnIDs: Set<String> = []
     /// Ход дельтами (27.10.2026): состояние по роли и роли, у которых сервер
     /// уже шлёт дельты, — их старый полный снимок `chats:live` пропускаем.
     @State private var liveDeltas: [String: RoleChatLiveTurnState] = [:]
@@ -878,6 +881,14 @@ struct RoleChatRoomScreen: View {
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
+    /// Лента держится за низ, пока владелец сам не отлистал вверх. Отдельный
+    /// признак, а не «не листал ИЛИ у низа»: пока роль пишет, высота растёт
+    /// каждый кадр, и лента на миг оказывается «не у низа» — привязка то
+    /// снималась, то возвращалась, и низ дёргался вверх-вниз (владелец
+    /// 30.10.2026). Меняет его только рука владельца.
+    @State private var chatFollowsBottom = true
+    /// Фаза прокрутки: по ней отличаем руку владельца от роста ответа.
+    @State private var chatScrollPhase: ScrollPhase = .idle
     @State private var eventBatch = ChatEventCoalescer<RealtimeEvent>()
     #if DEBUG
     @State private var chatScrollTrace = ChatScrollTrace()
@@ -1872,7 +1883,36 @@ struct RoleChatRoomScreen: View {
     private func showLiveTurn(_ turn: RoleChatLiveTurn, userID: String) {
         guard !endedTurnIDs.contains(turn.playbackID) else { return }
         if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
+        // Новый ход роли не стирает прежний: тот остаётся в ленте на своём
+        // месте, пока его ответ не встанет вместо него. Раньше на роль был
+        // один ход, и вся работа пропадала с экрана, как только владелец
+        // писал новое сообщение (владелец 30.10.2026).
+        if let previous = liveTurns[userID], previous.playbackID != turn.playbackID {
+            parkLiveTurnIfUnanswered(previous, userID: userID)
+        }
         liveTurns[userID] = turn
+    }
+
+    /// Ход, который сменился новым: доигрывает своё на прежнем месте.
+    ///
+    /// Он уже не может расти (сервер его остановил), поэтому фиксируем
+    /// законченный вид и убираем из «идущих»: снимок того же хода больше не
+    /// вернёт его как новый.
+    private func parkLiveTurn(_ turn: RoleChatLiveTurn) {
+        guard !turn.items.isEmpty || turn.thinking != nil else { return }
+        guard completingTurns[turn.playbackID] == nil else { return }
+        completingTurns[turn.playbackID] = turn.ending()
+        endedTurnIDs.insert(turn.playbackID)
+        // Ход сменился, не доведя ответ до сохранённого сообщения: его
+        // закрыла остановка, а не конец работы.
+        stoppedTurnIDs.insert(turn.playbackID)
+    }
+
+    /// Ход сменился, но ответ на его вопрос ещё не пришёл. Если ответ уже в
+    /// ленте, ход не нужен: сообщение и есть его место.
+    private func parkLiveTurnIfUnanswered(_ turn: RoleChatLiveTurn, userID: String) {
+        if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
+        parkLiveTurn(turn)
     }
 
     private func endLiveTurn(userID: String, messageID: String?) {
@@ -1991,7 +2031,6 @@ struct RoleChatRoomScreen: View {
                         }
                     }
                     .id(item.id)
-                    .transition(.opacity)
                 }
                 // Владелец 26.09.2026: плашки быстрых ответов должны
                 // крепиться к сообщению роли, а не болтаться отдельным
@@ -2038,21 +2077,26 @@ struct RoleChatRoomScreen: View {
                 }
             }
             .scrollTargetLayout()
-            // Новые строки и строка «печатает…» появляются плавно, а не
-            // рывком на свою высоту (27.10.2026).
-            .animation(TFMotion.standard, value: orderedFeed.map(\.id))
+            // Строка «печатает…» появляется плавно. Анимации на вставку и
+            // удаление строк ленты нет: во время хода роли они меняют высоту
+            // каждый кадр, а анимация не успевает доехать и удерживает ленту
+            // между двумя положениями — это и были качели (владелец
+            // 30.10.2026).
             .animation(TFMotion.standard, value: visibleTypists.isEmpty)
         }
         .contentMargins(TFSpacing.lg, for: .scrollContent)
-        .scrollPosition($chatScrollPosition, anchor: .bottom)
+        // Якорь у привязки позиции не задан: «быть у низа» держит один
+        // `defaultScrollAnchor`, а не два механизма сразу. Два спорили между
+        // собой на каждом кадре роста ответа — лента ездила вниз-вверх
+        // (владелец 30.10.2026).
+        .scrollPosition($chatScrollPosition)
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.bottom, for: .alignment)
-        // Лента держится за низ, пока владелец сам не отлистал вверх. Раньше
-        // условие было «не листал И у низа»: высокий блок (живой ход, ответ)
-        // появлялся разом, лента на миг оказывалась «не у низа» и отпускала
-        // привязку — новое уходило под строку контекста (владелец 26.10.2026).
-        .defaultScrollAnchor(!chatScrollPosition.isPositionedByUser || chatIsNearBottom ? .bottom : nil, for: .sizeChanges)
+        // Лента держится за низ, пока владелец сам не отлистал вверх.
+        // Признак меняется только от его прокрутки, а не от роста ответа:
+        // иначе привязка мигала и низ дёргался (владелец 30.10.2026).
+        .defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)
         .background(Color.tfBackground)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
@@ -2063,6 +2107,16 @@ struct RoleChatRoomScreen: View {
         } action: { _, nearBottom in
             // Observation only: this does not issue any scroll commands.
             chatIsNearBottom = nearBottom
+            // Привязку к низу меняет только рука владельца. Рост ответа тоже
+            // сдвигает геометрию, но «на миг не у низа» — не повод отпустить
+            // низ (владелец 30.10.2026).
+            if chatScrollPhase == .tracking || chatScrollPhase == .interacting
+                || chatScrollPhase == .decelerating {
+                chatFollowsBottom = nearBottom
+            }
+        }
+        .onScrollPhaseChange { _, phase in
+            chatScrollPhase = phase
         }
         #if DEBUG
         .onScrollGeometryChange(for: ChatScrollGeometry.self) { geometry in
@@ -2097,6 +2151,7 @@ struct RoleChatRoomScreen: View {
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
+                    chatFollowsBottom = true
                     chatScrollPosition.scrollTo(edge: .bottom)
                 }
                 .padding(.bottom, TFSpacing.md)
@@ -2106,6 +2161,7 @@ struct RoleChatRoomScreen: View {
             guard let id else { return }
             let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
             chatScrollPosition.scrollTo(id: feedID, anchor: .top)
+            chatFollowsBottom = false
             contentsTargetID = nil
         }
     }
@@ -2158,7 +2214,7 @@ struct RoleChatRoomScreen: View {
         // История уже упорядочена серверной последовательностью. Не сортируем
         // её повторно по часам: точность даты и порядок доставки различаются.
         let plan = ChatTimelineProjection.project(
-            messages: visibleMessages.map { .init(id: $0.id) },
+            messages: visibleMessages.map { .init(id: $0.id, anchorMessageID: feedAnchor(for: $0)) },
             turns: visibleLiveTurns.map {
                 .init(playbackID: $0.playbackID, anchorMessageID: $0.triggerMessageID)
             })
@@ -2211,6 +2267,16 @@ struct RoleChatRoomScreen: View {
         RoleChatRowID.turn(turn.playbackID)
     }
 
+    /// Ответ роли, закрытый остановкой (прерван владельцем или оборвался
+    /// ошибкой), стоит сразу после своего вопроса — там, где стоял его живой
+    /// ход. Сервер дописывает такой ответ уже после нового сообщения владельца,
+    /// и без этого правила в ленте два вопроса подряд, а работа роли ниже
+    /// второго (владелец 30.10.2026).
+    private func feedAnchor(for message: RoleChatMessage) -> String? {
+        guard message.stopReason != nil, let question = message.replyToMessageID else { return nil }
+        return question
+    }
+
 
     /// Перед какими элементами ленты стоит полоса с датой: первый с датой и
     /// каждый, где день сменился. Элемент без разбираемой даты (живой ход
@@ -2247,21 +2313,21 @@ struct RoleChatRoomScreen: View {
                 messages = RoleChatMessageOrder.inserting(message, into: messages)
             }
             if let author = message.fromUserID, !mine {
-                if let turn = liveTurns[author] {
-                    if turn.isCompleted(by: message) {
-                        completingTurns[turn.playbackID] = turn.completed(with: message)
-                        // Это сообщение закрыло ход: пока ход доигрывает ответ,
-                        // сообщение скрыто, а при его появлении оно должно
-                        // занять ту же строку.
-                        completedMessageIDByTurn[turn.playbackID] = message.id
-                        rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
-                        endedTurnIDs.insert(turn.playbackID)
-                        liveTurns[author] = nil
-                        restoredTurnIDs.remove(turn.playbackID)
-                        typists[author] = nil
-                        typistTools[author] = nil
-                        liveDeltas[author] = nil
-                    }
+                if let turn = liveTurns[author], turn.isCompleted(by: message) {
+                    completeLiveTurn(turn, with: message)
+                    liveTurns[author] = nil
+                    restoredTurnIDs.remove(turn.playbackID)
+                    typists[author] = nil
+                    typistTools[author] = nil
+                    liveDeltas[author] = nil
+                } else if let parked = parkedTurn(answering: message, author: author) {
+                    // Ответ прерванного хода: ход уже доигрывает на своём
+                    // месте, и сообщение занимает его строку, а не встаёт
+                    // второй раз ниже (владелец 30.10.2026).
+                    completingTurns[parked.playbackID] = parked.completed(with: message)
+                    completedMessageIDByTurn[parked.playbackID] = message.id
+                    rowIDByMessageID[message.id] = RoleChatRowID.turn(parked.playbackID)
+                    endedTurnIDs.insert(parked.playbackID)
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
                     typistTools[author] = nil
@@ -2280,6 +2346,27 @@ struct RoleChatRoomScreen: View {
             Task {
                 if (try? await api.markRoleChatRead(id: chat.id)) != nil { markedReadMessageID = id }
             }
+        }
+    }
+
+    /// Готовый ответ закрывает ход: пока ход доигрывает ответ, сообщение
+    /// скрыто из ленты, а при его появлении занимает ту же строку.
+    private func completeLiveTurn(_ turn: RoleChatLiveTurn, with message: RoleChatMessage) {
+        completingTurns[turn.playbackID] = turn.completed(with: message)
+        completedMessageIDByTurn[turn.playbackID] = message.id
+        rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
+        endedTurnIDs.insert(turn.playbackID)
+        if message.stopReason != nil { stoppedTurnIDs.insert(turn.playbackID) }
+    }
+
+    /// Ход, который сменился новым и ждёт свой сохранённый ответ: по нему
+    /// сообщение ложится на место доигрывающего хода.
+    private func parkedTurn(answering message: RoleChatMessage,
+                            author: String) -> RoleChatLiveTurn? {
+        completingTurns.values.first { turn in
+            turn.userID == author
+                && completedMessageIDByTurn[turn.playbackID] == nil
+                && turn.isCompleted(by: message)
         }
     }
 
@@ -2363,11 +2450,18 @@ struct RoleChatRoomScreen: View {
     private func liveTurnRow(_ turn: RoleChatLiveTurn) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             replyContext(messageID: turn.triggerMessageID, sender: nil)
-            RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
-                               startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID),
+            RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID),
+                               isStopped: stoppedTurnIDs.contains(turn.playbackID), pacesText: pacesLiveText,
+                               // Законченный ход показывается сразу: если
+                               // лента пересоберёт строку, пузырь не должен
+                               // схлопнуться и заново проявиться — от этого
+                               // низ ленты дёргался (владелец 30.10.2026).
+                               startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID)
+                                   || endedTurnIDs.contains(turn.playbackID),
                                onPlaybackComplete: {
                                    completingTurns[turn.playbackID] = nil
                                    endedTurnIDs.remove(turn.playbackID)
+                                   stoppedTurnIDs.remove(turn.playbackID)
                                })
                 .id(turn.playbackID)
         }
@@ -2411,7 +2505,14 @@ struct RoleChatRoomScreen: View {
         }
         guard revision == roomEventRevision else { return }
         let turns = snapshot.turns
+        let previous = liveTurns
         liveTurns = Dictionary(turns.map { ($0.userID, $0) }, uniquingKeysWith: { _, last in last })
+        // Ход, которого в снимке уже нет (владелец написал новое сообщение,
+        // сервер остановил работу), не исчезает с экрана: он доигрывает на
+        // своём месте, пока не встанет его ответ (владелец 30.10.2026).
+        for (userID, turn) in previous where liveTurns[userID]?.playbackID != turn.playbackID {
+            parkLiveTurnIfUnanswered(turn, userID: userID)
+        }
         restoredTurnIDs = Set(turns.map(\.playbackID))
         typists = Dictionary(turns.map { ($0.userID, $0.name) }, uniquingKeysWith: { _, last in last })
         typistTools = typistTools.filter { liveTurns[$0.key] != nil }
@@ -3069,9 +3170,12 @@ struct RoleChatRoomScreen: View {
             // Объединяем его с событиями, пришедшими уже после начала запроса.
             do {
                 for message in updatedMessages where !messages.contains(where: { $0.id == message.id }) {
-                    if let author = message.fromUserID, let turn = liveTurns[author], turn.isCompleted(by: message) {
-                        insertIncoming(message)
-                    }
+                    guard let author = message.fromUserID else { continue }
+                    // Ход, который этот ответ закрывает, мог уже смениться
+                    // новым и доигрывать на своём месте (`parkedTurn`).
+                    let closesLive = liveTurns[author]?.isCompleted(by: message) ?? false
+                    let closesParked = parkedTurn(answering: message, author: author) != nil
+                    if closesLive || closesParked { insertIncoming(message) }
                 }
                 let receivedAfterRequest = Set(messageEventRevisions.filter { $0.value > eventRevision }.map(\.key))
                 messages = RoleChatMessageOrder.mergingSnapshot(updatedMessages, current: messages, receivedAfterRequest: receivedAfterRequest)
@@ -3175,6 +3279,7 @@ struct RoleChatRoomScreen: View {
         chatScrollTrace.event("send")
         #endif
         withAnimation(TFMotion.standard) {
+            chatFollowsBottom = true
             pendingOutgoing.append(pending)
             chatScrollPosition.scrollTo(edge: .bottom)
         }

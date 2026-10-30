@@ -339,6 +339,9 @@ struct RoleLiveTurnBubble: View {
     let turn: RoleChatLiveTurn
     let showsName: Bool
     var isComplete = false
+    /// Ответ закрыт остановкой: подпись «Ответ получен» была бы неправдой
+    /// (владелец 30.10.2026 — ход прерван его же уточнением).
+    var isStopped = false
     var pacesText = true
     var startsWithSnapshot = false
     @State private var seeded = false
@@ -446,7 +449,8 @@ struct RoleLiveTurnBubble: View {
 
     private func footer(now: Date) -> String {
         let steps = turn.items.filter(\.isStep).count
-        var parts = [isComplete ? "Ответ получен" : "Работает"]
+        let state = isComplete ? (isStopped ? "Остановлено" : "Ответ получен") : "Работает"
+        var parts = [state]
         if let start = turn.startDate {
             parts.append(RoleLiveFormat.duration(seconds: Int(now.timeIntervalSince(start))))
         }
