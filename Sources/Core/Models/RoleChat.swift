@@ -176,6 +176,12 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// Структурированный ответ роли, который сервер отдаёт рядом с текстом.
     /// `text` остаётся резервом для сообщений без контракта и старой истории.
     public let roleEnvelope: JSONValue?
+    /// Ответ пришёл структурированным конвертом (`role_envelope`): его рисует
+    /// `ChatStructuredOutputView` нативными блоками. Тогда текст ответа в
+    /// пунктах хода — та же самая информация в плоском виде (таблица markdown,
+    /// виджет сырым JSON). Показывать его рядом с блоками — значит показать
+    /// ответ дважды (владелец 30.10.2026).
+    public var hasStructuredAnswer: Bool { roleEnvelopeJSON != nil }
     public let createdAt: String?
     public let attachments: [ApiChatAttachment]?
     /// Задача, которую роль создала этим ходом (владелец 25.09.2026,
@@ -370,6 +376,15 @@ public struct RoleChatSteps: Decodable, Sendable, Equatable {
         case items, usage
         case durationMs = "duration_ms"
         case codeChanges = "code_changes"
+    }
+
+    /// Пункты шагов без текста, который уже показывает ответ.
+    ///
+    /// Сервер шлёт в шагах текст ответа (у конверта — плоскую
+    /// markdown-копию). Напечатать и его, и собранный ответ — значит показать
+    /// один и тот же ответ дважды (владелец 30.10.2026).
+    public func itemsWithoutAnswerText(of message: RoleChatMessage) -> [RoleChatLiveItem] {
+        RoleChatLiveTurn.withoutAnswerText(items, of: message)
     }
 
     public var stepCount: Int { items.filter(\.isStep).count }
@@ -1015,6 +1030,43 @@ extension RoleChatLiveTurn {
         return end.addingTimeInterval(1) > start
     }
 
+    /// Пункты хода без текста ответа.
+    ///
+    /// Ответ рисуется один раз: у конверта — нативными блоками, у обычного
+    /// ответа — текстом сообщения. В пунктах хода лежит тот же ответ (у
+    /// конверта — плоская markdown-копия: таблица markdown, виджет сырым
+    /// JSON), поэтому текст ответа из хода убирается; реплики хода, которых
+    /// в ответе нет («сейчас проверю…»), остаются. Иначе один и тот же
+    /// ответ виден дважды (владелец 30.10.2026).
+    func itemsWithoutAnswerText(for message: RoleChatMessage) -> [RoleChatLiveItem] {
+        Self.withoutAnswerText(items, of: message)
+    }
+
+    /// Убрать из пунктов текст, который уже показывает ответ.
+    ///
+    /// Текст ответа лежит в пунктах хода (у конверта — плоская
+    /// markdown-копия: таблица markdown, виджет сырым JSON) и в `message.text`
+    /// самого ответа. Пункты, где текст уже есть в ответе, убираются;
+    /// реплики хода, которых в ответе нет («сейчас проверю…»), остаются.
+    /// Иначе один и тот же ответ виден дважды (владелец 30.10.2026).
+    static func withoutAnswerText(_ items: [RoleChatLiveItem],
+                                   of message: RoleChatMessage) -> [RoleChatLiveItem] {
+        // Обычный ответ печатается текстом сообщения, дублировать его в
+        // пунктах хода не нужно, но и убирать нечего: там лежит тот же
+        // текст ответа вперемешку с репликами хода. Сработает только
+        // ответ-конверт, у которого в `message.text` лежит плоская
+        // markdown-копия нативных блоков.
+        guard message.hasStructuredAnswer else { return items }
+        let flat = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !flat.isEmpty else { return items }
+        return items.filter { item in
+            guard case .text(let text) = item else { return true }
+            let part = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if part.isEmpty { return true }
+            return !flat.contains(part)
+        }
+    }
+
     func completed(with message: RoleChatMessage) -> Self {
         // Содержимое хода на закрытии только растёт. Раньше список подменялся
         // на `message.steps` + текст: размышления исчезали, а если сокетный
@@ -1060,7 +1112,12 @@ extension RoleChatLiveTurn {
         }
         // Текст ответа дописывается, а не встаёт вторым абзацем: в ленте
         // последний текстовый блок хода и есть ответ.
-        let finalText = message.text
+        // У ответа с конвертом текст ответа в пунктах хода — плоская копия
+        // (таблица markdown, виджет сырым JSON). Такой текст в пузыре не
+        // нужен: ответ рисует конверт нативными блоками, иначе один и тот же
+        // ответ виден дважды (владелец 30.10.2026).
+        merged = Self.withoutAnswerText(merged, of: message)
+        let finalText = message.hasStructuredAnswer ? "" : message.text
         if !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             if let lastText = merged.lastIndex(where: { if case .text = $0 { return true }; return false }) {
                 if case .text(let shown) = merged[lastText], finalText.count >= shown.count {

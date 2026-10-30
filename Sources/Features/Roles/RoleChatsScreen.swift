@@ -2372,7 +2372,7 @@ struct RoleChatRoomScreen: View {
                     rowIDByMessageID[message.id] = RoleChatRowID.turn(parked.playbackID)
                     endedTurnIDs.insert(parked.playbackID)
                     closedTurnMessageIDs.insert(message.id)
-                    closedTurnItems[message.id] = parked.items
+                    closedTurnItems[message.id] = parked.itemsWithoutAnswerText(for: message)
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
                     typistTools[author] = nil
@@ -2402,7 +2402,7 @@ struct RoleChatRoomScreen: View {
         rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
         endedTurnIDs.insert(turn.playbackID)
         closedTurnMessageIDs.insert(message.id)
-        closedTurnItems[message.id] = turn.items
+        closedTurnItems[message.id] = turn.itemsWithoutAnswerText(for: message)
         if message.stopReason != nil { stoppedTurnIDs.insert(turn.playbackID) }
     }
 
@@ -2782,7 +2782,8 @@ struct RoleChatRoomScreen: View {
                     RoleLiveItemsList(items: items, stepDetailLoader: stepDetailLoader(for: message),
                                       showsActionPreview: true)
                 } else if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
+                    RoleLiveItemsList(items: steps.itemsWithoutAnswerText(of: message),
+                                      stepDetailLoader: stepDetailLoader(for: message))
                 }
                 // Текст и карточка задачи — вместе, а не вместо: раньше
                 // карточка подменяла всё сообщение, и вопрос роли пропадал
@@ -2884,7 +2885,8 @@ struct RoleChatRoomScreen: View {
                     RoleLiveItemsList(items: items, stepDetailLoader: stepDetailLoader(for: message),
                                       showsActionPreview: true)
                 } else if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
+                    RoleLiveItemsList(items: steps.itemsWithoutAnswerText(of: message),
+                                      stepDetailLoader: stepDetailLoader(for: message))
                 }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
                     RoleChatRemoteVoiceBubble(

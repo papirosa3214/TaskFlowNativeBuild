@@ -4,19 +4,24 @@ from pathlib import Path
 import subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
 s=(root/'Sources/Core/Models/RoleChat.swift').read_text()
-a=s.index('    func completed(with message: RoleChatMessage) -> Self'); b=s.index('{',a); end=b+1; depth=1
-while depth:
-    depth+=(s[end]=='{')-(s[end]=='}');end+=1
-method=s[a:end]
+def cut(sig):
+    a=s.index(sig); b=s.index('{',a); end=b+1; depth=1
+    while depth:
+        depth+=(s[end]=='{')-(s[end]=='}');end+=1
+    return s[a:end]
+method=cut('    func completed(with message: RoleChatMessage) -> Self')
+filter_method=cut('    static func withoutAnswerText(_ items: [RoleChatLiveItem],')
 source='''import Foundation
 struct Action { let id: String }
 enum RoleChatLiveItem { case text(String), step(Action), thinking(Action) }
 struct Steps { let items: [RoleChatLiveItem] }
-struct RoleChatMessage { let text: String; let steps: Steps? }
+struct RoleChatMessage { let text: String; let steps: Steps?; var hasStructuredAnswer: Bool { false } }
 struct Turn {
  let chatID: String; let userID: String; let name: String; let startedAt: String?
  let items: [RoleChatLiveItem]; let thinking: String?; let triggerMessageID: String?
 '''+method+'''
+
+'''+filter_method+'''
 }
 let full = "Да, читал. Как роли находят проекты. Как собирается сервер."
 let turn = Turn(chatID: "c", userID: "r", name: "R", startedAt: nil,
