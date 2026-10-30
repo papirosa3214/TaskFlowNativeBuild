@@ -111,12 +111,75 @@ struct ApiAttentionTicket: Decodable, Identifiable {
         }
     }
 
+    /// The same brief for every ticket. Source names and full text live at the destination.
+    var cardTitle: String {
+        switch kind {
+        case "question": "Нужен ответ"
+        case "approval": id.hasPrefix("plan-op:") ? "Изменить план" : "Согласовать план"
+        case "decision": "Ход заблокирован"
+        default: "Нужно решение"
+        }
+    }
+
+    var sourceTitle: String {
+        if kind == "question", chat_id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return "В чате"
+        }
+        switch action {
+        case .answer, .chat: return "В чате"
+        case .task: return "По задаче"
+        case nil: return "Источник недоступен"
+        }
+    }
+
+    var cardSummary: String? {
+        let candidates: [String]
+        if kind == "approval" { candidates = [body] }
+        else if kind == "question" {
+            candidates = (question?.questions.map(\.question) ?? []) + [title, body]
+        } else { candidates = [title, body] }
+        let boilerplate: Set<String> = [
+            cardTitle, "Нужно решение", "Вопрос", "Согласование", "Согласовать план работы",
+            "Согласовать изменение плана", "Требуется уточнение задачи",
+            "Нужно ваше решение для продолжения работы", "Агент ждёт ваших данных или решения"
+        ]
+        let context = context_title.map(Self.previewLine)
+        for candidate in candidates {
+            for line in candidate.split(whereSeparator: \.isNewline) {
+                let text = Self.previewLine(String(line))
+                guard !text.isEmpty, text != context, !boilerplate.contains(text) else { continue }
+                guard text.count > 160 else { return text }
+                let prefix = String(text.prefix(159))
+                let boundary = prefix.lastIndex(where: \.isWhitespace) ?? prefix.endIndex
+                return String(prefix[..<boundary]) + "…"
+            }
+        }
+        return nil
+    }
+
+    private static func previewLine(_ raw: String) -> String {
+        raw.replacingOccurrences(of: #"\[([^\]]+)\]\([^\)]+\)"#, with: "$1", options: .regularExpression)
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "__", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .replacingOccurrences(of: #"^\s*[#>]+\s*"#, with: "", options: .regularExpression)
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
     var actionTitle: String {
         switch action {
-        case .answer: "Ответить"
-        case .chat: "Открыть чат"
-        case .task: kind == "approval" ? "Рассмотреть план" : "Открыть задачу"
-        case nil: "Обращение недоступно"
+        case .answer:
+            let count = question?.questions.count ?? 1
+            let last = count % 10
+            let word = (11...14).contains(count % 100) ? "вопросов" :
+                last == 1 ? "вопрос" : (2...4).contains(last) ? "вопроса" : "вопросов"
+            return count == 1 ? "Ответить" : "Ответить на \(count) \(word)"
+        case .chat: return "Открыть чат"
+        case .task:
+            return kind == "approval" ? "Рассмотреть план" :
+                kind == "question" ? "Ответить в задаче" :
+                kind == "decision" ? "Разобрать блокировку" : "Открыть задачу"
+        case nil: return "Обращение недоступно"
         }
     }
 }

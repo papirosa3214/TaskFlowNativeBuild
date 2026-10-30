@@ -8,6 +8,75 @@ import XCTest
 /// открывая её карточку. Старый сервер этого поля не отдаёт: тогда строки на
 /// карточке просто нет, и клиент ломаться не должен.
 final class AttentionCardContextTests: XCTestCase {
+    private func ticket(_ fields: [String: Any]) throws -> ApiAttentionTicket {
+        var json: [String: Any] = ["id": "decision:1", "kind": "decision",
+                                   "title": "", "body": "", "created_at": "invalid"]
+        json.merge(fields) { _, new in new }
+        return try JSONDecoder().decode(ApiAttentionTicket.self,
+                                        from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    func testQuestionPreviewShowsOnlyTheFirstQuestionAndTheAnswerCount() throws {
+        let item = try ticket(["kind": "question", "title": "Какой проект выбрать?",
+            "body": "Второй вопрос\nТретий вопрос", "context_title": "Длинное название задачи",
+            "chat_id": "chat", "question": ["id": "q", "status": "open", "questions": [
+                ["question": "Какой проект выбрать?"], ["question": "Когда начать?"],
+                ["question": "Кто проверит?"]]]])
+        XCTAssertEqual(item.cardTitle, "Нужен ответ")
+        XCTAssertEqual(item.cardSummary, "Какой проект выбрать?")
+        XCTAssertEqual(item.sourceTitle, "В чате")
+        XCTAssertEqual(item.actionTitle, "Ответить на 3 вопроса")
+    }
+
+    func testApprovalPreviewUsesRationaleRatherThanRepeatingItsTitle() throws {
+        let item = try ticket(["id": "plan:1", "kind": "approval", "title": "Согласовать план работы",
+            "body": "Сначала резервная копия, затем перенос данных.\nПодробности ниже",
+            "task_id": "task", "context_title": "Название задачи"])
+        XCTAssertEqual(item.cardTitle, "Согласовать план")
+        XCTAssertEqual(item.cardSummary, "Сначала резервная копия, затем перенос данных.")
+        XCTAssertEqual(item.sourceTitle, "По задаче")
+    }
+
+    func testBlockedPreviewKeepsTheActualRequestedAction() throws {
+        let item = try ticket(["title": "**Нужен перезапуск сервера.**\nДлинный разбор ошибки",
+                               "body": "Нужно ваше решение для продолжения работы", "task_id": "task"])
+        XCTAssertEqual(item.cardTitle, "Ход заблокирован")
+        XCTAssertEqual(item.cardSummary, "Нужен перезапуск сервера.")
+        XCTAssertEqual(item.actionTitle, "Разобрать блокировку")
+        XCTAssertEqual(item.action, .task("task"))
+    }
+
+    func testSummaryDoesNotInventAServiceActionOrRepeatTaskTitle() throws {
+        let item = try ticket(["title": "Очень длинное название задачи", "context_title": "Очень длинное название задачи",
+            "body": "Нужно ваше решение для продолжения работы", "task_id": "task"])
+        XCTAssertNil(item.cardSummary)
+        XCTAssertEqual(item.cardTitle, "Ход заблокирован")
+    }
+
+    func testPreviewIsBoundedAndPreservesFullSourceText() throws {
+        let text = String(repeating: "Нужен доступ к сервису. ", count: 100)
+        let item = try ticket(["title": text, "task_id": "task"])
+        XCTAssertLessThanOrEqual(item.cardSummary?.count ?? 0, 160)
+        XCTAssertTrue(item.cardSummary?.hasSuffix("…") == true)
+        XCTAssertEqual(item.title, text)
+    }
+
+    func testChangedPlanAndUnknownKindHaveHonestLabels() throws {
+        let changed = try ticket(["id": "plan-op:1", "kind": "approval", "task_id": "task"])
+        XCTAssertEqual(changed.cardTitle, "Изменить план")
+        let unknown = try ticket(["kind": "future-kind", "title": "Проверьте результат", "chat_id": "chat"])
+        XCTAssertEqual(unknown.cardTitle, "Нужно решение")
+        XCTAssertEqual(unknown.cardSummary, "Проверьте результат")
+        XCTAssertEqual(unknown.actionTitle, "Открыть чат")
+        let unknownTask = try ticket(["kind": "future-kind", "task_id": "task"])
+        XCTAssertEqual(unknownTask.actionTitle, "Открыть задачу")
+    }
+
+    func testFormattingDoesNotCorruptAServiceName() throws {
+        let item = try ticket(["title": "Нужен доступ к `taskflow_server`.", "task_id": "task"])
+        XCTAssertEqual(item.cardSummary, "Нужен доступ к taskflow_server.")
+    }
+
     func testMalformedQuestionOpensChatInsteadOfAnEmptyAnswerForm() throws {
         let ticket = try JSONDecoder().decode(ApiAttentionTicket.self, from: Data(#"{"id":"question:q","kind":"question","title":"Вопрос","body":"","chat_id":"chat","created_at":"invalid","question":{"id":"q","status":"open","questions":[]}}"#.utf8))
         XCTAssertEqual(ticket.action, .chat("chat"))

@@ -48,7 +48,12 @@ struct AttentionScreen: View {
                             )
                         }
                         ForEach(tickets) { ticket in
-                            ticketLink(ticket)
+                            VStack(spacing: TFSpacing.md) {
+                                ticketLink(ticket)
+                                if ticket.id != tickets.last?.id {
+                                    Divider()
+                                }
+                            }
                         }
                     } else {
                         TFEmptyState(
@@ -66,6 +71,7 @@ struct AttentionScreen: View {
         }
         .tfNativeHeader("Входящие", displayMode: .large)
         .background(Color.tfBackground)
+        .tint(Color.tfText)
         .hintAnchor(HintAnchorID.inboxTickets)
         .refreshable { await model.load() }
         .onAppear { Task { await model.load() } }
@@ -100,6 +106,7 @@ struct AttentionScreen: View {
                         }
                     }
                 }
+                .tint(Color.tfText)
             }
         }
     }
@@ -122,68 +129,61 @@ struct AttentionScreen: View {
     }
 
     private func ticketCard(_ ticket: ApiAttentionTicket) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
-                Image(systemName: ticket.kind == "question" ? "questionmark.bubble" :
-                        ticket.kind == "approval" ? "checkmark.shield" : "hand.raised")
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfBlue)
-                    .accessibilityHidden(true)
-                Text(ticket.role ?? "Команда")
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(1)
-                Spacer(minLength: TFSpacing.xs)
-                Text(ticket.kindTitle)
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfSub)
-            }
-            Text(ticket.title)
-                .tfText(.taskTitle)
-                .foregroundStyle(Color.tfText)
-                .fixedSize(horizontal: false, vertical: true)
-            if !ticket.body.isEmpty {
-                Text(ticket.body)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfSub)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(alignment: .bottom, spacing: TFSpacing.sm) {
-                VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                    if let context = ticket.context_title {
-                        Text(context)
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfSub)
-                            .lineLimit(2)
-                    }
-                    HStack(spacing: TFSpacing.sm) {
-                        if let project = ticket.project, !project.isEmpty {
-                            Text(project).lineLimit(1)
-                        }
-                        if let date = ticket.createdDate {
-                            Text(date, style: .relative)
-                        }
+        TFCard {
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+                    Image(systemName: ticket.kind == "question" ? "questionmark.bubble" :
+                            ticket.kind == "approval" ? "checkmark.shield" : "hand.raised")
+                        .tfText(.action)
+                        .foregroundStyle(ticketAccent(ticket))
+                        .accessibilityHidden(true)
+                    Text(ticket.cardTitle)
+                        .tfText(.taskTitle)
+                        .foregroundStyle(Color.tfText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: TFSpacing.xs)
+                }
+                if let summary = ticket.cardSummary {
+                    Text(summary)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(alignment: .bottom, spacing: TFSpacing.sm) {
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Text(ticket.role ?? "Команда")
+                            .lineLimit(1)
+                        Text(ticket.sourceTitle)
                     }
                     .tfText(.meta)
                     .foregroundStyle(Color.tfDim)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                HStack(spacing: TFSpacing.xs) {
-                    Text(ticket.actionTitle)
-                    if ticket.action != nil {
-                        Image(systemName: "arrow.up.right")
-                            .accessibilityHidden(true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: TFSpacing.xs) {
+                        Text(ticket.actionTitle)
+                        if ticket.action != nil {
+                            Image(systemName: "chevron.right")
+                                .accessibilityHidden(true)
+                        }
                     }
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfText)
                 }
-                .tfText(.action)
-                .foregroundStyle(Color.tfBlue)
             }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .padding(.vertical, TFSpacing.sm)
+        .multilineTextAlignment(.leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("inbox.ticket." + ticket.id)
+    }
+
+    private func ticketAccent(_ ticket: ApiAttentionTicket) -> Color {
+        switch ticket.kind {
+        case "question": .tfPurple
+        case "approval": .tfTeal
+        case "decision": .tfOrange
+        default: .tfSub
+        }
     }
 }
