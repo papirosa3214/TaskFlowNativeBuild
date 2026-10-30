@@ -5,3 +5,5 @@
 **Проверки.** `Tools/test_chat_composer_layout.py` — 15/15; `swiftc -parse Sources/Features/Chat/ChatVoiceComposer.swift` — PASS; `python3 Tools/design-system-guard.py --diff HEAD` — чисто; `git diff --check` — PASS.
 
 **Ограничение.** Тесты подтверждают политику раскладки, но не появление каретки на экране. Симулятор, UI-тесты и визуальная приёмка не выполнялись по правилам проекта; вид принимает владелец.
+
+**Доставка.** Коммит `1b180274` в локальном `main`. `git push origin main` заблокирован: GitHub сообщает, что сохранённый токен `papirosa3214` недействителен. Изменение пока не отправлено в GitHub и не опубликовано.
