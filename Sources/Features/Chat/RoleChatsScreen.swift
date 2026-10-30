@@ -362,6 +362,15 @@ struct RoleChatsScreen: View {
 
 }
 
+/// Ссылочная коробка вокруг коалесцера событий: её изменения не поднимают
+/// перерисовку экрана, в отличие от прямой записи в `@State`.
+@MainActor
+final class ChatEventBatchBox {
+    private var coalescer = ChatEventCoalescer<RealtimeEvent>()
+    func enqueue(_ event: RealtimeEvent) -> Bool { coalescer.enqueue(event) }
+    func drain() -> [RealtimeEvent] { coalescer.drain() }
+}
+
 /// Комната чата по идентификатору — адресат маршрута `AppRoute.roleChat`.
 /// Список отдаёт только id: маршрут обязан быть `Hashable` и не тащить
 /// состав чата с собой.
@@ -863,10 +872,12 @@ struct RoleChatRoomScreen: View {
     /// Какое сообщение закрыло живой ход: ход прячет из ленты ровно ЭТО
     /// сообщение, а не все ответы того же автора подряд.
     @State private var completedMessageIDByTurn: [String: String] = [:]
-    /// Сообщения, которые закрыли живой ход. Их шаги рисуются в той же форме,
-    /// что и в живом пузыре: иначе на смене строки лента теряет сотни пунктов
-    /// высоты и шатается (владелец 30.10.2026).
+    /// Сообщения, которые закрыли живой ход. Их шаги рисуются в той же форме
+    /// и тем же составом, что и в живом пузыре: иначе на смене строки лента
+    /// теряет сотни пунктов высоты и шатается (владелец 30.10.2026).
     @State private var closedTurnMessageIDs: Set<String> = []
+    /// Пункты хода такими, какими их видел владелец к моменту закрытия.
+    @State private var closedTurnItems: [String: [RoleChatLiveItem]] = [:]
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
     @State private var pendingOutgoing: [PendingOutgoing] = []
     @State private var discussionStatus: RoleChatDiscussion? = nil
@@ -893,7 +904,11 @@ struct RoleChatRoomScreen: View {
     @State private var chatFollowsBottom = true
     /// Фаза прокрутки: по ней отличаем руку владельца от роста ответа.
     @State private var chatScrollPhase: ScrollPhase = .idle
-    @State private var eventBatch = ChatEventCoalescer<RealtimeEvent>()
+    /// Коалесцер в ссылочной коробке, а не в `@State`: запись в `@State`
+    /// обесценивает вью, поэтому раньше КАЖДОЕ событие сокета — в том числе
+    /// из другого чата — пересобирало всю ленту, проекцию и выдержки (ревью
+    /// потока событий п.B1). Коробка меняет состояние молча.
+    @State private var eventBatch = ChatEventBatchBox()
     #if DEBUG
     @State private var chatScrollTrace = ChatScrollTrace()
     #endif
@@ -1887,14 +1902,34 @@ struct RoleChatRoomScreen: View {
     private func showLiveTurn(_ turn: RoleChatLiveTurn, userID: String) {
         guard !endedTurnIDs.contains(turn.playbackID) else { return }
         if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
-        // Новый ход роли не стирает прежний: тот остаётся в ленте на своём
-        // месте, пока его ответ не встанет вместо него. Раньше на роль был
-        // один ход, и вся работа пропадала с экрана, как только владелец
-        // писал новое сообщение (владелец 30.10.2026).
         if let previous = liveTurns[userID], previous.playbackID != turn.playbackID {
+            // Тот же ход, а время начала снимок прислал другое (`started_at`
+            // приходит и пустым, и с другой точностью). Это не новый ход:
+            // объект не подменяем — иначе строку снесёт и текст поедет
+            // заново (ревью ленты п.1.7).
+            if let trigger = previous.triggerMessageID, trigger == turn.triggerMessageID {
+                liveTurns[userID] = mergeLiveTurn(turn, over: previous)
+                return
+            }
+            // Новый ход роли не стирает прежний: тот остаётся в ленте на своём
+            // месте, пока его ответ не встанет вместо него (владелец 30.10.2026).
             parkLiveTurnIfUnanswered(previous, userID: userID)
         }
         liveTurns[userID] = turn
+    }
+
+    /// Слить пришедший ход с уже показанным: строка ленты остаётся той же
+    /// (время начала и id — прежние), состав пунктов не укорачивается.
+    private func mergeLiveTurn(_ incoming: RoleChatLiveTurn,
+                               over previous: RoleChatLiveTurn) -> RoleChatLiveTurn {
+        let shown = previous.items.compactMap(\.actionID)
+        let next = incoming.items.compactMap(\.actionID)
+        let items = RoleLiveTurnGrowth.accepts(shown: shown, incoming: next)
+            ? incoming.items : previous.items
+        return RoleChatLiveTurn(chatID: incoming.chatID, userID: incoming.userID, name: incoming.name,
+                                startedAt: previous.startedAt, items: items,
+                                thinking: incoming.thinking,
+                                triggerMessageID: incoming.triggerMessageID ?? previous.triggerMessageID)
     }
 
     /// Ход, который сменился новым: доигрывает своё на прежнем месте.
@@ -2078,21 +2113,19 @@ struct RoleChatRoomScreen: View {
                        let tool = typingTool(onlyUserID) {
                         RoleStepLine(name: visibleTypists[onlyUserID] ?? "Роль", tool: tool)
                             .id("typing-line")
-                            .transition(.opacity)
                     } else {
                         RoleChatTypingLine(names: visibleTypists.values.sorted())
                             .id("typing-line")
-                            .transition(.opacity)
                     }
                 }
             }
             .scrollTargetLayout()
-            // Строка «печатает…» появляется плавно. Анимации на вставку и
-            // удаление строк ленты нет: во время хода роли они меняют высоту
-            // каждый кадр, а анимация не успевает доехать и удерживает ленту
-            // между двумя положениями — это и были качели (владелец
-            // 30.10.2026).
-            .animation(TFMotion.standard, value: visibleTypists.isEmpty)
+            // Никакой анимации на контейнер ленты: `animation(_:value:)` на
+            // `LazyVStack` применяется ко ВСЕМУ поддереву, включая вставку
+            // живой строки и рост её высоты. Строка «печатает…» исчезает ровно
+            // в том апдейте, где появляется пузырь, пружина не успевает доехать
+            // до следующей дельты (150 мс) и перецеливается — лента шатается
+            // вверх-вниз (владелец 30.10.2026, ревью ленты п.1.1).
         }
         .contentMargins(TFSpacing.lg, for: .scrollContent)
         // Якорь у привязки позиции не задан: «быть у низа» держит один
@@ -2339,6 +2372,7 @@ struct RoleChatRoomScreen: View {
                     rowIDByMessageID[message.id] = RoleChatRowID.turn(parked.playbackID)
                     endedTurnIDs.insert(parked.playbackID)
                     closedTurnMessageIDs.insert(message.id)
+                    closedTurnItems[message.id] = parked.items
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
                     typistTools[author] = nil
@@ -2368,6 +2402,7 @@ struct RoleChatRoomScreen: View {
         rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
         endedTurnIDs.insert(turn.playbackID)
         closedTurnMessageIDs.insert(message.id)
+        closedTurnItems[message.id] = turn.items
         if message.stopReason != nil { stoppedTurnIDs.insert(turn.playbackID) }
     }
 
@@ -2476,7 +2511,6 @@ struct RoleChatRoomScreen: View {
                                    endedTurnIDs.remove(turn.playbackID)
                                    stoppedTurnIDs.remove(turn.playbackID)
                                })
-                .id(turn.playbackID)
         }
     }
 
@@ -2519,7 +2553,16 @@ struct RoleChatRoomScreen: View {
         guard revision == roomEventRevision else { return }
         let turns = snapshot.turns
         let previous = liveTurns
-        liveTurns = Dictionary(turns.map { ($0.userID, $0) }, uniquingKeysWith: { _, last in last })
+        var merged: [String: RoleChatLiveTurn] = [:]
+        for turn in turns {
+            if let old = previous[turn.userID], old.playbackID != turn.playbackID,
+               let trigger = old.triggerMessageID, trigger == turn.triggerMessageID {
+                merged[turn.userID] = mergeLiveTurn(turn, over: old)
+            } else {
+                merged[turn.userID] = turn
+            }
+        }
+        liveTurns = merged
         // Ход, которого в снимке уже нет (владелец написал новое сообщение,
         // сервер остановил работу), не исчезает с экрана: он доигрывает на
         // своём месте, пока не встанет его ответ (владелец 30.10.2026).
@@ -2734,9 +2777,12 @@ struct RoleChatRoomScreen: View {
                 if !isAgentReply(message) { senderLine(message, color: Color.tfSub) }
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName,
                              excerpts: replyExcerpts)
-                if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message),
-                                      showsActionPreview: closedTurnMessageIDs.contains(message.id))
+                if let items = closedTurnItems[message.id] {
+                    // Ровно то, что владелец видел в живом пузыре.
+                    RoleLiveItemsList(items: items, stepDetailLoader: stepDetailLoader(for: message),
+                                      showsActionPreview: true)
+                } else if let steps = message.steps, steps.hasDetails {
+                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
                 }
                 // Текст и карточка задачи — вместе, а не вместо: раньше
                 // карточка подменяла всё сообщение, и вопрос роли пропадал
@@ -2834,9 +2880,11 @@ struct RoleChatRoomScreen: View {
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName,
                              excerpts: replyExcerpts)
                 // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
-                if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message),
-                                      showsActionPreview: closedTurnMessageIDs.contains(message.id))
+                if let items = closedTurnItems[message.id] {
+                    RoleLiveItemsList(items: items, stepDetailLoader: stepDetailLoader(for: message),
+                                      showsActionPreview: true)
+                } else if let steps = message.steps, steps.hasDetails {
+                    RoleLiveItemsList(items: steps.items, stepDetailLoader: stepDetailLoader(for: message))
                 }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
                     RoleChatRemoteVoiceBubble(
@@ -2951,7 +2999,8 @@ struct RoleChatRoomScreen: View {
         if isAgentReply(message), let json = message.roleEnvelopeJSON {
             ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
                 .roleMessageReveal(text: message.text, messageID: message.id,
-                                   animate: chatIsNearBottom && message.id == messages.last?.id)
+                                   animate: chatIsNearBottom && message.id == messages.last?.id
+                                       && !closedTurnMessageIDs.contains(message.id))
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
                 .equatable()
@@ -2959,7 +3008,8 @@ struct RoleChatRoomScreen: View {
                 // иначе проявление старых строк при прокрутке дёргает
                 // автопривязку к низу (жалоба владельца 17.10.2026).
                 .roleMessageReveal(text: message.text, messageID: message.id,
-                                   animate: chatIsNearBottom && message.id == messages.last?.id)
+                                   animate: chatIsNearBottom && message.id == messages.last?.id
+                                       && !closedTurnMessageIDs.contains(message.id))
         }
     }
 
@@ -3301,17 +3351,17 @@ struct RoleChatRoomScreen: View {
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.composerExecutionMode)
         draft = ""
         pendingAttachments = []
-        // Вставка пузыря и прокрутка к низу — одной транзакцией: SwiftUI
-        // прокручивает после раскладки новой строки, без задержки-подпорки
-        // (прежде — `Task.sleep(50 мс)`, промахивался на тяжёлом кадре).
+        // Вставка пузыря — без анимации и без отдельной команды прокрутки:
+        // низ держит `defaultScrollAnchor`, и он же доводит ленту после того,
+        // как строка встала. Раньше здесь одной транзакцией включалось
+        // удержание низа И вызывался `scrollTo(edge: .bottom)` по геометрии ДО
+        // вставки строки: два механизма тянули offset в разные точки, и лента
+        // дёргалась в начале каждого ответа (ревью ленты п.1.2).
         #if DEBUG
         chatScrollTrace.event("send")
         #endif
-        withAnimation(TFMotion.standard) {
-            chatFollowsBottom = true
-            pendingOutgoing.append(pending)
-            chatScrollPosition.scrollTo(edge: .bottom)
-        }
+        chatFollowsBottom = true
+        pendingOutgoing.append(pending)
         await deliver(pending.id)
     }
 

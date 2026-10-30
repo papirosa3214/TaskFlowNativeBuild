@@ -33,6 +33,30 @@ enum RoleLiveSegment {
     }
 }
 
+extension RoleLiveSegment {
+    /// Идентичность сегмента в списке — по содержимому, а не по номеру.
+    ///
+    /// Номер менялся, как только в середину хода приходил текст: сегменты
+    /// правее получали новые номера, `ForEach` пересоздавал их, у них заново
+    /// шло появление (мигание строк) и сбрасывалось раскрытие блока — а
+    /// раскрытое окошко размышлений это до 132 pt высоты (ревью ленты п.1.9).
+    static func identities(_ segments: [RoleLiveSegment]) -> [String] {
+        var textOrdinal = 0
+        return segments.map { segment in
+            switch segment {
+            case .single(let item):
+                if case .text = item {
+                    textOrdinal += 1
+                    return "text:\(textOrdinal)"
+                }
+                return "item:" + (item.actionID ?? item.id)
+            case .actions(let items):
+                return "actions:" + (items.first?.actionID ?? items.first?.id ?? "empty")
+            }
+        }
+    }
+}
+
 /// Пачка действий роли одной строкой: «Действия  7 шагов · думал 1 мин ›»
 /// (владелец 20.10.2026: «чтобы вся пачка инструментов фиксировалась под
 /// одной полосой, щёлкнул — высветился весь перечень»). Пока ход идёт и пачка

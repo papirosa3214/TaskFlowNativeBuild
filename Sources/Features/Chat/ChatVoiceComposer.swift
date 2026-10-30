@@ -191,7 +191,17 @@ struct ChatVoiceComposer: View {
             HStack(spacing: 8) {
                 if compact { compactLeadingButton }
                 promptField(compact: compact)
-                if compact { compactMicButton }
+                // В покое справа микрофон, но как только есть что отправить
+                // или роль отвечает — там же отправка и остановка: в
+                // компактной панели их раньше не было вовсе (ревью панели
+                // ввода п.A1).
+                if compact {
+                    if canSendText || isResponding {
+                        sendButton(knob: Self.compactKnobSize)
+                    } else {
+                        compactMicButton
+                    }
+                }
             }
             if !compact { promptActionRow }
         }
@@ -281,7 +291,7 @@ struct ChatVoiceComposer: View {
             }
             Spacer(minLength: 8)
             micButton
-            sendButton
+            sendButton()
         }
         .foregroundStyle(Color.white.opacity(0.6))
     }
@@ -362,15 +372,18 @@ struct ChatVoiceComposer: View {
     }
 
     /// Отправка или остановка ответа — в обоих вариантах одна и та же.
-    @ViewBuilder private var sendButton: some View {
+    ///
+    /// `knob` — высота круглой кнопки новой панели: там она одного роста с
+    /// капсулой поля и круглым микрофоном (владелец 29.10.2026).
+    @ViewBuilder private func sendButton(knob: CGFloat = 40) -> some View {
         if isResponding, !canSendText, let onStop {
             Button(action: onStop) {
                 Image(systemName: "stop.fill")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.black)
-                    .frame(width: 36, height: 36)
+                    .frame(width: knob - 4, height: knob - 4)
                     .background(.white, in: Circle())
-                    .frame(width: 40, height: 40)
+                    .frame(width: knob, height: knob)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -382,9 +395,9 @@ struct ChatVoiceComposer: View {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.black)
-                    .frame(width: 36, height: 36)
+                    .frame(width: knob - 4, height: knob - 4)
                     .background(Color.white.opacity(canSendText ? 1 : 0.25), in: Circle())
-                    .frame(width: 40, height: 40)
+                    .frame(width: knob, height: knob)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -591,11 +604,14 @@ struct ChatVoiceComposer: View {
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
             isRecording = true
         }
-        // Каретку в поле не ставим: на неё реагирует клавиатура, а при
-        // диктовке она владельцу не нужна (владелец 29.10.2026: «когда я
-        // сразу на микрофон нажимаю, клавиатура не должна реагировать»).
+        // Каретку в поле не ставим, а если она там была — снимаем: иначе
+        // клавиатура висит под полосой записи и ест треть экрана (ревью
+        // панели ввода п.A2; владелец 29.10.2026: «когда я сразу на микрофон
+        // нажимаю, клавиатура не должна реагировать»).
         if ChatComposerLayoutPolicy.focusesField(.microphonePressed) {
             DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
+        } else {
+            textFieldFocus.wrappedValue = false
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #if DEBUG

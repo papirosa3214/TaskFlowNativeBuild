@@ -97,8 +97,9 @@ check('isFinal: isComplete' in bubble,
       'законченному ходу список заменяется без правила роста')
 
 # Готовый ответ, закрывший живой ход, рисует шаги той же формы, что пузырь.
-check(SCREEN.count('showsActionPreview: closedTurnMessageIDs.contains(message.id)') >= 2,
-      'готовое сообщение рисует шаги в форме живого пузыря (иначе усадка строки)')
+check(SCREEN.count('if let items = closedTurnItems[message.id]') >= 2
+      and SCREEN.count('showsActionPreview: true)') >= 2,
+      'готовое сообщение рисует шаги тем же составом и формой, что живой пузырь')
 
 # Строка «В ответ на» больше не ищет вопрос перебором всей ленты.
 context = block(SCREEN, 'private func replyContext(')
@@ -106,6 +107,38 @@ check('messages.first(where:' not in context,
       'нет квадратичного поиска вопроса в каждой строке')
 check('let replyExcerpts = Self.replyExcerpts(from: messages)' in SCREEN,
       'выдержки считаются один раз на кадр')
+
+# --- Лента и прокрутка: правила, из-за которых она шаталась (ревью 30.10) ---
+
+feed = block(SCREEN, 'private var messageScroll: some View')
+check('.animation(' not in feed,
+      'контейнер ленты всё ещё анимирует свои изменения — пружина перецеливается на каждой дельте')
+
+send_block = block(SCREEN, 'private func send() async')
+send_code = '\n'.join(l for l in send_block.splitlines() if not l.strip().startswith('//'))
+check('scrollTo(' not in send_code and 'withAnimation' not in send_code,
+      'отправка снова тянет ленту двумя механизмами сразу')
+
+completed = block(MODEL, 'func completed(with message: RoleChatMessage) -> Self')
+check('merged.append' in completed and '(message.steps?.items ?? []) +' not in completed,
+      'на закрытии хода список пунктов подменяется, а не дополняется — пузырь проседает')
+
+line = next((l for l in SCREEN.splitlines() if 'if let previous = liveTurns[userID], previous.playbackID != turn.playbackID' in l), '')
+show = block(SCREEN, 'private func showLiveTurn(')
+check('mergeLiveTurn(turn, over: previous)' in show,
+      'снимок с другим временем начала пересоздаёт ход вместо слияния')
+
+snapshot = block(SCREEN, 'private func loadLiveTurns() async')
+check('mergeLiveTurn(turn, over: old)' in snapshot,
+      'снимок хода подменяет показанное без слияния')
+
+segments = block(SCREEN.replace(SCREEN, SCREEN), 'private var messageScroll: some View')  # заглушка
+segment_ids = (ROOT / 'Sources/Features/Chat/RoleActionGroup.swift').read_text()
+check('static func identities(' in segment_ids,
+      'куски живого пузыря снова идентифицируются по номеру — пересоздание от прихода текста')
+view = (ROOT / 'Sources/Features/Chat/RoleLiveTurnView.swift').read_text()
+check('RoleLiveSegment.identities(segments)' in view and 'id: \\.offset' not in view,
+      'список кусков живого пузыря всё ещё по индексу')
 
 if failures:
     for name in failures:

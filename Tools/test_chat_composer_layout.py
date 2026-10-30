@@ -30,8 +30,10 @@ composer = (root / 'Sources/Features/Chat/ChatVoiceComposer.swift').read_text()
 fields = composer.count('TextField(')
 if fields != 1:
     raise SystemExit(f'Полей ввода в панели: {fields}, должно быть одно — иначе каретка теряется при развороте')
-if 'if compact { compactMicButton }' not in composer or 'if !compact { promptActionRow }' not in composer:
+if 'if !compact { promptActionRow }' not in composer:
     raise SystemExit('Панель не переключает окружение вокруг поля, а не само поле')
+if 'if canSendText || isResponding {' not in composer or 'sendButton(knob: Self.compactKnobSize)' not in composer:
+    raise SystemExit('В компактной панели нет отправки и остановки — сообщение с вложением не отправить, ответ не остановить')
 print('Панель ввода: одно поле на оба вида — OK')
 
 d = Path(subprocess.check_output(['xcode-select', '-p'], text=True).strip())

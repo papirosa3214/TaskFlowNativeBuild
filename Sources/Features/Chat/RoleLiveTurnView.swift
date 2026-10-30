@@ -193,13 +193,15 @@ struct RoleLiveItemsList: View {
         let visible = detailLevel.visible(items)
         let segments = RoleLiveSegment.split(visible, grouping: detailLevel == .standard,
                                              groupsSingleAction: showsActionPreview)
+        // Идентичность куска — по содержимому (см. `RoleLiveSegment.identities`):
+        // по номеру строки пересоздавались от прихода текста в середину хода.
+        let identities = RoleLiveSegment.identities(segments)
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            // Индекс, а не текст: текст растёт каждые 150 мс, и id по нему
-            // пересоздавал бы строку на каждом кадре.
-            ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-                switch segment {
+            ForEach(segments.indices, id: \.self) { index in
+                switch segments[index] {
                 case .single(let item):
                     itemView(item)
+                        .id(identities[index])
                 case .actions(let group):
                     // «Стандарт» (владелец 20.10.2026): подряд идущие шаги и
                     // размышления — одной строкой, тап раскрывает весь список.
@@ -207,6 +209,7 @@ struct RoleLiveItemsList: View {
                                     showsPreview: showsActionPreview) { item in
                         itemView(item)
                     }
+                    .id(identities[index])
                 }
             }
         }

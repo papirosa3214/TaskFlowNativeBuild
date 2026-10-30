@@ -434,6 +434,16 @@ public enum RoleChatLiveItem: Decodable, Sendable, Equatable, Identifiable {
         return false
     }
 
+    /// Идентификатор действия: у шага и у размышления он свой, у текста — нет.
+    /// По нему видно, какие пункты уже показаны (пейсер, слияние снимка).
+    public var actionID: String? {
+        switch self {
+        case .text: return nil
+        case .step(let step): return "step:" + step.id
+        case .thinking(let thinking): return "thinking:" + thinking.id
+        }
+    }
+
     public var isText: Bool {
         if case .text = self { return true }
         return false
@@ -676,14 +686,7 @@ struct RoleLiveTextPacer {
         }
     }
 
-    /// Идентификатор действия: у шага и у размышления он свой.
-    private static func actionID(_ item: RoleChatLiveItem) -> String? {
-        switch item {
-        case .text: return nil
-        case .step(let step): return "step:" + step.id
-        case .thinking(let thinking): return "thinking:" + thinking.id
-        }
-    }
+    private static func actionID(_ item: RoleChatLiveItem) -> String? { item.actionID }
 
     var pendingCharacters: Int {
         texts.indices.reduce(0) { $0 + max(0, texts[$1].count - visibleCharacters[$1]) }
@@ -1013,8 +1016,49 @@ extension RoleChatLiveTurn {
     }
 
     func completed(with message: RoleChatMessage) -> Self {
-        Self(chatID: chatID, userID: userID, name: name, startedAt: startedAt,
-             items: (message.steps?.items ?? []) + (message.text.isEmpty ? [] : [.text(message.text)]), thinking: nil,
+        // Содержимое хода на закрытии только растёт. Раньше список подменялся
+        // на `message.steps` + текст: размышления исчезали, а если сокетный
+        // ответ пришёл без шагов — исчезали ВСЕ строки шагов, пузырь проседал
+        // на десятки-сотни пунктов, и `refresh()` возвращал их обратно. Это
+        // второй вид «шатания» — не движение прокрутки, а усадка строки под
+        // ней (ревью ленты п.1.3, владелец 30.10.2026).
+        var merged = items
+        var known = Set<String>()
+        for item in items {
+            switch item {
+            case .step(let step): known.insert("step:" + step.id)
+            case .thinking(let thought): known.insert("thinking:" + thought.id)
+            case .text: break
+            }
+        }
+        for item in message.steps?.items ?? [] {
+            switch item {
+            case .text:
+                merged.append(item)
+            case .step(let step):
+                guard !known.contains("step:" + step.id) else { continue }
+                known.insert("step:" + step.id)
+                merged.append(item)
+            case .thinking(let thought):
+                guard !known.contains("thinking:" + thought.id) else { continue }
+                known.insert("thinking:" + thought.id)
+                merged.append(item)
+            }
+        }
+        // Текст ответа дописывается, а не встаёт вторым абзацем: в ленте
+        // последний текстовый блок хода и есть ответ.
+        let finalText = message.text
+        if !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let lastText = merged.lastIndex(where: { if case .text = $0 { return true }; return false }) {
+                if case .text(let shown) = merged[lastText], finalText.count >= shown.count {
+                    merged[lastText] = .text(finalText)
+                }
+            } else {
+                merged.append(.text(finalText))
+            }
+        }
+        return Self(chatID: chatID, userID: userID, name: name, startedAt: startedAt,
+             items: merged, thinking: nil,
              triggerMessageID: triggerMessageID)
     }
 }
