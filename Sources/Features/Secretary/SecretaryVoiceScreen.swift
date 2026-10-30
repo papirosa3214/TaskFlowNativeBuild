@@ -27,6 +27,7 @@ final class SecretaryVoiceViewModel {
     var agentLevel: Double = 0
 
     private(set) var isScreenSharing = false
+    private(set) var mode: SecretaryVoiceMode = .standard
     var screenShareError: String?
     @ObservationIgnored private var broadcastObserver: AnyCancellable?
     @ObservationIgnored private var voiceActivity: Activity<TaskActivityAttributes>?
@@ -37,7 +38,7 @@ final class SecretaryVoiceViewModel {
 
     /// Shows Apple's consent UI; capture starts only after the owner's system confirmation.
     func requestScreenShare() {
-        guard room?.connectionState == .connected else { return }
+        guard mode.supportsScreen, room?.connectionState == .connected else { return }
         if isScreenSharing { BroadcastManager.shared.requestStop() }
         else { BroadcastManager.shared.requestActivation() }
     }
@@ -93,6 +94,7 @@ final class SecretaryVoiceViewModel {
 
     func start(chatID: String) async {
         guard presentation.begin(chatID: chatID) else { return }
+        mode = .selected
         state = .connecting
         callStartedAt = Date()
         let connectionID = UUID()
@@ -102,7 +104,7 @@ final class SecretaryVoiceViewModel {
         self.room = room
         do {
             room.add(delegate: self)
-            let token = try await api.secretaryVoiceToken(voice: .current, chatID: chatID)
+            let token = try await api.secretaryVoiceToken(voice: .current, chatID: chatID, mode: mode)
             guard self.connectionID == connectionID else { return }
             try await room.connect(url: token.url, token: token.token)
             guard self.connectionID == connectionID else { await room.disconnect(); return }
@@ -338,8 +340,11 @@ struct SecretaryVoiceScreen: View {
             }
             .buttonStyle(.plain)
             .tfText(.action)
-            .disabled(viewModel.state == .connecting || isFailed)
+            .disabled(viewModel.state == .connecting || isFailed || !viewModel.mode.supportsScreen)
             .hintAnchor(HintAnchorID.voiceScreenShare)
+            if viewModel.mode != .standard {
+                Text(viewModel.mode.title).tfText(.action).foregroundStyle(Color.tfSub)
+            }
             if let error = viewModel.screenShareError {
                 Text(error).tfText(.body).foregroundStyle(Color.tfRed)
             }

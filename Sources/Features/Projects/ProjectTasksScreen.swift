@@ -238,7 +238,7 @@ struct ProjectTasksScreen: View {
                 Task { await refreshRelationshipTasks() }
             }
         }
-        .navigationDestination(isPresented: $showNewTask) { routeDestination(.taskCreate) }
+        .taskCreateFlow(isPresented: $showNewTask)
     }
 
     private func rowWithIndex(_ rowIndex: Int) -> some View {

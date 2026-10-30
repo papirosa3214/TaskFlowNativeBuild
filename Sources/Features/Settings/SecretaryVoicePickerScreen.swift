@@ -5,11 +5,23 @@ import SwiftUI
 /// в следующий голосовой разговор (`SecretaryVoiceViewModel.start`).
 struct SecretaryVoicePickerScreen: View {
     @AppStorage(SecretaryVoice.storageKey) private var selected = SecretaryVoice.default.rawValue
+    @AppStorage(SecretaryVoiceMode.storageKey) private var selectedMode = SecretaryVoiceMode.standard.rawValue
     @State private var player = VoicePlayer()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                Picker("Режим следующего звонка", selection: $selectedMode) {
+                    ForEach(SecretaryVoiceMode.allCases) { mode in
+                        Text(mode.title).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .hintAnchor(HintAnchorID.voiceModes)
+                Text(SecretaryVoiceMode.fromStoredValue(selectedMode).explanation)
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, TFSpacing.lg)
                 TFCard(padding: 0) {
                     VStack(spacing: 0) {
                         ForEach(SecretaryVoice.allCases) { voice in

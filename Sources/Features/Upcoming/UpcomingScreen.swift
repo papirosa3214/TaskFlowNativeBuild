@@ -199,11 +199,7 @@ public struct UpcomingScreen: View {
         .sheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
         // Любая существующая задача открывает одну и ту же интерактивную карточку.
         .taskCardSheet(taskID: $pushedTaskID)
-        .sheet(isPresented: $createTaskOpen) {
-            NavigationStack { TaskFormScreen() }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
+        .taskCreateFlow(isPresented: $createTaskOpen)
         .sheet(item: $selectedOccurrence, onDismiss: { Task { await loadRoutineCalendar() } }) { occurrence in
             NavigationStack { RoutineOccurrenceDestination(occurrence: occurrence) }
         }

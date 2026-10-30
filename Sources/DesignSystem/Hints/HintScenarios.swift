@@ -4,6 +4,7 @@ import Foundation
 /// новая подсказка. Добавить: повесить `.hintAnchor("…")` на элемент и описать
 /// шаги здесь. Идентификаторы якорей — `HintAnchorID`.
 enum HintAnchorID {
+    static let voiceModes = "voice.modes"
     static let inboxTickets = "inbox.tickets"
     static let projectsAllTasks = "projects.all-tasks"
     static let allTasksFilter = "all-tasks.filter"
@@ -123,7 +124,7 @@ enum HintScenarios {
         steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
             text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
 
-    static let all: [HintScenario] = [inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
@@ -190,6 +191,12 @@ enum HintScenarios {
         id: "note-markdown-editing", title: "Чтение и правка заметки", start: "edit",
         steps: ["edit": HintStep(anchor: HintAnchorID.noteMarkdownEditing, title: "Карандаш открывает Markdown",
             text: "Заметка открывается для чтения, как ответ в чате. Нажмите карандаш рядом с меню «…», чтобы править исходный Markdown. Изменения сохраняются автоматически; галочка завершает правку и возвращает просмотр. При ошибке сохранения редактор остаётся открытым.", next: nil)])
+
+    static let voiceModes = HintScenario(
+        id: "voice-modes", title: "Проверка голосовых режимов", start: "mode",
+        steps: ["mode": HintStep(anchor: HintAnchorID.voiceModes,
+            title: "Режим следующего звонка",
+            text: "Текущий режим — обычный голосовой разговор. Для сравнения выберите Pipecat с Gemini Live или исполнителем чата. Выбор применяется со следующего звонка. В режиме с исполнителем чата фраза распознаётся после паузы, ответ сохраняется в чате; показ экрана недоступен. Если эксперимент недоступен, выберите текущий режим.")])
 
     static let voiceScreenShare = HintScenario(
         id: "voice-screen-share", title: "Показать экран Помощнику", start: "start",

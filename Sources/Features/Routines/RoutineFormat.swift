@@ -11,6 +11,13 @@ public enum RoutineFormat {
     /// Минимальный интервал планировщика — 5 минут (спека, раздел 5).
     public static let minimumIntervalMinutes = 5
     public static let defaultTimezone = "Europe/Moscow"
+
+    /// Зона телефона, пригодная для сервера: iOS иногда отдаёт фиксированное
+    /// смещение («GMT+0300»), а сервер принимает только IANA-имена.
+    public static var localTimezone: String {
+        let id = TimeZone.current.identifier
+        return TimeZone.knownTimeZoneIdentifiers.contains(id) ? id : defaultTimezone
+    }
     public static let defaultTime = "09:00"
 
     /// Правила, которые сервер принимает (`SCHEDULE_RULE_KINDS`).

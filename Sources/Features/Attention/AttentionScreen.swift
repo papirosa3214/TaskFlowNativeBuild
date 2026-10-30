@@ -134,7 +134,7 @@ struct AttentionScreen: View {
             Button { answeringTicket = ticket } label: { ticketCard(ticket) }
                 .buttonStyle(TFTapRowStyle())
         case .task(let id):
-            NavigationLink(value: AppRoute.taskDetail(taskID: id)) { ticketCard(ticket) }
+            TaskCardLink(taskID: id) { ticketCard(ticket) }
                 .buttonStyle(.plain)
         case .chat(let id):
             NavigationLink(value: AppRoute.roleChat(id: id)) { ticketCard(ticket) }

@@ -1130,7 +1130,7 @@ final class TaskFormViewModel {
             ruleKind: ruleKind,
             ruleExpr: Self.routineRuleExpr(ruleKind: ruleKind, dueDate: dueDate),
             timeLocal: RoutineFormat.timeLocalText(startMinutes ?? 9 * 60),
-            timezone: RoutineFormat.defaultTimezone,
+            timezone: RoutineFormat.localTimezone,
             catchUp: true,
             overlapPolicy: "skip",
             taskPayload: payload

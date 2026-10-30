@@ -2,10 +2,18 @@ import SwiftUI
 
 // Поля ввода — spec/DESIGN-TOKENS.md §4 «Поля ввода» + §2 (16px обязателен
 // для текста внутри поля — единственное место, где эта ступень шкалы легальна).
+public enum TFFieldSurface {
+    /// Обычное поле на карточке (`tfCard`).
+    case card
+    /// Почти чёрное поле с тонкой тёмно-красной кромкой — форма рутины.
+    case dark
+}
+
 public struct TFTextField: View {
     let placeholder: String
     @Binding var text: String
     let icon: String?
+    let surface: TFFieldSurface
 
     /// 14.09.2026, Dynamic Type: высота поля растёт с текстом (было жёсткое
     /// `.frame(height: 52)` — крупный ввод обрезался). `minHeight` сохраняет
@@ -15,10 +23,12 @@ public struct TFTextField: View {
     /// на фоне выросшей строки.
     @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = TFIconSize.sm
 
-    public init(_ placeholder: String, text: Binding<String>, icon: String? = nil) {
+    public init(_ placeholder: String, text: Binding<String>, icon: String? = nil,
+                surface: TFFieldSurface = .card) {
         self.placeholder = placeholder
         self._text = text
         self.icon = icon
+        self.surface = surface
     }
 
     public var body: some View {
@@ -34,8 +44,14 @@ public struct TFTextField: View {
         }
         .padding(.horizontal, TFSpacing.lg)
         .frame(minHeight: minHeight)
-        .background(Color.tfCard)
+        .background(surface == .dark ? Color.tfFieldDark : Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        .overlay {
+            if surface == .dark {
+                RoundedRectangle(cornerRadius: TFRadius.lg)
+                    .stroke(Color.tfFieldBorder, lineWidth: 1)
+            }
+        }
     }
 }
 

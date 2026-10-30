@@ -4,9 +4,11 @@ import SwiftUI
 // шторка оставила бы половину формы под большим пальцем (дизайн, п. 2.6).
 //
 // Дата, время, длительность и повтор — тот же редактор срока, что в карточке
-// задачи (`ExistingTaskDueEditor`); часовой пояс — строкой с выбором.
+// задачи (`ExistingTaskDueEditor`). Часовой пояс не выбирается: рутина живёт
+// по времени телефона.
 struct RoutineFormScreen: View {
     @State private var model = RoutineFormViewModel()
+    @State private var isDescriptionEditorPresented = false
     @Environment(\.dismiss) private var dismiss
 
     init(schedule: ApiSchedule? = nil) {
@@ -19,24 +21,32 @@ struct RoutineFormScreen: View {
                 titleBlock
                 taskBlock
                 scheduleBlock
-                policyBlock
-                previewBlock
-                saveButton
-                if let schedule = model.editingSchedule {
-                    NavigationLink {
-                        RoutineRunsScreen(schedule: schedule)
-                    } label: {
-                        Label("История запусков", systemImage: "clock.arrow.circlepath")
-                    }
-                    .hintAnchor(HintAnchorID.routineHistory)
-                    .accessibilityIdentifier("routines.form.history")
-                }
+                planBlock
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.bottom, TFSpacing.sm)
         }
         .background(Color.tfBackground)
         .tfNativeHeader(model.editingSchedule == nil ? "Новая рутина" : "Рутина", displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if showsSaveAction {
+                    Button {
+                        Task {
+                            if await model.create() {
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .disabled(!model.canSave || model.isSaving)
+                    .accessibilityLabel("Сохранить")
+                    .accessibilityIdentifier("routines.form.save")
+                }
+            }
+        }
         .task {
             await model.loadRoles()
             await model.refreshPreview()
@@ -48,130 +58,128 @@ struct RoutineFormScreen: View {
         .onChange(of: model.weekdays) { _, _ in Task { await model.refreshPreview() } }
         .onChange(of: model.intervalMinutes) { _, _ in Task { await model.refreshPreview() } }
         .onChange(of: model.timeMinutes) { _, _ in Task { await model.refreshPreview() } }
-        .onChange(of: model.timezone) { _, _ in Task { await model.refreshPreview() } }
+        .sheet(isPresented: $isDescriptionEditorPresented) {
+            NavigationStack {
+                TextEditor(text: $model.instructions)
+                    .scrollContentBackground(.hidden)
+                    .padding(TFSpacing.md)
+                    .background(Color.tfBackground)
+                    .navigationTitle("Описание задачи")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Готово") { isDescriptionEditorPresented = false }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .alert("Не сохранено", isPresented: Binding(
+            get: { model.errorMessage != nil },
+            set: { if !$0 { model.errorMessage = nil } }
+        )) {
+            Button("Понятно", role: .cancel) { model.errorMessage = nil }
+        } message: {
+            Text(model.errorMessage ?? "")
+        }
     }
 
-    // MARK: - Название
+    /// Новая рутина — галочка появляется, когда форма готова к созданию.
+    /// Существующая — только когда в карточке реально что-то поменяли.
+    private var showsSaveAction: Bool {
+        model.editingSchedule == nil ? model.canSave : model.isDirty
+    }
+
+    // MARK: - Название рутины
 
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             Text("Название рутины")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-            TFTextField("Например, Ежедневный отчёт продаж", text: $model.title)
+                .tfText(.title)
+                .foregroundStyle(Color.tfText)
+            TFTextField("Например, Ежедневный отчёт продаж", text: $model.title, surface: .dark)
                 .accessibilityIdentifier("routines.form.title")
         }
     }
 
-    // MARK: - Срок, повтор и зона
+    // MARK: - Задача
+
+    private var taskBlock: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            Text("Название задачи")
+                .tfText(.title)
+                .foregroundStyle(Color.tfText)
+            TFTextField("Название задачи", text: $model.taskTitle, surface: .dark)
+                .accessibilityIdentifier("routines.form.taskTitle")
+            Text("Описание задачи")
+                .tfText(.title)
+                .foregroundStyle(Color.tfText)
+            // Компактная карточка описания: три строки с многоточием.
+            // Полный текст правится на отдельном листе снизу — так поле
+            // не растягивает форму (владелец 31.10.2026).
+            Button {
+                isDescriptionEditorPresented = true
+            } label: {
+                Text(model.instructions.isEmpty ? "Описание задачи" : model.instructions)
+                    .tfText(.body)
+                    .foregroundStyle(model.instructions.isEmpty ? Color.tfDim : Color.tfText)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+                    .padding(TFSpacing.md)
+                    .background(Color.tfFieldDark)
+                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: TFRadius.lg)
+                            .stroke(Color.tfFieldBorder, lineWidth: 1)
+                    }
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("routines.form.instructions")
+        }
+    }
+
+    // MARK: - Расписание
 
     private var scheduleBlock: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Расписание")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: TFSpacing.xs) {
+                Text("Расписание")
+                    .tfText(.title)
+                    .foregroundStyle(Color.tfText)
+                if let next = model.previewNextRun {
+                    Text("(ближайший запуск — \(next))")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                }
+            }
             ExistingTaskDueEditor(
                 dueDate: $model.startDate,
                 startMinutes: $model.startMinutes,
                 durationMin: $model.durationMin,
                 runRepeat: $model.repeatChoice,
-                repeatUntil: .constant(nil)
+                repeatUntil: .constant(nil),
+                showsDateField: model.ruleUsesDate
             )
             .accessibilityIdentifier("routines.form.schedule")
-            Menu {
-                ForEach(RoutineFormat.timezones, id: \.self) { zone in
-                    Button {
-                        model.timezone = zone
-                    } label: {
-                        if model.timezone == zone {
-                            Label(RoutineFormat.timezoneTitle(zone), systemImage: "checkmark")
-                        } else {
-                            Text(RoutineFormat.timezoneTitle(zone))
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: TFSpacing.md) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 18))
-                        .foregroundStyle(Color.tfDim)
-                    Text(RoutineFormat.timezoneTitle(model.timezone))
-                        .tfText(.row)
-                        .foregroundStyle(Color.tfText)
-                    Spacer(minLength: 0)
-                }
-                .frame(minHeight: TFHitTarget.min)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("routines.form.timezone")
-        }
-    }
 
-    // MARK: - Что создаст задачу
-
-    private var taskBlock: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Задание рутины")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-            TFTextField("Название задачи", text: $model.taskTitle)
-                .accessibilityIdentifier("routines.form.taskTitle")
-            Text("Задание агенту").tfText(.action).foregroundStyle(Color.tfSub)
-            instructionsEditor
-            Text("В «Итоге» должен быть сам материал: дайджест, урок или отчёт. Укажите содержание и нужный формат.")
-                .tfText(.caption).foregroundStyle(Color.tfSub)
-            Menu {
-                Button("Без роли") { model.assigneeRoleKey = nil }
-                ForEach(model.roles, id: \.role) { role in
-                    Button {
-                        model.assigneeRoleKey = role.role
-                    } label: {
-                        if model.assigneeRoleKey == role.role {
-                            Label(role.title, systemImage: "checkmark")
-                        } else {
-                            Text(role.title)
-                        }
-                    }
-                }
-            } label: {
-                pickerRow(icon: "person.crop.circle", title: "Роль-исполнитель", value: roleTitle)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    @ViewBuilder
-    private var instructionsEditor: some View {
-        let editor = TextEditor(text: $model.instructions)
-            .frame(minHeight: 120)
-            .accessibilityIdentifier("routines.form.instructions")
-        if model.editingSchedule != nil {
-            editor.hintAnchor(HintAnchorID.routineInstructions)
-        } else {
-            editor
-        }
-    }
-
-    // MARK: - Пропуски и наложения
-
-    private var policyBlock: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            Text("Пропуски и наложения")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-            HStack(spacing: TFSpacing.md) {
+            // «Пропуски и наложения» — часть расписания, не отдельный раздел.
+            HStack(spacing: TFSpacing.xs) {
                 Text("Пропускать запуск, пока прошлый не закрыт")
                     .tfText(.row)
                     .foregroundStyle(Color.tfText)
+                TFInfoHint("Если предыдущий экземпляр рутины ещё выполняется, новый не создаётся — запуск пропускается.")
                 Spacer(minLength: 0)
                 TFToggle(isOn: $model.skipOverlapping)
             }
             .frame(minHeight: TFHitTarget.min)
-            HStack(spacing: TFSpacing.md) {
+            HStack(spacing: TFSpacing.xs) {
                 Text("Догонять пропущенный запуск")
                     .tfText(.row)
                     .foregroundStyle(Color.tfText)
+                TFInfoHint("Пропущенный по расписанию запуск будет создан при следующей возможности, а не потерян.")
                 Spacer(minLength: 0)
                 TFToggle(isOn: $model.catchUp)
             }
@@ -179,79 +187,97 @@ struct RoutineFormScreen: View {
         }
     }
 
-    // MARK: - Превью и кнопка
+    // MARK: - План
 
-    private var previewBlock: some View {
+    private var planBlock: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Превью")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text(previewText)
-                    .tfText(.action)
+            HStack(spacing: TFSpacing.xs) {
+                Text("План")
+                    .tfText(.title)
                     .foregroundStyle(Color.tfText)
-                if let next = model.previewNextRun {
-                    Text("Ближайший запуск — \(next)")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                }
+                TFInfoHint(planCaption)
             }
-            .padding(TFSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tfCard2)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+
+            Menu {
+                Button("Автоматически") { model.selectPlanTemplate(nil) }
+                CollaborationPlanTemplateOptions { model.selectPlanTemplate($0) }
+            } label: {
+                HStack(spacing: TFSpacing.md) {
+                    Image(systemName: selectedTemplate?.icon ?? "wand.and.stars")
+                        .font(.system(size: 18))
+                        .foregroundStyle(Color.tfDim)
+                    Text(selectedTemplate?.title ?? "Автоматически")
+                        .tfText(.row)
+                        .foregroundStyle(Color.tfText)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.tfDim)
+                }
+                .frame(minHeight: TFHitTarget.min)
+                .contentShape(Rectangle())
+            }
+            .hintAnchor(HintAnchorID.routinePlanTemplate)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("routines.form.plan")
+
+            if let template = selectedTemplate {
+                PlanFlowView(stages: CollaborationPlanTemplate.stages(for: template.profile))
+            }
         }
     }
 
-    private var saveButton: some View {
-        VStack(spacing: TFSpacing.sm) {
-            TFButton(model.editingSchedule == nil ? "Создать рутину" : "Сохранить изменения", variant: .secondary, isEnabled: model.canSave && !model.isSaving) {
-                Task {
-                    if await model.create() {
-                        dismiss()
+    private var planCaption: String {
+        selectedTemplate == nil
+            ? "План соберётся по задаче автоматически."
+            : "Сервер собирает план по этому шаблону; состав шагов можно донастроить в карточке задачи после создания."
+    }
+
+    private var selectedTemplate: (profile: String, title: String, icon: String)? {
+        guard let profile = model.planProfile else { return nil }
+        return CollaborationPlanTemplate.all.first { $0.profile == profile }
+    }
+
+}
+
+/// Последовательность плана: этапы сверху вниз, параллельные роли — в одной
+/// строке. Это не живой граф задачи (`CollaborationPlanView`), а превью
+/// маршрута выбранного шаблона до создания карточки.
+private struct PlanFlowView: View {
+    let stages: [[String]]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            ForEach(Array(stages.enumerated()), id: \.offset) { index, roles in
+                HStack(spacing: TFSpacing.xs) {
+                    ForEach(Array(roles.enumerated()), id: \.offset) { roleIndex, role in
+                        if roleIndex > 0 {
+                            Text("∥")
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfSub)
+                        }
+                        Text(role)
+                            .tfText(.row)
+                            .foregroundStyle(Color.tfText)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, TFSpacing.xs)
+                            .background(Color.tfCard)
+                            .clipShape(Capsule())
                     }
+                    Spacer(minLength: 0)
+                }
+                if index < stages.count - 1 {
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.tfDim)
+                        .padding(.leading, TFSpacing.md)
                 }
             }
-            .accessibilityIdentifier("routines.form.save")
-            if let error = model.errorMessage {
-                TFErrorBanner(error, variant: .block)
-            }
         }
-    }
-
-    // MARK: - Подписи
-
-    private var previewText: String {
-        let label = model.previewLabel ?? RoutineFormat.ruleKindTitle(model.ruleKind)
-        let taskName = model.taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? model.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            : model.taskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        let when = model.ruleKind == "interval"
-            ? label
-            : "\(label) в \(model.timeLocal)"
-        return "Создаст задачу «\(taskName)» \(when)."
-    }
-
-    private var roleTitle: String {
-        guard let key = model.assigneeRoleKey else { return "Без роли" }
-        return model.roles.first { $0.role == key }?.title ?? key
-    }
-
-    private func pickerRow(icon: String, title: String, value: String) -> some View {
-        HStack(spacing: TFSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundStyle(Color.tfDim)
-            Text(title)
-                .tfText(.row)
-                .foregroundStyle(Color.tfText)
-            Spacer(minLength: 0)
-            Text(value)
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-                .lineLimit(1)
-        }
-        .frame(minHeight: TFHitTarget.min)
-        .contentShape(Rectangle())
+        .padding(TFSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tfCard2)
+        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+        .accessibilityIdentifier("routines.form.planFlow")
     }
 }

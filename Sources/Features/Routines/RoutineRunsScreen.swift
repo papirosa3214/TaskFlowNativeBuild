@@ -5,6 +5,7 @@ import SwiftUI
 struct RoutineRunsScreen: View {
     let schedule: ApiSchedule
     @State private var model = RoutineRunsViewModel()
+    @State private var cardTaskID: String?
 
     var body: some View {
         list
@@ -12,6 +13,7 @@ struct RoutineRunsScreen: View {
             .tfNativeHeader("История запусков", displayMode: .inline)
             .task { await model.load(scheduleID: schedule.id) }
             .refreshable { await model.load(scheduleID: schedule.id) }
+            .taskCardSheet(taskID: $cardTaskID)
     }
 
     @ViewBuilder
@@ -39,11 +41,12 @@ struct RoutineRunsScreen: View {
             } else {
                 ForEach(model.runs) { run in
                     if let taskID = run.taskId {
-                        NavigationLink {
-                            TaskFormScreen(taskID: taskID, isPushedInNavigationStack: true)
+                        Button {
+                            cardTaskID = taskID
                         } label: {
                             RoutineRunRow(run: run, timezone: schedule.timezone)
                         }
+                        .buttonStyle(.plain)
                     } else {
                         RoutineRunRow(run: run, timezone: schedule.timezone)
                     }

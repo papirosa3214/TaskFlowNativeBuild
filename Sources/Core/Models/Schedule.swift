@@ -13,6 +13,7 @@ public struct ApiSchedulePayload: Codable, Hashable {
     public var description: String?
     public var projectId: String?
     public var assigneeId: String?
+    public var planProfile: String?
     public var priority: Int?
     public var durationMin: Int?
     public var labels: [String]?
@@ -24,6 +25,7 @@ public struct ApiSchedulePayload: Codable, Hashable {
         description: String? = nil,
         projectId: String? = nil,
         assigneeId: String? = nil,
+        planProfile: String? = nil,
         priority: Int? = nil,
         durationMin: Int? = nil,
         labels: [String]? = nil,
@@ -34,6 +36,7 @@ public struct ApiSchedulePayload: Codable, Hashable {
         self.description = description
         self.projectId = projectId
         self.assigneeId = assigneeId
+        self.planProfile = planProfile
         self.priority = priority
         self.durationMin = durationMin
         self.labels = labels
@@ -49,6 +52,7 @@ public struct ApiSchedulePayload: Codable, Hashable {
         try container.encode(description, forKey: .description)
         try container.encode(projectId, forKey: .projectId)
         try container.encode(assigneeId, forKey: .assigneeId)
+        try container.encode(planProfile, forKey: .planProfile)
         try container.encode(durationMin, forKey: .durationMin)
         try container.encodeIfPresent(priority, forKey: .priority)
         try container.encodeIfPresent(labels, forKey: .labels)
@@ -60,6 +64,7 @@ public struct ApiSchedulePayload: Codable, Hashable {
         case title, description
         case projectId = "project_id"
         case assigneeId = "assignee_id"
+        case planProfile = "plan_profile"
         case priority
         case durationMin = "duration_min"
         case labels

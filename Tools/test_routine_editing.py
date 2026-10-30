@@ -72,6 +72,8 @@ Task { @MainActor in
         center.start(scenario.id)
         check(center.currentStep?.anchor == "routine.instructions", "hint starts at task instructions")
         center.next()
+        check(center.currentStep?.anchor == "routine.planTemplate", "hint explains template and automatic selection")
+        center.next()
         check(center.currentStep?.anchor == "routine.history", "hint explains separate run history")
         center.next()
         check(center.completed.contains(scenario.id), "hint completes")

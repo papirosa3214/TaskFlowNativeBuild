@@ -41,7 +41,7 @@ public enum SecretaryVoice: String, CaseIterable, Identifiable, Sendable {
 public extension APIClient {
     /// Голос уходит в атрибуты участника внутри подписанного токена — воркер
     /// читает его при входе владельца в комнату.
-    func secretaryVoiceToken(voice: SecretaryVoice, chatID: String) async throws -> SecretaryVoiceToken {
-        try await request(.post, "/secretary/voice-token", body: ["voice": voice.rawValue, "chat_id": chatID])
+    func secretaryVoiceToken(voice: SecretaryVoice, chatID: String, mode: SecretaryVoiceMode = .standard) async throws -> SecretaryVoiceToken {
+        try await request(.post, "/secretary/voice-token", body: mode.requestFields(voice: voice.rawValue, chatID: chatID))
     }
 }

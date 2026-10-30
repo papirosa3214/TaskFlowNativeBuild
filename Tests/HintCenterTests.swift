@@ -4,6 +4,19 @@ import XCTest
 /// Движок режима подсказок (LOCK-HINTS-ONBOARDING-20261016).
 @MainActor
 final class HintCenterTests: XCTestCase {
+    func testVoiceModesHintCompletes() {
+        let name = "voice-modes-hint-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.voiceModes])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.voiceModes, frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+        XCTAssertEqual(center.currentScenario?.id, "voice-modes")
+        center.next()
+        XCTAssertTrue(center.completed.contains("voice-modes"))
+        XCTAssertNil(center.active)
+    }
+
     func testInboxHintCompletes() {
         let name = "inbox-hint-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
@@ -42,6 +55,8 @@ final class HintCenterTests: XCTestCase {
         let center = HintCenter(defaults: defaults, scenarios: [scenario])
         center.start(scenario.id)
         XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.routineInstructions)
+        center.next()
+        XCTAssertEqual(center.currentStep?.anchor, "routine.planTemplate")
         center.next()
         XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.routineHistory)
         center.next()

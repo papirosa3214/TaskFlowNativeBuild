@@ -21,7 +21,7 @@ final class RoutineFormViewModel {
     var intervalMinutes = 15
     /// Время запуска в минутах от полуночи.
     var timeMinutes = 9 * 60
-    var timezone = RoutineFormat.defaultTimezone
+    var timezone = RoutineFormat.localTimezone
     /// Пропускать запуск, пока прошлый экземпляр не закрыт (`overlap_policy`).
     var skipOverlapping = true
     /// Догонять пропущенный запуск (`catch_up`).
@@ -29,6 +29,7 @@ final class RoutineFormViewModel {
     /// Что создаст рутина: шаблон карточки.
     var taskTitle = ""
     var assigneeRoleKey: String?
+    var planProfile: String?
     var durationMin: Int?
 
     var roles: [RoleProfile] = []
@@ -39,19 +40,59 @@ final class RoutineFormViewModel {
 
     private let api: APIClient
 
+    /// Снимок формы на момент открытия: по нему решается, показывать ли
+    /// галочку сохранения. Владелец 30.10.2026: она появляется только когда
+    /// в карточке рутины реально что-то поменяли.
+    private var initialSnapshot: Snapshot?
+
+    private struct Snapshot: Equatable {
+        let title: String
+        let instructions: String
+        let onceDate: Date
+        let ruleKind: String
+        let weekdays: Set<Int>
+        let weeklyDay: Int
+        let monthlyDay: Int
+        let intervalMinutes: Int
+        let timeMinutes: Int
+        let timezone: String
+        let skipOverlapping: Bool
+        let catchUp: Bool
+        let taskTitle: String
+        let assigneeRoleKey: String?
+        let planProfile: String?
+        let durationMin: Int?
+    }
+
+    private var snapshot: Snapshot {
+        Snapshot(title: title, instructions: instructions, onceDate: onceDate,
+                 ruleKind: ruleKind, weekdays: weekdays, weeklyDay: weeklyDay,
+                 monthlyDay: monthlyDay, intervalMinutes: intervalMinutes,
+                 timeMinutes: timeMinutes, timezone: timezone,
+                 skipOverlapping: skipOverlapping, catchUp: catchUp,
+                 taskTitle: taskTitle, assigneeRoleKey: assigneeRoleKey,
+                 planProfile: planProfile, durationMin: durationMin)
+    }
+
+    var isDirty: Bool {
+        guard let initialSnapshot else { return false }
+        return snapshot != initialSnapshot
+    }
+
     init(api: APIClient = APIClient(), schedule: ApiSchedule? = nil) {
         editingSchedule = schedule
         self.api = api
         // По умолчанию — сегодняшний день недели и число в зоне рутины:
         // так «Еженедельно» и «Ежемесячно» сразу знают, когда срабатывать.
-        self.weeklyDay = RoutineFormat.todayWeekday(timezone: RoutineFormat.defaultTimezone)
-        self.monthlyDay = RoutineFormat.todayMonthDay(timezone: RoutineFormat.defaultTimezone)
+        self.weeklyDay = RoutineFormat.todayWeekday(timezone: RoutineFormat.localTimezone)
+        self.monthlyDay = RoutineFormat.todayMonthDay(timezone: RoutineFormat.localTimezone)
         if let schedule {
             title = schedule.title; ruleKind = schedule.ruleKind
             timezone = schedule.timezone
             taskTitle = schedule.taskPayload.title
             instructions = schedule.taskPayload.description ?? ""
             assigneeRoleKey = schedule.taskPayload.assigneeId
+            planProfile = schedule.taskPayload.planProfile
             durationMin = schedule.taskPayload.durationMin
             skipOverlapping = schedule.overlapPolicy == "skip"
             catchUp = schedule.catchUp
@@ -71,11 +112,25 @@ final class RoutineFormViewModel {
                 onceDate = Self.nearestDate(ruleKind: ruleKind, weekday: weeklyDay, monthDay: monthlyDay, timezone: timezone)
             }
         }
-
+        initialSnapshot = Snapshot(
+            title: title, instructions: instructions, onceDate: onceDate,
+            ruleKind: ruleKind, weekdays: weekdays, weeklyDay: weeklyDay,
+            monthlyDay: monthlyDay, intervalMinutes: intervalMinutes,
+            timeMinutes: timeMinutes, timezone: timezone,
+            skipOverlapping: skipOverlapping, catchUp: catchUp,
+            taskTitle: taskTitle, assigneeRoleKey: assigneeRoleKey,
+            planProfile: planProfile, durationMin: durationMin
+        )
     }
 
     /// Пустая рутина без правила невозможна — проверка одинаковая на клиенте
     /// и на сервере (критерий приёмки 20).
+    /// Дата в барабане что-то значит только для этих правил; у остальных
+    /// она не сохраняется на сервере (там есть только правило и время).
+    var ruleUsesDate: Bool {
+        ruleKind == "once" || ruleKind == "weekly" || ruleKind == "monthly"
+    }
+
     var ruleIsValid: Bool {
         switch ruleKind {
         case "weekly_days": return !weekdays.isEmpty
@@ -156,6 +211,13 @@ final class RoutineFormViewModel {
     /// Интервалы, которые предлагает форма: меньше пяти минут планировщик не берёт.
     static let intervalOptions = [5, 10, 15, 30, 45, 60, 120, 180]
 
+    /// nil — «Автоматически»: убираем также прежнее назначение роли,
+    /// чтобы PATCH не сохранил скрытого исполнителя рядом с шаблоном.
+    func selectPlanTemplate(_ profile: String?) {
+        planProfile = profile
+        assigneeRoleKey = nil
+    }
+
     func loadRoles() async {
         if roles.isEmpty {
             roles = (try? await api.rolesList()) ?? []
@@ -208,6 +270,7 @@ final class RoutineFormViewModel {
             ? name : taskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         payload.description = instructions.isEmpty ? nil : instructions
         payload.assigneeId = assigneeRoleKey
+        payload.planProfile = planProfile
         payload.durationMin = durationMin
         let request = ApiScheduleCreateRequest(
             title: name,

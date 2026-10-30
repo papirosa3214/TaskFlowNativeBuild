@@ -3,8 +3,16 @@
     "screen": "AgentProfileScreen",
     "level": "section headings",
     "headings": [
-      {"path": "Sources/Features/Chat/AgentProfileScreen.swift", "type": "AgentProfileScreen", "member": "section"},
-      {"path": "Sources/Features/Settings/ExternalAppAccessSection.swift", "type": "ExternalAppAccessSection", "member": "body"}
+      {
+        "path": "Sources/Features/Roles/AgentProfileScreen.swift",
+        "type": "AgentProfileScreen",
+        "member": "section"
+      },
+      {
+        "path": "Sources/Features/Settings/ExternalAppAccessSection.swift",
+        "type": "ExternalAppAccessSection",
+        "member": "body"
+      }
     ]
   }
 ]

@@ -44,11 +44,14 @@ struct RoutineOccurrenceDestination: View {
     let occurrence: RoutineOccurrence
     @State private var schedule: ApiSchedule?
     @State private var error: String?
+    @State private var cardTaskID: String?
 
     var body: some View {
         Group {
             if let taskId = occurrence.taskId {
-                TaskFormScreen(taskID: taskId, isPushedInNavigationStack: true)
+                TFLoading(.block)
+                    .onAppear { cardTaskID = taskId }
+                    .taskCardSheet(taskID: $cardTaskID)
             } else if let schedule {
                 RoutineFormScreen(schedule: schedule)
             } else if let error {
