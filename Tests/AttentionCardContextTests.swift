@@ -8,6 +8,39 @@ import XCTest
 /// открывая её карточку. Старый сервер этого поля не отдаёт: тогда строки на
 /// карточке просто нет, и клиент ломаться не должен.
 final class AttentionCardContextTests: XCTestCase {
+    func testMalformedQuestionOpensChatInsteadOfAnEmptyAnswerForm() throws {
+        let ticket = try JSONDecoder().decode(ApiAttentionTicket.self, from: Data(#"{"id":"question:q","kind":"question","title":"Вопрос","body":"","chat_id":"chat","created_at":"invalid","question":{"id":"q","status":"open","questions":[]}}"#.utf8))
+        XCTAssertEqual(ticket.action, .chat("chat"))
+        XCTAssertNil(ticket.createdDate)
+    }
+    func testTicketDateIsUTCAndInvalidDateIsAbsent() throws {
+        let ticket = try JSONDecoder().decode(ApiAttentionTicket.self, from: Data(#"{"id":"x","kind":"decision","title":"Решение","body":"","created_at":"2026-10-30 10:00:00"}"#.utf8))
+        XCTAssertEqual(ticket.createdDate?.timeIntervalSince1970, 1793354400)
+    }
+
+
+    func testTicketsAreIndependentFromLegacyGroupsAndKeepDistinctIDs() throws {
+        let feed = try JSONDecoder().decode(ApiAttention.self, from: Data(#"{"ok":true,"groups":[],"tickets":[{"id":"question:q1","kind":"question","title":"Продолжать?","body":"","chat_id":"chat","created_at":"2026-10-30 10:00:00"},{"id":"question:q2","kind":"question","title":"Какой проект?","body":"","chat_id":"chat","created_at":"2026-10-30 10:01:00"}]}"#.utf8))
+        XCTAssertEqual(feed.tickets?.map(\.id), ["question:q1", "question:q2"])
+        XCTAssertEqual(feed.tickets?.first?.action, .chat("chat"))
+    }
+
+    func testOldServerIsUnsupportedRatherThanAnEmptyInbox() throws {
+        let feed = try JSONDecoder().decode(ApiAttention.self, from: Data(#"{"ok":true,"groups":[]}"#.utf8))
+        XCTAssertNil(feed.tickets)
+    }
+
+    func testQuestionUsesOriginalAnswerFormAndPlanUsesTask() throws {
+        let question = try JSONDecoder().decode(ApiAttentionTicket.self, from: Data(#"{"id":"question:q","kind":"question","title":"Продолжать?","body":"","chat_id":"chat","task_id":"task","created_at":"2026-10-30 10:00:00","question":{"id":"q","status":"open","questions":[{"question":"Продолжать?","options":[{"label":"Да"},{"label":"Нет"}]}]}}"#.utf8))
+        XCTAssertEqual(question.action, .answer(chatID: "chat", questionID: "q"))
+        let plan = try JSONDecoder().decode(ApiAttentionTicket.self, from: Data(#"{"id":"plan:p","kind":"approval","title":"Согласовать план","body":"","task_id":"task","created_at":"2026-10-30 10:00:00"}"#.utf8))
+        XCTAssertEqual(plan.action, .task("task"))
+    }
+
+    func testMissingDestinationDoesNotOfferAFalseAction() throws {
+        let ticket = try JSONDecoder().decode(ApiAttentionTicket.self, from: Data(#"{"id":"x","kind":"decision","title":"Нужно решение","body":"","task_id":"  ","created_at":"2026-10-30 10:00:00"}"#.utf8))
+        XCTAssertNil(ticket.action)
+    }
     private func decode(_ json: String) throws -> ApiAttentionTask {
         try JSONDecoder().decode(ApiAttentionTask.self, from: Data(json.utf8))
     }

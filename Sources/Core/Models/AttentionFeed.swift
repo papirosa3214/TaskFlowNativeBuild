@@ -1,8 +1,8 @@
 import Foundation
 
-// «Входящие» (владелец 28.10.2026, переделка 29.10.2026, наводящая строка
-// 29.10.2026): ответ сервера `GET /api/attention` — три статуса, на которые
-// владелец обязан смотреть: «Заблокировано», «В работе», «На проверке».
+// GET /api/attention: tickets — открытые обращения к владельцу (30.10.2026).
+// Группы статусов ниже сохранены для совместимости со старым сервером;
+// новый экран не выдаёт их за входящие обращения.
 //
 // Модели вынесены из экрана, чтобы контракт можно было проверить на хосте:
 // сервер отдаёт наводящую строку (`hint`) — что делать с задачей, не открывая
@@ -60,4 +60,63 @@ struct ApiAttentionGroup: Decodable, Identifiable {
 struct ApiAttention: Decodable {
     let ok: Bool
     let groups: [ApiAttentionGroup]
+    /// nil means the server still exposes the old task-status feed.
+    let tickets: [ApiAttentionTicket]?
+}
+
+enum AttentionTicketAction: Equatable {
+    case answer(chatID: String, questionID: String)
+    case task(String)
+    case chat(String)
+}
+
+struct ApiAttentionTicket: Decodable, Identifiable {
+    let id: String
+    let kind: String
+    let title: String
+    let body: String
+    let role: String?
+    let role_id: String?
+    let task_id: String?
+    let chat_id: String?
+    let context_title: String?
+    let project: String?
+    let created_at: String
+    let question: ChatQuestion?
+
+    var createdDate: Date? {
+        let normalized = created_at.contains("T") ? created_at : created_at.replacingOccurrences(of: " ", with: "T") + "Z"
+        return try? Date(normalized, strategy: .iso8601)
+    }
+
+    var action: AttentionTicketAction? {
+        func nonempty(_ value: String?) -> String? {
+            guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return value
+        }
+        if let chatID = nonempty(chat_id), let question, question.status == "open",
+           nonempty(question.id) != nil, !question.questions.isEmpty {
+            return .answer(chatID: chatID, questionID: question.id)
+        }
+        if let taskID = nonempty(task_id) { return .task(taskID) }
+        if let chatID = nonempty(chat_id) { return .chat(chatID) }
+        return nil
+    }
+
+    var kindTitle: String {
+        switch kind {
+        case "question": "Вопрос"
+        case "approval": "Согласование"
+        default: "Нужно решение"
+        }
+    }
+
+    var actionTitle: String {
+        switch action {
+        case .answer: "Ответить"
+        case .chat: "Открыть чат"
+        case .task: kind == "approval" ? "Рассмотреть план" : "Открыть задачу"
+        case nil: "Обращение недоступно"
+        }
+    }
 }

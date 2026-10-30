@@ -1,180 +1,189 @@
 import SwiftUI
 import Observation
 
-// «Входящие» (владелец 28.10.2026, переделка 29.10.2026): это не лента событий,
-// а три статуса, на которые владелец обязан смотреть — «Заблокировано»,
-// «В работе», «На проверке». Строка списка — карточка задачи; тап открывает
-// ту же стандартную карточку задачи (`AppRoute.taskDetail`), без боковых панелей.
-//
-// Наводящая строка (владелец 29.10.2026): под названием задачи — строка о том,
-// что с ней делать, чтобы не открывать карточку и вникать заново. Строку
-// собирает сервер (`Sources/Core/Models/AttentionFeed.swift`), телефон её
-// только рисует.
-
 @MainActor
 @Observable
 final class AttentionViewModel {
     var data: ApiAttention?
     var isLoading = false
     var errorMessage: String?
-
     private let api: APIClient
-
     init(api: APIClient = APIClient()) { self.api = api }
 
-    var isEmpty: Bool {
-        guard let data else { return false }
-        return data.groups.allSatisfy { $0.tasks.isEmpty }
-    }
-
     func load() async {
-        if data == nil { isLoading = true }
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
         errorMessage = nil
         do {
             data = try await api.request(.get, APIEndpoint.attention.list)
+        } catch is CancellationError {
+            // Leaving the tab does not turn cancellation into a failed request.
         } catch {
             errorMessage = error.localizedDescription
-        }
-        isLoading = false
-    }
-
-    /// Цвет маркера группы — смысл тот же, что у статусов на доске.
-    static func tint(for key: String) -> Color {
-        switch key {
-        case "blocked": Color.tfRed
-        case "in_progress": Color.tfTeal
-        case "review": Color.tfBlue
-        default: Color.tfDim
         }
     }
 }
 
+/// Only actionable owner requests. Opening a ticket never approves its action.
 struct AttentionScreen: View {
     @State private var model = AttentionViewModel()
+    @State private var answeringTicket: ApiAttentionTicket?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        List {
-            if let error = model.errorMessage {
-                Section {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+                if let error = model.errorMessage {
                     TFErrorBanner(error, variant: .block)
                     Button("Повторить") { Task { await model.load() } }
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfText)
                 }
-                .listRowSeparator(.hidden)
-            }
-
-            if let data = model.data {
-                if model.isEmpty {
-                    Section {
+                if let data = model.data {
+                    if let tickets = data.tickets {
+                        if tickets.isEmpty && model.errorMessage == nil {
+                            TFEmptyState(
+                                icon: "tray",
+                                text: "Нет обращений",
+                                description: "Агенты не ждут вашего ответа или решения."
+                            )
+                        }
+                        ForEach(tickets) { ticket in
+                            ticketLink(ticket)
+                        }
+                    } else {
                         TFEmptyState(
-                            icon: "checkmark.circle",
-                            text: "Всё чисто",
-                            description: "Ни одной задачи в работе, на проверке или в блоке."
+                            icon: "arrow.triangle.2.circlepath",
+                            text: "Нужно обновление сервера",
+                            description: "Этот сервер ещё не поддерживает обращения во входящих."
                         )
                     }
-                    .listRowSeparator(.hidden)
+                } else if model.isLoading {
+                    ProgressView().frame(maxWidth: .infinity)
                 }
-                ForEach(data.groups) { group in
-                    if !group.tasks.isEmpty {
-                        Section {
-                            groupHeader(group)
-                                .listRowBackground(Color.tfCard)
-                                .listRowSeparator(.hidden)
-                            ForEach(group.tasks) { task in
-                                NavigationLink(value: AppRoute.taskDetail(taskID: task.id)) {
-                                    taskRow(task)
-                                }
-                                .buttonStyle(.plain)
-                                .listRowBackground(Color.tfCard)
-                            }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.vertical, TFSpacing.md)
+        }
+        .tfNativeHeader("Входящие", displayMode: .large)
+        .background(Color.tfBackground)
+        .hintAnchor(HintAnchorID.inboxTickets)
+        .refreshable { await model.load() }
+        .onAppear { Task { await model.load() } }
+        .task {
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(30)) } catch { break }
+                if scenePhase == .active { await model.load() }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await model.load() } }
+        }
+        .sheet(item: $answeringTicket, onDismiss: { Task { await model.load() } }) { ticket in
+            if let question = ticket.question, let chatID = ticket.chat_id {
+                NavigationStack {
+                    ScrollView {
+                        RoleQuestionCard(question: question) { answers, note in
+                            _ = try await APIClient().answerChatQuestion(
+                                chatID: chatID, questionID: question.id, answers: answers, note: note
+                            )
+                            answeringTicket = nil
+                            await model.load()
+                        }
+                        .padding(TFSpacing.screenHorizontal)
+                    }
+                    .background(Color.tfBackground)
+                    .navigationTitle("Ответ агенту")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Закрыть") { answeringTicket = nil }
                         }
                     }
                 }
-            } else if model.isLoading {
-                Section { ProgressView().frame(maxWidth: .infinity) }
-                    .listRowSeparator(.hidden)
-            }
-        }
-        .listStyle(.plain)
-        .tfNativeHeader("Входящие", displayMode: .large)
-        .background(Color.tfBackground)
-        .refreshable { await model.load() }
-        .task { await model.load() }
-    }
-
-    /// Подзаголовок раздела — тот же вход, что у разделов «Обзора» и «Настроек»
-    /// (`tfSectionDisplay(.taskTitle)`), плюс счётчик и цветная точка статуса.
-    private func groupHeader(_ group: ApiAttentionGroup) -> some View {
-        HStack(spacing: TFSpacing.sm) {
-            Circle()
-                .fill(AttentionViewModel.tint(for: group.key))
-                .frame(width: 8, height: 8)
-            Text(group.title)
-                .tfSectionDisplay(style: .taskTitle)
-            Spacer()
-            Text("\(group.count)")
-                .tfText(.action)
-                .foregroundStyle(Color.tfDim)
-        }
-    }
-
-    /// Строка задачи — та же геометрия, что строки задач в остальных списках
-    /// (`TFTaskRowContent`): аватар роли слева, название, наводящая строка и
-    /// ряд меток. Свой шеврон у строки не рисуется: у `NavigationLink` он
-    /// свой, и вместе они давали два шеврона подряд.
-    private func taskRow(_ task: ApiAttentionTask) -> some View {
-        TFTaskRowContent(
-            title: task.title,
-            description: task.hintLine,
-            isDone: false,
-            descriptionLines: 2
-        ) {
-            if let initials = task.roleInitials {
-                TFAvatar(
-                    size: .taskList,
-                    initials: initials,
-                    tint: Color(hex: TFHexDefault.unassigned),
-                    userID: task.role_id
-                )
-            }
-        } metadata: {
-            if let project = task.project, !project.isEmpty {
-                Text("#\(project)")
-                    .foregroundStyle(Color.tfSub)
-                    .lineLimit(1)
-                    .layoutPriority(-1)
-            }
-            TFTaskStructureIndicators(
-                priority: task.priority.flatMap { TaskPriority(rawValue: $0) },
-                subtasksDone: task.subtask_done,
-                subtasksTotal: task.subtask_total,
-                childrenCount: 0,
-                hasCollaborationPlan: false
-            )
-            if let role = task.role, !role.isEmpty {
-                Text(role)
-                    .foregroundStyle(Color.tfDim)
-                    .lineLimit(1)
-                    .layoutPriority(-1)
-            }
-            if task.overdue == true {
-                Text("просрочено")
-                    .foregroundStyle(Color.tfRed)
-                    .layoutPriority(-1)
-            }
-            if let s = task.age_seconds {
-                Text(Self.ago(s))
-                    .foregroundStyle(Color.tfDim)
-                    .layoutPriority(-1)
             }
         }
     }
 
-    static func ago(_ seconds: Int) -> String {
-        if seconds < 60 { return "только что" }
-        if seconds < 3600 { return "\(seconds / 60) мин" }
-        if seconds < 86_400 { return "\(seconds / 3600) ч" }
-        return "\(seconds / 86_400) дн"
+    @ViewBuilder
+    private func ticketLink(_ ticket: ApiAttentionTicket) -> some View {
+        switch ticket.action {
+        case .answer:
+            Button { answeringTicket = ticket } label: { ticketCard(ticket) }
+                .buttonStyle(TFTapRowStyle())
+        case .task(let id):
+            NavigationLink(value: AppRoute.taskDetail(taskID: id)) { ticketCard(ticket) }
+                .buttonStyle(.plain)
+        case .chat(let id):
+            NavigationLink(value: AppRoute.roleChat(id: id)) { ticketCard(ticket) }
+                .buttonStyle(.plain)
+        case nil:
+            ticketCard(ticket)
+        }
+    }
+
+    private func ticketCard(_ ticket: ApiAttentionTicket) -> some View {
+        TFCard {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                HStack(alignment: .top, spacing: TFSpacing.sm) {
+                    Image(systemName: ticket.kind == "question" ? "questionmark.bubble" :
+                            ticket.kind == "approval" ? "checkmark.shield" : "hand.raised")
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfBlue)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Text(ticket.role ?? "Команда")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfText)
+                        Text(ticket.kindTitle)
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                    Spacer(minLength: TFSpacing.xs)
+                    if let date = ticket.createdDate {
+                        Text(date, style: .relative)
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfDim)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                Text(ticket.title)
+                    .tfText(.taskTitle)
+                    .foregroundStyle(Color.tfText)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !ticket.body.isEmpty {
+                    Text(ticket.body)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let context = ticket.context_title {
+                    Text(context)
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfDim)
+                        .lineLimit(2)
+                }
+                if let project = ticket.project, !project.isEmpty {
+                    Text(project)
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfDim)
+                        .lineLimit(1)
+                }
+                HStack {
+                    Text(ticket.actionTitle)
+                        .tfText(.action)
+                    Spacer()
+                    if ticket.action != nil {
+                        Image(systemName: "arrow.up.right")
+                            .tfText(.action)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .foregroundStyle(Color.tfBlue)
+                .frame(minHeight: 44)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("inbox.ticket." + ticket.id)
     }
 }
