@@ -81,7 +81,6 @@ final class RoleReplyRenderTests: XCTestCase {
         "Sources/Features/Task/Detail/TaskPreparationView.swift",
         "Sources/Features/Directory/Support/NotificationTicketDetailSheet.swift",
         "Sources/Features/Chat/RoleCoordinationCard.swift",
-        "Sources/Features/Chat/ChatBubble.swift",
     ]
 
     func testRoleTextPlacesUseCommonRenderer() throws {

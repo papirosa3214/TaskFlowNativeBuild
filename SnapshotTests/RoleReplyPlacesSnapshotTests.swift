@@ -3,7 +3,7 @@ import SnapshotTesting
 import SwiftUI
 @testable import TaskFlow
 
-/// Кадры одного и того же ответа роли в пяти местах приложения —
+/// Кадры одного и того же ответа роли в местах приложения —
 /// карточка 19f57bc9, критерий приёмки 2 («один и тот же ответ с таблицей и
 /// графиком в чате, ленте роли, комментарии, результате шага и итоге задачи —
 /// выглядит одинаково»).
@@ -15,7 +15,6 @@ import SwiftUI
 /// одного прогона.
 ///
 /// Что в кадре настоящее:
-/// - чат — сам `ChatBubble` с ответом роля;
 /// - комментарий карточки — сам `TaskDescriptionRichPreview` (он и рисует
 ///   тело комментария) с шапкой «кто написал · когда», как в ленте;
 /// - итог задачи — сама шторка `OutcomeTextSheet` (единственная правка в
@@ -67,14 +66,6 @@ final class RoleReplyPlacesSnapshotTests: XCTestCase {
     ```
     """
 
-    private func chatMessage(_ text: String) -> ApiChatMessage {
-        ApiChatMessage(id: "m-role-reply", channel: .agents, fromUserId: "role_architect",
-                       toUserId: nil, taskId: "19f57bc9", kind: nil, text: text,
-                       createdAt: "2026-10-20 05:10:00", fromUserName: "Архитектор",
-                       fromUserColor: nil, fromUserAvatarUrl: nil, fromUserInitials: "А",
-                       toUserName: nil, toUserColor: nil, taskTitle: nil, attachments: nil)
-    }
-
     /// Подпись места над кадром: владелец должен видеть, где снято.
     private func place<V: View>(_ title: String, @ViewBuilder content: () -> V) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
@@ -101,16 +92,11 @@ final class RoleReplyPlacesSnapshotTests: XCTestCase {
         assertSnapshot(of: content(), as: .image(layout: .sizeThatFits), named: name, record: record)
     }
 
-    // MARK: - Пять мест
+    // MARK: - Места ответа роли
 
-    /// 1. Чат — пузырь ответа роли.
-    func test01ChatMessage() {
-        snap("01-Чат — пузырь ответа роли") {
-            place("1. Чат — ответ роли в ленте") {
-                ChatBubble(message: chatMessage(Self.textReply), mine: false, toMe: false)
-            }
-        }
-    }
+    /// 1. Кадр чата снят с удалённым legacy-чатом: живой чат рисует ответ
+    ///    `RoleReplyMarkdown` внутри ленты ролей (`RoleChatsScreen`), отдельного
+    ///    пузыря `ChatBubble` в приложении больше нет.
 
     /// 2. Комментарий карточки — конверт блоков, как его разбирает сервер.
     func test02TaskComment() {

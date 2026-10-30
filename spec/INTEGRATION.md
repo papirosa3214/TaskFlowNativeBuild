@@ -20,7 +20,7 @@
 | Сегодня          | `/today`                 | `TodayScreen`         | —                               |
 | Обзор            | `/overview`              | `OverviewScreen`      | —                               |
 | Планирование     | `/upcoming`              | `UpcomingScreen`      | —                               |
-| Чат              | `/chat`                  | `ChatScreen`          | —                               |
+| Чат              | `/chat`                  | `RoleChatsScreen`     | —                               |
 | Карточка задачи  | `/task/:id`              | `TaskDetailScreen`    | `taskID: String`                |
 | Создание задачи  | `/task/new`              | `TaskFormScreen`      | `taskID: String?` (nil — новая), `presetDueToday: Bool = false`, `startDictation: Bool = false` |
 | Заметки          | `/notes`                 | `NotesScreen`         | —                               |

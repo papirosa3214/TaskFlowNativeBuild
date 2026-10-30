@@ -15,8 +15,6 @@ Sources/Features/Chat/BashCommandBlock.swift	implicit-system-blue	Button { confi
 Sources/Features/Chat/BashCommandBlock.swift	implicit-system-blue	Button("Выполнить на .110") {
 Sources/Features/Chat/BashCommandBlock.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { confirming = false } } }
 Sources/Features/Chat/ChatHTMLView.swift	implicit-system-blue	Button("Закрыть") { isFullScreen = false }
-Sources/Features/Chat/ChatScreen.swift	implicit-system-blue	Button { chatBack?() } label: {
-Sources/Features/Chat/ChatScreen.swift	implicit-system-blue	Menu {
 Sources/Features/Chat/ChatStructuredOutputView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
 Sources/Features/Chat/ChatStructuredOutputView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
 Sources/Features/Chat/ChatWidgetView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: noteID)) { label }
