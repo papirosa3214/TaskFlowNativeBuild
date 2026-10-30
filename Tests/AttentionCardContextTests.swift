@@ -16,6 +16,22 @@ final class AttentionCardContextTests: XCTestCase {
                                         from: JSONSerialization.data(withJSONObject: json))
     }
 
+    func testSectionsCombineMatchingTitlesAndPreserveTicketOrder() throws {
+        let items = try [
+            ticket(["id": "d1"]),
+            ticket(["id": "q1", "kind": "question"]),
+            ticket(["id": "d2"]),
+            ticket(["id": "plan:1", "kind": "approval"]),
+            ticket(["id": "plan-op:1", "kind": "approval"])
+        ]
+        let sections = AttentionTicketSection.grouping(items)
+        XCTAssertEqual(sections.map(\.title), ["Ход заблокирован", "Нужен ответ", "Согласовать план", "Изменить план"])
+        XCTAssertEqual(sections.map { $0.tickets.map(\.id) }, [["d1", "d2"], ["q1"], ["plan:1"], ["plan-op:1"]])
+        XCTAssertEqual(sections.first?.symbol, "exclamationmark.triangle")
+        XCTAssertTrue(AttentionTicketSection.grouping([]).isEmpty)
+        XCTAssertEqual(AttentionTicketSection.grouping(items).map(\.id), sections.map(\.id))
+    }
+
     func testQuestionPreviewShowsOnlyTheFirstQuestionAndTheAnswerCount() throws {
         let item = try ticket(["kind": "question", "title": "Какой проект выбрать?",
             "body": "Второй вопрос\nТретий вопрос", "context_title": "Длинное название задачи",

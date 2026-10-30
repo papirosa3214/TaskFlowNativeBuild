@@ -183,3 +183,29 @@ struct ApiAttentionTicket: Decodable, Identifiable {
         }
     }
 }
+
+/// Stable sections for the inbox; titles appear once above their requests.
+struct AttentionTicketSection: Identifiable {
+    let title: String
+    var tickets: [ApiAttentionTicket]
+    var id: String { title }
+    var symbol: String {
+        switch tickets.first?.kind {
+        case "question": "questionmark.bubble"
+        case "approval": "checkmark.shield"
+        default: "exclamationmark.triangle"
+        }
+    }
+
+    static func grouping(_ tickets: [ApiAttentionTicket]) -> [Self] {
+        var sections: [Self] = []
+        for ticket in tickets {
+            if let index = sections.firstIndex(where: { $0.title == ticket.cardTitle }) {
+                sections[index].tickets.append(ticket)
+            } else {
+                sections.append(Self(title: ticket.cardTitle, tickets: [ticket]))
+            }
+        }
+        return sections
+    }
+}

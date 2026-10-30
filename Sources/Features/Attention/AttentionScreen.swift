@@ -33,7 +33,7 @@ struct AttentionScreen: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 if let error = model.errorMessage {
                     TFErrorBanner(error, variant: .block)
                     Button("Повторить") { Task { await model.load() } }
@@ -47,12 +47,29 @@ struct AttentionScreen: View {
                                 description: "Агенты не ждут вашего ответа или решения."
                             )
                         }
-                        ForEach(tickets) { ticket in
-                            VStack(spacing: TFSpacing.md) {
-                                ticketLink(ticket)
-                                if ticket.id != tickets.last?.id {
-                                    Divider()
+                        ForEach(AttentionTicketSection.grouping(tickets)) { section in
+                            Section {
+                                ForEach(section.tickets) { ticket in
+                                    ticketLink(ticket)
+                                        .padding(.vertical, TFSpacing.sm)
+                                    if ticket.id != section.tickets.last?.id {
+                                        Divider()
+                                    }
                                 }
+                            } header: {
+                                HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+                                    Image(systemName: section.symbol)
+                                        .imageScale(.large)
+                                        .foregroundStyle(ticketAccent(section.tickets[0]))
+                                        .accessibilityHidden(true)
+                                    Text(section.title)
+                                        .foregroundStyle(Color.tfText)
+                                }
+                                .tfText(.taskTitle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, TFSpacing.md)
+                                .background(Color.tfBackground)
+                                .accessibilityAddTraits(.isHeader)
                             }
                         }
                     } else {
@@ -129,49 +146,35 @@ struct AttentionScreen: View {
     }
 
     private func ticketCard(_ ticket: ApiAttentionTicket) -> some View {
-        TFCard {
-            VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
-                    Image(systemName: ticket.kind == "question" ? "questionmark.bubble" :
-                            ticket.kind == "approval" ? "checkmark.shield" : "hand.raised")
-                        .tfText(.action)
-                        .foregroundStyle(ticketAccent(ticket))
-                        .accessibilityHidden(true)
-                    Text(ticket.cardTitle)
-                        .tfText(.taskTitle)
-                        .foregroundStyle(Color.tfText)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: TFSpacing.xs)
-                }
-                if let summary = ticket.cardSummary {
-                    Text(summary)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                HStack(alignment: .bottom, spacing: TFSpacing.sm) {
-                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                        Text(ticket.role ?? "Команда")
-                            .lineLimit(1)
-                        Text(ticket.sourceTitle)
-                    }
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    HStack(spacing: TFSpacing.xs) {
-                        Text(ticket.actionTitle)
-                        if ticket.action != nil {
-                            Image(systemName: "chevron.right")
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfText)
-                }
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            if let summary = ticket.cardSummary {
+                Text(summary)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfSub)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            HStack(alignment: .bottom, spacing: TFSpacing.sm) {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text(ticket.role ?? "Команда")
+                        .lineLimit(1)
+                    Text(ticket.sourceTitle)
+                }
+                .tfText(.meta)
+                .foregroundStyle(Color.tfDim)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: TFSpacing.xs) {
+                    Text(ticket.actionTitle)
+                    if ticket.action != nil {
+                        Image(systemName: "chevron.right")
+                            .accessibilityHidden(true)
+                    }
+                }
+                .tfText(.action)
+                .foregroundStyle(Color.tfText)
+            }
         }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .multilineTextAlignment(.leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
