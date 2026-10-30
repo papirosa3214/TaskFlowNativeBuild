@@ -10,6 +10,7 @@ import SwiftUI
 /// дизайн-системы (`TFCard`, `TFButton`, `TFTextField`, `FlowLayout`).
 struct RoleQuestionCard: View {
     let question: ChatQuestion
+    var nativePresentation = false
     let onAnswer: ([ChatQuestionAnswerEntry], String?) async throws -> Void
 
     @State private var selected: [Int: Set<String>] = [:]
@@ -19,6 +20,14 @@ struct RoleQuestionCard: View {
     @State private var failure: String?
 
     var body: some View {
+        if nativePresentation {
+            nativeContent
+        } else {
+            styledContent
+        }
+    }
+
+    private var styledContent: some View {
         TFCard {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 header
@@ -38,6 +47,60 @@ struct RoleQuestionCard: View {
         }
         .accessibilityIdentifier("chat.question")
         .hintAnchor(HintAnchorID.chatQuestion)
+    }
+
+    private var nativeContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(question.isAnswered ? "Ответ отправлен" : "Нужен ваш выбор")
+                .font(.headline)
+            ForEach(Array(question.questions.enumerated()), id: \.offset) { index, item in
+                VStack(alignment: .leading, spacing: 12) {
+                    if let header = item.header, !header.isEmpty {
+                        Text(header).font(.subheadline)
+                    }
+                    Text(item.question)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(item.options) { option in
+                        Button {
+                            toggle(index: index, label: option.label, multi: item.multiSelect)
+                        } label: {
+                            HStack(alignment: .top) {
+                                Image(systemName: isSelected(index: index, label: option.label)
+                                      ? "checkmark.circle.fill" : "circle")
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(option.label)
+                                    if let description = option.description, !description.isEmpty {
+                                        Text(description).font(.subheadline)
+                                    }
+                                }
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .disabled(question.isAnswered || isSending)
+                        .accessibilityAddTraits(isSelected(index: index, label: option.label) ? .isSelected : [])
+                    }
+                    if !question.isAnswered {
+                        TextField("Свой вариант", text: Binding(
+                            get: { custom[index] ?? "" },
+                            set: { custom[index] = $0 }
+                        ), axis: .vertical)
+                    }
+                }
+            }
+            if !question.isAnswered {
+                TextField("Заметка для роли (необязательно)", text: $note, axis: .vertical)
+                Button(isSending ? "Отправляю…" : "Отправить ответ") {
+                    Task { await send() }
+                }
+                .disabled(!canSend || isSending)
+            } else {
+                Text("Ответ сохранён — роль продолжает работу")
+            }
+            if let failure { Text(failure) }
+        }
     }
 
     /// Шапка карточки: «Нужен ваш выбор» и метка вопроса.

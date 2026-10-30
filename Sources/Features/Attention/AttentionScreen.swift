@@ -105,7 +105,7 @@ struct AttentionScreen: View {
             if let question = ticket.question, let chatID = ticket.chat_id {
                 NavigationStack {
                     ScrollView {
-                        RoleQuestionCard(question: question) { answers, note in
+                        RoleQuestionCard(question: question, nativePresentation: true) { answers, note in
                             _ = try await APIClient().answerChatQuestion(
                                 chatID: chatID, questionID: question.id, answers: answers, note: note
                             )
@@ -114,7 +114,6 @@ struct AttentionScreen: View {
                         }
                         .padding(TFSpacing.screenHorizontal)
                     }
-                    .background(Color.tfBackground)
                     .navigationTitle("Ответ агенту")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -123,7 +122,7 @@ struct AttentionScreen: View {
                         }
                     }
                 }
-                .tint(Color.tfText)
+                .presentationDetents([.medium, .large])
             }
         }
     }
