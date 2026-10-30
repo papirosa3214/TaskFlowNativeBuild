@@ -25,20 +25,18 @@ public enum ChatComposerFocusEvent: String, Equatable, Sendable {
 public enum ChatComposerLayoutPolicy {
     /// Какая панель показывается.
     ///
-    /// Родная панель всегда полная. Новая — однострочная, пока ввод не
-    /// начат: как только поле в фокусе или в черновике есть текст, панель
-    /// разворачивается в полную; когда клавиатуру сворачивают и текста нет,
-    /// панель сжимается обратно.
+    /// Родная панель всегда полная. Новая — однострочная, пока ввода нет:
+    /// как только в черновике есть текст, панель разворачивается в полную;
+    /// когда текст убрали и клавиатуру свернули, сжимается обратно.
     ///
-    /// `holdsFull` — панель уже развернулась, а фокус в поле ещё не вернулся:
-    /// раскладку держим. Иначе панель мигает между двумя видами, а каретка
-    /// теряется (владелец 29.10.2026: «каретка не ставится на окно ввода
-    /// совсем, если я на него тыкаю… после того, как я коснулся сообщения,
-    /// уже и микрофон не нажимается»).
-    public static func layout(style: ChatComposerStyle, isFocused: Bool, hasText: Bool, holdsFull: Bool = false) -> ChatComposerLayout {
+    /// `isFocused` — поле ввода в фокусе: панель разворачивается по касанию.
+    /// Поле ввода при этом **не подменяется** — оно одно на оба вида, поэтому
+    /// динамика окна безопасна для каретки (владелец 30.10.2026).
+    public static func layout(style: ChatComposerStyle, isFocused: Bool,
+                              hasText: Bool) -> ChatComposerLayout {
         switch style {
         case .standard: return .full
-        case .unified: return (isFocused || hasText || holdsFull) ? .full : .compact
+        case .unified: return (isFocused || hasText) ? .full : .compact
         }
     }
 

@@ -9,6 +9,9 @@ final class ChatComposerLayoutTests: XCTestCase {
         XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: false, hasText: false), .compact)
     }
 
+    /// Панель разворачивается по касанию поля — динамическое окно задумано
+    /// так (владелец 30.10.2026). Безопасно это потому, что поле ввода одно на
+    /// оба вида: проверяется отдельно, по исходнику панели.
     func testNewPanelExpandsOnFocus() {
         XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: true, hasText: false), .full)
     }
@@ -64,23 +67,24 @@ final class ChatComposerLayoutTests: XCTestCase {
 
     /// Панель развернулась, а фокус в новом поле ещё не встал: раскладку
     /// держим, иначе панель мигает и каретка теряется (владелец 29.10.2026).
-    func testHeldLayoutKeepsFullPanelWhileFocusReturns() {
-        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: false, hasText: false, holdsFull: true), .full)
+    /// Панель разворачивается и от текста, без фокуса (вставка расшифровки).
+    func testPanelExpandedWithDraftWithoutFocus() {
+        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: false, hasText: true), .full)
     }
 
     /// Фокус встал и текста нет — панель снова однострочная (клавиатуру
     /// свернули).
     func testCompactPanelReturnsWhenFocusLostAndNoText() {
-        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: false, hasText: false, holdsFull: false), .compact)
+        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: false, hasText: false), .compact)
     }
 
     /// Текст есть — панель полная, даже если фокус ещё не вернулся.
     func testFullPanelWhenTextPresent() {
-        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: false, hasText: true, holdsFull: false), .full)
+        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .unified, isFocused: false, hasText: true), .full)
     }
 
     /// Родная панель всегда полная — удержание её не меняет.
     func testStandardStyleAlwaysFull() {
-        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .standard, isFocused: false, hasText: false, holdsFull: true), .full)
+        XCTAssertEqual(ChatComposerLayoutPolicy.layout(style: .standard, isFocused: false, hasText: false), .full)
     }
 }

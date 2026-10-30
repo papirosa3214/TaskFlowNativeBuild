@@ -97,10 +97,6 @@ struct ChatVoiceComposer: View {
     @State private var isSendingVoice = false
     @FocusState private var isTextFieldFocused: Bool
     private var textFieldFocus: FocusState<Bool>.Binding { focus ?? $isTextFieldFocused }
-    /// Панель развернулась, а фокус в поле ещё не вернулся: раскладку держим,
-    /// иначе панель мигает, каретка теряется и кнопка микрофона уезжает из-под
-    /// пальца (владелец 29.10.2026).
-    @State private var holdsFullLayout = false
     @Namespace private var composerNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -132,15 +128,6 @@ struct ChatVoiceComposer: View {
             if let preview { promptPreviewComposer(preview) }
         }
         .contentShape(Rectangle())
-        .onChange(of: composerLayout) { _, layout in
-            // Развернулись — возвращаем каретку в новое поле и держим
-            // раскладку, пока фокус не встанет.
-            if layout == .full { holdFullLayout() }
-        }
-        .onChange(of: textFieldFocus.wrappedValue) { _, focused in
-            // Фокус встал — держать раскладку больше не нужно.
-            if focused { holdsFullLayout = false }
-        }
         .onDisappear {
             voice.cancel()
             player.stop()
@@ -191,54 +178,29 @@ struct ChatVoiceComposer: View {
         .hintAnchor(HintAnchorID.chatComposerActions)
     }
 
-    /// Нынешняя раскладка: капсула, поле сверху, ряд действий под ним.
-    private var stackedPromptPanel: some View {
-        ChatPromptPanel(text: $text, placeholder: placeholder,
-                        hidesText: isRecording || preview != nil,
-                        focus: textFieldFocus, onSubmit: onSubmitText) {
-            HStack(spacing: 0) {
-                promptAttachmentMenu
-                if showsMentionButton { mentionButton }
-                // Режим не дублируется подписью: он виден в меню настроек слева.
-                if let sessionControls {
-                    sessionControls
-                } else {
-                    if let modelChoice, modelChoice.isAvailable {
-                        // «Мозги» — размером как кольцо контекста и значок вложений
-                        // (20 pt в поле 40), без своей подложки (владелец 27.10.2026).
-                        ChatModelMenu(choice: modelChoice) {
-                            HStack(spacing: 4) {
-                                Image("ModelBrain")
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 20, height: 20)
-                            }
-                            .frame(minWidth: 40, minHeight: 40)
-                            .contentShape(Rectangle())
-                        }
-                    }
-                    if let workspaceChoice, workspaceChoice.isAvailable {
-                        // Тот же вид, что у пилюли модели слева от неё.
-                        ChatWorkspaceMenu(choice: workspaceChoice) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 20, weight: .regular))
-                                    .frame(width: 20, height: 20)
-                            }
-                            .frame(minWidth: 40, minHeight: 40)
-                            .contentShape(Rectangle())
-                        }
-                        .padding(.leading, 4)
-                    }
-                    // Кольцо контекста — крайнее справа из ярлычков (владелец 27.10.2026).
-                    if let contextControls { contextControls }
-                }
-                Spacer(minLength: 8)
-                micButton
-                sendButton
+    /// Панель ввода: **одно** поле, меняется только его окружение.
+    ///
+    /// Раньше компактная и полная панели были двумя разными вью с двумя
+    /// разными `TextField`: при развороте поле уничтожалось, каретка
+    /// пропадала, и в чат нельзя было написать (владелец 30.10.2026).
+    /// Динамика окна осталась прежней: пока ввода нет — капсула в одну
+    /// строку, начали вводить — разворачивается ряд действий.
+    private var promptPanel: some View {
+        let compact = composerLayout == .compact
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                if compact { compactLeadingButton }
+                promptField(compact: compact)
+                if compact { compactMicButton }
             }
-            .foregroundStyle(Color.white.opacity(0.6))
+            if !compact { promptActionRow }
+        }
+        .padding(compact ? 0 : 8)
+        .background {
+            if !compact {
+                RoundedRectangle(cornerRadius: 24).fill(Color(white: 0.125))
+                RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12))
+            }
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
@@ -247,42 +209,81 @@ struct ChatVoiceComposer: View {
         .modifier(workingCaption)
     }
 
-    /// Новая раскладка в покое (владелец 29.10.2026): всё в одну строку —
-    /// круглое меню действий слева, капсула с полем и значками, круглый микрофон
-    /// справа. Отправки в покое нет: текста ещё не написано, а место занял
-    /// микрофон — на него нажимают, не поднимая клавиатуру.
-    private var compactPromptPanel: some View {
-        HStack(spacing: 8) {
-            compactLeadingButton
-            HStack(spacing: 4) {
-                TextField(placeholder, text: $text, axis: .vertical)
-                    .lineLimit(1...4)
-                    .textInputAutocapitalization(.sentences)
-                    .focused(textFieldFocus)
-                    .onSubmit { onSubmitText() }
-                    .foregroundStyle(Color.tfPaper)
-                    .accessibilityIdentifier("chat.message")
-                if showsMentionButton { mentionButton }
-                // Мозга и папки в капсуле нет: окно сессии с левой кнопки уже
-                // показывает и модель, и рабочую папку (владелец 29.10.2026:
-                // «оставил мозги эти и папку в панели ввода — зачем
-                // дублировать?»).
-            }
-            .padding(.leading, 14)
-            .padding(.trailing, 4)
-            .padding(.vertical, 2)
-            .frame(minHeight: Self.compactKnobSize)
-            .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.12)))
-            .foregroundStyle(Color.white.opacity(0.6))
-            // В морфинг уходит сама капсула: кнопки по краям остаются на месте.
-            .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-            compactMicButton
+    /// Само поле. Одно и то же в обоих видах панели — поэтому каретка не
+    /// теряется при развороте.
+    private func promptField(compact: Bool) -> some View {
+        HStack(spacing: 4) {
+            TextField(placeholder, text: $text, axis: .vertical)
+                .lineLimit(compact ? 1...4 : 2...5)
+                .textInputAutocapitalization(.sentences)
+                .focused(textFieldFocus)
+                .onSubmit { if !(isRecording || preview != nil) { onSubmitText() } }
+                .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.tfPaper)
+                .accessibilityIdentifier("chat.message")
+                .padding(.horizontal, compact ? 0 : 10)
+                .padding(.top, compact ? 0 : 10)
+            // В полной панели «@» стоит в ряду действий под полем, а не рядом
+            // с полем — иначе кнопка дублировалась.
+            if compact, showsMentionButton { mentionButton }
         }
-        .opacity(isRecording || preview != nil ? 0 : 1)
-        .padding(.horizontal).padding(.top, TFSpacing.lg)
-        .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
-        .modifier(workingCaption)
+        .padding(.leading, compact ? 14 : 0)
+        .padding(.trailing, compact ? 4 : 0)
+        .padding(.vertical, compact ? 2 : 0)
+        .frame(minHeight: compact ? Self.compactKnobSize : nil)
+        .background {
+            if compact {
+                RoundedRectangle(cornerRadius: 22).fill(Color(white: 0.125))
+                RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.12))
+            }
+        }
+        .foregroundStyle(Color.white.opacity(0.6))
+    }
+
+    /// Ряд действий под полем — в полной панели.
+    private var promptActionRow: some View {
+        HStack(spacing: 0) {
+            promptAttachmentMenu
+            if showsMentionButton { mentionButton }
+            // Режим не дублируется подписью: он виден в меню настроек слева.
+            if let sessionControls {
+                sessionControls
+            } else {
+                if let modelChoice, modelChoice.isAvailable {
+                    // «Мозги» — размером как кольцо контекста и значок вложений
+                    // (20 pt в поле 40), без своей подложки (владелец 27.10.2026).
+                    ChatModelMenu(choice: modelChoice) {
+                        HStack(spacing: 4) {
+                            Image("ModelBrain")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                        }
+                        .frame(minWidth: 40, minHeight: 40)
+                        .contentShape(Rectangle())
+                    }
+                }
+                if let workspaceChoice, workspaceChoice.isAvailable {
+                    // Тот же вид, что у пилюли модели слева от неё.
+                    ChatWorkspaceMenu(choice: workspaceChoice) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 20, weight: .regular))
+                                .frame(width: 20, height: 20)
+                        }
+                        .frame(minWidth: 40, minHeight: 40)
+                        .contentShape(Rectangle())
+                    }
+                    .padding(.leading, 4)
+                }
+                // Кольцо контекста — крайнее справа из ярлычков (владелец 27.10.2026).
+                if let contextControls { contextControls }
+            }
+            Spacer(minLength: 8)
+            micButton
+            sendButton
+        }
+        .foregroundStyle(Color.white.opacity(0.6))
     }
 
     /// Левая кнопка в новой панели: открывает окно сессии, если оно есть в
@@ -341,31 +342,8 @@ struct ChatVoiceComposer: View {
     private var composerLayout: ChatComposerLayout {
         ChatComposerLayoutPolicy.layout(style: composerStyle,
                                         isFocused: textFieldFocus.wrappedValue,
-                                        hasText: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                                        holdsFull: holdsFullLayout)
+                                        hasText: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
-    /// Вернуть каретку в поле после смены вью: старое поле исчезает, и без
-    /// этого каретка бы пропала.
-    private func keepFocus() {
-        DispatchQueue.main.async { textFieldFocus.wrappedValue = true }
-    }
-
-    /// Панель переключилась на полную: поле в ней — другое, поэтому каретку
-    /// надо вернуть в него, а раскладку — подержать, пока фокус не встанет.
-    /// Без этого панель мигает между видами, каретка не появляется, а кнопка
-    /// микрофона уезжает из-под пальца (владелец 29.10.2026: «каретка не
-    /// ставится на окно ввода совсем, если я на него тыкаю… после того, как я
-    /// коснулся сообщения, уже и микрофон не нажимается»).
-    private func holdFullLayout() {
-        holdsFullLayout = true
-        keepFocus()
-        // Если фокус так и не вернулся (пользователь свернул клавиатуру) —
-        /// раскладку отпускаем, иначе панель застрянет в полной.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            if !textFieldFocus.wrappedValue { holdsFullLayout = false }
-        }
-    }
-
     /// Отправка по кнопке «вверх» на клавиатуре.
     private func onSubmitText() {
         guard !isRecording, preview == nil else { return }
@@ -424,12 +402,7 @@ struct ChatVoiceComposer: View {
     }
 
     @ViewBuilder private var promptComposer: some View {
-        switch composerLayout {
-        case .compact:
-            compactPromptPanel
-        case .full:
-            stackedPromptPanel
-        }
+        promptPanel
     }
 
     /// Рабочая папка для подписи под рамкой; nil — не выбрана.
