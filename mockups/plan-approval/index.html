@@ -106,6 +106,7 @@
     color:var(--orange);background:rgba(255,154,20,.10);border:1px solid rgba(255,154,20,.28);
     padding:3px 8px;border-radius:999px;margin-bottom:10px
   }
+  .demo.sm{font-size:10px;letter-spacing:.6px;padding:2px 7px;margin-bottom:0;flex:none}
   .sec{
     display:flex;align-items:center;gap:10px;padding:6px 2px 8px;
     font-size:12px;font-weight:500;color:var(--dim);letter-spacing:.2px;text-transform:uppercase
@@ -285,6 +286,12 @@
   .caption{max-width:430px;font-size:12.5px;line-height:1.55;color:var(--shellSub)}
   .caption b{color:var(--shellText);font-weight:600}
   .caption .st{display:block;font-size:13.5px;color:var(--shellText);font-weight:600;margin-bottom:4px}
+  .caption .dnote{margin-top:10px;font-size:11px;font-weight:600;letter-spacing:.5px;color:var(--orange)}
+
+  .actionbar{
+    flex:none;display:none;flex-direction:column;gap:4px;
+    padding:10px 16px 8px;border-top:.5px solid var(--stroke);background:var(--bg)
+  }
 
   @media (max-width:900px){
     body{flex-direction:column}
@@ -351,6 +358,7 @@
       </div>
 
       <div class="scroll" id="content"></div>
+      <div class="actionbar" id="actionbar"></div>
       <div class="home"><i></i></div>
       <div class="toast" id="toast">Макет: запрос не отправлялся</div>
     </div>
@@ -397,6 +405,18 @@ const STEPS = [
 function demoTag(){
   return '<span class="demo">ДЕМО · вымышленные данные</span>';
 }
+/* изменения плана — один источник формулировок для обзора, отправки и записи решения */
+const CHANGES = [
+  { t:'Проверка сценария', d:'Ожидаемый результат дополнен учётом лимитов провайдеров.', was:'Было: ограничения записаны' },
+  { t:'Интеграция', d:'Ответственный указан явно: '+OWNER+'.', was:'Было: ответственный не указан' }
+];
+function chgRow(c, withWas){
+  return '<div class="chg"><div class="mk up">'+ico('check')+'</div><div>'+
+    '<div class="t">'+c.t+'</div>'+
+    '<div class="d">'+c.d+'</div>'+
+    (withWas && c.was ? '<div class="was">'+c.was+'</div>' : '')+
+  '</div></div>';
+}
 function ownerPill(){
   return '<div class="owner">'+ico('branch')+'<span class="lb">Ответственный за интеграцию:</span><span>'+OWNER+'</span></div>';
 }
@@ -407,7 +427,7 @@ function stepRow(s, opts){
   return '<div class="step"><div class="rail"><span class="dot '+dot+'"></span></div><div class="body">'+
     '<div class="t">'+s.t+'</div>'+
     '<div class="role">'+s.role+' '+(pill||'')+'</div>'+
-    '<div class="exp">'+s.exp+'</div>'+
+    (s.exp ? '<div class="exp">'+s.exp+'</div>' : '')+
     (s.after ? '<div class="after">'+s.after+'</div>' : '')+
     '</div></div>';
 }
@@ -471,16 +491,8 @@ function screenReview(){
   return sheet('Обзор изменений',
     '<div class="cap" style="margin-bottom:10px">Версия 3 из 3 · два этапа изменены, один без изменений.</div>'+
     '<div class="card" style="margin-bottom:12px">'+
-      '<div class="chg"><div class="mk up">'+ico('check')+'</div><div>'+
-        '<div class="t">Проверка сценария</div>'+
-        '<div class="d">Ожидаемый результат дополнен учётом лимитов провайдеров.</div>'+
-        '<div class="was">Было: ограничения записаны</div>'+
-      '</div></div>'+
-      '<div class="chg"><div class="mk up">'+ico('check')+'</div><div>'+
-        '<div class="t">Интеграция</div>'+
-        '<div class="d">Ответственный указан явно: '+OWNER+'.</div>'+
-        '<div class="was">Было: ответственный не указан</div>'+
-      '</div></div>'+
+      chgRow(CHANGES[0], true)+
+      chgRow(CHANGES[1], true)+
       '<div class="chg"><div class="mk same">'+ico('circle')+'</div><div>'+
         '<div class="t">Чат и провайдеры</div>'+
         '<div class="d">Без изменений — исполнитель и результат те же.</div>'+
@@ -527,8 +539,8 @@ function screenSending(){
   return sheet('Обзор изменений',
     banner('info','Отправляю утверждение…','Версия 3. Действие отправлено один раз — повторная отправка недоступна, пока сервер не ответит.')+
     '<div class="card">'+
-      '<div class="chg"><div class="mk up">'+ico('check')+'</div><div><div class="t">Проверка сценария</div><div class="d">Ожидаемый результат дополнен учётом лимитов провайдеров.</div></div></div>'+
-      '<div class="chg"><div class="mk up">'+ico('check')+'</div><div><div class="t">Интеграция</div><div class="d">Ответственный указан явно: '+OWNER+'.</div></div></div>'+
+      chgRow(CHANGES[0], false)+
+      chgRow(CHANGES[1], false)+
     '</div>'+
     '<p class="note">До подтверждённого ответа сервера работа не считается начатой: этапы остаются в статусе «ждёт утверждения».</p>',
     '<button class="btn" disabled><span class="spin"></span>Утверждаю…</button>'+
@@ -552,17 +564,21 @@ function screenTimeout(){
 }
 
 function screenApproved(){
-  const dev = STEPS[0];
   return demoTag()+
   banner('ok','План утверждён','Решение: Максим, 30.10, 13:52 · принята версия 3. Этапы стартовали по порядку.')+
+  '<div class="sec">Что утверждено<span class="ln"></span></div>'+
+  '<div class="card" style="padding:2px 14px">'+
+    chgRow(CHANGES[0], false)+
+    chgRow(CHANGES[1], false)+
+  '</div>'+
   '<div class="card">'+
     '<div class="ptitle" style="font-size:17px">Инфра-панель: чат агента</div>'+
     '<div class="psub">Утверждённый план · версия 3</div>'+
     ownerPill()+
     stepsList([
-      { t:'Чат и провайдеры', role:'Разработчик', exp:'Код готов, ждёт проверки', after:'Состояние: в работе' },
-      { t:'Проверка сценария', role:'Лайф-тестировщик', exp:'Ждёт результата предыдущего этапа', after:'Состояние: ждёт' },
-      { t:'Интеграция', role:OWNER, exp:'Ждёт проверки; выкладка и доказательство — после проверки', after:'Состояние: ждёт' }
+      { t:'Чат и провайдеры', role:'Разработчик', after:'Код готов, ждёт проверки' },
+      { t:'Проверка сценария', role:'Лайф-тестировщик', after:'Ждёт результата предыдущего этапа' },
+      { t:'Интеграция', role:OWNER, after:'Ждёт проверки; выкладка — после проверки' }
     ], function(s, i){
       if (i === 0) return { dot:'active', pill:'<span class="pill run">в работе</span>' };
       return { dot:'', pill:'<span class="pill">ждёт</span>' };
@@ -578,13 +594,12 @@ function screenApproved(){
     '</div>'+
     '<p class="note">Недоступный провайдер показывается ограничением, а не общим зелёным статусом.</p>'+
   '</div>'+
-  '<button class="btn primary" data-act="Открыта карточка — план выполняется">Перейти к выполнению</button>'+
   '<p class="note" style="text-align:center">Новые изменения — отдельным планом. Остановка начатого плана — отдельное действие.</p>';
 }
 
 function sheet(title, body, foot){
   return '<div class="veil"></div><div class="sheet"><div class="handle"></div>'+
-    '<div class="sh"><div class="t">'+title+'</div><div class="x">'+ico('x')+'</div></div>'+
+    '<div class="sh"><div class="t">'+title+'</div><span class="demo sm">ДЕМО</span><div class="x">'+ico('x')+'</div></div>'+
     '<div class="body">'+body+'</div>'+
     '<div class="foot">'+foot+'</div></div>';
 }
@@ -604,7 +619,8 @@ const STATES = [
   { k:'timeout', t:'Таймаут, исход неизвестен', s:'Сервер мог принять — сначала сверка', f:screenTimeout,
     cap:'<b>Таймаут.</b> Исход неизвестен, поэтому предлагают сверку состояния, а не повторный запуск вслепую. Повтор разрешён только после сверки.' },
   { k:'approved', t:'Утверждено', s:'Принятая версия и реальные состояния', f:screenApproved,
-    cap:'<b>Утверждено.</b> Показан принятый план, решение с автором и временем, реальные состояния этапов и четыре отдельные отметки готовности: код, стенд, выкладка, живая проверка.' }
+    bar:'<button class="btn primary" data-act="Открыта карточка — план выполняется">Перейти к выполнению</button>',
+    cap:'<b>Утверждено.</b> Запись решения показывает автора, время и принятую версию, а под ней — что именно утверждено: две правки теми же формулировками, что в обзоре. Дальше принятый план с реальными состояниями этапов и четыре отдельные отметки готовности: код, стенд, выкладка, живая проверка. Кнопка «Перейти к выполнению» закреплена внизу экрана.' }
 ];
 
 const stateBox = document.getElementById('states');
@@ -622,7 +638,11 @@ function show(key){
   const st = STATES.filter(function(s){ return s.k === key; })[0];
   current = key;
   content.innerHTML = st.f();
-  caption.innerHTML = '<span class="st">'+(STATES.indexOf(st)+1)+'. '+st.t+'</span>'+st.cap;
+  const ab = document.getElementById('actionbar');
+  ab.innerHTML = st.bar || '';
+  ab.style.display = st.bar ? 'flex' : 'none';
+  caption.innerHTML = '<span class="st">'+(STATES.indexOf(st)+1)+'. '+st.t+'</span>'+st.cap+
+    '<div class="dnote">ДЕМО · вымышленные данные</div>';
   Array.prototype.forEach.call(stateBox.querySelectorAll('.state'), function(b){
     b.setAttribute('aria-pressed', b.getAttribute('data-k') === key ? 'true' : 'false');
   });
