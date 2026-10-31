@@ -24,16 +24,34 @@ struct ChatModelPickerSheet: View {
         models.filter { !favorites.isFavorite($0.id) }
     }
 
+    /// Разделы по провайдерам (владелец 31.10.2026: «должны быть подразделы
+    /// по провайдерам — я даже не понимаю, к какому провайдеру какая модель»).
+    /// Список был один плоский, и 160 моделей шли подряд без единого
+    /// разделителя; провайдер в строке не показывался.
+    private var groups: [RoleModelOption.ProviderGroup] {
+        RoleModelOption.grouped(otherModels)
+    }
+
+    /// Название раздела. Локальные модели (Ollama на .110) помечаем явно:
+    /// владелец просил видеть, какие модели считаются на его железе, а не
+    /// в облаке.
+    private func groupTitle(_ provider: String) -> String {
+        provider == "Ollama" ? "Ollama — локальные" : provider
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 if !favoritesModels.isEmpty {
                     Section("Избранные") { rows(favoritesModels) }
                 }
-                Section {
-                    rows(otherModels)
-                } header: {
-                    Text(otherModels.isEmpty ? "" : "Все модели")
+                // Остальные — по провайдерам, каждый своей секцией.
+                ForEach(groups) { group in
+                    Section {
+                        rows(group.models)
+                    } header: {
+                        Text(groupTitle(group.provider))
+                    }
                 }
                 Section {
                     Button { showsEffort = true } label: {
