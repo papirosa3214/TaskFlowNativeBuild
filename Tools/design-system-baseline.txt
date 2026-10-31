@@ -143,7 +143,6 @@ Sources/Features/Tasks/QuickAddTaskView.swift	red-button	Button(role: .destructi
 Sources/Features/Tasks/QuickAddTaskView.swift	implicit-system-blue	Button { isAttachmentImporterPresented = true } label: {
 Sources/Features/Tasks/QuickAddTaskView.swift	implicit-system-blue	Button(role: .destructive, action: remove) {
 Sources/Features/Tasks/QuickAddTaskView.swift	red-button	Button(role: .destructive, action: remove) {
-Sources/Features/Tasks/Support/TaskConfirm.swift	red-button	TFButton(req.confirmLabel, variant: req.danger ? .primary : .secondary) {
 Sources/Features/Tasks/TaskFormScreen.swift	red-button	Button {
 Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
 Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }

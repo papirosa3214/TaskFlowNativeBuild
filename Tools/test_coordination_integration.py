@@ -21,7 +21,7 @@ source=stub+'\n'.join((root/p).read_text() for p in files)
 source += '\n' + '\n'.join((root/'Sources/DesignSystem/Hints'/p).read_text() for p in ['HintModels.swift','HintScenarios.swift','HintCenter.swift']) + '\n'
 if '--typecheck-ui' in sys.argv:
  source += '\nimport SwiftUI\nenum TFTextFixture { case body, meta, action }\nenum TFSpacing { static let xs: CGFloat = 4 }\nextension View { func tfText(_ role: TFTextFixture) -> some View { self }; func hintAnchor(_ id: String) -> some View { self } }\nextension Color { static var tfRed: Color { .red }; static var tfText: Color { .primary }; static var tfSub: Color { .secondary } }\nenum AppRoute: Hashable { case runtimeProviders }\nfunc routeDestination(_ route: AppRoute) -> some View { Text("fixture") }\n'
- source += '\n' + '\n'.join((root/'Sources/Features/Coordination'/p).read_text() for p in ['CoordinationCauseColor.swift','ResolutionGraph.swift','ActionBar.swift','CoordinationScreen.swift'])
+ source += '\n' + (root/'Sources/DesignSystem/Components/CoordinationCauseColor.swift').read_text() + '\n' + '\n'.join((root/'Sources/Features/Coordination'/p).read_text() for p in ['ResolutionGraph.swift','ActionBar.swift','CoordinationScreen.swift'])
  with tempfile.TemporaryDirectory(prefix='coordination-ui-typecheck-') as tmp:
   main=Path(tmp)/'panel.swift';main.write_text(source)
   sdk=subprocess.check_output(['xcrun','--sdk','iphoneos','--show-sdk-path'],text=True).strip()

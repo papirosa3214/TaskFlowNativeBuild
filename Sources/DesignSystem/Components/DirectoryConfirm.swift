@@ -1,8 +1,9 @@
 import SwiftUI
 
 // Confirm-диалог для раздела «Справочники» — своя копия паттерна
-// `Features/Task/Support/TaskConfirm.swift` (чужая папка, не трогаем),
-// собрана из тех же кирпичей DesignSystem (`TFBottomSheetContent`).
+// `archive/task-support-2026-11-01/TaskConfirm.swift` (тот диалог убран из
+// сборки как мёртвый), собрана из тех же кирпичей DesignSystem
+// (`TFBottomSheetContent`).
 // spec/SCREENS-2.md §0.5: свой bottom sheet вместо системного confirm,
 // БЕЗ drag-to-dismiss.
 struct DirectoryConfirmRequest: Identifiable {

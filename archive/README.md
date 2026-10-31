@@ -22,6 +22,8 @@ production target, но сохранены как законченные мод�
 | `directory-2026-09-11/` | Старая кнопка «Назад» в Справочнике | `Sources/Features/Directory/Support/` |
 | `planner-2026-09-11/` | Старые компоненты чипов проекта (`PlannerProjectChips`, `UpcomingPlannerProjectChips`) | `Sources/Features/Today/`, `Sources/Features/Upcoming/` |
 | `planner-2026-11-01/` | Мёртвые файлы планировщика: часовая сетка «Сегодня» (`TodayHoursView`, `TodayHoursLayout`), список «Планирования» (`UpcomingListView`), шторка фильтров (`UpcomingFilterSheet`) | `Sources/Features/Planner/` |
+| `task-support-2026-11-01/` | Мёртвый диалог подтверждения задачи (`TaskConfirm`) | `Sources/Features/Tasks/Support/` |
+| `ReasonStrip.swift` (в корне архива) | Мёртвая полоса причин и чип исполнителя (`ReasonStrip`, `AssigneeChip`) | `Sources/Features/Coordination/` |
 
 ## Дата архивирования: 2026-11-01
 
@@ -33,6 +35,29 @@ production target, но сохранены как законченные мод�
 
 Файлы перенесены через `git mv`, содержимое не тронуто: история изменений
 сохранена, `git log --follow <file>` работает.
+
+### Мёртвый код шага C.4 (2026-11-01)
+
+Тот же день, отдельная волна миссии «Разбивка по смыслу» — шаг C.4 «Заглушки и
+мёртвый код». Три файла покинули `Sources/`:
+
+- `TaskConfirm.swift` → `archive/task-support-2026-11-01/`. Диалог подтверждения
+  для создания задачи: после того как карточку открыли для уже существующей
+  задачи (коммит `056dddf1`), у него не осталось ни одного вызова — ни в коде,
+  ни в строковых ссылках, ни в тестах.
+- `ReasonStrip.swift` → корень `archive/`. Полоса причин и чип исполнителя в
+  координационном экране: 0 вызовов, символы живут только внутри этого файла
+  (историческое использование убрано коммитом `cb20e96c`).
+- `KnowledgeScreen.swift` — не архивируется, а **удалён**: это был шим-заглушка
+  на 9 строк, возвращавший `NotesScreen()`. Замена состоялась в
+  `Sources/App/Navigation/RouteDestinationView.swift` (маршрут `AppRoute.knowledge`
+  остался и открывает `NotesScreen`).
+
+Живой файл `CoordinationCauseColor.swift` (маппинг `CoordinationTint` → цвет)
+переехал не в архив, а в `Sources/DesignSystem/Components/` — это палитра, ей
+место в дизайн-системе.
+
+Файлы перенесены через `git mv`, содержимое не тронуто.
 
 ## Что НЕ сюда
 
