@@ -1049,7 +1049,7 @@ struct RoleChatRoomScreen: View {
             ("edit", "Sources/Features/Roles/RoleActionGroup.swift"),
             ("bash", "npm run build"),
             ("read", "docs/2026-10-24-chat-smoothness-plan.md"),
-            ("grep", "scrollPosition Sources/Features/Chat"),
+            ("grep", "scrollPosition Sources/Chat"),
             ("write", "docs/2026-10-25-chat-shake.md"),
             ("bash", "xcodebuild -scheme TaskFlow build"),
             ("read", "AGENT-WORK-SCOPES.md"),

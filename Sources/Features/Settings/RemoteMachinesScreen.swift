@@ -18,8 +18,9 @@ import Observation
 /// Никаких ключей и команд — ключ живёт в Keychain на самой машине, а
 /// сопряжение делается по QR тем же кодом, что и у телефона.
 ///
-/// Модель данных и строка машины живут в `RemoteMachinesSection.swift`
-/// (LOCK-UI-DRIFT-GATE): перенос сюда — только экрана, логика не менялась.
+/// Модель данных и строка машины живут в `RemoteMachinesModel.swift`
+/// и в этом же файле (`LOCK-UI-DRIFT-GATE`): перенос сюда — только экрана,
+/// логика не менялась.
 struct RemoteMachinesScreen: View {
     @State private var viewModel = RemoteMachinesViewModel()
 
@@ -138,7 +139,7 @@ struct RemoteMachinesScreen: View {
 }
 
 /// Строка «удалённый хост»: индикатор связи и подпись последнего контакта.
-/// Вынесена из `RemoteMachinesSection.swift` без изменений — на новом экране
+/// Вынесена из `RemoteMachinesModel.swift` без изменений — на новом экране
 /// ей нужен тот же вид, а правило проекта: одна правка — одно место.
 struct MachineRow: View {
     let машина: RemoteMachine

@@ -7,6 +7,18 @@ def task():
  return {"id":"energy","title":"Проверка WebSocket","status":"active","creator_id":"u1","subtasks":[{"id":"step","task_id":"energy","title":["Шаг до события","Шаг после события","Шаг после переподключения"][min(phase,2)],"done":False,"position":0}],"children":[],"comments":[],"events":[],"priority":1}
 def frame(s,payload):
  b=json.dumps(payload,ensure_ascii=False).encode(); head=bytes([129,len(b)]) if len(b)<126 else bytes([129,126])+struct.pack("!H",len(b)); s.sendall(head+b)
+def review_history():
+ # История ревью для тепловой карты на экране «ОБЗОР». Фикстура на незнакомый
+ # путь отдавала `{}`, и панель истории показывала баннер «История недоступна» —
+ # это был пробел фикстуры, а не поломка приложения (`library/environment.md`,
+ # раздел «Ограничение фикстуры»). Формат как у сервера: `entries` со
+ # `task_id` и `submitted_at` в UTC `yyyy-MM-dd HH:mm:ss` — его ждёт
+ # `DateFormats.sqliteUTC`.
+ # `task_id` у записей РАЗНЫЕ: приложение собирает из них словарь через
+ # `Dictionary(uniqueKeysWithValues:)`, а одинаковые ключи там — падение
+ # (fatal error: Duplicate values for key). Сервер такого не присылает.
+ now=int(time.time())
+ return {"entries":[{"task_id":"energy-%d"%i,"submitted_at":time.strftime("%Y-%m-%d %H:%M:%S",time.gmtime(now-i*86400))} for i in range(10)]}
 class H(BaseHTTPRequestHandler):
  protocol_version="HTTP/1.1"
  def log_message(self,*a): pass
@@ -51,6 +63,7 @@ class H(BaseHTTPRequestHandler):
    elif path.endswith("/reports"):result=[]
    elif path in ["/api/projects","/api/labels"]:result=[]
    elif path.endswith("/avatars"):result=[]
+   elif path=="/api/stats/review-history":result=review_history()
    else:result={}
   data=json.dumps(result,ensure_ascii=False).encode()
   self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Content-Length",str(len(data)));self.end_headers();self.wfile.write(data)

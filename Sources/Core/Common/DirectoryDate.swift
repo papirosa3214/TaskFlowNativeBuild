@@ -1,9 +1,9 @@
 import Foundation
 
 // Форматы дат для раздела «Справочники» — свой локальный набор, а не импорт
-// `Features/Today/TodayDate.swift` или `Features/Task/Support/TaskDateText.swift`
-// (те чужие папки; писать в них нельзя, ARCHITECTURE.md правило 1). Тот же
-// принцип дублирования уже применён в `TodayDate.swift` (её собственный
+// `Features/Planner/PlannerDate.swift` или `Features/Tasks/Support/TaskDateText.swift`
+// (те чужие файлы; писать в них нельзя, ARCHITECTURE.md правило 1). Тот же
+// принцип дублирования уже применён в `PlannerDate.swift` (её собственный
 // комментарий объясняет, почему: у Core нет human-readable форматов, только
 // парсинг). Раздел в отчёте — оркестратору свести все три копии.
 //
@@ -59,7 +59,7 @@ enum DirectoryDate {
     }
 
     // MARK: - Строка задачи (ProjectTasksScreen/LabelTasksScreen) — `lib/date.ts`,
-    // те же формулы, что `TodayDate.swift` (тот файл чужой, Features/Today —
+    // те же формулы, что `PlannerDate.swift` (тот файл чужой —
     // дубль по тому же принципу, что и весь этот файл, см. шапку). Московское
     // время, НЕ таймзона устройства — «сегодня» в `daysUntil` должно совпадать
     // с тем, что покажет `/today` на другом телефоне в другом поясе.

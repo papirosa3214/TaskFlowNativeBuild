@@ -2,8 +2,8 @@ import SwiftUI
 
 // Фильтры экрана — spec/SCREENS-1.md §4.3 (`lib/taskFilters.ts`) + §3.9
 // (`TaskFilterSheet`). Свой локальный дубль формы фильтров, не общий тип
-// из `Features/Today` — экраны сдаются по одному (`ARCHITECTURE.md` п.1),
-// у каждого своя копия ровно того, что описывает спека.
+// из `Features/Planner/PlannerFilters.swift` — экраны сдаются по одному
+// (`ARCHITECTURE.md` п.1), у каждого своя копия ровно того, что описывает спека.
 struct UpcomingTaskFilters: Equatable {
     var projectId: String?
     var labelId: String?

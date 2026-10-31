@@ -2,7 +2,7 @@ import SwiftUI
 
 // Строка задачи для ProjectTasksScreen — дубль `src/components/TaskRow.tsx`
 // (общий компонент, которым пользуется чужой набор экранов), тем же приёмом
-// дублирования, что `Features/Today/TodayTaskRow.swift` уже применил для
+// дублирования, что `Features/Planner/PlannerTaskRow.swift` уже применил для
 // «Сегодня» («точность спеки важнее переиспользования» — комментарий того
 // файла). Не беру TodayTaskRow как есть: этому экрану нужен подавленный
 // бейдж проекта (`showProjectBadge=false` — сам экран уже внутри одного
@@ -166,7 +166,7 @@ struct DirectoryTaskRow: View {
 
 }
 
-/// Статус агента плоским текстом — дубль `TodayAgentStateTag` (`Features/Today/TodayFilters.swift`,
+/// Статус агента плоским текстом — дубль `TodayAgentStateTag` (`Features/Planner/PlannerFilters.swift`,
 /// чужой файл), те же тексты/цвета AGENT-PROTOCOL.md.
 enum DirectoryAgentStateTag {
     static func text(_ task: ApiTask) -> String? {

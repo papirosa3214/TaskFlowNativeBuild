@@ -10,11 +10,12 @@ import Foundation
 // расхождений между Core/spec/API.md и живым сервером (проверено чтением
 // `server/src/routes/*.ts` 31.08.2026, только чтение):
 //
-// 1. Поиск. `spec/API.md` §5.6 и `Core/Networking/APIClient+Search.swift`
-//    описывают `/search` как «список задач». Живой `server/src/routes/search.ts`
+// 1. Поиск. `spec/API.md` §5.6 описывает `/search` как «список задач»
+//    (файл Core с поиском удалён 11.09.2026, в `archive/` не заводили).
+//    Живой `server/src/routes/search.ts`
 //    возвращает `{ tasks, projects, labels }` — ТРИ группы, и живой веб
-//    (`src/screens/SearchScreen.tsx`) их так и показывает. Спека и Core
-//    здесь просто устарели/неполны — в отчёте оркестратору.
+//    (`src/screens/SearchScreen.tsx`) их так и показывает. Спека
+//    здесь просто устарела/неполна — в отчёте оркестратору.
 //
 // 2. Уведомления. Core `markNotificationRead` шлёт `PATCH /notifications/:id`
 //    с телом `{read:true}` — живой сервер (`server/src/routes/notifications.ts`)
