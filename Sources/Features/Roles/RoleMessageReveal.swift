@@ -49,13 +49,19 @@ struct RoleMessageReveal<Content: View>: View {
         let lag = min(RoleMessageRevealTiming.maximumLag,
                       max(RoleMessageRevealTiming.minimumLag, length / 90))
         let rate = min(RoleLiveTextPacer.maxRate, max(RoleLiveTextPacer.minRate, length / lag))
-        fade = RoleTextFade(rate: rate, lastRevealAt: .now, isAnimating: true)
+        // Проявление вперёд: буквы готового сообщения печатаются по порядку,
+        // а не гаснут одним куском. Идущий ответ так не проявляется — там
+        // хвост (см. `RoleTextFade.revealsForward`).
+        fade = RoleTextFade(rate: rate, lastRevealAt: .now, isAnimating: true, revealsForward: true)
         // Держим анимацию, пока идёт проявление, потом отпускаем отрисовку:
-        // иначе TimelineView крутился бы и на готовом тексте.
+        // иначе TimelineView крутился бы и на готовом тексте. Считаем по
+        // фактическому темпу: при упоре в максимальный темп сообщение печатается
+        // дольше, чем `lag`.
+        let revealDuration = length / rate
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(lag + RoleTextFade.duration + 0.2))
+            try? await Task.sleep(for: .seconds(revealDuration * 1.15 + RoleTextFade.duration + 0.3))
             guard !Task.isCancelled else { return }
-            fade = RoleTextFade(rate: rate, lastRevealAt: .now, isAnimating: false)
+            fade = RoleTextFade(rate: rate, lastRevealAt: .now, isAnimating: false, revealsForward: true)
         }
     }
 }

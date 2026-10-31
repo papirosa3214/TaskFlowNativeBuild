@@ -10,8 +10,8 @@ final class RoleTextRevealHistoryTests: XCTestCase {
     /// Сценарий падения: 100 глифов, хвост проявляется, текст вырос до 120.
     func testGrowingTextWhileTailStillAnimatingDoesNotTrap() {
         let history = RoleTextRevealHistory()
-        history.record(count: 100, now: start, rate: 40, animated: true)
-        history.record(count: 120, now: start.addingTimeInterval(0.1), rate: 40, animated: true)
+        history.record(count: 100, now: start, rate: 40, animated: true, forward: false)
+        history.record(count: 120, now: start.addingTimeInterval(0.1), rate: 40, animated: true, forward: false)
         XCTAssertLessThanOrEqual(history.revealedUpTo, 120)
         // Ни один глиф не выходит за пределы текста и прозрачность в границах.
         for index in 0..<120 {
@@ -24,10 +24,10 @@ final class RoleTextRevealHistoryTests: XCTestCase {
     /// Хвост продолжает оседать после роста текста, ничего не теряется.
     func testTailSettlesAfterGrowthAndEverythingBecomesVisible() {
         let history = RoleTextRevealHistory()
-        history.record(count: 100, now: start, rate: 40, animated: true)
-        history.record(count: 120, now: start.addingTimeInterval(0.05), rate: 40, animated: true)
+        history.record(count: 100, now: start, rate: 40, animated: true, forward: false)
+        history.record(count: 120, now: start.addingTimeInterval(0.05), rate: 40, animated: true, forward: false)
         let later = start.addingTimeInterval(RoleTextFade.duration + 1)
-        history.record(count: 120, now: later, rate: 40, animated: true)
+        history.record(count: 120, now: later, rate: 40, animated: true, forward: false)
         XCTAssertEqual(history.revealedUpTo, 120)
         for index in 0..<120 {
             XCTAssertEqual(history.opacity(at: index, now: later), 1, accuracy: 0.0001)
@@ -37,8 +37,8 @@ final class RoleTextRevealHistoryTests: XCTestCase {
     /// Укорочение текста (перенос, правка) не оставляет хвост длиннее текста.
     func testShrinkingTextKeepsInvariant() {
         let history = RoleTextRevealHistory()
-        history.record(count: 200, now: start, rate: 40, animated: true)
-        history.record(count: 40, now: start.addingTimeInterval(0.02), rate: 40, animated: true)
+        history.record(count: 200, now: start, rate: 40, animated: true, forward: false)
+        history.record(count: 40, now: start.addingTimeInterval(0.02), rate: 40, animated: true, forward: false)
         XCTAssertLessThanOrEqual(history.revealedUpTo, 40)
         for index in 0..<40 {
             XCTAssertLessThanOrEqual(history.opacity(at: index, now: start.addingTimeInterval(0.03)), 1)
@@ -48,13 +48,13 @@ final class RoleTextRevealHistoryTests: XCTestCase {
     /// Чередование анимации и её окончания (реплика доехала, пришла новая).
     func testTogglingAnimationKeepsStateConsistent() {
         let history = RoleTextRevealHistory()
-        history.record(count: 60, now: start, rate: 40, animated: true)
-        history.record(count: 60, now: start.addingTimeInterval(0.1), rate: 40, animated: false)
+        history.record(count: 60, now: start, rate: 40, animated: true, forward: false)
+        history.record(count: 60, now: start.addingTimeInterval(0.1), rate: 40, animated: false, forward: false)
         XCTAssertEqual(history.revealedUpTo, 60)
-        history.record(count: 140, now: start.addingTimeInterval(0.2), rate: 40, animated: true)
+        history.record(count: 140, now: start.addingTimeInterval(0.2), rate: 40, animated: true, forward: false)
         XCTAssertLessThanOrEqual(history.revealedUpTo, 140)
         let later = start.addingTimeInterval(RoleTextFade.duration + 2)
-        history.record(count: 140, now: later, rate: 40, animated: true)
+        history.record(count: 140, now: later, rate: 40, animated: true, forward: false)
         XCTAssertEqual(history.revealedUpTo, 140)
     }
 
@@ -64,7 +64,7 @@ final class RoleTextRevealHistoryTests: XCTestCase {
         let frame = 1.0 / 120.0
         for step in 1...600 {
             let now = start.addingTimeInterval(Double(step) * frame)
-            history.record(count: step * 2, now: now, rate: 60, animated: true)
+            history.record(count: step * 2, now: now, rate: 60, animated: true, forward: false)
             for index in 0..<step * 2 {
                 XCTAssertGreaterThanOrEqual(history.opacity(at: index, now: now), 0)
             }

@@ -8,10 +8,10 @@ final class ChatRenderStabilityTests: XCTestCase {
     func testShorteningSettledTextClampsTheRevealedPrefix() {
         let history = RoleTextRevealHistory()
         let now = Date(timeIntervalSince1970: 100)
-        history.record(count: 100, now: now, rate: 100, animated: false)
-        history.record(count: 20, now: now, rate: 100, animated: true)
+        history.record(count: 100, now: now, rate: 100, animated: false, forward: false)
+        history.record(count: 20, now: now, rate: 100, animated: true, forward: false)
         XCTAssertEqual(history.revealedUpTo, 20)
-        history.record(count: 21, now: now, rate: 100, animated: true)
+        history.record(count: 21, now: now, rate: 100, animated: true, forward: false)
         XCTAssertEqual(history.opacity(at: 19, now: now), 1)
         XCTAssertEqual(history.opacity(at: 20, now: now), 0)
     }
@@ -19,9 +19,9 @@ final class ChatRenderStabilityTests: XCTestCase {
     func testShorteningPendingTailKeepsTheSettledPrefix() {
         let history = RoleTextRevealHistory()
         let now = Date(timeIntervalSince1970: 100)
-        history.record(count: 80, now: now, rate: 100, animated: false)
-        history.record(count: 100, now: now, rate: 100, animated: true)
-        history.record(count: 90, now: now, rate: 100, animated: true)
+        history.record(count: 80, now: now, rate: 100, animated: false, forward: false)
+        history.record(count: 100, now: now, rate: 100, animated: true, forward: false)
+        history.record(count: 90, now: now, rate: 100, animated: true, forward: false)
         XCTAssertEqual(history.revealedUpTo, 80)
         XCTAssertEqual(history.opacity(at: 79, now: now), 1)
     }
@@ -59,7 +59,7 @@ final class ChatRenderStabilityTests: XCTestCase {
     func testMixedLineDrawsOnlyTheVisibleGlyphs() {
         let now = Date(timeIntervalSince1970: 100)
         let history = RoleTextRevealHistory()
-        history.record(count: 2, now: now, rate: 100, animated: false)
+        history.record(count: 2, now: now, rate: 100, animated: false, forward: false)
         let renderer = RoleRevealRenderer(fade: RoleTextFade(rate: 100, isAnimating: true),
                                           now: now, history: history)
         var context = GraphicsContext()

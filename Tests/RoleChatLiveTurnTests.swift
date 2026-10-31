@@ -309,19 +309,19 @@ final class RoleChatLiveTurnTests: XCTestCase {
         let start = Date(timeIntervalSince1970: 100)
         let arrival = start.addingTimeInterval(0.6)
         let history = RoleTextRevealHistory()
-        history.record(count: 2, now: start, rate: 18, animated: true)
+        history.record(count: 2, now: start, rate: 18, animated: true, forward: false)
         let before = history.opacity(at: 1, now: arrival)
-        history.record(count: 5, now: arrival, rate: 36, animated: true)
+        history.record(count: 5, now: arrival, rate: 36, animated: true, forward: false)
         XCTAssertGreaterThanOrEqual(history.opacity(at: 1, now: arrival), before)
         XCTAssertEqual(history.opacity(at: 4, now: arrival), 0, accuracy: 0.001)
-        history.record(count: 12, now: arrival.addingTimeInterval(0.5), rate: 18, animated: true)
+        history.record(count: 12, now: arrival.addingTimeInterval(0.5), rate: 18, animated: true, forward: false)
         XCTAssertEqual(history.opacity(at: 1, now: arrival.addingTimeInterval(0.5)), 1, accuracy: 0.001)
     }
 
     func testRevealFadeGrowsWithDistanceAndTime() {
         let now = Date(timeIntervalSince1970: 100)
         let history = RoleTextRevealHistory()
-        history.record(count: 21, now: now, rate: 100, animated: true)
+        history.record(count: 21, now: now, rate: 100, animated: true, forward: false)
         XCTAssertEqual(history.opacity(at: 20, now: now), 0, accuracy: 0.001)
         XCTAssertGreaterThan(history.opacity(at: 0, now: now), history.opacity(at: 15, now: now))
         XCTAssertEqual(history.opacity(at: 20, now: now.addingTimeInterval(1)), 1, accuracy: 0.001)
@@ -330,11 +330,11 @@ final class RoleChatLiveTurnTests: XCTestCase {
     func testSettledGlyphsRemainVisibleAfterPauseAndSnapshot() {
         let now = Date(timeIntervalSince1970: 100)
         let history = RoleTextRevealHistory()
-        history.record(count: 10, now: now, rate: 18, animated: false)
-        history.record(count: 14, now: now.addingTimeInterval(2), rate: 36, animated: true)
+        history.record(count: 10, now: now, rate: 18, animated: false, forward: false)
+        history.record(count: 14, now: now.addingTimeInterval(2), rate: 36, animated: true, forward: false)
         for index in 0..<10 { XCTAssertEqual(history.opacity(at: index, now: now.addingTimeInterval(2)), 1) }
         // Shrinking/reflow keeps the existing prefix's original timestamps.
-        history.record(count: 9, now: now.addingTimeInterval(2), rate: 36, animated: true)
+        history.record(count: 9, now: now.addingTimeInterval(2), rate: 36, animated: true, forward: false)
         XCTAssertEqual(history.opacity(at: 8, now: now.addingTimeInterval(2)), 1)
     }
 

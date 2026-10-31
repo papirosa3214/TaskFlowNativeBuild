@@ -859,6 +859,12 @@ struct RoleTextFade: Equatable {
     var rate: Double = RoleLiveTextPacer.minRate
     var lastRevealAt: Date = .distantPast
     var isAnimating = false
+    /// Готовое сообщение проявляется ВПЕРЁД от начала: буквы появляются по
+    /// порядку, как при печати (владелец 17.10.2026: «текст появляется очень
+    /// плавно, не сразу, как будто построчно печатается»). У хвоста идущего
+    /// ответа проявление обратное: текст уже напечатан, гаснет только свежий
+    /// хвост.
+    var revealsForward = false
     static let duration: TimeInterval = 0.7
 }
 
@@ -871,7 +877,10 @@ struct RoleTextFade: Equatable {
 /// отбрасываются разом: `revealedUpTo` — сколько глифов уже проявились
 /// полностью, а `appearanceTimes` хранит только непроявившийся хвост.
 /// Инвариант: `revealedUpTo + appearanceTimes.count == count`.
-final class RoleTextRevealHistory {
+///
+/// Это история ОДНОГО текста. У готового сообщения текстов много (заголовки,
+/// пункты, подписи), и у каждого своя — см. `RoleTextRevealHistory`.
+final class RoleTextRevealTimeline {
     /// Времена появления ещё не проявившихся глифов (хвост).
     private var appearanceTimes: [Date] = []
     private var animated = true
@@ -879,7 +888,15 @@ final class RoleTextRevealHistory {
     /// Число глифов, проявившихся полностью (или не анимировались вовсе).
     private(set) var revealedUpTo = 0
 
-    func record(count: Int, now: Date, rate: Double, animated: Bool) {
+    /// Сколько глифов стоит перед этим текстом в сообщении. В режиме вперёд
+    /// текст проявляется после тех, что нарисованы раньше, — сообщение
+    /// «печатается» сверху вниз.
+    var offset = 0
+
+    /// Откуда считается появление букв этого текста.
+    var base: Date = .distantPast
+
+    func record(count: Int, now: Date, rate: Double, animated: Bool, start: Date, forward: Bool) {
         self.animated = animated
         guard count > 0 else { revealedUpTo = 0; appearanceTimes = []; return }
         if !animated {
@@ -911,10 +928,16 @@ final class RoleTextRevealHistory {
         // upperBound) → EXC_BREAKPOINT, то есть вылет приложения.
         let pending = count - revealedUpTo - appearanceTimes.count
         if pending > 0 {
-            for offset in 0..<pending {
-                appearanceTimes.append(
-                    now.addingTimeInterval(-Double(pending - offset - 1) / max(rate, 1))
-                )
+            for step in 0..<pending {
+                let index = revealedUpTo + appearanceTimes.count + step
+                let time = forward
+                    // Готовое сообщение: буква появляется в своё время, вперёд
+                    // от начала проявления, — текст печатается по порядку.
+                    ? base.addingTimeInterval(Double(offset + index) / max(rate, 1))
+                    // Хвост идущего ответа: текст уже напечатан, свежие буквы
+                    // «догоняют» темп потока.
+                    : now.addingTimeInterval(-Double(pending - step - 1) / max(rate, 1))
+                appearanceTimes.append(time)
             }
         }
     }
@@ -931,6 +954,86 @@ final class RoleTextRevealHistory {
     }
 }
 
+/// Проявление текста в сообщении.
+///
+/// У каждого независимого текста — своя история глифов. Раньше история была
+/// одна на всё дерево готового сообщения, и независимые `Text` (заголовки,
+/// пункты, подписи отчёта) делили один хвост: длина и индексы следующего
+/// текста брались из предыдущего, из-за чего буквы пропали и ответ выглядел
+/// разбитым на узкие колонки (владелец 31.10.2026).
+///
+/// Режимы:
+/// - хвост (`forward: false`) — идущий ответ: текст один и растёт;
+/// - вперёд (`forward: true`) — готовое сообщение: буквы появляются по
+///   порядку, тексты идут друг за другом сверху вниз.
+final class RoleTextRevealHistory {
+    /// Хвост идущего текста: одна история на весь растущий текст.
+    private var tail = RoleTextRevealTimeline()
+    /// Готовое сообщение: своя история на каждый независимый текст.
+    private var perText: [Int: RoleTextRevealTimeline] = [:]
+    /// Текст, который рисуется прямо сейчас (последний записанный).
+    private var current = RoleTextRevealTimeline()
+    /// Кадр, для которого считается накопленный счётчик глифов.
+    private var frameNow: Date?
+    /// Сколько глифов нарисовано раньше в этом кадре.
+    private var frameOffset = 0
+    /// Начало текущего проявления — сменилось, значит сообщение новое.
+    private var start: Date = .distantPast
+
+    /// Записать состояние текста из `count` глифов.
+    ///
+    /// `start` — начало проявления (для режима вперёд); `forward` — проявлять
+    /// вперёд (готовое сообщение) или гасить только свежий хвост.
+    func record(count: Int, now: Date, rate: Double, animated: Bool,
+                start: Date? = nil, forward: Bool = true) {
+        let base = start ?? now
+        guard forward else {
+            // Хвост идущего текста: текст один и растёт кадрами.
+            frameNow = nil
+            frameOffset = 0
+            current = tail
+            tail.record(count: count, now: now, rate: rate, animated: animated, start: base, forward: false)
+            return
+        }
+        if self.start != base {
+            // Новое проявление — прежние истории не годятся.
+            self.start = base
+            perText.removeAll()
+            frameNow = nil
+            frameOffset = 0
+        }
+        if frameNow != now {
+            // Новый кадр: счётчик глифов перед текстом начинается заново.
+            frameNow = now
+            frameOffset = 0
+        }
+        let timeline: RoleTextRevealTimeline
+        if let existing = perText[count] {
+            timeline = existing
+        } else {
+            let created = RoleTextRevealTimeline()
+            created.offset = frameOffset
+            // Текст, который появился посреди проявления, печатается с текущего
+            // момента — иначе он ждал бы своей очереди в прошлом.
+            created.base = max(base, now)
+            perText[count] = created
+            timeline = created
+        }
+        frameOffset += count
+        current = timeline
+        timeline.record(count: count, now: now, rate: rate, animated: animated,
+                       start: timeline.base, forward: true)
+    }
+
+    /// Число глифов, проявившихся полностью, у текста, который рисуется сейчас.
+    var revealedUpTo: Int { current.revealedUpTo }
+
+    /// Прозрачность глифа по ЕГО индексу в тексте, который рисуется сейчас.
+    func opacity(at index: Int, now: Date) -> Double {
+        current.opacity(at: index, now: now)
+    }
+}
+
 struct RoleRevealRenderer: TextRenderer {
     var fade: RoleTextFade
     var now: Date
@@ -939,7 +1042,8 @@ struct RoleRevealRenderer: TextRenderer {
     func draw(layout: Text.Layout, in ctx: inout GraphicsContext) {
         var total = 0
         for line in layout { for run in line { total += run.count } }
-        history.record(count: total, now: now, rate: fade.rate, animated: fade.isAnimating)
+        history.record(count: total, now: now, rate: fade.rate, animated: fade.isAnimating,
+                       start: fade.lastRevealAt, forward: fade.revealsForward)
         var index = 0
         for line in layout {
             var lineCount = 0

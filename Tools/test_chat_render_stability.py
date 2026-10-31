@@ -21,7 +21,7 @@ def declaration(source, marker):
     return source[start:end]
 
 
-source = (ROOT / 'Sources/Features/Chat/RoleLiveTurnView.swift').read_text()
+source = (ROOT / 'Sources/Features/Roles/RoleLiveTurnView.swift').read_text()
 stubs = '''
 import Foundation
 enum RoleLiveTextPacer { static let minRate = 30.0 }
@@ -43,8 +43,8 @@ struct ForEach<Data: RandomAccessCollection, ID: Hashable> {
 }
 '''
 production = '\n'.join(declaration(source, marker) for marker in (
-    'struct RoleTextFade:', 'final class RoleTextRevealHistory {',
-    'struct RoleRevealRenderer:'))
+    'struct RoleTextFade:', 'final class RoleTextRevealTimeline {',
+    'final class RoleTextRevealHistory {', 'struct RoleRevealRenderer:'))
 list_body = declaration(source, 'struct RoleLiveItemsList:')
 # Use the actual collection and identity key path supplied to SwiftUI.
 row_expression = re.search(r'ForEach\((.*?)\) \{', list_body).group(1)

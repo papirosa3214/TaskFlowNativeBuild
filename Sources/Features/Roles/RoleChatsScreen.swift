@@ -3028,8 +3028,11 @@ struct RoleChatRoomScreen: View {
     private func roleMessageContent(_ message: RoleChatMessage, allowsCommands: Bool) -> some View {
         let checklist = checklistContext(for: message)
         if isAgentReply(message), let json = message.roleEnvelopeJSON {
+            // Темп проявления считаем по конверту: разобранный отчёт длиннее
+            // плоского текста ответа, и по плоскому тексту проявление
+            // обрывалось на середине.
             ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
-                .roleMessageReveal(text: message.text, messageID: message.id,
+                .roleMessageReveal(text: json, messageID: message.id,
                                    animate: chatIsNearBottom && message.id == messages.last?.id
                                        && !closedTurnMessageIDs.contains(message.id))
         } else {
