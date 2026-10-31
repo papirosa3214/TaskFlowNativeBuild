@@ -154,6 +154,10 @@ public struct TFSectionDisplayModifier: ViewModifier {
     // имени здесь означали бы «Oswald Bold» вместо family — и SwiftUI молча
     // нарисовал бы системный шрифт (та же ошибка, что стоила первой попытки
     // ещё с Oswald).
+    /// Гарнитура заголовков: выбранная в настройках, а пока выбрана
+    /// системная — прежняя PT Sans Narrow (владелец 12.10.2026).
+    private var face: TFTypeFace { typeSettingsEnabled ? TFTypeFace.saved : .system }
+
     private var name: String { "PT Sans Narrow" }
 
     private var weight: Font.Weight {
@@ -172,7 +176,9 @@ public struct TFSectionDisplayModifier: ViewModifier {
 
     public func body(content: Content) -> some View {
         content
-            .font(.custom(name, size: size).weight(weight))
+            .font(face == .system
+                  ? .custom(name, size: size).weight(weight)
+                  : face.font(size: size, weight: weight))
             .tracking(tracking)
             .textCase(.uppercase)
             .foregroundStyle(color)
@@ -348,7 +354,7 @@ private struct TFTextStyleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .font(.system(size: effectiveSize, weight: style.weight, design: style.design))
+            .font(TFTypeFace.active(size: effectiveSize, weight: style.weight, design: style.design, enabled: typeSettingsEnabled))
             .tracking(style.tracking)
     }
 }

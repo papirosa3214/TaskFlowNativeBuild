@@ -78,6 +78,88 @@ enum TFTextTone: String, CaseIterable, Identifiable {
 }
 
 
+/// Гарнитура приложения (владелец, 01.11.2026): 11 шрифтов с кириллицей,
+/// все под открытой лицензией OFL. Файлы — в `Resources/Fonts`,
+/// регистрация — `UIAppFonts` в `project.yml`.
+enum TFTypeFace: String, CaseIterable, Identifiable {
+    case system, golos, onest, nunito, comfortaa, unbounded
+    case lora, playfair, cormorant, caveat, marck, mono
+
+    static let storageKey = "taskflow_type_face"
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "Системная"
+        case .golos: "Golos Text"
+        case .onest: "Onest"
+        case .nunito: "Nunito"
+        case .comfortaa: "Comfortaa"
+        case .unbounded: "Unbounded"
+        case .lora: "Lora"
+        case .playfair: "Playfair Display"
+        case .cormorant: "Cormorant Garamond"
+        case .caveat: "Caveat"
+        case .marck: "Marck Script"
+        case .mono: "JetBrains Mono"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .system: "San Francisco, как сейчас"
+        case .golos: "аккуратный гротеск"
+        case .onest: "мягкий нейтральный"
+        case .nunito: "округлый, дружелюбный"
+        case .comfortaa: "геометричный округлый"
+        case .unbounded: "широкий дисплейный"
+        case .lora: "книжный serif"
+        case .playfair: "элегантный serif"
+        case .cormorant: "тонкий книжный"
+        case .caveat: "рукописный"
+        case .marck: "каллиграфический"
+        case .mono: "моноширинный"
+        }
+    }
+
+    /// PostScript-имена: (обычное, жирное). У `system` — nil.
+    var names: (regular: String, bold: String)? {
+        switch self {
+        case .system: nil
+        case .golos: ("GolosText-Regular", "GolosText-Bold")
+        case .onest: ("Onest-Regular", "Onest-Bold")
+        case .nunito: ("Nunito-Regular", "Nunito-Bold")
+        case .comfortaa: ("Comfortaa-Regular", "Comfortaa-Bold")
+        case .unbounded: ("Unbounded-Regular", "Unbounded-Bold")
+        case .lora: ("Lora-Regular", "Lora-Bold")
+        case .playfair: ("PlayfairDisplay-Regular", "PlayfairDisplay-Bold")
+        case .cormorant: ("CormorantGaramond-Regular", "CormorantGaramond-Bold")
+        case .caveat: ("Caveat-Regular", "Caveat-Bold")
+        case .marck: ("MarckScript-Regular", "MarckScript-Regular")
+        case .mono: ("JetBrainsMono-Regular", "JetBrainsMono-Bold")
+        }
+    }
+
+    static var saved: TFTypeFace {
+        guard let raw = UserDefaults.standard.string(forKey: storageKey),
+              let face = TFTypeFace(rawValue: raw) else { return .system }
+        return face
+    }
+
+    /// Шрифт нужного кегля. Жирность сводится к двум файлам: semibold и bold берут Bold.
+    func font(size: CGFloat, weight: Font.Weight, design: Font.Design = .default) -> Font {
+        guard let names else { return .system(size: size, weight: weight, design: design) }
+        let isBold = weight == .bold || weight == .semibold || weight == .heavy || weight == .black
+        return .custom(isBold ? names.bold : names.regular, size: size)
+    }
+
+    /// То же, но с выключателем: в чатах гарнитура остаётся системной.
+    static func active(size: CGFloat, weight: Font.Weight, design: Font.Design = .default, enabled: Bool) -> Font {
+        let face = enabled ? TFTypeFace.saved : TFTypeFace.system
+        return face.font(size: size, weight: weight, design: design)
+    }
+}
+
 /// Пять групп типографики (владелец, 01.11.2026): всё приложение выровнено
 /// по пяти размерам, у каждой группы свой регулятор в «Внешний вид».
 /// Группа — вес текста в том месте, где он стоит, а не тип элемента.

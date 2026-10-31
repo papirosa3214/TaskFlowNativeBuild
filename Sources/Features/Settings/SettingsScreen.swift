@@ -199,6 +199,15 @@ struct SettingsScreen: View {
                 .accessibilityIdentifier("settings.text-scale.\(scale.rawValue)")
             }
 
+            // Гарнитура (владелец, 01.11.2026): 11 шрифтов с кириллицей.
+            TFDivider(inset: rowDividerInset)
+            Text("Гарнитура")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.top, TFSpacing.md)
+            faceRow
+
             // Шрифты по пяти группам (владелец, 01.11.2026): заголовок,
             // подзаголовок, основной, второстепенный, мелкий. Чаты настройку
             // не читают: их корни ставят `.tfChatTypography()`.
@@ -213,6 +222,46 @@ struct SettingsScreen: View {
                 typeGroupRow(group)
             }
         }
+    }
+
+    /// Строка выбора гарнитуры: образец рисуется самим шрифтом.
+    private var faceRow: some View {
+        let current = TFTypeFace.saved
+        return Menu {
+            ForEach(TFTypeFace.allCases) { face in
+                Button {
+                    UserDefaults.standard.set(face.rawValue, forKey: TFTypeFace.storageKey)
+                    typeRevision &+= 1
+                } label: {
+                    Text(face.title + " — " + face.subtitle)
+                }
+            }
+        } label: {
+            HStack(spacing: TFSpacing.md) {
+                Text("Аа")
+                    .font(current.font(size: 21, weight: .regular))
+                    .foregroundStyle(Color.tfText)
+                    .frame(width: 40, alignment: .leading)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(current.title)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                    Text(current.subtitle)
+                        .tfText(.micro)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: TFSpacing.sm)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12, weight: .semibold))  // design-system-guard: ignore — значок меню
+                    .foregroundStyle(Color.tfDim)
+            }
+            .padding(.horizontal, TFSpacing.md)
+            .frame(minHeight: TFHitTarget.min)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.type-face")
     }
 
     /// Строка одной группы шрифтов: образец в её кегле и меню со ступенями.

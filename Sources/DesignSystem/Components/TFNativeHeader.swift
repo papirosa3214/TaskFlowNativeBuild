@@ -42,9 +42,11 @@ enum TFNavBarTitleFont {
     /// PT Sans Narrow — с серым капс выглядел вялым.
     /// `multiplier` — выбранная ступень группы «Заголовок». В чатах равен 1:
     /// настройка шрифтов чаты не трогает.
-    static func title(_ title: String, multiplier: CGFloat = 1) -> some View {
+    static func title(_ title: String, multiplier: CGFloat = 1, face: TFTypeFace = .system) -> some View {
         Text(title.uppercased())
-            .font(.custom(family, size: 22 * multiplier).weight(.bold))
+            .font(face == .system
+                  ? .custom(family, size: 22 * multiplier).weight(.bold)
+                  : face.font(size: 22 * multiplier, weight: .bold))
             .tracking(tracking)
             .foregroundStyle(Color.tfText)
     }
@@ -150,7 +152,8 @@ private struct TFNativeHeaderModifier: ViewModifier {
                 ToolbarItem(placement: .principal) {
                     TFNavBarTitleFont.title(
                         title,
-                        multiplier: typeSettingsEnabled ? TFTypeGroup.heading.multiplier : 1
+                        multiplier: typeSettingsEnabled ? TFTypeGroup.heading.multiplier : 1,
+                        face: typeSettingsEnabled ? TFTypeFace.saved : .system
                     )
                 }
             }

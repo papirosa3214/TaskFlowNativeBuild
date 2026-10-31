@@ -142,6 +142,27 @@ targets:
         UIAppFonts:
           - PT-Sans-Narrow-Bold.ttf
           - PT-Sans-Narrow-Regular.ttf
+          - Caveat-Bold.ttf
+          - Caveat-Regular.ttf
+          - Comfortaa-Bold.ttf
+          - Comfortaa-Regular.ttf
+          - CormorantGaramond-Bold.ttf
+          - CormorantGaramond-Regular.ttf
+          - GolosText-Bold.ttf
+          - GolosText-Regular.ttf
+          - JetBrainsMono-Bold.ttf
+          - JetBrainsMono-Regular.ttf
+          - Lora-Bold.ttf
+          - Lora-Regular.ttf
+          - MarckScript.ttf
+          - Nunito-Bold.ttf
+          - Nunito-Regular.ttf
+          - Onest-Bold.ttf
+          - Onest-Regular.ttf
+          - PlayfairDisplay-Bold.ttf
+          - PlayfairDisplay-Regular.ttf
+          - Unbounded-Bold.ttf
+          - Unbounded-Regular.ttf
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
