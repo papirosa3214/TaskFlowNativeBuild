@@ -19,6 +19,27 @@ def review_history():
  # (fatal error: Duplicate values for key). Сервер такого не присылает.
  now=int(time.time())
  return {"entries":[{"task_id":"energy-%d"%i,"submitted_at":time.strftime("%Y-%m-%d %H:%M:%S",time.gmtime(now-i*86400))} for i in range(10)]}
+def attention():
+ # Лента входящих (`GET /api/attention`). Модель `ApiAttention` требует
+ # `ok` и `groups` — без них декодер падает («The data couldn't be read because
+ # it is missing»), и экран «Входящие» рисует баннер ошибки вместо данных.
+ # Это был пробел фикстуры, а не поломка приложения. Обращение привязано к
+ # задаче фикстуры (`task_id: "energy"`), поэтому на экране есть настоящий
+ # интерактивный элемент — карточка со ссылкой на задачу.
+ return {"ok":True,"groups":[],"tickets":[{
+   "id":"ticket-energy",
+   "kind":"question",
+   "title":"Нужен ответ по проверке WebSocket",
+   "body":"Роль ждёт решения по шагу задачи.",
+   "role":"Лайф-тестировщик",
+   "role_id":"role_qa",
+   "task_id":"energy",
+   "chat_id":None,
+   "context_title":"Проверка WebSocket",
+   "project":None,
+   "created_at":"2026-10-30 09:00:00",
+   "question":None,
+ }]}
 class H(BaseHTTPRequestHandler):
  protocol_version="HTTP/1.1"
  def log_message(self,*a): pass
@@ -64,6 +85,7 @@ class H(BaseHTTPRequestHandler):
    elif path in ["/api/projects","/api/labels"]:result=[]
    elif path.endswith("/avatars"):result=[]
    elif path=="/api/stats/review-history":result=review_history()
+   elif path.endswith("/attention"):result=attention()
    else:result={}
   data=json.dumps(result,ensure_ascii=False).encode()
   self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Content-Length",str(len(data)));self.end_headers();self.wfile.write(data)
