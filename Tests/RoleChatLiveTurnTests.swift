@@ -47,8 +47,10 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertEqual(pacer.visibleItems.count, 4, "все действия должны проявиться")
 
         // Снимок без законченного пустого размышления: индексы сдвинулись.
+        // С 30.10.2026 (`4d13c630`) показанный живой ход не укорачивается:
+        // снимок, потерявший показанное действие, не принимается вовсе.
         pacer.ingest([thinking, step, lastStep])
-        XCTAssertEqual(pacer.visibleItems.count, 3, "проявленный хвост не должен обрезаться")
+        XCTAssertEqual(pacer.visibleItems.count, 4, "показанный живой ход не укорачивается")
         XCTAssertEqual(pacer.visibleItems.last?.id, "step-1")
     }
 
@@ -98,20 +100,24 @@ final class RoleChatLiveTurnTests: XCTestCase {
         pacer.finish()
         // Остаток не выскакивает разом, но и не ждёт дольше отведённого срока.
         XCTAssertTrue(pacer.hasPendingText)
-        let ticks = Int(RoleLiveTextPacer.completionDrain / 0.016) + 2
+        let ticks = Int(drainBudget(pacer) / 0.016) + 4
         for _ in 0..<ticks { pacer.advance(elapsed: 0.016) }
         XCTAssertFalse(pacer.hasPendingText)
         XCTAssertEqual(pacer.visibleItems, [.text(text)])
     }
 
-    func testCompletedLongReplyDrainsWithinTwoSeconds() {
+    /// С 17.10.2026 (`1f58d8d7`) срок досыпа считается по остатку символов,
+    /// а не как однократные две секунды: `finish()` даёт бюджет
+    /// `max(completionDrain, остаток / maxRate + tailWait)`.
+    func testCompletedLongReplyDrainsWithinDeclaredBudget() {
         var pacer = RoleLiveTextPacer()
         let text = String(repeating: "длинный ответ ", count: 1000)
         pacer.ingest([.text(text)])
         pacer.advance(elapsed: 0.2)
         XCTAssertTrue(pacer.hasPendingText)
         pacer.finish()
-        for _ in 0..<126 { pacer.advance(elapsed: 0.016) }
+        let ticks = Int(drainBudget(pacer) / 0.016) + 4
+        for _ in 0..<ticks { pacer.advance(elapsed: 0.016) }
         XCTAssertFalse(pacer.hasPendingText)
         XCTAssertEqual(pacer.visibleItems, [.text(text)])
     }
@@ -120,7 +126,9 @@ final class RoleChatLiveTurnTests: XCTestCase {
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text(String(repeating: "слово ", count: 1000))])
         pacer.finish()
-        for _ in 0..<126 {
+        // Срок досыпа — по остатку символов (17.10.2026, `1f58d8d7`).
+        let ticks = Int(drainBudget(pacer) / 0.016) + 4
+        for _ in 0..<ticks {
             pacer.finish()
             pacer.advance(elapsed: 0.016)
         }
@@ -129,6 +137,15 @@ final class RoleChatLiveTurnTests: XCTestCase {
 
     private func parse(_ json: String) -> RealtimeEvent? {
         RealtimeEvent.parse(Data(json.utf8))
+    }
+
+    /// Срок досыпа, который `finish()` даёт живому ходу: с 17.10.2026
+    /// (`1f58d8d7`) он считается по остатку символов, а `completionDrain` —
+    /// только пол этого срока.
+    private func drainBudget(_ pacer: RoleLiveTextPacer) -> TimeInterval {
+        max(RoleLiveTextPacer.completionDrain,
+            Double(pacer.pendingCharacters) / RoleLiveTextPacer.maxRate
+            + RoleLiveTextPacer.tailWait)
     }
 
     /// Прокрутить часы очереди, пока текст не выйдет весь.
@@ -243,8 +260,14 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertFalse(pacer.visibleItems.contains(.step(step)), "шаг не обгоняет текст перед ним")
         drain(&pacer)
         XCTAssertEqual(pacer.visibleItems, [.text("Проверяю файл"), .step(step), .thinking(thinking), .text("Готово")])
-        pacer.ingest([.text("Новый ответ")])
-        XCTAssertTrue(pacer.visibleItems.isEmpty)
+        // Изменившийся текст начинается заново: снимок с теми же действиями и
+        // новым текстом принимается, и показанный «Готово» уходит. Снимок,
+        // потерявший показанные действия, не принимается вовсе
+        // (RoleLiveTurnGrowth, 30.10.2026).
+        pacer.ingest([.text("Проверяю файл"), .step(step), .thinking(thinking), .text("Новый ответ")])
+        XCTAssertFalse(pacer.visibleItems.contains(.text("Готово")),
+                       "изменившийся текст должен начинаться заново")
+        XCTAssertEqual(pacer.visibleItems.count, 3)
     }
 
     func testActionOnlyBurstIsQueuedAndPreservesStatusUpdates() {
@@ -301,7 +324,9 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertGreaterThan(shown.count, 150)
         XCTAssertLessThanOrEqual(pacer.rate, RoleLiveTextPacer.maxRate)
         pacer.finish()
-        for _ in 0..<60 { pacer.advance(elapsed: 0.016) }
+        // Срок досыпа — по остатку символов (17.10.2026, `1f58d8d7`).
+        let ticks = Int(drainBudget(pacer) / 0.016) + 4
+        for _ in 0..<ticks { pacer.advance(elapsed: 0.016) }
         XCTAssertFalse(pacer.hasPendingText)
     }
 

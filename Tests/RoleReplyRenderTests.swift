@@ -73,21 +73,26 @@ final class RoleReplyRenderTests: XCTestCase {
     /// Экраны из карточки: результат шага плана, итог задачи, сводка сторожа,
     /// разбор вопроса между ролями, ответ Помощника владельца, подготовка
     /// карточки.
+    ///
+    /// Общий рендер ответа роли сегодня — это `RoleReplyMarkdown` и его
+    /// обёртка `TaskRoleReply` (она внутри зовёт тот же `RoleReplyMarkdown`
+    /// и разбор JSON сервера). Экран, который показывает текст роли, обязан
+    /// идти через одного из них — иначе ответ снова уедет в сырой `Text`.
     private static let roleTextPlaces = [
         "Sources/Features/Task/Detail/SubtaskFeedView.swift",
-        "Sources/Features/Task/TaskFormScreen.swift",
+        "Sources/Features/Task/TaskCardContent.swift",
         "Sources/Features/Task/Detail/PlanStepSheets.swift",
         "Sources/Features/Task/Detail/TaskOutcomeSection.swift",
         "Sources/Features/Task/Detail/TaskPreparationView.swift",
-        "Sources/Features/Directory/Support/NotificationTicketDetailSheet.swift",
-        "Sources/Features/Chat/RoleCoordinationCard.swift",
+        "Sources/Features/Notifications/NotificationTicketDetailSheet.swift",
+        "Sources/Features/Roles/RoleCoordinationCard.swift",
     ]
 
     func testRoleTextPlacesUseCommonRenderer() throws {
         for path in Self.roleTextPlaces {
             let text = try source(path)
             XCTAssertTrue(
-                text.contains("RoleReplyMarkdown("),
+                text.contains("RoleReplyMarkdown(") || text.contains("TaskRoleReply("),
                 "\(path): текст роли должен рисоваться общим рендером RoleReplyMarkdown"
             )
         }
@@ -103,12 +108,22 @@ final class RoleReplyRenderTests: XCTestCase {
         XCTAssertEqual(offenders, [], "Итог шага показан сырым Text в: \(offenders.joined(separator: ", "))")
     }
 
-    /// Превью в строке списка короткое, но маркированным оно тоже должно быть:
-    /// строка берётся общим `RoleReplyMarkdown.preview(of:)`, а не сырым
-    /// `Text` ответа роли.
+    /// Превью ответа роли в строке: короткое, в две строки, с системным
+    /// усечением хвоста, а полный ответ открывается общей шторкой.
+    ///
+    /// С 29.10.2026 (поручение владельца, `docs/2026-10-29-subtask-result-preview.md`)
+    /// ответ роли читается под подзадачей, а не отдельными строками в секции
+    /// «Итог» — превью живёт в карточке (`TaskCardContent.swift`), и разметка
+    /// внутри двухстрочного превью разбирается системно, только инлайновая.
     func testOutcomeRowPreviewGoesThroughCommonRenderer() throws {
-        let text = try source("Sources/Features/Task/Detail/TaskOutcomeSection.swift")
-        XCTAssertTrue(text.contains("RoleReplyMarkdown.preview(of:"),
-                      "Превью итога роли в строке должно идти через RoleReplyMarkdown.preview(of:)")
+        let card = try source("Sources/Features/Task/TaskCardContent.swift")
+        XCTAssertTrue(card.contains("OutcomeTextRow("),
+                      "ответ роли в строке должен открываться общей шторкой OutcomeTextRow")
+        XCTAssertTrue(card.contains("lineLimit(2)") && card.contains("truncationMode(.tail)"),
+                      "превью ответа роли — две строки с системным усечением хвоста")
+        XCTAssertTrue(card.contains("interpretedSyntax: .inlineOnlyPreservingWhitespace"),
+                      "в двухстрочном превью разбирается только инлайновая разметка")
+        XCTAssertFalse(card.contains("Text(result)"),
+                       "ответ роли в строке показан сырым Text")
     }
 }

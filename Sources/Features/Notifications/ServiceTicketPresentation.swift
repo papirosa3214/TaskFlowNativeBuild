@@ -94,11 +94,16 @@ struct ServiceTicketPresentation {
 
     /// Текст, обрывающийся на двоеточии, — незаконченная фраза. Показывать
     /// как законченный факт нельзя, поэтому дописываем, что продолжения нет.
+    ///
+    /// Хвост из пробелов перед дописыванием убираем: иначе в строке видно
+    /// «проверка не прошла:␠␠␠␠подробности не пришли» (тест
+    /// `ServiceTicketPresentationTests.test_truncatedMessageIsMarked`).
     static func markTruncated(_ message: String) -> String {
-        guard message.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix(":") else {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasSuffix(":") else {
             return message
         }
-        return message + " подробности не пришли"
+        return trimmed + " подробности не пришли"
     }
 
     /// Текст строки целиком: человеческие имена + явная отметка, когда

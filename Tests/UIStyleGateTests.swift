@@ -125,7 +125,6 @@ final class UIStyleGateTests: XCTestCase {
     func testConnectActionsAreGreyNotRed() throws {
         let root = try XCTUnwrap(Self.sourcesRoot?.deletingLastPathComponent())
         let cases: [(String, String)] = [
-            ("Sources/Features/Settings/ComposioIntegrationsScreen.swift", "\"Подключить аккаунт\""),
             ("Sources/Features/Settings/GmailIntegrationCard.swift", "\"Добавить и авторизовать\""),
         ]
         for (relative, title) in cases {
@@ -140,17 +139,39 @@ final class UIStyleGateTests: XCTestCase {
                 "\(relative): кнопка \(title) без variant: → .primary (красная заливка). Нужен .secondary"
             )
         }
+        // Экран подключений Composio: подключение стало тумблером в списке
+        // сервисов (29.10.2026, `855a0844`), отдельной кнопки «Подключить
+        // аккаунт» больше нет. Остальные кнопки этого экрана обязаны иметь
+        // явный `variant:` — иначе одна из них молча станет красной.
+        let composio = try source(of: root.appendingPathComponent("Sources/Features/Settings/ComposioIntegrationsScreen.swift"))
+        var index = composio.startIndex
+        while let found = composio.range(of: "TFButton(", range: index..<composio.endIndex) {
+            let end = composio.index(found.upperBound, offsetBy: 260, limitedBy: composio.endIndex) ?? composio.endIndex
+            let call = String(composio[found.lowerBound..<end])
+            index = found.upperBound
+            guard !call.contains("variant") else { continue }
+            // Подтверждение сохранения — единственное исключение: красная
+            // заливка подтверждения согласована.
+            XCTAssertTrue(
+                call.contains("Сохранить") || call.contains("Сохраняем"),
+                "кнопка экрана подключений Composio без variant: — станет красной: \(call.prefix(80))"
+            )
+        }
     }
 
-    /// Подтверждение («Сохранить») в приложении красное — это норма и
-    /// единообразие, а не отклонение. Проверка нужна, чтобы следующая правка
-    /// не «починила» и его.
-    func testSaveConfirmationStaysPrimary() throws {
+    /// Подтверждение сохранения в профиле.
+    ///
+    /// С 22.10.2026 (перенос сохранённой работы по прямому поручению
+    /// владельца, `docs/2026-10-22-preserved-work-integration.md`: «серые
+    /// кнопки сохранения (JEV, профиль, шаблоны)») кнопка «Сохранить» в
+    /// профиле — серая, как в JEV и шаблонах. До 22.10.2026 профиль был
+    /// шторкой, и кнопка сохранения была первичной (красной).
+    func testSaveConfirmationUsesAgreedVariant() throws {
         let root = try XCTUnwrap(Self.sourcesRoot?.deletingLastPathComponent())
-        let text = try source(of: root.appendingPathComponent("Sources/Features/Settings/EditProfileSheet.swift"))
+        let text = try source(of: root.appendingPathComponent("Sources/Features/Settings/EditProfileScreen.swift"))
         XCTAssertTrue(
-            text.contains("\"Сохранить\", variant: .primary"),
-            "подтверждение сохранения должно остаться .primary — это согласованный образец"
+            text.contains("\"Сохранить\", variant: .secondary"),
+            "подтверждение сохранения в профиле — серая кнопка приложения (.secondary)"
         )
     }
 
@@ -188,7 +209,7 @@ final class UIStyleGateTests: XCTestCase {
     /// Текст ошибки шёл обычным `Text`, действие — системной `Button`.
     func testMachinesLoadFailureUsesSharedErrorAndButton() throws {
         let root = try XCTUnwrap(Self.sourcesRoot?.deletingLastPathComponent())
-        let text = try source(of: root.appendingPathComponent("Sources/Features/Settings/RemoteMachinesSection.swift"))
+        let text = try source(of: root.appendingPathComponent("Sources/Features/Settings/RemoteMachinesScreen.swift"))
 
         XCTAssertTrue(text.contains("TFErrorBanner"),
                       "ошибка загрузки машин должна идти через общий TFErrorBanner, а не голым Text")

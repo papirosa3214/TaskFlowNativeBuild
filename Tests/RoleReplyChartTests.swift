@@ -43,8 +43,8 @@ final class RoleReplyChartTests: XCTestCase {
     /// `ChatStructuredOutputView` рисовал график сам teal, а `ChatWidgetView`
     /// — своим `ChartWidget` красным, и тот же ответ выглядел по-разному.
     func testBothPathsDrawChartByOneComponent() throws {
-        for path in ["Sources/Features/Chat/ChatStructuredOutputView.swift",
-                     "Sources/Features/Chat/ChatWidgetView.swift"] {
+        for path in ["Sources/ChatComponents/Output/ChatStructuredOutputView.swift",
+                     "Sources/ChatComponents/Output/ChatWidgetView.swift"] {
             let text = try source(path)
             XCTAssertTrue(text.contains("RoleChartBlock("),
                           "\(path): график ответа роли должен рисоваться общим RoleChartBlock")
@@ -53,7 +53,7 @@ final class RoleReplyChartTests: XCTestCase {
 
     /// Ни в одном файле показа ответа роли не осталось своей разметки графика.
     func testNoChartMarksOutsideSharedComponent() throws {
-        let shared = "Sources/Features/Chat/RoleChartBlock.swift"
+        let shared = "Sources/Features/Roles/RoleChartBlock.swift"
         let offenders = try swiftSources()
             .filter { $0 != shared }
             .filter { path in
@@ -67,10 +67,10 @@ final class RoleReplyChartTests: XCTestCase {
 
     /// Цвет графика один: teal из общего компонента, а не красный виджета.
     func testChartColorIsShared() throws {
-        let widget = try source("Sources/Features/Chat/ChatWidgetView.swift")
+        let widget = try source("Sources/ChatComponents/Output/ChatWidgetView.swift")
         XCTAssertFalse(widget.contains("tfRed.gradient"),
                        "Блок графика виджета снова красится своим цветом")
-        let bars = try source("Sources/Features/Chat/Widgets/WidgetLayoutVariants.swift")
+        let bars = try source("Sources/ChatComponents/Widgets/WidgetLayoutVariants.swift")
         XCTAssertTrue(bars.contains("RoleChartBlock.ink"),
                       "Полосы блока графика должны тем же цветом, что и график")
     }

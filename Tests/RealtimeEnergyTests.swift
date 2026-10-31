@@ -17,8 +17,16 @@ final class RealtimeEnergyTests: XCTestCase {
         XCTAssertEqual(client.revision(for: "card"), 1)
         XCTAssertEqual(client.revision(for: "other"), 0)
         client.record(.connected)
-        XCTAssertEqual(client.revision(for: "card"), 2)
-        XCTAssertEqual(client.revision(for: "other"), 1)
+        // С 27.10.2026 переподключение сокета само по себе карточку не будит
+        // (3d1d1c33): после дельты /api/tasks/changes будится только названная
+        // в ней карточка, а без дельты — все.
+        XCTAssertEqual(client.revision(for: "card"), 1)
+        XCTAssertEqual(client.revision(for: "other"), 0)
+        client.recordCatchUp(changedTaskIDs: ["card"])
+        XCTAssertEqual(client.revision(for: "card"), 2, "дельта будит названную карточку")
+        XCTAssertEqual(client.revision(for: "other"), 0, "остальные карточки не будит")
+        client.recordCatchUp(changedTaskIDs: nil)
+        XCTAssertEqual(client.revision(for: "other"), 1, "без дельты просыпаются все карточки")
     }
 
     func testActivitySignalDoesNotReloadTheWholePlan() {

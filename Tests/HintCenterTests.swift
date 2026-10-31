@@ -175,7 +175,10 @@ final class HintCenterTests: XCTestCase {
         center.isEnabled = true
         center.report(anchor: "chat.own-message.copy", frame: frame)
         XCTAssertEqual(center.active?.step, "copy")
-        XCTAssertTrue(center.currentStep?.text.contains("буфер обмена") == true)
+        // С 26.10.2026 отдельной иконки копирования под своим сообщением
+        // нет: действия открываются долгим нажатием (docs/2026-10-26-chat-withdrawal.md).
+        XCTAssertEqual(center.currentStep?.title, "Долгое нажатие на сообщение")
+        XCTAssertTrue(center.currentStep?.text.contains("скопировать текст") == true)
         center.next()
         XCTAssertTrue(center.completed.contains("chat-own-message-copy"))
     }
@@ -349,7 +352,10 @@ final class HintCenterTests: XCTestCase {
         XCTAssertEqual(center.active?.step, "project")
         center.next()
         XCTAssertEqual(center.active?.step, "codex-choice")
-        XCTAssertTrue(center.currentStep?.text.contains("Codex здесь не обязателен") == true)
+        // Текст подсказки говорит «Codex не обязателен» (без «здесь»):
+        // так он записан в сценарии с 20.10.2026.
+        XCTAssertTrue(center.currentStep?.text.contains("Codex не обязателен") == true)
+        XCTAssertTrue(center.currentStep?.text.contains("совместимым внешним приёмником") == true)
         XCTAssertTrue(center.currentStep?.text.contains("вручную очисти поле ID") == true)
         XCTAssertTrue(center.currentStep?.text.contains("Выбор шага сам поле не меняет") == true)
         let noCodex = try! XCTUnwrap(center.currentStep?.branches.first { $0.title == "Только HTTP-приёмник" })
