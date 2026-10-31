@@ -995,7 +995,10 @@ extension RoleChat {
         }
     }
     var isAssistantOnly: Bool { ChatComposerPolicy.isAssistantOnly(composerRoleKeys) }
-    var composerExecutionMode: ChatExecutionMode { isAssistantOnly ? .chat : executionMode }
+    /// Способ выполнения для отправки. До 31.10.2026 у Помощника здесь был
+    /// жёсткий `.chat`; владелец это отменил: Помощник тоже умеет вести
+    /// карточку, а режим по умолчанию в его комнате остаётся «в чате».
+    var composerExecutionMode: ChatExecutionMode { executionMode }
 }
 
 

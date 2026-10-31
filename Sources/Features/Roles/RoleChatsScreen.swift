@@ -1309,6 +1309,12 @@ struct RoleChatRoomScreen: View {
             },
             onAttachmentSource: handleAttachmentSource,
             workMode: $workMode,
+            // Способ выполнения — в окне сессии (владелец 31.10.2026),
+            // у всех ролей, включая Помощника.
+            executionMode: Binding(get: { chat.executionMode }, set: { mode in
+                Task { await changeExecutionMode(mode) }
+            }),
+            canChangeExecutionMode: !isSavingExecutionMode && !isSending && !isUploadingAttachment,
             chatRoles: sessionRoles)
     }
 
@@ -1491,7 +1497,7 @@ struct RoleChatRoomScreen: View {
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in },
                     workMode: $workMode,
-                    executionMode: chat.isAssistantOnly ? nil : Binding(get: { chat.executionMode }, set: { mode in
+                    executionMode: Binding(get: { chat.executionMode }, set: { mode in
                         Task { await changeExecutionMode(mode) }
                     }),
                     canChangeExecutionMode: !isSavingExecutionMode && !isSending && !isUploadingAttachment,
@@ -3399,7 +3405,10 @@ struct RoleChatRoomScreen: View {
     /// Отправка без ожидания сети: пузырь встаёт в ленту сразу, поле ввода
     /// очищается тем же нажатием, сеть догоняет в фоне.
     private func changeExecutionMode(_ mode: ChatExecutionMode) async {
-        guard !chat.isAssistantOnly, !isSavingExecutionMode, mode != chat.executionMode else { return }
+        // Раньше здесь стоял `!chat.isAssistantOnly`: у Помощника переключатель
+        // не работал вовсе. Владелец 31.10.2026: «не нужно отбирать у него
+        // возможность создавать карточки» — теперь режим доступен всем.
+        guard !isSavingExecutionMode, mode != chat.executionMode else { return }
         isSavingExecutionMode = true
         defer { isSavingExecutionMode = false }
         do {
