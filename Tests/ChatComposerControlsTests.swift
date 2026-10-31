@@ -12,7 +12,10 @@ final class ChatComposerControlsTests: XCTestCase {
     }
     func testLegacyModelDoesNotInventProvider() throws {
         let option = try JSONDecoder().decode(RoleModelOption.self, from: Data(#"{"id":"shared","title":"Shared"}"#.utf8))
-        XCTAssertEqual(option.providerTitle, "Провайдер не указан")
+        // Без провайдера модель попадает в общую группу «Другие» — название
+        // провайдера не выдумывается и не берётся из id.
+        XCTAssertEqual(option.providerTitle, "Другие")
+        XCTAssertNotEqual(option.providerTitle, option.id)
     }
     func testLegacyBareSelectionMigratesOnlyWhenUnambiguous() throws {
         let options = try JSONDecoder().decode([RoleModelOption].self, from: Data(#"[{"id":"a/shared","title":"Shared","provider":"a","modelID":"shared"},{"id":"b/shared","title":"Shared","provider":"b","modelID":"shared"}]"#.utf8))
@@ -26,12 +29,16 @@ final class ChatComposerControlsTests: XCTestCase {
         XCTAssertFalse(context.shouldConsiderReset)
         XCTAssertTrue(context.summary.contains("сжатия"))
     }
-    func testMeasuredContextHasRawCountsAndUnclampedOverflowWarning() throws {
+    func testMeasuredContextKeepsRawCountsAndShowsUnclampedOverflow() throws {
         let context = try decodeContext(#"{"roleID":"s","sessionID":"x","model":"m","provider":"p","tokens":1250,"contextWindow":1000,"measuredAt":"2026-10-26T00:00:00Z","status":"measured","isEstimate":false}"#)
         XCTAssertEqual(context.fraction, 1.25)
         XCTAssertTrue(context.shouldConsiderReset)
-        XCTAssertTrue(context.summary.contains("1250"))
-        XCTAssertTrue(context.summary.contains("1000"))
+        // Сырые числа остаются в снимке, а подпись показывает их компактно
+        // («1,3 тыс из 1 тыс») — переполнение видно по проценту, не обрезано.
+        XCTAssertEqual(context.tokens, 1250)
+        XCTAssertEqual(context.contextWindow, 1000)
+        XCTAssertTrue(context.summary.contains("тыс"))
+        XCTAssertTrue(context.summary.contains("125%"))
     }
     func testNoSessionNeverShowsOldMeasurement() throws {
         let context = try decodeContext(#"{"roleID":"s","sessionID":null,"model":null,"provider":null,"tokens":900,"contextWindow":1000,"measuredAt":null,"status":"no_session","isEstimate":false}"#)

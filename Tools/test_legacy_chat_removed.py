@@ -55,13 +55,13 @@ for dead in DEAD_TYPES:
     check(re.search(re.escape(dead) + r'\b', sources) is None,
           'мёртвый тип в Sources: ' + dead)
 
-screen = (ROOT / 'Sources/Features/Chat/RoleChatsScreen.swift').read_text()
+screen = (ROOT / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
 check('.scrollPosition($chatScrollPosition)' in screen,
       'живой чат потерял привязку позиции ленты')
 check('.defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)' in screen,
       'живой чат потерял удержание низа')
 
-marks = (ROOT / 'Sources/Features/Chat/ChatFeedMarks.swift').read_text()
+marks = (ROOT / 'Sources/ChatComponents/Feed/ChatFeedMarks.swift').read_text()
 check('ChatDayLabel' in marks and 'ChatFeedDivider' in marks,
       'ChatFeedMarks.swift удалён, а он живой (даты и разделители в ленте)')
 
@@ -78,7 +78,7 @@ check('ChatBubble.swift' not in render, 'тест рендера ссылает�
 
 # Пережившие удаление части ленты: точки «печатает…» и вложения нужны живому
 # чату и карточке задачи. Раньше они лежали в удалённых файлах.
-parts = ROOT / 'Sources/Features/Chat/ChatFeedParts.swift'
+parts = ROOT / 'Sources/ChatComponents/Feed/ChatFeedParts.swift'
 check(parts.exists(), 'части ленты (точки «печатает», вложения) потеряны')
 if parts.exists():
     text = parts.read_text()

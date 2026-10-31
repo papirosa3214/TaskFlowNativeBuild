@@ -23,7 +23,7 @@ enum RoutineFormat {
     var failRoles = false
     var releaseRoles: CheckedContinuation<Void, Never>?
     let sample = try! JSONDecoder().decode(ApiSchedule.self, from: Data(#"{"id":"one","title":"Routine","task_payload":{"title":"Task","assignee_id":"builder"},"rule_kind":"daily","time_local":"09:00","timezone":"Europe/Moscow","status":"active","catch_up":false,"overlap_policy":"skip","created_at":"","updated_at":""}"#.utf8))
-    func roles() async throws -> [RoleProfile] {
+    func rolesList(all: Bool = false) async throws -> [RoleProfile] {
         roleRequests += 1
         await withCheckedContinuation { releaseRoles = $0 }
         if failRoles { throw APIError() }

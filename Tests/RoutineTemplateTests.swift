@@ -14,7 +14,7 @@ enum Method { case patch }
 final class APIClient {
     var body: Data?; var path: String?; var creates = 0
     var response: ApiScheduleResponse!
-    func roles() async throws -> [RoleProfile] { [] }
+    func rolesList(all: Bool = false) async throws -> [RoleProfile] { [] }
     func schedulePreview(ruleKind: String, ruleExpr: String?, timeLocal: String, timezone: String) async throws -> ApiSchedulePreview {
         .init(nextRunAt: nil, timezone: timezone, ruleLabel: nil)
     }

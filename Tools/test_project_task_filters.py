@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """Run production filter policy and hint flow on macOS; no simulator.
 ApiTask fixture models only policy inputs, not the full REST decoder.
-Before extraction the runner reads the original enum from ProjectTasksScreen.
+The policy enum lives in its own file; --legacy reads the original enum from
+ProjectTasksScreen at the historical commit.
 """
 from pathlib import Path
 import subprocess, tempfile, sys
 root = Path(__file__).resolve().parents[1]
-policy = root/'Sources/Features/Directory/ProjectTaskFilter.swift'
+policy = root/'Sources/Features/Projects/ProjectTaskFilter.swift'
 if "--legacy" in sys.argv:
-    text = subprocess.check_output(["git", "show", "6a1a5e19cef081f834d16b68874fbf47cd4d73a9:Sources/Features/Directory/ProjectTasksScreen.swift"], cwd=root, text=True)
+    # Исторический снимок: путь файла в том коммите ищем в дереве, а не хардкодим —
+    # после переезда папок прежний путь в рабочем дереве уже не существует.
+    legacy_commit = "6a1a5e19cef081f834d16b68874fbf47cd4d73a9"
+    tree = subprocess.check_output(["git", "ls-tree", "-r", "--name-only", legacy_commit], cwd=root, text=True)
+    legacy_path = next(p for p in tree.splitlines() if p.endswith("/ProjectTasksScreen.swift"))
+    text = subprocess.check_output(["git", "show", f"{legacy_commit}:{legacy_path}"], cwd=root, text=True)
     source = text[text.index("enum ProjectTaskFilter:"):text.index("\nstruct ProjectTasksScreen:")]
 elif policy.exists():
     source = policy.read_text()
 else:
-    text = (root/'Sources/Features/Directory/ProjectTasksScreen.swift').read_text()
-    source = text[text.index('enum ProjectTaskFilter:'):text.index('\nstruct ProjectTasksScreen:')]
+    raise SystemExit(f"нет файла политики фильтров: {policy}")
 fixture = '''
 import Foundation
 import XCTest

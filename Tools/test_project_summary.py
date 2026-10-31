@@ -53,8 +53,8 @@ source += '''
     }
 }
 '''
-source += (ROOT / 'Sources/Features/Directory/ProjectTaskFilter.swift').read_text()
-source += block((ROOT / 'Sources/Features/Directory/Support/ProjectCard.swift').read_text(),
+source += (ROOT / 'Sources/Features/Projects/ProjectTaskFilter.swift').read_text()
+source += block((ROOT / 'Sources/Features/Projects/ProjectCard.swift').read_text(),
                 'struct ProjectTaskStatusSummary {')
 source += '\n' + (ROOT / 'Tests/ProjectSummaryTests.swift').read_text().replace('@testable import TaskFlow', '')
 source += '\nlet suite = ProjectSummaryTests.defaultTestSuite\nsuite.run()\nexit(suite.testRun!.hasSucceeded ? 0 : 1)\n'
