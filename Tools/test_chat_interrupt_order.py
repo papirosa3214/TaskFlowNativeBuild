@@ -107,7 +107,7 @@ with tempfile.TemporaryDirectory(prefix='chat-interrupt-order-') as folder:
 # передачи записаны в коде, а не потеряны. Логика порядка ленты проверена выше
 # настоящим прогоном модели.
 
-SCREEN = (ROOT / 'Sources/Features/Chat/RoleChatsScreen.swift').read_text()
+SCREEN = (ROOT / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
 
 
 def block(text: str, marker: str) -> str:

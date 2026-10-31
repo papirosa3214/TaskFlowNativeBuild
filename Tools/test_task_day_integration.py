@@ -23,14 +23,14 @@ def declaration(text, marker):
     return text[start:end]
 
 
-vm = (ROOT / 'Sources/Features/Task/TaskFormViewModel.swift').read_text()
+vm = (ROOT / 'Sources/Features/Tasks/TaskFormViewModel.swift').read_text()
 methods = [declaration(vm, 'nonisolated static func dueDateString(')]
 integrated = 'nonisolated static func dueDateFromPicker(' in vm
 if integrated:
     methods += [declaration(vm, 'nonisolated static func ' + name + '(')
                 for name in ['dueDateFromPicker', 'pickerDateForDisplay']]
 else:
-    quick = (ROOT / 'Sources/Features/Task/QuickAddTaskView.swift').read_text()
+    quick = (ROOT / 'Sources/Features/Tasks/QuickAddTaskView.swift').read_text()
     assert 'Binding(get: { viewModel.dueDate ?? Date() }, set: { viewModel.dueDate = $0 })' in quick
     methods += ['static func dueDateFromPicker(_ value: Date, deviceTimeZone: TimeZone) -> Date { value }',
                 'static func pickerDateForDisplay(_ value: Date, deviceTimeZone: TimeZone) -> Date { value }']
@@ -88,7 +88,7 @@ print("Task day integration: \\(checks - failures)/\\(checks) passed")
 exit(failures == 0 ? 0 : 1)
 '''
 sources = ['Sources/Core/Common/CalendarDateMath.swift', 'Sources/Core/Common/DateFormats.swift',
-           'Sources/Features/Task/Support/TaskDateText.swift']
+           'Sources/Features/Tasks/Support/TaskDateText.swift']
 if integrated:
     sources.append('Sources/Core/Common/TaskDay.swift')
 with tempfile.TemporaryDirectory(prefix='task-day-integration-') as folder:

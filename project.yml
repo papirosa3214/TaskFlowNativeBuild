@@ -84,7 +84,7 @@ targets:
       # Анимированные аватарки агентов (просьба владельца 03.09.2026:
       # «раньше были анимированными, стали статичными») — голый `AsyncImage`
       # не умеет GIF/WebP, показывает только первый кадр. См.
-      # `AgentAvatarView` в `Sources/Features/Chat/AgentRow.swift`.
+      # `RoleAvatarView` в `Sources/DesignSystem/Components/RoleAvatarView.swift`.
       - package: SDWebImageSwiftUI
       - package: SDWebImageWebPCoder
       - package: LiveKit

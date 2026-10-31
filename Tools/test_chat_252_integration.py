@@ -28,20 +28,23 @@ def block(text, marker):
     return text[start:end]
 
 
-screen = read('Sources/Features/Chat/RoleChatsScreen.swift')
+screen = read('Sources/Features/Roles/RoleChatsScreen.swift')
 model = read('Sources/Core/Models/RoleChat.swift')
 source = 'import Foundation\nimport XCTest\n'
 for name in ['Sources/Core/Common/JSONValue.swift', 'Sources/Core/Models/ChatMessageInterruption.swift',
-             'Sources/Core/Models/ChatMessageDeliveryState.swift']:
+             'Sources/Core/Models/ChatMessageDeliveryState.swift', 'Sources/Core/Models/ChatExecutionMode.swift',
+             'Sources/Core/Models/ChatComposerControls.swift']:
     source += read(name) + '\n'
 # Fields outside the scope of these decoder tests are absent from the JSON.
 source += '''
-public struct ApiChatAttachment: Decodable, Sendable {}
+public struct ApiChatAttachment: Decodable, Sendable, Equatable {}
 public struct RoleChatSteps: Decodable, Sendable {}
 public struct RoleChatReaction: Decodable, Sendable {}
 public struct ChecklistItemState: Decodable, Sendable {}
 public struct RoleChatHandoff: Decodable, Sendable {}
 public struct RoleChatCoordination: Decodable, Sendable { var isAnswered: Bool { false } }
+public struct ChatServerBlock: Decodable, Sendable {}
+public struct ChatQuestion: Decodable, Sendable {}
 '''
 source += block(model, 'public struct RoleChatMessage:') + '\n'
 source += block(model, 'enum RoleChatRowID {') + '\n'
@@ -62,9 +65,11 @@ struct Feed {
     var visibleLiveTurns: [RoleChatLiveTurn] = []
     var messages: [RoleChatMessage] { visibleMessages }
     var rowIDByMessageID: [String: String] = [:]
+    var pendingOutgoing: [PendingOutgoing] = []
 '''
 for marker in ['private struct FeedItem:', 'private var feedItems:',
-               'private func feedItemID(for message:', 'private func feedItemID(for turn:']:
+               'private func feedItemID(for message:', 'private func feedItemID(for turn:',
+               'private struct PendingOutgoing:', 'private func feedAnchor(for message:']:
     source += block(screen, marker).replace('private ', '') + '\n'
 source += '''
 }
@@ -103,7 +108,7 @@ struct RoleProfile { let canJoinChat: Bool }
 enum LoadError: Error { case failed }
 struct RoleAPI {
     var fails = false
-    func roles() async throws -> [RoleProfile] {
+    func rolesList(all: Bool = false) async throws -> [RoleProfile] {
         if fails { throw LoadError.failed }
         return []
     }

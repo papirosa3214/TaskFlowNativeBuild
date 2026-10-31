@@ -53,35 +53,65 @@ src_root = repo / "Sources"
 # Правила 2–4 (красные кнопки, синие «Повторить», чёрный фон) проверяются
 # по ВСЕМУ коду без исключений: шторка не извиняет синюю кнопку внутри.
 SHEET_OK = {
-    "Features/Chat/RoleInstructionEditor.swift": "редактор инструкции: List внутри шторки, фон задаёт материал",
-    "Features/Chat/RoleEditorSheet.swift": "редактор роли: List внутри шторки, фон задаёт материал",
-    "Features/Chat/RoleChatsScreen.swift": "создание чата/редактирование — Form внутри шторки, фон задаёт материал",
-    "Features/Chat/TeamAppearanceSheet.swift": "шторка внешнего вида команды, фон задаёт материал",
-    "Features/Notes/FolderPickerSheet.swift": "шторка выбора папки, фон задаёт материал",
+    "Features/Roles/RoleInstructionEditor.swift": "редактор инструкции: List внутри шторки, фон задаёт материал",
+    "Features/Roles/RoleEditorSheet.swift": "редактор роли: List внутри шторки, фон задаёт материал",
+    "Features/Roles/RoleChatsScreen.swift": "создание чата/редактирование — Form внутри шторки, фон задаёт материал",
+    "Features/Roles/TeamAppearanceSheet.swift": "шторка внешнего вида команды, фон задаёт материал",
+    "Features/Knowledge/FolderPickerSheet.swift": "шторка выбора папки, фон задаёт материал",
     "Features/Settings/EscalationStepEditor.swift": "окно правки шага напоминания, фон задаёт материал",
-    "Features/Task/Detail/PlanStepSheets.swift": "шторки шага плана, фон задаёт материал",
-    "Features/Task/TaskFormScreen.swift": "шторка выбора связанной задачи, фон задаёт материал",
-    "Features/Chat/MemoryScreen.swift": "гасит системный фон вручную; переход на общий модификатор — отдельная задача",
+    "Features/Tasks/Detail/PlanStepSheets.swift": "шторки шага плана, фон задаёт материал",
+    "Features/Tasks/TaskFormScreen.swift": "шторка выбора связанной задачи, фон задаёт материал",
+    "Features/Roles/MemoryScreen.swift": "гасит системный фон вручную; переход на общий модификатор — отдельная задача",
     "App/Navigation/RootShellView.swift": "отладочные превью-роуты, фон задаёт контейнер превью",
-    "Features/Notes/NoteExtractedTasksSheet.swift": "шторка извлечённых задач, фон задаёт материал",
+    "Features/Knowledge/NoteExtractedTasksSheet.swift": "шторка извлечённых задач, фон задаёт материал",
     "DesignSystem/Components/AvatarCropEditor.swift": "подложка вырезки аватара: намеренно чёрная под маской",
     "DesignSystem/Components/TFRolePortrait.swift": "слой видеоплеера под маской портрета",
     "DesignSystem/Theme/Color+Palette.swift": "определение токена границы, не заливка экрана",
-    "Features/Chat/RoleLiveTurnView.swift": "маска затухания окна размышлений",
+    "Features/Roles/RoleLiveTurnView.swift": "маска затухания окна размышлений",
 }
 
 # Найденные настоящие отклонения вне текущей строки реестра: путь → причина.
 # Заведённые отклонения вне текущей строки реестра. После правки 16.10.2026
-# (LOCK-UI-DRIFT-KNOWN) список пуст: все девять находок закрыты. Новая
-# находка обязана попасть сюда с причиной или быть исправлена.
-KNOWN = {}
+# (LOCK-UI-DRIFT-KNOWN) список был пуст: все девять находок закрыты.
+#
+# С 31.10.2026 список снова не пуст: Milestone 1 «Зелёный старт» не переделывает
+# экраны (владелец запретил менять вид экранов, которые нравятся), а семейства
+# «фон экрана» и «кнопка» сводятся в Milestone 3 и Milestone 4. Поэтому все
+# настоящие находки, которые нельзя закрыть механически, зафиксированы здесь —
+# с причиной, называющей milestone, который их закроет. Находка не прячется:
+# скан печатает её ВСЕГДА, владелец видит открытый список перед решением.
+#
+# Ключ — путь относительно Sources/; одна запись покрывает все находки в файле.
+# Закрытие: Milestone 3 — фича `m3-card-and-screen-background` (правило 1),
+# Milestone 4 — фича `m4-buttons-and-icon-buttons` (правило 3).
+KNOWN = {
+    # --- правило 1: корневой список/форма без общего фона → Milestone 3 -----
+    "Chat/Composer/ChatComposerControlsView.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Chat/Composer/ChatModelPickerSheet.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Chat/Composer/ChatWorkspaceChoice.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Chat/Panels/ChatSessionPanel.swift": "правила 1 и 3: корневой список без .tfScreenBackground() (Milestone 3, m3-card-and-screen-background) и системный Button(«Повторить») вместо TFButton (Milestone 4, m4-buttons-and-icon-buttons)",
+    "Features/Activity/ActivityScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Features/Coordination/CoordinationScreen.swift": "правила 1 и 3: корневой список без .tfScreenBackground() (Milestone 3, m3-card-and-screen-background) и системный Button(«Повторить») вместо TFButton (Milestone 4, m4-buttons-and-icon-buttons)",
+    "Features/Projects/ProjectTasksScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Features/Roles/RoleChatQuickActionEditor.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Features/Routines/RoutineRunsScreen.swift": "правила 1 и 3: корневой список без .tfScreenBackground() (Milestone 3, m3-card-and-screen-background) и системный Button(«Повторить») вместо TFButton (Milestone 4, m4-buttons-and-icon-buttons)",
+    "Features/Settings/SecretsScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Features/Tasks/Detail/TaskCodeChangesViews.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Features/Tasks/TaskArchiveScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Features/Tasks/TaskCardContent.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    "Features/Planner/PlannerListView.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
+    # --- правило 3: системный Button(«Повторить») → Milestone 4 ------------
+    "Features/Inbox/AttentionScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
+    "Features/Roles/RoleRuntimeContextSheet.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
+    "Features/Routines/RoutinesScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
+}
 
 # Экран покрыт `.tint(Color.tfText)` — системные кнопки в нём серые, а не
 # синие. Проверено чтением кода 16.10.2026: `RoleChatRoomScreen` несёт
 # `.tint(Color.tfText)` в теле экрана, и обе кнопки «Повторить» в ленте
 # лежат внутри этого тела. Находки правила 3 здесь ложные.
 TINTED_SCREENS = {
-    "Features/Chat/RoleChatsScreen.swift": "экран под .tint(Color.tfText): системные кнопки в нём серые",
+    "Features/Roles/RoleChatsScreen.swift": "экран под .tint(Color.tfText): системные кнопки в нём серые",
 }
 
 # Правило 2: подписи, где .primary — норма (подтверждение, сохранение).
@@ -95,7 +125,8 @@ BLACK_OK = {
     "DesignSystem/Components/AvatarCropEditor.swift": "подложка вырезки аватара: намеренно чёрная под маской",
     "DesignSystem/Components/TFRolePortrait.swift": "слой видеоплеера под маской портрета",
     "DesignSystem/Theme/Color+Palette.swift": "определение токена границы, не заливка экрана",
-    "Features/Chat/RoleLiveTurnView.swift": "маска затухания окна размышлений",
+    "Features/Roles/RoleLiveTurnView.swift": "маска затухания окна размышлений",
+    "DesignSystem/Navigation/TFTabBar.swift": "цвет ПОДПИСИ выбранной вкладки (.foregroundStyle), а не заливка экрана",
 }
 
 NESTED_MARKERS = (".sheet(", ".sheet {", ".sheet(isPresented", ".fullScreenCover",
@@ -259,6 +290,8 @@ for status, rule, where, line, text, note in known:
     print(f"    почему не починено сейчас: {note}")
 print()
 print(f"Найдено и зафиксировано (KNOWN): {len(known)} — ждут решения владельца, вне текущей строки реестра.")
+if known:
+    print("Каждая запись KNOWN названа со своим milestone: он её и закрывает (Milestone 3 — правило 1, Milestone 4 — правило 3).")
 print(f"Новых отклонений (NEW): {len(new)}")
 if new:
     print()

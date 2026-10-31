@@ -149,7 +149,7 @@ struct RootShellView: View {
             #if DEBUG || TASKFLOW_DEV_ROUTES
             // Отдельный узел (не тот, что несёт `.sheet(item: $quickAddDraft)`
             // ниже) — два `.sheet` на одном модификаторе в SwiftUI ненадёжны.
-            // Копия шторки задачи из `TodaySectionView.swift` (detents/индикатор/
+            // Копия шторки задачи из `PlannerSection.swift` (detents/индикатор/
             // радиус/фон) — единственный debug-роут, который реально
             // воспроизводит нативную шторку, а не пуш.
             .sheet(isPresented: Binding(

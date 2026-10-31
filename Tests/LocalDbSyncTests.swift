@@ -6,6 +6,11 @@ import XCTest
 ///
 /// Проверяется ровно то, что ломается тихо: забытый upsert, потерянный
 /// курсор, молчаливое удаление истории.
+///
+/// Фикстуры — по реальному контракту моделей: `RoleChat` требует
+/// `created_by`, `ApiTask` — `title` и `status`. База хранит сырой JSON
+/// сервера и читает его настоящей моделью, поэтому запись без обязательного
+/// поля отбрасывается при чтении.
 final class LocalDbSyncTests: XCTestCase {
     private let store = LocalStore.shared
 
@@ -24,7 +29,7 @@ final class LocalDbSyncTests: XCTestCase {
     // MARK: - Чаты
 
     func testChatsSurviveRoundTripThroughTheDatabase() throws {
-        let payload = Data(#"{"chats":[{"id":"c1","title":"Комната","kind":"group","members":[],"unread_count":2,"room_kind":"dm","updated_at":"2026-10-31 10:00:00"}]}"#.utf8)
+        let payload = Data(#"{"chats":[{"id":"c1","title":"Комната","kind":"group","created_by":"u","members":[],"unread_count":2,"room_kind":"dm","updated_at":"2026-10-31 10:00:00"}]}"#.utf8)
         try store.upsertChats(payload)
 
         let chats = try store.chats()
@@ -36,8 +41,8 @@ final class LocalDbSyncTests: XCTestCase {
     }
 
     func testChatUpsertReplacesTheSameIdWithoutDeletingOthers() throws {
-        try store.upsertChats(Data(#"{"chats":[{"id":"c1","title":"Старое","kind":"group","members":[]},{"id":"c2","title":"Второе","kind":"group","members":[]}]}"#.utf8))
-        try store.upsertChats(Data(#"{"chats":[{"id":"c1","title":"Новое","kind":"group","members":[]}]}"#.utf8))
+        try store.upsertChats(Data(#"{"chats":[{"id":"c1","title":"Старое","kind":"group","created_by":"u","members":[]},{"id":"c2","title":"Второе","kind":"group","created_by":"u","members":[]}]}"#.utf8))
+        try store.upsertChats(Data(#"{"chats":[{"id":"c1","title":"Новое","kind":"group","created_by":"u","members":[]}]}"#.utf8))
 
         let chats = try store.chats()
         XCTAssertEqual(chats.count, 2, "второй чат не должен исчезнуть при обновлении первого")
@@ -45,7 +50,7 @@ final class LocalDbSyncTests: XCTestCase {
     }
 
     func testClosedChatIsHiddenUnlessExplicitlyAsked() throws {
-        try store.upsertChats(Data(#"{"chats":[{"id":"open","title":"Открытая","kind":"group","members":[]},{"id":"closed","title":"Закрытая","kind":"group","members":[],"closed_at":"2026-10-31 11:00:00"}]}"#.utf8))
+        try store.upsertChats(Data(#"{"chats":[{"id":"open","title":"Открытая","kind":"group","created_by":"u","members":[]},{"id":"closed","title":"Закрытая","kind":"group","created_by":"u","members":[],"closed_at":"2026-10-31 11:00:00"}]}"#.utf8))
 
         XCTAssertEqual(try store.chats().map(\.id).sorted(), ["open"])
         XCTAssertEqual(try store.chats(includeClosed: true).count, 2)
@@ -77,7 +82,7 @@ final class LocalDbSyncTests: XCTestCase {
     // MARK: - Задачи и уведомления
 
     func testTasksAreReadInTheServerOrder() throws {
-        let payload = Data(#"[{"id":"t2","content":"Новее","created_at":"2026-10-31 12:00:00"},{"id":"t1","content":"Старее","created_at":"2026-10-30 12:00:00"}]"#.utf8)
+        let payload = Data(#"[{"id":"t2","title":"Новее","status":"active","created_at":"2026-10-31 12:00:00"},{"id":"t1","title":"Старее","status":"active","created_at":"2026-10-30 12:00:00"}]"#.utf8)
         try store.upsertTasks(payload)
 
         let tasks = try store.tasks()
@@ -85,7 +90,7 @@ final class LocalDbSyncTests: XCTestCase {
     }
 
     func testRemovedTaskIsDeletedOnlyWhenTheServerSaidSo() throws {
-        try store.upsertTasks(Data(#"[{"id":"t1","content":"Живая","created_at":"2026-10-31 12:00:00"},{"id":"t2","content":"Удалённая","created_at":"2026-10-31 11:00:00"}]"#.utf8))
+        try store.upsertTasks(Data(#"[{"id":"t1","title":"Живая","status":"active","created_at":"2026-10-31 12:00:00"},{"id":"t2","title":"Удалённая","status":"active","created_at":"2026-10-31 11:00:00"}]"#.utf8))
 
         try store.removeTasks(ids: ["t2"])
         XCTAssertEqual(try store.tasks().map(\.id), ["t1"])
@@ -115,7 +120,7 @@ final class LocalDbSyncTests: XCTestCase {
     }
 
     func testClearingTheDatabaseRemovesDataAndCursors() throws {
-        try store.upsertChats(Data(#"{"chats":[{"id":"c1","title":"Комната","kind":"group","members":[]}]}"#.utf8))
+        try store.upsertChats(Data(#"{"chats":[{"id":"c1","title":"Комната","kind":"group","created_by":"u","members":[]}]}"#.utf8))
         store.setSyncState(SyncStateKeys.tasksETag, "etag")
 
         try store.clearAll()

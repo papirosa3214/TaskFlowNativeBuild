@@ -16,7 +16,8 @@
 | `Sources/App/` | точка входа, корневая навигация, таббар |
 | `Sources/DesignSystem/` | `Theme` (токены), `Components`, `Navigation` |
 | `Sources/Core/` | `Models`, `Networking`, `Realtime`, `Session`, `Stores`, `Speech`, `Common`, Live Activity, удержание фона |
-| `Sources/Features/<Экран>/` | по папке на экран: `Chat`, `Directory`, `Markdown`, `Notes`, `Settings`, `Task`, `Today`, `Upcoming` |
+| `Sources/Chat/` | чат с ролями: `Composer`, `Feed`, `Output`, `Panels`, `Shared`, `Widgets` |
+| `Sources/Features/<Экран>/` | по папке на экран: `Activity`, `Coordination`, `Inbox`, `Knowledge`, `Labels`, `Markdown`, `Overview`, `Planner`, `Projects`, `Roles`, `Routines`, `Secretary`, `ServiceNotifications`, `Settings`, `Tasks` |
 | `Resources/` | Assets.xcassets, Info.plist, entitlements, шрифты |
 | `Widgets/` | виджеты и Live Activity |
 | `Tests/`, `UITests/`, `SnapshotTests/` | тесты |

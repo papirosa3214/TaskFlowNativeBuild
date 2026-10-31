@@ -70,7 +70,7 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .projectCreate:
         ProjectsScreen(opensCreateForm: true)
     case .knowledge:
-        KnowledgeScreen()
+        NotesScreen()
     case .projectTasks(let projectID):
         ProjectTasksScreen(projectID: projectID)
     case .taskArchive:

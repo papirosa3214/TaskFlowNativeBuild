@@ -21,8 +21,8 @@ def block(text, marker):
         end += 1
     return text[start:end]
 
-source = (root / 'Sources/Features/Task/Detail/PlanReworkCollapse.swift').read_text()
-geometry = root / 'Sources/Features/Task/Detail/PlanReturnGeometry.swift'
+source = (root / 'Sources/Features/Tasks/Detail/PlanReworkCollapse.swift').read_text()
+geometry = root / 'Sources/Features/Tasks/Detail/PlanReturnGeometry.swift'
 names = ['PlanReworkCollapseTests']
 if '--collapse-only' not in sys.argv and (root / 'Tests/PlanReturnGeometryTests.swift').exists():
     names.append('PlanReturnGeometryTests')
@@ -31,7 +31,7 @@ if len(names) == 1:
 elif geometry.exists():
     source += '\n' + geometry.read_text()
 else:
-    legacy = block((root / 'Sources/Features/Task/Detail/CollaborationPlanView.swift').read_text(), 'private func chainReturnLink(')
+    legacy = block((root / 'Sources/Features/Tasks/Detail/CollaborationPlanView.swift').read_text(), 'private func chainReturnLink(')
     source += '''
 struct Path {
     var points: [CGPoint] = []

@@ -17,8 +17,8 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SCREEN = (ROOT / 'Sources/Features/Chat/RoleChatsScreen.swift').read_text()
-BUBBLE = (ROOT / 'Sources/Features/Chat/RoleLiveTurnView.swift').read_text()
+SCREEN = (ROOT / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
+BUBBLE = (ROOT / 'Sources/Features/Roles/RoleLiveTurnView.swift').read_text()
 MODEL = (ROOT / 'Sources/Core/Models/RoleChat.swift').read_text()
 
 
@@ -133,10 +133,10 @@ check('mergeLiveTurn(turn, over: old)' in snapshot,
       'снимок хода подменяет показанное без слияния')
 
 segments = block(SCREEN.replace(SCREEN, SCREEN), 'private var messageScroll: some View')  # заглушка
-segment_ids = (ROOT / 'Sources/Features/Chat/RoleActionGroup.swift').read_text()
+segment_ids = (ROOT / 'Sources/Features/Roles/RoleActionGroup.swift').read_text()
 check('static func identities(' in segment_ids,
       'куски живого пузыря снова идентифицируются по номеру — пересоздание от прихода текста')
-view = (ROOT / 'Sources/Features/Chat/RoleLiveTurnView.swift').read_text()
+view = (ROOT / 'Sources/Features/Roles/RoleLiveTurnView.swift').read_text()
 check('RoleLiveSegment.identities(segments)' in view and 'id: \\.offset' not in view,
       'список кусков живого пузыря всё ещё по индексу')
 

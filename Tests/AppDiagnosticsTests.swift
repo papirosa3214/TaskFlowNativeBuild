@@ -55,7 +55,9 @@ final class AppDiagnosticsTests: XCTestCase {
         }
         XCTAssertEqual(diagnostics.snapshot().saved.events.count, 80)
         let report = diagnostics.report()
-        XCTAssertTrue(report.contains("Пробуждения: 100"))
+        // С 18.10.2026 отчёт переписан в «диагностику» (docs/2026-10-18-diagnostics-verdicts.md):
+        // у каждого счётчика свой заголовок, «всего» и прирост за отсчёт.
+        XCTAssertTrue(report.contains("Пробуждения очереди: всего 100"))
         XCTAssertFalse(report.contains("token"))
     }
 

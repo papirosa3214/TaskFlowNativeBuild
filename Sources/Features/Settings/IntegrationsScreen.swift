@@ -3,7 +3,7 @@ import EventKit
 import Observation
 
 /// Вью-модель `IntegrationsScreen` — статус Google (сервер), права/списки
-/// Apple (`EventKit`, устройство). Контракты — `GoogleIntegrationsAPI.swift`/
+/// Apple (`EventKit`, устройство). Контракты — `APIClient+GoogleIntegrations.swift`/
 /// `AppleEventKitAccess.swift`, поведение — `src/screens/IntegrationsScreen.tsx`
 /// (спека §14 не даёт нужной детали, ARCHITECTURE.md п.3 разрешает читать код).
 @MainActor
@@ -276,7 +276,7 @@ final class IntegrationsViewModel {
 
 /// `/settings/integrations` — spec/SCREENS-2.md §14. В одной точке собраны
 /// TaskFlow webhooks, Linear/Gmail, Apple Календарь/Напоминания (`EventKit`),
-/// Things и Google Задачи/Календарь (`GoogleIntegrationsAPI.swift`).
+/// Things и Google Задачи/Календарь (`APIClient+GoogleIntegrations.swift`).
 ///
 /// ⚠️ Живой сервер — только чтение (граница задачи): код ниже реализует
 /// подключение/синхронизацию/отключение по-настоящему (иначе владелец не

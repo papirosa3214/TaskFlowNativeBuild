@@ -18,4 +18,5 @@ with tempfile.TemporaryDirectory(prefix='composio-screen-cache-') as tmp:
     subprocess.run(['swiftc', '-parse-as-library', '-D', 'COMPOSIO_HOST_TEST',
                     *[str(root / path) for path in sources],
                     str(root / 'Tests/ComposioScreenCacheTests.swift'), '-o', str(binary)], check=True)
+    print('ComposioScreenCacheTests: host suite (Tests/ComposioScreenCacheTests.swift)')
     raise SystemExit(subprocess.run([str(binary)]).returncode)

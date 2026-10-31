@@ -104,7 +104,7 @@ cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && xcodebuild
   скриншотам/синтетическим свайпам. `print()` не долетает ни до `simctl
   launch --stdout`, ни до `log show` — только `NSLog`. Читать так:
   `xcrun simctl spawn <device-udid> log show --last Nm --predicate 'process == "TaskFlow"' --style compact`.
-  Пример 07.09.2026: `UpcomingHoursView.swift` — драг не давал заблокировать
+  Пример 07.09.2026: `PlannerHoursView.swift` — драг не давал заблокировать
   скролл; один `NSLog` в `handleUIGestureRecognizerAction` показал, что
   `recognizer.view` у `UIGestureRecognizerRepresentable` — это хостинг-view
   ВСЕГО экрана, а не вьюха карточки, и настоящий `UIScrollView` от SwiftUI

@@ -19,9 +19,10 @@ final class RoleChatComposerTests: XCTestCase {
     func testDeepResearchRequiresResearcherAndKeepsBackwardCompatibility() throws {
         let decoder = JSONDecoder()
         let plain = try decoder.decode(RoleChat.self, from: Data(#"{"id":"c","kind":"direct","created_by":"u","members":[{"id":"role_builder","name":"Разработчик"}]}"#.utf8))
-        XCTAssertEqual(RoleChatWorkMode.available(in: plain), [.work, .plan])
+        // Режим «Цель» есть в каждом чате с 20.10.2026 (e03d0e87).
+        XCTAssertEqual(RoleChatWorkMode.available(in: plain), [.work, .plan, .goal])
         let researcher = try decoder.decode(RoleChat.self, from: Data(#"{"id":"c","kind":"direct","created_by":"u","members":[{"id":"custom","name":"Имя","role_key":"researcher"}]}"#.utf8))
-        XCTAssertEqual(RoleChatWorkMode.available(in: researcher), [.work, .plan, .deepResearch])
+        XCTAssertEqual(RoleChatWorkMode.available(in: researcher), [.work, .plan, .goal, .deepResearch])
     }
 
     func testFinalSnapshotDoesNotSkipUnrevealedText() {

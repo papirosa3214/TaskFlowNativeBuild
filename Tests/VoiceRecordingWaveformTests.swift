@@ -2,10 +2,11 @@ import XCTest
 @testable import TaskFlow
 final class VoiceRecordingWaveformTests: XCTestCase {
     func testBarsKeepTheirLevelsWhileRecorderDropsOldOnes() {
-        // Два уровня на столбик, берётся громкий.
-        XCTAssertEqual(VoiceRecordingWaveformView.bars(levels: [0.2, 0.8, 0.5], received: 3), [0: 0.8, 1: 0.5])
+        // Три уровня на столбик, берётся громкий (20.10.2026: «3 замера по
+        // 40 мс = столбик раз в 120 мс»).
+        XCTAssertEqual(VoiceRecordingWaveformView.bars(levels: [0.2, 0.8, 0.5, 0.6], received: 4), [0: 0.8, 1: 0.6])
         // Рекордер выбросил первый уровень — столбик 1 остался из тех же соседей.
-        XCTAssertEqual(VoiceRecordingWaveformView.bars(levels: [0.8, 0.5, 0.1], received: 4), [0: 0.8, 1: 0.5])
+        XCTAssertEqual(VoiceRecordingWaveformView.bars(levels: [0.8, 0.5, 0.1, 0.4], received: 5), [0: 0.8, 1: 0.4])
         XCTAssertTrue(VoiceRecordingWaveformView.bars(levels: [], received: 0).isEmpty)
         // Пауза между слогами падает к точке, громкий слог — в полный рост.
         // Тихая речь (около −40 дБ) встаёт в рост, тишина остаётся точкой.
@@ -52,10 +53,18 @@ final class VoiceRecordingWaveformTests: XCTestCase {
         XCTAssertGreaterThan(syllable[2] ?? 0, syllable[1] ?? 0)
         let sustained = VoiceRecordingWaveformView.smoothed([0: 0.8, 1: 0.8, 2: 0.8, 3: 0.8])
         XCTAssertEqual(sustained[2] ?? 0, 0.8, accuracy: 1e-9)
-        // После резкого звука обычная речь через секунду снова заметна.
-        var peak = VoiceRecordingWaveformView.normalized(level: 1, peak: VoiceRecordingWaveformView.quietestPeak).peak
-        for _ in 0..<25 { peak = VoiceRecordingWaveformView.normalized(level: 0, peak: peak).peak }
-        XCTAssertGreaterThan(VoiceRecordingWaveformView.normalized(level: 0.3, peak: peak).value, 0.3)
+        // После резкого звука обычная речь снова заметна. Живая волна
+        // нормируется по самому громкому месту записи (`normalizedHistory`),
+        // а не по остывающему пику: речь после громкого слога остаётся
+        // столбиком, а не точкой (пороги 20.10.2026).
+        let loud = VoiceRecordingWaveformView.amplitude(level: 0.9)
+        let speech = VoiceRecordingWaveformView.amplitude(level: 0.088)
+        let history = VoiceRecordingWaveformView.normalizedHistory([loud, 0, speech])
+        XCTAssertEqual(history[0], 1, accuracy: 0.0001, "громкий слог — потолок записи")
+        XCTAssertEqual(history[1], 0, "тишина — точка")
+        XCTAssertGreaterThan(history[2], 0.15, "обычная речь после громкого звука снова заметна")
+        // И столбик этой речи — не точка: рисунок умножает голос, но не обнуляет.
+        XCTAssertGreaterThan(VoiceRecordingWaveformView.patterned(voice: history[2], bar: 0), 0.05)
     }
 
     /// Второй заход 20.10.2026: тишина и шум микрофона — точка, речь не в потолке.

@@ -7,9 +7,9 @@ ROOT = Path(__file__).resolve().parents[1]
 class NativeChatScrollingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.screen = (ROOT / 'Sources/Features/Chat/RoleChatsScreen.swift').read_text()
+        cls.screen = (ROOT / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
         cls.feed = cls.screen.split('private var messageScroll: some View {', 1)[1].split('private var visibleLiveTurns:', 1)[0]
-        cls.composer = (ROOT / 'Sources/Features/Chat/ChatVoiceComposer.swift').read_text()
+        cls.composer = (ROOT / 'Sources/Chat/Composer/ChatVoiceComposer.swift').read_text()
 
     def absent(self, token, source):
         self.assertTrue(token not in source, 'Unexpected custom mechanism: ' + token)

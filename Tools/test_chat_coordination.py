@@ -5,7 +5,7 @@ No app, simulator or UI automation. Decoder/server integration is tested separat
 from pathlib import Path
 import subprocess, tempfile
 root = Path(__file__).resolve().parents[1]
-source = (root / 'Sources/Features/Chat/RoleChatsScreen.swift').read_text()
+source = (root / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
 start = source.index('    private var visibleMessages: [RoleChatMessage] {')
 opening = source.index('{', start)
 depth, end = 1, opening + 1

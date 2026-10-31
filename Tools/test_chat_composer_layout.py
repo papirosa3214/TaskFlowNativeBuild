@@ -26,7 +26,7 @@ source += '\nlet suite = ChatComposerLayoutTests.defaultTestSuite\nsuite.run()\n
 # развороте поле уничтожалось и каретка пропадала — в чат нельзя было
 # написать (владелец 30.10.2026). Динамика окна остаётся, но поле одно.
 
-composer = (root / 'Sources/Features/Chat/ChatVoiceComposer.swift').read_text()
+composer = (root / 'Sources/Chat/Composer/ChatVoiceComposer.swift').read_text()
 fields = composer.count('TextField(')
 if fields != 1:
     raise SystemExit(f'Полей ввода в панели: {fields}, должно быть одно — иначе каретка теряется при развороте')
