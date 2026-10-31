@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>TaskFlow — согласование плана: семь состояний (макет)</title>
+<style>
+  :root{
+    --bg:#000000; --card:#242424; --card2:#2b2b2b; --sheet:#101010;
+    --text:#ffffff; --sub:#a6a6a6; --dim:#949494;
+    --stroke:rgba(255,255,255,.09);
+    --red:#e44332; --redSolid:#d63a28; --orange:#ff9a14; --blue:#4a9fd8;
+    --green:#15937e; --purple:#a78bfa;
+    --shell:#0e0e0e; --shellCard:#1a1a1a; --shellText:#e8e8e8; --shellSub:#8d8d8d;
+  }
+  body.light{
+    --bg:#f4f4f5; --card:#ffffff; --card2:#ececee; --sheet:#ffffff;
+    --text:#171717; --sub:#424242; --dim:#4e4e4e;
+    --stroke:rgba(0,0,0,.09);
+    --red:#c53426; --redSolid:#c53426; --orange:#945200; --blue:#246da3;
+    --green:#14745f; --purple:#6d4fd6;
+    --shell:#ececee; --shellCard:#ffffff; --shellText:#111113; --shellSub:#6b6b73;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--shell); color:var(--shellText);
+    -webkit-font-smoothing:antialiased;
+    display:flex; min-height:100vh;
+  }
+  .panel{
+    width:330px; flex:none; border-right:1px solid var(--stroke);
+    padding:22px 18px 28px; display:flex; flex-direction:column; gap:16px;
+    position:sticky; top:0; height:100vh; overflow:auto;
+  }
+  .panel h1{font-size:15px;font-weight:600;letter-spacing:.2px}
+  .panel .lead{font-size:12px;line-height:1.45;color:var(--shellSub);margin-top:-8px}
+  .states{display:flex;flex-direction:column;gap:2px}
+  .state{
+    display:flex;align-items:flex-start;gap:10px;padding:8px 9px;border-radius:10px;
+    background:none;border:0;width:100%;text-align:left;cursor:pointer;
+    color:var(--shellText);font:inherit;
+  }
+  .state:hover{background:var(--shellCard)}
+  .state[aria-pressed="true"]{background:var(--shellCard);box-shadow:inset 0 0 0 1px var(--stroke)}
+  .state .n{
+    width:20px;height:20px;flex:none;border-radius:10px;background:var(--shellCard);
+    color:var(--shellSub);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:1px
+  }
+  .state[aria-pressed="true"] .n{background:var(--red);color:#fff}
+  .state .t{display:block;font-size:13px;font-weight:500}
+  .state .s{display:block;font-size:11px;color:var(--shellSub);margin-top:1px;line-height:1.35}
+  .ctl{display:flex;flex-direction:column;gap:7px}
+  .ctl .lbl{font-size:11px;color:var(--shellSub);text-transform:uppercase;letter-spacing:.6px}
+  .seg{display:flex;gap:4px;background:var(--shellCard);border-radius:10px;padding:4px}
+  .seg button{
+    flex:1;border:0;background:none;color:var(--shellSub);font:inherit;font-size:12px;
+    padding:7px 6px;border-radius:7px;cursor:pointer
+  }
+  .seg button[aria-pressed="true"]{background:var(--bg);color:var(--text);font-weight:600}
+  .hint{font-size:11.5px;line-height:1.5;color:var(--shellSub);border-top:1px solid var(--stroke);padding-top:12px;margin-top:auto}
+  .hint b{color:var(--shellText);font-weight:600}
+  .hint ul{margin:6px 0 0 16px}
+  .hint li{margin-bottom:4px}
+  .hint summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--shellText);list-style:none;padding:2px 0}
+  .hint summary::-webkit-details-marker{display:none}
+  .hint summary::after{content:" \25BE";color:var(--shellSub);font-weight:400}
+  .hint[open] summary::after{content:" \25B4"}
+  .hintbody{padding-bottom:4px}
+
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:26px}
+  .phone{
+    width:430px;height:902px;border-radius:56px;padding:14px;flex:none;
+    background:linear-gradient(160deg,#3a3a3c,#1c1c1e 45%,#000);
+    box-shadow:0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07) inset;
+    transform-origin:top center; transform:scale(var(--s,1));
+  }
+  .screen{
+    width:402px;height:874px;border-radius:44px;overflow:hidden;background:var(--bg);
+    color:var(--text);display:flex;flex-direction:column;position:relative;
+  }
+  .statusbar{
+    height:52px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 30px 6px;font-size:14px;font-weight:600;letter-spacing:.2px
+  }
+  .statusbar .right{display:flex;align-items:center;gap:5px}
+  .navbar{
+    flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;
+    border-bottom:.5px solid var(--stroke);background:var(--bg);position:relative;z-index:3
+  }
+  .navbar .back{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--text);opacity:.85}
+  .navbar .who{flex:1;min-width:0}
+  .navbar .nm{font-size:17px;font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .navbar .sub{font-size:12px;font-weight:500;color:var(--sub);line-height:1.2}
+  .navbar .acts{display:flex;align-items:center;gap:4px;color:var(--text)}
+  .navbar .acts svg{width:22px;height:22px}
+  .scroll{flex:1;overflow:auto;padding:12px 16px 24px}
+  .scroll::-webkit-scrollbar{width:0}
+  .home{height:22px;flex:none;display:flex;align-items:center;justify-content:center}
+  .home i{width:134px;height:5px;border-radius:3px;background:var(--text);opacity:.28;display:block}
+  .toast{
+    position:absolute;left:50%;bottom:96px;transform:translate(-50%,8px);background:var(--card2);
+    color:var(--text);font-size:13px;padding:8px 14px;border-radius:10px;opacity:0;pointer-events:none;
+    transition:opacity .18s ease, transform .18s ease;border:1px solid var(--stroke);z-index:9;white-space:nowrap
+  }
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  /* --- содержимое экрана --- */
+  .demo{
+    display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.4px;
+    color:var(--orange);background:rgba(255,154,20,.10);border:1px solid rgba(255,154,20,.28);
+    padding:3px 8px;border-radius:999px;margin-bottom:10px
+  }
+  .demo.sm{font-size:10px;letter-spacing:.6px;padding:2px 7px;margin-bottom:0;flex:none}
+  .sec{
+    display:flex;align-items:center;gap:10px;padding:6px 2px 8px;
+    font-size:12px;font-weight:500;color:var(--dim);letter-spacing:.2px;text-transform:uppercase
+  }
+  .sec .ln{flex:1;height:1px;background:var(--stroke)}
+  .card{
+    background:var(--card);border:1px solid var(--stroke);border-radius:16px;padding:14px;margin-bottom:12px
+  }
+  .cap{font-size:12.5px;line-height:1.45;color:var(--sub)}
+  .cap.warn{color:var(--orange)}
+  .cap.ok{color:var(--green)}
+  .cap.info{color:var(--blue)}
+  .cap.danger{color:var(--red)}
+  .ptitle{font-size:19px;font-weight:700;line-height:1.2;margin:8px 0 2px;letter-spacing:-.2px}
+  .psub{font-size:12.5px;color:var(--sub);line-height:1.35;margin-bottom:10px}
+  .owner{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text);
+    border:1px solid var(--stroke);background:var(--card2);border-radius:999px;padding:6px 11px;margin-bottom:12px
+  }
+  .owner svg{width:15px;height:15px;color:var(--sub);flex:none}
+  .owner .lb{color:var(--sub)}
+  .note{font-size:12.5px;line-height:1.45;color:var(--sub);margin-top:10px}
+  .hintline{font-size:12.5px;line-height:1.45;color:var(--sub);padding:2px 2px 0}
+
+  .steps{display:flex;flex-direction:column}
+  .step{display:flex;gap:12px;position:relative;padding-bottom:14px}
+  .step:last-child{padding-bottom:0}
+  .rail{flex:none;width:18px;position:relative;display:flex;justify-content:center}
+  .rail::before{
+    content:"";position:absolute;top:16px;bottom:-14px;left:50%;width:1px;background:var(--stroke);transform:translateX(-50%)
+  }
+  .step:last-child .rail::before{display:none}
+  .dot{
+    width:10px;height:10px;border-radius:5px;background:var(--card2);border:2px solid var(--dim);
+    margin-top:5px;position:relative;z-index:1
+  }
+  .dot.done{background:var(--green);border-color:var(--green)}
+  .dot.active{background:var(--blue);border-color:var(--blue)}
+  .step .body{flex:1;min-width:0}
+  .step .t{font-size:15px;font-weight:600;line-height:1.25}
+  .step .role{font-size:13px;color:var(--sub);margin-top:2px}
+  .step .exp{font-size:12.5px;color:var(--sub);line-height:1.4;margin-top:4px}
+  .step .after{font-size:11.5px;color:var(--dim);margin-top:5px}
+  .pill{
+    display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
+    padding:2px 8px;border-radius:999px;border:1px solid var(--stroke);color:var(--sub);background:var(--card2)
+  }
+  .pill.ok{color:var(--green);border-color:rgba(21,147,126,.4);background:rgba(21,147,126,.12)}
+  .pill.run{color:var(--blue);border-color:rgba(74,159,216,.4);background:rgba(74,159,216,.12)}
+  .pill.warn{color:var(--orange);border-color:rgba(255,154,20,.4);background:rgba(255,154,20,.12)}
+  .pill.edit{color:var(--purple);border-color:rgba(167,139,250,.4);background:rgba(167,139,250,.12)}
+
+  .banner{
+    display:flex;gap:10px;border-radius:12px;padding:11px 12px;margin-bottom:12px;
+    font-size:12.5px;line-height:1.45;border:1px solid var(--stroke);background:var(--card2)
+  }
+  .banner svg{width:18px;height:18px;flex:none;margin-top:1px}
+  .banner .bt{font-weight:600;display:block;margin-bottom:2px}
+  .banner.warn{border-color:rgba(255,154,20,.35);background:rgba(255,154,20,.10)}
+  .banner.warn svg{color:var(--orange)}
+  .banner.danger{border-color:rgba(228,67,50,.35);background:rgba(228,67,50,.10)}
+  .banner.danger svg{color:var(--red)}
+  .banner.info{border-color:rgba(74,159,216,.32);background:rgba(74,159,216,.10)}
+  .banner.info svg{color:var(--blue)}
+  .banner.ok{border-color:rgba(21,147,126,.35);background:rgba(21,147,126,.10)}
+  .banner.ok svg{color:var(--green)}
+
+  .btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;
+    border-radius:12px;border:0;font:inherit;font-size:15px;font-weight:600;cursor:pointer;
+    background:var(--card2);color:var(--text);padding:0 14px
+  }
+  .btn.primary{background:var(--redSolid);color:#fff}
+  .btn.ghost{background:transparent;border:1px solid var(--stroke);color:var(--text)}
+  .btn[disabled]{opacity:.45;cursor:default}
+  .btnrow{display:flex;gap:8px;margin-top:10px}
+  .btnrow .btn{flex:1}
+
+  /* стойка (bottom sheet) */
+  .veil{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:4}
+  .sheet{
+    position:absolute;left:0;right:0;top:96px;bottom:0;z-index:5;background:var(--sheet);
+    border-radius:20px 20px 0 0;border-top:1px solid var(--stroke);
+    display:flex;flex-direction:column;box-shadow:0 -12px 40px rgba(0,0,0,.5)
+  }
+  .sheet .handle{width:36px;height:4px;border-radius:2px;background:var(--stroke);margin:8px auto 0}
+  .sheet .sh{
+    flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px 8px;border-bottom:.5px solid var(--stroke)
+  }
+  .sheet .sh .t{font-size:17px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sheet .sh .x{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--sub)}
+  .sheet .sh .x svg{width:20px;height:20px}
+  .sheet .body{flex:1;overflow:auto;padding:12px 16px 22px}
+  .sheet .body::-webkit-scrollbar{width:0}
+  .sheet .foot{flex:none;padding:10px 16px 18px;border-top:.5px solid var(--stroke);background:var(--sheet)}
+  .foot .note{margin:8px 0 0}
+
+  .field{margin-bottom:12px}
+  .field .lb{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);margin-bottom:6px}
+  .input{
+    background:var(--card2);border:1px solid var(--stroke);border-radius:12px;padding:10px 12px;
+    font-size:14px;line-height:1.4;color:var(--text)
+  }
+  .input .ph{color:var(--dim)}
+  .input.changed{border-color:rgba(167,139,250,.45)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    font-size:13px;padding:7px 11px;border-radius:999px;border:1px solid var(--stroke);
+    background:var(--card2);color:var(--text)
+  }
+  .chip.on{border-color:var(--purple);color:var(--purple);background:rgba(167,139,250,.12)}
+
+  .diff{border:1px solid var(--stroke);border-radius:12px;overflow:hidden}
+  .diff .row{padding:9px 12px;font-size:13px;line-height:1.45}
+  .diff .row + .row{border-top:1px solid var(--stroke)}
+  .diff .row .lb{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);margin-bottom:3px}
+  .diff .row.old{background:rgba(228,67,50,.08);color:var(--sub);text-decoration:line-through;text-decoration-color:rgba(228,67,50,.55)}
+  .diff .row.new{background:rgba(21,147,126,.10);color:var(--text)}
+  .diff .row.new .lb{color:var(--green)}
+
+  .chg{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--stroke)}
+  .chg:last-child{border-bottom:0}
+  .chg .mk{flex:none;width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .chg .mk.up{background:rgba(21,147,126,.16);color:var(--green)}
+  .chg .mk.same{background:var(--card2);color:var(--dim)}
+  .chg .mk svg{width:12px;height:12px}
+  .chg .t{font-size:14.5px;font-weight:600;line-height:1.3}
+  .chg .d{font-size:12.5px;color:var(--sub);line-height:1.4;margin-top:3px}
+  .chg .was{font-size:12px;color:var(--dim);margin-top:4px;text-decoration:line-through}
+
+  .start{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--stroke);font-size:13.5px;line-height:1.4}
+  .start:last-child{border-bottom:0}
+  .start .ic{flex:none;width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--card2);color:var(--sub);margin-top:1px}
+  .start.first .ic{background:var(--blue);color:#fff}
+  .start .nm{font-weight:600}
+  .start .who{color:var(--sub);font-size:12.5px}
+
+  .legend{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+  .leg{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--sub)}
+  .leg .bx{width:16px;height:16px;border-radius:5px;border:1px solid var(--stroke);background:var(--card2);flex:none;display:flex;align-items:center;justify-content:center}
+  .leg .bx svg{width:11px;height:11px;color:var(--green)}
+  .leg.on .bx{background:rgba(21,147,126,.16);border-color:rgba(21,147,126,.45)}
+  .leg .st{margin-left:auto;color:var(--dim);font-size:11.5px}
+
+  .kv{display:flex;gap:10px;font-size:12.5px;line-height:1.5;padding:3px 0}
+  .kv .k{color:var(--sub);flex:none;width:112px}
+  .kv .v{color:var(--text)}
+
+  .twocol{display:flex;gap:8px}
+  .twocol .col{flex:1;min-width:0;background:var(--card2);border:1px solid var(--stroke);border-radius:12px;padding:10px}
+  .twocol .col .h{font-size:11.5px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+  .twocol .col .l{font-size:12.5px;line-height:1.4;color:var(--text)}
+  .twocol .col .l.dim{color:var(--sub)}
+  .twocol .col .l + .l{margin-top:6px;padding-top:6px;border-top:1px solid var(--stroke)}
+
+  .menu{
+    position:absolute;top:96px;right:10px;width:272px;z-index:6;
+    background:var(--card2);border:1px solid var(--stroke);border-radius:14px;padding:6px;
+    box-shadow:0 18px 40px rgba(0,0,0,.55)
+  }
+  .menu .mi{
+    display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:9px;font-size:14.5px;color:var(--text)
+  }
+  .menu .mi svg{width:19px;height:19px;color:var(--sub);flex:none}
+  .menu .mi.hi{background:rgba(228,67,50,.14)}
+  .menu .mi.hi svg{color:var(--red)}
+  .menu .mi.hi .t{color:var(--red);font-weight:600}
+  .menu .sep{height:1px;background:var(--stroke);margin:5px 4px}
+  .menu .mi .t{flex:1;min-width:0}
+
+  .spin{
+    width:15px;height:15px;border-radius:8px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;
+    animation:sp .8s linear infinite;flex:none
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .caption{max-width:430px;font-size:12.5px;line-height:1.55;color:var(--shellSub)}
+  .caption b{color:var(--shellText);font-weight:600}
+  .caption .st{display:block;font-size:13.5px;color:var(--shellText);font-weight:600;margin-bottom:4px}
+  .caption .dnote{margin-top:10px;font-size:11px;font-weight:600;letter-spacing:.5px;color:var(--orange)}
+
+  .actionbar{
+    flex:none;display:none;flex-direction:column;gap:4px;
+    padding:10px 16px 8px;border-top:.5px solid var(--stroke);background:var(--bg)
+  }
+
+  @media (max-width:900px){
+    body{flex-direction:column;align-items:stretch}
+    .panel{
+      width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--stroke);
+      padding:12px 14px 8px;gap:10px;overflow:visible
+    }
+    .panel h1{font-size:16px}
+    .panel .lead{
+      margin-top:0;font-size:12px;line-height:1.4;
+      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden
+    }
+    .ctl{gap:6px}
+    .ctl .lbl{font-size:10px}
+    .states{flex-direction:row;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+    .states::-webkit-scrollbar{display:none}
+    .state{
+      width:auto;flex:none;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;
+      border:1px solid var(--stroke);background:var(--shellCard);min-height:44px
+    }
+    .state .n{width:22px;height:22px;margin-top:0}
+    .state .s{display:none}
+    .state[aria-pressed="true"]{border-color:var(--red);background:var(--shellCard)}
+    .seg{width:100%;max-width:240px}
+    .hint{margin-top:2px;border-top:0;padding-top:0}
+    .hint summary{font-size:13px;min-height:44px;display:flex;align-items:center;padding:6px 0}
+    .hintbody{font-size:12px;padding-bottom:8px}
+    .stage{padding:10px 6px 18px;align-items:stretch;gap:10px;justify-content:flex-start}
+    .phone{
+      width:100%;max-width:430px;height:auto;padding:8px;border-radius:36px;transform:none;align-self:center
+    }
+    .screen{width:100%;height:auto;min-height:calc(100vh - 210px);border-radius:28px}
+    .demo,.demo.sm{max-width:100%;flex-wrap:wrap;white-space:normal;row-gap:2px}
+    .owner{max-width:100%;flex-wrap:wrap;row-gap:2px}
+    .caption{max-width:430px;font-size:13px;align-self:center}
+    .caption .st{font-size:14px}
+  }
+  @media (prefers-reduced-motion:reduce){ .spin{animation:none} .toast{transition:none} }
+</style>
+</head>
+<body class="light">
+<aside class="panel">
+  <h1>Согласование плана — макет на iPhone</h1>
+  <div class="lead">Экран карточки TaskFlow: владелец смотрит план до запуска, правит неначатый этап и утверждает. Семь состояний из спецификации сценария. Данные вымышленные, запросы не выполняются.</div>
+
+  <div class="ctl">
+    <div class="lbl">Состояние</div>
+    <div class="states" id="states"></div>
+  </div>
+
+  <div class="ctl">
+    <div class="lbl">Тема</div>
+    <div class="seg" id="segTheme">
+      <button data-t="dark" aria-pressed="false">Тёмная</button>
+      <button data-t="light" aria-pressed="true">Светлая</button>
+    </div>
+  </div>
+
+  <details class="hint" id="howto">
+    <summary>Как проверять и замечание</summary>
+    <div class="hintbody">
+    <b>Как проверять.</b>
+    <ul>
+      <li>Все семь состояний доступны слева.</li>
+      <li>Сравнение «было → стало» видно в состояниях 2 и 3.</li>
+      <li>Конфликт версии не перезаписывает план — чужое сохраняется.</li>
+      <li>После таймаута предлагают сверку, а не повтор вслепую.</li>
+      <li>Утверждение не отправляет запросы: это макет.</li>
+    </ul>
+    <b style="display:block;margin-top:10px">Замечание.</b>
+    В текущем приложении пункт «Утвердить план совместной работы» лежит в соседнем меню «Работа» (значок людей). Макет держит решение владельца: утверждение — в меню «Ещё».
+    </div>
+  </details>
+</aside>
+
+<main class="stage">
+  <div class="phone" id="phone">
+    <div class="screen" id="screen">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="right">
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 11.2 6.2 9.3a2.6 2.6 0 0 1 3.6 0L8 11.2ZM3.6 6.7a6.6 6.6 0 0 1 8.8 0l-1.3 1.4a4.8 4.8 0 0 0-6.2 0L3.6 6.7ZM.9 4a10.4 10.4 0 0 1 14.2 0l-1.3 1.4a8.6 8.6 0 0 0-11.6 0L.9 4Z"/></svg>
+          <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x=".6" y=".6" width="21" height="10.8" rx="3" stroke="currentColor" stroke-opacity=".4"/><rect x="2.2" y="2.2" width="14" height="7.6" rx="1.8" fill="currentColor"/><path d="M23.4 4.2v3.6a2 2 0 0 0 0-3.6Z" fill="currentColor" fill-opacity=".5"/></svg>
+        </span>
+      </div>
+
+      <div class="navbar">
+        <div class="back"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4 6.5 10l6 6"/></svg></div>
+        <div class="who">
+          <div class="nm">Инфра-панель: чат агента</div>
+          <div class="sub">Карточка задачи · план совместной работы</div>
+        </div>
+        <div class="acts">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+        </div>
+      </div>
+
+      <div class="scroll" id="content"></div>
+      <div class="actionbar" id="actionbar"></div>
+      <div class="home"><i></i></div>
+      <div class="toast" id="toast">Макет: запрос не отправлялся</div>
+    </div>
+  </div>
+
+  <div class="caption" id="caption"></div>
+</main>
+
+<script>
+const ICONS = {
+  branch:'<path d="M6.5 4.5v9.5a3.5 3.5 0 0 0 3.5 3.5h6.5"/><circle cx="6.5" cy="4.6" r="2.1"/><circle cx="17.2" cy="18" r="2.1"/>',
+  check:'<path d="M5 12.5 9.5 17 19 7"/>',
+  circle:'<circle cx="12" cy="12" r="8.4"/>',
+  warn:'<path d="M12 4.2 20.6 19.5H3.4L12 4.2Z"/><path d="M12 9.8v4.1M12 16.6h.01"/>',
+  info:'<circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.2M12 7.9h.01"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  arrow:'<path d="M5 12h13M13 7l5 5-5 5"/>',
+  pin:'<path d="M9 3.5h6l-.8 5.2 3 2.6V13H6.8v-1.7l3-2.6L9 3.5ZM12 13v7"/>',
+  paperclip:'<path d="M17 9.5 10 16.5a3.2 3.2 0 0 1-4.5-4.5l7-7a2.1 2.1 0 0 1 3 3l-7 7a1 1 0 0 1-1.5-1.5l6.4-6.4"/>',
+  coord:'<circle cx="6" cy="6.5" r="2.3"/><circle cx="18" cy="6.5" r="2.3"/><circle cx="12" cy="18" r="2.3"/><path d="M8.2 7.8 10.6 16M15.8 7.8 13.4 16M8.3 6.5h7.4"/>',
+  trash:'<path d="M5.5 7h13M9.5 7V5h5v2M7 7l.8 12h8.4L17 7"/>',
+  refresh:'<path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4.5V9h-4.5"/>',
+  play:'<path d="M7 4.8 18.5 12 7 19.2V4.8Z"/>',
+  clock:'<circle cx="12" cy="12" r="8.4"/><path d="M12 7v5.2l3.4 2"/>',
+  doc:'<path d="M7 3.5h6.2L17 7.4V20.5H7z"/><path d="M13.2 3.5v4h3.9"/>',
+  sparkle:'<path d="M12 3.5 13.8 9l5.5 1.8-5.5 1.8L12 18.1 10.2 12.6 4.7 10.8 10.2 9 12 3.5Z"/>'
+};
+function ico(name, cls){
+  return '<svg class="'+(cls||'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+ICONS[name]+'</svg>';
+}
+
+/* ---------- демонстрационный план (вымышленные данные) ---------- */
+const OWNER = 'Инженер .110';
+const STEPS = [
+  { id:'dev', t:'Чат и провайдеры', role:'Разработчик',
+    exp:'Выбор провайдера влияет на запрос; MiniMax по умолчанию; раздел «Об агенте»', after:'После: утверждение плана' },
+  { id:'qa', t:'Проверка сценария', role:'Лайф-тестировщик',
+    exp:'Ответ MiniMax, переключение провайдера, расход лимитов; ограничения по Anthropic и Codex записаны',
+    exp0:'Ответ MiniMax, переключение провайдера, расход лимитов; ограничения записаны', after:'После: разработка' },
+  { id:'int', t:'Интеграция', role:OWNER,
+    exp:'Принятый код в основной ветке и живой панели; доказательство выкладки', after:'После: проверка' }
+];
+
+function demoTag(){
+  return '<span class="demo">ДЕМО · вымышленные данные</span>';
+}
+/* изменения плана — один источник формулировок для обзора, отправки и записи решения */
+const CHANGES = [
+  { t:'Проверка сценария', d:'Ожидаемый результат дополнен учётом лимитов провайдеров.', was:'Было: ограничения записаны' },
+  { t:'Интеграция', d:'Ответственный указан явно: '+OWNER+'.', was:'Было: ответственный не указан' }
+];
+function chgRow(c, withWas){
+  return '<div class="chg"><div class="mk up">'+ico('check')+'</div><div>'+
+    '<div class="t">'+c.t+'</div>'+
+    '<div class="d">'+c.d+'</div>'+
+    (withWas && c.was ? '<div class="was">'+c.was+'</div>' : '')+
+  '</div></div>';
+}
+function ownerPill(){
+  return '<div class="owner">'+ico('branch')+'<span class="lb">Ответственный за интеграцию:</span><span>'+OWNER+'</span></div>';
+}
+function stepRow(s, opts){
+  opts = opts || {};
+  const dot = opts.dot || '';
+  const pill = opts.pill || '';
+  return '<div class="step"><div class="rail"><span class="dot '+dot+'"></span></div><div class="body">'+
+    '<div class="t">'+s.t+'</div>'+
+    '<div class="role">'+s.role+' '+(pill||'')+'</div>'+
+    (s.exp ? '<div class="exp">'+s.exp+'</div>' : '')+
+    (s.after ? '<div class="after">'+s.after+'</div>' : '')+
+    '</div></div>';
+}
+function stepsList(list, opts){
+  return '<div class="steps">'+list.map(function(s, i){
+    const o = typeof opts === 'function' ? opts(s, i) : (opts || {});
+    return stepRow(s, o);
+  }).join('')+'</div>';
+}
+function banner(kind, title, text){
+  const icon = kind === 'ok' ? 'check' : (kind === 'info' ? 'info' : 'warn');
+  return '<div class="banner '+kind+'">'+ico(icon)+'<div><span class="bt">'+title+'</span>'+text+'</div></div>';
+}
+
+/* ---------- состояния ---------- */
+function screenDraft(){
+  return demoTag()+
+  '<div class="sec">План совместной работы<span class="ln"></span></div>'+
+  '<div class="card">'+
+    '<span class="cap warn">Черновик плана — роли ещё не запущены</span>'+
+    '<div class="ptitle">Инфра-панель: чат агента</div>'+
+    '<div class="psub">Профиль: продуктовая функция · черновик, версия 2</div>'+
+    ownerPill()+
+    stepsList(STEPS, { pill:'<span class="pill warn">ждёт утверждения</span>' })+
+    '<p class="note">После утверждения начнётся первый этап; остальные ждут результатов предыдущих.</p>'+
+  '</div>'+
+  '<div class="hintline">Утверждение — в меню «Ещё» карточки: «Утвердить план совместной работы».</div>'+
+  moreMenu();
+}
+
+function moreMenu(){
+  return '<div class="menu">'+
+    '<div class="mi hi">'+ico('check')+'<span class="t">Утвердить план совместной работы</span></div>'+
+    '<div class="sep"></div>'+
+    '<div class="mi">'+ico('paperclip')+'<span class="t">Прикрепить файл</span></div>'+
+    '<div class="mi">'+ico('coord')+'<span class="t">Координация</span></div>'+
+    '<div class="mi">'+ico('trash')+'<span class="t">Удалить задачу</span></div>'+
+  '</div>';
+}
+
+function screenLocal(){
+  const s = STEPS[1];
+  return sheet('Проверка сценария',
+    '<div class="banner info">'+ico('info')+'<div><span class="bt">Локальные изменения — только на этом устройстве</span>Шаг не начат: правка ничего не запускает и ждёт отправки вместе с остальными изменениями.</div></div>'+
+    '<div class="field"><div class="lb">Исполнитель</div><div class="chips"><span class="chip on">Лайф-тестировщик</span><span class="chip">Разработчик</span></div></div>'+
+    '<div class="field"><div class="lb">Ожидаемый результат</div>'+
+      '<div class="diff">'+
+        '<div class="row old"><div class="lb">Было · черновик версии 2</div>'+s.exp0+'</div>'+
+        '<div class="row new"><div class="lb">Стало · ваша правка</div>'+s.exp+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="field"><div class="lb">Зависит от</div><div class="input"><span class="ph">Чат и провайдеры</span> · Разработчик</div></div>'+
+    '<p class="note">Ключ этапа сохранён — переименование не создаёт новый этап и не сбрасывает его историю.</p>',
+    '<button class="btn ghost" data-act="Отмена правки — изменения этого этапа отменены">Отменить правку</button>'+
+    '<button class="btn primary" style="margin-top:8px" data-act="Открыт обзор изменений">Открыть обзор изменений</button>'+
+    '<p class="note">Отмена здесь убирает только правку этого этапа. Уже утверждённый план не меняется.</p>'
+  );
+}
+
+function screenReview(){
+  return sheet('Обзор изменений',
+    '<div class="cap" style="margin-bottom:10px">Версия 3 из 3 · два этапа изменены, один без изменений.</div>'+
+    '<div class="card" style="margin-bottom:12px">'+
+      chgRow(CHANGES[0], true)+
+      chgRow(CHANGES[1], true)+
+      '<div class="chg"><div class="mk same">'+ico('circle')+'</div><div>'+
+        '<div class="t">Чат и провайдеры</div>'+
+        '<div class="d">Без изменений — исполнитель и результат те же.</div>'+
+      '</div></div>'+
+    '</div>'+
+    '<div class="sec">Что начнётся<span class="ln"></span></div>'+
+    '<div class="card">'+
+      '<div class="start first"><span class="ic">1</span><span><span class="nm">Чат и провайдеры</span><br><span class="who">Разработчик · стартует сразу</span></span></div>'+
+      '<div class="start"><span class="ic">2</span><span><span class="nm">Проверка сценария</span><br><span class="who">Лайф-тестировщик · после разработки</span></span></div>'+
+      '<div class="start"><span class="ic">3</span><span><span class="nm">Интеграция</span><br><span class="who">'+OWNER+' · после проверки</span></span></div>'+
+      ownerPill()+
+    '</div>'+
+    '<p class="note">Утверждение запускает работу ролей. Остановка уже начатого плана — отдельное действие, отмены здесь нет.</p>',
+    '<button class="btn primary" data-act="Утверждение отправлено один раз — запрос не ушёл">Утвердить и запустить</button>'+
+    '<button class="btn ghost" style="margin-top:8px" data-act="Обзор закрыт — возврат к правке этапа">Вернуться к правке</button>'
+  );
+}
+
+function screenStale(){
+  return sheet('План изменили, пока вы правили',
+    banner('warn','Версия устарела','Вы правили версию 2, на сервере уже версия 3. Чужая правка сохранена и не будет перезаписана.')+
+    '<div class="twocol">'+
+      '<div class="col"><div class="h">Ваши правки · версия 2</div>'+
+        '<div class="l">Проверка сценария</div>'+
+        '<div class="l dim">Ограничения по Anthropic и Codex записаны в карточку</div>'+
+        '<div class="l">Интеграция</div>'+
+        '<div class="l dim">Ответственный: '+OWNER+'</div>'+
+      '</div>'+
+      '<div class="col"><div class="h">На сервере · версия 3</div>'+
+        '<div class="l">Проверка сценария</div>'+
+        '<div class="l dim">Ограничения по провайдерам пишутся отдельной подзадачей</div>'+
+        '<div class="l">Интеграция</div>'+
+        '<div class="l dim">Ответственный: Инженер .110</div>'+
+      '</div>'+
+    '</div>'+
+    '<p class="note">Загруженная версия не удаляет ваши правки: они остаются в списке для повторного сравнения. Автоматической перезаписи плана нет.</p>'+
+    '<div class="field" style="margin-top:12px"><div class="lb">Что выбрано</div><div class="chips"><span class="chip on">Сверить и повторить сравнение</span><span class="chip">Оставить только версию сервера</span></div></div>',
+    '<button class="btn primary" data-act="Загружена версия 3, ваши правки сохранены для сравнения">Загрузить новую версию</button>'+
+    '<button class="btn ghost" style="margin-top:8px" data-act="Версия сервера загружена, чужая версия не перезаписана">Оставить мои правки для сравнения</button>'
+  );
+}
+
+function screenSending(){
+  return sheet('Обзор изменений',
+    banner('info','Отправляю утверждение…','Версия 3. Действие отправлено один раз — повторная отправка недоступна, пока сервер не ответит.')+
+    '<div class="card">'+
+      chgRow(CHANGES[0], false)+
+      chgRow(CHANGES[1], false)+
+    '</div>'+
+    '<p class="note">До подтверждённого ответа сервера работа не считается начатой: этапы остаются в статусе «ждёт утверждения».</p>',
+    '<button class="btn" disabled><span class="spin"></span>Утверждаю…</button>'+
+    '<p class="note" style="text-align:center">Кнопка отправки недоступна, пока идёт ответ сервера.</p>'
+  );
+}
+
+function screenTimeout(){
+  return sheet('Утверждение без ответа',
+    banner('warn','Исход неизвестен','Сервер не ответил вовремя. Он мог принять утверждение — повторный запуск вслепую может запустить работу дважды.')+
+    '<div class="card">'+
+      '<div class="kv"><span class="k">Что отправляли</span><span class="v">Утверждение версии 3</span></div>'+
+      '<div class="kv"><span class="k">Когда</span><span class="v">30.10, 13:52</span></div>'+
+      '<div class="kv"><span class="k">Ответ</span><span class="v">нет: истекло время ожидания</span></div>'+
+    '</div>'+
+    '<p class="note">Сверка состояния читает текущий статус плана на сервере и показывает, утвердили план или нет. Только после этого решают, повторять ли отправку.</p>',
+    '<button class="btn primary" data-act="Сверяю состояние: сервер вернёт текущий статус плана">Сверить состояние</button>'+
+    '<button class="btn ghost" style="margin-top:8px" data-act="Повтор разрешён только после сверки">Повторить запрос</button>'+
+    '<p class="note" style="text-align:center">Повтор доступен после сверки — не раньше.</p>'
+  );
+}
+
+function screenApproved(){
+  return demoTag()+
+  banner('ok','План утверждён','Решение: Максим, 30.10, 13:52 · принята версия 3. Этапы стартовали по порядку.')+
+  '<div class="sec">Что утверждено<span class="ln"></span></div>'+
+  '<div class="card" style="padding:2px 14px">'+
+    chgRow(CHANGES[0], false)+
+    chgRow(CHANGES[1], false)+
+  '</div>'+
+  '<div class="card">'+
+    '<div class="ptitle" style="font-size:17px">Инфра-панель: чат агента</div>'+
+    '<div class="psub">Утверждённый план · версия 3</div>'+
+    ownerPill()+
+    stepsList([
+      { t:'Чат и провайдеры', role:'Разработчик', after:'Код готов, ждёт проверки' },
+      { t:'Проверка сценария', role:'Лайф-тестировщик', after:'Ждёт результата предыдущего этапа' },
+      { t:'Интеграция', role:OWNER, after:'Ждёт проверки; выкладка — после проверки' }
+    ], function(s, i){
+      if (i === 0) return { dot:'active', pill:'<span class="pill run">в работе</span>' };
+      return { dot:'', pill:'<span class="pill">ждёт</span>' };
+    })+
+  '</div>'+
+  '<div class="card">'+
+    '<div class="cap" style="margin-bottom:8px">Готовность этапа «Чат и провайдеры» — четыре отдельных статуса, а не один зелёный:</div>'+
+    '<div class="legend">'+
+      '<div class="leg on"><span class="bx">'+ico('check')+'</span>Код готов<span class="st">30.10, 13:58</span></div>'+
+      '<div class="leg"><span class="bx"></span>Проверено на стенде<span class="st">—</span></div>'+
+      '<div class="leg"><span class="bx"></span>Выложено<span class="st">—</span></div>'+
+      '<div class="leg"><span class="bx"></span>Подтверждено вживую<span class="st">—</span></div>'+
+    '</div>'+
+    '<p class="note">Недоступный провайдер показывается ограничением, а не общим зелёным статусом.</p>'+
+  '</div>'+
+  '<p class="note" style="text-align:center">Новые изменения — отдельным планом. Остановка начатого плана — отдельное действие.</p>';
+}
+
+function sheet(title, body, foot){
+  return '<div class="veil"></div><div class="sheet"><div class="handle"></div>'+
+    '<div class="sh"><div class="t">'+title+'</div><span class="demo sm">ДЕМО</span><div class="x">'+ico('x')+'</div></div>'+
+    '<div class="body">'+body+'</div>'+
+    '<div class="foot">'+foot+'</div></div>';
+}
+
+/* ---------- переключатель состояний ---------- */
+const STATES = [
+  { k:'draft', t:'Черновик', s:'План виден, роли не запущены; утверждение — в «Ещё»', f:screenDraft,
+    cap:'<b>Черновик.</b> Владелец видит весь план до запуска: этапы, исполнители, ожидаемый результат и конкретного ответственного за интеграцию. Кнопки утверждения в теле карточки нет — действие живёт в меню «Ещё».' },
+  { k:'local', t:'Локальные изменения', s:'Правка неначатого этапа, до отправки', f:screenLocal,
+    cap:'<b>Локальные изменения.</b> Правится только неначатый этап. Сравнение «было → стало» видно сразу; работа не запускается, изменения ждут отправки.' },
+  { k:'review', t:'Обзор изменений', s:'Что изменится и что стартует', f:screenReview,
+    cap:'<b>Обзор.</b> Видно, что именно изменилось и какие этапы стартуют, кто отвечает за интеграцию. Кнопка говорит прямо: «Утвердить и запустить».' },
+  { k:'stale', t:'Версия устарела', s:'План изменили, пока вы правили', f:screenStale,
+    cap:'<b>Конфликт версии.</b> Чужая правка сохранена и не перезаписывается. Ваши правки остаются для повторного сравнения — автоматической перезаписи нет.' },
+  { k:'sending', t:'Отправка', s:'Ждём ответ сервера, повтор недоступен', f:screenSending,
+    cap:'<b>Отправка.</b> Действие отправлено один раз, повторная отправка заблокирована. До ответа сервера работа не считается начатой.' },
+  { k:'timeout', t:'Таймаут, исход неизвестен', s:'Сервер мог принять — сначала сверка', f:screenTimeout,
+    cap:'<b>Таймаут.</b> Исход неизвестен, поэтому предлагают сверку состояния, а не повторный запуск вслепую. Повтор разрешён только после сверки.' },
+  { k:'approved', t:'Утверждено', s:'Принятая версия и реальные состояния', f:screenApproved,
+    bar:'<button class="btn primary" data-act="Открыта карточка — план выполняется">Перейти к выполнению</button>',
+    cap:'<b>Утверждено.</b> Запись решения показывает автора, время и принятую версию, а под ней — что именно утверждено: две правки теми же формулировками, что в обзоре. Дальше принятый план с реальными состояниями этапов и четыре отдельные отметки готовности: код, стенд, выкладка, живая проверка. Кнопка «Перейти к выполнению» закреплена внизу экрана.' }
+];
+
+const stateBox = document.getElementById('states');
+const content = document.getElementById('content');
+const caption = document.getElementById('caption');
+const toast = document.getElementById('toast');
+
+stateBox.innerHTML = STATES.map(function(s, i){
+  return '<button class="state" data-k="'+s.k+'" aria-pressed="'+(i===0?'true':'false')+'">'+
+    '<span class="n">'+(i+1)+'</span><span><span class="t">'+s.t+'</span><span class="s">'+s.s+'</span></span></button>';
+}).join('');
+
+let current = 'draft';
+function show(key){
+  const st = STATES.filter(function(s){ return s.k === key; })[0];
+  current = key;
+  content.innerHTML = st.f();
+  const ab = document.getElementById('actionbar');
+  ab.innerHTML = st.bar || '';
+  ab.style.display = st.bar ? 'flex' : 'none';
+  caption.innerHTML = '<span class="st">'+(STATES.indexOf(st)+1)+'. '+st.t+'</span>'+st.cap+
+    '<div class="dnote">ДЕМО · вымышленные данные</div>';
+  Array.prototype.forEach.call(stateBox.querySelectorAll('.state'), function(b){
+    const on = b.getAttribute('data-k') === key;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if(on && window.innerWidth <= 900) b.scrollIntoView({block:'nearest', inline:'center'});
+  });
+}
+stateBox.addEventListener('click', function(e){
+  const b = e.target.closest('.state');
+  if (b) show(b.getAttribute('data-k'));
+});
+
+document.getElementById('content').addEventListener('click', function(e){
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  toast.textContent = b.getAttribute('data-act');
+  toast.classList.add('on');
+  clearTimeout(window.__tt);
+  window.__tt = setTimeout(function(){ toast.classList.remove('on'); }, 2200);
+});
+
+document.getElementById('segTheme').addEventListener('click', function(e){
+  const b = e.target.closest('button');
+  if (!b) return;
+  const t = b.getAttribute('data-t');
+  document.body.classList.toggle('light', t === 'light');
+  Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){
+    x.setAttribute('aria-pressed', x.getAttribute('data-t') === t ? 'true' : 'false');
+  });
+});
+
+function fit(){
+  const narrow = window.innerWidth <= 900;
+  const s = narrow ? 1 : Math.min(1, (window.innerHeight - 130) / 902);
+  document.documentElement.style.setProperty('--s', s);
+  const howto = document.getElementById('howto');
+  if(howto) howto.open = !narrow;
+}
+window.addEventListener('resize', fit);
+fit();
+show('draft');
+</script>
+</body>
+</html>
