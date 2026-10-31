@@ -106,6 +106,9 @@
 Серверная часть (ветка в `New-Todoist`): ETag для `/api/chats`,
 постраничная выдача `/api/chats/:id/messages` с `has_more`.
 
+PR: `papirosa3214/New-Todoist#42` (ветка `feature/chat-sync-paging`),
+проверки на сервере зелёные: 14/14 новых тестов, `tsc` чисто, задачи 31/31.
+
 ## Проверки
 
 - `python3 Tools/test_local_db_sync.py` — 36/36 (хост, без симулятора).
