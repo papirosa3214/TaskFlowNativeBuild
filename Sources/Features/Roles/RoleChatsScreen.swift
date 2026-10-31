@@ -1046,14 +1046,14 @@ struct RoleChatRoomScreen: View {
         let steps: [(String, String)] = [
             ("read", "Sources/Core/Models/RoleChat.swift"),
             ("bash", "rg defaultScrollAnchor Sources"),
-            ("edit", "Sources/Features/Chat/RoleActionGroup.swift"),
+            ("edit", "Sources/Features/Roles/RoleActionGroup.swift"),
             ("bash", "npm run build"),
             ("read", "docs/2026-10-24-chat-smoothness-plan.md"),
             ("grep", "scrollPosition Sources/Features/Chat"),
             ("write", "docs/2026-10-25-chat-shake.md"),
             ("bash", "xcodebuild -scheme TaskFlow build"),
             ("read", "AGENT-WORK-SCOPES.md"),
-            ("edit", "Sources/Features/Chat/RoleLiveTurnView.swift")
+            ("edit", "Sources/Features/Roles/RoleLiveTurnView.swift")
         ]
         var items: [RoleChatLiveItem] = []
         for (index, step) in steps.enumerated() {
@@ -1093,7 +1093,7 @@ struct RoleChatRoomScreen: View {
         if tick >= 9 && tick < 11 {
             items.append(thinking("thinking-2", "", true))
         }
-        if tick >= 9 { items.append(step("step-2", "edit", "Sources/Features/Chat/RoleActionGroup.swift", tick < 10)) }
+        if tick >= 9 { items.append(step("step-2", "edit", "Sources/Features/Roles/RoleActionGroup.swift", tick < 10)) }
         // Фаза 5: сервер прячет законченное ПУСТОЕ размышление (snapshot,
         // chatLiveTurn.ts): список пунктов снимка от этого становится короче —
         // клиент обязан пережить это без прыжка ленты.
