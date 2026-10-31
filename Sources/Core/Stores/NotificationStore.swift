@@ -25,8 +25,17 @@ public final class NotificationStore {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        // Локальная база: лента видна сразу, без сети. На пустой базе —
+        // скелет, дальше данные приходят из сети.
+        if notifications.isEmpty, let local = try? LocalStore.shared.notifications(), !local.isEmpty {
+            notifications = local
+        }
         do {
-            notifications = try await apiClient.notifications(unreadOnly: unreadOnly)
+            // Сырое тело: его и в базу, и в модель. Отдельно — чтобы в базе
+            // лежал ответ сервера как есть.
+            let data = try await apiClient.rawNotifications(unreadOnly: unreadOnly)
+            notifications = try apiClient.decode([ApiNotification].self, from: data)
+            try? LocalStore.shared.upsertNotifications(data)
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }

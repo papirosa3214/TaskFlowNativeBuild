@@ -337,6 +337,11 @@ struct RoleChatsScreen: View {
     // MARK: - Загрузка
 
     private func load() async {
+        // Локальная база: список виден сразу, без сети. Это первое, что
+        // рисуется, — сеть его только обновит.
+        if chats.isEmpty, let local = try? LocalStore.shared.chats(includeClosed: showsClosed), !local.isEmpty {
+            chats = local
+        }
         // Прошлый список из кэша — виден сразу, сеть его обновит.
         if chats.isEmpty, let cached = api.cachedRoleChats(includeClosed: showsClosed) { chats = cached }
         if rooms == nil, isOwner, !projectsOnly { rooms = api.cachedChatRooms() }
@@ -350,11 +355,28 @@ struct RoleChatsScreen: View {
     private func refreshList() async throws {
         listRequestVersion += 1
         let version = listRequestVersion
-        async let freshChats = api.roleChats(includeClosed: showsClosed)
+        // С отпечатком: список чатов не менялся — сервер отвечает 304, и
+        // список не качается заново. Отпечаток лежит в локальной базе,
+        // поэтому перезапуск приложения его не теряет.
+        async let freshChats = api.roleChatsSync(
+            includeClosed: showsClosed,
+            etag: LocalStore.shared.syncState(SyncStateKeys.chatsETag)
+        )
         let freshRooms: ChatRoomsSnapshot? = isOwner && !projectsOnly ? try? await api.chatRooms() : nil
-        let fresh = try await freshChats
+        let result = try await freshChats
         guard version == listRequestVersion, !Task.isCancelled else { return }
-        chats = fresh
+        if result.notModified {
+            // Список не менялся — берём его из локальной базы.
+            if let local = try? LocalStore.shared.chats(includeClosed: showsClosed), !local.isEmpty {
+                chats = local
+            }
+        } else {
+            let envelope = try api.decode(APIClient.RoleChatsSyncEnvelope.self, from: result.data)
+            chats = envelope.chats
+            // В базу — сырое тело ответа сервера.
+            try? LocalStore.shared.upsertChats(result.data)
+            if let etag = result.etag { LocalStore.shared.setSyncState(SyncStateKeys.chatsETag, etag) }
+        }
         if let freshRooms { rooms = freshRooms }
     }
 
@@ -1085,7 +1107,14 @@ struct RoleChatRoomScreen: View {
 
     init(chat: RoleChat) {
         _chat = State(initialValue: chat)
-        if let cached = Self.lastMessages[chat.id] ?? APIClient().cachedRoleChatMessages(id: chat.id) {
+        if let cached = Self.lastMessages[chat.id] {
+            _messages = State(initialValue: cached)
+            _hasLoadedMessages = State(initialValue: true)
+        } else if let local = try? LocalStore.shared.messages(chatID: chat.id), !local.isEmpty {
+            // Локальная база: переписка открывается сразу, без сети.
+            _messages = State(initialValue: local)
+            _hasLoadedMessages = State(initialValue: true)
+        } else if let cached = APIClient().cachedRoleChatMessages(id: chat.id) {
             _messages = State(initialValue: cached)
             _hasLoadedMessages = State(initialValue: true)
         }
@@ -3237,16 +3266,41 @@ struct RoleChatRoomScreen: View {
         }
     }
 
+    /// Курсор догрузки: максимальный `sequence` уже известного сообщения.
+    ///
+    /// `nil` — локальной истории нет, тогда сервер отдаёт чат целиком.
+    /// Иначе спрашиваем только НОВОЕ (`after`): повторный вход в комнату
+    /// должен стоить ноль байт, а не всю историю заново.
+    private var messagesCursor: Int? {
+        guard !messages.isEmpty else { return nil }
+        return try? LocalStore.shared.maxSequence(chatID: chat.id)
+    }
+
     private func refresh() async {
         refreshRevision += 1
         let revision = refreshRevision
         let eventRevision = roomEventRevision
+        let cursor = messagesCursor
         do {
             async let chatRequest = api.roleChat(id: chat.id)
-            async let messagesRequest = api.roleChatMessages(id: chat.id)
-            let (updatedChat, updatedMessages) = try await (chatRequest, messagesRequest)
+            // Сырое тело: его же кладём в локальную базу, чтобы переписка
+            // открывалась сразу и без сети.
+            async let messagesPage = api.roleChatMessagesPage(
+                id: chat.id,
+                after: cursor,
+                limit: cursor.map { _ in 50 }
+            )
+            let (updatedChat, page) = try await (chatRequest, messagesPage)
+            let updatedMessages = try api.decode(APIClient.RoleChatMessagesSyncEnvelope.self, from: page.data).messages
             guard revision == refreshRevision else { return }
             chat = updatedChat
+            // В локальную базу — сырое ответ сервера.
+            try? LocalStore.shared.upsertMessages(chatID: chat.id, payload: page.data)
+            if page.hasMore != nil {
+                // Сервер отдал признак «есть ещё» — умеет постраничную выдачу.
+                // Значит, догружать новое можно порциями.
+                LocalStore.shared.setSyncState(SyncStateKeys.chatsPaging, "1")
+            }
             // Снимок может менять текст и контекст ответа без изменения ID.
             // Объединяем его с событиями, пришедшими уже после начала запроса.
             do {
@@ -3259,7 +3313,18 @@ struct RoleChatRoomScreen: View {
                     if closesLive || closesParked { insertIncoming(message) }
                 }
                 let receivedAfterRequest = Set(messageEventRevisions.filter { $0.value > eventRevision }.map(\.key))
-                messages = RoleChatMessageOrder.mergingSnapshot(updatedMessages, current: messages, receivedAfterRequest: receivedAfterRequest)
+                if cursor == nil {
+                    // Полный снимок: он и есть вся история.
+                    messages = RoleChatMessageOrder.mergingSnapshot(updatedMessages, current: messages, receivedAfterRequest: receivedAfterRequest)
+                } else {
+                    // Только новые сообщения: старая история уже на экране,
+                    // поэтому снимок — это новые плюс те, что в ленте.
+                    messages = RoleChatMessageOrder.mergingSnapshot(
+                        updatedMessages + messages,
+                        current: messages,
+                        receivedAfterRequest: receivedAfterRequest
+                    )
+                }
                 hasLoadedMessages = true
                 Self.lastMessages[chat.id] = messages
             }

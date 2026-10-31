@@ -1,0 +1,128 @@
+# Локальная база и фоновая синхронизация (31.10.2026)
+
+Задача: телефон перестаёт тянуть полные списки при каждом запуске и при
+каждом разрыве связи. План работ передан владельцем 31.10.2026.
+
+## Что сделано
+
+### 1. Локальная база (GRDB)
+
+`Sources/Core/Store/LocalDatabase.swift` — база (`DatabaseQueue`) и миграция
+`v1`. Пять таблиц:
+
+| Таблица | Столбцы |
+|---|---|
+| `chat` | `id` PK, `title`, `kind`, `room_kind`, `updated_at`, `last_message_json`, `unread_count`, `archived_at`, `payload_json` |
+| `message` | `id` PK, `chat_id`, `sequence`, `created_at`, `payload_json` + индекс `(chat_id, sequence)` |
+| `task` | `id` PK, `updated_at`, `payload_json` |
+| `notification` | `id` PK, `is_read`, `created_at`, `payload_json` |
+| `sync_state` | `state_key` PK, `value` |
+
+`payload_json` — **сырой ответ сервера**. Экран декодирует его один раз при
+чтении, поэтому новое поле на сервере базу не ломает.
+
+`sync_state` — отпечатки и курсоры. Живут в базе, а не в памяти: память
+умирает вместе с приложением, база — нет.
+
+`state_key`, а не `key`: `KEY` — зарезервированное слово SQLite, такой
+столбец пришлось бы писать в кавычках в каждом запросе.
+
+### 2. Стор базы
+
+`Sources/Core/Store/LocalStore.swift` — чтение и запись.
+
+- **Ключ — `id`.** Запись только обновляется (`ON CONFLICT(id) DO UPDATE`).
+  `INSERT OR REPLACE` не используется: он сносит непрочитанные столбцы.
+- **Ничего не удаляется молча.** Удаление только там, где сервер сказал
+  явно: `removed_ids` дельты задач (`removeTasks`) и полная чистка при выходе
+  из аккаунта (`clearAll`).
+- Курсоры: `maxSequence(chatID:)` — догрузка вниз, `minSequence(chatID:)` —
+  догрузка вверх.
+
+### 3. Синхронизация
+
+`Sources/Core/Store/SyncEngine.swift` + `Sources/Core/Networking/APIClient+LocalSync.swift`.
+
+| Что | Запрос | Отпечаток/курсор |
+|---|---|---|
+| Чаты | `GET /api/chats` + `If-None-Match` | `chats.etag` |
+| Сообщения вниз | `GET /api/chats/:id/messages?after=<cursor>&limit=50` | `messages.cursor.<chatID>` |
+| Сообщения вверх | `GET /api/chats/:id/messages?before=<min>&limit=50` | — |
+| Задачи | `GET /api/tasks?projection=list` + `If-None-Match` | `tasks.etag`, `tasks.cursor` |
+| Дельта задач | `GET /api/tasks/changes?since=<cursor>` | `tasks.cursor` |
+| Уведомления | `GET /api/notifications?unread=true` | — |
+
+Таймаут у всех запросов синхронизации — 10 с (`APIClient.localSyncTimeout`).
+Неудачный запрос повторяется один раз через 0,7 с.
+
+### 4. Экраны читают из базы
+
+- `TaskStore.load()` — сначала список из базы, потом сеть. ETag и курсор
+  берутся из базы и пишутся в базу.
+- `NotificationStore.load(unreadOnly:)` — то же.
+- `RoleChatsScreen.load()` / `refreshList()` — список чатов из базы; в сеть
+  уходит запрос с отпечатком, 304 → список не перерисовывается.
+- Комната чата (`init(chat:)` / `refresh()`) — переписка из базы; в сеть
+  уходит `after=<курсор>`, то есть только новые сообщения.
+- `TaskFlowApp` — событие сокета уходит в `SyncEngine.ingest`, фоновая
+  синхронизация запускается после первой отрисовки.
+
+## Где хранится курсор
+
+`LocalStore.syncState(_:)` / `setSyncState(_:_:)` — таблица `sync_state`.
+Ключи — в `SyncStateKeys` (`Sources/Core/Store/LocalStore.swift`):
+
+| Ключ | Что |
+|---|---|
+| `tasks.etag` | отпечаток списка задач |
+| `tasks.cursor` | курсор дельты задач (`X-TaskFlow-Sync-Cursor`) |
+| `chats.etag` | отпечаток списка чатов |
+| `chats.paging` | умеет ли сервер постраничную выдачу сообщений |
+| `messages.cursor.<chatID>` | курсор сообщений по чату |
+
+## Главное, что меняется в трафике
+
+| Сценарий | Было | Стало |
+|---|---|---|
+| Повторный запуск приложения | полный список задач (402 КБ gzip) | 304 → 0 байт |
+| Разрыв связи | полный список + архив + вся лента уведомлений | дельта по курсору (`/api/tasks/changes`) |
+| Повторный вход в комнату чата | вся история переписки | только новые сообщения по `after` |
+
+## Чего пока нет (нужна серверная часть)
+
+**На сервере этих ручек ещё не было.** Проверено по коду
+`New-Todoist/server/src/routes/chats.ts`:
+
+- `GET /api/chats` не умеет `If-None-Match` → 304 (ETag в списке чатов нет);
+- `GET /api/chats/:id/messages` не понимает `after`/`before`/`limit` → отдаёт
+  всю историю чата целиком; признака `has_more` в ответе тоже нет.
+
+Поэтому клиент написан так, чтобы работать и со старым сервером:
+
+- нет ETag → список чатов просто приходит целиком каждый раз;
+- нет `has_more` → клиент запоминает (`chats.paging`) и **не** догружает
+  по частям, а просит чат целиком — как раньше.
+
+Серверная часть (ветка в `New-Todoist`): ETag для `/api/chats`,
+постраничная выдача `/api/chats/:id/messages` с `has_more`.
+
+PR: `papirosa3214/New-Todoist#42` (ветка `feature/chat-sync-paging`),
+проверки на сервере зелёные: 14/14 новых тестов, `tsc` чисто, задачи 31/31.
+
+## Проверки
+
+- `python3 Tools/test_local_db_sync.py` — 36/36 (хост, без симулятора).
+  RED → GREEN: до правок падает, после проходит.
+- `Tests/LocalDbSyncTests.swift` — 14 тестов на логику базы (round-trip,
+  порядок, курсоры, удаление, чистка). На маке **не прогонялись**.
+- Сборка приложения, симулятор, установка на iPhone и UI-тесты — не
+  трогались (запрет владельца от 25.10.2026).
+
+## Что дальше для приёмки
+
+1. Собрать приложение на маке (`xcodegen generate` + `xcodebuild`).
+2. Прогнать `TaskFlowTests` (в том числе `LocalDbSyncTests`).
+3. Поставить на iPhone и проверить: авиарежим, перезапуск, повторный вход
+   в комнату — история и список видны, сеть молчит.
+4. Замерить трафик на сессию (критерии плана: старт ≤ 60 КБ, открытие чата
+   ≤ 30 КБ) — с серверной частью из `New-Todoist`.
