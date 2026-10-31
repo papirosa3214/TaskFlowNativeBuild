@@ -1,3 +1,10 @@
+// Хост-программа собирается отдельно (swiftc + исходники приложения в том же
+// модуле), поэтому импорт модуля приложения здесь условный: в бандле тестов
+// модуль TaskFlow доступен, в самостоятельной сборке — нет.
+#if canImport(TaskFlow)
+@testable import TaskFlow
+#endif
+
 #if ROUTINES_HOST_TEST
 import Foundation
 

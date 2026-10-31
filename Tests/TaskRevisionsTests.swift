@@ -1,4 +1,5 @@
 import XCTest
+@testable import TaskFlow
 
 final class TaskRevisionsTests: XCTestCase {
     func testReconnectAloneDoesNotWakeCards() {

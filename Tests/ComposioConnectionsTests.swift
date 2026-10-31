@@ -1,4 +1,5 @@
 import XCTest
+@testable import TaskFlow
 
 final class ComposioConnectionsTests: XCTestCase {
     func testConnectedGitHubOutsideCatalogPageRemainsVisible() throws {

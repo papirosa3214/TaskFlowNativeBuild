@@ -21,7 +21,7 @@ if not model.exists() or not tests.exists():
 with tempfile.TemporaryDirectory(prefix='composio-connectors-') as tmp:
     main = Path(tmp) / 'main.swift'
     binary = Path(tmp) / 'tests'
-    main.write_text(tests.read_text() + '\nlet suite = ComposioConnectorTests.defaultTestSuite\nsuite.run()\nexit(suite.testRun!.hasSucceeded ? 0 : 1)\n')
+    main.write_text(tests.read_text().replace('@testable import TaskFlow', '') + '\nlet suite = ComposioConnectorTests.defaultTestSuite\nsuite.run()\nexit(suite.testRun!.hasSucceeded ? 0 : 1)\n')
     developer = Path(subprocess.check_output(['xcode-select', '-p'], text=True).strip())
     frameworks = developer / 'Platforms/MacOSX.platform/Developer/Library/Frameworks'
     libraries = developer / 'Platforms/MacOSX.platform/Developer/usr/lib'
