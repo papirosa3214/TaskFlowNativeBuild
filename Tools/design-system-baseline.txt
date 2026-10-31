@@ -182,9 +182,6 @@ Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button("Отм�
 Sources/Features/Planner/RescheduleSheet.swift	red-button	Button {
 Sources/Features/Planner/PlannerSection.swift	implicit-system-blue	Button(action: action) {
 Sources/Features/Planner/PlannerHoursView.swift	implicit-system-blue	Button { isTimelineExpanded.toggle() } label: {
-Sources/Features/Planner/UpcomingListView.swift	red-button	return Button {
-Sources/Features/Planner/UpcomingListView.swift	red-button	Button {
-Sources/Features/Planner/UpcomingListView.swift	red-button	Button { selectedDate = nil } label: {
 Sources/Features/Planner/PlannerScreen.swift	implicit-system-blue	Button { self.openDay = nil } label: {
 Sources/Features/Planner/PlannerScreen.swift	implicit-system-blue	Button { self.openDay = nil } label: {
 Sources/Features/Planner/PlannerScreen.swift	implicit-system-blue	Button(action: action) {
