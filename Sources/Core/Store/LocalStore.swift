@@ -77,6 +77,44 @@ final class LocalStore: @unchecked Sendable {
     }
 
     /// Чаты из базы. Порядок — как на сервере: по свежести.
+    /// Убрать сессию из списка на телефоне — спрятать, а не стереть.
+    ///
+    /// Правило «ничего не удаляем» выше — про сообщения и историю, но и
+    /// строку чата терять нельзя: закрытая сессия должна оставаться в
+    /// «Показать закрытые» даже без сети. Поэтому «убрать из списка» — это
+    /// archived_at, ровно как на сервере (lib/chatArchive.ts): сессия уходит
+    /// из обычного списка и остаётся доступной в закрытых.
+    ///
+    /// Зачем это вообще: закрытый чат сервер в `GET /api/chats` уже не
+    /// отдаёт, а при ответе 304 («список не изменился») экран берёт список
+    /// из этой таблицы — и «удалённая» сессия возвращалась после каждого
+    /// перезапуска. Владелец 31.10.2026: «удаляю сессию из списка, она не
+    /// удаляется».
+    func hideChat(id: String) throws {
+        try queue.write { db in
+            try db.execute(
+                sql: "UPDATE chat SET archived_at = COALESCE(archived_at, datetime('now')) WHERE id = ?",
+                arguments: [id]
+            )
+        }
+    }
+
+    /// Спрятать всё, чего не было в полном ответе сервера.
+    ///
+    /// Зовётся ТОЛЬКО когда пришло тело, а не 304: тогда список — ровно то,
+    /// что видит владелец, а всё остальное в таблице — устаревший хвост
+    /// (закрытые и убранные сессии, правки с другого устройства). Строки не
+    /// стираются: спрятанный чат показывается в «Показать закрытые» и
+    /// возвращается сам, если сервер снова отдал его в списке.
+    func hideChats(notIn ids: Set<String>) throws {
+        try queue.write { db in
+            let rows = try String.fetchAll(db, sql: "SELECT id FROM chat WHERE archived_at IS NULL")
+            for id in rows where !ids.contains(id) {
+                try db.execute(sql: "UPDATE chat SET archived_at = datetime('now') WHERE id = ?", arguments: [id])
+            }
+        }
+    }
+
     func chats(includeClosed: Bool = false) throws -> [RoleChat] {
         let sql = includeClosed
             ? "SELECT payload_json FROM chat ORDER BY updated_at DESC, id ASC"

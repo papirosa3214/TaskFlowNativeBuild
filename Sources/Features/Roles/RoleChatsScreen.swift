@@ -292,6 +292,9 @@ struct RoleChatsScreen: View {
     private func setClosed(_ chat: RoleChat, closed: Bool) async {
         do {
             _ = try await api.closeRoleChat(id: chat.id, closed: closed)
+            // Сразу из списка, не дожидаясь сети: строка не стирается, а
+            // прячется в «Показать закрытые» — как на сервере.
+            if closed { try? LocalStore.shared.hideChat(id: chat.id) }
             try await refreshList()
         } catch { errorMessage = error.localizedDescription }
     }
@@ -347,12 +350,16 @@ struct RoleChatsScreen: View {
         if rooms == nil, isOwner, !projectsOnly { rooms = api.cachedChatRooms() }
         isLoading = true
         defer { isLoading = false }
-        do { try await refreshList() }
+        do { try await refreshList(forceFull: true) }
         catch is CancellationError { }
         catch { errorMessage = error.localizedDescription }
     }
 
-    private func refreshList() async throws {
+    /// `forceFull` — забрать список телом, без отпечатка. Нужен при открытии
+    /// экрана: локальная таблица могла сохранить чаты, которых на сервере
+    /// уже нет (закрытая или убранная сессия), и ответ 304 вернул бы их в
+    /// список. Полный ответ заодно прячет такой хвост — `hideChats`.
+    private func refreshList(forceFull: Bool = false) async throws {
         listRequestVersion += 1
         let version = listRequestVersion
         // С отпечатком: список чатов не менялся — сервер отвечает 304, и
@@ -360,7 +367,7 @@ struct RoleChatsScreen: View {
         // поэтому перезапуск приложения его не теряет.
         async let freshChats = api.roleChatsSync(
             includeClosed: showsClosed,
-            etag: LocalStore.shared.syncState(SyncStateKeys.chatsETag)
+            etag: forceFull ? nil : LocalStore.shared.syncState(SyncStateKeys.chatsETag)
         )
         let freshRooms: ChatRoomsSnapshot? = isOwner && !projectsOnly ? try? await api.chatRooms() : nil
         let result = try await freshChats
@@ -375,6 +382,11 @@ struct RoleChatsScreen: View {
             chats = envelope.chats
             // В базу — сырое тело ответа сервера.
             try? LocalStore.shared.upsertChats(result.data)
+            // Полный список — это ровно то, что видит владелец: всё прочее в
+            // локальной таблице устарело (закрытые сессии, уборка, правки с
+            // другого устройства). Без этого «удалённая» сессия возвращалась
+            // из локальной базы после перезапуска.
+            try? LocalStore.shared.hideChats(notIn: Set(envelope.chats.map(\.id)))
             if let etag = result.etag { LocalStore.shared.setSyncState(SyncStateKeys.chatsETag, etag) }
         }
         if let freshRooms { rooms = freshRooms }
@@ -3853,6 +3865,10 @@ private struct RoleChatDetailsSheet: View {
         defer { isBusy = false }
         do {
             try await api.deleteRoleChat(id: chat.id)
+            // Строку из локального списка убираем сразу и тоже без стирания:
+            // сервер её больше не отдаёт, а локальная копия иначе вернула бы
+            // чат при ответе 304.
+            try? LocalStore.shared.hideChat(id: chat.id)
             dismiss()
             onDeleted()
         } catch { errorMessage = error.localizedDescription }
