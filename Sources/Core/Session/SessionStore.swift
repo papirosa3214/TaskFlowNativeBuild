@@ -29,7 +29,12 @@ public final class SessionStore {
         unauthorizedObserver = NotificationCenter.default.addObserver(
             forName: .taskFlowUnauthorized, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.currentUser = nil }
+            Task { @MainActor in
+                self?.currentUser = nil
+                // Токен истёк — сессии больше нет: локальную копию чужих
+                // данных тоже убираем.
+                try? LocalStore.shared.clearAll()
+            }
         }
     }
 
@@ -100,5 +105,8 @@ public final class SessionStore {
     public func logout() {
         KeychainService.shared.token = nil
         currentUser = nil
+        // Локальная база — копия данных сервера. После выхода чужая
+        // переписка и чужие задачи не должны остаться на телефоне.
+        try? LocalStore.shared.clearAll()
     }
 }

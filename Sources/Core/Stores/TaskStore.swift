@@ -64,6 +64,9 @@ public final class TaskStore {
         if !silent { isLoading = true }
         errorMessage = nil
         defer { if !silent { isLoading = false } }
+        // ЛОКАЛЬНАЯ БАЗА: список рисуется сразу, без сети. На пустой базе
+        // ничего показать нечем — экран рисует скелет и ждёт сеть.
+        if tasks.isEmpty { applyLocalTasks() }
         // ОДИН запрос вместо двух. Сервер отдаёт список вместе с дочерними
         // (`include_children=true`), а корневые выделяются локально по тому же
         // правилу, что и на сервере (`server/src/routes/tasks.ts`:
@@ -72,18 +75,33 @@ public final class TaskStore {
         // телефон скачивал весь список дважды (1,83 МБ каждый) ради единиц
         // дочерних карточек — половина трафика уходила в дубль.
         do {
-            let page = try await apiClient.taskList(includeChildren: true, etag: listETag)
+            // Отпечаток берём из памяти, а если его там нет — из базы:
+            // он должен переживать перезапуск приложения, иначе каждый
+            // старт стоит полной перечитки списка (402 КБ gzip).
+            let page = try await apiClient.taskListRaw(
+                includeChildren: true,
+                etag: listETag ?? LocalStore.shared.syncState(SyncStateKeys.tasksETag)
+            )
             if page.notModified {
                 // Список не менялся — сервер ответил 304 без тела. Качать
                 // 402 КБ gzip впустую не нужно, состояние уже актуально.
-                if let cursor = page.cursor { syncCursor = cursor }
+                if let cursor = page.cursor {
+                    syncCursor = cursor
+                    LocalStore.shared.setSyncState(SyncStateKeys.tasksCursor, cursor)
+                }
                 return
             }
-            let all = page.tasks
+            let all = try apiClient.decode([ApiTask].self, from: page.data)
             agentWorkTasks = all.filter { !$0.isArchived }
             tasks = all.filter { !$0.isArchived && Self.isRootTask($0) }
             listETag = page.etag
             if let cursor = page.cursor { syncCursor = cursor }
+            // Отпечаток и курсор — в базу: в памяти они живут до перезапуска,
+            // а база переживает его. Это и есть «повторный вход — 0 байт».
+            if let etag = page.etag { LocalStore.shared.setSyncState(SyncStateKeys.tasksETag, etag) }
+            if let cursor = page.cursor { LocalStore.shared.setSyncState(SyncStateKeys.tasksCursor, cursor) }
+            // В базу — сырое тело ответа: новая схема сервера базу не ломает.
+            try? LocalStore.shared.upsertTasks(page.data)
         } catch is CancellationError {
             // Экран перезапросил список раньше, чем доехал предыдущий заход
             // (смена формата «Список»/«Один день», быстрый повторный вход) —
@@ -91,6 +109,13 @@ public final class TaskStore {
         } catch {
             errorMessage = Self.message(for: error)
         }
+    }
+
+    /// Список задач из локальной базы — рисуется без сети и без ожидания.
+    private func applyLocalTasks() {
+        guard let local = try? LocalStore.shared.tasks(), !local.isEmpty else { return }
+        agentWorkTasks = local.filter { !$0.isArchived }
+        tasks = local.filter { !$0.isArchived && Self.isRootTask($0) }
     }
 
     /// Корневая карточка — по правилу сервера (`server/src/routes/tasks.ts`):
@@ -265,7 +290,9 @@ public final class TaskStore {
     /// пришлось читать список целиком и что изменилось — неизвестно.
     @discardableResult
     public func refreshAfterReconnect() async -> Set<String>? {
-        guard let cursor = syncCursor else {
+        // Курсор живёт в памяти сессии, а в базе — тоже: после перезапуска
+        // приложения дельта тоже начинается с места, где остановились.
+        guard let cursor = syncCursor ?? LocalStore.shared.syncState(SyncStateKeys.tasksCursor) else {
             // Курсора нет (первый запуск сессии) — догонять нечего, читаем
             // список целиком.
             await load(silent: true)
@@ -281,6 +308,7 @@ public final class TaskStore {
             }
             await apply(delta)
             syncCursor = delta.serverTime
+            LocalStore.shared.setSyncState(SyncStateKeys.tasksCursor, delta.serverTime)
             return Set(delta.changedIds).union(delta.removedIds)
         } catch {
             // Дельта не вышла — список оставлять старым нельзя, читаем
@@ -302,6 +330,10 @@ public final class TaskStore {
                 byId[task.id] = task
             }
         }
+        // Локальная база: изменившиеся карточки — перезапись, исчезнувшие —
+        // удаление. Удалять можно только то, о чём сервер СКАЗАЛ: `removed_ids`
+        // — это явное «такой карточки больше нет».
+        try? LocalStore.shared.removeTasks(ids: delta.removedIds)
         // Порядок — как у полной выдачи (сервер сортирует по created_at DESC).
         let all = byId.values.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
         agentWorkTasks = all.filter { !$0.isArchived }

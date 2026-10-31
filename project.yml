@@ -88,6 +88,9 @@ targets:
       - package: SDWebImageSwiftUI
       - package: SDWebImageWebPCoder
       - package: LiveKit
+      # Локальная база: `Sources/Core/Store/` — хранение ответов сервера,
+      # отпечатков и курсоров (LOCK-LOCAL-DB-SYNC-20261031).
+      - package: GRDB
       # Расширение с виджетом: без явной зависимости xcodegen не вложит его
       # в бандл приложения, и Live Activity не за что будет зацепиться.
       - target: TaskFlowBroadcast
@@ -371,6 +374,12 @@ packages:
   LiveKit:
     url: https://github.com/livekit/client-sdk-swift.git
     from: 2.17.0
+  # Локальная база (LOCK-LOCAL-DB-SYNC-20261031): телефон показывает список
+  # и переписку из базы, а не из сети, и помнит отпечатки/курсоры — повторный
+  # вход не качает список заново.
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    from: 7.11.1
 
 schemes:
   VoiceMessageLab:

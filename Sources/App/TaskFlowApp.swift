@@ -182,6 +182,9 @@ struct RootView: View {
         realtimeClient.onEvent = { event in
             taskStore.apply(event)
             notificationStore.apply(event)
+            // Событие сокета — и в локальную базу: переписка и лента должны
+            // быть полными и без сети (авиарежим, перезапуск).
+            SyncEngine.shared.ingest(event)
         }
         realtimeClient.onReconnected = {
             // spec §4.2: сервер не хранит очередь пропущенных событий — на
@@ -211,6 +214,12 @@ struct RootView: View {
             async let avatarsLoaded: () = AvatarDirectory.shared.load(apiClient: APIClient())
             async let notificationsLoaded: () = notificationStore.load(unreadOnly: true)
             _ = await (tasksLoaded, projectsLoaded, labelsLoaded, notificationsLoaded, avatarsLoaded)
+        }
+        // Фоновая синхронизация — ПОСЛЕ первой отрисовки. Экран к этому
+        // моменту уже показал то, что лежит в локальной базе; сеть догоняет
+        // остальное и пишет в базу, а экран перечитывает.
+        Task {
+            await SyncEngine.shared.syncAll()
         }
     }
 }
