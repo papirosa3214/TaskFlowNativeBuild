@@ -50,7 +50,7 @@ SOURCES = [
     'Sources/Core/Common/ParsedValueCache.swift',
     'Sources/Core/Models/AgentComponent.swift',
     'Sources/Core/Models/RuntimeModels.swift',
-    'Sources/Features/Knowledge/NoteDocument.swift',
+    'Sources/Core/Models/NoteDocument.swift',
     'Sources/Chat/Feed/ChatRichContent.swift',
 ]
 

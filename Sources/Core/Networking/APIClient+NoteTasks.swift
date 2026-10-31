@@ -1,7 +1,7 @@
 import Foundation
 
 // «Собрать задачи из текста» (spec/SCREENS-2.md §2 «Меню AI») — отдельный
-// AI-эндпоинт, сосед завёл в `NotesAPI.swift` только `journalAssist` для
+// AI-эндпоинт, сосед завёл в `APIClient+NotesJournal.swift` только `journalAssist` для
 // трёх других пунктов меню; этот довожу здесь же, чужой файл не трогаю.
 // Маршрут подтверждён чтением `server/src/routes/ai.ts` (`POST
 // /api/ai/extract-tasks`, тело `{ text }`, ответ `{ tasks: [...] }`).

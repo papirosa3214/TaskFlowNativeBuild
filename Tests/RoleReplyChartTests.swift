@@ -53,7 +53,7 @@ final class RoleReplyChartTests: XCTestCase {
 
     /// Ни в одном файле показа ответа роли не осталось своей разметки графика.
     func testNoChartMarksOutsideSharedComponent() throws {
-        let shared = "Sources/Features/Roles/RoleChartBlock.swift"
+        let shared = "Sources/Chat/Output/RoleChartBlock.swift"
         let offenders = try swiftSources()
             .filter { $0 != shared }
             .filter { path in

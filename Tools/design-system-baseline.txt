@@ -59,7 +59,7 @@ Sources/Features/Roles/TeamAppearanceSheet.swift	implicit-system-blue	.toolbar {
 Sources/Features/Roles/TeamAppearanceSheet.swift	red-button	Button {
 Sources/Features/Activity/ActivityChart.swift	red-button	Button { handleTap(idx) } label: {
 Sources/Features/Activity/ActivityScreen.swift	implicit-system-blue	Button(action: set) {
-Sources/Features/Activity/CompletionHeatmap.swift	implicit-system-blue	Button("История недоступна · Повторить") { Task { await loadArchive() } }.font(.caption)
+Sources/Features/Overview/CompletionHeatmap.swift	implicit-system-blue	Button("История недоступна · Повторить") { Task { await loadArchive() } }.font(.caption)
 Sources/Features/Labels/LabelsScreen.swift	red-button	TFButton(isSaving ? "Создаём…" : "Создать", variant: .primary, isEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && !isSaving) {
 Sources/Features/ServiceNotifications/NotificationsScreen.swift	implicit-system-blue	Menu {
 Sources/Features/Projects/ProjectTasksScreen.swift	implicit-system-blue	Menu {
@@ -67,7 +67,6 @@ Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	Button("От
 Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { searchPresented = false } } }
 Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	Menu {
 Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	Button {
-Sources/Features/Shared/DirectoryConfirm.swift	red-button	TFButton(req.confirmLabel, variant: req.danger ? .primary : .secondary) {
 Sources/Features/Projects/KnowledgeDatasetPicker.swift	red-button	Button(isCreating ? "…" : "Создать") {
 Sources/Features/ServiceNotifications/NotificationTicketDetailSheet.swift	red-button	Button {
 Sources/Features/ServiceNotifications/ServiceTicketResolutionSheet.swift	red-button	TFButton(

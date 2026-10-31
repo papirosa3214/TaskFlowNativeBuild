@@ -5,8 +5,8 @@ import Foundation
 /// (spec §8) — тот же ритм стоит повторить в `RootShellView`/сторе агентов,
 /// когда экран «Агенты» появится (Волна 2). Удалены 2026-09-11 по
 /// DEAD-CODE-CLEANUP-REPORT.md: `InviteAgentResponse`, `inviteAgent`,
-/// `renameAgent` — старые контракты, заменены `AgentsAPI.swift` в
-/// `Sources/Features/Chat/`.
+/// `renameAgent` — старые контракты, заменены `APIClient+AgentProfile.swift`;
+/// `Sources/Features/Chat/` — историческое упоминание.
 public extension APIClient {
 
     func agents() async throws -> [ApiUser] {
