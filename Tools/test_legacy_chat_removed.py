@@ -61,7 +61,7 @@ check('.scrollPosition($chatScrollPosition)' in screen,
 check('.defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)' in screen,
       'живой чат потерял удержание низа')
 
-marks = (ROOT / 'Sources/ChatComponents/Feed/ChatFeedMarks.swift').read_text()
+marks = (ROOT / 'Sources/Chat/Feed/ChatFeedMarks.swift').read_text()
 check('ChatDayLabel' in marks and 'ChatFeedDivider' in marks,
       'ChatFeedMarks.swift удалён, а он живой (даты и разделители в ленте)')
 
@@ -78,7 +78,7 @@ check('ChatBubble.swift' not in render, 'тест рендера ссылает�
 
 # Пережившие удаление части ленты: точки «печатает…» и вложения нужны живому
 # чату и карточке задачи. Раньше они лежали в удалённых файлах.
-parts = ROOT / 'Sources/ChatComponents/Feed/ChatFeedParts.swift'
+parts = ROOT / 'Sources/Chat/Feed/ChatFeedParts.swift'
 check(parts.exists(), 'части ленты (точки «печатает», вложения) потеряны')
 if parts.exists():
     text = parts.read_text()

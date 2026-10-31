@@ -50,8 +50,8 @@ SOURCES = [
     'Sources/Core/Common/ParsedValueCache.swift',
     'Sources/Core/Models/AgentComponent.swift',
     'Sources/Core/Models/RuntimeModels.swift',
-    'Sources/Features/Notes/NoteDocument.swift',
-    'Sources/ChatComponents/Feed/ChatRichContent.swift',
+    'Sources/Features/Knowledge/NoteDocument.swift',
+    'Sources/Chat/Feed/ChatRichContent.swift',
 ]
 
 source = 'import Foundation\n'

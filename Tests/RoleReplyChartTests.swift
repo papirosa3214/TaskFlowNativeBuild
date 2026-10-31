@@ -43,8 +43,8 @@ final class RoleReplyChartTests: XCTestCase {
     /// `ChatStructuredOutputView` рисовал график сам teal, а `ChatWidgetView`
     /// — своим `ChartWidget` красным, и тот же ответ выглядел по-разному.
     func testBothPathsDrawChartByOneComponent() throws {
-        for path in ["Sources/ChatComponents/Output/ChatStructuredOutputView.swift",
-                     "Sources/ChatComponents/Output/ChatWidgetView.swift"] {
+        for path in ["Sources/Chat/Output/ChatStructuredOutputView.swift",
+                     "Sources/Chat/Output/ChatWidgetView.swift"] {
             let text = try source(path)
             XCTAssertTrue(text.contains("RoleChartBlock("),
                           "\(path): график ответа роли должен рисоваться общим RoleChartBlock")
@@ -67,10 +67,10 @@ final class RoleReplyChartTests: XCTestCase {
 
     /// Цвет графика один: teal из общего компонента, а не красный виджета.
     func testChartColorIsShared() throws {
-        let widget = try source("Sources/ChatComponents/Output/ChatWidgetView.swift")
+        let widget = try source("Sources/Chat/Output/ChatWidgetView.swift")
         XCTAssertFalse(widget.contains("tfRed.gradient"),
                        "Блок графика виджета снова красится своим цветом")
-        let bars = try source("Sources/ChatComponents/Widgets/WidgetLayoutVariants.swift")
+        let bars = try source("Sources/Chat/Widgets/WidgetLayoutVariants.swift")
         XCTAssertTrue(bars.contains("RoleChartBlock.ink"),
                       "Полосы блока графика должны тем же цветом, что и график")
     }

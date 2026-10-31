@@ -11,14 +11,14 @@
 #   python3 Tools/design-system-guard.py --write-baseline
 Sources/App/Auth/LoginView.swift	red-button	TFButton(
 Sources/Features/Roles/AgentsScreen.swift	implicit-system-blue	Menu {
-Sources/ChatComponents/Output/BashCommandBlock.swift	implicit-system-blue	Button { confirming = true } label: {
-Sources/ChatComponents/Output/BashCommandBlock.swift	implicit-system-blue	Button("Выполнить на .110") {
-Sources/ChatComponents/Output/BashCommandBlock.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { confirming = false } } }
-Sources/ChatComponents/Output/ChatHTMLView.swift	implicit-system-blue	Button("Закрыть") { isFullScreen = false }
-Sources/ChatComponents/Output/ChatStructuredOutputView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
-Sources/ChatComponents/Output/ChatStructuredOutputView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
-Sources/ChatComponents/Output/ChatWidgetView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: noteID)) { label }
-Sources/ChatComponents/Output/ChatWidgetView.swift	red-button	Button { openURL(url) } label: { label }
+Sources/Chat/Output/BashCommandBlock.swift	implicit-system-blue	Button { confirming = true } label: {
+Sources/Chat/Output/BashCommandBlock.swift	implicit-system-blue	Button("Выполнить на .110") {
+Sources/Chat/Output/BashCommandBlock.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { confirming = false } } }
+Sources/Chat/Output/ChatHTMLView.swift	implicit-system-blue	Button("Закрыть") { isFullScreen = false }
+Sources/Chat/Output/ChatStructuredOutputView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
+Sources/Chat/Output/ChatStructuredOutputView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
+Sources/Chat/Output/ChatWidgetView.swift	implicit-system-blue	NavigationLink(value: AppRoute.noteEditor(noteID: noteID)) { label }
+Sources/Chat/Output/ChatWidgetView.swift	red-button	Button { openURL(url) } label: { label }
 Sources/Features/Roles/MemoryScreen.swift	implicit-system-blue	Menu {
 Sources/Features/Roles/MemoryScreen.swift	red-button	Button { filter = value } label: {
 Sources/Features/Roles/MemoryScreen.swift	implicit-system-blue	Picker("Вид", selection: $kind) {
@@ -28,10 +28,10 @@ Sources/Features/Roles/MemoryScreen.swift	implicit-system-blue	Button("Забы�
 Sources/Features/Roles/MemoryScreen.swift	red-button	Button("Забыть", role: .destructive) { isDeleteConfirmOpen = true }
 Sources/Features/Roles/MemoryScreen.swift	implicit-system-blue	ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
 Sources/Features/Roles/MemoryScreen.swift	implicit-system-blue	Button("Сохранить") { Task { await save() } }
-Sources/ChatComponents/Output/PanelCommandBridge.swift	implicit-system-blue	Button("Выполнить на .110") { bridge.confirm() }
-Sources/ChatComponents/Output/PanelCommandBridge.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { bridge.cancel() } } }
+Sources/Chat/Output/PanelCommandBridge.swift	implicit-system-blue	Button("Выполнить на .110") { bridge.confirm() }
+Sources/Chat/Output/PanelCommandBridge.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { bridge.cancel() } } }
 Sources/Features/Roles/ProjectTopicsScreen.swift	implicit-system-blue	Menu {
-Sources/ChatComponents/Shared/ProviderQuotaSheet.swift	implicit-system-blue	Button { Task { await load() } } label: {
+Sources/Chat/Shared/ProviderQuotaSheet.swift	implicit-system-blue	Button { Task { await load() } } label: {
 Sources/Features/Roles/RoleBehaviorTemplatesView.swift	implicit-system-blue	if changed { ToolbarItem(placement: .cancellationAction) { Button("Назад") { showDiscard = true } } }
 Sources/Features/Roles/RoleChatsScreen.swift	red-button	Button(action: onToggle) {
 Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button {
@@ -52,7 +52,7 @@ Sources/Features/Roles/RoleInstructionEditor.swift	implicit-system-blue	ToolbarI
 Sources/Features/Roles/RoleLiveTurnView.swift	implicit-system-blue	Button("Готово") { dismiss() }
 Sources/Features/Roles/RoleRoomSheet.swift	implicit-system-blue	Button("Готово") { dismiss() }
 Sources/Features/Roles/RoleRuntimeContextSheet.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
-Sources/ChatComponents/Feed/SelectableTextSheet.swift	implicit-system-blue	ToolbarItem(placement: .topBarTrailing) { Button("Готово") { dismiss() } }
+Sources/Chat/Feed/SelectableTextSheet.swift	implicit-system-blue	ToolbarItem(placement: .topBarTrailing) { Button("Готово") { dismiss() } }
 Sources/Features/Roles/TeamAppearanceSheet.swift	implicit-system-blue	Button {
 Sources/Features/Roles/TeamAppearanceSheet.swift	red-button	Button {
 Sources/Features/Roles/TeamAppearanceSheet.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
@@ -61,7 +61,7 @@ Sources/Features/Activity/ActivityChart.swift	red-button	Button { handleTap(idx)
 Sources/Features/Activity/ActivityScreen.swift	implicit-system-blue	Button(action: set) {
 Sources/Features/Activity/CompletionHeatmap.swift	implicit-system-blue	Button("История недоступна · Повторить") { Task { await loadArchive() } }.font(.caption)
 Sources/Features/Labels/LabelsScreen.swift	red-button	TFButton(isSaving ? "Создаём…" : "Создать", variant: .primary, isEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && !isSaving) {
-Sources/Features/Notifications/NotificationsScreen.swift	implicit-system-blue	Menu {
+Sources/Features/ServiceNotifications/NotificationsScreen.swift	implicit-system-blue	Menu {
 Sources/Features/Projects/ProjectTasksScreen.swift	implicit-system-blue	Menu {
 Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	Button("Отменить обновление") {
 Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { searchPresented = false } } }
@@ -69,22 +69,22 @@ Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	Menu {
 Sources/Features/Projects/ProjectsScreen.swift	implicit-system-blue	Button {
 Sources/Features/Shared/DirectoryConfirm.swift	red-button	TFButton(req.confirmLabel, variant: req.danger ? .primary : .secondary) {
 Sources/Features/Projects/KnowledgeDatasetPicker.swift	red-button	Button(isCreating ? "…" : "Создать") {
-Sources/Features/Notifications/NotificationTicketDetailSheet.swift	red-button	Button {
-Sources/Features/Notifications/ServiceTicketResolutionSheet.swift	red-button	TFButton(
-Sources/Features/Task/TaskArchiveScreen.swift	implicit-system-blue	Button("Восстановить", systemImage: "arrow.uturn.backward") {
-Sources/Features/Task/TaskArchiveScreen.swift	implicit-system-blue	Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
-Sources/Features/Task/TaskArchiveScreen.swift	red-button	Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
-Sources/Features/Task/TaskArchiveScreen.swift	implicit-system-blue	Button("Готово") { selectedTask = nil }
+Sources/Features/ServiceNotifications/NotificationTicketDetailSheet.swift	red-button	Button {
+Sources/Features/ServiceNotifications/ServiceTicketResolutionSheet.swift	red-button	TFButton(
+Sources/Features/Tasks/TaskArchiveScreen.swift	implicit-system-blue	Button("Восстановить", systemImage: "arrow.uturn.backward") {
+Sources/Features/Tasks/TaskArchiveScreen.swift	implicit-system-blue	Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
+Sources/Features/Tasks/TaskArchiveScreen.swift	red-button	Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
+Sources/Features/Tasks/TaskArchiveScreen.swift	implicit-system-blue	Button("Готово") { selectedTask = nil }
 Sources/Features/Markdown/MarkdownDocumentRenderer.swift	implicit-system-blue	Button("Готово") { dismiss() }
 Sources/Features/Markdown/MarkdownKeyboardAccessoryBar.swift	red-button	return Button {
-Sources/Features/Notes/FolderPickerSheet.swift	implicit-system-blue	Button("Отмена") { dismiss() }
-Sources/Features/Notes/NoteEditorScreen.swift	implicit-system-blue	Button {
-Sources/Features/Notes/NoteEditorScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Notes/NoteExtractedTasksSheet.swift	red-button	TFButton(confirmButtonTitle, variant: .primary, isEnabled: canConfirm) {
-Sources/Features/Notes/NotesScreen.swift	implicit-system-blue	Button("Отмена") { viewModel.exitSelecting() }
-Sources/Features/Notes/NotesScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Notes/NotesScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Notes/NotesScreen.swift	red-button	Button(viewModel.isSavingFolder ? "Создаём…" : "Создать") {
+Sources/Features/Knowledge/FolderPickerSheet.swift	implicit-system-blue	Button("Отмена") { dismiss() }
+Sources/Features/Knowledge/NoteEditorScreen.swift	implicit-system-blue	Button {
+Sources/Features/Knowledge/NoteEditorScreen.swift	implicit-system-blue	Menu {
+Sources/Features/Knowledge/NoteExtractedTasksSheet.swift	red-button	TFButton(confirmButtonTitle, variant: .primary, isEnabled: canConfirm) {
+Sources/Features/Knowledge/NotesScreen.swift	implicit-system-blue	Button("Отмена") { viewModel.exitSelecting() }
+Sources/Features/Knowledge/NotesScreen.swift	implicit-system-blue	Menu {
+Sources/Features/Knowledge/NotesScreen.swift	implicit-system-blue	Menu {
+Sources/Features/Knowledge/NotesScreen.swift	red-button	Button(viewModel.isSavingFolder ? "Создаём…" : "Создать") {
 Sources/Features/Settings/AppDiagnosticsScreen.swift	implicit-system-blue	NavigationLink("Поток") { AppDiagnosticsStreamPreview() }
 Sources/Features/Settings/AppIconPicker.swift	red-button	Button("Готово", action: onClose)
 Sources/Features/Settings/ComposioIntegrationsScreen.swift	red-button	TFButton(model.saving ? "Сохраняем…" : "Сохранить", icon: "checkmark",
@@ -123,71 +123,71 @@ Sources/Features/Settings/WebhooksScreen.swift	implicit-system-blue	Button { add
 Sources/Features/Settings/WebhooksScreen.swift	implicit-system-blue	Picker("Проект", selection: $projectID) {
 Sources/Features/Settings/WebhooksScreen.swift	implicit-system-blue	ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
 Sources/Features/Settings/WebhooksScreen.swift	implicit-system-blue	Button(saving ? "Сохранение…" : "Сохранить") { Task { await save() } }
-Sources/Features/Task/Detail/AgentTraceView.swift	implicit-system-blue	Picker("Запуск / события", selection: Binding(get: { selectedID ?? run.id }, set: {
-Sources/Features/Task/Detail/CollaborationPlanView.swift	implicit-system-blue	Button("Отклонить", role: .destructive) { Task { await decide(proposal, approve: false, in: plan) } }
-Sources/Features/Task/Detail/CollaborationPlanView.swift	red-button	Button("Отклонить", role: .destructive) { Task { await decide(proposal, approve: false, in: plan) } }
-Sources/Features/Task/Detail/IntegrationResponsibilityView.swift	red-button	Menu {
-Sources/Features/Task/Detail/IntegrationResponsibilityView.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { help = false } } }
-Sources/Features/Task/Detail/OutcomeMergeRow.swift	implicit-system-blue	Button(isRollingBack ? "Откатываю…" : "Откатить") {
-Sources/Features/Task/Detail/PlanStepSheets.swift	red-button	Button(role: .destructive) { isRemoveConfirmOpen = true } label: {
-Sources/Features/Task/Detail/SubtaskFeedView.swift	red-button	TFButton("Принять", icon: "checkmark", variant: .primary) { onAccept(subtask) }
-Sources/Features/Task/Detail/SubtaskFeedView.swift	red-button	TFButton("Отправить", variant: .primary, isEnabled: !replyText.trimmingCharacters(in: .whitespaces).isEmpty) {
-Sources/Features/Task/Detail/TaskOutcomeSection.swift	implicit-system-blue	Button("Готово") { dismiss() }
-Sources/Features/Task/Detail/TaskPreparationView.swift	implicit-system-blue	Button {
-Sources/Features/Task/Detail/TaskPreparationView.swift	implicit-system-blue	Button {
-Sources/Features/Task/Detail/TaskPreparationView.swift	implicit-system-blue	Button("Создать дочерние задачи") {
-Sources/Features/Task/Detail/TaskPreparationView.swift	implicit-system-blue	Button("Подготовить план") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } }
-Sources/Features/Task/Detail/TaskPreparationView.swift	implicit-system-blue	Button("Вернуться к задаче") { dismiss() }.buttonStyle(.borderedProminent)
-Sources/Features/Task/QuickAddTaskView.swift	implicit-system-blue	Picker("Продолжительность", selection: $viewModel.durationMin) {
-Sources/Features/Task/QuickAddTaskView.swift	implicit-system-blue	Button(role: .destructive) {
-Sources/Features/Task/QuickAddTaskView.swift	red-button	Button(role: .destructive) {
-Sources/Features/Task/QuickAddTaskView.swift	implicit-system-blue	Button { isAttachmentImporterPresented = true } label: {
-Sources/Features/Task/QuickAddTaskView.swift	implicit-system-blue	Button(role: .destructive, action: remove) {
-Sources/Features/Task/QuickAddTaskView.swift	red-button	Button(role: .destructive, action: remove) {
-Sources/Features/Task/Support/TaskConfirm.swift	red-button	TFButton(req.confirmLabel, variant: req.danger ? .primary : .secondary) {
-Sources/Features/Task/TaskFormScreen.swift	red-button	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button("Вернуть на доработку") { replyingSubtask = subtask }
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button("Ответить") { replyingSubtask = subtask }
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	NavigationLink(value: AppRoute.roleChat(id: chatID)) {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { removeFromDynamicIsland() } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { outputDynamicIsland() } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { isPreparationPresented = true } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { saveAsTemplate() } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { linkedPickerMode = .child; isExistingTaskPickerPresented = true } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button("В архив", systemImage: "archivebox") {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptReview, comment: nil, taskStore: taskStore) } } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { pendingAction = .returnToWorkFromReview } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { pendingAction = .replyAndReturnFromBlocked } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.returnToWorkFromInProgress, comment: nil, taskStore: taskStore) } } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
-Sources/Features/Task/TaskFormScreen.swift	implicit-system-blue	Button("Отмена") { dismiss() }
-Sources/Features/Today/RescheduleSheet.swift	red-button	Button {
-Sources/Features/Today/TodaySectionView.swift	implicit-system-blue	Button(action: action) {
-Sources/Features/Upcoming/UpcomingHoursView.swift	implicit-system-blue	Button { isTimelineExpanded.toggle() } label: {
-Sources/Features/Upcoming/UpcomingListView.swift	red-button	return Button {
-Sources/Features/Upcoming/UpcomingListView.swift	red-button	Button {
-Sources/Features/Upcoming/UpcomingListView.swift	red-button	Button { selectedDate = nil } label: {
-Sources/Features/Upcoming/UpcomingScreen.swift	implicit-system-blue	Button { self.openDay = nil } label: {
-Sources/Features/Upcoming/UpcomingScreen.swift	implicit-system-blue	Button { self.openDay = nil } label: {
-Sources/Features/Upcoming/UpcomingScreen.swift	implicit-system-blue	Button(action: action) {
-Sources/Features/Upcoming/UpcomingScreen.swift	red-button	Button("Сбросить фильтры") { filters = .empty }
-Sources/Features/Upcoming/UpcomingScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Upcoming/UpcomingWeekView.swift	red-button	Button { onPickDate(ds) } label: {
+Sources/Features/Tasks/Detail/AgentTraceView.swift	implicit-system-blue	Picker("Запуск / события", selection: Binding(get: { selectedID ?? run.id }, set: {
+Sources/Features/Tasks/Detail/CollaborationPlanView.swift	implicit-system-blue	Button("Отклонить", role: .destructive) { Task { await decide(proposal, approve: false, in: plan) } }
+Sources/Features/Tasks/Detail/CollaborationPlanView.swift	red-button	Button("Отклонить", role: .destructive) { Task { await decide(proposal, approve: false, in: plan) } }
+Sources/Features/Tasks/Detail/IntegrationResponsibilityView.swift	red-button	Menu {
+Sources/Features/Tasks/Detail/IntegrationResponsibilityView.swift	implicit-system-blue	.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { help = false } } }
+Sources/Features/Tasks/Detail/OutcomeMergeRow.swift	implicit-system-blue	Button(isRollingBack ? "Откатываю…" : "Откатить") {
+Sources/Features/Tasks/Detail/PlanStepSheets.swift	red-button	Button(role: .destructive) { isRemoveConfirmOpen = true } label: {
+Sources/Features/Tasks/Detail/SubtaskFeedView.swift	red-button	TFButton("Принять", icon: "checkmark", variant: .primary) { onAccept(subtask) }
+Sources/Features/Tasks/Detail/SubtaskFeedView.swift	red-button	TFButton("Отправить", variant: .primary, isEnabled: !replyText.trimmingCharacters(in: .whitespaces).isEmpty) {
+Sources/Features/Tasks/Detail/TaskOutcomeSection.swift	implicit-system-blue	Button("Готово") { dismiss() }
+Sources/Features/Tasks/Detail/TaskPreparationView.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/Detail/TaskPreparationView.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/Detail/TaskPreparationView.swift	implicit-system-blue	Button("Создать дочерние задачи") {
+Sources/Features/Tasks/Detail/TaskPreparationView.swift	implicit-system-blue	Button("Подготовить план") { Task { await apply { try await api.retryTaskPreparation(taskId: taskID) } } }
+Sources/Features/Tasks/Detail/TaskPreparationView.swift	implicit-system-blue	Button("Вернуться к задаче") { dismiss() }.buttonStyle(.borderedProminent)
+Sources/Features/Tasks/QuickAddTaskView.swift	implicit-system-blue	Picker("Продолжительность", selection: $viewModel.durationMin) {
+Sources/Features/Tasks/QuickAddTaskView.swift	implicit-system-blue	Button(role: .destructive) {
+Sources/Features/Tasks/QuickAddTaskView.swift	red-button	Button(role: .destructive) {
+Sources/Features/Tasks/QuickAddTaskView.swift	implicit-system-blue	Button { isAttachmentImporterPresented = true } label: {
+Sources/Features/Tasks/QuickAddTaskView.swift	implicit-system-blue	Button(role: .destructive, action: remove) {
+Sources/Features/Tasks/QuickAddTaskView.swift	red-button	Button(role: .destructive, action: remove) {
+Sources/Features/Tasks/Support/TaskConfirm.swift	red-button	TFButton(req.confirmLabel, variant: req.danger ? .primary : .secondary) {
+Sources/Features/Tasks/TaskFormScreen.swift	red-button	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button("Принять") { Task { await viewModel.acceptSubtask(subtask) } }
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button("Вернуть на доработку") { replyingSubtask = subtask }
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button("Ответить") { replyingSubtask = subtask }
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	NavigationLink(value: AppRoute.roleChat(id: chatID)) {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Menu {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Menu {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Menu {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { removeFromDynamicIsland() } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { outputDynamicIsland() } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { isPreparationPresented = true } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { saveAsTemplate() } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { linkedPickerMode = .child; isExistingTaskPickerPresented = true } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button("В архив", systemImage: "archivebox") {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptReview, comment: nil, taskStore: taskStore) } } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { pendingAction = .returnToWorkFromReview } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { pendingAction = .replyAndReturnFromBlocked } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.returnToWorkFromInProgress, comment: nil, taskStore: taskStore) } } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button { Task { await viewModel.performOwnerAction(.acceptAndClose, comment: nil, taskStore: taskStore) } } label: {
+Sources/Features/Tasks/TaskFormScreen.swift	implicit-system-blue	Button("Отмена") { dismiss() }
+Sources/Features/Planner/RescheduleSheet.swift	red-button	Button {
+Sources/Features/Planner/PlannerSection.swift	implicit-system-blue	Button(action: action) {
+Sources/Features/Planner/PlannerHoursView.swift	implicit-system-blue	Button { isTimelineExpanded.toggle() } label: {
+Sources/Features/Planner/UpcomingListView.swift	red-button	return Button {
+Sources/Features/Planner/UpcomingListView.swift	red-button	Button {
+Sources/Features/Planner/UpcomingListView.swift	red-button	Button { selectedDate = nil } label: {
+Sources/Features/Planner/PlannerScreen.swift	implicit-system-blue	Button { self.openDay = nil } label: {
+Sources/Features/Planner/PlannerScreen.swift	implicit-system-blue	Button { self.openDay = nil } label: {
+Sources/Features/Planner/PlannerScreen.swift	implicit-system-blue	Button(action: action) {
+Sources/Features/Planner/PlannerScreen.swift	red-button	Button("Сбросить фильтры") { filters = .empty }
+Sources/Features/Planner/PlannerScreen.swift	implicit-system-blue	Menu {
+Sources/Features/Planner/PlannerWeekView.swift	red-button	Button { onPickDate(ds) } label: {

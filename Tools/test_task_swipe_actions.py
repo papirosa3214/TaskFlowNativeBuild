@@ -57,7 +57,7 @@ names = re.findall(r'func (test\w+)\(', tests)
 tests = tests.replace('    func test', '    @objc func test')
 runner = f'\nlet suite = TodayTaskSwipeActionTests.defaultTestSuite\nsuite.run()\nlet run = suite.testRun!\nif run.executionCount != {len(names)} {{ exit(2) }}\nexit(run.hasSucceeded ? 0 : 1)\n'
 
-source = fixture + enum_source('Sources/Features/Today/TodayTaskRow.swift', 'TodayTaskSwipeAction') + '\n' + enum_source('Sources/Features/Shared/DirectoryTaskRow.swift', 'ProjectTaskSwipeAction') + '\n' + tests + runner
+source = fixture + enum_source('Sources/Features/Planner/PlannerTaskRow.swift', 'TodayTaskSwipeAction') + '\n' + enum_source('Sources/Features/Shared/DirectoryTaskRow.swift', 'ProjectTaskSwipeAction') + '\n' + tests + runner
 with tempfile.TemporaryDirectory(prefix='taskflow-swipe-host-') as folder:
     folder = Path(folder)
     main = folder / 'main.swift'

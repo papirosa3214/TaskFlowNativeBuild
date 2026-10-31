@@ -9,7 +9,7 @@ root = Path(__file__).resolve().parents[1]
 tests = (root / 'Tests/ChatMaterialDestinationTests.swift').read_text()
 tests = tests.replace('@testable import TaskFlow', '')
 tests = re.sub(r'    func (test\w+)\(', r'    @objc func \1(', tests)
-source = (root / 'Sources/ChatComponents/Panels/ChatMaterialDestination.swift').read_text()
+source = (root / 'Sources/Chat/Panels/ChatMaterialDestination.swift').read_text()
 program = source + '\n' + tests + '''
 let suite = ChatMaterialDestinationTests.defaultTestSuite
 suite.run()
