@@ -74,9 +74,7 @@ public struct UpcomingScreen: View {
 
     /// «Выполненные» переехали в «Показывать в разделе» и вместе с остальным
     /// составом раздела теперь переживают перезапуск (09.09.2026).
-    @State private var filters = UpcomingTaskFilters(
-        showCompleted: UserDefaults.standard.bool(forKey: "plannerShowCompleted")
-    )
+    @State private var filters = UpcomingTaskFilters()
     /// Показывать задачи, назначенные на ИИ-агента. Раньше они вырезались из
     /// раздела безусловно — теперь это условие состава, как и проекты.
     @State private var plannerShowAgentTasks = UserDefaults.standard.bool(forKey: "plannerShowAgentTasks")
@@ -249,7 +247,6 @@ public struct UpcomingScreen: View {
                     sectionCompositionMenu: AnyView(sectionCompositionMenu),
                     visibleProjectIds: effectivePlannerVisibleProjectIds,
                     showAgentTasks: plannerShowAgentTasks,
-                    showCompleted: filters.showCompleted,
                     onTitleChange: { listTabTitle = $0 },
                     routineOccurrences: routineOccurrences,
                     onOpenRoutine: { selectedOccurrence = $0 }
@@ -436,7 +433,7 @@ public struct UpcomingScreen: View {
                 // Сброс не трогает «Выполненные» — это настройка состава
                 // раздела, а не разовый прицел (см. `isActive`).
                 Button(role: .destructive) {
-                    filters = UpcomingTaskFilters(showCompleted: filters.showCompleted)
+                    filters = UpcomingTaskFilters()
                 } label: {
                     Label("Сбросить фильтры", systemImage: "arrow.counterclockwise")
                 }
@@ -819,9 +816,6 @@ public struct UpcomingScreen: View {
             filterOption("Агентские задачи", selected: plannerShowAgentTasks) {
                 togglePlannerAgentTasks()
             }
-            filterOption("Выполненные", selected: filters.showCompleted) {
-                setPlannerShowCompleted(!filters.showCompleted)
-            }
         } label: {
             Label("Показывать в разделе", systemImage: "eye")
         }
@@ -836,11 +830,6 @@ public struct UpcomingScreen: View {
     private func togglePlannerAgentTasks() {
         plannerShowAgentTasks.toggle()
         UserDefaults.standard.set(plannerShowAgentTasks, forKey: "plannerShowAgentTasks")
-    }
-
-    private func setPlannerShowCompleted(_ value: Bool) {
-        filters.showCompleted = value
-        UserDefaults.standard.set(value, forKey: "plannerShowCompleted")
     }
 
     private func togglePlannerVisibleProject(_ id: String) {

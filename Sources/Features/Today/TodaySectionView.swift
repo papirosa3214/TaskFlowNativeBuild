@@ -13,7 +13,6 @@ struct TodaySectionView: View {
     var sectionCompositionMenu: AnyView = AnyView(EmptyView())
     var visibleProjectIds: Set<String> = []
     var showAgentTasks = false
-    var showCompleted = false
     /// Название текущей вкладки списка — уезжает в системную шапку экрана.
     /// Раньше сюда же уходило название видимой колонки доски.
     var onTitleChange: (String) -> Void = { _ in }
@@ -65,7 +64,6 @@ struct TodaySectionView: View {
         // Разовые фильтры — свои у экрана, состав раздела — общий с
         // диапазонами и приходит параметрами (LOCK-111).
         var effectiveFilters = vm.filters
-        effectiveFilters.showCompleted = layout == .list ? false : showCompleted
         var seen = Set<String>()
         let source = layout == .list ? taskStore.tasks + taskStore.agentWorkTasks : taskStore.tasks
         let tasks = source.filter { seen.insert($0.id).inserted && !$0.isArchived }

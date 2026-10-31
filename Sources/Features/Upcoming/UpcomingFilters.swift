@@ -9,14 +9,13 @@ struct UpcomingTaskFilters: Equatable {
     var labelId: String?
     /// nil — все, "__none" — без исполнителя, иначе id.
     var assigneeKey: String?
-    var showCompleted = false
 
     static let empty = UpcomingTaskFilters()
 
-    /// `showCompleted` сюда НЕ входит: с 09.09.2026 это не разовый прицел, а
-    /// постоянная настройка состава раздела (живёт в «Показывать в разделе» и
-    /// переживает перезапуск) — иначе иконка фильтра горела бы красным всегда,
-    /// а «Сбросить фильтры» молча выключало бы показ выполненных.
+    /// Показ выполненных сюда НЕ входит: закрытые карточки из живых
+    /// списков убраны (владелец 01.11.2026) — их место в архиве. Поэтому
+    /// иконка фильтра не горит красным, а «Сбросить фильтры» ничего не
+    /// выключает по-тихому.
     var isActive: Bool {
         projectId != nil || labelId != nil || assigneeKey != nil
     }
@@ -44,7 +43,8 @@ enum UpcomingFilterEngine {
         } else if let assigneeKey = filters.assigneeKey, task.assigneeId != assigneeKey {
             return false
         }
-        if !filters.showCompleted && task.status == .completed { return false }
+        // Закрытые карточки из живых списков убраны (владелец 01.11.2026).
+        if task.status == .completed { return false }
         return true
     }
 

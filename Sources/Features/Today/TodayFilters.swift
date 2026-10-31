@@ -7,12 +7,11 @@ struct TodayTaskFilters: Hashable {
     var labelId: String?
     /// nil — все, "__none" — без исполнителя, иначе id.
     var assigneeKey: String?
-    var showCompleted: Bool = false
 
     static let empty = TodayTaskFilters()
 
     var isActive: Bool {
-        projectId != nil || labelId != nil || assigneeKey != nil || showCompleted
+        projectId != nil || labelId != nil || assigneeKey != nil
     }
 }
 
@@ -38,7 +37,8 @@ enum TodayFilterEngine {
         } else if let assigneeKey = filters.assigneeKey, task.assigneeId != assigneeKey {
             return false
         }
-        if !filters.showCompleted && task.status == .completed { return false }
+        // Закрытые карточки из живых списков убраны (владелец 01.11.2026).
+        if task.status == .completed { return false }
         return true
     }
 

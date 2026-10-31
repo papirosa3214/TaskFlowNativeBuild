@@ -54,8 +54,9 @@ final class ProjectTaskFilterTests: XCTestCase {
 
     func testOrdinaryViewsAndUnassignedTasksRemainAvailable() throws {
         XCTAssertTrue(ProjectTaskFilter.open.matches(try task()))
-        XCTAssertTrue(ProjectTaskFilter.all.matches(try task(completed: true)))
+        // Закрытые карточки из живых списков убраны (владелец 01.11.2026) —
+        // их место в архиве, а не в фильтрах проекта.
+        XCTAssertFalse(ProjectTaskFilter.all.matches(try task(completed: true)))
         XCTAssertFalse(ProjectTaskFilter.open.matches(try task(completed: true)))
-        XCTAssertTrue(ProjectTaskFilter.done.matches(try task(completed: true)))
     }
 }

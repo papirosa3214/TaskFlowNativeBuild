@@ -6,14 +6,14 @@ Before extraction the runner reads the original enum from ProjectTasksScreen.
 from pathlib import Path
 import subprocess, tempfile, sys
 root = Path(__file__).resolve().parents[1]
-policy = root/'Sources/Features/Directory/ProjectTaskFilter.swift'
+policy = root/'Sources/Features/Projects/ProjectTaskFilter.swift'
 if "--legacy" in sys.argv:
-    text = subprocess.check_output(["git", "show", "6a1a5e19cef081f834d16b68874fbf47cd4d73a9:Sources/Features/Directory/ProjectTasksScreen.swift"], cwd=root, text=True)
+    text = subprocess.check_output(["git", "show", "6a1a5e19cef081f834d16b68874fbf47cd4d73a9:Sources/Features/Projects/ProjectTasksScreen.swift"], cwd=root, text=True)
     source = text[text.index("enum ProjectTaskFilter:"):text.index("\nstruct ProjectTasksScreen:")]
 elif policy.exists():
     source = policy.read_text()
 else:
-    text = (root/'Sources/Features/Directory/ProjectTasksScreen.swift').read_text()
+    text = (root/'Sources/Features/Projects/ProjectTasksScreen.swift').read_text()
     source = text[text.index('enum ProjectTaskFilter:'):text.index('\nstruct ProjectTasksScreen:')]
 fixture = '''
 import Foundation
@@ -25,14 +25,17 @@ struct ApiTask: Decodable {
     let agentState: AgentState?
     let branchAgentState: AgentState?
     let assigneeId: String?
+    let archivedAt: String?
+    var isArchived: Bool { archivedAt != nil }
     var listAgentState: AgentState? { agentState ?? branchAgentState }
     enum CodingKeys: String, CodingKey {
         case status, agentState = "agent_state", branchAgentState = "branch_agent_state", assigneeId = "assignee_id"
+        case archivedAt = "archived_at"
     }
 }
 '''
 tests = (root/'Tests/ProjectTaskFilterTests.swift').read_text().replace('@testable import TaskFlow', '').replace('    func test', '    @objc func test')
-source = fixture + source + tests
+source = fixture + source + (root/'Sources/Core/Models/TaskVisibility.swift').read_text() + tests
 for name in ['HintModels', 'HintScenarios', 'HintCenter']:
     source += '\n' + (root/f'Sources/DesignSystem/Hints/{name}.swift').read_text()
 # Use the actual shared XCTest method; routine tests remain outside this run.

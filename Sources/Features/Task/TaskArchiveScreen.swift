@@ -77,45 +77,14 @@ struct TaskArchiveScreen: View {
                 : "Карточка и её история будут удалены без возможности восстановления. Если у задачи есть дочерние карточки, сначала удалите их из архива.")
         }
         .sheet(item: $selectedTask) { task in
-            NavigationStack {
-                List {
-                    Section {
-                        Text(task.title).tfText(.title).foregroundStyle(Color.tfText)
-                        if let description = task.description, !description.isEmpty {
-                            Text(.init(description)).tfText(.row).foregroundStyle(Color.tfText).textSelection(.enabled)
-                        }
-                        LabeledContent("Проект", value: task.projectName ?? "Без проекта")
-                        LabeledContent("Состояние", value: "В архиве")
-                        LabeledContent("Результат", value: task.status == .completed ? "Выполнена" : "Отменена")
-                        if let created = task.createdAt {
-                            LabeledContent("Создана", value: archiveDate(created))
-                        }
-                        if task.status == .completed, let completed = task.completedAt {
-                            LabeledContent("Выполнена", value: archiveDate(completed))
-                        }
-                        if let date = task.archivedAt {
-                            LabeledContent("В архиве с", value: archiveDate(date))
-                        }
-                    }
-                    Section {
-                        Button("Восстановить", systemImage: "arrow.uturn.backward") {
-                            selectedTask = nil
-                            restore(task)
-                        }
-                        Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
-                            selectedTask = nil
-                            pendingDelete = task
-                        }
-                    }
-                    .disabled(busyID != nil)
-                }
-                .navigationTitle("Задача в архиве")
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Готово") { selectedTask = nil }
-                    }
-                }
-            }
+            // Карточка закрытой задачи — общая с «Историей выполнения»:
+            // формат один, отличается только пометка (выполнена/отменена).
+            ClosedTaskSheet(
+                task: task,
+                isBusy: busyID != nil,
+                onRestore: { restore(task) },
+                onDelete: { pendingDelete = task }
+            )
         }
     }
 

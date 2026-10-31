@@ -37,7 +37,11 @@ struct ProjectTasksScreen: View {
     private var showsAllProjects: Bool { projectID == nil }
     private var isStatusFilter: Bool { showsAllProjects && [.working, .review, .blocked, .waiting].contains(filter) }
     private var availableFilters: [ProjectTaskFilter] {
-        showsAllProjects ? ProjectTaskFilter.allTasksCases : ProjectTaskFilter.allCases.filter { $0 != .waiting && $0 != .blocked }
+        // Пункта «Выполненные» и «Все, включая выполненные» больше нет:
+        // закрытые карточки живут в архиве (владелец 01.11.2026).
+        showsAllProjects
+            ? ProjectTaskFilter.allTasksCases
+            : ProjectTaskFilter.allCases.filter { $0 != .waiting && $0 != .blocked && $0 != .all }
     }
     private var filterKey: String {
         showsAllProjects ? "all-projects.filter" : "project.filter.\(projectID ?? "all")"

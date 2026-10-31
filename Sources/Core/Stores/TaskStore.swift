@@ -92,8 +92,10 @@ public final class TaskStore {
                 return
             }
             let all = try apiClient.decode([ApiTask].self, from: page.data)
-            agentWorkTasks = all.filter { !$0.isArchived }
-            tasks = all.filter { !$0.isArchived && Self.isRootTask($0) }
+            // Закрытые (выполненные) карточки — в архив, не в живые списки
+            // (владелец 01.11.2026).
+            agentWorkTasks = TaskVisibility.liveTasks(all)
+            tasks = TaskVisibility.liveTasks(all).filter { Self.isRootTask($0) }
             listETag = page.etag
             if let cursor = page.cursor { syncCursor = cursor }
             // Отпечаток и курсор — в базу: в памяти они живут до перезапуска,
@@ -114,8 +116,8 @@ public final class TaskStore {
     /// Список задач из локальной базы — рисуется без сети и без ожидания.
     private func applyLocalTasks() {
         guard let local = try? LocalStore.shared.tasks(), !local.isEmpty else { return }
-        agentWorkTasks = local.filter { !$0.isArchived }
-        tasks = local.filter { !$0.isArchived && Self.isRootTask($0) }
+        agentWorkTasks = TaskVisibility.liveTasks(local)
+        tasks = TaskVisibility.liveTasks(local).filter { Self.isRootTask($0) }
     }
 
     /// Корневая карточка — по правилу сервера (`server/src/routes/tasks.ts`):
@@ -225,7 +227,9 @@ public final class TaskStore {
 
     @discardableResult
     public func permanentlyDelete(taskId: String) async -> Bool {
-        guard archivedTasks.contains(where: { $0.id == taskId && $0.isArchived }) else {
+        // Закрытая карточка удаляется наравне с архивной: закрытая задача —
+        // это архивная по сути (владелец 01.11.2026).
+        guard archivedTasks.contains(where: { $0.id == taskId && ($0.isArchived || $0.status == .completed) }) else {
             archiveErrorMessage = "Окончательное удаление доступно только из архива."
             return false
         }
@@ -336,8 +340,8 @@ public final class TaskStore {
         try? LocalStore.shared.removeTasks(ids: delta.removedIds)
         // Порядок — как у полной выдачи (сервер сортирует по created_at DESC).
         let all = byId.values.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
-        agentWorkTasks = all.filter { !$0.isArchived }
-        tasks = all.filter { !$0.isArchived && Self.isRootTask($0) }
+        agentWorkTasks = TaskVisibility.liveTasks(all)
+        tasks = TaskVisibility.liveTasks(all).filter { Self.isRootTask($0) }
     }
 
     private func upsert(_ task: ApiTask) {

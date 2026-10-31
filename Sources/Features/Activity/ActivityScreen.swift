@@ -17,6 +17,12 @@ struct ActivityScreen: View {
     /// nil — все, "__none" — без исполнителя, иначе id пользователя.
     @State private var assigneeKey: String?
     @State private var route: AppRoute?
+    /// Выбранная закрытая карточка — сводка вместо полной карточки задачи
+    /// (владелец 01.11.2026: «больше никакой информации грузить по этим
+    /// карточкам не надо»).
+    @State private var selectedClosedTask: ApiTask?
+    @State private var pendingDeleteTask: ApiTask?
+    @State private var isBusy = false
 
     private var today: String { DirectoryDate.todayKeyLocal() }
     private var yesterday: String { DirectoryDate.addDaysLocal(today, -1) }
@@ -82,6 +88,30 @@ struct ActivityScreen: View {
             }
         }
         .taskCardNavigation(route: $route)
+        .sheet(item: $selectedClosedTask) { task in
+            // Формат карточки — тот же, что в архиве: одна сводка на
+            // выполненную и отменённую, различается только пометка.
+            ClosedTaskSheet(
+                task: task,
+                isBusy: isBusy,
+                onRestore: { Task { await restore(task) } },
+                onDelete: { pendingDeleteTask = task }
+            )
+        }
+        .confirmationDialog("Удалить задачу окончательно?", isPresented: Binding(
+            get: { pendingDeleteTask != nil },
+            set: { if !$0 { pendingDeleteTask = nil } }
+        ), titleVisibility: .visible) {
+            Button("Удалить окончательно", role: .destructive) {
+                guard let task = pendingDeleteTask else { return }
+                pendingDeleteTask = nil
+                selectedClosedTask = nil
+                Task { await purge(task) }
+            }
+            Button("Отмена", role: .cancel) { pendingDeleteTask = nil }
+        } message: {
+            Text("Карточка и её история будут удалены без возможности восстановления.")
+        }
     }
 
     // MARK: - Строка выполненной задачи
@@ -98,8 +128,8 @@ private func completedRow(_ task: ApiTask) -> some View {
         index: nil,
         task: task,
         isOwner: true,
-        onOpen: { route = .taskDetail(taskID: task.id) },
-        onDelete: { Task { _ = await taskStore.delete(taskId: task.id) } },
+        onOpen: { selectedClosedTask = task },
+        onDelete: { pendingDeleteTask = task },
         swipeAction: .restore,
         onSwipeAction: { Task { await restore(task) } },
         showsAvatar: false,
@@ -116,6 +146,13 @@ private func completedRow(_ task: ApiTask) -> some View {
 
     private func restore(_ task: ApiTask) async {
         await taskStore.patch(taskId: task.id, fields: ["status": .string("active")]) { _ in }
+    }
+
+    /// Удалить закрытую карточку навсегда — так же, как архивную.
+    private func purge(_ task: ApiTask) async {
+        isBusy = true
+        _ = await taskStore.permanentlyDelete(taskId: task.id)
+        isBusy = false
     }
 
     // MARK: - Пустое состояние «под фильтры ничего не подошло»
@@ -141,7 +178,9 @@ private func completedRow(_ task: ApiTask) -> some View {
 
     // MARK: - Данные (портировано 1:1 из ActivityScreen.tsx)
 
-    private var completed: [ApiTask] { taskStore.tasks.filter { $0.status == .completed } }
+    /// Закрытые задачи — из архивного списка: закрытая карточка живёт в
+    /// архиве, а не в живых списках (владелец 01.11.2026).
+    private var completed: [ApiTask] { taskStore.archivedTasks.filter { $0.status == .completed } }
 
     private func completionDate(_ task: ApiTask) -> Date? {
         guard let raw = task.completedAt ?? (task.status == .completed ? task.updatedAt : nil) else { return nil }
@@ -201,8 +240,10 @@ private func completedRow(_ task: ApiTask) -> some View {
     }
 
     /// Для графика — фильтр по проекту/метке/исполнителю, БЕЗ периода
-    /// (график сам режет на бакеты) и БЕЗ статуса (нужны и active, и completed).
-    private var filteredAllTasks: [ApiTask] { taskStore.tasks.filter(matchesFilters) }
+    /// (график сам режет на бакеты) и БЕЗ статуса (нужны и активные, и закрытые).
+    private var filteredAllTasks: [ApiTask] {
+        taskStore.tasks.filter(matchesFilters) + completed.filter(matchesFilters)
+    }
 
     private var showTrueEmpty: Bool { completed.isEmpty }
     private var showFilteredEmpty: Bool { !completed.isEmpty && filtered.isEmpty }
