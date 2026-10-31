@@ -10,7 +10,7 @@ import Foundation
 // реально есть). Имена узлов/марок и форма attrs сверены построчно с
 // серверными конвертерами `server/src/lib/{markdownToTiptap,
 // tiptapToMarkdown}.ts` — они не используются нативным клиентом напрямую
-// (см. NotesAPI.swift, почему шлём `content`, а не `markdown`: markdown
+// (см. APIClient+NotesJournal.swift, почему шлём `content`, а не `markdown`: markdown
 // вообще не умеет underline), но их код — единственное живое подтверждение
 // формы схемы, которое есть в репозитории.
 //

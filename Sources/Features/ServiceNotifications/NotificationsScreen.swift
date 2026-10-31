@@ -12,7 +12,7 @@ import SwiftUI
 // `PATCH /notifications/:id` С телом `{read:true}` — такого маршрута на
 // сервере нет вовсе, запрос получит 404. Использую вместо него
 // `directoryMarkNotificationRead`/`directoryMarkAllNotificationsRead` из
-// `Support/DirectoryAPI.swift` (уже заведены параллельным исполнителем по
+// `Core/Networking/APIClient+Directory.swift` (уже заведены параллельным исполнителем по
 // той же причине) и после успеха перезагружаю стор целиком (`load()`,
 // публичный метод) — стор не даёт точечно поправить один элемент
 // (`notifications` — `private(set)`), а трогать чужой файл нельзя.

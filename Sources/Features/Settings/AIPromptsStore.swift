@@ -9,7 +9,7 @@ import Observation
 /// срабатывает debounce-сохранение: сначала в UserDefaults (чтобы перезапуск
 /// приложения не терял черновик), потом — `PUT /api/ai/prompts/:scope`.
 ///
-/// `NoteExtractTasksAPI.extractTasksFromNote(text:)` сам подтягивает
+/// `APIClient+NoteTasks.swift` (`extractTasksFromNote(text:)`) сам подтягивает
 /// `extractTasksPrompt` из стора, чтобы не пришлось править чужой файл
 /// `NoteEditorViewModel` (LOCK-142, владелец ещё не закрыл). Когда LOCK-142
 /// снимут, этот auto-pull уберётся и заменится на явный DI.

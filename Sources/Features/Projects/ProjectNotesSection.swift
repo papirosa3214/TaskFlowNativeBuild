@@ -26,12 +26,12 @@ enum NotesDateFilter: String, CaseIterable, Identifiable {
 // «Документация» — spec/SCREENS-2.md §8.1, дубль `src/components/ProjectNotes.tsx`
 // (чужая папка `src/components/`, не Directory — своя копия, тот же приём
 // дублирования, что у всего этого раздела). Источник данных — ОДИН запрос
-// `directoryProjectDocs` (`DirectoryAPI.swift`, сервер уже разворачивает
+// `directoryProjectDocs` (`APIClient+Directory.swift`, сервер уже разворачивает
 // поддерево папок сам), плюс отдельно список ВСЕХ папок Дневника — он нужен
 // только для пикера «Выбрать папку», которого одного запроса не даёт.
 //
 // Свой `APIClient()` — тот же безопасный приём, что весь остальной проект
-// (второй экземпляр без состояния, см. `DirectoryAPI.swift`).
+// (второй экземпляр без состояния, см. `APIClient+Directory.swift`).
 struct ProjectNotesSection: View {
     let project: ApiProject
     /// ProjectTasksScreen передаёт колбэк, который обновляет `notesFolderId`

@@ -16,8 +16,8 @@ public class APIClient {
  public func request<T: Decodable, B: Encodable>(_ method: HTTPMethod, _ path: String, body: B) async throws -> T { Self.paths.append(path); Self.lastBody = try JSONEncoder().encode(body); return try JSONDecoder().decode(T.self, from: Self.responses.removeFirst()) }
 }
 '''
-files=['CoordinationAPI.swift','CoordinationCause.swift','CoordinationState.swift']
-source=stub+'\n'.join((root/'Sources/Features/Coordination'/p).read_text() for p in files)
+files=['Sources/Core/Networking/APIClient+Coordination.swift','Sources/Features/Coordination/CoordinationCause.swift','Sources/Features/Coordination/CoordinationState.swift']
+source=stub+'\n'.join((root/p).read_text() for p in files)
 source += '\n' + '\n'.join((root/'Sources/DesignSystem/Hints'/p).read_text() for p in ['HintModels.swift','HintScenarios.swift','HintCenter.swift']) + '\n'
 if '--typecheck-ui' in sys.argv:
  source += '\nimport SwiftUI\nenum TFTextFixture { case body, meta, action }\nenum TFSpacing { static let xs: CGFloat = 4 }\nextension View { func tfText(_ role: TFTextFixture) -> some View { self }; func hintAnchor(_ id: String) -> some View { self } }\nextension Color { static var tfRed: Color { .red }; static var tfText: Color { .primary }; static var tfSub: Color { .secondary } }\nenum AppRoute: Hashable { case runtimeProviders }\nfunc routeDestination(_ route: AppRoute) -> some View { Text("fixture") }\n'
