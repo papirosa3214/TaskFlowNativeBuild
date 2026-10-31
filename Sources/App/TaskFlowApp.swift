@@ -11,6 +11,7 @@ struct TaskFlowApp: App {
     // Внешний вид (28.10.2026): тон текста и размер шрифта из «Настроек».
     @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
     @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
     @State private var apiClient: APIClient
     @State private var session: SessionStore
     @State private var realtimeClient = RealtimeClient()
@@ -85,7 +86,7 @@ struct TaskFlowApp: App {
                 .dynamicTypeSize((TFTextScale(rawValue: textScaleRaw) ?? .standard).dynamicTypeSize)
                 // Смена настройки пересоздаёт дерево: токены цвета статические,
                 // иначе уже открытые экраны остались бы с прежним оттенком.
-                .id("appearance-\(textToneRaw)-\(textScaleRaw)")
+                .id("appearance-\(textToneRaw)-\(textScaleRaw)-\(typeRevision)")
                 .environment(session)
                 .environment(taskStore)
                 .environment(projectStore)

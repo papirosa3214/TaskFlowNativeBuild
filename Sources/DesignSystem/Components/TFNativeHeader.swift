@@ -40,9 +40,11 @@ enum TFNavBarTitleFont {
     /// Цвет белый (`tfText`), как у заголовков разделов: владелец 12.10.2026
     /// вернул белый и разделам, и шапке после смены гарнитуры на
     /// PT Sans Narrow — с серым капс выглядел вялым.
-    static func title(_ title: String) -> some View {
+    /// `multiplier` — выбранная ступень группы «Заголовок». В чатах равен 1:
+    /// настройка шрифтов чаты не трогает.
+    static func title(_ title: String, multiplier: CGFloat = 1) -> some View {
         Text(title.uppercased())
-            .font(.custom(family, size: 17).weight(.bold))
+            .font(.custom(family, size: 22 * multiplier).weight(.bold))
             .tracking(tracking)
             .foregroundStyle(Color.tfText)
     }
@@ -82,14 +84,7 @@ extension View {
     /// него система оставляла под шапкой пустое место под большой заголовок —
     /// зазор на всех экранах (жалоба владельца 12.10.2026).
     func tfNativeHeader(_ title: String, displayMode: ToolbarTitleDisplayMode = .inline) -> some View {
-        self
-            .navigationTitle("")
-            .toolbarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    TFNavBarTitleFont.title(title)
-                }
-            }
+        modifier(TFNativeHeaderModifier(title: title))
     }
 
     /// Единый размер tappable-области для управляющих элементов «Планирования».
@@ -137,5 +132,27 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+/// Шапка экрана модификатором, а не цепочкой: только так она видит выключатель
+/// настройки шрифтов (чаты его гасят) и множитель группы «Заголовок».
+private struct TFNativeHeaderModifier: ViewModifier {
+    let title: String
+
+    @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+
+    func body(content: Content) -> some View {
+        content
+            .navigationTitle("")
+            .toolbarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    TFNavBarTitleFont.title(
+                        title,
+                        multiplier: typeSettingsEnabled ? TFTypeGroup.heading.multiplier : 1
+                    )
+                }
+            }
     }
 }

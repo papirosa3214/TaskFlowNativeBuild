@@ -48,7 +48,9 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .chat:
         // Вкладка «Чат» ведёт в СПИСОК чатов, а не сразу в открытый чат:
         // сначала меню чатов, потом конкретный чат (владелец 21.09.2026).
-        RoleChatsScreen()
+        // Каждый чат (роли, Помощник, групповые, проектные) выключает
+        // настройку шрифтов: владелец 01.11.2026 просил чаты не трогать.
+        RoleChatsScreen().tfChatTypography()
     case .taskDetail(let taskID):
         // Пуше внутрь NavigationStack, а не лист: свайп вниз здесь не
         // работает, поэтому карточке нужен явный «×» (LOCK-TICKET-PUSH-EXIT).
@@ -128,10 +130,10 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .roleChat(let id):
         // Комната грузится по идентификатору: маршрут несёт только id, а
         // состав и последнее сообщение берутся запросом (LOCK-195).
-        RoleChatRoomLoader(chatID: id)
+        RoleChatRoomLoader(chatID: id).tfChatTypography()
     case .projectChats:
-        RoleChatsScreen(projectsOnly: true)
+        RoleChatsScreen(projectsOnly: true).tfChatTypography()
     case .projectGroupRoom(let id):
-        RoleChatRoomLoader(chatID: id, opensGroupRoom: true)
+        RoleChatRoomLoader(chatID: id, opensGroupRoom: true).tfChatTypography()
     }
 }

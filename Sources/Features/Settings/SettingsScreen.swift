@@ -22,6 +22,7 @@ struct SettingsScreen: View {
     @AppStorage("settings.server.expanded") private var serverExpanded = true
     @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
     @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
+    @State private var typeRevision = 0
     /// Панель ввода в чатах: родная или новая (владелец 29.10.2026).
     @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
     /// Тумблер «Новая панель ввода» — как у нижней панели: включена новая,
@@ -197,7 +198,62 @@ struct SettingsScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings.text-scale.\(scale.rawValue)")
             }
+
+            // Шрифты по пяти группам (владелец, 01.11.2026): заголовок,
+            // подзаголовок, основной, второстепенный, мелкий. Чаты настройку
+            // не читают: их корни ставят `.tfChatTypography()`.
+            TFDivider(inset: rowDividerInset)
+            Text("Шрифты")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.top, TFSpacing.md)
+            ForEach(Array(TFTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
+                if index > 0 { TFDivider(inset: rowDividerInset) }
+                typeGroupRow(group)
+            }
         }
+    }
+
+    /// Строка одной группы шрифтов: образец в её кегле и меню со ступенями.
+    private func typeGroupRow(_ group: TFTypeGroup) -> some View {
+        let current = TFTypeScale.saved(for: group)
+        return Menu {
+            ForEach(TFTypeScale.allCases) { scale in
+                Button {
+                    TFTypeScale.save(scale, for: group)
+                    typeRevision &+= 1
+                } label: {
+                    Text(scale.title + " " + String(Int((group.baseSize * scale.multiplier).rounded())))
+                }
+            }
+        } label: {
+            HStack(spacing: TFSpacing.md) {
+                Text("Аа")
+                    // design-system-guard: ignore — образец обязан быть ровно в кегле своей группы
+                    .font(.system(size: group.baseSize * current.multiplier, weight: .regular))
+                    .foregroundStyle(Color.tfText)
+                    .frame(width: 40, alignment: .leading)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(group.title)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                    Text(group.subtitle)
+                        .tfText(.micro)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: TFSpacing.sm)
+                Text(current.title)
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfDim)
+            }
+            .padding(.horizontal, TFSpacing.md)
+            .frame(minHeight: TFHitTarget.min)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.type-group.\(group.rawValue)")
     }
 
     @ViewBuilder

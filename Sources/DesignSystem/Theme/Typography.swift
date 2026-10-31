@@ -123,19 +123,29 @@ public struct TFSectionDisplayModifier: ViewModifier {
     private let style: TFTextStyle
     private let color: Color
 
+    @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+
     @ScaledMetric(relativeTo: .title3)    private var largeSize: CGFloat = 22
-    @ScaledMetric(relativeTo: .headline)  private var smallSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .headline)  private var smallSize: CGFloat = 17
 
     init(style: TFTextStyle, color: Color) {
         self.style = style
         self.color = color
     }
 
-    private var size: CGFloat {
+    private var group: TFTypeGroup {
         switch style {
+        case .taskTitle, .titleLarge: .heading
+        default: .subheading
+        }
+    }
+
+    private var size: CGFloat {
+        let base: CGFloat = switch style {
         case .taskTitle, .titleLarge: largeSize
         default: smallSize
         }
+        return typeSettingsEnabled ? base * group.multiplier : base
     }
 
     // Одно семейство на оба кегля: в файлах PT Sans Narrow family = «PT Sans
@@ -207,20 +217,22 @@ public enum TFTextStyle {
     /// Базовый кегль ступени — то, что видно на дефолтном размере текста.
     /// ЭТО ЕДИНСТВЕННОЕ МЕСТО в приложении, где заданы размеры текста:
     /// поменял здесь — поменялось везде, где применён `.tfText(...)`.
+    /// Пять размеров на всё приложение (владелец, 01.11.2026).
     var baseSize: CGFloat {
         switch self {
-        case .titleLarge: 28
-        case .taskTitle: 20
-        case .title: 17
-        case .input: 16
-        case .body: 15
-        case .listTitle: 16
-        case .row: 14
-        case .action: 13
-        case .meta: 12
-        case .caption: 11
-        case .micro: 10
         case .heatmapCount: 34
+        default: group.baseSize
+        }
+    }
+
+    /// Группа шкалы: к какому из пяти размеров относится ступень.
+    var group: TFTypeGroup {
+        switch self {
+        case .titleLarge, .taskTitle, .title: .subheading
+        case .input, .body, .listTitle, .row: .body
+        case .action, .meta: .secondary
+        case .caption, .micro: .tertiary
+        case .heatmapCount: .heading
         }
     }
 
@@ -295,19 +307,21 @@ public enum TFTextStyle {
 private struct TFTextStyleModifier: ViewModifier {
     let style: TFTextStyle
 
-    @ScaledMetric(relativeTo: .title)      private var titleLargeSize: CGFloat = 28
-    @ScaledMetric(relativeTo: .title3)     private var taskTitleSize: CGFloat = 20
+    @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+
+    @ScaledMetric(relativeTo: .title)      private var titleLargeSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .title3)     private var taskTitleSize: CGFloat = 17
     @ScaledMetric(relativeTo: .headline)   private var titleSize: CGFloat = 17
-    @ScaledMetric(relativeTo: .callout)    private var inputSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .callout)    private var inputSize: CGFloat = 15
     @ScaledMetric(relativeTo: .subheadline) private var bodySize: CGFloat = 15
-    @ScaledMetric(relativeTo: .footnote)   private var rowSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .footnote)   private var rowSize: CGFloat = 15
     @ScaledMetric(relativeTo: .footnote)   private var actionSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .caption)    private var metaSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption)    private var metaSize: CGFloat = 13
     @ScaledMetric(relativeTo: .caption2)   private var captionSize: CGFloat = 11
-    @ScaledMetric(relativeTo: .caption2)   private var microSize: CGFloat = 10
+    @ScaledMetric(relativeTo: .caption2)   private var microSize: CGFloat = 11
     @ScaledMetric(relativeTo: .title)      private var heatmapCountSize: CGFloat = 34
 
-    @ScaledMetric(relativeTo: .subheadline) private var listTitleSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .subheadline) private var listTitleSize: CGFloat = 15
 
     private var scaledSize: CGFloat {
         switch style {
@@ -326,9 +340,15 @@ private struct TFTextStyleModifier: ViewModifier {
         }
     }
 
+    /// Кегль с поправкой на выбранную ступень группы. В чатах множитель не
+    /// работает: их корни выключают настройку через `.tfTypeSettingsEnabled(false)`.
+    private var effectiveSize: CGFloat {
+        typeSettingsEnabled ? scaledSize * style.group.multiplier : scaledSize
+    }
+
     func body(content: Content) -> some View {
         content
-            .font(.system(size: scaledSize, weight: style.weight, design: style.design))
+            .font(.system(size: effectiveSize, weight: style.weight, design: style.design))
             .tracking(style.tracking)
     }
 }
@@ -380,5 +400,25 @@ private struct TFMonospacedModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.font(active ? .system(size: scaled, weight: weight, design: .monospaced) : nil)
+    }
+}
+
+/// Выключатель настройки шрифтов для поддерева (все чаты).
+private struct TFTypeSettingsEnabledKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+public extension EnvironmentValues {
+    var tfTypeSettingsEnabled: Bool {
+        get { self[TFTypeSettingsEnabledKey.self] }
+        set { self[TFTypeSettingsEnabledKey.self] = newValue }
+    }
+}
+
+/// Гасит настройку шрифтов в поддереве: все чаты (роли, Помощник,
+/// групповые, проектные). Решение владельца 01.11.2026: чат остаётся как был.
+public extension View {
+    func tfChatTypography() -> some View {
+        environment(\.tfTypeSettingsEnabled, false)
     }
 }
