@@ -44,8 +44,18 @@ struct ChatContextControl: View {
     @State private var showsDetails = false
 
     var body: some View {
-        // Кольцо в ряду ярлычков (владелец 26.10.2026): заполняется по мере
-        // расхода окна — белое, жёлтое, красное; нажатие — расшифровка листом.
+        contextRingButton
+            .sheet(isPresented: $showsDetails) { contextSheet }
+    }
+
+    /// Кольцо в ряду ярлычков (владелец 26.10.2026): заполняется по мере
+    /// расхода окна — белое, жёлтое, красное; нажатие — расшифровка листом.
+    ///
+    /// Кнопка и шторка вынесены в отдельные свойства намеренно: единая цепочка
+    /// модификаторов не успевала type-check'иться на CI («the compiler is unable
+    /// to type-check this expression in reasonable time», `ChatComposerControlsView.swift:60`).
+    /// Вид не меняется — те же элементы, тот же порядок.
+    private var contextRingButton: some View {
         Button { showsDetails = true } label: {
             ChatContextRing(fraction: snapshot?.fraction ?? 0)
                 .frame(width: 20, height: 20)
@@ -57,10 +67,12 @@ struct ChatContextControl: View {
         .accessibilityHint("Показать, из чего состоит контекст")
         .accessibilityIdentifier("chat.context-window")
         .hintAnchor(HintAnchorID.chatContextWindow)
-        .sheet(isPresented: $showsDetails) {
-            ChatContextSheet(snapshot: snapshot, roleName: roleName, loadError: loadError, onRefresh: onRefresh)
-                .presentationDetents([.medium, .large])
-        }
+    }
+
+    /// Содержимое шторки с расшифровкой окна контекста.
+    private var contextSheet: some View {
+        ChatContextSheet(snapshot: snapshot, roleName: roleName, loadError: loadError, onRefresh: onRefresh)
+            .presentationDetents([.medium, .large])
     }
 }
 
