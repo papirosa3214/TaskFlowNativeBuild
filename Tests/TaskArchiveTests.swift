@@ -36,7 +36,15 @@ final class TaskArchiveTests: XCTestCase {
         let ok = await store.permanentlyDelete(taskId:"archive-test")
         XCTAssertTrue(ok);XCTAssertTrue(deleted);XCTAssertTrue(store.archivedTasks.isEmpty)
     }
-    func testRestorePreservesCompletedStatusAndRejectsServerFailure() async throws {
+    /// Восстановление выполненной задачи не возвращает её в живые списки.
+    ///
+    /// Модель владельца 01.11.2026: «в архив уходят отменённые и выполненные…
+    /// Из всех остальных списков убрать». Выполненная задача — закрытая, она
+    /// не живая: после `restore` её нет ни в `store.tasks`, ни в
+    /// `store.agentWorkTasks`. Ожидание «восстановленная задача вернулась в
+    /// `store.tasks` со статусом completed» было написано под старую модель
+    /// и противоречило нынешней.
+    func testRestoreKeepsCompletedTaskOutOfLiveListsAndRejectsServerFailure() async throws {
         var restored = false
         ArchiveURLProtocol.handler = { r in
             if r.httpMethod == "POST" { XCTAssertEqual(r.url?.path,"/api/tasks/archive-test/restore");restored=true;return (200,Data(#"{"task":{"id":"archive-test","title":"Test","status":"completed","archived_at":null,"labels":[],"subtasks":[]}}"#.utf8)) }
@@ -45,10 +53,18 @@ final class TaskArchiveTests: XCTestCase {
         }
         let store=TaskStore(apiClient:api());await store.loadArchive()
         let ok=await store.restore(taskId:"archive-test")
-        XCTAssertTrue(ok);XCTAssertTrue(store.archivedTasks.isEmpty);XCTAssertEqual(store.tasks.first?.status,.completed)
+        XCTAssertTrue(ok)
+        XCTAssertTrue(store.archivedTasks.isEmpty)
+        // Выполненная задача закрыта — в живых списков её нет.
+        XCTAssertTrue(store.tasks.isEmpty)
+        XCTAssertTrue(store.agentWorkTasks.isEmpty)
+        XCTAssertFalse(store.tasks.contains { $0.id == "archive-test" })
+        // Сбой сервера на удалении: операция не проходит, живые списки не меняются.
         ArchiveURLProtocol.handler = { _ in (503,Data(#"{"error":"Unavailable"}"#.utf8)) }
         let failed=await store.delete(taskId:"archive-test")
-        XCTAssertFalse(failed);XCTAssertEqual(store.tasks.count,1)
+        XCTAssertFalse(failed)
+        XCTAssertTrue(store.tasks.isEmpty)
+        XCTAssertEqual(store.agentWorkTasks.count, 0)
     }
     func testProjectPurgeIsAvailableOnlyAfterLoadingArchive() async {
         var requests: [String] = []
