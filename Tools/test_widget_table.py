@@ -10,7 +10,13 @@ import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-source = root / 'Sources/Features/Chat/Widgets/WidgetTable.swift'
+# Файл переехал вместе с каталогом чатов (`Sources/Features/Chat` → `Sources/Chat`).
+# Путь ищем в обоих местах, чтобы переезд снова не ломал проверку.
+candidates = [
+    root / 'Sources/Chat/Widgets/WidgetTable.swift',
+    root / 'Sources/Features/Chat/Widgets/WidgetTable.swift',
+]
+source = next((p for p in candidates if p.exists()), candidates[0])
 tests = root / 'Tests/WidgetTableTests.swift'
 if not source.exists():
     raise SystemExit('RED: WidgetTable.swift is absent')
