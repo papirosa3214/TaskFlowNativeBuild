@@ -11,6 +11,7 @@ import SwiftUI
 // подставляется стеком навигации сама — свою больше не рисуем.
 public struct NotesScreen: View {
     @State private var viewModel = NotesViewModel()
+    @Environment(RealtimeClient.self) private var realtime
     @State private var knowledgeQuery = ""
     @State private var knowledgeChunks: [ApiKnowledgeChunk] = []
     @State private var isSearchingKnowledge = false
@@ -130,6 +131,15 @@ public struct NotesScreen: View {
         .refreshable {
             await viewModel.loadFolders()
             await viewModel.loadNotes()
+        }
+        // Заметка изменилась на сервере (событие `note:changed`,
+        // 01.11.2026): раньше списочный экран не узнавал о правке из веба
+        // или с другого устройства.
+        .onChange(of: realtime.entityRevision) { _, _ in
+            Task {
+                await viewModel.loadFolders()
+                await viewModel.loadNotes()
+            }
         }
         // Поиск использует тот же индекс документов, но результат всегда
         // открывает исходную заметку. Дебаунс бережёт серверный retrieval.

@@ -18,6 +18,9 @@ public final class RealtimeClient {
     private(set) var revisions = TaskRevisions()
     public private(set) var rolesRevision = 0
     public private(set) var jobsRevision = 0
+    /// Растёт при событии сущности вне задачи (заметка, рутина,
+    /// вложение). Экраны подписываются на неё и перечитывают себя.
+    public private(set) var entityRevision = 0
 
     public var taskRevisions: [String: Int] { revisions.tasks }
     public var activityRevisions: [String: Int] { revisions.activity }
@@ -49,6 +52,7 @@ public final class RealtimeClient {
             scheduleCoalescedInvalidation()
         case .rolesChanged: rolesRevision += 1
         case .roleJobsChanged: jobsRevision += 1; rolesRevision += 1
+        case .entityChanged: entityRevision += 1
         case .taskActivity(let id?, _): revisions.activityChanged(id)
         default: break
         }

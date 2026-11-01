@@ -183,6 +183,22 @@ struct RootView: View {
         realtimeClient.onEvent = { event in
             taskStore.apply(event)
             notificationStore.apply(event)
+            // Сущности вне задач: сервер шлёт событие при любой правке проекта,
+            // метки, заметки, рутины, вложения (01.11.2026). Перечитываем стор,
+            // иначе правка на другом устройстве видна только после перезапуска.
+            if case .entityChanged(let kind, _) = event {
+                switch kind {
+                case .project:
+                    Task { await projectStore.load() }
+                case .label:
+                    Task { await labelStore.load() }
+                case .note, .schedule, .attachment:
+                    // Заметки и рутины грузятся своими экранами: им хватает
+                    // роста `realtime.entityRevision`, который поднимает
+                    // `RealtimeClient.record` на каждое такое событие.
+                    break
+                }
+            }
             // Событие сокета — и в локальную базу: переписка и лента должны
             // быть полными и без сети (авиарежим, перезапуск).
             SyncEngine.shared.ingest(event)
@@ -198,7 +214,12 @@ struct RootView: View {
                 // нужна на экране уведомлений, а при переподключении хватает
                 // счётчика непрочитанных.
                 async let notificationsRefreshed: Void = notificationStore.load(unreadOnly: true)
-                let (changed, _) = await (changedTaskIDs, notificationsRefreshed)
+                // Проекты и метки раньше вообще не перечитывались после
+                // разрыва: правка названия проекта до разрыва не доезжала
+                // никогда. Дешёвые списки — читаем вместе с задачами.
+                async let projectsRefreshed: Void = projectStore.load()
+                async let labelsRefreshed: Void = labelStore.load()
+                let (changed, _, _, _) = await (changedTaskIDs, notificationsRefreshed, projectsRefreshed, labelsRefreshed)
                 realtimeClient.recordCatchUp(changedTaskIDs: changed)
             }
         }
