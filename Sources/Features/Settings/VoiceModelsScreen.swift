@@ -129,7 +129,7 @@ struct VoiceModelsScreen: View {
 
     private var onDeviceSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("На телефоне")
+            TFSectionHeader("На телефоне", style: .caps)
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
                     Button {
@@ -473,7 +473,7 @@ struct VoiceModelsScreen: View {
 
     private var onServerSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("На сервере")
+            TFSectionHeader("На сервере", style: .caps)
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
                     // Тап — развернуть промпт этой способности прямо в карточке,
@@ -677,7 +677,7 @@ struct VoiceModelsScreen: View {
 
     private var dictationLogSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Диагностика диктовки")
+            TFSectionHeader("Диагностика диктовки", style: .caps)
 
             TFCard(padding: 0) {
                 VStack(spacing: 0) {

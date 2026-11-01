@@ -154,14 +154,17 @@ struct TeamAppearanceSheet: View {
                         Button {
                             editingRole = role
                         } label: {
-                            HStack(spacing: TFSpacing.md) {
-                                if let asset = RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current) {
-                                    TFRolePortrait(role: role, imageAsset: asset, loopName: nil, side: 44)
-                                }
-                                Text(AvatarCrop.roleTitle(role))
-                                Spacer()
-                                Image(systemName: "chevron.right").foregroundStyle(Color.tfSub)
-                            }
+                            TFListRow(
+                                leading: RoleAvatarAsset.imageName(
+                                    for: role,
+                                    appearance: TeamAvatarAppearance(rawValue: selected) ?? .current
+                                ).map { AnyView(
+                                    TFRolePortrait(role: role, imageAsset: $0, loopName: nil, side: 44)
+                                ) },
+                                title: AvatarCrop.roleTitle(role),
+                                horizontalPadding: 0,
+                                chevron: .shown
+                            )
                         }
                         .accessibilityIdentifier("team-avatar-crop-role-" + role)
                     }

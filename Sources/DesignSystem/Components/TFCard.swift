@@ -23,16 +23,56 @@ public struct TFCard<Content: View>: View {
     }
 }
 
-/// Заголовок секции (капс/приглушённый текст над группой карточек — «Пользовательские
-/// настройки», «Общие» на settings.png). Не своя карточка, просто текст с отступами экрана.
+/// Заголовок секции — ОДИН компонент на два жанра (F19).
+///
+/// `.standard` — приглушённая подпись над группой карточек («Пользовательские
+/// настройки», «Общие» на settings.png): 13 pt `tfSub`, отступы экрана.
+/// `.caps` — тот же заголовок прописными полужирным («МОДЕЛИ И ГОЛОСА»): 13 pt
+/// `tfSub`, вес `.semibold`, без своих отступов — их задаёт место.
+///
+/// Второго компонента-заголовка в приложении нет: отдельная обёртка
+/// «капс-заголовка» удалена 01.11.2026 (F19), капс-режим живёт здесь.
 public struct TFSectionHeader: View {
+    /// Жанр заголовка раздела.
+    public enum Style {
+        /// Приглушённая подпись над группой карточек.
+        case standard
+        /// Прописными полужирным — как в «Моделях и голосах».
+        case caps
+    }
+
     let title: String
-    public init(_ title: String) { self.title = title }
+    let style: Style
+    /// Необязательный правый слот заголовка (кнопка «+ Добавить» в шаблонах).
+    let trailing: (() -> AnyView)?
+
+    public init(
+        _ title: String,
+        style: Style = .standard,
+        trailing: (() -> AnyView)? = nil
+    ) {
+        self.title = title
+        self.style = style
+        self.trailing = trailing
+    }
+
     public var body: some View {
-        Text(title)
-            .tfText(.action)
-            .foregroundStyle(Color.tfSub)
-            .padding(.horizontal, TFSpacing.screenHorizontal)
+        switch style {
+        case .standard:
+            Text(title)
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+        case .caps:
+            HStack {
+                Text(title.uppercased())
+                    .tfText(.action)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tfSub)
+                Spacer()
+                trailing?()
+            }
+        }
     }
 }
 
@@ -70,71 +110,135 @@ public struct TFListRow: View {
         case bundledLogo(String)
     }
 
-    let icon: String
+    /// Режим шеврона справа.
+    public enum Chevron {
+        /// Как раньше: шеврон, когда у строки есть действие и нет своего
+        /// правого слота.
+        case auto
+        /// Шеврона нет (своё значение справа, раскрывашка со своим знаком).
+        case hidden
+        /// Шеврон есть всегда — в том числе когда справа стоит своё значение.
+        case shown
+    }
+
+    /// Свой ведущий слот (аватар, точка статуса) — вместо иконки.
+    let leading: AnyView?
+    let icon: String?
     let iconTint: Color
     let iconStyle: IconStyle
     let title: String
     let subtitle: String?
+    let subtitleStyle: TFTextStyle
+    /// Своя центральная колонка — когда заголовка/подписи не хватает
+    /// (рупная подпись в профиле, несколько строк в строке агента).
+    let content: AnyView?
     let trailing: AnyView?
     let action: (() -> Void)?
     let titleStyle: TFTextStyle
+    let titleColor: Color
     let verticalPadding: CGFloat
+    let horizontalPadding: CGFloat
+    let spacing: CGFloat
+    let alignment: VerticalAlignment
+    let minHeight: CGFloat?
+    let chevron: Chevron
 
     public init(
-        icon: String,
+        icon: String? = nil,
         iconTint: Color = .tfRed,
         iconStyle: IconStyle = .tinted,
-        title: String,
+        leading: AnyView? = nil,
+        title: String = "",
         subtitle: String? = nil,
+        subtitleStyle: TFTextStyle = .action,
+        content: AnyView? = nil,
         trailing: AnyView? = nil,
         titleStyle: TFTextStyle = .body,
+        titleColor: Color = .tfText,
         verticalPadding: CGFloat = TFSpacing.md,
+        horizontalPadding: CGFloat = TFSpacing.lg,
+        spacing: CGFloat = TFSpacing.md,
+        alignment: VerticalAlignment = .center,
+        minHeight: CGFloat? = nil,
+        chevron: Chevron = .auto,
         action: (() -> Void)? = nil
     ) {
+        self.leading = leading
         self.icon = icon
         self.iconTint = iconTint
         self.iconStyle = iconStyle
         self.title = title
         self.subtitle = subtitle
+        self.subtitleStyle = subtitleStyle
+        self.content = content
         self.trailing = trailing
         self.titleStyle = titleStyle
+        self.titleColor = titleColor
         self.verticalPadding = verticalPadding
+        self.horizontalPadding = horizontalPadding
+        self.spacing = spacing
+        self.alignment = alignment
+        self.minHeight = minHeight
+        self.chevron = chevron
         self.action = action
     }
 
     public var body: some View {
-        let row = HStack(spacing: TFSpacing.md) {
-            iconView
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .tfText(titleStyle)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                if let subtitle {
-                    Text(subtitle)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
+        let row = HStack(alignment: alignment, spacing: spacing) {
+            if let leading {
+                leading
+            } else if let icon {
+                iconView
+            }
+            if let content {
+                content
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .tfText(titleStyle)
+                        .foregroundStyle(titleColor)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                    if let subtitle {
+                        Text(subtitle)
+                            .tfText(subtitleStyle)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                    }
                 }
             }
             Spacer()
             if let trailing {
                 trailing
-            } else if action != nil {
+            }
+            if showsChevron {
                 Image(systemName: "chevron.right")
                     .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
         }
-        .padding(.horizontal, TFSpacing.lg)
+        .padding(.horizontal, horizontalPadding)
         .padding(.vertical, verticalPadding)
         .contentShape(Rectangle())
+        .frame(minHeight: minHeight)
 
         if let action {
             Button(action: action) { row }.buttonStyle(TFTapRowStyle())
         } else {
             row
+        }
+    }
+
+    /// Шеврон рисуется, когда его просит режим, — и никогда не «вместо»
+    /// правого слота: значение справа и шеврон уживаются.
+    private var showsChevron: Bool {
+        switch chevron {
+        case .auto:
+            action != nil && trailing == nil
+        case .hidden:
+            false
+        case .shown:
+            true
         }
     }
 
@@ -175,7 +279,7 @@ public struct TFListRow: View {
             }
             .frame(width: 40, height: 40)
         case .bundledLogo(let slug):
-            ComposioServiceIcon(slug: slug, fallback: icon)
+            ComposioServiceIcon(slug: slug, fallback: icon ?? "")
         }
     }
 }

@@ -152,11 +152,13 @@ struct NotificationTicketDetailSheet: View {
                 Button {
                     onOpenTask(taskId)
                 } label: {
-                    HStack(spacing: 4) {
-                        Text("Открыть карточку").tfText(.row).foregroundStyle(Color.tfSub)
-                        Spacer()
-                        Image(systemName: "chevron.right").imageScale(.small).foregroundStyle(Color.tfDim)
-                    }
+                    TFListRow(
+                        title: "Открыть карточку",
+                        titleStyle: .row,
+                        titleColor: Color.tfSub,
+                        horizontalPadding: 0,
+                        chevron: .shown
+                    )
                 }
                 .buttonStyle(TFTapScaleStyle())
             }

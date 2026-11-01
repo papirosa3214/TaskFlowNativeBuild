@@ -132,8 +132,11 @@ struct ExternalAppAccessSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Внешние приложения")
-                .padding(.horizontal, TFSpacing.screenHorizontal)
+            // Капс-заголовок без своих отступов — как был: инсет задаёт
+            // карточка под ним, заголовок стоит вровень с её левым краем
+            // минус инсет экрана (так было у отдельной «капс»-обёртки,
+            // удалённой 01.11.2026 в пользу `TFSectionHeader(style: .caps)`).
+            TFSectionHeader("Внешние приложения", style: .caps)
             TFCard(padding: TFSpacing.md) {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {
                     appRow("gmail", title: "Gmail", icon: "envelope", status: store.gmailStatus, detail: store.gmailDetail)

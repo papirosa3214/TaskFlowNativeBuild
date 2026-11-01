@@ -197,6 +197,21 @@ RULES = [
         "fix": "ошибку в потоке показывает `TFErrorBanner(..., variant: .block)`; "
                "прочие системные диалоги (с действиями) законны",
     },
+    # --- Milestone 3 «Фундамент канона»: строка списка и заголовок раздела (F18–F19) ---
+    {
+        "id": "raw-list-row",
+        "severity": "error",
+        "title": "ручная строка списка с шевроном вместо `TFListRow`",
+        "fix": "строка списка — `TFListRow(...)`; шеврон рисует канон сам "
+               "(`chevron: .shown`) или получает его в `trailing:`",
+    },
+    {
+        "id": "raw-caps-heading",
+        "severity": "error",
+        "title": "ручной «капс»-заголовок вместо `TFSectionHeader`",
+        "fix": "заголовок раздела — `TFSectionHeader(\"…\", style: .caps)`; "
+               "второй компонент-заголовок в приложении не заводится",
+    },
 ]
 
 TOGGLE = re.compile(r"(?<![\w.])Toggle\s*\(")
@@ -250,6 +265,39 @@ LOADING_POINT_ALLOWED = {
     "Features/Settings/ServerRestartRow.swift",
     "Features/Settings/ServerStatusSection.swift",
     "Features/Settings/VoiceModelsScreen.swift",
+}
+
+# --- Milestone 3: строка списка (F18) и заголовок раздела (F19) ---
+# F18: ручная строка списка. Признак — шеврон `"chevron.right"`, нарисованный
+# рядом со строкой руками. Шеврон, переданный канону `TFListRow` (в
+# `trailing:`) или нарисованный им самим, — законен: он лежит внутри вызова
+# `TFListRow(…)`, и это видно по скобкам (см. `tf_list_row_lines`).
+LIST_ROW_CHEVRON = re.compile(r'"chevron\.right"')
+# Шерон, который не в строке списка: указатель внутри карточки, раскрывающая
+# пара (вниз/вправо) или шеврон внутри самого компонента дизайн-системы.
+LIST_ROW_CHEVRON_ALLOWED = {
+    "DesignSystem/Components/TFCard.swift",       # канон `TFListRow` рисует шеврон сам
+    "DesignSystem/Components/TFTextField.swift",  # шеврон внутри компонента
+    "Features/Knowledge/NotesScreen.swift",       # раскрывающая пара шевронов у папки
+    "Features/Roles/RoleActionGroup.swift",       # раскрывающая пара
+    "Features/Roles/RoleLiveTurnView.swift",      # указатель внутри карточки чата
+    "Features/ServiceNotifications/NotificationTicketCard.swift",  # указатель в шапке карточки
+    "Features/Tasks/TaskCardContent.swift",       # указатели и раскрывающая пара внутри карточки
+    "Features/Tasks/Detail/TaskCodeChangesViews.swift",  # указатель внутри карточки
+    "Features/Tasks/Detail/TaskOutcomeSection.swift",    # указатель в карточке вердикта
+}
+# F19: «капс»-заголовок, собранный руками из верхнего регистра.
+# Два написания ловим оба: `Text(title.uppercased())` (как было в
+# `SettingsCapsLabel`) и `Text("ЗАГОЛОВОК").uppercased()`.
+CAPS_HEADING = re.compile(
+    r"Text\s*\([^)]*uppercased\s*\(\s*\)"      # верхний регистр внутри скобок
+    r"|Text\s*\([^)]*\)\s*\.uppercased\s*\(\s*\)"  # верхний регистр модификатором
+)
+# Удалённая обёртка «капс-заголовка» (F19) — имя не должно вернуться.
+REMOVED_CAPS_LABEL = re.compile(r"\bSettingsCapsLabel\b")
+# Подпись языка в блоке кода — не заголовок раздела.
+CAPS_HEADING_ALLOWED = {
+    "Features/Markdown/MarkdownDocumentRenderer.swift",
 }
 
 
@@ -337,7 +385,62 @@ def preview_lines(lines) -> set:
     return inside
 
 
-def check_line(path: str, lines, index: int, preview=None):
+def tf_list_row_lines(lines) -> set:
+    """Номера строк (1-based), лежащих ВНУТРИ вызова `TFListRow(…)`.
+
+    Шеврон, переданный канону в `trailing:` (или нарисованный каноном самим),
+    — законен; ручной шеврон рядом со строкой — нет. Разница видна по
+    синтаксису: канон всегда открыт своей скобкой, поэтому достаточно
+    посчитать вложенность скобок и запомнить строки, попавшие внутрь
+    вызова с именем `TFListRow`.
+    """
+    inside = set()
+    stack = []          # стек открытых скобок: (имя, номер строки)
+    in_string = False
+    escaped = False
+    line = 1
+    text = "\n".join(lines)
+    index = 0
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if char == "\n":
+            line += 1
+            index += 1
+            continue
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            index += 1
+            continue
+        if char == "(":
+            back = index - 1
+            while back >= 0 and (text[back].isalnum() or text[back] == "_"):
+                back -= 1
+            stack.append((text[back + 1:index], line))
+            index += 1
+            continue
+        if char == ")":
+            if stack:
+                name, opened = stack.pop()
+                if name == "TFListRow":
+                    for number in range(opened, line + 1):
+                        inside.add(number)
+            index += 1
+            continue
+        index += 1
+    return inside
+
+
+def check_line(path: str, lines, index: int, preview=None, canon_lines=None):
     """Возвращает список сработавших правил для строки (index — 0-based)."""
     raw = lines[index]
     if IGNORE_MARK in raw:
@@ -362,6 +465,20 @@ def check_line(path: str, lines, index: int, preview=None):
         hits.append("raw-loading")
     if ERROR_ALERT.search(code):
         hits.append("raw-error-banner")
+    # --- Milestone 3: строка списка (F18) и заголовок раздела (F19) ---
+    # Оба правила требуют знать файл, поэтому в режиме `--fragment` (правка
+    # без файла) они не проверяются — как и правила F15/F16.
+    if known_file:
+        if (LIST_ROW_CHEVRON.search(code)
+                and rel not in LIST_ROW_CHEVRON_ALLOWED
+                and (canon_lines is None or (index + 1) not in canon_lines)):
+            hits.append("raw-list-row")
+        if (CAPS_HEADING.search(code)
+                and not rel.startswith("DesignSystem/")
+                and rel not in CAPS_HEADING_ALLOWED):
+            hits.append("raw-caps-heading")
+    if REMOVED_CAPS_LABEL.search(code):
+        hits.append("raw-caps-heading")
     if SYSTEM_COLOR.search(code):
         hits.append("system-text-color")
     head = strip_comment(statement_head(lines, index))
@@ -402,10 +519,11 @@ def scan_file(path: str, only_lines=None):
         return []
     findings = []
     preview = preview_lines(lines)
+    canon_lines = tf_list_row_lines(lines)
     for index in range(len(lines)):
         if only_lines is not None and (index + 1) not in only_lines:
             continue
-        for rule_id in check_line(path, lines, index, preview):
+        for rule_id in check_line(path, lines, index, preview, canon_lines):
             findings.append((path, index + 1, rule_id, lines[index].strip()))
     findings.extend(row for row in scan_control_colors(path, "\n".join(lines)) if only_lines is None or row[1] in only_lines)
     return findings
@@ -605,12 +723,13 @@ def main() -> int:
             old_lines = set()
         new_lines = new_text.splitlines()
         findings = []
+        canon_lines = tf_list_row_lines(new_lines)
         for index in range(len(new_lines)):
             # Строка, уже лежавшая в файле дословно, — старое соответствие,
             # его не приписываем этой правке.
             if new_lines[index].strip() in old_lines and new_lines[index].strip():
                 continue
-            for rule_id in check_line(existing, new_lines, index):
+            for rule_id in check_line(existing, new_lines, index, None, canon_lines):
                 findings.append((args.new_file, index + 1, rule_id, new_lines[index].strip()))
         try:
             old_text = Path(existing).read_text()

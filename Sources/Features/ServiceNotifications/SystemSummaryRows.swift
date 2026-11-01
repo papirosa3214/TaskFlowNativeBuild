@@ -134,20 +134,27 @@ struct SystemSummaryInformationRow: View {
     var showsLink = true
 
     var body: some View {
-        HStack(alignment: .top, spacing: TFSpacing.sm) {
-            Image(systemName: item.kind.icon).foregroundStyle(item.kind.color)
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text(item.title).tfText(.body).foregroundStyle(Color.tfText)
-                // Подпись рисуется, только когда несёт смысл: заглушка «Сервер»
-                // — это шум без содержания (владелец 16.10.2026).
-                if let area = item.area {
-                    Text(area).tfText(.caption).foregroundStyle(Color.tfDim)
+        TFListRow(
+            leading: AnyView(
+                Image(systemName: item.kind.icon).foregroundStyle(item.kind.color)
+            ),
+            content: AnyView(
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text(item.title).tfText(.body).foregroundStyle(Color.tfText)
+                    // Подпись рисуется, только когда несёт смысл: заглушка «Сервер»
+                    // — это шум без содержания (владелец 16.10.2026).
+                    if let area = item.area {
+                        Text(area).tfText(.caption).foregroundStyle(Color.tfDim)
+                    }
+                    Text(item.message).tfText(.row).foregroundStyle(Color.tfSub)
                 }
-                Text(item.message).tfText(.row).foregroundStyle(Color.tfSub)
-            }
-            Spacer(minLength: 0)
-            if showsLink { Image(systemName: "chevron.right").foregroundStyle(Color.tfDim) }
-        }
+            ),
+            verticalPadding: 0,
+            horizontalPadding: 0,
+            spacing: TFSpacing.sm,
+            alignment: .top,
+            chevron: showsLink ? .shown : .hidden
+        )
         .multilineTextAlignment(.leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())

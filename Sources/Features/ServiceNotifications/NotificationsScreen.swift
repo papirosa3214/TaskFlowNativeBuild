@@ -143,17 +143,16 @@ struct NotificationsScreen: View {
     private func summaryRow(_ title: String, _ value: String?, tint: Color? = nil,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack {
-                Text(title).tfText(.row).foregroundStyle(Color.tfText)
-                Spacer()
-                Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
-                Image(systemName: "chevron.right")
-                    .tfTypeFont(size: 12, weight: .semibold)
-                    .foregroundStyle(Color.tfDim)
-            }
-            .padding(.horizontal, TFSpacing.md)
-            .padding(.vertical, TFSpacing.sm + 2)
-            .contentShape(Rectangle())
+            TFListRow(
+                title: title,
+                trailing: AnyView(
+                    Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
+                ),
+                titleStyle: .row,
+                verticalPadding: TFSpacing.sm + 2,
+                horizontalPadding: TFSpacing.md,
+                chevron: .shown
+            )
         }
         .buttonStyle(TFTapRowStyle())
         .accessibilityElement(children: .combine)

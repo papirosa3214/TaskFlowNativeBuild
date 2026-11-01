@@ -92,26 +92,26 @@ struct RuntimeProvidersScreen: View {
     }
 
     private func providerRow(_ provider: RuntimeProvider) -> some View {
-        HStack(spacing: TFSpacing.md) {
-            Circle()
-                .fill(statusColor(provider.status))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(provider.name)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfText)
-                Text(authLabel(provider))
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
-            }
-            Spacer(minLength: TFSpacing.sm)
-            Image(systemName: "chevron.right")
-                .tfTypeFont(size: 13)
-                .foregroundStyle(Color.tfDim)
-        }
-        .padding(.horizontal, TFSpacing.lg)
-        .frame(minHeight: TFField.height)
-        .contentShape(Rectangle())
+        TFListRow(
+            leading: AnyView(
+                Circle()
+                    .fill(statusColor(provider.status))
+                    .frame(width: 8, height: 8)
+            ),
+            content: AnyView(
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(provider.name)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfText)
+                    Text(authLabel(provider))
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                }
+            ),
+            horizontalPadding: TFSpacing.lg,
+            minHeight: TFField.height,
+            chevron: .shown
+        )
     }
 
     private var modelsSection: some View {

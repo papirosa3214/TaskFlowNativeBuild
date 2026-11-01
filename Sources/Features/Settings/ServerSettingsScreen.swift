@@ -56,13 +56,15 @@ struct ServerSettingsScreen: View {
                     Section(groupTitle(group)) {
                         ForEach(snapshot.settings.filter { $0.group == group }) { setting in
                             Button { editing = setting } label: {
-                                HStack {
-                                    Text(setting.label).foregroundStyle(Color.tfText)
-                                    Spacer()
-                                    Text(setting.displayText(snapshot.values[setting.key] ?? setting.defaultValue))
-                                        .foregroundStyle(Color.tfSub)
-                                    Image(systemName: "chevron.right").foregroundStyle(Color.tfSub)
-                                }
+                                TFListRow(
+                                    title: setting.label,
+                                    trailing: AnyView(
+                                        Text(setting.displayText(snapshot.values[setting.key] ?? setting.defaultValue))
+                                            .foregroundStyle(Color.tfSub)
+                                    ),
+                                    horizontalPadding: 0,
+                                    chevron: .shown
+                                )
                             }
                             .accessibilityIdentifier("server-setting-" + setting.key)
                             .hintAnchor("server.setting." + setting.key)

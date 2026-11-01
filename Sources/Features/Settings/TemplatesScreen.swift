@@ -176,7 +176,7 @@ struct TemplatesScreen: View {
     @ViewBuilder
     private var userTemplatesSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Мои шаблоны (\(userTemplates.count))") {
+            TFSectionHeader("Мои шаблоны (\(userTemplates.count))", style: .caps, trailing: {
                 AnyView(
                     Group {
                         if !isFormOpen {
@@ -189,7 +189,7 @@ struct TemplatesScreen: View {
                         }
                     }
                 )
-            }
+            })
 
             if userTemplates.isEmpty {
                 TFCard {
@@ -217,7 +217,7 @@ struct TemplatesScreen: View {
 
     private var builtinTemplatesSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Готовые образцы (\(TemplateStore.builtinTemplates.count))")
+            TFSectionHeader("Готовые образцы (\(TemplateStore.builtinTemplates.count))", style: .caps)
             VStack(spacing: TFSpacing.sm) {
                 ForEach(TemplateStore.builtinTemplates) { template in
                     TemplateCardView(

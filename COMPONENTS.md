@@ -46,13 +46,21 @@
 | Компонент | Что это | Параметры |
 |---|---|---|
 | `TFCard<Content>` | Универсальная карточка: скруглённый фон-подложка + контент | `padding: CGFloat = TFSpacing.lg, @ViewBuilder content` |
-| `TFSectionHeader` | Заголовок секции приглушённым текстом с отступами экрана | `_ title: String` |
-| `TFListRow` | Универсальная строка списка: иконка (цветная/простая), заголовок, подзаголовок, `trailing`, действие по тапу | `icon, iconTint: Color = .tfRed, iconStyle: IconStyle = .tinted, title, subtitle: String? = nil, trailing: AnyView? = nil, titleStyle: TFTextStyle = .body, verticalPadding: CGFloat = TFSpacing.md, action: (() -> Void)? = nil` |
-| `TFListRow.IconStyle` | `enum`: стиль отображения иконки в строке (`.tinted` / простая) | — |
+| `TFSectionHeader` | Заголовок секции: `.standard` — приглушённая подпись с отступами экрана, `.caps` — прописными полужирным («МОДЕЛИ И ГОЛОСА») | `_ title: String, style: Style = .standard, trailing: (() -> AnyView)? = nil` |
+| `TFListRow` | Универсальная строка списка: иконка (цветная/простая) или свой ведущий слот, заголовок, подпись, свой центральный блок, `trailing`, режим шеврона, действие по тапу | `icon: String? = nil, iconTint: Color = .tfRed, iconStyle: IconStyle = .tinted, leading: AnyView? = nil, title: String = "", subtitle: String? = nil, subtitleStyle: TFTextStyle = .action, content: AnyView? = nil, trailing: AnyView? = nil, titleStyle: TFTextStyle = .body, titleColor: Color = .tfText, verticalPadding: CGFloat = TFSpacing.md, horizontalPadding: CGFloat = TFSpacing.lg, spacing: CGFloat = TFSpacing.md, alignment: VerticalAlignment = .center, minHeight: CGFloat? = nil, chevron: Chevron = .auto, action: (() -> Void)? = nil` |
+| `TFListRow.IconStyle` | `enum`: стиль отображения иконки в строке (`.tinted` / простая / своя / удалённая / своя картинка) | — |
+| `TFListRow.Chevron` | `enum`: режим шеврона справа — `.auto` (шеврон, когда есть действие и нет своего правого слота), `.hidden`, `.shown` (шеврон всегда, в том числе рядом со своим значением) | — |
 | `TFDivider` | Горизонтальный разделитель между строками | `inset: CGFloat = 0, dimmed: Bool = false` |
 
 `TFListRow` — универсальная строка настроек/меню с иконкой слева. Для строки
 задачи используй `TFTaskRow` (ниже), не `TFListRow` — у неё другая модель.
+
+Канон Milestone 3: строка списка — только `TFListRow`, шеврон рисует канон
+(`chevron: .shown`) или получает его в `trailing:`; заголовок раздела — только
+`TFSectionHeader`, «капс»-режим выражен параметром `style: .caps`. Ручная строка
+с шевроном и ручной «капс»-заголовок сторож
+(`Tools/design-system-guard.py`, правила `raw-list-row`, `raw-caps-heading`)
+больше не пропускает.
 
 ## Бейджи и пилюли — `Components/TFBadge.swift`
 

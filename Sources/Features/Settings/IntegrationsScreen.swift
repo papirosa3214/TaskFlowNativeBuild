@@ -323,7 +323,8 @@ struct IntegrationsScreen: View {
                                     subtitle: "События TaskFlow → внешний сервис",
                                     trailing: AnyView(webhookAccessory),
                                     titleStyle: .action,
-                                    verticalPadding: TFSpacing.xs
+                                    verticalPadding: TFSpacing.xs,
+                                    chevron: .shown
                                 )
                             }
                             .buttonStyle(.plain)
@@ -350,7 +351,7 @@ struct IntegrationsScreen: View {
                             NavigationLink {
                                 ComposioIntegrationsScreen()
                             } label: {
-                                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio", subtitle: "Основные интеграции и каталог сервисов", trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio", subtitle: "Основные интеграции и каталог сервисов", titleStyle: .action, verticalPadding: TFSpacing.xs, chevron: .shown)
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("integrations.composio")
@@ -403,9 +404,6 @@ struct IntegrationsScreen: View {
             }
             .tfText(.action)
             .lineLimit(1)
-            Image(systemName: "chevron.right")
-                .tfTypeFont(size: 13)
-                .foregroundStyle(Color.tfDim)
         }
         .accessibilityIdentifier("integrations.webhooks.status")
     }

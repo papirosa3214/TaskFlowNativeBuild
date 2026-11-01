@@ -88,23 +88,21 @@ struct OverviewScreen: View {
     }
 
     private func navigationRowBody(title: String, value: String? = nil, tint: Color? = nil) -> some View {
-        HStack(spacing: TFSpacing.md) {
-            Text(title)
-                .tfSectionDisplay(style: .taskTitle)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Spacer(minLength: 0)
-            if let value {
-                Text(value).tfText(.action).foregroundStyle(tint ?? Color.tfSub).lineLimit(1)
-            } else {
-                Image(systemName: "chevron.right")
-                    .tfTypeFont(size: 13)
-                    .foregroundStyle(Color.tfDim)
-            }
-        }
-        .padding(.vertical, TFSpacing.md)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
+        TFListRow(
+            content: AnyView(
+                Text(title)
+                    .tfSectionDisplay(style: .taskTitle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            ),
+            trailing: value.map { AnyView(
+                Text($0).tfText(.action).foregroundStyle(tint ?? Color.tfSub).lineLimit(1)
+            ) },
+            verticalPadding: TFSpacing.md,
+            horizontalPadding: 0,
+            minHeight: 44,
+            chevron: value == nil ? .shown : .hidden
+        )
     }
 
     /// Значения справа — по возможности: сбой запроса оставляет стрелку.
