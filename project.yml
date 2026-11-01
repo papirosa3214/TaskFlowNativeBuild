@@ -142,6 +142,7 @@ targets:
         UIAppFonts:
           - PT-Sans-Narrow-Bold.ttf
           - PT-Sans-Narrow-Regular.ttf
+          - Handjet-Metric.ttf
           - Caveat-Bold.ttf
           - Caveat-Regular.ttf
           - Comfortaa-Bold.ttf
@@ -196,14 +197,10 @@ targets:
         UIBackgroundModes:
           - location
           - audio
-        # Пиксельный шрифт метки даты заведения в строке задачи
-        # (LOCK-TASK-CREATED-STAMP). Ключ живёт ЗДЕСЬ, а не в
-        # `Resources/Info.plist`: xcodegen генерирует plist из `properties`
-        # и молча затирает файл, поэтому правка в самом plist пропадала бы.
-        # Имя — PostScript-имя из name-таблицы TTF; сам файл приходит
-        # в бандл из `Resources/Fonts` (см. `sources` выше).
-        UIAppFonts:
-          - Handjet-Metric.ttf
+        # ВТОРОГО ключа UIAppFonts здесь быть не должно: YAML-дубликат
+        # молча затирал первый список, и iOS не регистрировал ни один шрифт
+        # (PT Sans Narrow и 11 гарнитур грузились в бандл, но рисовались
+        # системным). Все имена — в одном UIAppFonts выше (01.11.2026).
         NSLocationWhenInUseUsageDescription: Пока задача показана в Dynamic Island, приложение остаётся на связи с сервером и обновляет её прогресс. Сама геопозиция никуда не отправляется и нигде не сохраняется.
     settings:
       base:

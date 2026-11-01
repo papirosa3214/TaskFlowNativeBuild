@@ -62,7 +62,30 @@
 	<true/>
 	<key>UIAppFonts</key>
 	<array>
+		<string>PT-Sans-Narrow-Bold.ttf</string>
+		<string>PT-Sans-Narrow-Regular.ttf</string>
 		<string>Handjet-Metric.ttf</string>
+		<string>Caveat-Bold.ttf</string>
+		<string>Caveat-Regular.ttf</string>
+		<string>Comfortaa-Bold.ttf</string>
+		<string>Comfortaa-Regular.ttf</string>
+		<string>CormorantGaramond-Bold.ttf</string>
+		<string>CormorantGaramond-Regular.ttf</string>
+		<string>GolosText-Bold.ttf</string>
+		<string>GolosText-Regular.ttf</string>
+		<string>JetBrainsMono-Bold.ttf</string>
+		<string>JetBrainsMono-Regular.ttf</string>
+		<string>Lora-Bold.ttf</string>
+		<string>Lora-Regular.ttf</string>
+		<string>MarckScript.ttf</string>
+		<string>Nunito-Bold.ttf</string>
+		<string>Nunito-Regular.ttf</string>
+		<string>Onest-Bold.ttf</string>
+		<string>Onest-Regular.ttf</string>
+		<string>PlayfairDisplay-Bold.ttf</string>
+		<string>PlayfairDisplay-Regular.ttf</string>
+		<string>Unbounded-Bold.ttf</string>
+		<string>Unbounded-Regular.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
