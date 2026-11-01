@@ -53,6 +53,7 @@ struct RoutineRunsScreen: View {
                 }
             }
         }
+        .tfScreenBackground()
     }
 }
 

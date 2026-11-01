@@ -136,24 +136,26 @@ struct ProjectNotesSection: View {
                 withAnimation(.snappy(duration: 0.2)) { docsExpanded.toggle() }
                 TaskCardDisclosureState.saveFlag(docsExpanded, key: docsExpandedKey)
             } label: {
-                HStack(spacing: TFSpacing.sm) {
-                    Image(systemName: "folder")
-                        .tfText(.title)
-                        .foregroundStyle(Color.tfSub)
-                    Text(folder.name)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfText)
-                        .lineLimit(1)
-                    Spacer()
-                    Text("\(filteredNotes.count)")
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfDim)
-                    Image(systemName: "chevron.right")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfDim)
-                        .rotationEffect(.degrees(docsExpanded ? 90 : 0))
-                }
-                .frame(minHeight: 42)
+                TFListRow(
+                    icon: "folder",
+                    iconStyle: .plain,
+                    title: folder.name,
+                    trailing: AnyView(
+                        HStack(spacing: TFSpacing.md) {
+                            Text("\(filteredNotes.count)")
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfDim)
+                            Image(systemName: "chevron.right")
+                                .tfText(.action)
+                                .foregroundStyle(Color.tfDim)
+                                .rotationEffect(.degrees(docsExpanded ? 90 : 0))
+                        }
+                    ),
+                    verticalPadding: 0,
+                    horizontalPadding: 0,
+                    spacing: TFSpacing.sm,
+                    minHeight: 42
+                )
             }
             .buttonStyle(TFTapRowStyle())
             .accessibilityIdentifier("projectDocsFolder")
@@ -261,25 +263,27 @@ struct ProjectNotesSection: View {
                         if isOpen { openFolders.remove(f.id) } else { openFolders.insert(f.id) }
                     }
                 } label: {
-                    HStack(spacing: TFSpacing.sm) {
-                        Image(systemName: "folder")
-                            .tfText(.input)
-                            .foregroundStyle(Color.tfSub)
-                        Text(f.name.isEmpty ? "Без названия" : f.name)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(subtreeNotes(f.id, in: all).count)")
-                            .tfText(.caption)
-                            .foregroundStyle(Color.tfDim)
-                        Image(systemName: "chevron.right")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                            .rotationEffect(.degrees(isOpen ? 90 : 0))
-                    }
+                    TFListRow(
+                        icon: "folder",
+                        iconStyle: .plain,
+                        title: f.name.isEmpty ? "Без названия" : f.name,
+                        trailing: AnyView(
+                            HStack(spacing: TFSpacing.md) {
+                                Text("\(subtreeNotes(f.id, in: all).count)")
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfDim)
+                                Image(systemName: "chevron.right")
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfDim)
+                                    .rotationEffect(.degrees(isOpen ? 90 : 0))
+                            }
+                        ),
+                        verticalPadding: 0,
+                        horizontalPadding: 0,
+                        spacing: TFSpacing.sm,
+                        minHeight: 42
+                    )
                     .padding(.leading, pad)
-                    .frame(minHeight: 42)
                 }
                 .buttonStyle(TFTapRowStyle())
                 .accessibilityLabel(f.name)
@@ -343,17 +347,16 @@ struct ProjectNotesSection: View {
                     Button {
                         Task { await createAndAttach() }
                     } label: {
-                        HStack(spacing: TFSpacing.sm) {
-                            Image(systemName: "folder.badge.plus").tfTypeFont(size: 16)
-                            Text(busy ? "Создаём…" : "Создать «\(project.name)»")
-                        }
-                        .tfText(.action)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tfText)
-                        .padding(.horizontal, TFSpacing.lg)
-                        .frame(height: TFHitTarget.min)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                            HStack(spacing: TFSpacing.sm) {
+                                Image(systemName: "folder.badge.plus").tfTypeFont(size: 16)
+                                Text(busy ? "Создаём…" : "Создать «\(project.name)»")
+                            }
+                            .tfText(.action)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tfText)
+                            .padding(.horizontal, TFSpacing.lg)
+                            .frame(height: TFHitTarget.min)                        }
                     }
                     .buttonStyle(TFTapScaleStyle())
                     .disabled(busy)
@@ -362,17 +365,16 @@ struct ProjectNotesSection: View {
                         Button {
                             pickerOpen = true
                         } label: {
-                            HStack(spacing: TFSpacing.sm) {
-                                Image(systemName: "folder").tfTypeFont(size: 16)
-                                Text("Выбрать папку")
-                            }
-                            .tfText(.action)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tfText)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: TFHitTarget.min)
-                            .background(Color.tfCard2)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                            TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                                HStack(spacing: TFSpacing.sm) {
+                                    Image(systemName: "folder").tfTypeFont(size: 16)
+                                    Text("Выбрать папку")
+                                }
+                                .tfText(.action)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.tfText)
+                                .padding(.horizontal, TFSpacing.lg)
+                                .frame(height: TFHitTarget.min)                            }
                         }
                         .buttonStyle(TFTapScaleStyle())
                     }

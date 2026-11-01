@@ -15,7 +15,7 @@ struct ComposioIntegrationsScreen: View {
 
     var body: some View {
         ScrollView { content.padding(TFSpacing.lg) }
-            .background(Color.tfBackground)
+            .tfScreenBackground()
             .tfNativeHeader("Composio", displayMode: .inline)
             .task { if !model.loaded { await model.load() } }
             .onChange(of: scenePhase) { _, phase in
@@ -120,7 +120,7 @@ struct ComposioCatalogScreen: View {
 
     var body: some View {
         ScrollView { content.padding(TFSpacing.lg) }
-            .background(Color.tfBackground)
+            .tfScreenBackground()
             .tfNativeHeader("Все интеграции", displayMode: .inline)
             .task { if !model.loaded { await model.load() } }
             .onChange(of: scenePhase) { _, phase in
@@ -290,7 +290,7 @@ struct ComposioServiceScreen: View {
                     if await model.save(toolkit: slug, selected: selected) { baseline = selected; saved = true }
                 }
             }.accessibilityIdentifier("composio.save")
-                .padding(TFSpacing.lg).background(Color.tfBackground)
+                .padding(TFSpacing.lg).tfScreenBackground()
         }
         .onAppear { selected = model.selectedRoles(for: slug); baseline = selected }
     }

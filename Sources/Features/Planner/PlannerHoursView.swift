@@ -361,6 +361,13 @@ struct UpcomingHoursView: View {
     }
 
     private var untimedPoolCard: some View {
+        TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+            poolContent
+        }
+        .tfShadow(TFShadow.dropdown)
+    }
+
+    private var poolContent: some View {
         // Пул прокручивается ВНУТРИ себя и занимает не больше пары строк.
         // Владелец 15.09.2026: «пул занял четыре часа, мне приспичило на
         // 7 утра что-то назначить — как я туда назначу?». Высота была
@@ -381,9 +388,6 @@ struct UpcomingHoursView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(maxHeight: Self.poolMaxHeight)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
-        .tfShadow(TFShadow.dropdown)
     }
 
     // MARK: - Сетка часов
@@ -774,7 +778,7 @@ struct UpcomingHoursView: View {
                     .monospacedDigit()
                     .foregroundStyle(Color.tfRed)
                     .frame(width: gutterW, alignment: .trailing)
-                    .background(Color.tfBackground)
+                    .tfScreenBackground()
                 Circle().fill(Color.tfRed).frame(width: 7, height: 7)
                 Rectangle().fill(Color.tfRed).frame(height: 1.5)
             }
@@ -798,7 +802,7 @@ struct UpcomingHoursView: View {
                     .monospacedDigit()
                     .foregroundStyle(Color.tfRed)
                     .frame(width: gutterW, alignment: .trailing)
-                    .background(Color.tfBackground)
+                    .tfScreenBackground()
                 Circle().fill(Color.tfRed).frame(width: 7, height: 7)
             }
             .fixedSize()

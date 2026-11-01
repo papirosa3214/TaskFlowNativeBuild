@@ -85,18 +85,16 @@ private struct ChatWorkspaceBrowser: View {
                 }
                 ForEach(listing?.entries ?? []) { entry in
                     Button { open(entry.path) } label: {
-                        HStack(spacing: TFSpacing.md) {
-                            Image(systemName: "folder.fill")
-                                .foregroundStyle(Color.tfSub)
-                            Text(entry.name).foregroundStyle(Color.tfText)
-                            Spacer(minLength: 0)
-                            if entry.path == choice.selected {
-                                Image(systemName: "checkmark").foregroundStyle(Color.tfText)
-                            }
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(Color.tfDim)
-                        }
+                        TFListRow(
+                            icon: "folder.fill",
+                            iconStyle: .plain,
+                            title: entry.name,
+                            trailing: entry.path == choice.selected
+                                ? AnyView(Image(systemName: "checkmark").foregroundStyle(Color.tfText))
+                                : nil,
+                            horizontalPadding: 0,
+                            chevron: .shown
+                        )
                         .contentShape(Rectangle())
                     }
                 }
@@ -105,6 +103,7 @@ private struct ChatWorkspaceBrowser: View {
                         .foregroundStyle(Color.tfSub)
                 }
             }
+            .tfScreenBackground()
             .overlay { if isLoading && listing == nil { ProgressView() } }
             .tfNativeHeader(listing?.title ?? "Проекты", displayMode: .inline)
             .toolbar {

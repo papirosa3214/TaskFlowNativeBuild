@@ -72,11 +72,10 @@ struct ActivityScreen: View {
             .listRowInsets(EdgeInsets())
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .tfScreenBackground()
         .refreshable {
             await taskStore.load(silent: true)
         }
-        .background(Color.tfBackground)
         // Штатная SwiftUI-шапка. Назад рисует сам NavigationStack; в toolbar
         // остаётся только фильтр. Было ручное `.toolbarBackground` — просьба
         // владельца 03.09.2026 («нативные кнопки, нативный фильтр везде

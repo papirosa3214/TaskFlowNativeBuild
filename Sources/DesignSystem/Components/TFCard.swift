@@ -6,33 +6,125 @@ import SwiftUI
 /// Обёртка карточки общего назначения (статистика в «Обзоре», пункты списка
 /// настроек и т.п.) — фон `card`, радиус 16px, без рамки по умолчанию (рамка
 /// нужна только там, где карточка на том же фоне, что и подложка — задаётся снаружи).
+///
+/// Milestone 3, семейство F20: это ЕДИНСТВЕННАЯ карточка приложения. Раньше
+/// та же подложка собиралась руками в 33 файлах — `.background(Color.tfCard)`
+/// плюс свой `clipShape`. У такой сборки было два недостатка: подложка бралась
+/// не из канона (а значит, могла разойтись с ним), и каждая копия решала
+/// радиус по-своему. Теперь радиус и поверхность — параметры канона.
+///
+/// Поверхность: `.card` (обычная карточка) или `.card2` (вложенная вложенная
+/// подложка — на тон темнее основной). Владелец 01.11.2026: две поверхности
+/// НЕ сливать — они отличаются на 7 пунктов яркости, и это осознанно.
+/// Радиус: по умолчанию `xl` (карточка), но у части мест был свой (`lg` — строка
+/// карточки, `md` — компактная). Параметр существует, чтобы перевод НЕ менял
+/// вид: те же числа, что стояли вручную.
 public struct TFCard<Content: View>: View {
+    /// Поверхность карточки.
+    public enum Surface {
+        /// Основная карточка — `tfCard`.
+        case card
+        /// Вложенная подложка — `tfCard2` (на тон темнее).
+        case card2
+
+        var color: Color {
+            switch self {
+            case .card: return .tfCard
+            case .card2: return .tfCard2
+            }
+        }
+    }
+
     let content: Content
     let padding: CGFloat
+    let surface: Surface
+    /// Радиус скругления. `nil` — подложка без скругления (прямоугольная
+    /// плашка, как всплывающий список подсказок в чате).
+    let radius: CGFloat?
 
-    public init(padding: CGFloat = TFSpacing.lg, @ViewBuilder content: () -> Content) {
+    public init(
+        padding: CGFloat = TFSpacing.lg,
+        surface: Surface = .card,
+        radius: CGFloat? = TFRadius.xl,
+        @ViewBuilder content: () -> Content
+    ) {
         self.padding = padding
+        self.surface = surface
+        self.radius = radius
         self.content = content()
     }
 
     public var body: some View {
         content
             .padding(padding)
-            .background(Color.tfCard)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
+            .background(surface.color)
+            .modifier(ClipRadius(radius: radius))
     }
 }
 
-/// Заголовок секции (капс/приглушённый текст над группой карточек — «Пользовательские
-/// настройки», «Общие» на settings.png). Не своя карточка, просто текст с отступами экрана.
+/// Скругление по радиусу; `nil` — без скругления (прямоугольная подложка).
+private struct ClipRadius: ViewModifier {
+    let radius: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let radius {
+            content.clipShape(RoundedRectangle(cornerRadius: radius))
+        } else {
+            content
+        }
+    }
+}
+
+/// Заголовок секции — ОДИН компонент на два жанра (F19).
+///
+/// `.standard` — приглушённая подпись над группой карточек («Пользовательские
+/// настройки», «Общие» на settings.png): 13 pt `tfSub`, отступы экрана.
+/// `.caps` — тот же заголовок прописными полужирным («МОДЕЛИ И ГОЛОСА»): 13 pt
+/// `tfSub`, вес `.semibold`, без своих отступов — их задаёт место.
+///
+/// Второго компонента-заголовка в приложении нет: отдельная обёртка
+/// «капс-заголовка» удалена 01.11.2026 (F19), капс-режим живёт здесь.
 public struct TFSectionHeader: View {
+    /// Жанр заголовка раздела.
+    public enum Style {
+        /// Приглушённая подпись над группой карточек.
+        case standard
+        /// Прописными полужирным — как в «Моделях и голосах».
+        case caps
+    }
+
     let title: String
-    public init(_ title: String) { self.title = title }
+    let style: Style
+    /// Необязательный правый слот заголовка (кнопка «+ Добавить» в шаблонах).
+    let trailing: (() -> AnyView)?
+
+    public init(
+        _ title: String,
+        style: Style = .standard,
+        trailing: (() -> AnyView)? = nil
+    ) {
+        self.title = title
+        self.style = style
+        self.trailing = trailing
+    }
+
     public var body: some View {
-        Text(title)
-            .tfText(.action)
-            .foregroundStyle(Color.tfSub)
-            .padding(.horizontal, TFSpacing.screenHorizontal)
+        switch style {
+        case .standard:
+            Text(title)
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+        case .caps:
+            HStack {
+                Text(title.uppercased())
+                    .tfText(.action)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.tfSub)
+                Spacer()
+                trailing?()
+            }
+        }
     }
 }
 
@@ -70,71 +162,135 @@ public struct TFListRow: View {
         case bundledLogo(String)
     }
 
-    let icon: String
+    /// Режим шеврона справа.
+    public enum Chevron {
+        /// Как раньше: шеврон, когда у строки есть действие и нет своего
+        /// правого слота.
+        case auto
+        /// Шеврона нет (своё значение справа, раскрывашка со своим знаком).
+        case hidden
+        /// Шеврон есть всегда — в том числе когда справа стоит своё значение.
+        case shown
+    }
+
+    /// Свой ведущий слот (аватар, точка статуса) — вместо иконки.
+    let leading: AnyView?
+    let icon: String?
     let iconTint: Color
     let iconStyle: IconStyle
     let title: String
     let subtitle: String?
+    let subtitleStyle: TFTextStyle
+    /// Своя центральная колонка — когда заголовка/подписи не хватает
+    /// (рупная подпись в профиле, несколько строк в строке агента).
+    let content: AnyView?
     let trailing: AnyView?
     let action: (() -> Void)?
     let titleStyle: TFTextStyle
+    let titleColor: Color
     let verticalPadding: CGFloat
+    let horizontalPadding: CGFloat
+    let spacing: CGFloat
+    let alignment: VerticalAlignment
+    let minHeight: CGFloat?
+    let chevron: Chevron
 
     public init(
-        icon: String,
+        icon: String? = nil,
         iconTint: Color = .tfRed,
         iconStyle: IconStyle = .tinted,
-        title: String,
+        leading: AnyView? = nil,
+        title: String = "",
         subtitle: String? = nil,
+        subtitleStyle: TFTextStyle = .action,
+        content: AnyView? = nil,
         trailing: AnyView? = nil,
         titleStyle: TFTextStyle = .body,
+        titleColor: Color = .tfText,
         verticalPadding: CGFloat = TFSpacing.md,
+        horizontalPadding: CGFloat = TFSpacing.lg,
+        spacing: CGFloat = TFSpacing.md,
+        alignment: VerticalAlignment = .center,
+        minHeight: CGFloat? = nil,
+        chevron: Chevron = .auto,
         action: (() -> Void)? = nil
     ) {
+        self.leading = leading
         self.icon = icon
         self.iconTint = iconTint
         self.iconStyle = iconStyle
         self.title = title
         self.subtitle = subtitle
+        self.subtitleStyle = subtitleStyle
+        self.content = content
         self.trailing = trailing
         self.titleStyle = titleStyle
+        self.titleColor = titleColor
         self.verticalPadding = verticalPadding
+        self.horizontalPadding = horizontalPadding
+        self.spacing = spacing
+        self.alignment = alignment
+        self.minHeight = minHeight
+        self.chevron = chevron
         self.action = action
     }
 
     public var body: some View {
-        let row = HStack(spacing: TFSpacing.md) {
-            iconView
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .tfText(titleStyle)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                if let subtitle {
-                    Text(subtitle)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
+        let row = HStack(alignment: alignment, spacing: spacing) {
+            if let leading {
+                leading
+            } else if let icon {
+                iconView
+            }
+            if let content {
+                content
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .tfText(titleStyle)
+                        .foregroundStyle(titleColor)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                    if let subtitle {
+                        Text(subtitle)
+                            .tfText(subtitleStyle)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                    }
                 }
             }
             Spacer()
             if let trailing {
                 trailing
-            } else if action != nil {
+            }
+            if showsChevron {
                 Image(systemName: "chevron.right")
                     .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
         }
-        .padding(.horizontal, TFSpacing.lg)
+        .padding(.horizontal, horizontalPadding)
         .padding(.vertical, verticalPadding)
         .contentShape(Rectangle())
+        .frame(minHeight: minHeight)
 
         if let action {
             Button(action: action) { row }.buttonStyle(TFTapRowStyle())
         } else {
             row
+        }
+    }
+
+    /// Шеврон рисуется, когда его просит режим, — и никогда не «вместо»
+    /// правого слота: значение справа и шеврон уживаются.
+    private var showsChevron: Bool {
+        switch chevron {
+        case .auto:
+            action != nil && trailing == nil
+        case .hidden:
+            false
+        case .shown:
+            true
         }
     }
 
@@ -146,7 +302,7 @@ public struct TFListRow: View {
                 .fill(iconTint.opacity(0.18))
                 .frame(width: 40, height: 40)
                 .overlay {
-                    Image(systemName: icon)
+                    Image(systemName: icon ?? "")
                         .tfTypeFont(size: TFIconSize.sm)
                         .foregroundStyle(iconTint)
                 }
@@ -159,7 +315,7 @@ public struct TFListRow: View {
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 40, height: 40)
         case .plain:
-            Image(systemName: icon)
+            Image(systemName: icon ?? "")
                 .tfTypeFont(size: TFIconSize.sm)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 40, height: 40)
@@ -169,13 +325,13 @@ public struct TFListRow: View {
                     .frame(width: 28, height: 28)
                     .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
             } placeholder: {
-                Image(systemName: icon)
+                Image(systemName: icon ?? "")
                     .tfTypeFont(size: TFIconSize.sm)
                     .foregroundStyle(Color.tfDim)
             }
             .frame(width: 40, height: 40)
         case .bundledLogo(let slug):
-            ComposioServiceIcon(slug: slug, fallback: icon)
+            ComposioServiceIcon(slug: slug, fallback: icon ?? "")
         }
     }
 }

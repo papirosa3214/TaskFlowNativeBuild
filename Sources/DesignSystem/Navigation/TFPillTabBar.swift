@@ -41,8 +41,20 @@ public struct TFPillTabBar<Content: View>: View {
         })
     }
 
+    /// Роль кнопки «Создать» в системной панели вкладок.
+    ///
+    /// `TabRole.prominent` появился в iOS 27. На более старом SDK этого
+    /// элемента нет вовсе, и `#available` не помогает: компилятор сообщает
+    /// «type 'TabRole' has no member 'prominent'» ещё до проверки версии
+    /// системы. Поэтому prominent включается только там, где SDK уже iOS 27
+    /// (Xcode 27, Swift 6.4+), а на старом SDK собирается `.search`.
+    ///
+    /// На устройстве владельца (iOS 27) вид не меняется: тот же системный
+    /// prominent-круг.
     private var createRole: TabRole {
+        #if compiler(>=6.4)
         if #available(iOS 27.0, *) { return .prominent }
+        #endif
         return .search
     }
 

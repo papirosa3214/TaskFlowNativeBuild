@@ -57,24 +57,34 @@ final class TypographyDefectsTests: XCTestCase {
 
     // MARK: Дефект Б — иерархия карточки была перевёрнута
 
-    /// Название задачи в карточке должно быть КРУПНЕЕ заголовка секции, а не
-    /// наоборот: было 17 pt против 20 pt.
-    func testCardTitleIsLargerThanSectionHeader() {
-        let title = TFTextStyle.taskTitle.baseSize
-        let section = TFTextStyle.title.baseSize
-
-        XCTAssertGreaterThan(title, section, "название карточки (\(title)) должно быть крупнее заголовка секции (\(section))")
+    /// Пять групп шрифтов вместо двенадцати ступеней (владелец 01.11.2026):
+    /// heading 22, subheading 17, body 15, secondary 13, tertiary 11.
+    /// Старая проверка «название карточки крупнее заголовка секции» больше не
+    /// имеет смысла: `taskTitle` и `title` живут в ОДНОЙ группе `.subheading`
+    /// и отличаются только начертанием, а не кеглем. Проверяем принадлежность
+    /// группе, а не старую числовую иерархию.
+    func testCardTitleSharesSubheadingGroupWithSectionHeader() {
+        XCTAssertEqual(TFTextStyle.taskTitle.group, .subheading)
+        XCTAssertEqual(TFTextStyle.title.group, .subheading)
+        XCTAssertEqual(
+            TFTextStyle.taskTitle.baseSize, TFTextStyle.title.baseSize,
+            "название карточки и заголовок секции — одна группа, кегль одинаковый"
+        )
         XCTAssertGreaterThan(TFTextStyle.title.baseSize, TFTextStyle.body.baseSize)
     }
 
     // MARK: Дефект В — ступень `input` не на своём месте
 
-    /// `input` (16) в этом проекте зарезервирована ТОЛЬКО под текстовые поля.
-    /// В календаре Планирования она стояла на числе дня — числа дня теперь
-    /// `body` (15), то есть строго меньше ступени поля.
+    /// `input` зарезервирована ТОЛЬКО под текстовые поля. В пятигрупповой
+    /// модели (владелец 01.11.2026) отдельного кегля у полей больше нет:
+    /// `input` входит в группу `.body` (15 pt) вместе с `body`, `listTitle`
+    /// и `row`. Проверяем, что ступень не выпала из группы и что группа
+    /// `body` не совпала с системным `.body` SwiftUI (17 pt).
     func testInputTierIsStrictlyForFields() {
-        XCTAssertGreaterThan(TFTextStyle.input.baseSize, TFTextStyle.body.baseSize)
-        XCTAssertEqual(TFTextStyle.input.baseSize, 16)
+        XCTAssertEqual(TFTextStyle.input.group, .body)
+        XCTAssertEqual(TFTextStyle.input.baseSize, 15)
+        XCTAssertEqual(TFTextStyle.input.baseSize, TFTextStyle.body.baseSize)
+        XCTAssertNotEqual(TFTextStyle.input.baseSize, 17)
     }
 
     // MARK: Дефект Г — пустое состояние без типографики

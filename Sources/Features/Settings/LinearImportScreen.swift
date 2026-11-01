@@ -108,9 +108,9 @@ struct LinearImportScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.md) { content; actions }
             } else {
                 ScrollView { content.padding(TFSpacing.lg) }
-                    .background(Color.tfBackground)
+                    .tfScreenBackground()
                     .tfNativeHeader("Linear", displayMode: .inline)
-                    .safeAreaInset(edge: .bottom) { actions.padding(TFSpacing.lg).background(Color.tfBackground) }
+                    .safeAreaInset(edge: .bottom) { actions.padding(TFSpacing.lg).tfScreenBackground() }
             }
         }
         .task { autoImportEnabled = try? await APIClient().linearAutoImport().enabled }

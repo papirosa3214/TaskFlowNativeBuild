@@ -76,57 +76,59 @@ struct AgentRow: View {
     let currentTask: ApiTask?
 
     var body: some View {
-        HStack(alignment: .top, spacing: TFSpacing.md) {
-            RoleAvatarView(initials: initials, tint: roleAccentColor(profile.role), size: 36, role: profile.role)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(profile.title)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
-                    .lineLimit(1)
-
-                if let title = currentTask?.title ?? profile.currentTask?.title {
-                    Text(title)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
+        TFListRow(
+            leading: AnyView(
+                RoleAvatarView(initials: initials, tint: roleAccentColor(profile.role), size: 36, role: profile.role)
+            ),
+            content: AnyView(
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(profile.title)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
                         .lineLimit(1)
-                    Text(workLine)
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
-                } else if let summary = profile.summary, !summary.isEmpty {
-                    // «Чем занимается» — серверный (LOCK-205). Ручной
-                    // `roleSubtitle(_:)` остался в файле ради прежних мест
-                    // (`AgentProfileScreen`), здесь показываем то, что
-                    // прислал сервер.
-                    Text(summary)
-                        .tfText(.meta)
+
+                    if let title = currentTask?.title ?? profile.currentTask?.title {
+                        Text(title)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                        Text(workLine)
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                    } else if let summary = profile.summary, !summary.isEmpty {
+                        // «Чем занимается» — серверный (LOCK-205). Ручной
+                        // `roleSubtitle(_:)` остался в файле ради прежних мест
+                        // (`AgentProfileScreen`), здесь показываем то, что
+                        // прислал сервер.
+                        Text(summary)
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfDim)
+                            .lineLimit(1)
+                    }
+                }
+            ),
+            trailing: AnyView(
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(roleStatusColor(profile.status))
+                            .frame(width: 7, height: 7)
+                        Text(roleStatusLabel(profile.status))
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    Image(systemName: "chevron.right")
+                        .tfTypeFont(size: 13)
                         .foregroundStyle(Color.tfDim)
-                        .lineLimit(1)
                 }
-            }
-
-            Spacer(minLength: TFSpacing.sm)
-
-            VStack(alignment: .trailing, spacing: 6) {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(roleStatusColor(profile.status))
-                        .frame(width: 7, height: 7)
-                    Text(roleStatusLabel(profile.status))
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-                Image(systemName: "chevron.right")
-                    .tfTypeFont(size: 13)
-                    .foregroundStyle(Color.tfDim)
-            }
-        }
-        .padding(.horizontal, TFSpacing.lg)
-        .padding(.vertical, TFSpacing.md)
-        .contentShape(Rectangle())
+            ),
+            verticalPadding: TFSpacing.md,
+            horizontalPadding: TFSpacing.lg,
+            alignment: .top
+        )
     }
 
     private var initials: String {

@@ -26,7 +26,7 @@ struct RoutineFormScreen: View {
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.bottom, TFSpacing.sm)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader(model.editingSchedule == nil ? "Новая рутина" : "Рутина", displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -63,7 +63,7 @@ struct RoutineFormScreen: View {
                 TextEditor(text: $model.instructions)
                     .scrollContentBackground(.hidden)
                     .padding(TFSpacing.md)
-                    .background(Color.tfBackground)
+                    .tfScreenBackground()
                     .navigationTitle("Описание задачи")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -247,37 +247,37 @@ private struct PlanFlowView: View {
     let stages: [[String]]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            ForEach(Array(stages.enumerated()), id: \.offset) { index, roles in
-                HStack(spacing: TFSpacing.xs) {
-                    ForEach(Array(roles.enumerated()), id: \.offset) { roleIndex, role in
-                        if roleIndex > 0 {
-                            Text("∥")
-                                .tfText(.caption)
-                                .foregroundStyle(Color.tfSub)
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                ForEach(Array(stages.enumerated()), id: \.offset) { index, roles in
+                    HStack(spacing: TFSpacing.xs) {
+                        ForEach(Array(roles.enumerated()), id: \.offset) { roleIndex, role in
+                            if roleIndex > 0 {
+                                Text("∥")
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfSub)
+                            }
+                            TFPill(surface: .tfCard, capsule: true) {
+                                Text(role)
+                                    .tfText(.row)
+                                    .foregroundStyle(Color.tfText)
+                                    .padding(.horizontal, TFSpacing.sm)
+                                    .padding(.vertical, TFSpacing.xs)
+                            }
                         }
-                        Text(role)
-                            .tfText(.row)
-                            .foregroundStyle(Color.tfText)
-                            .padding(.horizontal, TFSpacing.sm)
-                            .padding(.vertical, TFSpacing.xs)
-                            .background(Color.tfCard)
-                            .clipShape(Capsule())
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
-                }
-                if index < stages.count - 1 {
-                    Image(systemName: "arrow.down")
-                        .tfTypeFont(size: 11, weight: .semibold)
-                        .foregroundStyle(Color.tfDim)
-                        .padding(.leading, TFSpacing.md)
+                    if index < stages.count - 1 {
+                        Image(systemName: "arrow.down")
+                            .tfTypeFont(size: 11, weight: .semibold)
+                            .foregroundStyle(Color.tfDim)
+                            .padding(.leading, TFSpacing.md)
+                    }
                 }
             }
+            .padding(TFSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(TFSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard2)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
         .accessibilityIdentifier("routines.form.planFlow")
     }
 }

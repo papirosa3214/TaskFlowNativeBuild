@@ -42,7 +42,7 @@ struct SecretaryVoicePickerScreen: View {
             .padding(.bottom, TFSpacing.xl * 2)
         }
         .tfNativeHeader("Голос Помощника владельца", displayMode: .inline)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .onDisappear { player.stop() }
     }
 

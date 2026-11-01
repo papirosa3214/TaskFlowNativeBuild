@@ -61,7 +61,6 @@ SHEET_OK = {
     "Features/Settings/EscalationStepEditor.swift": "окно правки шага напоминания, фон задаёт материал",
     "Features/Tasks/Detail/PlanStepSheets.swift": "шторки шага плана, фон задаёт материал",
     "Features/Tasks/TaskFormScreen.swift": "шторка выбора связанной задачи, фон задаёт материал",
-    "Features/Roles/MemoryScreen.swift": "гасит системный фон вручную; переход на общий модификатор — отдельная задача",
     "App/Navigation/RootShellView.swift": "отладочные превью-роуты, фон задаёт контейнер превью",
     "Features/Knowledge/NoteExtractedTasksSheet.swift": "шторка извлечённых задач, фон задаёт материал",
     "DesignSystem/Components/AvatarCropEditor.swift": "подложка вырезки аватара: намеренно чёрная под маской",
@@ -82,27 +81,19 @@ SHEET_OK = {
 # скан печатает её ВСЕГДА, владелец видит открытый список перед решением.
 #
 # Ключ — путь относительно Sources/; одна запись покрывает все находки в файле.
-# Закрытие: Milestone 3 — фича `m3-card-and-screen-background` (правило 1),
-# Milestone 4 — фича `m4-buttons-and-icon-buttons` (правило 3).
+# Закрытие: Milestone 4 — фича `m4-buttons-and-icon-buttons` (правило 3).
+# Правило 1 закрыто 01.11.2026 кодом (Milestone 3, `m3-card-and-screen-background`):
+# записи по нему убраны — находка исправлена, а не переименована.
 KNOWN = {
-    # --- правило 1: корневой список/форма без общего фона → Milestone 3 -----
-    "Chat/Composer/ChatComposerControlsView.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Chat/Composer/ChatModelPickerSheet.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Chat/Composer/ChatWorkspaceChoice.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Chat/Panels/ChatSessionPanel.swift": "правила 1 и 3: корневой список без .tfScreenBackground() (Milestone 3, m3-card-and-screen-background) и системный Button(«Повторить») вместо TFButton (Milestone 4, m4-buttons-and-icon-buttons)",
-    "Features/Activity/ActivityScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Features/Coordination/CoordinationScreen.swift": "правила 1 и 3: корневой список без .tfScreenBackground() (Milestone 3, m3-card-and-screen-background) и системный Button(«Повторить») вместо TFButton (Milestone 4, m4-buttons-and-icon-buttons)",
-    "Features/Projects/ProjectTasksScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Features/Roles/RoleChatQuickActionEditor.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Features/Routines/RoutineRunsScreen.swift": "правила 1 и 3: корневой список без .tfScreenBackground() (Milestone 3, m3-card-and-screen-background) и системный Button(«Повторить») вместо TFButton (Milestone 4, m4-buttons-and-icon-buttons)",
-    "Features/Settings/SecretsScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Features/Tasks/Detail/TaskCodeChangesViews.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Features/Tasks/TaskArchiveScreen.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Features/Tasks/TaskCardContent.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
-    "Features/Planner/PlannerListView.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
     # --- правило 3: системный Button(«Повторить») → Milestone 4 ------------
+    # Правило 1 закрыто в коде 01.11.2026 (Milestone 3, фича
+    # `m3-card-and-screen-background`): корень каждого списка/формы теперь
+    # гасит системный фон общим модификатором `.tfScreenBackground()`.
+    # Осталось только правило 3 — кнопки, он закрывает Milestone 4.
+    "Chat/Panels/ChatSessionPanel.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
+    "Features/Coordination/CoordinationScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
     "Features/Inbox/AttentionScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
-    "Features/Roles/RoleRuntimeContextSheet.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
+    "Features/Routines/RoutineRunsScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
     "Features/Routines/RoutinesScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
 }
 

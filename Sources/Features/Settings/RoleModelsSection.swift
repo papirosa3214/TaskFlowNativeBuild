@@ -176,27 +176,31 @@ struct RoleModelsSection: View {
             ? "сейчас на запасной: \(models.label(forRef: state?.current ?? ""))"
             : primaryProblem.map { "⚠︎ основная: \($0)" }
                 ?? (chain.isEmpty ? "запасных нет" : "запасных: \(chain.count)")
-        return HStack(spacing: TFSpacing.md) {
-            Button { editing = profile } label: {
-                HStack(spacing: TFSpacing.sm) {
-                    titleBlock(profile.title, subtitle, warn: state?.onFallback == true || primaryProblem != nil)
-                    Image(systemName: "chevron.right").tfText(.action).foregroundStyle(Color.tfDim)
+        return TFListRow(
+            content: AnyView(
+                Button { editing = profile } label: {
+                    HStack(spacing: TFSpacing.sm) {
+                        titleBlock(profile.title, subtitle, warn: state?.onFallback == true || primaryProblem != nil)
+                        Image(systemName: "chevron.right").tfText(.action).foregroundStyle(Color.tfDim)
+                    }
+                    .frame(minHeight: TFField.height)
+                    .contentShape(Rectangle())
                 }
-                .frame(minHeight: TFField.height)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Модели роли \(profile.title): основная и запасные")
-            Spacer(minLength: TFSpacing.sm)
-            ModelMenu(
-                label: models.label(forRef: profile.modelPolicy.primary),
-                accessibility: "Основная модель роли \(profile.title)",
-                options: options,
-                disabled: viewModel.busy != nil,
-                problem: { viewModel.failover?.problem(of: $0) }
-            ) { model in Task { await viewModel.set(role: profile.role, to: model.routeRef) } }
-        }
-        .padding(.horizontal, TFSpacing.lg)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Модели роли \(profile.title): основная и запасные")
+            ),
+            trailing: AnyView(
+                ModelMenu(
+                    label: models.label(forRef: profile.modelPolicy.primary),
+                    accessibility: "Основная модель роли \(profile.title)",
+                    options: options,
+                    disabled: viewModel.busy != nil,
+                    problem: { viewModel.failover?.problem(of: $0) }
+                ) { model in Task { await viewModel.set(role: profile.role, to: model.routeRef) } }
+            ),
+            verticalPadding: 0,
+            horizontalPadding: TFSpacing.lg
+        )
     }
 
     private func titleBlock(_ title: String, _ subtitle: String?, warn: Bool = false) -> some View {

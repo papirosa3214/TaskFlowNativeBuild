@@ -44,7 +44,7 @@ struct TaskLiveActivityView: View {
                     }
                 } else if loaded && activity.text == nil {
                     Text(errorText ?? "Новых действий пока нет").foregroundStyle(Color.tfSub)
-                } else if !loaded { ProgressView() }
+                } else if !loaded { TFLoading(.inline) }
             }
         }
         .accessibilityElement(children: .contain)

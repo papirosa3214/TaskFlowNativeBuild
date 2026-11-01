@@ -78,7 +78,7 @@ struct NotificationsScreen: View {
                 .accessibilityIdentifier("system-state.summary")
                 .hintAnchor(HintAnchorID.systemSummary)
                 if isLoadingServiceTickets && dailySummary == nil {
-                    ProgressView("Загрузка сводки")
+                    TFLoading(.inline)
                 }
 
             }
@@ -87,7 +87,7 @@ struct NotificationsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .refreshable { await loadSystemState(); await loadServiceTickets() }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         // Владелец 12.10.2026: «это уже не уведомление, а состояние системы».
         // Первый экран — сводка за сегодня, поток уведомлений — внутри.
         .tfNativeHeader("Состояние системы")
@@ -143,17 +143,16 @@ struct NotificationsScreen: View {
     private func summaryRow(_ title: String, _ value: String?, tint: Color? = nil,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack {
-                Text(title).tfText(.row).foregroundStyle(Color.tfText)
-                Spacer()
-                Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
-                Image(systemName: "chevron.right")
-                    .tfTypeFont(size: 12, weight: .semibold)
-                    .foregroundStyle(Color.tfDim)
-            }
-            .padding(.horizontal, TFSpacing.md)
-            .padding(.vertical, TFSpacing.sm + 2)
-            .contentShape(Rectangle())
+            TFListRow(
+                title: title,
+                trailing: AnyView(
+                    Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
+                ),
+                titleStyle: .row,
+                verticalPadding: TFSpacing.sm + 2,
+                horizontalPadding: TFSpacing.md,
+                chevron: .shown
+            )
         }
         .buttonStyle(TFTapRowStyle())
         .accessibilityElement(children: .combine)
@@ -187,7 +186,7 @@ struct NotificationsScreen: View {
             .padding(.top, TFSpacing.md)
         }
         .refreshable { await loadSystemState() }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader(filter.title)
     }
 
@@ -242,7 +241,7 @@ struct NotificationsScreen: View {
             }
             .padding(TFSpacing.screenHorizontal)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Карточки работ")
         .refreshable { await loadSystemState(); await loadServiceTickets() }
     }

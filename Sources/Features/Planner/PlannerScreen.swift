@@ -190,7 +190,7 @@ public struct UpcomingScreen: View {
                 }
             }
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .sheet(item: Binding(get: { openDay.map(IdentifiableDate.init) }, set: { _ in openDay = nil })) { day in
             daySheet(date: day.id)
         }
@@ -323,7 +323,7 @@ public struct UpcomingScreen: View {
             // `presentationBackground` поверх системного — просто заливка
             // содержимого, системный хром шторки не трогаем.
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.tfBackground)
+            .tfScreenBackground()
             .tfNativeHeader(UpcomingDaySheetTitle.text(openDay), displayMode: .inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

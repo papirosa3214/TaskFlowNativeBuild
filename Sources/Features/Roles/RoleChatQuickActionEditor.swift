@@ -58,6 +58,7 @@ struct RoleChatQuickActionEditor: View {
                     Text("Штатно: «\(stockCommand.title)»")
                 }
             }
+            .tfScreenBackground()
             .tint(.primary)
             .navigationTitle("Быстрое действие")
             .navigationBarTitleDisplayMode(.inline)

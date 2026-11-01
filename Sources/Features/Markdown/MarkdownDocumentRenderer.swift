@@ -186,27 +186,28 @@ private struct DocumentTableView: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            VStack(spacing: 0) {
-                if let header = rows.first {
-                    row(header, isHeader: true)
-                        .background(Color.tfCard2)
-                        .overlay(alignment: .bottom) {
-                            Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+        TFCard(padding: 0, surface: .card, radius: TFRadius.lg) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    if let header = rows.first {
+                        TFCard(padding: 0, surface: .card2, radius: nil) {
+                            row(header, isHeader: true)
                         }
+                            .overlay(alignment: .bottom) {
+                                Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+                            }
+                    }
+                    ForEach(Array(rows.dropFirst().enumerated()), id: \.offset) { index, item in
+                        row(item, isHeader: false)
+                            .background(index.isMultiple(of: 2) ? Color.clear : Color.tfCard2.opacity(0.45))
+                            .overlay(alignment: .bottom) {
+                                Rectangle().fill(Color.tfStroke.opacity(0.7)).frame(height: TFBorder.width)
+                            }
+                    }
                 }
-                ForEach(Array(rows.dropFirst().enumerated()), id: \.offset) { index, item in
-                    row(item, isHeader: false)
-                        .background(index.isMultiple(of: 2) ? Color.clear : Color.tfCard2.opacity(0.45))
-                        .overlay(alignment: .bottom) {
-                            Rectangle().fill(Color.tfStroke.opacity(0.7)).frame(height: TFBorder.width)
-                        }
-                }
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .fixedSize(horizontal: false, vertical: true)
         }
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
         .tint(Color.tfRed)
     }

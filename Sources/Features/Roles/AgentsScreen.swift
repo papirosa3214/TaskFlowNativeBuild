@@ -44,7 +44,7 @@ struct AgentsScreen: View {
             }
             .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Команда")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -100,18 +100,17 @@ struct AgentsScreen: View {
     }
 
     private var runtimeDownBanner: some View {
-        HStack(alignment: .top, spacing: TFSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Color.tfOrange)
-            Text("Исполнитель не запущен — роли не начнут работу, пока служба не поднимется.")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-            Spacer(minLength: 0)
+        TFCard(padding: TFSpacing.md, radius: TFRadius.lg) {
+            HStack(alignment: .top, spacing: TFSpacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.tfOrange)
+                Text("Исполнитель не запущен — роли не начнут работу, пока служба не поднимется.")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(TFSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 

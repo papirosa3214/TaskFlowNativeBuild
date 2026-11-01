@@ -86,7 +86,7 @@ struct RuntimeStatusScreen: View {
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Pi Runtime")
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
@@ -143,7 +143,8 @@ struct RuntimeStatusRow: View {
                 title: "Pi Runtime",
                 trailing: AnyView(valueText),
                 titleStyle: .action,
-                verticalPadding: TFSpacing.xs
+                verticalPadding: TFSpacing.xs,
+                chevron: .shown
             )
         }
         .buttonStyle(.plain)
@@ -162,19 +163,11 @@ struct RuntimeStatusRow: View {
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(1)
                     .fixedSize()
-                Image(systemName: "chevron.right")
-                    .tfTypeFont(size: 13)
-                    .foregroundStyle(Color.tfDim)
             }
         } else if viewModel.isLoading {
-            ProgressView()
+            TFLoading(.inline)
         } else {
-            HStack(spacing: 4) {
-                Text("недоступен").tfText(.action).foregroundStyle(Color.tfDim)
-                Image(systemName: "chevron.right")
-                    .tfTypeFont(size: 13)
-                    .foregroundStyle(Color.tfDim)
-            }
+            Text("недоступен").tfText(.action).foregroundStyle(Color.tfDim)
         }
     }
 }

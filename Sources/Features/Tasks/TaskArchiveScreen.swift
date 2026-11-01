@@ -49,15 +49,14 @@ struct TaskArchiveScreen: View {
             .listRowInsets(EdgeInsets())
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        // Фон экрана — тот же токен, что у списков проекта и меток. Без этой
+        // строки SwiftUI подставлял системный фон, и в тёмной теме раздел
+        // был чисто чёрным вместо общей серой подложки.
+        .tfScreenBackground()
         .accessibilityIdentifier("taskArchiveList")
         .tfNativeHeader("Архив", displayMode: .inline)
         .task { await loadArchive() }
         .refreshable { await loadArchive() }
-        // Фон экрана — тот же токен, что у списков проекта и меток. Без этой
-        // строки SwiftUI подставлял системный фон, и в тёмной теме раздел
-        // был чисто чёрным вместо общей серой подложки.
-        .background(Color.tfBackground)
         .confirmationDialog(pendingProjectDelete == nil ? "Удалить задачу окончательно?" : "Удалить проект окончательно?", isPresented: Binding(
             get: { pendingDelete != nil || pendingProjectDelete != nil },
             set: { if !$0 { pendingDelete = nil; pendingProjectDelete = nil } }
@@ -121,33 +120,22 @@ struct TaskArchiveScreen: View {
     /// «в разнобой, вообще неадекватный вид»).
     private var historySection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Text("История")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.screenHorizontal)
+            TFSectionHeader("История")
 
             NavigationLink {
                 ActivityScreen()
             } label: {
-                HStack(spacing: TFSpacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Выполненные задачи")
-                            .tfText(.row)
-                            .foregroundStyle(Color.tfText)
-                        Text("График выполнения и закрытые задачи")
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfSub)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .imageScale(.small)
-                        .foregroundStyle(Color.tfDim)
-                }
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, TFSpacing.sm)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-                .background(Color.tfBackground)
+                TFListRow(
+                    title: "Выполненные задачи",
+                    subtitle: "График выполнения и закрытые задачи",
+                    subtitleStyle: .meta,
+                    titleStyle: .row,
+                    verticalPadding: TFSpacing.sm,
+                    horizontalPadding: TFSpacing.md,
+                    minHeight: 44,
+                    chevron: .shown
+                )
+                .tfScreenBackground()
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("archive.completed-history")
@@ -158,12 +146,9 @@ struct TaskArchiveScreen: View {
     private var projectArchiveSection: some View {
         if !projectStore.archivedProjects.isEmpty {
             Group {
-                Text("Проекты")
-                    // Единый заголовок секции — 13 pt `tfSub`
-                    // (LOCK-TYPOGRAPHY-UNIFY): было `.meta` 12.
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfSub)
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                // Единый заголовок секции — `TFSectionHeader` (13 pt `tfSub`,
+                // LOCK-TYPOGRAPHY-UNIFY): было `.meta` 12.
+                TFSectionHeader("Проекты")
 
                 Group {
                     ForEach(projectStore.archivedProjects.indices, id: \.self) { i in
@@ -194,7 +179,7 @@ struct TaskArchiveScreen: View {
             }
             .padding(.horizontal, TFSpacing.md)
             .padding(.vertical, TFSpacing.sm)
-            .background(Color.tfBackground)
+            .tfScreenBackground()
         }
         .disabled(busyID != nil)
         .contextMenu {

@@ -86,12 +86,7 @@ struct RoleChatsScreen: View {
         ScrollView {
             VStack(spacing: 0) {
                 if isLoading && chats.isEmpty {
-                    HStack(spacing: TFSpacing.sm) {
-                        Spacer(minLength: 0)
-                        ProgressView("Загрузка чатов")
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, TFSpacing.xl)
+                    TFLoading(.block)
                 } else if visibleChats.isEmpty {
                     Text(projectsOnly ? "Пока нет чатов по проектам." : "Пока нет сессий. Комнаты ролей — на панели справа.")
                         .tfText(.action)
@@ -152,7 +147,7 @@ struct RoleChatsScreen: View {
             }
             .padding(.bottom, TFSpacing.xl)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         // Бывшая панель участников чата — теперь в корне раздела и
         // показывает комнаты (владелец 21.10.2026).
         .overlay(alignment: .trailing) {
@@ -425,17 +420,17 @@ struct RoleChatRoomLoader: View {
                     RoleChatRoomScreen(chat: chat)
                 }
             } else if failed {
-                ContentUnavailableView(
-                    "Чат не открылся",
-                    systemImage: "bubble.left",
-                    description: Text("Проверьте связь и зайдите ещё раз.")
+                TFEmptyState(
+                    icon: "bubble.left",
+                    text: "Чат не открылся",
+                    description: "Проверьте связь и зайдите ещё раз."
                 )
             } else {
-                ProgressView("Загрузка чата")
+                TFLoading(.block)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .task { await load() }
     }
 
@@ -717,7 +712,7 @@ private struct CreateRoleChatScreen: View {
                 }
                 Section {
                     if isLoadingRoles {
-                        ProgressView("Загрузка ролей").frame(maxWidth: .infinity)
+                        TFLoading(.inline).frame(maxWidth: .infinity)
                     } else if roles.isEmpty {
                         Text("Нет ролей, доступных для чата.")
                             .tfText(.action).foregroundStyle(Color.tfDim)
@@ -1767,12 +1762,13 @@ struct RoleChatRoomScreen: View {
         }
         .safeAreaInset(edge: .top) {
             if let taskID = chat.taskID {
-                TaskCardLink(taskID: taskID) {
-                    Label { Text("Задача чата").foregroundStyle(Color.tfText) } icon: { Image(systemName: "checklist").foregroundStyle(Color.tfRed) }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(TFSpacing.md)
+                TFCard(padding: 0, surface: .card, radius: nil) {
+                    TaskCardLink(taskID: taskID) {
+                        Label { Text("Задача чата").foregroundStyle(Color.tfText) } icon: { Image(systemName: "checklist").foregroundStyle(Color.tfRed) }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(TFSpacing.md)
+                    }
                 }
-                .background(Color.tfCard)
             }
         }
     }
@@ -2090,13 +2086,14 @@ struct RoleChatRoomScreen: View {
                                           })
                         .hintAnchor(HintAnchorID.chatRoleStart)
                     } else {
-                        ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
-                                               description: Text("Напишите первое сообщение."))
+                        TFEmptyState(
+                            icon: "bubble.left",
+                            text: "Пока нет сообщений",
+                            description: "Напишите первое сообщение."
+                        )
                     }
                 } else if messages.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, TFSpacing.xl)
+                    TFLoading(.block)
                         .accessibilityLabel("Загрузка сообщений")
                 }
                 // Перед первым сообщением нового дня — полоса с датой
@@ -2146,7 +2143,7 @@ struct RoleChatRoomScreen: View {
                             style: RoleChatVoiceStyle.own,
                             header: AnyView(ownSenderLine)
                         )
-                        if sendingVoiceIDs.contains(message.id) { ProgressView("Отправка…") }
+                        if sendingVoiceIDs.contains(message.id) { TFLoading(.inline) }
                         else if message.transcript != .pending {
                             Button("Повторить отправку") { Task { await sendVoice(message.id) } }
                                 .tfText(.meta)
@@ -2187,7 +2184,7 @@ struct RoleChatRoomScreen: View {
         // Признак меняется только от его прокрутки, а не от роста ответа:
         // иначе привязка мигала и низ дёргался (владелец 30.10.2026).
         .defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
         .accessibilityIdentifier("chat.feed")
@@ -2882,13 +2879,13 @@ struct RoleChatRoomScreen: View {
     private func sessionMarkerRow(_ message: RoleChatMessage) -> some View {
         HStack {
             Spacer()
-            Text("Новая сессия")
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, 4)
-                .background(Color.tfCard)
-                .clipShape(Capsule())
+            TFPill(surface: .tfCard, capsule: true) {
+                Text("Новая сессия")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .padding(.horizontal, TFSpacing.md)
+                    .padding(.vertical, 4)
+            }
             Spacer()
         }
     }
@@ -3234,7 +3231,7 @@ struct RoleChatRoomScreen: View {
             .buttonStyle(.plain)
             .disabled(openingAttachmentIDs.contains(attachment.id))
             .overlay {
-                if openingAttachmentIDs.contains(attachment.id) { ProgressView() }
+                if openingAttachmentIDs.contains(attachment.id) { TFLoading(.inline) }
             }
             .accessibilityLabel("Открыть \(attachment.fileName)")
         }
@@ -3512,24 +3509,25 @@ struct RoleChatRoomScreen: View {
     }
 
     private var mentionSuggestions: some View {
-        VStack(spacing: 0) {
-            ForEach(mentionCandidates) { member in
-                Button { insertMention(member) } label: {
-                    HStack(spacing: TFSpacing.md) {
-                        RoleMemberAvatar(member: member, size: .md)
-                        Text(member.name)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                        Spacer()
+        TFCard(padding: 0, surface: .card, radius: nil) {
+            VStack(spacing: 0) {
+                ForEach(mentionCandidates) { member in
+                    Button { insertMention(member) } label: {
+                        HStack(spacing: TFSpacing.md) {
+                            RoleMemberAvatar(member: member, size: .md)
+                            Text(member.name)
+                                .tfText(.body)
+                                .foregroundStyle(Color.tfText)
+                            Spacer()
+                        }
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.vertical, TFSpacing.sm)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, TFSpacing.lg)
-                    .padding(.vertical, TFSpacing.sm)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .background(Color.tfCard)
     }
 
     /// «…@Раз» → «…@Разработчик » — пробел в конце, чтобы продолжение
@@ -3954,7 +3952,7 @@ private struct RoleChatRemoteVoiceBubble: View {
             } else if failed {
                 Label("Не удалось загрузить аудио", systemImage: "exclamationmark.triangle")
             } else {
-                ProgressView("Загрузка аудио…")
+                TFLoading(.block)
             }
         }
         .task(id: attachment.id) {

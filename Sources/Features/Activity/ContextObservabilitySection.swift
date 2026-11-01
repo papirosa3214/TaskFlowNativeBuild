@@ -64,7 +64,7 @@ struct ContextObservabilitySection: View {
                     Text("Показаны последние \(data.events.count) из журнала, максимум \(data.limit). Сводка охватывает весь выбранный период.")
                         .tfText(.caption).foregroundStyle(Color.tfDim)
                 }
-            } else if error == nil { ProgressView("Загрузка контекста…") }
+            } else if error == nil { TFLoading(.inline) }
         }
         .accessibilityIdentifier("context-observability.section")
         .hintAnchor(HintAnchorID.contextObservability)

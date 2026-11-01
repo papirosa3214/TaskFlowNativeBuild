@@ -245,7 +245,7 @@ struct RoleEditorSheet: View {
         }
         .padding(.horizontal, TFSpacing.lg)
         .padding(.vertical, TFSpacing.md)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
     }
 
     private var saveButtonTitle: String {
@@ -386,29 +386,29 @@ struct RoleEditorSheet: View {
     /// моноширинный, как у промптов в «Настройках»: код, а не текст.
     @ViewBuilder
     private func multiline(text: Binding<String>, placeholder: String) -> some View {
-        ZStack(alignment: .topLeading) {
-            if text.wrappedValue.isEmpty {
-                Text(placeholder)
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+            ZStack(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text(placeholder)
+                        .tfText(.input)
+                        .foregroundStyle(Color.tfDim)
+                        .padding(.horizontal, TFSpacing.sm)
+                        .padding(.vertical, TFSpacing.sm)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: text)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    // Поле ввода — `.input` 16: до этого кегль был системный 17,
+                    // а плейсхолдер тут же (см. выше) — 16 (LOCK-TYPOGRAPHY-SPEC, дефект В).
                     .tfText(.input)
-                    .foregroundStyle(Color.tfDim)
-                    .padding(.horizontal, TFSpacing.sm)
-                    .padding(.vertical, TFSpacing.sm)
-                    .allowsHitTesting(false)
+                    .foregroundStyle(Color.tfText)
+                    .frame(minHeight: 96, maxHeight: 200)
+                    .padding(.horizontal, TFSpacing.xs)
+                    .padding(.vertical, TFSpacing.xs)
+                    .onChange(of: text.wrappedValue) { _, _ in errorText = nil }
             }
-            TextEditor(text: text)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                // Поле ввода — `.input` 16: до этого кегль был системный 17,
-                // а плейсхолдер тут же (см. выше) — 16 (LOCK-TYPOGRAPHY-SPEC, дефект В).
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .frame(minHeight: 96, maxHeight: 200)
-                .padding(.horizontal, TFSpacing.xs)
-                .padding(.vertical, TFSpacing.xs)
-                .onChange(of: text.wrappedValue) { _, _ in errorText = nil }
         }
-        .background(Color.tfCard2)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: TFRadius.md)
                 .strokeBorder(Color.tfStroke, lineWidth: 0.5)

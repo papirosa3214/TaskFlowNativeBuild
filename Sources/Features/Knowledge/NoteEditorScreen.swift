@@ -149,17 +149,17 @@ struct NoteEditorScreen: View {
             // выглядит как «нажал — тишина, пустота» (жалоба владельца
             // 20.09.2026). Спиннер с подписью и есть этот сигнал.
             if viewModel.aiBusy {
-                HStack(spacing: TFSpacing.sm) {
-                    ProgressView().controlSize(.small)
-                    Text(viewModel.aiLabel)
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfText)
-                    Spacer(minLength: 0)
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                    HStack(spacing: TFSpacing.sm) {
+                        ProgressView().controlSize(.small)
+                        Text(viewModel.aiLabel)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfText)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, TFSpacing.md)
+                    .padding(.vertical, TFSpacing.sm)
                 }
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, TFSpacing.sm)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                 .padding(.horizontal, TFSpacing.screenHorizontal)
                 .padding(.top, TFSpacing.xs)
                 .transition(.opacity)

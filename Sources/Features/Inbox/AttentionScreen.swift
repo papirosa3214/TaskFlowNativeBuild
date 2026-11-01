@@ -68,7 +68,7 @@ struct AttentionScreen: View {
                                 .tfText(.taskTitle)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, TFSpacing.md)
-                                .background(Color.tfBackground)
+                                .tfScreenBackground()
                                 .accessibilityAddTraits(.isHeader)
                             }
                         }
@@ -80,14 +80,14 @@ struct AttentionScreen: View {
                         )
                     }
                 } else if model.isLoading {
-                    ProgressView().frame(maxWidth: .infinity)
+                    TFLoading(.block)
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, TFSpacing.md)
         }
         .tfNativeHeader("Входящие", displayMode: .large)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tint(Color.tfText)
         .hintAnchor(HintAnchorID.inboxTickets)
         .refreshable { await model.load() }

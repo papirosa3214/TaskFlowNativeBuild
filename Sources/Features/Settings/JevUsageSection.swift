@@ -35,7 +35,7 @@ struct JevUsageSection: View {
                         .tfText(.caption).foregroundStyle(Color.tfDim)
                 }
             } else if error == nil {
-                ProgressView("Загрузка расхода…")
+                TFLoading(.inline)
             }
         }
         .accessibilityIdentifier("jev-usage.section")

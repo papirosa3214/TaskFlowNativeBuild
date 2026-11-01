@@ -81,27 +81,27 @@ struct NoteExtractedTasksSheetContent: View {
 
     private func rowView(_ row: Binding<Row>) -> some View {
         HStack(spacing: TFSpacing.sm) {
-            Button {
-                row.wrappedValue.include.toggle()
-            } label: {
-                Image(systemName: row.wrappedValue.include ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(row.wrappedValue.include ? Color.tfRed : Color.tfDim)
-                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            }
-            .buttonStyle(TFTapScaleStyle())
+            TFCheckbox(
+                isChecked: row.wrappedValue.include,
+                label: "Включить задачу",
+                action: { row.wrappedValue.include.toggle() }
+            )
 
-            TextField("Название", text: row.title)
-                // Поле ввода — ступень `input` (16), не `body` (15): правило
-                // «16 только под поля» держим единым (LOCK-TYPOGRAPHY-SPEC,
-                // дефект В).
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .disabled(!row.wrappedValue.include)
-                .opacity(row.wrappedValue.include ? 1 : 0.4)
-                .padding(.horizontal, TFSpacing.sm)
-                .frame(height: TFHitTarget.min)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+            // Подложка поля — канон `TFCard` (поверхность `card2`, радиус `md`),
+            // раньше та же подложка собиралась руками. Отступы поля остались
+            // внутри содержимого, поэтому у карточки отступ нулевой.
+            TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+                TextField("Название", text: row.title)
+                    // Поле ввода — ступень `input` (16), не `body` (15): правило
+                    // «16 только под поля» держим единым (LOCK-TYPOGRAPHY-SPEC,
+                    // дефект В).
+                    .tfText(.input)
+                    .foregroundStyle(Color.tfText)
+                    .disabled(!row.wrappedValue.include)
+                    .opacity(row.wrappedValue.include ? 1 : 0.4)
+                    .padding(.horizontal, TFSpacing.sm)
+                    .frame(height: TFHitTarget.min)
+            }
         }
     }
 

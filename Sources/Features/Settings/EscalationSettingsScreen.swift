@@ -16,7 +16,7 @@ struct EscalationSettingsScreen: View {
                     Button("Обновить") { Task { await model.load() } }
                 }
             }
-            if model.loading && model.rule == nil { ProgressView() }
+            if model.loading && model.rule == nil { TFLoading(.inline) }
             if let rule = model.rule {
                 EscalationMainSection(model: model, rule: rule)
                 if rule.enabled {
@@ -148,17 +148,19 @@ struct EscalationStepRow: View {
     let step: EscalationStep
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text("Через \(EscalationStepDraft.hoursText(step.afterHours)) после срока")
-                    .foregroundStyle(Color.tfText)
-                Text(EscalationStepDraft.priorityText(step.priorityMax) + " · " + (step.sendsPush ? "пуш и в приложении" : "только в приложении"))
-                    .tfText(.meta)
-                    .foregroundStyle(Color.tfSub)
-            }
-            Spacer()
-            Image(systemName: "chevron.right").foregroundStyle(Color.tfSub)
-        }
+        TFListRow(
+            content: AnyView(
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text("Через \(EscalationStepDraft.hoursText(step.afterHours)) после срока")
+                        .foregroundStyle(Color.tfText)
+                    Text(EscalationStepDraft.priorityText(step.priorityMax) + " · " + (step.sendsPush ? "пуш и в приложении" : "только в приложении"))
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                }
+            ),
+            horizontalPadding: 0,
+            chevron: .shown
+        )
     }
 }
 

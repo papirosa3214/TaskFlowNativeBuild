@@ -45,7 +45,7 @@ struct SecretsScreen: View {
                     Button("Обновить") { Task { await model.load() } }
                 }
             }
-            if model.loading && !model.loaded { ProgressView() }
+            if model.loading && !model.loaded { TFLoading(.inline) }
             if model.loaded && model.secrets.isEmpty && model.error == nil {
                 Section {
                     Text("Ключей пока нет").foregroundStyle(Color.tfSub)
@@ -71,6 +71,7 @@ struct SecretsScreen: View {
                 }
             }
         }
+        .tfScreenBackground()
         .tfNativeHeader("Секреты", displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -136,7 +137,7 @@ private struct SecretDetailScreen: View {
                     Button("Скопировать") { UIPasteboard.general.string = value }
                     Button("Скрыть") { self.value = nil }
                 } else if revealing {
-                    ProgressView()
+                    TFLoading(.inline)
                 } else {
                     Button("Показать значение") { Task { await reveal() } }
                         .accessibilityIdentifier("secret-reveal")
@@ -211,7 +212,7 @@ private struct SecretEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) {
-                    if saving { ProgressView() }
+                    if saving { TFLoading(.inline) }
                     else {
                         Button("Сохранить") { Task { await save() } }
                             .disabled(!canSave)

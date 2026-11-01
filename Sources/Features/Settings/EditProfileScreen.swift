@@ -62,7 +62,7 @@ struct EditProfileScreen: View {
             .padding(.vertical, TFSpacing.lg)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Профиль")
         .onChange(of: pickerItem) { _, item in
             Task { await uploadPhoto(item) }
@@ -269,33 +269,35 @@ struct ProfileAccountRow: View {
     private var avatarURL: String? { avatarURLOverride ?? user.avatarUrl }
 
     var body: some View {
-        HStack(spacing: TFSpacing.md) {
-            TFAvatar(
-                size: .profile,
-                initials: user.initials ?? "?",
-                tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned),
-                urlPath: avatarURL,
-                portrait: false,
-                zoomable: false
-            )
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text(user.name)
-                    .tfSectionDisplay(style: .taskTitle)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                if let email = user.email {
-                    Text(email)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfSub)
+        TFListRow(
+            leading: AnyView(
+                TFAvatar(
+                    size: .profile,
+                    initials: user.initials ?? "?",
+                    tint: (user.avatarColor).map { Color(hex: $0) } ?? Color(hex: TFHexDefault.unassigned),
+                    urlPath: avatarURL,
+                    portrait: false,
+                    zoomable: false
+                )
+            ),
+            content: AnyView(
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text(user.name)
+                        .tfSectionDisplay(style: .taskTitle)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .minimumScaleFactor(0.7)
+                    if let email = user.email {
+                        Text(email)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
-            }
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.right")
-                .tfTypeFont(size: 13)
-                .foregroundStyle(Color.tfDim)
-        }
-        .contentShape(Rectangle())
+            ),
+            verticalPadding: 0,
+            horizontalPadding: 0,
+            chevron: .shown
+        )
     }
 }

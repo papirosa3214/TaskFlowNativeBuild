@@ -30,14 +30,20 @@ struct ApiTask: Decodable {
     let agentState: AgentState?
     let branchAgentState: AgentState?
     let assigneeId: String?
+    let archivedAt: String?
     var listAgentState: AgentState? { agentState ?? branchAgentState }
+    var isArchived: Bool { archivedAt != nil }
     enum CodingKeys: String, CodingKey {
-        case status, agentState = "agent_state", branchAgentState = "branch_agent_state", assigneeId = "assignee_id"
+        case status, agentState = "agent_state", branchAgentState = "branch_agent_state", assigneeId = "assignee_id", archivedAt = "archived_at"
     }
 }
 '''
 tests = (root/'Tests/ProjectTaskFilterTests.swift').read_text().replace('@testable import TaskFlow', '').replace('    func test', '    @objc func test')
-source = fixture + source + tests
+# Политика фильтров ссылается на `TaskVisibility` (правило закрытых карточек,
+# владелец 01.11.2026) — подключаем и его, иначе сборка фикстуры не проходит.
+visibility = (root/'Sources/Core/Models/TaskVisibility.swift').read_text()
+visibility = '\n'.join(l for l in visibility.splitlines() if not l.startswith('import '))
+source = fixture + source + tests + '\n' + visibility + '\n'
 for name in ['HintModels', 'HintScenarios', 'HintCenter']:
     source += '\n' + (root/f'Sources/DesignSystem/Hints/{name}.swift').read_text()
 # Use the actual shared XCTest method; routine tests remain outside this run.

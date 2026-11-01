@@ -115,7 +115,7 @@ struct RoleInstructionEditor: View {
           }
           .padding(TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .navigationTitle(title ?? block.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(draft.text != originalText)

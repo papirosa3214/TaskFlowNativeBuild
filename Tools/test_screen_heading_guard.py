@@ -15,7 +15,7 @@ class ScreenHeadingTests(unittest.TestCase):
             (root / 'Sources').mkdir()
             (root / 'Sources/Profile.swift').write_text('''struct Profile: View {
 func section(title: String) -> some View {
- VStack { SettingsCapsLabel(title) }
+ VStack { TFSectionHeader(title, style: .caps) }
 }
 }''')
             (root / 'Sources/External.swift').write_text('''struct External: View {
@@ -37,19 +37,22 @@ var body: some View {
         self.assertTrue(self.scan('Text("External").tfText(.title).foregroundStyle(Color.tfText)'))
 
     def test_shared_component_matches(self):
-        self.assertEqual(self.scan('SettingsCapsLabel("External")'), [])
+        self.assertEqual(self.scan('TFSectionHeader("External", style: .caps)'), [])
 
     def test_other_screen_can_have_its_own_style(self):
         self.assertEqual(self.scan('Text("External").tfText(.title)', other_screen=True), [])
 
     def test_override_on_same_component_is_a_mismatch(self):
-        self.assertTrue(self.scan('SettingsCapsLabel("External")\n .fontWeight(.bold)'))
+        self.assertTrue(self.scan('TFSectionHeader("External", style: .caps)\n .fontWeight(.bold)'))
+
+    def test_caps_mode_must_match_sibling_sections(self):
+        self.assertTrue(self.scan('TFSectionHeader("External", style: .standard)'))
 
     def test_missing_heading_fails_closed(self):
         self.assertTrue(self.scan('Image(systemName: "star")'))
 
     def test_comments_are_not_headings(self):
-        self.assertEqual(self.scan('// Text("Fake").tfText(.title)\nSettingsCapsLabel("External")'), [])
+        self.assertEqual(self.scan('// Text("Fake").tfText(.title)\nTFSectionHeader("External", style: .caps)'), [])
 
 if __name__ == '__main__':
     unittest.main()

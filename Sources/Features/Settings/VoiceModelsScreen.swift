@@ -129,7 +129,7 @@ struct VoiceModelsScreen: View {
 
     private var onDeviceSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("На телефоне")
+            TFSectionHeader("На телефоне", style: .caps)
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
                     Button {
@@ -329,27 +329,27 @@ struct VoiceModelsScreen: View {
             // `TextEditor` с моноширинным шрифтом: промпт — код, а не
             // художественный текст, и моноширинный лучше читается при
             // редактировании многострочных инструкций.
-            ZStack(alignment: .topLeading) {
-                if text.wrappedValue.isEmpty {
-                    Text(placeholder)
-                        .tfText(.input)
-                        .foregroundStyle(Color.tfDim)
-                        .padding(.horizontal, TFSpacing.sm)
-                        .padding(.vertical, TFSpacing.sm)
-                        .allowsHitTesting(false)
+            TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+                ZStack(alignment: .topLeading) {
+                    if text.wrappedValue.isEmpty {
+                        Text(placeholder)
+                            .tfText(.input)
+                            .foregroundStyle(Color.tfDim)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, TFSpacing.sm)
+                            .allowsHitTesting(false)
+                    }
+                    TextEditor(text: text)
+                        .scrollContentBackground(.hidden)
+                        .background(Color.clear)
+                        .tfMonospaced(16, relativeTo: .callout)
+                        .foregroundStyle(Color.tfText)
+                        .frame(minHeight: 96, maxHeight: 160)
+                        .padding(.horizontal, TFSpacing.xs)
+                        .padding(.vertical, TFSpacing.xs)
+                        .onChange(of: text.wrappedValue) { _, _ in onCommit() }
                 }
-                TextEditor(text: text)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.clear)
-                    .tfMonospaced(16, relativeTo: .callout)
-                    .foregroundStyle(Color.tfText)
-                    .frame(minHeight: 96, maxHeight: 160)
-                    .padding(.horizontal, TFSpacing.xs)
-                    .padding(.vertical, TFSpacing.xs)
-                    .onChange(of: text.wrappedValue) { _, _ in onCommit() }
             }
-            .background(Color.tfCard2)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: TFRadius.md)
                     .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
@@ -473,7 +473,7 @@ struct VoiceModelsScreen: View {
 
     private var onServerSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("На сервере")
+            TFSectionHeader("На сервере", style: .caps)
             TFCard(padding: 0) {
                 VStack(spacing: 0) {
                     // Тап — развернуть промпт этой способности прямо в карточке,
@@ -677,7 +677,7 @@ struct VoiceModelsScreen: View {
 
     private var dictationLogSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel("Диагностика диктовки")
+            TFSectionHeader("Диагностика диктовки", style: .caps)
 
             TFCard(padding: 0) {
                 VStack(spacing: 0) {

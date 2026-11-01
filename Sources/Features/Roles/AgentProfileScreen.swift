@@ -41,7 +41,7 @@ struct AgentProfileScreen: View {
             }
             .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader(profile?.title ?? "Профиль")
         .task {
             viewModel.configure(currentUser: session.currentUser)
@@ -152,7 +152,7 @@ struct AgentProfileScreen: View {
     @ViewBuilder
     private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            SettingsCapsLabel(title)
+            TFSectionHeader(title, style: .caps)
             TFCard(padding: 0) {
                 VStack(spacing: 0) { content() }
             }

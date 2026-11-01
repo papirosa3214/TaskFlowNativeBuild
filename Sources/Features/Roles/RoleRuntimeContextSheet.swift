@@ -16,7 +16,7 @@ struct RoleRuntimeContextSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if loading { ProgressView() }
+                if loading { TFLoading(.block) }
                 else if let context {
                     ScrollView {
                         VStack(alignment: .leading, spacing: TFSpacing.lg) {
@@ -83,12 +83,16 @@ struct RoleRuntimeContextSheet: View {
                         }.padding(TFSpacing.lg)
                     }
                 } else {
-                    ContentUnavailableView("Не удалось загрузить инструкции", systemImage: "exclamationmark.triangle", description: Text(errorText ?? ""))
+                    TFEmptyState(
+                        icon: "exclamationmark.triangle",
+                        text: "Не удалось загрузить инструкции",
+                        description: errorText ?? ""
+                    )
                 }
             }
             .tfNativeHeader("Контекст роли", displayMode: .inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
-            .background(Color.tfBackground)
+            .tfScreenBackground()
             .task { await load() }
             .refreshable { await load() }
         }
@@ -119,19 +123,19 @@ struct RolePromptSettingsSheet: View {
         NavigationStack {
             Group {
                 if loading {
-                    ProgressView()
+                    TFLoading(.block)
                 } else if let context, let block = context.blocks?.first(where: { $0.id == blockID }) {
                     RoleInstructionEditor(role: role.role, block: block,
                                           canEdit: context.canEdit == true, service: service,
                                           title: title, simple: true)
                 } else {
-                    ContentUnavailableView {
-                        Label("Не удалось загрузить инструкцию", systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text(errorText ?? "Инструкция недоступна на сервере.")
-                    } actions: {
-                        Button("Повторить") { Task { await load() } }
-                    }
+                    TFEmptyState(
+                        icon: "exclamationmark.triangle",
+                        text: "Не удалось загрузить инструкцию",
+                        description: errorText ?? "Инструкция недоступна на сервере.",
+                        actionTitle: "Повторить",
+                        action: { Task { await load() } }
+                    )
                 }
             }
             .navigationTitle(title)

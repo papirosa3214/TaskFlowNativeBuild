@@ -97,7 +97,7 @@ struct AgentTraceView: View {
                     .tfText(.meta).foregroundStyle(Color.tfSub)
             } else if loaded {
                 Text(failed ? "Не удалось загрузить ход работы" : "Полученных запусков пока нет").foregroundStyle(Color.tfSub)
-            } else { ProgressView() }
+            } else { TFLoading(.inline) }
             Text("Сохранено на этом устройстве. История содержит полученные события; более ранние действия могут отсутствовать.")
                 .tfText(.meta).foregroundStyle(Color.tfSub)
         }

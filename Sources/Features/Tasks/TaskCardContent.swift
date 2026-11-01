@@ -813,17 +813,18 @@ struct TaskCardContent: View {
     /// сжаты в один ряд ярлычков вместо четырёх полноширинных строк.
     @ViewBuilder
     private func detailChip(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-            Text(text)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+        TFPill(surface: .clear) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                Text(text)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
+            .padding(.horizontal, TFSpacing.sm)
+            .padding(.vertical, 6)
         }
-        .tfText(.action)
-        .foregroundStyle(Color.tfSub)
-        .padding(.horizontal, TFSpacing.sm)
-        .padding(.vertical, 6)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
     }
 
     /// Содержимое секции «Сведения»: ряд чипов (срок/проект/приоритет/метки),
@@ -1248,7 +1249,7 @@ struct TaskCardContent: View {
         #endif
         // Прозрачные строки и промежутки показывают одну системную поверхность шторки.
         .listRowBackground(Color.clear)
-        .scrollContentBackground(.hidden)
+        .tfScreenBackground()
         // Без полосы прокрутки справа (владелец 02.10.2026).
         .scrollIndicators(.hidden)
         // Невидимый загрузчик плана, пока не известно, утверждён ли он.
@@ -1468,12 +1469,8 @@ struct TaskCardContent: View {
             EmptyView()
         case .processing:
             Section {
-                HStack(spacing: TFSpacing.sm) {
-                    ProgressView()
-                    Text("AI структурирует задачу…")
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("AI структурирует задачу")
+                TFLoading(.inline)
+                    .accessibilityLabel("AI структурирует задачу")
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
@@ -1930,12 +1927,10 @@ struct TaskCardContent: View {
                 .tfTypeFont(size: 20)
                 .foregroundStyle(Color.tfOrange)
                 .frame(width: 21, height: 21)
+        } else if subtask.done {
+            TFSubtaskStatusRing(.done)
         } else {
-            Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
-                .tfTypeFont(size: 20)
-                .foregroundStyle(subtask.done ? Color.tfTeal : .tfReadableSecondary)
-                .frame(width: 21, height: 21)
-        }
+            TFSubtaskStatusRing(.pending)        }
     }
 
     /// Что показываем под раскрытым шагом: его итог и кнопки владельца.
@@ -2008,21 +2003,20 @@ struct TaskCardContent: View {
     private func activityChips(_ actions: [ApiTaskActivityAction], total: Int? = nil) -> some View {
         let count = total ?? actions.count
         return HStack(spacing: TFSpacing.xs) {
-            Text("\(count) \(pluralActions(count))")
-                .tfText(.micro)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.sm)
-                .frame(height: 24)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            ForEach(Array(actions.suffix(5)), id: \.id) { action in
-                Image(systemName: activityIcon(action.kind))
-                    .tfTypeFont(size: 12)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(width: 24, height: 24)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            TFPill(surface: .tfCard2, radius: TFRadius.sm) {
+                Text("\(count) \(pluralActions(count))")
+                    .tfText(.micro)
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, TFSpacing.sm)
+                    .frame(height: 24)
             }
+            ForEach(Array(actions.suffix(5)), id: \.id) { action in
+                TFPill(surface: .tfCard2, radius: TFRadius.sm) {
+                    Image(systemName: activityIcon(action.kind))
+                        .tfTypeFont(size: 12)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(width: 24, height: 24)
+                }            }
         }
     }
 
@@ -2158,7 +2152,7 @@ struct TaskCardContent: View {
                         .lineLimit(2)
                     Spacer(minLength: 0)
                     if openingTaskAttachmentIDs.contains(attachment.id) {
-                        ProgressView()
+                        TFLoading(.inline)
                     } else {
                         Image(systemName: "arrow.up.right")
                             .tfText(.meta)
@@ -3370,10 +3364,10 @@ private struct LinkedTaskPicker: View {
         NavigationStack {
             List {
                 if candidates.isEmpty {
-                    ContentUnavailableView(
-                        "Нет доступных задач",
-                        systemImage: "link",
-                        description: Text("Создайте новую связанную задачу или измените строку поиска.")
+                    TFEmptyState(
+                        icon: "link",
+                        text: "Нет доступных задач",
+                        description: "Создайте новую связанную задачу или измените строку поиска."
                     )
                 } else {
                     ForEach(candidates) { task in
@@ -3404,7 +3398,7 @@ private struct LinkedTaskPicker: View {
                                 }
                                 Spacer(minLength: TFSpacing.sm)
                                 if linkingID == task.id {
-                                    ProgressView()
+                                    TFLoading(.inline)
                                 } else {
                                     Image(systemName: "link.badge.plus")
                                         .foregroundStyle(Color.tfReadableSecondary)

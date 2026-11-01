@@ -90,7 +90,7 @@ struct ChatSessionPanel: View {
       .tint(.primary)
       .accessibilityIdentifier("chat.session.thinking")
      }
-     if choice.isSaving { ProgressView("Сохранение") }
+     if choice.isSaving { TFLoading(.inline) }
      if let error = choice.errorText {
       Text(error).foregroundStyle(.red)
       Button("Повторить загрузку") { Task { await onRefresh() } }
@@ -182,6 +182,7 @@ struct ChatSessionPanel: View {
     } footer: { Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю в текущем разговоре.") }
     .tint(.primary)
    }
+   .tfScreenBackground()
    // Обычный цвет текста вместо синего (владелец 29.10.2026).
    .tint(.primary)
    .disabled(choice.isSaving || actionRunning)

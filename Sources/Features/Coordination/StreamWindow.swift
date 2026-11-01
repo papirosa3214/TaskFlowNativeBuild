@@ -39,25 +39,25 @@ public struct StreamWindow<RowContent: View>: View {
 
     public var body: some View {
         // Гомогенный body: один VStack (заголовок + список + композер).
-        VStack(spacing: 0) {
-            header
-            // Внутренний список — единственный источник скролла в окне.
-            // Жест снизу вверх **внутри** Stream window прокручивает только
-            // сообщения (критерий QA №4).
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
-                    rows()
+        TFCard(padding: 0, surface: .card, radius: TFRadius.md) {
+            VStack(spacing: 0) {
+                header
+                // Внутренний список — единственный источник скролла в окне.
+                // Жест снизу вверх **внутри** Stream window прокручивает только
+                // сообщения (критерий QA №4).
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: TFSpacing.sm) {
+                        rows()
+                    }
+                    .padding(.horizontal, TFSpacing.md)
+                    .padding(.vertical, TFSpacing.sm)
                 }
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, TFSpacing.sm)
+                .frame(maxHeight: .infinity)
+                .accessibilityIdentifier("coord.stream.list")
+                composer
             }
-            .frame(maxHeight: .infinity)
-            .accessibilityIdentifier("coord.stream.list")
-            composer
+            .frame(minHeight: minHeight, maxHeight: maxHeight)
         }
-        .frame(minHeight: minHeight, maxHeight: maxHeight)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: TFRadius.md)
                 .strokeBorder(Color.tfSub.opacity(0.25), lineWidth: TFBorder.width)
@@ -66,28 +66,28 @@ public struct StreamWindow<RowContent: View>: View {
     }
 
     private var header: some View {
-        HStack(spacing: TFSpacing.sm) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .tfTypeFont(size: 12, weight: .semibold)
-                .foregroundStyle(Color.tfSub)
-            Text(title)
-                .tfText(.action).fontWeight(.semibold)
-                .foregroundStyle(Color.tfText)
-            Spacer(minLength: 4)
-            if unread > 0 {
-                Text("\(unread)")
-                    .tfText(.caption).fontWeight(.bold)
-                    .foregroundStyle(Color.tfPaper)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.tfRed)
-                    .clipShape(Capsule())
-                    .accessibilityIdentifier("coord.stream.unread")
-            }
+        TFCard(padding: 0, surface: .card2, radius: nil) {
+            HStack(spacing: TFSpacing.sm) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .tfTypeFont(size: 12, weight: .semibold)
+                    .foregroundStyle(Color.tfSub)
+                Text(title)
+                    .tfText(.action).fontWeight(.semibold)
+                    .foregroundStyle(Color.tfText)
+                Spacer(minLength: 4)
+                if unread > 0 {
+                    Text("\(unread)")
+                        .tfText(.caption).fontWeight(.bold)
+                        .foregroundStyle(Color.tfPaper)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.tfRed)
+                        .clipShape(Capsule())
+                        .accessibilityIdentifier("coord.stream.unread")
+                }            }
+            .padding(.horizontal, TFSpacing.md)
+            .frame(height: 28)
         }
-        .padding(.horizontal, TFSpacing.md)
-        .frame(height: 28)
-        .background(Color.tfCard2)
         .overlay(
             Rectangle()
                 .frame(height: TFBorder.width)
@@ -130,17 +130,16 @@ public struct MessageDeliveryChip: View {
 
     public var body: some View {
         let tint = color(for: state)
-        HStack(spacing: 4) {
-            Image(systemName: symbol(for: state))
-                .tfTypeFont(size: 11, weight: .semibold)
-            Text(text)
-                .tfText(.caption)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .foregroundStyle(tint)
-        .background(tint.opacity(0.12))
-        .clipShape(Capsule())
+        TFPill(surface: tint.opacity(0.12), capsule: true) {
+            HStack(spacing: 4) {
+                Image(systemName: symbol(for: state))
+                    .tfTypeFont(size: 11, weight: .semibold)
+                Text(text)
+                    .tfText(.caption)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .foregroundStyle(tint)        }
         // Кросс-фейд 180 мс при смене состояния (UX §4.2 — чипы не мигают).
         .animation(.easeInOut(duration: 0.18), value: state)
         .accessibilityIdentifier("coord.stream.chip.\(state.rawValue)")

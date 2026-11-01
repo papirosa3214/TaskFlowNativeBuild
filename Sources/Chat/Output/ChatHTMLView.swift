@@ -22,22 +22,22 @@ struct ChatHTMLView: View {
     private static let inlineMaxHeight: CGFloat = 520
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            if commands.running { ProgressView("Выполняется на .110…") }
-            Divider()
-            ChatWebView(html: html, height: $height, isScrollEnabled: height > Self.inlineMaxHeight, commands: commands, allowsCommands: allowsCommands)
-                .frame(height: min(max(height, 60), Self.inlineMaxHeight))
+        TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+            VStack(spacing: 0) {
+                header
+                if commands.running { TFLoading(.inline) }
+                Divider()
+                ChatWebView(html: html, height: $height, isScrollEnabled: height > Self.inlineMaxHeight, commands: commands, allowsCommands: allowsCommands)
+                    .frame(height: min(max(height, 60), Self.inlineMaxHeight))
+            }
         }
-        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.xl))
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
         .modifier(PanelCommandConfirmation(bridge: commands, active: !isFullScreen))
         .fullScreenCover(isPresented: $isFullScreen) {
             NavigationStack {
                 ChatWebView(html: html, height: .constant(0), isScrollEnabled: true, commands: commands, allowsCommands: allowsCommands)
                     .ignoresSafeArea(edges: .bottom)
-                    .background(Color.tfBackground)
+                    .tfScreenBackground()
                     .navigationTitle(Self.title(of: html) ?? "Интерактив")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {

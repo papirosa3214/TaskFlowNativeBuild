@@ -54,6 +54,10 @@ source += '''
 }
 '''
 source += (ROOT / 'Sources/Features/Projects/ProjectTaskFilter.swift').read_text()
+# Политика фильтров ссылается на `TaskVisibility` (правило закрытых карточек,
+# владелец 01.11.2026) — подключаем и его, иначе сборка фикстуры не проходит.
+visibility = (ROOT / 'Sources/Core/Models/TaskVisibility.swift').read_text()
+source += '\n'.join(l for l in visibility.splitlines() if not l.startswith('import ')) + '\n'
 source += block((ROOT / 'Sources/Features/Projects/ProjectCard.swift').read_text(),
                 'struct ProjectTaskStatusSummary {')
 source += '\n' + (ROOT / 'Tests/ProjectSummaryTests.swift').read_text().replace('@testable import TaskFlow', '')

@@ -124,7 +124,7 @@ struct UpcomingMonthView: View {
             }
         }
         .padding(.vertical, TFSpacing.xs)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
     }
 
     private func weekBlock(monday: String, index: Int) -> some View {

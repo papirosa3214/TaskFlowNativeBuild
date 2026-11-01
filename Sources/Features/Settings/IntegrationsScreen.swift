@@ -323,7 +323,8 @@ struct IntegrationsScreen: View {
                                     subtitle: "События TaskFlow → внешний сервис",
                                     trailing: AnyView(webhookAccessory),
                                     titleStyle: .action,
-                                    verticalPadding: TFSpacing.xs
+                                    verticalPadding: TFSpacing.xs,
+                                    chevron: .shown
                                 )
                             }
                             .buttonStyle(.plain)
@@ -350,7 +351,7 @@ struct IntegrationsScreen: View {
                             NavigationLink {
                                 ComposioIntegrationsScreen()
                             } label: {
-                                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio", subtitle: "Основные интеграции и каталог сервисов", trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio", subtitle: "Основные интеграции и каталог сервисов", titleStyle: .action, verticalPadding: TFSpacing.xs, chevron: .shown)
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("integrations.composio")
@@ -403,9 +404,6 @@ struct IntegrationsScreen: View {
             }
             .tfText(.action)
             .lineLimit(1)
-            Image(systemName: "chevron.right")
-                .tfTypeFont(size: 13)
-                .foregroundStyle(Color.tfDim)
         }
         .accessibilityIdentifier("integrations.webhooks.status")
     }
@@ -420,15 +418,14 @@ struct IntegrationsScreen: View {
     }
 
     private func successBanner(_ text: String) -> some View {
-        HStack(spacing: TFSpacing.sm) {
-            Image(systemName: "checkmark").tfTypeFont(size: 16).foregroundStyle(Color.tfSub)
-            Text(text).tfText(.action).foregroundStyle(Color.tfSub)
-        }
-        .padding(TFSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard)
+        TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+            HStack(spacing: TFSpacing.sm) {
+                Image(systemName: "checkmark").tfTypeFont(size: 16).foregroundStyle(Color.tfSub)
+                Text(text).tfText(.action).foregroundStyle(Color.tfSub)
+            }
+            .padding(TFSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)        }
         .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfSub.opacity(0.3), lineWidth: TFBorder.width))
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 
     // MARK: - Apple Экосистема (iOS)
@@ -647,17 +644,16 @@ struct IntegrationsScreen: View {
                     Button(option.title) { onSelect(option.id) }
                 }
             } label: {
-                HStack {
-                    Text(options.first { $0.id == selectedId }?.title ?? selectedId)
-                        .tfText(.action).foregroundStyle(Color.tfText).lineLimit(1)
-                    Spacer()
-                    Image(systemName: "chevron.up.chevron.down").tfTypeFont(size: 11).foregroundStyle(Color.tfDim)
-                }
-                .padding(.horizontal, TFSpacing.md)
-                .frame(height: TFHitTarget.min)
-                .background(Color.tfCard2)
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                    HStack {
+                        Text(options.first { $0.id == selectedId }?.title ?? selectedId)
+                            .tfText(.action).foregroundStyle(Color.tfText).lineLimit(1)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down").tfTypeFont(size: 11).foregroundStyle(Color.tfDim)
+                    }
+                    .padding(.horizontal, TFSpacing.md)
+                    .frame(height: TFHitTarget.min)                }
                 .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
             }
         }
     }

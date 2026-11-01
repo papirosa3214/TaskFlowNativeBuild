@@ -50,19 +50,21 @@ struct ServerSettingsScreen: View {
                     Button("Обновить") { Task { await model.load() } }
                 }
             }
-            if model.loading && model.snapshot == nil { ProgressView() }
+            if model.loading && model.snapshot == nil { TFLoading(.inline) }
             if let snapshot = model.snapshot {
                 ForEach(snapshot.groups, id: \.self) { group in
                     Section(groupTitle(group)) {
                         ForEach(snapshot.settings.filter { $0.group == group }) { setting in
                             Button { editing = setting } label: {
-                                HStack {
-                                    Text(setting.label).foregroundStyle(Color.tfText)
-                                    Spacer()
-                                    Text(setting.displayText(snapshot.values[setting.key] ?? setting.defaultValue))
-                                        .foregroundStyle(Color.tfSub)
-                                    Image(systemName: "chevron.right").foregroundStyle(Color.tfSub)
-                                }
+                                TFListRow(
+                                    title: setting.label,
+                                    trailing: AnyView(
+                                        Text(setting.displayText(snapshot.values[setting.key] ?? setting.defaultValue))
+                                            .foregroundStyle(Color.tfSub)
+                                    ),
+                                    horizontalPadding: 0,
+                                    chevron: .shown
+                                )
                             }
                             .accessibilityIdentifier("server-setting-" + setting.key)
                             .hintAnchor("server.setting." + setting.key)
@@ -101,7 +103,7 @@ struct ServerSettingsScreen: View {
         .sheet(isPresented: $showsLog) {
             NavigationStack {
                 List {
-                    if model.logLoading { ProgressView() }
+                    if model.logLoading { TFLoading(.inline) }
                     if let error = model.error { Text(error) }
                     if !model.logLoading && model.error == nil && model.log.isEmpty {
                         Text("Параметры ещё не меняли").foregroundStyle(Color.tfSub)
@@ -195,7 +197,7 @@ private struct ServerSettingEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) {
-                    if saving { ProgressView() }
+                    if saving { TFLoading(.inline) }
                     else { Button("Сохранить") { Task { await save() } }.accessibilityIdentifier("server-setting-save") }
                 }
             }

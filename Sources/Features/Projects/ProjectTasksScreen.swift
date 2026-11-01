@@ -168,12 +168,11 @@ struct ProjectTasksScreen: View {
             .listRowInsets(EdgeInsets())
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .tfScreenBackground()
         .refreshable {
             await taskStore.load(silent: true)
             await refreshRelationshipTasks()
         }
-        .background(Color.tfBackground)
         // Штатная шапка (просьба владельца 03.09.2026 — «нативные кнопки
         // везде одним элементом»). Была `DirectoryCompactHeader` (свой
         // ZStack) ради цветного кружка проекта перед заголовком —
@@ -350,14 +349,14 @@ struct ProjectTasksScreen: View {
                 .tfText(.action)
                 .foregroundStyle(Color.tfSub)
             NavigationLink(value: AppRoute.projects) {
-                Text("К списку проектов")
-                    .tfText(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tfText)
-                    .padding(.horizontal, TFSpacing.lg)
-                    .frame(height: 44)
-                    .background(Color.tfCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                TFCard(padding: 0, surface: .card, radius: TFRadius.lg) {
+                    Text("К списку проектов")
+                        .tfText(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tfText)
+                        .padding(.horizontal, TFSpacing.lg)
+                        .frame(height: 44)
+                }
             }
             .buttonStyle(TFTapScaleStyle())
         }

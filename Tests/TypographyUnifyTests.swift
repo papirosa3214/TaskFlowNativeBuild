@@ -21,8 +21,12 @@ final class TypographyUnifyTests: XCTestCase {
     /// Название задачи в строке списка — ступень, а не свой кегль в компоненте.
     /// Раньше это был локальный `@ScaledMetric` внутри `TFTaskRowContent`:
     /// правился в одном файле, а весь остальной текст — в другом.
+    ///
+    /// В пятигрупповой модели (владелец 01.11.2026) `listTitle` входит в
+    /// группу `.body` — 15 pt, как `body` и `row`, трекинг тот же.
     func testListTitleTierIsPartOfScale() {
-        XCTAssertEqual(TFTextStyle.listTitle.baseSize, 16)
+        XCTAssertEqual(TFTextStyle.listTitle.group, .body)
+        XCTAssertEqual(TFTextStyle.listTitle.baseSize, 15)
         XCTAssertEqual(TFTextStyle.listTitle.weight, .regular)
         XCTAssertEqual(TFTextStyle.listTitle.tracking, TFFont.bodyTracking)
     }
@@ -41,10 +45,16 @@ final class TypographyUnifyTests: XCTestCase {
         }
     }
 
-    /// Ступень `input` — только под текстовые поля: она единственная 16 pt
-    /// среди «строковых» ступеней, и её кегль не должен совпасть с `body`.
+    /// Ступень `input` — только под текстовые поля. В пятигрупповой модели
+    /// (владелец 01.11.2026) отдельного кегля у полей нет: `input` входит в
+    /// группу `.body` (15 pt) наравне с `body`, `listTitle` и `row`. Поэтому
+    /// проверяем принадлежность группе и то, что группа `body` не совпала
+    /// с системным `.body` SwiftUI (17 pt) — иначе текст «поплывёт» относительно
+    /// остального шрифта при смене размера текста.
     func testInputTierStaysDistinctFromBody() {
-        XCTAssertNotEqual(TFTextStyle.input.baseSize, TFTextStyle.body.baseSize)
+        XCTAssertEqual(TFTextStyle.input.group, .body)
+        XCTAssertEqual(TFTextStyle.input.baseSize, TFTextStyle.body.baseSize)
+        XCTAssertNotEqual(TFTextStyle.input.baseSize, 17)
     }
 
     /// Каждая ступень обязана давать трекинг и вес: пустая ступень означает

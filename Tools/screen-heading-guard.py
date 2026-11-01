@@ -50,8 +50,12 @@ def heading(text, selector):
     offset = type_start + start
     # Contracts identify the semantic section container. Its first text/label is
     # the heading; other body text is deliberately outside this comparison.
-    clean = re.sub(r'//[^\n]*', lambda m: ' ' * len(m[0]), body)
-    found = re.search(r'\b(SettingsCapsLabel|Text)\s*\([^\n]*?\)', clean)
+    clean = re.sub(r'//[^\n]*', lambda m: ' ' * len(m.group(0)), body)
+    # `SettingsCapsLabel` в списке — для файлов, которые ещё не переведены на
+    # канон: такой заголовок сторож опознаёт по имени (иначе «заголовок не
+    # найден» и проверка закрылась бы вслепую). Вернуть обёртку нельзя —
+    # это ловит правило `raw-caps-heading` сторожа дизайн-системы.
+    found = re.search(r'\b(SettingsCapsLabel|TFSectionHeader|Text)\s*\([^\n]*?\)', clean)
     if not found:
         return text[:offset].count('\n') + 1, None
     tail = clean[found.end():]
@@ -69,6 +73,10 @@ def heading(text, selector):
     signature = found[1] + '|' + '|'.join(sorted(styles))
     if found[1] == 'Text' and '.uppercased()' in expression:
         signature += '|uppercased'
+    # Режим заголовка — часть оформления: «капс» и обычная подпись на одном
+    # уровне различаться не должны.
+    if found[1] == 'TFSectionHeader' and 'style:.caps' in re.sub(r'\s+', '', expression):
+        signature += '|caps'
     return text[:offset + found.start()].count('\n') + 1, signature
 
 

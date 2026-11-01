@@ -91,17 +91,16 @@ struct ActivityChart: View {
     private let today = DirectoryDate.todayKeyLocal()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            header
-            if chartType == .line {
-                lineView
-            } else {
-                donutView
+        TFCard(padding: TFSpacing.md, surface: .card, radius: TFRadius.xl) {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                header
+                if chartType == .line {
+                    lineView
+                } else {
+                    donutView
+                }
             }
         }
-        .padding(TFSpacing.md)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .overlay {
             RoundedRectangle(cornerRadius: TFRadius.xl)
                 .strokeBorder(Color.tfStroke.opacity(0.6), lineWidth: TFBorder.width)
@@ -123,15 +122,14 @@ struct ActivityChart: View {
                     selectedPointIdx = nil
                     singleDayDate = nil
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left").tfTypeFont(size: 12, weight: .semibold)
-                        Text(drillDown.parentPeriodLabel).tfText(.meta)
-                    }
-                    .foregroundStyle(Color.tfSub)
-                    .padding(.horizontal, TFSpacing.sm)
-                    .padding(.vertical, 4)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+                    TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left").tfTypeFont(size: 12, weight: .semibold)
+                            Text(drillDown.parentPeriodLabel).tfText(.meta)
+                        }
+                        .foregroundStyle(Color.tfSub)
+                        .padding(.horizontal, TFSpacing.sm)
+                        .padding(.vertical, 4)                    }
                 }
                 .buttonStyle(TFTapScaleStyle())
             } else {
@@ -164,13 +162,12 @@ struct ActivityChart: View {
     }
 
     private var segmentControl: some View {
-        HStack(spacing: 2) {
-            segmentButton("Кривая", isOn: chartType == .line) { chartType = .line }
-            segmentButton("Кольцо", isOn: chartType == .donut) { chartType = .donut }
+        TFCard(padding: 2, surface: .card2, radius: TFRadius.lg) {
+            HStack(spacing: 2) {
+                segmentButton("Кривая", isOn: chartType == .line) { chartType = .line }
+                segmentButton("Кольцо", isOn: chartType == .donut) { chartType = .donut }
+            }
         }
-        .padding(2)
-        .background(Color.tfCard2)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         .fixedSize()
     }
 

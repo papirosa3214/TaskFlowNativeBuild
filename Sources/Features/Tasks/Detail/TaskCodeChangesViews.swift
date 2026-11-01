@@ -260,7 +260,7 @@ struct TaskCodeFileScreen: View {
             }
             .padding(.vertical, TFSpacing.sm)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader(file.fileName, displayMode: .inline)
         .alert("Замечание к строке", isPresented: Binding(
             get: { commentLine != nil },

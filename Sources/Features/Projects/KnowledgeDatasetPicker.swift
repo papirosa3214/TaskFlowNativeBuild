@@ -55,35 +55,35 @@ struct KnowledgeDatasetPicker: View {
                         Label("Новая база…", systemImage: "plus")
                     }
                 } label: {
-                    HStack(spacing: TFSpacing.sm) {
-                        Image(systemName: "books.vertical")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfDim)
-                        Text(selectedName)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .tfText(.caption)
-                            .foregroundStyle(Color.tfDim)
+                    TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                        HStack(spacing: TFSpacing.sm) {
+                            Image(systemName: "books.vertical")
+                                .tfText(.action)
+                                .foregroundStyle(Color.tfDim)
+                            Text(selectedName)
+                                .tfText(.body)
+                                .foregroundStyle(Color.tfText)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .tfText(.caption)
+                                .foregroundStyle(Color.tfDim)
+                        }
+                        .padding(.horizontal, TFSpacing.sm + 4)
+                        .padding(.vertical, TFSpacing.sm + 2)
                     }
-                    .padding(.horizontal, TFSpacing.sm + 4)
-                    .padding(.vertical, TFSpacing.sm + 2)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                 }
             }
 
             if showNewField {
                 HStack(spacing: TFSpacing.sm) {
-                    TextField("Название новой базы", text: $newName)
-                        .tfText(.input)
-                        .foregroundStyle(Color.tfText)
-                        .padding(.horizontal, TFSpacing.sm + 4)
-                        .padding(.vertical, TFSpacing.sm)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                    TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                        TextField("Название новой базы", text: $newName)
+                            .tfText(.input)
+                            .foregroundStyle(Color.tfText)
+                            .padding(.horizontal, TFSpacing.sm + 4)
+                            .padding(.vertical, TFSpacing.sm)
+                    }
                     Button(isCreating ? "…" : "Создать") {
                         Task { await createDataset() }
                     }

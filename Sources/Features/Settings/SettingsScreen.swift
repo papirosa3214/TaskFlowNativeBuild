@@ -53,7 +53,7 @@ struct SettingsScreen: View {
         // поверх неё давал ВТОРУЮ стрелку и лишнюю полосу.
         // Нативная сворачивающаяся шапка по официальным гайдам SwiftUI.
         .tfNativeHeader("Настройки")
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .environment(viewModel)
         .tfBottomSheet(isPresented: $appIconSheetOpen) {
             AppIconPickerSheet(selection: $appIcon) { appIconSheetOpen = false }
@@ -140,17 +140,17 @@ struct SettingsScreen: View {
                         let isSelected = textToneRaw == tone.rawValue
                         Button { textToneRaw = tone.rawValue } label: {
                             VStack(spacing: TFSpacing.xs) {
-                                Text("Аа")
-                                    .tfText(.title)
-                                    .foregroundStyle(tone.color)
-                                    .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
-                                    .background(Color.tfCard2)
-                                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: TFRadius.md)
-                                            .strokeBorder(isSelected ? Color.tfRed : Color.tfStroke,
-                                                          lineWidth: isSelected ? 2 : TFBorder.width)
-                                    )
+                                TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+                                    Text("Аа")
+                                        .tfText(.title)
+                                        .foregroundStyle(tone.color)
+                                        .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
+                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: TFRadius.md)
+                                        .strokeBorder(isSelected ? Color.tfRed : Color.tfStroke,
+                                                      lineWidth: isSelected ? 2 : TFBorder.width)
+                                )
                                 Text(tone.title)
                                     .tfText(.micro)
                                     .foregroundStyle(isSelected ? Color.tfText : Color.tfDim)
@@ -377,19 +377,17 @@ struct SettingsScreen: View {
             NavigationLink(value: AppRoute.secretaryVoicePicker) {
                 TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Помощника владельца",
                           trailing: AnyView(secretaryVoiceValue), titleStyle: .action,
-                          verticalPadding: TFSpacing.xs)
+                          verticalPadding: TFSpacing.xs, chevron: .shown)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.secretary-voice")
         }
     }
 
-    /// Текущий голос + шеврон: выбор и прослушивание — на отдельном экране.
+    /// Текущий голос: выбор и прослушивание — на отдельном экране.
+    /// Шеврон справа рисует сам канон `TFListRow` (`chevron: .shown`).
     private var secretaryVoiceValue: some View {
-        HStack(spacing: TFSpacing.sm) {
-            Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
-            chevron
-        }
+        Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
     }
 
     @ViewBuilder
@@ -430,7 +428,7 @@ struct SettingsScreen: View {
             // Владелец 20.10.2026: «Интеграции» — из «Общих» сюда.
             TFDivider(inset: rowDividerInset)
             NavigationLink(value: AppRoute.integrations) {
-                TFListRow(icon: "link", iconStyle: .asset("IntegrationsLink"), title: "Интеграции", trailing: AnyView(chevron), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                TFListRow(icon: "link", iconStyle: .asset("IntegrationsLink"), title: "Интеграции", titleStyle: .action, verticalPadding: TFSpacing.xs, chevron: .shown)
             }
             .buttonStyle(.plain)
         }
@@ -476,21 +474,15 @@ struct SettingsScreen: View {
         }
     }
 
+    /// Шеврон рисует сам канон `TFListRow` (`chevron: .shown`), а не `action`:
+    /// тап-зону и переход уже даёт обёртывающий `NavigationLink`, вложенный
+    /// `Button` внутри него задвоил бы жест (см. INTEGRATION.md — переходы
+    /// только `NavigationLink(value:)`).
     private func navRow(icon: String, title: String, route: AppRoute) -> some View {
         NavigationLink(value: route) {
-            TFListRow(icon: icon, iconStyle: .plain, title: title, trailing: AnyView(chevron), titleStyle: .action, verticalPadding: TFSpacing.xs)
+            TFListRow(icon: icon, iconStyle: .plain, title: title, titleStyle: .action, verticalPadding: TFSpacing.xs, chevron: .shown)
         }
         .buttonStyle(.plain)
-    }
-
-    /// Шеврон рисуется вручную через `trailing`, а не через `action` у
-    /// `TFListRow`: тап-зону и переход уже даёт обёртывающий `NavigationLink`,
-    /// вложенный `Button` внутри него задвоил бы жест (см. INTEGRATION.md —
-    /// переходы только `NavigationLink(value:)`).
-    private var chevron: some View {
-        Image(systemName: "chevron.right")
-            .tfTypeFont(size: 13)
-            .foregroundStyle(Color.tfDim)
     }
 
     private func toggleRow(icon: String, title: String, isOn: Binding<Bool>, toggleIdentifier: String? = nil) -> some View {
@@ -511,14 +503,14 @@ struct SettingsScreen: View {
     }
 
     private var editAction: some View {
-        Text("Изменить")
-            .tfText(.meta)
-            .foregroundStyle(Color.tfText)
-            .padding(.horizontal, TFSpacing.sm)
-            .padding(.vertical, TFSpacing.xs)
-            .background(Color.tfCard2)
-            .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+            Text("Изменить")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfText)
+                .padding(.horizontal, TFSpacing.sm)
+                .padding(.vertical, TFSpacing.xs)
+        }
+        .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }

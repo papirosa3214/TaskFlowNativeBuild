@@ -31,17 +31,15 @@ struct ChatHandoffCard: View {
                 .padding(TFSpacing.md)
             Divider()
             NavigationLink(value: AppRoute.noteEditor(noteID: handoff.noteID)) {
-                HStack {
-                    Text("Полный отчёт")
-                        .tfText(.meta)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .tfTypeFont(size: 12, weight: .semibold)
-                }
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.md)
-                .frame(minHeight: TFHitTarget.min)
-                .contentShape(Rectangle())
+                TFListRow(
+                    title: "Полный отчёт",
+                    titleStyle: .meta,
+                    titleColor: Color.tfSub,
+                    verticalPadding: 0,
+                    horizontalPadding: TFSpacing.md,
+                    minHeight: TFHitTarget.min,
+                    chevron: .shown
+                )
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat.handoff.report")

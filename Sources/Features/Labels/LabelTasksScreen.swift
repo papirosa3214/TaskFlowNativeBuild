@@ -59,7 +59,7 @@ struct LabelTasksScreen: View {
         .refreshable {
             await taskStore.load(silent: true)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         // Штатная шапка (просьба владельца 03.09.2026 — «нативные кнопки
         // везде одним элементом»). Была `DirectoryCompactHeader` (свой
         // ZStack) специально ради цветной иконки метки перед заголовком —
@@ -134,16 +134,15 @@ struct LabelTasksScreen: View {
                     // строке. Обе даты (срок и дата заведения) стоят рядом — одна
                     // колонка (владелец 22.10.2026).
                     if let due = task.dueDate {
-                        HStack(spacing: 3) {
-                            Image(systemName: "calendar").tfTypeFont(size: 10)
-                            Text(DirectoryDate.dueShort(due))
-                        }
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfSub)
-                        .padding(.horizontal, TFSpacing.sm)
-                        .padding(.vertical, 2)
-                        .background(Color.tfCard)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                        TFPill(surface: .tfCard) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "calendar").tfTypeFont(size: 10)
+                                Text(DirectoryDate.dueShort(due))
+                            }
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, 2)                        }
                         .layoutPriority(1)
                     }
                     // Дата и время заведения заявки — пиксельной меткой в
@@ -166,14 +165,17 @@ struct LabelTasksScreen: View {
                 .tfText(.action)
                 .foregroundStyle(Color.tfSub)
             NavigationLink(value: AppRoute.labels) {
-                Text("К списку меток")
-                    .tfText(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tfText)
-                    .padding(.horizontal, TFSpacing.lg)
-                    .frame(height: 44)
-                    .background(Color.tfCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                // Подложка — канон `TFCard` (поверхность `card`, радиус `lg`).
+                // Отступы текста и высота остались внутри содержимого, поэтому
+                // у карточки отступ нулевой — вид не меняется.
+                TFCard(padding: 0, surface: .card, radius: TFRadius.lg) {
+                    Text("К списку меток")
+                        .tfText(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tfText)
+                        .padding(.horizontal, TFSpacing.lg)
+                        .frame(height: 44)
+                }
             }
             .buttonStyle(TFTapScaleStyle())
         }

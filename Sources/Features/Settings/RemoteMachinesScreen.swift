@@ -116,25 +116,24 @@ struct RemoteMachinesScreen: View {
     /// Код для сканирования телефоном. Показываем и текстом, и картинкой:
     /// сканировать с этого же телефона нельзя, а ввести руками — можно.
     private func pairingCodeView(_ код: PairingCodeResponse) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            Text("Отсканируй этот код на маке (или введи вручную):")
-                .tfText(.meta)
-                .foregroundStyle(Color.tfSub)
+        TFCard(padding: TFSpacing.md, surface: .card2, radius: TFRadius.md) {
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                Text("Отсканируй этот код на маке (или введи вручную):")
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
 
-            Text(код.code)
-                .tfText(.title)
-                .monospaced()
-                .textSelection(.enabled)
-                .accessibilityIdentifier("remote-machines-code")
+                Text(код.code)
+                    .tfText(.title)
+                    .monospaced()
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("remote-machines-code")
 
-            Text("Код действует \(viewModel.секундДоИстечения / 60) мин \(viewModel.секундДоИстечения % 60) с")
-                .tfText(.meta)
-                .foregroundStyle(Color.tfSub)
+                Text("Код действует \(viewModel.секундДоИстечения / 60) мин \(viewModel.секундДоИстечения % 60) с")
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TFSpacing.md)
-        .background(Color.tfCard2)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
     }
 }
 
