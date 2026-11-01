@@ -75,7 +75,7 @@ public struct CoordinationScreen: View {
             }
             if state.nodes.isEmpty {
                 Section {
-                    if refreshing { ProgressView("Загружаем состояние задачи…") }
+                    if refreshing { TFLoading(.inline) }
                     else { Text("Нет данных о выполнении задачи") }
                 }
             } else {
@@ -131,7 +131,7 @@ public struct CoordinationScreen: View {
                 }
             }
             if let actionError { Section { Text(actionError).tfText(.body) } }
-            if performingAction { ProgressView("Перезапускаем выбранный шаг…") }
+            if performingAction { TFLoading(.inline) }
             if let updated = state.lastUpdatedAt {
                 Section { Text("Обновлено \(updated.formatted(date: .omitted, time: .shortened))").tfText(.meta) }
             }

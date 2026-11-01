@@ -15,7 +15,7 @@ struct RoutinesScreen: View {
     var body: some View {
         Group {
             if model.isLoading && model.schedules.isEmpty {
-                ProgressView("Загрузка")
+                TFLoading(.block)
             } else {
                 list
                     .tint(Color.tfText)

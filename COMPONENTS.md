@@ -137,9 +137,15 @@ DESIGN.md про разные наборы статус-иконок по экр
 
 | Компонент | Что это | Параметры |
 |---|---|---|
-| `TFEmptyState` | Обёртка над `ContentUnavailableView` — единый вид пустого состояния | `icon: String? = nil, text, description: String? = nil, actionTitle: String? = nil, action: (() -> Void)? = nil` |
-| `TFLoading` | Индикатор загрузки, `.inline` (встроенный текст) или блочный (центрированная панель с анимацией) | `_ variant: Variant = .inline` |
+| `TFEmptyState` | Обёртка над `ContentUnavailableView` — единый вид пустого состояния | `icon: String? = nil, text, description: String? = nil, actionTitle: String? = nil, action: (() -> Void)? = nil`; форма поиска — `TFEmptyState(search: String)` |
+| `TFLoading` | Индикатор загрузки, `.inline` (встроенный текст) или блочный (центрированная панель с анимацией). Текст фиксирован: «Загрузка…» | `_ variant: Variant = .inline` |
 | `TFErrorBanner` | Сообщение об ошибке, `.inline` или блочная панель с иконкой; скрывается при пустом `message` | `_ message: String?, variant: Variant = .inline` |
+
+Канон Milestone 3: пустое состояние — только `TFEmptyState`, состояние загрузки —
+только `TFLoading`, ошибка в потоке — только `TFErrorBanner`. Сырые
+`ContentUnavailableView`, `ProgressView` как состояние загрузки и «ошибки» в
+`.alert` сторож (`Tools/design-system-guard.py`, правила `raw-empty-state`,
+`raw-loading`, `raw-error-banner`) больше не пропускает.
 
 ## Подложка шапки — `Components/TFHeaderBackdrop.swift`
 

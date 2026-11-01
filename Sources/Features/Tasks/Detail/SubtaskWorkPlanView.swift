@@ -38,7 +38,7 @@ struct SubtaskWorkPlanView: View {
                 Text(failed ? "Не удалось загрузить этапы исполнителя" : "Исполнитель ещё не составил рабочие этапы")
                     .foregroundStyle(Color.tfSub)
             } else {
-                ProgressView()
+                TFLoading(.inline)
             }
         }
         .accessibilityElement(children: .contain)

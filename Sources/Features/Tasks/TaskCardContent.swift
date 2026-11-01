@@ -1468,12 +1468,8 @@ struct TaskCardContent: View {
             EmptyView()
         case .processing:
             Section {
-                HStack(spacing: TFSpacing.sm) {
-                    ProgressView()
-                    Text("AI структурирует задачу…")
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("AI структурирует задачу")
+                TFLoading(.inline)
+                    .accessibilityLabel("AI структурирует задачу")
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
@@ -2158,7 +2154,7 @@ struct TaskCardContent: View {
                         .lineLimit(2)
                     Spacer(minLength: 0)
                     if openingTaskAttachmentIDs.contains(attachment.id) {
-                        ProgressView()
+                        TFLoading(.inline)
                     } else {
                         Image(systemName: "arrow.up.right")
                             .tfText(.meta)
@@ -3370,10 +3366,10 @@ private struct LinkedTaskPicker: View {
         NavigationStack {
             List {
                 if candidates.isEmpty {
-                    ContentUnavailableView(
-                        "Нет доступных задач",
-                        systemImage: "link",
-                        description: Text("Создайте новую связанную задачу или измените строку поиска.")
+                    TFEmptyState(
+                        icon: "link",
+                        text: "Нет доступных задач",
+                        description: "Создайте новую связанную задачу или измените строку поиска."
                     )
                 } else {
                     ForEach(candidates) { task in
@@ -3404,7 +3400,7 @@ private struct LinkedTaskPicker: View {
                                 }
                                 Spacer(minLength: TFSpacing.sm)
                                 if linkingID == task.id {
-                                    ProgressView()
+                                    TFLoading(.inline)
                                 } else {
                                     Image(systemName: "link.badge.plus")
                                         .foregroundStyle(Color.tfReadableSecondary)

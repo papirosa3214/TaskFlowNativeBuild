@@ -33,6 +33,7 @@ struct RoleRunJobsScreen: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: TFSpacing.lg) {
                 TFErrorBanner(loadError.map { _ in "Не удалось загрузить запуски" })
+                TFErrorBanner(actionError.map { _ in "Не получилось" }, variant: .block)
 
                 if isLoading && jobs.isEmpty {
                     TFLoading(.block)
@@ -56,14 +57,6 @@ struct RoleRunJobsScreen: View {
         .task(id: "\(scenePhase):\(realtime.connectionRevision):\(realtime.jobsRevision)") {
             guard scenePhase == .active else { return }
             await load()
-        }
-        .alert("Не получилось", isPresented: Binding(
-            get: { actionError != nil },
-            set: { if !$0 { actionError = nil } }
-        )) {
-            Button("Понятно", role: .cancel) { actionError = nil }
-        } message: {
-            Text(actionError ?? "")
         }
     }
 
@@ -263,6 +256,7 @@ struct RoleRunJobsScreen: View {
 
     private func act(on job: RoleRunJob) async {
         busyJobID = job.id
+        actionError = nil
         defer { busyJobID = nil }
         do {
             if job.canRetry {

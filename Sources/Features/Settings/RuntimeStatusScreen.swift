@@ -167,7 +167,7 @@ struct RuntimeStatusRow: View {
                     .foregroundStyle(Color.tfDim)
             }
         } else if viewModel.isLoading {
-            ProgressView()
+            TFLoading(.inline)
         } else {
             HStack(spacing: 4) {
                 Text("недоступен").tfText(.action).foregroundStyle(Color.tfDim)

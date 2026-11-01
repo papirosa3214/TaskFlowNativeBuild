@@ -13,7 +13,7 @@ struct BashCommandBlock: View {
                 Text(command).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
             }
             if running {
-                HStack { ProgressView(); Text("Выполняется на .110…") }
+                TFLoading(.inline)
             } else {
                 Button { confirming = true } label: {
                     Label(result == nil ? "Запустить на .110" : "Запустить ещё раз", systemImage: "play.fill")

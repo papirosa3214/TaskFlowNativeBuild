@@ -6,6 +6,9 @@ struct ProjectTopicsScreen: View {
     @State private var tasks: [ApiTask] = []
     @State private var showingTasks = false
     @State private var errorMessage: String?
+    /// Ошибка внутри шторки «Выберите задачу» — своя: баннер в списке под
+    /// шторкой не видно, а раньше её показывал системный диалог поверх шторки.
+    @State private var sheetErrorMessage: String?
     /// Фильтры тем (владелец 21.10.2026): закрытые и участник.
     @State private var showsClosed = false
     @State private var memberFilter: String?
@@ -26,6 +29,7 @@ struct ProjectTopicsScreen: View {
 
     var body: some View {
         List {
+            TFErrorBanner(errorMessage.map { _ in "Не удалось загрузить темы" }, variant: .block)
             // Маршрутом, как и темы ниже: смесь `NavigationLink { }` и
             // маршрутов в одном стеке ломала переходы и «назад» (20.10.2026).
             NavigationLink(value: AppRoute.projectGroupRoom(id: group.id)) {
@@ -70,14 +74,19 @@ struct ProjectTopicsScreen: View {
         .refreshable { await load() }
         .sheet(isPresented: $showingTasks) {
             NavigationStack {
-                List(tasks.filter { $0.projectId == group.projectID }) { task in
-                    Button(task.title) {
-                        Task {
-                            do {
-                                _ = try await api.taskTopic(taskID: task.id)
-                                showingTasks = false
-                                await load()
-                            } catch { errorMessage = error.localizedDescription }
+                List {
+                    TFErrorBanner(sheetErrorMessage.map { _ in "Не удалось загрузить темы" }, variant: .block)
+                    ForEach(tasks.filter { $0.projectId == group.projectID }) { task in
+                        Button(task.title) {
+                            Task {
+                                do {
+                                    _ = try await api.taskTopic(taskID: task.id)
+                                    showingTasks = false
+                                    await load()
+                                } catch {
+                                    sheetErrorMessage = error.localizedDescription
+                                }
+                            }
                         }
                     }
                 }
@@ -86,9 +95,6 @@ struct ProjectTopicsScreen: View {
                 .toolbar { Button("Закрыть") { showingTasks = false } }
             }
         }
-        .alert("Не удалось загрузить темы", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("Понятно") { errorMessage = nil }
-        } message: { Text(errorMessage ?? "") }
     }
 
     private var filterMenu: some View {
@@ -117,6 +123,7 @@ struct ProjectTopicsScreen: View {
         do {
             topics = try await api.chatTopics(chatID: group.id, includeClosed: showsClosed)
             tasks = try await api.tasks(includeChildren: true)
+            errorMessage = nil
         } catch { errorMessage = error.localizedDescription }
     }
 }
@@ -129,14 +136,17 @@ struct ProjectChatPicker: View {
     private let api = APIClient()
     var body: some View {
         NavigationStack {
-            List(projects) { project in
-                Button(project.name) {
-                    Task {
-                        do {
-                            _ = try await api.projectChat(projectID: project.id)
-                            onCreated()
-                            dismiss()
-                        } catch { errorMessage = error.localizedDescription }
+            List {
+                TFErrorBanner(errorMessage.map { _ in "Не удалось открыть группу" }, variant: .block)
+                ForEach(projects) { project in
+                    Button(project.name) {
+                        Task {
+                            do {
+                                _ = try await api.projectChat(projectID: project.id)
+                                onCreated()
+                                dismiss()
+                            } catch { errorMessage = error.localizedDescription }
+                        }
                     }
                 }
             }
@@ -147,9 +157,6 @@ struct ProjectChatPicker: View {
                 do { projects = try await api.projects() }
                 catch { errorMessage = error.localizedDescription }
             }
-            .alert("Не удалось открыть группу", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-                Button("Понятно") { errorMessage = nil }
-            } message: { Text(errorMessage ?? "") }
         }
     }
 }

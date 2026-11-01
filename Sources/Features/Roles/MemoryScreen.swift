@@ -47,13 +47,13 @@ struct MemoryScreen: View {
                     .listRowBackground(Color.clear)
             }
             if isUploading {
-                Section { ProgressView("Загружаю файл в память…") }
+                Section { TFLoading(.inline) }
             }
             if visible.isEmpty && !isLoading {
-                ContentUnavailableView(
-                    "Пока пусто",
-                    systemImage: "brain",
-                    description: Text("Роли запоминают сами по ходу работы. Можно записать самому или загрузить файл — «+» вверху.")
+                TFEmptyState(
+                    icon: "brain",
+                    text: "Пока пусто",
+                    description: "Роли запоминают сами по ходу работы. Можно записать самому или загрузить файл — «+» вверху."
                 )
                 .listRowBackground(Color.clear)
             }

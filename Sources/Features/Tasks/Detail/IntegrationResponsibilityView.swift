@@ -40,7 +40,7 @@ struct IntegrationResponsibilityView: View {
                     .accessibilityIdentifier("integration-owner-picker")
                     .disabled(saving)
                 } else if error == nil {
-                    ProgressView()
+                    TFLoading(.inline)
                 }
                 Button { help = true } label: {
                     Image(systemName: "questionmark.circle").foregroundStyle(Color.tfDim)

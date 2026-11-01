@@ -86,12 +86,7 @@ struct RoleChatsScreen: View {
         ScrollView {
             VStack(spacing: 0) {
                 if isLoading && chats.isEmpty {
-                    HStack(spacing: TFSpacing.sm) {
-                        Spacer(minLength: 0)
-                        ProgressView("Загрузка чатов")
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, TFSpacing.xl)
+                    TFLoading(.block)
                 } else if visibleChats.isEmpty {
                     Text(projectsOnly ? "Пока нет чатов по проектам." : "Пока нет сессий. Комнаты ролей — на панели справа.")
                         .tfText(.action)
@@ -425,13 +420,13 @@ struct RoleChatRoomLoader: View {
                     RoleChatRoomScreen(chat: chat)
                 }
             } else if failed {
-                ContentUnavailableView(
-                    "Чат не открылся",
-                    systemImage: "bubble.left",
-                    description: Text("Проверьте связь и зайдите ещё раз.")
+                TFEmptyState(
+                    icon: "bubble.left",
+                    text: "Чат не открылся",
+                    description: "Проверьте связь и зайдите ещё раз."
                 )
             } else {
-                ProgressView("Загрузка чата")
+                TFLoading(.block)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -717,7 +712,7 @@ private struct CreateRoleChatScreen: View {
                 }
                 Section {
                     if isLoadingRoles {
-                        ProgressView("Загрузка ролей").frame(maxWidth: .infinity)
+                        TFLoading(.inline).frame(maxWidth: .infinity)
                     } else if roles.isEmpty {
                         Text("Нет ролей, доступных для чата.")
                             .tfText(.action).foregroundStyle(Color.tfDim)
@@ -2090,13 +2085,14 @@ struct RoleChatRoomScreen: View {
                                           })
                         .hintAnchor(HintAnchorID.chatRoleStart)
                     } else {
-                        ContentUnavailableView("Пока нет сообщений", systemImage: "bubble.left",
-                                               description: Text("Напишите первое сообщение."))
+                        TFEmptyState(
+                            icon: "bubble.left",
+                            text: "Пока нет сообщений",
+                            description: "Напишите первое сообщение."
+                        )
                     }
                 } else if messages.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, TFSpacing.xl)
+                    TFLoading(.block)
                         .accessibilityLabel("Загрузка сообщений")
                 }
                 // Перед первым сообщением нового дня — полоса с датой
@@ -2146,7 +2142,7 @@ struct RoleChatRoomScreen: View {
                             style: RoleChatVoiceStyle.own,
                             header: AnyView(ownSenderLine)
                         )
-                        if sendingVoiceIDs.contains(message.id) { ProgressView("Отправка…") }
+                        if sendingVoiceIDs.contains(message.id) { TFLoading(.inline) }
                         else if message.transcript != .pending {
                             Button("Повторить отправку") { Task { await sendVoice(message.id) } }
                                 .tfText(.meta)
@@ -3234,7 +3230,7 @@ struct RoleChatRoomScreen: View {
             .buttonStyle(.plain)
             .disabled(openingAttachmentIDs.contains(attachment.id))
             .overlay {
-                if openingAttachmentIDs.contains(attachment.id) { ProgressView() }
+                if openingAttachmentIDs.contains(attachment.id) { TFLoading(.inline) }
             }
             .accessibilityLabel("Открыть \(attachment.fileName)")
         }
@@ -3954,7 +3950,7 @@ private struct RoleChatRemoteVoiceBubble: View {
             } else if failed {
                 Label("Не удалось загрузить аудио", systemImage: "exclamationmark.triangle")
             } else {
-                ProgressView("Загрузка аудио…")
+                TFLoading(.block)
             }
         }
         .task(id: attachment.id) {

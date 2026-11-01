@@ -78,7 +78,7 @@ struct NotificationsScreen: View {
                 .accessibilityIdentifier("system-state.summary")
                 .hintAnchor(HintAnchorID.systemSummary)
                 if isLoadingServiceTickets && dailySummary == nil {
-                    ProgressView("Загрузка сводки")
+                    TFLoading(.inline)
                 }
 
             }

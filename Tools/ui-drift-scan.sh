@@ -102,7 +102,6 @@ KNOWN = {
     "Features/Planner/PlannerListView.swift": "правило 1: корневой список без .tfScreenBackground() — закрывает Milestone 3 (m3-card-and-screen-background)",
     # --- правило 3: системный Button(«Повторить») → Milestone 4 ------------
     "Features/Inbox/AttentionScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
-    "Features/Roles/RoleRuntimeContextSheet.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
     "Features/Routines/RoutinesScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
 }
 

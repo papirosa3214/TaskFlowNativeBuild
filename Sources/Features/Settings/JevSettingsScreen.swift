@@ -114,7 +114,7 @@ struct JevSettingsScreen: View {
                 .accessibilityIdentifier("jev-test")
                 .accessibilityLabel("Проверить подключение")
             }
-            if busy { ProgressView("Подождите…") }
+            if busy { TFLoading(.inline) }
             if let result {
                 Text(result.message).tfText(.action).foregroundStyle(Color.tfSub)
                     .accessibilityIdentifier("jev-test-result")

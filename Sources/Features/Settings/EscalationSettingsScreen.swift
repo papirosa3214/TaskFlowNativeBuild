@@ -16,7 +16,7 @@ struct EscalationSettingsScreen: View {
                     Button("Обновить") { Task { await model.load() } }
                 }
             }
-            if model.loading && model.rule == nil { ProgressView() }
+            if model.loading && model.rule == nil { TFLoading(.inline) }
             if let rule = model.rule {
                 EscalationMainSection(model: model, rule: rule)
                 if rule.enabled {

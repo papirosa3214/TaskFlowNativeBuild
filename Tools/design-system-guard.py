@@ -175,6 +175,28 @@ RULES = [
         "fix": "шрифт берётся из шкалы `Sources/DesignSystem/Theme/Typography.swift`, "
                "а не задаётся на экране",
     },
+    # --- Milestone 3 «Фундамент канона»: состояния экрана (F15–F17) ---
+    {
+        "id": "raw-empty-state",
+        "severity": "error",
+        "title": "сырой `ContentUnavailableView` вместо `TFEmptyState`",
+        "fix": "пустое состояние рисует `TFEmptyState` (иконка, текст, описание, действие); "
+               "форма поиска — `TFEmptyState(search:)`",
+    },
+    {
+        "id": "raw-loading",
+        "severity": "error",
+        "title": "сырой `ProgressView` как состояние загрузки вместо `TFLoading`",
+        "fix": "индикатор загрузки — `TFLoading(.inline)` или `TFLoading(.block)`; "
+               "точечный индикатор (спиннер в кнопке или в строке) — только в файлах из LOADING_POINT_ALLOWED",
+    },
+    {
+        "id": "raw-error-banner",
+        "severity": "error",
+        "title": "ошибка системным диалогом вместо `TFErrorBanner`",
+        "fix": "ошибку в потоке показывает `TFErrorBanner(..., variant: .block)`; "
+               "прочие системные диалоги (с действиями) законны",
+    },
 ]
 
 TOGGLE = re.compile(r"(?<![\w.])Toggle\s*\(")
@@ -199,6 +221,36 @@ GENERIC_ALERT = re.compile(r"\.alert\s*\(\s*\"(?:Ошибка|ОШИБКА|Ош�
 # B1: свой шрифт. В `DesignSystem/` он законен (шкала и компоненты), вне — нет.
 CUSTOM_FONT = re.compile(r"\.font\(\s*\.custom\(|Font\.custom\(")
 MIN_TEXT_SIZE = 11.0
+
+# --- Milestone 3: состояния экрана (F15–F17) ---
+# F15: сырое `ContentUnavailableView` — только внутри канона `TFEmptyState`.
+EMPTY_STATE = re.compile(r"\bContentUnavailableView\b")
+# F16: безымянный или текстовый спиннер. `ProgressView(value:…)` — это
+# детерминированный индикатор прогресса, другое понятие, и в проверку не входит.
+LOADING_SPINNER = re.compile(r"(?<![\w.])ProgressView\s*\(\s*(?:\)|\"[^\"]*\")")
+# F17: «ошибки» в `.alert` без действия — их место в потоке, в баннере.
+# Список заголовков закрытый: прочие системные диалоги (с действиями) законны.
+ERROR_ALERT_TITLES = (
+    "Не получилось",
+    "Не удалось загрузить темы",
+    "Не удалось открыть группу",
+)
+ERROR_ALERT = re.compile(
+    r"\.alert\s*\(\s*\"(?:%s)\"" % "|".join(re.escape(t) for t in ERROR_ALERT_TITLES)
+)
+# Точечные индикаторы: спиннер рядом с текстом или оверлей поверх содержимого.
+# Это другое понятие, не «состояние загрузки», — файлы из контракта
+# (VAL-UI-003, allow-list) остаются с системным спиннером.
+LOADING_POINT_ALLOWED = {
+    "Chat/Composer/ChatVoiceComposer.swift",
+    "Chat/Composer/ChatWorkspaceChoice.swift",
+    "Chat/Feed/ChatFeedParts.swift",
+    "Chat/Output/RoleReplyMarkdown.swift",
+    "Features/Knowledge/NoteEditorScreen.swift",
+    "Features/Settings/ServerRestartRow.swift",
+    "Features/Settings/ServerStatusSection.swift",
+    "Features/Settings/VoiceModelsScreen.swift",
+}
 
 
 def strip_comment(line: str) -> str:
@@ -243,15 +295,73 @@ def statement_head(lines, index: int) -> str:
     return lines[index] if 0 <= index < len(lines) else ""
 
 
-def check_line(path: str, lines, index: int):
+def sources_rel(path: str) -> str:
+    """Путь файла внутри `Sources/` через «/» — для правил по файлам.
+
+    `check_line` получает абсолютный путь, а правила Milestone 3 записаны
+    относительно `Sources/` (так же, как в контракте).
+    """
+    norm = path.replace("\\", "/")
+    marker = "/Sources/"
+    idx = norm.rfind(marker)
+    if idx >= 0:
+        return norm[idx + len(marker):]
+    return norm
+
+
+def preview_lines(lines) -> set:
+    """Номера строк (1-based) внутри блоков `#Preview` / `PreviewProvider`.
+
+    Превью — не экран приложения: в нём системные компоненты показывать можно.
+    """
+    inside = set()
+    total = len(lines)
+    index = 0
+    while index < total:
+        stripped = lines[index].strip()
+        if stripped.startswith("#Preview") or "PreviewProvider" in stripped:
+            depth = 0
+            started = False
+            cursor = index
+            while cursor < total:
+                depth += lines[cursor].count("{") - lines[cursor].count("}")
+                if "{" in lines[cursor]:
+                    started = True
+                inside.add(cursor + 1)
+                if started and depth <= 0:
+                    break
+                cursor += 1
+            index = cursor + 1
+            continue
+        index += 1
+    return inside
+
+
+def check_line(path: str, lines, index: int, preview=None):
     """Возвращает список сработавших правил для строки (index — 0-based)."""
     raw = lines[index]
     if IGNORE_MARK in raw:
         return []
+    if preview and (index + 1) in preview:
+        return []          # строка внутри `#Preview` — не экран приложения
     code = strip_comment(raw)
     hits = []
     if not path.endswith("Components/TFToggle.swift") and TOGGLE.search(code):
         hits.append("raw-toggle")
+    # --- Milestone 3: состояния экрана (F15–F17) ---
+    # В режиме `--fragment` файл неизвестен, а правила F15/F16 зависят от пути
+    # (канон `TFEmptyState` и точечные спиннеры) — там они не проверяются.
+    rel = sources_rel(path)
+    known_file = path != "<правка>"
+    if known_file and EMPTY_STATE.search(code) and rel != "DesignSystem/Components/TFEmptyState.swift":
+        hits.append("raw-empty-state")
+    if (known_file
+            and LOADING_SPINNER.search(code)
+            and not rel.startswith("DesignSystem/")
+            and rel not in LOADING_POINT_ALLOWED):
+        hits.append("raw-loading")
+    if ERROR_ALERT.search(code):
+        hits.append("raw-error-banner")
     if SYSTEM_COLOR.search(code):
         hits.append("system-text-color")
     head = strip_comment(statement_head(lines, index))
@@ -291,10 +401,11 @@ def scan_file(path: str, only_lines=None):
     except OSError:
         return []
     findings = []
+    preview = preview_lines(lines)
     for index in range(len(lines)):
         if only_lines is not None and (index + 1) not in only_lines:
             continue
-        for rule_id in check_line(path, lines, index):
+        for rule_id in check_line(path, lines, index, preview):
             findings.append((path, index + 1, rule_id, lines[index].strip()))
     findings.extend(row for row in scan_control_colors(path, "\n".join(lines)) if only_lines is None or row[1] in only_lines)
     return findings
@@ -303,8 +414,9 @@ def scan_file(path: str, only_lines=None):
 def scan_fragment(text: str):
     lines = text.splitlines()
     findings = []
+    preview = preview_lines(lines)
     for index in range(len(lines)):
-        for rule_id in check_line("<правка>", lines, index):
+        for rule_id in check_line("<правка>", lines, index, preview):
             findings.append(("<правка>", index + 1, rule_id, lines[index].strip()))
     findings.extend(scan_control_colors("<правка>", text))
     return findings

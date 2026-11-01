@@ -1,12 +1,18 @@
 import SwiftUI
 
-// Пустое состояние — теперь обёртка над штатным
-// `ContentUnavailableView` (iOS 17+). Старый кастом был скопией того,
-// что iOS делает сам; обёртка оставлена, потому что в проекте 9 мест
-// вызова, и общий API (`icon`/`text`/`action`) привычнее, чем разные
-// формы `ContentUnavailableView`. Внутри — один кастомный конструктор,
-// оборачивающий штатный.
+// Пустое состояние — обёртка над штатным `ContentUnavailableView` (iOS 17+).
+// Старый кастом был скопией того, что iOS делает сам; обёртка оставлена,
+// потому что общий API (`icon`/`text`/`action`) привычнее, чем разные формы
+// `ContentUnavailableView`. Внутри — штатный вид в двух формах: обычная
+// (свои заголовок, описание и действие) и форма поиска
+// (`TFEmptyState(search:)`) — обе через этот же компонент.
 public struct TFEmptyState: View {
+    /// Форма пустого состояния. Обычная — со своим заголовком и описанием;
+    /// `.search` — системная форма «поиск ничего не нашёл», где заголовок и
+    /// подпись берёт сама система (было `ContentUnavailableView.search`).
+    public enum Variant { case standard, search }
+
+    let variant: Variant
     let icon: String?
     let text: String
     let description: String?
@@ -20,6 +26,7 @@ public struct TFEmptyState: View {
         actionTitle: String? = nil,
         action: (() -> Void)? = nil
     ) {
+        self.variant = .standard
         self.icon = icon
         self.text = text
         self.description = description
@@ -27,9 +34,23 @@ public struct TFEmptyState: View {
         self.action = action
     }
 
+    /// Пустое состояние поиска: тот же системный вид, что был у
+    /// `ContentUnavailableView.search(text:)`, но через канон — отдельного
+    /// компонента для этого заводить нельзя.
+    public init(search query: String) {
+        self.variant = .search
+        self.icon = nil
+        self.text = query
+        self.description = nil
+        self.actionTitle = nil
+        self.action = nil
+    }
+
     public var body: some View {
         let img = icon ?? "tray"
-        if let actionTitle, let action {
+        if variant == .search {
+            ContentUnavailableView.search(text: text)
+        } else if let actionTitle, let action {
             ContentUnavailableView {
                 Label(text, systemImage: img)
             } description: {
@@ -61,6 +82,7 @@ public struct TFEmptyState: View {
     VStack(spacing: TFSpacing.xl) {
         TFEmptyState(icon: "magnifyingglass", text: "Начните вводить, чтобы найти задачи, проекты и метки")
         TFEmptyState(text: "Под выбранные фильтры ничего не подошло", actionTitle: "Сбросить фильтры") {}
+        TFEmptyState(search: "команда")
     }
     .padding(.top, 60)
     .frame(maxWidth: .infinity, maxHeight: .infinity)

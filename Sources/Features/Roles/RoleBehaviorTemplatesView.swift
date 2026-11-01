@@ -89,7 +89,7 @@ struct RoleBehaviorTemplatesView: View {
                                 .tfText(.caption).foregroundStyle(Color.tfSub)
                         }
                     }
-                } else if busy { ProgressView() }
+                } else if busy { TFLoading(.inline) }
                 if let errorText { Text(errorText).accessibilityIdentifier("roleBehavior.error") }
                 if let status { Text(status).accessibilityIdentifier("roleBehavior.status") }
             }.padding(TFSpacing.lg).disabled(busy)

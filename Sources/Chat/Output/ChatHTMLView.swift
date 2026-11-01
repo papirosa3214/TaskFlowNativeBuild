@@ -24,7 +24,7 @@ struct ChatHTMLView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            if commands.running { ProgressView("Выполняется на .110…") }
+            if commands.running { TFLoading(.inline) }
             Divider()
             ChatWebView(html: html, height: $height, isScrollEnabled: height > Self.inlineMaxHeight, commands: commands, allowsCommands: allowsCommands)
                 .frame(height: min(max(height, 60), Self.inlineMaxHeight))

@@ -40,7 +40,7 @@ struct ChatRoomsPanel: View {
                     .accessibilityIdentifier("chats.rooms.common")
 
                 } else {
-                    ProgressView().padding(.top, TFSpacing.md)
+                    TFLoading(.block)
                 }
             }
             .padding(.vertical, TFSpacing.md)

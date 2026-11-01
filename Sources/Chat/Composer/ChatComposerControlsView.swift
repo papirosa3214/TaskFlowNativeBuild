@@ -305,13 +305,15 @@ struct ChatCommandPicker: View {
         NavigationStack {
             Group {
                 if commands.isEmpty {
-                    ContentUnavailableView {
-                        Label("Команды недоступны", systemImage: "slash.circle")
-                    } description: {
-                        Text(errorText ?? "Выберите личный чат агента с доступными навыками и инструментами.")
-                    } actions: { Button("Обновить", action: onRefresh) }
+                    TFEmptyState(
+                        icon: "slash.circle",
+                        text: "Команды недоступны",
+                        description: errorText ?? "Выберите личный чат агента с доступными навыками и инструментами.",
+                        actionTitle: "Обновить",
+                        action: onRefresh
+                    )
                 } else if filtered.isEmpty {
-                    ContentUnavailableView.search(text: query)
+                    TFEmptyState(search: query)
                 } else {
                     List {
                         if !skills.isEmpty { section("Навыки", skills) }

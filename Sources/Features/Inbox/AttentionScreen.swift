@@ -80,7 +80,7 @@ struct AttentionScreen: View {
                         )
                     }
                 } else if model.isLoading {
-                    ProgressView().frame(maxWidth: .infinity)
+                    TFLoading(.block)
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)

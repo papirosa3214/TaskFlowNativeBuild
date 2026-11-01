@@ -77,7 +77,7 @@ struct TaskPreparationView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TFSpacing.lg) {
                 if isLoading {
-                    ProgressView("Загружаю подготовку…")
+                    TFLoading(.block)
                 } else if let errorMessage {
                     // 16.10.2026 (LOCK-UI-DRIFT-KNOWN): системная кнопка в потоке
                     // экрана всегда синяя, а кнопки приложения серые. Заголовок и
@@ -96,7 +96,7 @@ struct TaskPreparationView: View {
                     Text(actionError).foregroundStyle(Color.tfRed)
                         .accessibilityIdentifier("preparation.error")
                 }
-                if isApplying { ProgressView("Сохраняю решение…") }
+                if isApplying { TFLoading(.inline) }
                 Divider()
                 DisclosureGroup("Как работает подготовка") {
                     VStack(alignment: .leading, spacing: TFSpacing.sm) {
@@ -222,7 +222,7 @@ struct TaskPreparationView: View {
             }
         } else {
             Text(statusDetail).foregroundStyle(Color.tfSub)
-            if preparation?.isPending == true { ProgressView() }
+            if preparation?.isPending == true { TFLoading(.inline) }
             if preparation?.status == "failed", let error = preparation?.error {
                 DisclosureGroup("Причина ошибки") { Text(error).tfText(.action) }
             }

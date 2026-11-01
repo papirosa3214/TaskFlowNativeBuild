@@ -50,7 +50,7 @@ struct SecretaryDraftCard: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                ProgressView().padding(TFSpacing.md)
+                TFLoading(.block)
             }
         }
         .task(id: taskID) {

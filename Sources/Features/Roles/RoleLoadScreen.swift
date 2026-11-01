@@ -29,7 +29,7 @@ struct RoleLoadScreen: View {
                         }
                     }
                 } else if error == nil {
-                    ProgressView().frame(maxWidth: .infinity)
+                    TFLoading(.block)
                 }
                 ContextObservabilitySection(window: window) { selectedTask = TaskRef(id: $0) }
             }
