@@ -122,7 +122,7 @@ struct WidgetStateMark: View {
         ZStack {
             Circle().fill(ink.fill(tone))
             Image(systemName: tone.icon)
-                .font(.system(size: glyph, weight: .semibold))
+                .tfTypeFont(size: glyph, weight: .semibold)
                 .foregroundStyle(Color.tfText)
         }
         .frame(width: diameter, height: diameter)

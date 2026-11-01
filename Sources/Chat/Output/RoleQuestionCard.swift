@@ -160,7 +160,7 @@ struct RoleQuestionCard: View {
             HStack(spacing: TFSpacing.xs) {
                 if multi {
                     Image(systemName: selected ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 13, weight: .semibold))
+                        .tfTypeFont(size: 13, weight: .semibold)
                 }
                 Text(option.label)
                     .tfText(.action)

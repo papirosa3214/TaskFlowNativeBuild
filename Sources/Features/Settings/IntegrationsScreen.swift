@@ -404,7 +404,7 @@ struct IntegrationsScreen: View {
             .tfText(.action)
             .lineLimit(1)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13))
+                .tfTypeFont(size: 13)
                 .foregroundStyle(Color.tfDim)
         }
         .accessibilityIdentifier("integrations.webhooks.status")
@@ -421,7 +421,7 @@ struct IntegrationsScreen: View {
 
     private func successBanner(_ text: String) -> some View {
         HStack(spacing: TFSpacing.sm) {
-            Image(systemName: "checkmark").font(.system(size: 16)).foregroundStyle(Color.tfSub)
+            Image(systemName: "checkmark").tfTypeFont(size: 16).foregroundStyle(Color.tfSub)
             Text(text).tfText(.action).foregroundStyle(Color.tfSub)
         }
         .padding(TFSpacing.md)
@@ -651,7 +651,7 @@ struct IntegrationsScreen: View {
                     Text(options.first { $0.id == selectedId }?.title ?? selectedId)
                         .tfText(.action).foregroundStyle(Color.tfText).lineLimit(1)
                     Spacer()
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 11)).foregroundStyle(Color.tfDim)
+                    Image(systemName: "chevron.up.chevron.down").tfTypeFont(size: 11).foregroundStyle(Color.tfDim)
                 }
                 .padding(.horizontal, TFSpacing.md)
                 .frame(height: TFHitTarget.min)
@@ -693,7 +693,7 @@ private struct IntegrationAccordionCard<Content: View>: View {
                     trailing: AnyView(HStack(spacing: TFSpacing.sm) {
                         if let badge { Text(badge).tfText(.caption).foregroundStyle(badgeColor) }
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13)).foregroundStyle(Color.tfDim)
+                            .tfTypeFont(size: 13).foregroundStyle(Color.tfDim)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }), titleStyle: .action, verticalPadding: TFSpacing.xs)
             }
@@ -724,7 +724,7 @@ private struct CalendarCheckRow: View {
                 Text(title).tfText(.action).foregroundStyle(Color.tfText).lineLimit(1)
                 Spacer()
                 if isChecked {
-                    Image(systemName: "checkmark").font(.system(size: 12)).foregroundStyle(Color.tfText)
+                    Image(systemName: "checkmark").tfTypeFont(size: 12).foregroundStyle(Color.tfText)
                 }
             }
             .padding(.horizontal, TFSpacing.sm)

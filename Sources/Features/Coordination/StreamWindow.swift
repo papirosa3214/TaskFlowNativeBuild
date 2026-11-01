@@ -68,7 +68,7 @@ public struct StreamWindow<RowContent: View>: View {
     private var header: some View {
         HStack(spacing: TFSpacing.sm) {
             Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 12, weight: .semibold))
+                .tfTypeFont(size: 12, weight: .semibold)
                 .foregroundStyle(Color.tfSub)
             Text(title)
                 .tfText(.action).fontWeight(.semibold)
@@ -132,7 +132,7 @@ public struct MessageDeliveryChip: View {
         let tint = color(for: state)
         HStack(spacing: 4) {
             Image(systemName: symbol(for: state))
-                .font(.system(size: 11, weight: .semibold))
+                .tfTypeFont(size: 11, weight: .semibold)
             Text(text)
                 .tfText(.caption)
         }

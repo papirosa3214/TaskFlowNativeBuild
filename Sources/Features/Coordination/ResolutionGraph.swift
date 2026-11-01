@@ -118,7 +118,7 @@ public struct GraphNodeView: View {
                     .strokeBorder(tint.color(for: colorScheme), lineWidth: 1.5)
                 if let symbol = tint.symbol {
                     Image(systemName: symbol)
-                        .font(.system(size: size * 0.42, weight: .semibold))
+                        .tfTypeFont(size: size * 0.42, weight: .semibold)
                         .foregroundStyle(tint.color(for: colorScheme))
                 }
                 if node.resolution == nil {

@@ -165,7 +165,7 @@ struct MarkdownKeyboardAccessoryBar: View {
             action()
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
+                .tfTypeFont(size: 16, weight: .medium)
                 .foregroundStyle(active ? Color.tfRed : Color.tfSub)
                 .frame(width: 36, height: 36)
         }

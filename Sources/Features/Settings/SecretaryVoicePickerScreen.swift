@@ -53,7 +53,7 @@ struct SecretaryVoicePickerScreen: View {
                 if let url = voice.sampleURL { try? player.toggle(url: url) }
             } label: {
                 Image(systemName: isPlaying ? "stop.fill" : "play.fill")
-                    .font(.system(size: TFIconSize.sm))
+                    .tfTypeFont(size: TFIconSize.sm)
                     .foregroundStyle(isPlaying ? Color.tfRed : Color.tfDim)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())

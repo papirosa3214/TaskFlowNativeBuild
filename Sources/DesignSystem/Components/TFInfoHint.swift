@@ -16,7 +16,7 @@ public struct TFInfoHint: View {
             isPresented = true
         } label: {
             Image(systemName: "questionmark.circle")
-                .font(.system(size: 15, weight: .regular))
+                .tfTypeFont(size: 15, weight: .regular)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())

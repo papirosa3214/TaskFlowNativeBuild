@@ -356,7 +356,7 @@ struct ServiceAccountsScreen: View {
                         Text("\(count)").tfText(.action).foregroundStyle(Color.tfDim)
                     }
                     Image(systemName: isOpen ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 13))
+                        .tfTypeFont(size: 13)
                         .foregroundStyle(Color.tfDim)
                 }
                 .padding(.horizontal, TFSpacing.lg)
@@ -464,7 +464,7 @@ struct ServiceAccountsScreen: View {
                 }
                 Spacer(minLength: TFSpacing.sm)
                 Image(systemName: viewModel.isExpanded(account.id) ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 13))
+                    .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
             .padding(.horizontal, TFSpacing.lg)

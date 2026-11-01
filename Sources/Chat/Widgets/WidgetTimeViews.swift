@@ -145,7 +145,7 @@ private struct TimelinePastStrip: View {
                 ForEach(Array(visible.enumerated()), id: \.offset) { _, item in
                     HStack(spacing: TFSpacing.xs) {
                         Image(systemName: "arrow.turn.down.right")
-                            .font(.system(size: TFIconSize.xs))
+                            .tfTypeFont(size: TFIconSize.xs)
                         Text("\(WidgetFormat.shortDate(item.string("date"))) · \(item.string("label") ?? "—")")
                             .tfText(.caption)
                             .lineLimit(1)

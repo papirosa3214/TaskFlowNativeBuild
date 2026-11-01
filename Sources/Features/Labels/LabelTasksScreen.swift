@@ -115,7 +115,7 @@ struct LabelTasksScreen: View {
                     .overlay {
                         if isDone {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .bold))
+                                .tfTypeFont(size: 12, weight: .bold)
                                 .foregroundStyle(priorityColor)
                         }
                     }
@@ -135,7 +135,7 @@ struct LabelTasksScreen: View {
                     // колонка (владелец 22.10.2026).
                     if let due = task.dueDate {
                         HStack(spacing: 3) {
-                            Image(systemName: "calendar").font(.system(size: 10))
+                            Image(systemName: "calendar").tfTypeFont(size: 10)
                             Text(DirectoryDate.dueShort(due))
                         }
                         .tfText(.caption)

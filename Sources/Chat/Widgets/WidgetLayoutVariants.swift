@@ -131,7 +131,7 @@ private struct ChecklistStatusRow: View {
                 if let meta = item.string("meta") {
                     HStack(spacing: 4) {
                         Image(systemName: tone.icon)
-                            .font(.system(size: TFIconSize.xs))
+                            .tfTypeFont(size: TFIconSize.xs)
                         Text(meta).tfText(.caption)
                     }
                     .foregroundStyle(tone.color)

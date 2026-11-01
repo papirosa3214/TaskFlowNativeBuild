@@ -229,7 +229,7 @@ struct QuickAddTaskView: View {
         if #available(iOS 26.0, *), systemAppearance {
             Button(action: save) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.glass)
@@ -237,7 +237,7 @@ struct QuickAddTaskView: View {
         } else {
             Button(action: save) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
                     .foregroundStyle(Color.tfPaper)
                     .frame(width: 36, height: 36)
                     // Кнопка — наоборот выпуклая: блик сверху, затемнение снизу,
@@ -284,7 +284,7 @@ struct QuickAddTaskView: View {
             ForEach(viewModel.subtaskDrafts) { draft in
                 HStack(spacing: TFSpacing.sm) {
                     Image(systemName: "circle")
-                        .font(.system(size: TFIconSize.xs))
+                        .tfTypeFont(size: TFIconSize.xs)
                         .foregroundStyle(Color.tfDim)
                     Text(draft.title)
                         .tfText(.body)
@@ -294,7 +294,7 @@ struct QuickAddTaskView: View {
                         viewModel.subtaskDrafts.removeAll { $0.id == draft.id }
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: TFIconSize.xs))
+                            .tfTypeFont(size: TFIconSize.xs)
                             .foregroundStyle(Color.tfDim)
                             .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                     }
@@ -305,7 +305,7 @@ struct QuickAddTaskView: View {
 
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "plus")
-                    .font(.system(size: TFIconSize.xs))
+                    .tfTypeFont(size: TFIconSize.xs)
                     .foregroundStyle(Color.tfDim)
                 TextField("Подзадача", text: $newSubtaskTitle)
                     .tfText(.input)
@@ -539,7 +539,7 @@ struct QuickAddTaskView: View {
         if systemAppearance {
             Image(systemName: systemImage)
                 .symbolVariant(isSet ? .fill : .none)
-                .font(.system(size: TFIconSize.sm))
+                .tfTypeFont(size: TFIconSize.sm)
                 // Заполненная форма сама по себе почти не читается на стекле:
                 // выбранный инструмент должен явно оставаться красным, как
                 // активные переключатели форматирования в Markdown-панели.

@@ -189,7 +189,7 @@ struct ChatScrollToBottomButton: View {
             // «в краешек пальцем лезть неудобно»). 64×36 — высота прежнего
             // кружка, ширина 16:9 от неё; зона нажатия 72×44.
             Image(systemName: "chevron.down")
-                .font(.system(size: 17, weight: .semibold))
+                .tfTypeFont(size: 17, weight: .semibold)
                 .foregroundStyle(Color.tfText)
                 .frame(width: 64, height: 36)
                 .voiceCapsuleSurface()

@@ -609,7 +609,7 @@ struct RoleStepLine: View {
     var body: some View {
         HStack(spacing: TFSpacing.sm) {
             Image(systemName: RoleStepPresentation.symbol(forTool: tool))
-                .font(.system(size: 13, weight: .medium))
+                .tfTypeFont(size: 13, weight: .medium)
                 .foregroundStyle(Color.tfSub)
                 .symbolEffect(.pulse, options: .repeating)
             Text("\(name): \(RoleStepPresentation.label(forTool: tool))")
@@ -2815,7 +2815,7 @@ struct RoleChatRoomScreen: View {
             if isSelecting {
                 Image(systemName: selectedMessageIDs.contains(message.id)
                       ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
+                    .tfTypeFont(size: 20)
                     .foregroundStyle(selectedMessageIDs.contains(message.id)
                                      ? Color.tfRed : Color.tfDim)
             }
@@ -2901,7 +2901,7 @@ struct RoleChatRoomScreen: View {
                 // Отметка выбора слева от сообщения — как в почте и Teams.
                 Image(systemName: selectedMessageIDs.contains(message.id)
                       ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
+                    .tfTypeFont(size: 20)
                     .foregroundStyle(selectedMessageIDs.contains(message.id)
                                      ? Color.tfRed : Color.tfDim)
                     .padding(.top, TFSpacing.md)
@@ -3138,7 +3138,7 @@ struct RoleChatRoomScreen: View {
             // Владелец 20.10.2026: значки мельче и одного размера — 14 pt в
             // одинаковом квадрате 16×16; зона нажатия по-прежнему 44×44.
             Image(systemName: symbol)
-                .font(.system(size: 14, weight: .regular))
+                .tfTypeFont(size: 14, weight: .regular)
                 .frame(width: 16, height: 16)
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                 .contentShape(Rectangle())

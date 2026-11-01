@@ -229,7 +229,7 @@ private struct ProfileSecureField: View {
     var body: some View {
         HStack(spacing: TFField.iconTextGap) {
             Image(systemName: "lock")
-                .font(.system(size: iconSize))
+                .tfTypeFont(size: iconSize)
                 .foregroundStyle(Color.tfDim)
             SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
                 .tfText(.input)
@@ -293,7 +293,7 @@ struct ProfileAccountRow: View {
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13))
+                .tfTypeFont(size: 13)
                 .foregroundStyle(Color.tfDim)
         }
         .contentShape(Rectangle())

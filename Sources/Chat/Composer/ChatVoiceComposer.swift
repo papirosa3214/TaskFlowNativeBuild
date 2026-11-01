@@ -163,7 +163,7 @@ struct ChatVoiceComposer: View {
         } label: {
             if circle {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 19, weight: .regular))
+                    .tfTypeFont(size: 19, weight: .regular)
                     .foregroundStyle(Color.white.opacity(0.6))
                     .frame(width: 40, height: 40)
                     .background(Color(white: 0.125), in: Circle())
@@ -278,7 +278,7 @@ struct ChatVoiceComposer: View {
                     ChatWorkspaceMenu(choice: workspaceChoice) {
                         HStack(spacing: 4) {
                             Image(systemName: "folder")
-                                .font(.system(size: 20, weight: .regular))
+                                .tfTypeFont(size: 20, weight: .regular)
                                 .frame(width: 20, height: 20)
                         }
                         .frame(minWidth: 40, minHeight: 40)
@@ -302,7 +302,7 @@ struct ChatVoiceComposer: View {
         if let onOpenSession {
             Button(action: onOpenSession) {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 19, weight: .regular))
+                    .tfTypeFont(size: 19, weight: .regular)
                     .foregroundStyle(Color.white.opacity(0.6))
                     .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
                     .background(Color(white: 0.125), in: Circle())
@@ -329,7 +329,7 @@ struct ChatVoiceComposer: View {
     private var compactMicButton: some View {
         Button(action: startVoiceRecording) {
             Image(systemName: "mic")
-                .font(.system(size: 19, weight: .regular))
+                .tfTypeFont(size: 19, weight: .regular)
                 .foregroundStyle(Color.white.opacity(0.6))
                 .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
                 .background(Color(white: 0.125), in: Circle())
@@ -379,7 +379,7 @@ struct ChatVoiceComposer: View {
         if isResponding, !canSendText, let onStop {
             Button(action: onStop) {
                 Image(systemName: "stop.fill")
-                    .font(.system(size: 15, weight: .semibold))
+                    .tfTypeFont(size: 15, weight: .semibold)
                     .foregroundStyle(.black)
                     .frame(width: knob - 4, height: knob - 4)
                     .background(.white, in: Circle())
@@ -393,7 +393,7 @@ struct ChatVoiceComposer: View {
         } else {
             Button(action: onSendText) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: 17, weight: .semibold))
+                    .tfTypeFont(size: 17, weight: .semibold)
                     .foregroundStyle(.black)
                     .frame(width: knob - 4, height: knob - 4)
                     .background(Color.white.opacity(canSendText ? 1 : 0.25), in: Circle())
@@ -447,7 +447,7 @@ struct ChatVoiceComposer: View {
     /// Значок нижней строки поля: один размер и одна зона нажатия у всех.
     private func promptIcon(_ symbol: String) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 19, weight: .regular))
+            .tfTypeFont(size: 19, weight: .regular)
             .frame(width: 40, height: 40)
     }
 
@@ -476,7 +476,7 @@ struct ChatVoiceComposer: View {
                 .frame(maxWidth: .infinity)
             Button(action: stopVoiceRecording) {
                 Image(systemName: "stop.fill")
-                    .font(.system(size: 15, weight: .semibold))
+                    .tfTypeFont(size: 15, weight: .semibold)
                     .foregroundStyle(.black)
                     .frame(width: 36, height: 36)
                     .background(.white, in: Circle())
@@ -519,7 +519,7 @@ struct ChatVoiceComposer: View {
             HStack(spacing: 12) {
                 Button(action: discardPreview) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 18, weight: .medium))
+                        .tfTypeFont(size: 18, weight: .medium)
                         .foregroundStyle(Color.tfPaper)
                         .frame(width: 40, height: 40)
                         .contentShape(Circle())
@@ -551,7 +551,7 @@ struct ChatVoiceComposer: View {
                 } else {
                     Button(action: sendPreview) {
                         Image(systemName: "square.and.pencil")
-                            .font(.system(size: 20, weight: .medium))
+                            .tfTypeFont(size: 20, weight: .medium)
                             .foregroundStyle(.black)
                             .frame(width: 40, height: 40)
                             .background(.white, in: Circle())

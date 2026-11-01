@@ -90,7 +90,7 @@ private struct SecurePasswordField: View {
     var body: some View {
         HStack(spacing: TFField.iconTextGap) {
             Image(systemName: "lock")
-                .font(.system(size: iconSize))
+                .tfTypeFont(size: iconSize)
                 .foregroundStyle(Color.tfDim)
             SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
                 .tfText(.input)

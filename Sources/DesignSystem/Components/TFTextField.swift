@@ -35,7 +35,7 @@ public struct TFTextField: View {
         HStack(spacing: TFField.iconTextGap) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: iconSize))
+                    .tfTypeFont(size: iconSize)
                     .foregroundStyle(Color.tfDim)
             }
             TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
@@ -84,7 +84,7 @@ public struct TFFieldRow: View {
         Button(action: action) {
             HStack(spacing: TFField.iconTextGap) {
                 Image(systemName: icon)
-                    .font(.system(size: iconSize))
+                    .tfTypeFont(size: iconSize)
                     .foregroundStyle(Color.tfDim)
                     .frame(width: iconSize)
                 Text(title)
@@ -96,7 +96,7 @@ public struct TFFieldRow: View {
                     .tfText(.body)
                     .foregroundStyle(valueColor)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
             .padding(.horizontal, TFField.cardInsetH)

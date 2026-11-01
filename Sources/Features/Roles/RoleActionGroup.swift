@@ -105,7 +105,7 @@ struct RoleActionGroup<Row: View>: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             Image(systemName: "square.stack.3d.up")
-                .font(.system(size: 12, weight: .medium))
+                .tfTypeFont(size: 12, weight: .medium)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 16)
             if isLive {
@@ -115,7 +115,7 @@ struct RoleActionGroup<Row: View>: View {
             }
             Text(summary).tfText(.caption).foregroundStyle(Color.tfDim)
             Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                .font(.system(size: 10, weight: .semibold))
+                .tfTypeFont(size: 10, weight: .semibold)
                 .foregroundStyle(Color.tfDim)
         }
     }

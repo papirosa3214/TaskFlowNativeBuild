@@ -187,7 +187,7 @@ struct SettingsScreen: View {
                         Spacer()
                         if isSelected {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 14, weight: .semibold))
+                                .tfTypeFont(size: 14, weight: .semibold)
                                 .foregroundStyle(Color.tfRed)
                         }
                     }
@@ -230,7 +230,7 @@ struct SettingsScreen: View {
         return Menu {
             ForEach(TFTypeFace.allCases) { face in
                 Button {
-                    UserDefaults.standard.set(face.rawValue, forKey: TFTypeFace.storageKey)
+                    TFTypeFace.save(face)
                     typeRevision &+= 1
                 } label: {
                     Text(face.title + " — " + face.subtitle)
@@ -280,7 +280,7 @@ struct SettingsScreen: View {
             HStack(spacing: TFSpacing.md) {
                 Text("Аа")
                     // design-system-guard: ignore — образец обязан быть ровно в кегле своей группы
-                    .font(.system(size: group.baseSize * current.multiplier, weight: .regular))
+                    .tfTypeFont(size: group.baseSize * current.multiplier, weight: .regular)
                     .foregroundStyle(Color.tfText)
                     .frame(width: 40, alignment: .leading)
                 VStack(alignment: .leading, spacing: 1) {
@@ -489,7 +489,7 @@ struct SettingsScreen: View {
     /// переходы только `NavigationLink(value:)`).
     private var chevron: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 13))
+            .tfTypeFont(size: 13)
             .foregroundStyle(Color.tfDim)
     }
 

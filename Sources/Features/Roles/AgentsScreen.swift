@@ -124,7 +124,7 @@ struct AgentsScreen: View {
                     icon: "bolt.horizontal", iconStyle: .plain, title: "Запуски агентов",
                     trailing: AnyView(
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13))
+                            .tfTypeFont(size: 13)
                             .foregroundStyle(Color.tfDim)
                     ),
                     titleStyle: .action, verticalPadding: TFSpacing.xs
@@ -144,7 +144,7 @@ struct AgentsScreen: View {
                     icon: "brain", iconStyle: .plain, title: "Память команды",
                     trailing: AnyView(
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13))
+                            .tfTypeFont(size: 13)
                             .foregroundStyle(Color.tfDim)
                     ),
                     titleStyle: .action, verticalPadding: TFSpacing.xs

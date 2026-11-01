@@ -35,11 +35,11 @@ struct ProjectStatusIcon: View {
             case .stale:
                 ZStack {
                     Image(systemName: "triangle")
-                    Image(systemName: "xmark").font(.system(size: size * 0.4, weight: .bold)).offset(y: size * 0.1)
+                    Image(systemName: "xmark").tfTypeFont(size: size * 0.4, weight: .bold).offset(y: size * 0.1)
                 }.foregroundStyle(Color.tfRed)
             }
         }
-        .font(.system(size: size))
+        .tfTypeFont(size: size)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }

@@ -156,7 +156,7 @@ private struct RoutineRow: View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 18))
+                    .tfTypeFont(size: 18)
                     .foregroundStyle(Color.tfDim)
                 Text(schedule.title)
                     .tfText(.taskTitle)

@@ -148,7 +148,7 @@ struct NotificationsScreen: View {
                 Spacer()
                 Text(value ?? "—").tfText(.row).foregroundStyle(tint ?? Color.tfSub)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .tfTypeFont(size: 12, weight: .semibold)
                     .foregroundStyle(Color.tfDim)
             }
             .padding(.horizontal, TFSpacing.md)
@@ -307,7 +307,7 @@ struct NotificationsScreen: View {
                     Button {
                         Task { await delete(n) }
                     } label: {
-                        Image(systemName: "trash").font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim)
+                        Image(systemName: "trash").tfTypeFont(size: TFIconSize.sm).foregroundStyle(Color.tfDim)
                             .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                     }
                     .accessibilityLabel("Удалить")
@@ -337,7 +337,7 @@ struct NotificationsScreen: View {
                 .fill(Color.tfCard2)
                 .frame(width: 36, height: 36)
                 .overlay {
-                    Image(systemName: "gearshape").font(.system(size: 17)).foregroundStyle(Color.tfDim)
+                    Image(systemName: "gearshape").tfTypeFont(size: 17).foregroundStyle(Color.tfDim)
                 }
         }
     }

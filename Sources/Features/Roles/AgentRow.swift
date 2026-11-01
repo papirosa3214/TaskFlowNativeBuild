@@ -120,7 +120,7 @@ struct AgentRow: View {
                         .fixedSize()
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
         }

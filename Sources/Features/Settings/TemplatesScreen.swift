@@ -80,7 +80,7 @@ struct TemplatesScreen: View {
                     .tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
                 Spacer()
                 Button(action: closeForm) {
-                    Image(systemName: "xmark").font(.system(size: TFIconSize.xs)).foregroundStyle(Color.tfSub)
+                    Image(systemName: "xmark").tfTypeFont(size: TFIconSize.xs).foregroundStyle(Color.tfSub)
                         .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                 }
                 .buttonStyle(TFTapScaleStyle())
@@ -351,11 +351,11 @@ private struct TemplateCardView: View {
                 if let onEdit, let onDelete {
                     HStack(spacing: TFSpacing.xs) {
                         Button(action: onEdit) {
-                            Image(systemName: "pencil").font(.system(size: TFIconSize.xs)).foregroundStyle(Color.tfDim)
+                            Image(systemName: "pencil").tfTypeFont(size: TFIconSize.xs).foregroundStyle(Color.tfDim)
                                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                         }.buttonStyle(TFTapScaleStyle())
                         Button(action: onDelete) {
-                            Image(systemName: "trash").font(.system(size: TFIconSize.xs)).foregroundStyle(Color.tfDim)
+                            Image(systemName: "trash").tfTypeFont(size: TFIconSize.xs).foregroundStyle(Color.tfDim)
                                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                         }.buttonStyle(TFTapScaleStyle())
                     }
@@ -382,7 +382,7 @@ private struct TemplateCardView: View {
 
             Button(action: onApply) {
                 HStack(spacing: TFSpacing.xs) {
-                    Image(systemName: "plus").font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "plus").tfTypeFont(size: 13, weight: .semibold)
                     Text("Создать задачу по шаблону").tfText(.caption).fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)

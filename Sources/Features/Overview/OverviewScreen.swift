@@ -98,7 +98,7 @@ struct OverviewScreen: View {
                 Text(value).tfText(.action).foregroundStyle(tint ?? Color.tfSub).lineLimit(1)
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
         }

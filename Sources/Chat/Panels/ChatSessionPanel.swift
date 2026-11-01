@@ -117,7 +117,7 @@ struct ChatSessionPanel: View {
         Button { onAttachmentSource(source(for: attachment)) } label: {
          VStack(spacing: TFSpacing.xs) {
           Image(systemName: attachment.symbol)
-           .font(.system(size: 18, weight: .medium))
+           .tfTypeFont(size: 18, weight: .medium)
            .foregroundStyle(Color.tfText)
            .frame(width: 38, height: 38)
            .background(Color.white.opacity(0.08),
@@ -256,12 +256,12 @@ struct ChatSessionPanel: View {
    VStack(alignment: .leading, spacing: TFSpacing.xs) {
     HStack {
      Image(systemName: mode.symbol)
-      .font(.system(size: 16, weight: .medium))
+      .tfTypeFont(size: 16, weight: .medium)
       .foregroundStyle(isSelected ? Color.tfText : Color.tfSub)
      Spacer(minLength: 0)
      if isSelected {
       Image(systemName: "checkmark")
-       .font(.system(size: 13, weight: .semibold))
+       .tfTypeFont(size: 13, weight: .semibold)
        .foregroundStyle(Color.tfText)
      }
     }
@@ -293,12 +293,12 @@ struct ChatSessionPanel: View {
    VStack(alignment: .leading, spacing: TFSpacing.xs) {
     HStack {
      Image(systemName: mode.symbol)
-      .font(.system(size: 16, weight: .medium))
+      .tfTypeFont(size: 16, weight: .medium)
       .foregroundStyle(isSelected ? Color.tfText : Color.tfSub)
      Spacer(minLength: 0)
      if isSelected {
       Image(systemName: "checkmark")
-       .font(.system(size: 13, weight: .semibold))
+       .tfTypeFont(size: 13, weight: .semibold)
        .foregroundStyle(Color.tfText)
      }
     }

@@ -11,7 +11,7 @@ public struct TFKeyboardDismissLabel: View {
     public init() {}
     public var body: some View {
         Image(systemName: "keyboard.chevron.compact.down")
-            .font(.system(size: 18))
+            .tfTypeFont(size: 18)
             .frame(width: TFHitTarget.min, height: TFHitTarget.min)
     }
 }
@@ -40,7 +40,7 @@ public struct TFDictationLabel: View {
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
         } else {
             Image(systemName: "mic.fill")
-                .font(.system(size: 18))
+                .tfTypeFont(size: 18)
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
         }
     }

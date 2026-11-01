@@ -103,7 +103,7 @@ struct TFPlannerToolbarIcon: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: 16, weight: weight))
+            .tfTypeFont(size: 16, weight: weight)
             .foregroundStyle(tint)
             .frame(width: 24, height: 24)
     }

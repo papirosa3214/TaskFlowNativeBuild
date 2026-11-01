@@ -109,7 +109,7 @@ struct RuntimeStatusScreen: View {
     private func infoRow(icon: String, title: String, value: String) -> some View {
         HStack(spacing: TFSpacing.md) {
             Image(systemName: icon)
-                .font(.system(size: TFIconSize.sm))
+                .tfTypeFont(size: TFIconSize.sm)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 22)
             Text(title)
@@ -163,7 +163,7 @@ struct RuntimeStatusRow: View {
                     .lineLimit(1)
                     .fixedSize()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
         } else if viewModel.isLoading {
@@ -172,7 +172,7 @@ struct RuntimeStatusRow: View {
             HStack(spacing: 4) {
                 Text("недоступен").tfText(.action).foregroundStyle(Color.tfDim)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
         }

@@ -148,7 +148,7 @@ private struct BarsListRow: View {
                 Spacer(minLength: TFSpacing.sm)
                 if tone == .over {
                     Image(systemName: tone.icon)
-                        .font(.system(size: TFIconSize.xs))
+                        .tfTypeFont(size: TFIconSize.xs)
                         .foregroundStyle(tone.color)
                 }
                 Text(fraction(item))
@@ -253,7 +253,7 @@ private struct ChainLink: View {
             ZStack {
                 Circle().fill(ink.fill(tone))
                 Image(systemName: tone.icon)
-                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
                     .foregroundStyle(Color.tfText)
             }
             .frame(width: 28, height: 28)

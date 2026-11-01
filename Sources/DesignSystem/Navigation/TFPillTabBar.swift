@@ -112,7 +112,7 @@ public struct TFPillTabBar<Content: View>: View {
     private var createButton: some View {
         Button(action: onCreateTap) {
             Image(systemName: "plus")
-                .font(.system(size: 21, weight: .semibold))
+                .tfTypeFont(size: 21, weight: .semibold)
                 .foregroundStyle(Color.tfBackground)
         }
         .buttonStyle(.plain)

@@ -788,7 +788,7 @@ struct VoiceModelRow: View {
 
     var body: some View {
         HStack(spacing: TFSpacing.md) {
-            Image(systemName: icon).font(.system(size: TFIconSize.sm)).foregroundStyle(Color.tfDim).frame(width: 20)
+            Image(systemName: icon).tfTypeFont(size: TFIconSize.sm).foregroundStyle(Color.tfDim).frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 // Длинные заголовки («Расшифровка действий») слегка
                 // ужимаются, а не обрезаются многоточием.

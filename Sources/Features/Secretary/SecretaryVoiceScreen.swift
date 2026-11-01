@@ -272,7 +272,7 @@ private struct HangUpSlider: View {
                     .frame(width: knob, height: knob)
                     .overlay {
                         Image(systemName: "phone.down.fill")
-                            .font(.system(size: TFIconSize.md))
+                            .tfTypeFont(size: TFIconSize.md)
                             .foregroundStyle(Color.tfPaper)
                     }
                     .offset(x: inset + offset)

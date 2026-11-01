@@ -10,7 +10,7 @@ public struct TFCriticApprovedMark: View {
             Image(systemName: "checkmark").offset(x: -2.5)
             Image(systemName: "checkmark").offset(x: 2.5)
         }
-        .font(.system(size: TFIconSize.xs - 3, weight: .bold))
+        .tfTypeFont(size: TFIconSize.xs - 3, weight: .bold)
         .foregroundStyle(Color.tfGreen)
         .padding(.horizontal, 2.5)
         .accessibilityLabel("Критик проверил")

@@ -111,7 +111,7 @@ struct RoleLiveStepRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             icon
-                .font(.system(size: 12, weight: .medium))
+                .tfTypeFont(size: 12, weight: .medium)
                 .frame(width: 16)
             Text(RoleActionPresentation.forStep(step).title)
                 .tfText(.meta)
@@ -516,14 +516,14 @@ struct RoleThinkingLiveRow: View {
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
                     Image(systemName: "brain")
-                        .font(.system(size: 12, weight: .medium))
+                        .tfTypeFont(size: 12, weight: .medium)
                         .foregroundStyle(Color.tfSub)
                         .symbolEffect(.pulse, options: .repeating)
                         .frame(width: 16)
                     RoleShimmerText(text: "Думает…")
                     if hasText {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
+                            .tfTypeFont(size: 10, weight: .semibold)
                             .foregroundStyle(Color.tfDim)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }
@@ -701,7 +701,7 @@ struct RoleThinkingDoneRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             Image(systemName: "brain")
-                .font(.system(size: 12, weight: .medium))
+                .tfTypeFont(size: 12, weight: .medium)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 16)
             Text("Размышления")
@@ -713,7 +713,7 @@ struct RoleThinkingDoneRow: View {
                     .foregroundStyle(Color.tfDim)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .semibold))
+                .tfTypeFont(size: 10, weight: .semibold)
                 .foregroundStyle(Color.tfDim)
         }
         .accessibilityElement(children: .ignore)

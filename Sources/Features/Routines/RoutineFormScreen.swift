@@ -39,7 +39,7 @@ struct RoutineFormScreen: View {
                         }
                     } label: {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 16, weight: .semibold))
+                            .tfTypeFont(size: 16, weight: .semibold)
                     }
                     .disabled(!model.canSave || model.isSaving)
                     .accessibilityLabel("Сохранить")
@@ -204,14 +204,14 @@ struct RoutineFormScreen: View {
             } label: {
                 HStack(spacing: TFSpacing.md) {
                     Image(systemName: selectedTemplate?.icon ?? "wand.and.stars")
-                        .font(.system(size: 18))
+                        .tfTypeFont(size: 18)
                         .foregroundStyle(Color.tfDim)
                     Text(selectedTemplate?.title ?? "Автоматически")
                         .tfText(.row)
                         .foregroundStyle(Color.tfText)
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 13, weight: .semibold))
+                        .tfTypeFont(size: 13, weight: .semibold)
                         .foregroundStyle(Color.tfDim)
                 }
                 .frame(minHeight: TFHitTarget.min)
@@ -268,7 +268,7 @@ private struct PlanFlowView: View {
                 }
                 if index < stages.count - 1 {
                     Image(systemName: "arrow.down")
-                        .font(.system(size: 11, weight: .semibold))
+                        .tfTypeFont(size: 11, weight: .semibold)
                         .foregroundStyle(Color.tfDim)
                         .padding(.leading, TFSpacing.md)
                 }

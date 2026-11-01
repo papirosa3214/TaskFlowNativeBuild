@@ -196,7 +196,7 @@ struct TodayListView: View {
         HStack(spacing: 6) {
             if let icon = section.icon {
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .tfTypeFont(size: 16)
                     .foregroundStyle(section.color)
             }
             // Владелец 26.10.2026: подзаголовки «Планирования» — те же, что

@@ -162,7 +162,7 @@ public struct TFAvatar: View {
             TFRolePortrait(role: roleKey, imageAsset: asset, loopName: roleLoop, side: side)
         } else {
             Circle().fill(tint).frame(width: side, height: side)
-                .overlay { Text(initials).font(.system(size: side * 0.43, weight: .semibold)).foregroundStyle(Color.tfPaper) }
+                .overlay { Text(initials).tfTypeFont(size: side * 0.43, weight: .semibold).foregroundStyle(Color.tfPaper) }
         }
     }
 

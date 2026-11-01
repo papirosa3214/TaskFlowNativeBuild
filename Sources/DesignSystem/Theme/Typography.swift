@@ -427,4 +427,31 @@ public extension View {
     func tfChatTypography() -> some View {
         environment(\.tfTypeSettingsEnabled, false)
     }
+
+    /// Шрифт выбранной гарнитуры по размеру и начертанию.
+    ///
+    /// Для мест, где кегль задан руками (`.tfTypeFont(size: 15)`): такие
+    /// вызовы идут мимо шкалы, поэтому выбранная гарнитура в них не действовала
+    /// (владелец 01.11.2026: «шрифты вроде меняются, но большинство не меняет
+    /// ничего»). Здесь размер и начертание сохраняются, а гарнитура — та,
+    /// что выбрана в «Настройках → Внешний вид». В чатах настройка выключена
+    /// (`.tfTypeSettingsEnabled(false)`), и шрифт остаётся системным.
+    func tfTypeFont(size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> some View {
+        modifier(TFTypeFontModifier(size: size, weight: weight, design: design))
+    }
+}
+
+/// Модификатор гарнитуры для мест с ручным кеглем.
+private struct TFTypeFontModifier: ViewModifier {
+    let size: CGFloat
+    let weight: Font.Weight
+    let design: Font.Design
+
+    @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+
+    func body(content: Content) -> some View {
+        content.font(
+            TFTypeFace.active(size: size, weight: weight, design: design, enabled: typeSettingsEnabled)
+        )
+    }
 }

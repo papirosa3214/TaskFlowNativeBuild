@@ -51,7 +51,7 @@ struct LabelsScreen: View {
                         } label: {
                             HStack(spacing: TFSpacing.md) {
                                 Image(systemName: "plus")
-                                    .font(.system(size: TFIconSize.sm))
+                                    .tfTypeFont(size: TFIconSize.sm)
                                     .foregroundStyle(Color.tfDim)
                                 Text("Создать метку")
                                     .tfText(.action)
@@ -104,7 +104,7 @@ struct LabelsScreen: View {
                         .frame(width: 28, height: 28)
                         .overlay {
                             Image(systemName: "tag")
-                                .font(.system(size: 16))
+                                .tfTypeFont(size: 16)
                                 .foregroundStyle(Color.tfReadableText(Color(hex: label.color ?? TFHexDefault.unassigned)))
                         }
                     VStack(alignment: .leading, spacing: 1) {
@@ -127,7 +127,7 @@ struct LabelsScreen: View {
 
             Button { editingID = label.id } label: {
                 Image(systemName: "pencil")
-                    .font(.system(size: 16))
+                    .tfTypeFont(size: 16)
                     .foregroundStyle(Color.tfDim)
                     .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                     .contentShape(Rectangle())
@@ -136,7 +136,7 @@ struct LabelsScreen: View {
 
             Button { requestDelete(label) } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 16))
+                    .tfTypeFont(size: 16)
                     .foregroundStyle(Color.tfDim)
                     .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                     .contentShape(Rectangle())

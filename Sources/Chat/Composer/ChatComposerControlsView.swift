@@ -232,7 +232,7 @@ struct ChatCommandCard: View {
     var body: some View {
         HStack(spacing: TFSpacing.md) {
             Image(systemName: command.cardIcon)
-                .font(.system(size: 16, weight: .medium))
+                .tfTypeFont(size: 16, weight: .medium)
                 .foregroundStyle(Color.tfText)
                 .frame(width: 34, height: 34)
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -262,7 +262,7 @@ private struct ChatCommandDetailScreen: View {
             VStack(alignment: .leading, spacing: TFSpacing.lg) {
                 HStack(spacing: TFSpacing.md) {
                     Image(systemName: command.cardIcon)
-                        .font(.system(size: 24, weight: .medium))
+                        .tfTypeFont(size: 24, weight: .medium)
                         .foregroundStyle(Color.tfText)
                         .frame(width: 52, height: 52)
                         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 13, style: .continuous))

@@ -46,7 +46,7 @@ public struct TFCheckbox: View {
             if isChecked {
                 // 12 из 21 — та же пропорция, что у StateMark в вебе (галочка мельче поля).
                 Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .tfTypeFont(size: 12, weight: .bold)
                     .foregroundStyle(Color.tfPaper)
             }
         }
@@ -109,7 +109,7 @@ public struct TFSubtaskStatusRing: View {
                     .overlay(Circle().strokeBorder(Color.tfGreen, lineWidth: 2))
                     .overlay {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
+                            .tfTypeFont(size: 12, weight: .bold)
                             .foregroundStyle(Color.tfPaper)
                     }
             case .running:
@@ -126,12 +126,12 @@ public struct TFSubtaskStatusRing: View {
             case .blocked:
                 // text-orange — тот же цвет, что «заблокировано» в статусе задачи наверху (не coral: тот = «агент пропал»).
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 21))
+                    .tfTypeFont(size: 21)
                     .foregroundStyle(Color.tfOrange)
             case .review:
                 // text-blue — тот же цвет, что «на проверке» в статусе задачи наверху.
                 Image(systemName: "eye")
-                    .font(.system(size: 21))
+                    .tfTypeFont(size: 21)
                     .foregroundStyle(Color.tfBlue)
             }
         }

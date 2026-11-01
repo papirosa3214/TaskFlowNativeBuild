@@ -344,7 +344,7 @@ struct ProjectNotesSection: View {
                         Task { await createAndAttach() }
                     } label: {
                         HStack(spacing: TFSpacing.sm) {
-                            Image(systemName: "folder.badge.plus").font(.system(size: 16))
+                            Image(systemName: "folder.badge.plus").tfTypeFont(size: 16)
                             Text(busy ? "Создаём…" : "Создать «\(project.name)»")
                         }
                         .tfText(.action)
@@ -363,7 +363,7 @@ struct ProjectNotesSection: View {
                             pickerOpen = true
                         } label: {
                             HStack(spacing: TFSpacing.sm) {
-                                Image(systemName: "folder").font(.system(size: 16))
+                                Image(systemName: "folder").tfTypeFont(size: 16)
                                 Text("Выбрать папку")
                             }
                             .tfText(.action)

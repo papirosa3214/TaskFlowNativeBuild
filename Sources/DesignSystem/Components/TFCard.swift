@@ -123,7 +123,7 @@ public struct TFListRow: View {
                 trailing
             } else if action != nil {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13))
+                    .tfTypeFont(size: 13)
                     .foregroundStyle(Color.tfDim)
             }
         }
@@ -147,7 +147,7 @@ public struct TFListRow: View {
                 .frame(width: 40, height: 40)
                 .overlay {
                     Image(systemName: icon)
-                        .font(.system(size: TFIconSize.sm))
+                        .tfTypeFont(size: TFIconSize.sm)
                         .foregroundStyle(iconTint)
                 }
         case .asset(let name):
@@ -160,7 +160,7 @@ public struct TFListRow: View {
                 .frame(width: 40, height: 40)
         case .plain:
             Image(systemName: icon)
-                .font(.system(size: TFIconSize.sm))
+                .tfTypeFont(size: TFIconSize.sm)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 40, height: 40)
         case .remote(let url):
@@ -170,7 +170,7 @@ public struct TFListRow: View {
                     .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
             } placeholder: {
                 Image(systemName: icon)
-                    .font(.system(size: TFIconSize.sm))
+                    .tfTypeFont(size: TFIconSize.sm)
                     .foregroundStyle(Color.tfDim)
             }
             .frame(width: 40, height: 40)

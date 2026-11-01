@@ -23,7 +23,7 @@ struct UpcomingTaskChip: View {
                             )
                         if isDone {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 7, weight: .bold))
+                                .tfTypeFont(size: 7, weight: .bold)
                                 .foregroundStyle(Color.tfSub)
                         }
                     }
@@ -76,7 +76,7 @@ struct UpcomingDayListRow: View {
                         )
                     if isDone {
                         Image(systemName: "checkmark")
-                            .font(.system(size: checkboxSize * 0.55, weight: .bold))
+                            .tfTypeFont(size: checkboxSize * 0.55, weight: .bold)
                             .foregroundStyle(Color.tfSub)
                     }
                 }

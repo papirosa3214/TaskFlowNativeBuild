@@ -106,7 +106,7 @@ struct ChatModelPickerSheet: View {
                 favorites.toggle(option.id)
             } label: {
                 Image(systemName: favorites.isFavorite(option.id) ? "star.fill" : "star")
-                    .font(.system(size: 15, weight: .medium))
+                    .tfTypeFont(size: 15, weight: .medium)
                     .foregroundStyle(favorites.isFavorite(option.id) ? Color.tfYellow : Color.tfDim)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
@@ -116,7 +116,7 @@ struct ChatModelPickerSheet: View {
             .accessibilityIdentifier("chat.model.favorite.\(option.id)")
             if choice.selected == option.id {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .tfTypeFont(size: 15, weight: .semibold)
                     .foregroundStyle(Color.tfRed)
                     .frame(width: 20, height: 32)
                     .accessibilityLabel("Выбрана")

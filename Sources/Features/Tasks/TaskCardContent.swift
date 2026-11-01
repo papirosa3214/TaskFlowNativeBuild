@@ -1927,12 +1927,12 @@ struct TaskCardContent: View {
             // Шаг проверки сдан, но его итог — «вернуть на доработку»: это не
             // «выполнено», зелёная галочка здесь обманывает.
             Image(systemName: "arrow.uturn.backward.circle.fill")
-                .font(.system(size: 20))
+                .tfTypeFont(size: 20)
                 .foregroundStyle(Color.tfOrange)
                 .frame(width: 21, height: 21)
         } else {
             Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 20))
+                .tfTypeFont(size: 20)
                 .foregroundStyle(subtask.done ? Color.tfTeal : .tfReadableSecondary)
                 .frame(width: 21, height: 21)
         }
@@ -2017,7 +2017,7 @@ struct TaskCardContent: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             ForEach(Array(actions.suffix(5)), id: \.id) { action in
                 Image(systemName: activityIcon(action.kind))
-                    .font(.system(size: 12))
+                    .tfTypeFont(size: 12)
                     .foregroundStyle(Color.tfDim)
                     .frame(width: 24, height: 24)
                     .background(Color.tfCard2)

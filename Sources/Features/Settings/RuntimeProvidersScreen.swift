@@ -106,7 +106,7 @@ struct RuntimeProvidersScreen: View {
             }
             Spacer(minLength: TFSpacing.sm)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13))
+                .tfTypeFont(size: 13)
                 .foregroundStyle(Color.tfDim)
         }
         .padding(.horizontal, TFSpacing.lg)

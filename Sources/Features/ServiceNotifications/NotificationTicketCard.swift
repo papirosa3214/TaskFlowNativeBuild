@@ -82,7 +82,7 @@ struct NotificationTicketCard: View {
                 .lineLimit(2).multilineTextAlignment(.leading)
             Spacer(minLength: TFSpacing.sm)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13)).foregroundStyle(Color.tfDim)
+                .tfTypeFont(size: 13).foregroundStyle(Color.tfDim)
         }
     }
 

@@ -61,7 +61,7 @@ public struct TFPriorityArrows: View {
         VStack(spacing: -3) {
             ForEach(0..<count, id: \.self) { _ in
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 10, weight: .bold))
+                    .tfTypeFont(size: 10, weight: .bold)
             }
         }
         .foregroundStyle(priority.color)

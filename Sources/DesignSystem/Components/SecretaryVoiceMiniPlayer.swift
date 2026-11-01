@@ -87,7 +87,7 @@ struct SecretaryMicRing: View {
                 }
             }
             Image(systemName: "mic")
-                .font(.system(size: micSize, weight: .regular))
+                .tfTypeFont(size: micSize, weight: .regular)
                 .foregroundStyle(Color.tfRed)
         }
         .opacity(isFailed ? 0.4 : 1)

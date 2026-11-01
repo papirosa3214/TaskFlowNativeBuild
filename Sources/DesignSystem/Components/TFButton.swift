@@ -69,7 +69,7 @@ public struct TFButton: View {
             HStack(spacing: TFSpacing.sm) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
+                        .tfTypeFont(size: 16, weight: .semibold)
                 }
                 Text(title)
                     .tfText(.body)
@@ -118,7 +118,7 @@ public struct TFIconButton: View {
     public var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: size, weight: .regular))
+                .tfTypeFont(size: size, weight: .regular)
                 .foregroundStyle(Color.tfText)
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                 .contentShape(Rectangle())

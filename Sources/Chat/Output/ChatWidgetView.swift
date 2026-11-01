@@ -304,7 +304,7 @@ private struct WeatherWidget: View {
                 VStack(alignment: .trailing, spacing: TFSpacing.xs) {
                     Image(systemName: WeatherSymbol.name(icon, isDay: isDay))
                         .symbolRenderingMode(.multicolor)
-                        .font(.system(size: 40))
+                        .tfTypeFont(size: 40)
                     if let condition = data.string("condition") {
                         Text(condition).font(.subheadline.weight(.medium))
                     }

@@ -304,7 +304,7 @@ public struct NotesScreen: View {
                     TFCheckbox(isChecked: viewModel.isSelected(row))
                 }
                 Image(systemName: viewModel.expandedFolderIDs.contains(folder.id) ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .tfTypeFont(size: 12, weight: .semibold)
                     .foregroundStyle(Color.tfDim)
                     .frame(width: 16)
                 Image(systemName: "folder")

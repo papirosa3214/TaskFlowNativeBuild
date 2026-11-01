@@ -282,7 +282,7 @@ struct ProjectsScreen: View {
         NavigationLink(value: route) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: icon)
-                    .font(.system(size: 19))
+                    .tfTypeFont(size: 19)
                     .foregroundStyle(tint)
                 Text(title).lineLimit(1)
                 Text("\(count)").monospacedDigit().foregroundStyle(Color.tfSub)
@@ -657,7 +657,7 @@ private struct QuickAddProjectView: View {
                 }
                 Image(systemName: systemImage)
                     .symbolVariant(isSet && swatch == nil ? .fill : .none)
-                    .font(.system(size: TFIconSize.sm))
+                    .tfTypeFont(size: TFIconSize.sm)
                     .foregroundStyle(isSet ? Color.tfRed : Color.tfSub)
             }
             .frame(width: slot, height: slot)
@@ -692,7 +692,7 @@ private struct QuickAddProjectView: View {
         if #available(iOS 26.0, *), systemAppearance {
             Button(action: save) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.glass)
@@ -700,7 +700,7 @@ private struct QuickAddProjectView: View {
         } else {
             Button(action: save) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: TFIconSize.xs, weight: .semibold))
+                    .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
                     .foregroundStyle(Color.tfPaper)
                     .frame(width: 36, height: 36)
                     .background {

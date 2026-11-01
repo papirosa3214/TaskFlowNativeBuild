@@ -36,7 +36,7 @@ struct ChatHandoffCard: View {
                         .tfText(.meta)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .tfTypeFont(size: 12, weight: .semibold)
                 }
                 .foregroundStyle(Color.tfSub)
                 .padding(.horizontal, TFSpacing.md)

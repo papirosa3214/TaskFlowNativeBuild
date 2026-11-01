@@ -30,7 +30,7 @@ public struct ComposioServiceIcon: View {
                     .foregroundStyle(Color.tfDim)
             } else {
                 Image(systemName: fallback)
-                    .font(.system(size: TFIconSize.sm))
+                    .tfTypeFont(size: TFIconSize.sm)
                     .foregroundStyle(Color.tfDim)
             }
         }

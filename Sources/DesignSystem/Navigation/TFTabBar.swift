@@ -223,7 +223,7 @@ public struct TFTabBar: View {
             TFGlassTabIcon(size: TFTabBarMetrics.createButtonSize, tint: .tfRed,
                            isActive: isCreateMenuOpen, circular: true, surfaceTint: .tfRed) {
                 Image(systemName: "plus")
-                    .font(.system(size: TFTabBarMetrics.iconSize, weight: .semibold))
+                    .tfTypeFont(size: TFTabBarMetrics.iconSize, weight: .semibold)
                     .foregroundStyle(.black)
                     .rotationEffect(.degrees(isCreateMenuOpen ? 45 : 0))
             }
@@ -287,7 +287,7 @@ public struct TFCreateMenu: View {
                             .frame(width: TFCreateMenuMetrics.itemIconSlot, height: TFCreateMenuMetrics.itemIconSlot)
                             .overlay {
                                 Image(systemName: item.icon)
-                                    .font(.system(size: TFCreateMenuMetrics.itemIconSize))
+                                    .tfTypeFont(size: TFCreateMenuMetrics.itemIconSize)
                                     .foregroundStyle(Color.tfText)
                             }
                         VStack(alignment: .leading, spacing: 2) {

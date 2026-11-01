@@ -124,7 +124,7 @@ struct ActivityChart: View {
                     singleDayDate = nil
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
+                        Image(systemName: "chevron.left").tfTypeFont(size: 12, weight: .semibold)
                         Text(drillDown.parentPeriodLabel).tfText(.meta)
                     }
                     .foregroundStyle(Color.tfSub)
@@ -139,7 +139,7 @@ struct ActivityChart: View {
                     .fill(chartGreen.opacity(0.15))
                     .frame(width: 28, height: 28)
                     .overlay {
-                        Image(systemName: "waveform.path.ecg").font(.system(size: TFIconSize.xs)).foregroundStyle(chartGreen)
+                        Image(systemName: "waveform.path.ecg").tfTypeFont(size: TFIconSize.xs).foregroundStyle(chartGreen)
                     }
             }
             VStack(alignment: .leading, spacing: 1) {
@@ -539,7 +539,7 @@ struct ActivityChart: View {
             if donutData.isSingleDay {
                 HStack {
                     HStack(spacing: 6) {
-                        Image(systemName: "calendar").font(.system(size: 12)).foregroundStyle(Color.tfRed)
+                        Image(systemName: "calendar").tfTypeFont(size: 12).foregroundStyle(Color.tfRed)
                         Text(donutData.title).tfText(.action).fontWeight(.semibold).foregroundStyle(Color.tfText)
                     }
                     Spacer()

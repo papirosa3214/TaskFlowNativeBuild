@@ -146,6 +146,18 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
         return face
     }
 
+    /// Сохранить гарнитуру и перерисовать приложение.
+    ///
+    /// Счётчик `taskflow_type_revision` держит корень `TaskFlowApp` в
+    /// `@AppStorage` и кладёт в `.id(...)` — без его роста дерево экранов не
+    /// пересоздаётся и выбранная гарнитура не видна (владелец 01.11.2026:
+    /// «шрифты вроде меняются, но большинство не меняет ничего»).
+    static func save(_ face: TFTypeFace) {
+        UserDefaults.standard.set(face.rawValue, forKey: storageKey)
+        let next = UserDefaults.standard.integer(forKey: TFTypeScale.revisionKey) + 1
+        UserDefaults.standard.set(next, forKey: TFTypeScale.revisionKey)
+    }
+
     /// Шрифт нужного кегля. Жирность сводится к двум файлам: semibold и bold берут Bold.
     func font(size: CGFloat, weight: Font.Weight, design: Font.Design = .default) -> Font {
         guard let names else { return .system(size: size, weight: weight, design: design) }

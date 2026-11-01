@@ -33,7 +33,7 @@ struct AddSubtaskRow: View {
             if !text.trimmingCharacters(in: .whitespaces).isEmpty {
                 Button(action: onSubmit) {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 16, weight: .semibold))
+                        .tfTypeFont(size: 16, weight: .semibold)
                         .foregroundStyle(Color.tfRed)
                         .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                 }

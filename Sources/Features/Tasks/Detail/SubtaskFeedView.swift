@@ -81,7 +81,7 @@ struct SubtaskFeedView: View {
                 Spacer()
                 if hasDetails(subtask) {
                     Image(systemName: expandedId == subtask.id ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12))
+                        .tfTypeFont(size: 12)
                         .foregroundStyle(Color.tfDim)
                 }
             }

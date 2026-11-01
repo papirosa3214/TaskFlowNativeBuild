@@ -114,7 +114,7 @@ struct RoleChatStartView: View {
                 .accessibilityIdentifier("chat.start.quickActions")
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
+                    .tfTypeFont(size: 15, weight: .semibold)
                     .foregroundStyle(Color.tfDim)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
@@ -136,7 +136,7 @@ struct RoleChatStartView: View {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 HStack {
                     Image(systemName: command.icon)
-                        .font(.system(size: 18, weight: .medium))
+                        .tfTypeFont(size: 18, weight: .medium)
                         .foregroundStyle(Color.tfText)
                         .frame(width: 38, height: 38)
                         .background(Color.white.opacity(0.08),
@@ -145,7 +145,7 @@ struct RoleChatStartView: View {
                     // В режиме правки карточка показывает, что её можно менять.
                     if isEditingCommands {
                         Image(systemName: "pencil")
-                            .font(.system(size: 13, weight: .medium))
+                            .tfTypeFont(size: 13, weight: .medium)
                             .foregroundStyle(Color.tfDim)
                     }
                 }

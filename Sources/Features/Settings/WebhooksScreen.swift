@@ -96,7 +96,7 @@ struct WebhooksScreen: View {
                                 .tfText(.action)
                                 .foregroundStyle(hook.enabled ? Color.tfGreen : Color.tfSub)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 13))
+                                .tfTypeFont(size: 13)
                                 .foregroundStyle(Color.tfDim)
                         }),
                         titleStyle: .action,
