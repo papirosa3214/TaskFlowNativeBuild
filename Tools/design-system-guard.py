@@ -227,6 +227,14 @@ RULES = [
         "fix": "фон экрана — `.tfScreenBackground()`: он гасит системный фон списка "
                "и оставляет фон приложения под `refreshable`",
     },
+    {
+        "id": "raw-pill",
+        "severity": "error",
+        "title": "самодельная плашка-капсула вместо `TFPill`",
+        "fix": "плашка — `TFPill`: текстовая форма `TFPill(\"…\", color:)` либо "
+               "форма с произвольным содержимым `TFPill(surface:radius:)`; "
+               "собственный `clipShape` с радиусом `pill` — не заводится",
+    },
 ]
 
 TOGGLE = re.compile(r"(?<![\w.])Toggle\s*\(")
@@ -340,6 +348,22 @@ RAW_SCREEN_BACKGROUND_ALLOWED = {
     # Сквозная подложка на весь экран (не «фон экрана»).
     "Features/Secretary/SecretaryVoiceScreen.swift",
     "Chat/Composer/ChatVoiceComposer.swift",
+}
+# F12: самодельная плашка — капсула, скруглённая `TFRadius.pill`, собранная
+# руками: либо подложка `tfCard`/`tfCard2` под скруглением-капсулой, либо
+# отступы под скруглением-капсулой. Канон — `TFPill` (две формы: текстовая
+# и с произвольным содержимым).
+RAW_PILL = re.compile(
+    r"\.background\(\s*Color\.tfCard2?\s*\)"
+    r"[^\n]*\n\s*\.clipShape\(\s*RoundedRectangle\(\s*cornerRadius:\s*TFRadius\.pill\s*\)\s*\)"
+    r"|"
+    r"\.padding\([^\n]*\)\s*\n\s*\.clipShape\(\s*RoundedRectangle\(\s*cornerRadius:\s*TFRadius\.pill\s*\)\s*\)"
+)
+# Графические примитивы, которые лишь похожи на плашку: их скругление — часть
+# рисунка, а не подложка-бейдж.
+RAW_PILL_ALLOWED = {
+    "Features/Planner/PlannerWeekView.swift",   # ячейка дня в недельной сетке
+    "Chat/Widgets/WidgetTimeViews.swift",       # ячейка тепловой карты и легенда
 }
 
 
@@ -560,6 +584,27 @@ def check_line(path: str, lines, index: int, preview=None, canon_lines=None):
     return hits
 
 
+def scan_raw_pill(path: str, source: str):
+    """Самодельные плашки-капсулы: подложка `tfCard`/`tfCard2` или отступы
+    под скруглением-капсулой. Канон — `TFPill`. Проверка многострочная,
+    поэтому делается по тексту файла, а не по строке."""
+    rel = sources_rel(path)
+    if rel.startswith("DesignSystem/") or rel in RAW_PILL_ALLOWED:
+        return []
+    if path == "<правка>":
+        rel = ""
+    findings = []
+    lines = source.splitlines()
+    for found in RAW_PILL.finditer(source):
+        line = source.count("\n", 0, found.start()) + 1
+        if line > len(lines):
+            continue
+        if "design-system-guard: ignore" in lines[line - 1]:
+            continue
+        findings.append((path, line, "raw-pill", lines[line - 1].strip()))
+    return findings
+
+
 def scan_file(path: str, only_lines=None):
     """Собирает находки в файле. only_lines — множество номеров (1-based)."""
     try:
@@ -576,6 +621,7 @@ def scan_file(path: str, only_lines=None):
         for rule_id in check_line(path, lines, index, preview, canon_lines):
             findings.append((path, index + 1, rule_id, lines[index].strip()))
     findings.extend(row for row in scan_control_colors(path, "\n".join(lines)) if only_lines is None or row[1] in only_lines)
+    findings.extend(row for row in scan_raw_pill(path, "\n".join(lines)) if only_lines is None or row[1] in only_lines)
     return findings
 
 
@@ -587,6 +633,7 @@ def scan_fragment(text: str):
         for rule_id in check_line("<правка>", lines, index, preview):
             findings.append(("<правка>", index + 1, rule_id, lines[index].strip()))
     findings.extend(scan_control_colors("<правка>", text))
+    findings.extend(scan_raw_pill("<правка>", text))
     return findings
 
 

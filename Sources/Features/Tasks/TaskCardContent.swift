@@ -813,17 +813,18 @@ struct TaskCardContent: View {
     /// сжаты в один ряд ярлычков вместо четырёх полноширинных строк.
     @ViewBuilder
     private func detailChip(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-            Text(text)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+        TFPill(surface: .clear) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                Text(text)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .tfText(.action)
+            .foregroundStyle(Color.tfSub)
+            .padding(.horizontal, TFSpacing.sm)
+            .padding(.vertical, 6)
         }
-        .tfText(.action)
-        .foregroundStyle(Color.tfSub)
-        .padding(.horizontal, TFSpacing.sm)
-        .padding(.vertical, 6)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
     }
 
     /// Содержимое секции «Сведения»: ряд чипов (срок/проект/приоритет/метки),
@@ -1926,12 +1927,10 @@ struct TaskCardContent: View {
                 .tfTypeFont(size: 20)
                 .foregroundStyle(Color.tfOrange)
                 .frame(width: 21, height: 21)
+        } else if subtask.done {
+            TFSubtaskStatusRing(.done)
         } else {
-            Image(systemName: subtask.done ? "checkmark.circle.fill" : "circle")
-                .tfTypeFont(size: 20)
-                .foregroundStyle(subtask.done ? Color.tfTeal : .tfReadableSecondary)
-                .frame(width: 21, height: 21)
-        }
+            TFSubtaskStatusRing(.pending)        }
     }
 
     /// Что показываем под раскрытым шагом: его итог и кнопки владельца.

@@ -130,17 +130,16 @@ public struct MessageDeliveryChip: View {
 
     public var body: some View {
         let tint = color(for: state)
-        HStack(spacing: 4) {
-            Image(systemName: symbol(for: state))
-                .tfTypeFont(size: 11, weight: .semibold)
-            Text(text)
-                .tfText(.caption)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .foregroundStyle(tint)
-        .background(tint.opacity(0.12))
-        .clipShape(Capsule())
+        TFPill(surface: tint.opacity(0.12), capsule: true) {
+            HStack(spacing: 4) {
+                Image(systemName: symbol(for: state))
+                    .tfTypeFont(size: 11, weight: .semibold)
+                Text(text)
+                    .tfText(.caption)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .foregroundStyle(tint)        }
         // Кросс-фейд 180 мс при смене состояния (UX §4.2 — чипы не мигают).
         .animation(.easeInOut(duration: 0.18), value: state)
         .accessibilityIdentifier("coord.stream.chip.\(state.rawValue)")

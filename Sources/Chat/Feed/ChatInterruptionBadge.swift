@@ -8,13 +8,15 @@ struct ChatInterruptionBadge: View {
     let isPartial: Bool
 
     var body: some View {
-        HStack(spacing: TFSpacing.xs) {
-            Image(systemName: "arrow.triangle.branch")
-                .tfText(.meta)
-                .accessibilityHidden(true)
-            Text(label).tfText(.meta)
+        TFPill(surface: .clear, radius: 0) {
+            HStack(spacing: TFSpacing.xs) {
+                Image(systemName: "arrow.triangle.branch")
+                    .tfText(.meta)
+                    .accessibilityHidden(true)
+                Text(label).tfText(.meta)
+            }
+            .foregroundStyle(Color.tfOrange)
         }
-        .foregroundStyle(Color.tfOrange)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Ответ прерван: \(label)")
         .accessibilityIdentifier("chat.interrupted")

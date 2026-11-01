@@ -22,17 +22,18 @@ struct IntegrationResponsibilityView: View {
                         Button("Не требуется") { select("not_required", nil) }
                         Button("Не выбран") { select("manual", nil) }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.triangle.branch")
-                            Text(state.mode == "not_required" ? "Не требуется" : state.owner_title ?? "Выбрать участника")
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
+                        TFPill(surface: .clear) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.triangle.branch")
+                                Text(state.mode == "not_required" ? "Не требуется" : state.owner_title ?? "Выбрать участника")
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
+                            .tfText(.action)
+                            .foregroundStyle(validationError ? Color.red : Color.tfSub)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, 6)
                         }
-                        .tfText(.action)
-                        .foregroundStyle(validationError ? Color.red : Color.tfSub)
-                        .padding(.horizontal, TFSpacing.sm)
-                        .padding(.vertical, 6)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Ответственный за интеграцию")

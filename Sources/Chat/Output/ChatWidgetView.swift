@@ -482,8 +482,7 @@ private struct ChecklistWidget: View {
                     toggle(index: index, item: item)
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
-                        Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(done ? Color.tfGreen : Color.tfDim)
+                        TFCheckbox(isChecked: done)
                         Text(item.string("text") ?? "")
                             .strikethrough(done)
                             .foregroundStyle(done ? Color.tfSub : Color.tfText)

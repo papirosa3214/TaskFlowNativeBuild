@@ -146,9 +146,7 @@ struct SecretaryDraftCard: View {
 
     private func stepRow(_ step: ApiSubtask) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: step.done ? "checkmark.circle.fill" : "circle")
-                .tfText(.meta)
-                .foregroundStyle(step.done ? Color.tfGreen : Color.tfDim)
+            TFCheckbox(isChecked: step.done)
             Text(step.title)
                 .tfText(.meta)
                 .foregroundStyle(step.done ? Color.tfSub : Color.tfText)

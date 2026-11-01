@@ -81,14 +81,11 @@ struct NoteExtractedTasksSheetContent: View {
 
     private func rowView(_ row: Binding<Row>) -> some View {
         HStack(spacing: TFSpacing.sm) {
-            Button {
-                row.wrappedValue.include.toggle()
-            } label: {
-                Image(systemName: row.wrappedValue.include ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(row.wrappedValue.include ? Color.tfRed : Color.tfDim)
-                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-            }
-            .buttonStyle(TFTapScaleStyle())
+            TFCheckbox(
+                isChecked: row.wrappedValue.include,
+                label: "Включить задачу",
+                action: { row.wrappedValue.include.toggle() }
+            )
 
             // Подложка поля — канон `TFCard` (поверхность `card2`, радиус `md`),
             // раньше та же подложка собиралась руками. Отступы поля остались

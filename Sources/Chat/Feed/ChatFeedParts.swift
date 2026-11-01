@@ -70,7 +70,7 @@ struct ChatAttachmentImage: View {
 struct ChatFileChip: View {
     let fileName: String
     var body: some View {
-        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+        TFPill(surface: .tfCard2, radius: TFRadius.lg) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "paperclip")
                     .tfText(.action)

@@ -185,13 +185,15 @@ struct ChatDeliveryBadge: View {
     let state: ChatMessageDeliveryState
 
     var body: some View {
-        HStack(spacing: TFSpacing.xs) {
-            Image(systemName: state.symbol)
-                .tfText(.meta)
-                .accessibilityHidden(true)
-            Text(state.label).tfText(.meta)
+        TFPill(surface: .clear, radius: 0) {
+            HStack(spacing: TFSpacing.xs) {
+                Image(systemName: state.symbol)
+                    .tfText(.meta)
+                    .accessibilityHidden(true)
+                Text(state.label).tfText(.meta)
+            }
+            .foregroundStyle(state.isProblem ? Color.tfOrange : Color.tfDim)
         }
-        .foregroundStyle(state.isProblem ? Color.tfOrange : Color.tfDim)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Доставка: \(state.label)")
         .accessibilityIdentifier("chat.delivery.\(state.rawValue)")
