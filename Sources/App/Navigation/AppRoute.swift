@@ -58,6 +58,10 @@ public enum AppRoute: Hashable {
     case roleRunJobs
     /// Память ролей (02.10.2026) — что команда знает; владелец видит и правит.
     case memory
+    /// Mission Control — контракт ассерций задачи: что считается готовым
+    /// (критерии записаны ДО работы), что не пройдено, журнал прохождения.
+    /// Открывается из «Координации» задачи.
+    case missionControl(taskID: String)
     case settings
     case integrations
     case templates
