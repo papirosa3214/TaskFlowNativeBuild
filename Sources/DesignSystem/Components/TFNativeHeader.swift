@@ -143,6 +143,7 @@ private struct TFNativeHeaderModifier: ViewModifier {
     let title: String
 
     @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
 
     func body(content: Content) -> some View {
         content

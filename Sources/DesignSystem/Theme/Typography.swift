@@ -124,6 +124,8 @@ public struct TFSectionDisplayModifier: ViewModifier {
     private let color: Color
 
     @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
+    @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
 
     @ScaledMetric(relativeTo: .title3)    private var largeSize: CGFloat = 22
     @ScaledMetric(relativeTo: .headline)  private var smallSize: CGFloat = 17
@@ -314,6 +316,11 @@ private struct TFTextStyleModifier: ViewModifier {
     let style: TFTextStyle
 
     @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+    // Триггер перерисовки: менять identity дерева нельза (выбрасывало из
+    // настроек в «Обзор»), поэтому каждое место с текстом само следит за
+    // счётчиком правок шрифта и за тоном.
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
+    @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
 
     @ScaledMetric(relativeTo: .title)      private var titleLargeSize: CGFloat = 22
     @ScaledMetric(relativeTo: .title3)     private var taskTitleSize: CGFloat = 17
@@ -448,6 +455,8 @@ private struct TFTypeFontModifier: ViewModifier {
     let design: Font.Design
 
     @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
+    @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
 
     func body(content: Content) -> some View {
         content.font(
