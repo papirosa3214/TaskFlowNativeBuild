@@ -302,7 +302,7 @@ public struct TFListRow: View {
                 .fill(iconTint.opacity(0.18))
                 .frame(width: 40, height: 40)
                 .overlay {
-                    Image(systemName: icon)
+                    Image(systemName: icon ?? "")
                         .tfTypeFont(size: TFIconSize.sm)
                         .foregroundStyle(iconTint)
                 }
@@ -315,7 +315,7 @@ public struct TFListRow: View {
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 40, height: 40)
         case .plain:
-            Image(systemName: icon)
+            Image(systemName: icon ?? "")
                 .tfTypeFont(size: TFIconSize.sm)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 40, height: 40)
@@ -325,7 +325,7 @@ public struct TFListRow: View {
                     .frame(width: 28, height: 28)
                     .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
             } placeholder: {
-                Image(systemName: icon)
+                Image(systemName: icon ?? "")
                     .tfTypeFont(size: TFIconSize.sm)
                     .foregroundStyle(Color.tfDim)
             }
