@@ -103,6 +103,18 @@ public struct CoordinationScreen: View {
                 }
                 .hintAnchor(HintAnchorID.taskCoordination)
             }
+            // Контракт миссии — те же критерии, что проверяет этот экран, но
+            // записанные ДО работы: список ассерций, что не пройдено и журнал
+            // прохождения. Отдельный маршрут, потому что это пуш, а не
+            // действие над шагом.
+            Section("Контракт миссии") {
+                NavigationLink(value: AppRoute.missionControl(taskID: taskId)) {
+                    Text("Mission Control").tfText(.body)
+                }
+                .accessibilityIdentifier("coordination.mission-control")
+                Text("Что считается готовым по критериям, записанным до работы.")
+                    .tfText(.meta)
+            }
             if let r = selected {
                 Section(r.displayTitle) {
                     Text(r.displayStatus).tfText(.body)
