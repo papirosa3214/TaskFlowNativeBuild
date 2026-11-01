@@ -345,7 +345,11 @@ public final class TaskStore {
     }
 
     private func upsert(_ task: ApiTask) {
-        if task.isArchived {
+        // Одно правило видимости на все пути (событие, дельта, ответ PATCH).
+        // Раньше здесь проверялся только `isArchived`, и событие
+        // `task:completed` оставляло выполненную карточку в живых списках до
+        // перезапуска приложения (владелец 01.11.2026).
+        if TaskVisibility.isClosed(task) {
             archivedRevision += 1
             tasks.removeAll { $0.id == task.id }
             agentWorkTasks.removeAll { $0.id == task.id }
@@ -357,10 +361,17 @@ public final class TaskStore {
             return
         }
         archivedTasks.removeAll { $0.id == task.id }
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index] = task
+        // В корневой список — только корневые: дочерняя карточка, пришедшая
+        // событием, раньше вставлялась строкой в общий список, обходя фильтр
+        // `isRootTask` из `load()` и `apply(delta)`.
+        if Self.isRootTask(task) {
+            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                tasks[index] = task
+            } else {
+                tasks.append(task)
+            }
         } else {
-            tasks.append(task)
+            tasks.removeAll { $0.id == task.id }
         }
         if let index = agentWorkTasks.firstIndex(where: { $0.id == task.id }) {
             agentWorkTasks[index] = task

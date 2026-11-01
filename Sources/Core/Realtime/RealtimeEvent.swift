@@ -51,11 +51,21 @@ public enum RealtimeEvent: Sendable {
     /// Команда сервера телефону (`device_op`) — ответ на неё ждёт сервер
     /// по `opId` (контракт ffaf800d-19ad-40e7-8616-9482019f432e).
     case deviceOp(DeviceOpRequest)
+    /// Событие сущности вне задачи (проект, метка, заметка, рутина,
+    /// вложение). Сервер шлёт их владельцу при любой правке (01.11.2026):
+    /// раньше такие правки не порождали ни события, ни журнала, и телефон
+    /// видел их только после перезагрузки экрана.
+    case entityChanged(EntityKind, id: String)
+    /// Вид сущности в `entityChanged`.
+    public enum EntityKind: String, Sendable {
+        case project, label, note, schedule, attachment
+    }
     case serverError(message: String?)
     case unknown(type: String, raw: JSONValue)
 
     private struct Envelope: Decodable { let type: String }
     private struct BareID: Decodable { let id: String }
+    private struct EntityEnvelope: Decodable { let id: String? }
     private struct TaskIdField: Decodable { let task_id: String? }
     private struct ErrorPayload: Decodable { let message: String?; let error: String? }
     private struct ChatIDEnvelope: Decodable {
@@ -202,6 +212,12 @@ public enum RealtimeEvent: Sendable {
                 return .unknown(type: envelope.type, raw: rawValue())
             }
             return .deviceOp(request)
+        case "project:changed", "label:changed", "note:changed", "schedule:changed", "attachment:changed":
+            guard let kind = RealtimeEvent.EntityKind(rawValue: String(envelope.type.dropLast(":changed".count))) else {
+                return .unknown(type: envelope.type, raw: rawValue())
+            }
+            let id = (try? decoder.decode(EntityEnvelope.self, from: data))?.id ?? ""
+            return .entityChanged(kind, id: id)
         case "error":
             let payload = try? decoder.decode(ErrorPayload.self, from: data)
             return .serverError(message: payload?.message ?? payload?.error)

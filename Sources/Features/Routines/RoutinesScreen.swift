@@ -7,6 +7,7 @@ import SwiftUI
 // клиента четыре, «Мои рутины» — строка на «Обзоре».
 struct RoutinesScreen: View {
     @State private var model = RoutinesViewModel()
+    @Environment(RealtimeClient.self) private var realtime
     @State private var pendingDelete: ApiSchedule?
     @State private var isCreating = false
     @State private var isShowingPlan = false
@@ -54,6 +55,12 @@ struct RoutinesScreen: View {
                 UpcomingScreen(routinesOnly: true)
             }
             .task { await model.load() }
+            // Рутина изменилась на сервере (событие `schedule:changed`,
+            // 01.11.2026): раньше такая правка не доезжала до телефона
+            // совсем — ни событием, ни журналом.
+            .onChange(of: realtime.entityRevision) { _, _ in
+                Task { await model.load() }
+            }
             .refreshable { await model.load() }
             .alert("Удалить рутину?", isPresented: Binding(
                 get: { pendingDelete != nil },
