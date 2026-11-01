@@ -200,17 +200,17 @@ struct RoleReplyMarkdown: View, Equatable {
                 BashCommandBlock(command: block.runs.map(\.text).joined())
                     .id(block.runs.map(\.text).joined())
             } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(block.runs.map(\.text).joined())
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(color)
-                    .roleReveal(fade)
-                    .textSelection(.enabled)
-                    .padding(TFSpacing.md)
+            TFCard(padding: 0, surface: .card, radius: TFRadius.md) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(block.runs.map(\.text).joined())
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(color)
+                        .roleReveal(fade)
+                        .textSelection(.enabled)
+                        .padding(TFSpacing.md)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tfCard)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
             }
         case .horizontalRule:
             Divider()
@@ -392,41 +392,42 @@ struct ChatTableView: View {
     // Окошко (владелец 14.10.2026, по образцу): рамка стоит на месте,
     // таблица листается внутри неё в обе стороны.
     var body: some View {
-        ScrollView([.horizontal, .vertical], showsIndicators: false) {
-            VStack(spacing: 0) {
-                HStack(alignment: .top, spacing: 0) {
-                    ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
-                        cell(title, runs: headerRuns(column), column: column, width: columnWidths[column])
-                            .font(.subheadline.weight(.semibold))
-                    }
-                }
-                .background(Color.tfCard2)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
-                }
-
-                ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
-                    HStack(alignment: .top, spacing: 0) {
-                        ForEach(Array(row.enumerated()), id: \.offset) { column, value in
-                            if column < columnWidths.count {
-                                cell(value, runs: rowRuns(rowIndex, column), column: column, width: columnWidths[column])
-                                .tfText(.body)
+        TFCard(padding: 0, surface: .card, radius: TFRadius.lg) {
+            ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                VStack(spacing: 0) {
+                    TFCard(padding: 0, surface: .card2, radius: nil) {
+                        HStack(alignment: .top, spacing: 0) {
+                            ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
+                                cell(title, runs: headerRuns(column), column: column, width: columnWidths[column])
+                                    .font(.subheadline.weight(.semibold))
                             }
                         }
                     }
-                    .background(rowIndex.isMultiple(of: 2) ? Color.clear : Color.tfCard2.opacity(0.45))
                     .overlay(alignment: .bottom) {
-                        Rectangle().fill(Color.tfStroke.opacity(0.7)).frame(height: TFBorder.width)
+                        Rectangle().fill(Color.tfStroke).frame(height: TFBorder.width)
+                    }
+
+                    ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
+                        HStack(alignment: .top, spacing: 0) {
+                            ForEach(Array(row.enumerated()), id: \.offset) { column, value in
+                                if column < columnWidths.count {
+                                    cell(value, runs: rowRuns(rowIndex, column), column: column, width: columnWidths[column])
+                                        .tfText(.body)
+                                }
+                            }
+                        }
+                        .background(rowIndex.isMultiple(of: 2) ? Color.clear : Color.tfCard2.opacity(0.45))
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(Color.tfStroke.opacity(0.7)).frame(height: TFBorder.width)
+                        }
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+            .scrollBounceBehavior(.basedOnSize, axes: [.horizontal, .vertical])
+            .frame(height: contentHeight > 0 ? min(contentHeight, Self.maxHeight) : nil)
         }
-        .scrollBounceBehavior(.basedOnSize, axes: [.horizontal, .vertical])
-        .frame(height: contentHeight > 0 ? min(contentHeight, Self.maxHeight) : nil)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 

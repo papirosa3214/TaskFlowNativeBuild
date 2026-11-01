@@ -71,6 +71,7 @@ struct SecretsScreen: View {
                 }
             }
         }
+        .tfScreenBackground()
         .tfNativeHeader("Секреты", displayMode: .inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

@@ -86,7 +86,7 @@ struct RuntimeStatusScreen: View {
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Pi Runtime")
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }

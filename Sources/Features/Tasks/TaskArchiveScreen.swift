@@ -49,15 +49,14 @@ struct TaskArchiveScreen: View {
             .listRowInsets(EdgeInsets())
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        // Фон экрана — тот же токен, что у списков проекта и меток. Без этой
+        // строки SwiftUI подставлял системный фон, и в тёмной теме раздел
+        // был чисто чёрным вместо общей серой подложки.
+        .tfScreenBackground()
         .accessibilityIdentifier("taskArchiveList")
         .tfNativeHeader("Архив", displayMode: .inline)
         .task { await loadArchive() }
         .refreshable { await loadArchive() }
-        // Фон экрана — тот же токен, что у списков проекта и меток. Без этой
-        // строки SwiftUI подставлял системный фон, и в тёмной теме раздел
-        // был чисто чёрным вместо общей серой подложки.
-        .background(Color.tfBackground)
         .confirmationDialog(pendingProjectDelete == nil ? "Удалить задачу окончательно?" : "Удалить проект окончательно?", isPresented: Binding(
             get: { pendingDelete != nil || pendingProjectDelete != nil },
             set: { if !$0 { pendingDelete = nil; pendingProjectDelete = nil } }
@@ -136,7 +135,7 @@ struct TaskArchiveScreen: View {
                     minHeight: 44,
                     chevron: .shown
                 )
-                .background(Color.tfBackground)
+                .tfScreenBackground()
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("archive.completed-history")
@@ -180,7 +179,7 @@ struct TaskArchiveScreen: View {
             }
             .padding(.horizontal, TFSpacing.md)
             .padding(.vertical, TFSpacing.sm)
-            .background(Color.tfBackground)
+            .tfScreenBackground()
         }
         .disabled(busyID != nil)
         .contextMenu {

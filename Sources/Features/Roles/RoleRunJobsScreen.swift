@@ -52,7 +52,7 @@ struct RoleRunJobsScreen: View {
             }
             .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Запуски агентов")
         .task(id: "\(scenePhase):\(realtime.connectionRevision):\(realtime.jobsRevision)") {
             guard scenePhase == .active else { return }

@@ -95,7 +95,7 @@ struct RoleBehaviorTemplatesView: View {
             }.padding(TFSpacing.lg).disabled(busy)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .navigationTitle("Личность роли")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(changed)

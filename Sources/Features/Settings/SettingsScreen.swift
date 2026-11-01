@@ -53,7 +53,7 @@ struct SettingsScreen: View {
         // поверх неё давал ВТОРУЮ стрелку и лишнюю полосу.
         // Нативная сворачивающаяся шапка по официальным гайдам SwiftUI.
         .tfNativeHeader("Настройки")
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .environment(viewModel)
         .tfBottomSheet(isPresented: $appIconSheetOpen) {
             AppIconPickerSheet(selection: $appIcon) { appIconSheetOpen = false }
@@ -140,17 +140,17 @@ struct SettingsScreen: View {
                         let isSelected = textToneRaw == tone.rawValue
                         Button { textToneRaw = tone.rawValue } label: {
                             VStack(spacing: TFSpacing.xs) {
-                                Text("Аа")
-                                    .tfText(.title)
-                                    .foregroundStyle(tone.color)
-                                    .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
-                                    .background(Color.tfCard2)
-                                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: TFRadius.md)
-                                            .strokeBorder(isSelected ? Color.tfRed : Color.tfStroke,
-                                                          lineWidth: isSelected ? 2 : TFBorder.width)
-                                    )
+                                TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+                                    Text("Аа")
+                                        .tfText(.title)
+                                        .foregroundStyle(tone.color)
+                                        .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
+                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: TFRadius.md)
+                                        .strokeBorder(isSelected ? Color.tfRed : Color.tfStroke,
+                                                      lineWidth: isSelected ? 2 : TFBorder.width)
+                                )
                                 Text(tone.title)
                                     .tfText(.micro)
                                     .foregroundStyle(isSelected ? Color.tfText : Color.tfDim)
@@ -503,14 +503,14 @@ struct SettingsScreen: View {
     }
 
     private var editAction: some View {
-        Text("Изменить")
-            .tfText(.meta)
-            .foregroundStyle(Color.tfText)
-            .padding(.horizontal, TFSpacing.sm)
-            .padding(.vertical, TFSpacing.xs)
-            .background(Color.tfCard2)
-            .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+            Text("Изменить")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfText)
+                .padding(.horizontal, TFSpacing.sm)
+                .padding(.vertical, TFSpacing.xs)
+        }
+        .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }

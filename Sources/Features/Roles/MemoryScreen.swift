@@ -77,8 +77,7 @@ struct MemoryScreen: View {
             }
         }
         .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Память команды")
         .searchable(text: $search, prompt: "Поиск по памяти")
         .onSubmit(of: .search) { Task { await load() } }

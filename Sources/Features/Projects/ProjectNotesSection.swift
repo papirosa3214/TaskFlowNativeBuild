@@ -347,17 +347,16 @@ struct ProjectNotesSection: View {
                     Button {
                         Task { await createAndAttach() }
                     } label: {
-                        HStack(spacing: TFSpacing.sm) {
-                            Image(systemName: "folder.badge.plus").tfTypeFont(size: 16)
-                            Text(busy ? "Создаём…" : "Создать «\(project.name)»")
-                        }
-                        .tfText(.action)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tfText)
-                        .padding(.horizontal, TFSpacing.lg)
-                        .frame(height: TFHitTarget.min)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                            HStack(spacing: TFSpacing.sm) {
+                                Image(systemName: "folder.badge.plus").tfTypeFont(size: 16)
+                                Text(busy ? "Создаём…" : "Создать «\(project.name)»")
+                            }
+                            .tfText(.action)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tfText)
+                            .padding(.horizontal, TFSpacing.lg)
+                            .frame(height: TFHitTarget.min)                        }
                     }
                     .buttonStyle(TFTapScaleStyle())
                     .disabled(busy)
@@ -366,17 +365,16 @@ struct ProjectNotesSection: View {
                         Button {
                             pickerOpen = true
                         } label: {
-                            HStack(spacing: TFSpacing.sm) {
-                                Image(systemName: "folder").tfTypeFont(size: 16)
-                                Text("Выбрать папку")
-                            }
-                            .tfText(.action)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tfText)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: TFHitTarget.min)
-                            .background(Color.tfCard2)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                            TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                                HStack(spacing: TFSpacing.sm) {
+                                    Image(systemName: "folder").tfTypeFont(size: 16)
+                                    Text("Выбрать папку")
+                                }
+                                .tfText(.action)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.tfText)
+                                .padding(.horizontal, TFSpacing.lg)
+                                .frame(height: TFHitTarget.min)                            }
                         }
                         .buttonStyle(TFTapScaleStyle())
                     }

@@ -38,7 +38,7 @@ struct RoleLoadScreen: View {
             // доезжать выше неё (пуш из «Обзора», панель не скрывается).
             .padding(.bottom, TFTabBarMetrics.heightCompact + 12)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tint(Color.tfText)
         .tfNativeHeader("Загрузка ролей", displayMode: .inline)
         .toolbar {

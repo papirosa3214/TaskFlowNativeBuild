@@ -69,80 +69,79 @@ struct SecretaryDraftCard: View {
     // MARK: - Вид
 
     private func card(_ parent: ApiTask) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
-                Button(action: onOpen) {
-                    Text(parent.title)
-                        .tfText(.row)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tfText)
-                        .multilineTextAlignment(.leading)
-                }
-                .buttonStyle(.plain)
-                Spacer(minLength: TFSpacing.sm)
-                let overall = overallState
-                TFPill(overall.text, color: overall.color)
-            }
-
-            // Суть в одной строке, видна и свёрнутой: исполнитель + счёт
-            // шагов/подзадач (владелец 25.09.2026).
-            Text(summaryLine(parent))
-                .tfText(.meta)
-                .foregroundStyle(Color.tfSub)
-
-            let hasDetails = !parent.subtasks.isEmpty || !children.isEmpty
-            if hasDetails {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(isExpanded ? "Свернуть шаги" : "Показать шаги")
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+        TFCard(padding: TFSpacing.md, surface: .card, radius: TFRadius.xl) {
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+                    Button(action: onOpen) {
+                        Text(parent.title)
+                            .tfText(.row)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tfText)
+                            .multilineTextAlignment(.leading)
                     }
-                    .tfText(.caption)
+                    .buttonStyle(.plain)
+                    Spacer(minLength: TFSpacing.sm)
+                    let overall = overallState
+                    TFPill(overall.text, color: overall.color)
+                }
+
+                // Суть в одной строке, видна и свёрнутой: исполнитель + счёт
+                // шагов/подзадач (владелец 25.09.2026).
+                Text(summaryLine(parent))
+                    .tfText(.meta)
                     .foregroundStyle(Color.tfSub)
-                }
-                .buttonStyle(.plain)
-            }
 
-            if isExpanded {
-                if !parent.subtasks.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(parent.subtasks) { step in
-                            stepRow(step)
+                let hasDetails = !parent.subtasks.isEmpty || !children.isEmpty
+                if hasDetails {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(isExpanded ? "Свернуть шаги" : "Показать шаги")
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        }
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfSub)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if isExpanded {
+                    if !parent.subtasks.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(parent.subtasks) { step in
+                                stepRow(step)
+                            }
                         }
                     }
+
+                    if !children.isEmpty {
+                        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                            ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+                                childRow(child, number: index + 1)
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
                 }
 
-                if !children.isEmpty {
-                    VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                        ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
-                            childRow(child, number: index + 1)
+                if let errorText {
+                    Text(errorText).tfText(.meta).foregroundStyle(Color.tfRed)
+                }
+
+                if canDecide {
+                    HStack(spacing: TFSpacing.sm) {
+                        TFButton("Запустить", icon: "checkmark", variant: .secondary, isEnabled: !isBusy) {
+                            Task { await start() }
+                        }
+                        TFButton("В архив", icon: "archivebox", variant: .outline, isEnabled: !isBusy) {
+                            isDeleteConfirmOpen = true
                         }
                     }
-                    .padding(.top, 2)
+                    .padding(.top, 4)
                 }
-            }
-
-            if let errorText {
-                Text(errorText).tfText(.meta).foregroundStyle(Color.tfRed)
-            }
-
-            if canDecide {
-                HStack(spacing: TFSpacing.sm) {
-                    TFButton("Запустить", icon: "checkmark", variant: .secondary, isEnabled: !isBusy) {
-                        Task { await start() }
-                    }
-                    TFButton("В архив", icon: "archivebox", variant: .outline, isEnabled: !isBusy) {
-                        isDeleteConfirmOpen = true
-                    }
-                }
-                .padding(.top, 4)
             }
         }
-        .padding(TFSpacing.md)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 
     private func stepRow(_ step: ApiSubtask) -> some View {

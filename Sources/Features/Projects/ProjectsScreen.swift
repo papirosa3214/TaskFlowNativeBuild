@@ -837,71 +837,70 @@ private struct ProjectEditForm: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            TextField("Название проекта", text: $name)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .padding(.horizontal, TFSpacing.sm + 4)
-                .padding(.vertical, TFSpacing.sm + 2)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-
-            HStack {
-                ColorPicker("Цвет проекта", selection: $color, supportsOpacity: false)
-                Button {
-                    pinned.toggle()
-                } label: {
-                    Label(
-                        pinned ? "Открепить проект" : "Закрепить проект",
-                        systemImage: pinned ? "pin.slash" : "pin"
-                    )
-                    .labelStyle(.iconOnly)
+        TFCard(padding: TFSpacing.lg, surface: .card, radius: TFRadius.xl) {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                    TextField("Название проекта", text: $name)
+                        .tfText(.input)
+                        .foregroundStyle(Color.tfText)
+                        .padding(.horizontal, TFSpacing.sm + 4)
+                        .padding(.vertical, TFSpacing.sm + 2)
                 }
-                .accessibilityLabel(pinned ? "Открепить проект" : "Закрепить проект")
-            }
 
-            KnowledgeDatasetPicker(
-                selection: $datasetId,
-                reindexWarning: datasetChanged && documentCount > 0
-                    ? "Смена базы знаний = переиндексация: \(documentCount) док. уедут "
-                      + "в другую базу и будут посчитаны заново. Это займёт время, и "
-                      + "пока идёт индексация, эти документы в поиске не находятся."
-                    : nil
-            )
-
-            TFErrorBanner(errorMessage, variant: .block)
-
-            HStack(spacing: TFSpacing.sm) {
-                Button("Отмена", action: onCancel)
-                    .buttonStyle(TFTapRowStyle())
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .tfText(.row)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tfSub)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-
-                Button {
-                    Task { await save() }
-                } label: {
-                    Text(isSaving ? "Сохраняем…" : "Сохранить")
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .tfText(.row)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tfPaper)
-                        .background(Color.tfRedSolid)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                HStack {
+                    ColorPicker("Цвет проекта", selection: $color, supportsOpacity: false)
+                    Button {
+                        pinned.toggle()
+                    } label: {
+                        Label(
+                            pinned ? "Открепить проект" : "Закрепить проект",
+                            systemImage: pinned ? "pin.slash" : "pin"
+                        )
+                        .labelStyle(.iconOnly)
+                    }
+                    .accessibilityLabel(pinned ? "Открепить проект" : "Закрепить проект")
                 }
-                .buttonStyle(TFTapFadeStyle())
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
-                .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+
+                KnowledgeDatasetPicker(
+                    selection: $datasetId,
+                    reindexWarning: datasetChanged && documentCount > 0
+                        ? "Смена базы знаний = переиндексация: \(documentCount) док. уедут "
+                          + "в другую базу и будут посчитаны заново. Это займёт время, и "
+                          + "пока идёт индексация, эти документы в поиске не находятся."
+                        : nil
+                )
+
+                TFErrorBanner(errorMessage, variant: .block)
+
+                HStack(spacing: TFSpacing.sm) {
+                    TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                        Button("Отмена", action: onCancel)
+                            .buttonStyle(TFTapRowStyle())
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .tfText(.row)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tfSub)
+                    }
+
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        Text(isSaving ? "Сохраняем…" : "Сохранить")
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .tfText(.row)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tfPaper)
+                            .background(Color.tfRedSolid)
+                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                    }
+                    .buttonStyle(TFTapFadeStyle())
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+                    .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+                }
             }
         }
-        .padding(TFSpacing.lg)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         // Текст диалога — тот, что прислал сервер: там точное число
         // документов и оценка минут, а не догадка клиента.
         .confirmationDialog(

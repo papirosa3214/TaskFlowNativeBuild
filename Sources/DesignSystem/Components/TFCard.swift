@@ -6,20 +6,72 @@ import SwiftUI
 /// Обёртка карточки общего назначения (статистика в «Обзоре», пункты списка
 /// настроек и т.п.) — фон `card`, радиус 16px, без рамки по умолчанию (рамка
 /// нужна только там, где карточка на том же фоне, что и подложка — задаётся снаружи).
+///
+/// Milestone 3, семейство F20: это ЕДИНСТВЕННАЯ карточка приложения. Раньше
+/// та же подложка собиралась руками в 33 файлах — `.background(Color.tfCard)`
+/// плюс свой `clipShape`. У такой сборки было два недостатка: подложка бралась
+/// не из канона (а значит, могла разойтись с ним), и каждая копия решала
+/// радиус по-своему. Теперь радиус и поверхность — параметры канона.
+///
+/// Поверхность: `.card` (обычная карточка) или `.card2` (вложенная вложенная
+/// подложка — на тон темнее основной). Владелец 01.11.2026: две поверхности
+/// НЕ сливать — они отличаются на 7 пунктов яркости, и это осознанно.
+/// Радиус: по умолчанию `xl` (карточка), но у части мест был свой (`lg` — строка
+/// карточки, `md` — компактная). Параметр существует, чтобы перевод НЕ менял
+/// вид: те же числа, что стояли вручную.
 public struct TFCard<Content: View>: View {
+    /// Поверхность карточки.
+    public enum Surface {
+        /// Основная карточка — `tfCard`.
+        case card
+        /// Вложенная подложка — `tfCard2` (на тон темнее).
+        case card2
+
+        var color: Color {
+            switch self {
+            case .card: return .tfCard
+            case .card2: return .tfCard2
+            }
+        }
+    }
+
     let content: Content
     let padding: CGFloat
+    let surface: Surface
+    /// Радиус скругления. `nil` — подложка без скругления (прямоугольная
+    /// плашка, как всплывающий список подсказок в чате).
+    let radius: CGFloat?
 
-    public init(padding: CGFloat = TFSpacing.lg, @ViewBuilder content: () -> Content) {
+    public init(
+        padding: CGFloat = TFSpacing.lg,
+        surface: Surface = .card,
+        radius: CGFloat? = TFRadius.xl,
+        @ViewBuilder content: () -> Content
+    ) {
         self.padding = padding
+        self.surface = surface
+        self.radius = radius
         self.content = content()
     }
 
     public var body: some View {
         content
             .padding(padding)
-            .background(Color.tfCard)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
+            .background(surface.color)
+            .modifier(ClipRadius(radius: radius))
+    }
+}
+
+/// Скругление по радиусу; `nil` — без скругления (прямоугольная подложка).
+private struct ClipRadius: ViewModifier {
+    let radius: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let radius {
+            content.clipShape(RoundedRectangle(cornerRadius: radius))
+        } else {
+            content
+        }
     }
 }
 

@@ -88,17 +88,16 @@ private struct SecurePasswordField: View {
     @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = TFIconSize.sm
 
     var body: some View {
-        HStack(spacing: TFField.iconTextGap) {
-            Image(systemName: "lock")
-                .tfTypeFont(size: iconSize)
-                .foregroundStyle(Color.tfDim)
-            SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-        }
-        .padding(.horizontal, TFSpacing.lg)
-        .frame(minHeight: minHeight)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        TFCard(padding: 0, surface: .card, radius: TFRadius.lg) {
+            HStack(spacing: TFField.iconTextGap) {
+                Image(systemName: "lock")
+                    .tfTypeFont(size: iconSize)
+                    .foregroundStyle(Color.tfDim)
+                SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Color.tfDim))
+                    .tfText(.input)
+                    .foregroundStyle(Color.tfText)
+            }
+            .padding(.horizontal, TFSpacing.lg)
+            .frame(minHeight: minHeight)        }
     }
 }

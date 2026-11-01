@@ -70,20 +70,20 @@ struct ChatAttachmentImage: View {
 struct ChatFileChip: View {
     let fileName: String
     var body: some View {
-        HStack(spacing: TFSpacing.sm) {
-            Image(systemName: "paperclip")
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-            Text(fileName)
-                .tfText(.meta)
-                .foregroundStyle(Color.tfText)
-                .lineLimit(1)
-                .truncationMode(.middle)
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+            HStack(spacing: TFSpacing.sm) {
+                Image(systemName: "paperclip")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                Text(fileName)
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(.horizontal, TFSpacing.md)
+            .frame(height: TFHitTarget.min)
+            .frame(maxWidth: 220, alignment: .leading)
         }
-        .padding(.horizontal, TFSpacing.md)
-        .frame(height: TFHitTarget.min)
-        .frame(maxWidth: 220, alignment: .leading)
-        .background(Color.tfCard2)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
     }
 }

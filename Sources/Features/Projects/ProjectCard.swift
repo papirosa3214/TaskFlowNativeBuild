@@ -241,5 +241,5 @@ struct ProjectTaskStatusSummary {
         }
         .padding(TFSpacing.screenHorizontal)
     }
-    .background(Color.tfBackground)
+    .tfScreenBackground()
 }

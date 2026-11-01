@@ -51,7 +51,7 @@ struct AIUsageScreen: View {
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, TFSpacing.md)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Статистика", displayMode: .inline)
         .accessibilityIdentifier("ai-usage.screen")
         .hintAnchor(HintAnchorID.aiUsage)

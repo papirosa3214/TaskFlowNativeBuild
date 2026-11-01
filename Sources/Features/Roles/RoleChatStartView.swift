@@ -133,38 +133,36 @@ struct RoleChatStartView: View {
                 onCommand(command.prompt)
             }
         } label: {
-            VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                HStack {
-                    Image(systemName: command.icon)
-                        .tfTypeFont(size: 18, weight: .medium)
+            TFCard(padding: TFSpacing.md, radius: TFRadius.lg) {
+                VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                    HStack {
+                        Image(systemName: command.icon)
+                            .tfTypeFont(size: 18, weight: .medium)
+                            .foregroundStyle(Color.tfText)
+                            .frame(width: 38, height: 38)
+                            .background(Color.white.opacity(0.08),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        Spacer(minLength: 0)
+                        // В режиме правки карточка показывает, что её можно менять.
+                        if isEditingCommands {
+                            Image(systemName: "pencil")
+                                .tfTypeFont(size: 13, weight: .medium)
+                                .foregroundStyle(Color.tfDim)
+                        }                    }
+                    Text(command.title)
+                        .tfText(.body)
                         .foregroundStyle(Color.tfText)
-                        .frame(width: 38, height: 38)
-                        .background(Color.white.opacity(0.08),
-                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(command.hint)
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    // В режиме правки карточка показывает, что её можно менять.
-                    if isEditingCommands {
-                        Image(systemName: "pencil")
-                            .tfTypeFont(size: 13, weight: .medium)
-                            .foregroundStyle(Color.tfDim)
-                    }
                 }
-                Text(command.title)
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfText)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(command.hint)
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfDim)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
-            .padding(TFSpacing.md)
-            .background(Color.tfCard)
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
             .overlay {
                 RoundedRectangle(cornerRadius: TFRadius.lg)
                     .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)

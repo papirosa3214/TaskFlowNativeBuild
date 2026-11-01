@@ -103,6 +103,7 @@ private struct ChatWorkspaceBrowser: View {
                         .foregroundStyle(Color.tfSub)
                 }
             }
+            .tfScreenBackground()
             .overlay { if isLoading && listing == nil { ProgressView() } }
             .tfNativeHeader(listing?.title ?? "Проекты", displayMode: .inline)
             .toolbar {

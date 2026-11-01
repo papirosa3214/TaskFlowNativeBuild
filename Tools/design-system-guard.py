@@ -212,6 +212,21 @@ RULES = [
         "fix": "заголовок раздела — `TFSectionHeader(\"…\", style: .caps)`; "
                "второй компонент-заголовок в приложении не заводится",
     },
+    # --- Milestone 3 «Фундамент канона»: карточка и фон экрана (F20–F21) ---
+    {
+        "id": "raw-card",
+        "severity": "error",
+        "title": "ручная подложка карточки вместо `TFCard`",
+        "fix": "карточка — `TFCard(surface:radius:) { … }`; вторая поверхность — "
+               "`surface: .card2`, радиус переносится в параметр (вид не меняется)",
+    },
+    {
+        "id": "raw-screen-background",
+        "severity": "error",
+        "title": "ручной фон экрана вместо `.tfScreenBackground()`",
+        "fix": "фон экрана — `.tfScreenBackground()`: он гасит системный фон списка "
+               "и оставляет фон приложения под `refreshable`",
+    },
 ]
 
 TOGGLE = re.compile(r"(?<![\w.])Toggle\s*\(")
@@ -298,6 +313,33 @@ REMOVED_CAPS_LABEL = re.compile(r"\bSettingsCapsLabel\b")
 # Подпись языка в блоке кода — не заголовок раздела.
 CAPS_HEADING_ALLOWED = {
     "Features/Markdown/MarkdownDocumentRenderer.swift",
+}
+
+# --- Milestone 3: карточка (F20) и фон экрана (F21) ---
+# F20: подложка карточки, собранная руками. Признак — `.background(Color.tfCard)`
+# или `.background(Color.tfCard2)`: та же палитра, что у канона `TFCard`, но
+# мимо него. Внутри DesignSystem это законно (тело канона и его частные
+# случаи), снаружи — нет: подложка обязана браться из `TFCard`.
+RAW_CARD = re.compile(r"\.background\(\s*Color\.tfCard2?\s*\)")
+# Подложки, которые законны вне `TFCard`:
+#   - `TFTabBar.swift` — запасной вариант таббара (решение владельца 31.10.2026);
+#   - `TFBadge.swift` — нейтральная пилюля (`TFPill` с фоном `card`);
+#   - `TFTaskRow.swift` — подложка строки задачи;
+#   - `TFAvatar.swift`, `TFTextField.swift` — собственные подложки компонентов.
+# Внутри DesignSystem правило вообще не проверяется (см. `rel.startswith("DesignSystem/")`).
+RAW_CARD_ALLOWED = {
+    "DesignSystem/Navigation/TFTabBar.swift",
+}
+# F21: фон экрана, собранный руками. Признак — `.background(Color.tfBackground)`
+# на корне экрана: канон — модификатор `.tfScreenBackground()`, который гасит
+# системный фон списка и кладёт фон приложения под `refreshable`.
+# Сквозная подложка на весь экран (`.ignoresSafeArea()`) — другое понятие,
+# её ловит другой шаблон и она в allow-list.
+RAW_SCREEN_BACKGROUND = re.compile(r"\.background\(\s*Color\.tfBackground\s*\)")
+RAW_SCREEN_BACKGROUND_ALLOWED = {
+    # Сквозная подложка на весь экран (не «фон экрана»).
+    "Features/Secretary/SecretaryVoiceScreen.swift",
+    "Chat/Composer/ChatVoiceComposer.swift",
 }
 
 
@@ -479,6 +521,14 @@ def check_line(path: str, lines, index: int, preview=None, canon_lines=None):
             hits.append("raw-caps-heading")
     if REMOVED_CAPS_LABEL.search(code):
         hits.append("raw-caps-heading")
+    # --- Milestone 3: карточка (F20) и фон экрана (F21) ---
+    # Оба правила смотрят на код вне DesignSystem: там, где живут каноны.
+    if not rel.startswith("DesignSystem/"):
+        if RAW_CARD.search(code) and rel not in RAW_CARD_ALLOWED:
+            hits.append("raw-card")
+        if (RAW_SCREEN_BACKGROUND.search(code)
+                and rel not in RAW_SCREEN_BACKGROUND_ALLOWED):
+            hits.append("raw-screen-background")
     if SYSTEM_COLOR.search(code):
         hits.append("system-text-color")
     head = strip_comment(statement_head(lines, index))

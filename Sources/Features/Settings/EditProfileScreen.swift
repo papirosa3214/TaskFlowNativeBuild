@@ -62,7 +62,7 @@ struct EditProfileScreen: View {
             .padding(.vertical, TFSpacing.lg)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Профиль")
         .onChange(of: pickerItem) { _, item in
             Task { await uploadPhoto(item) }

@@ -3,30 +3,70 @@ import SwiftUI
 // Бейджи/пилюли строки задачи — spec/DESIGN-TOKENS.md §4 «Строка задачи».
 // Пилюля: px-2 py-0.5 (8px/2px), радиус `rounded` (4px, служебный — вне
 // основной шкалы, самый мелкий элемент интерфейса), текст 11px (caption).
-public struct TFPill: View {
+/// Пилюля — скруглённая капсула. Milestone 3, семейство F12.
+///
+/// Две формы, один компонент:
+///
+///   • **текстовая** — `TFPill("Срок", color: .tfRed)`: кегль `caption`,
+///     горизонтальный отступ `sm`, вертикальный 2, фон — цвет с альфой
+///     (или сплошной `solidBackground` — так сделан бейдж срока);
+///   • **с содержимым** — `TFPill(surface: .tfCard2) { … }`: содержимое и его
+///     отступы задаёт вызывающий, компонент даёт подложку и скругление.
+///     Нужна там, где в капсуле не один текст: значок рядом с датой, счётчик
+///     действий, плашка задачи в сетке часов.
+///
+/// Вторая форма добавлена 02.11.2026 (Milestone 3, фича
+/// `m3-card-and-screen-background`): до неё такие капсулы собирались руками
+/// (`.background(Color.tfCard2)` + свой `clipShape`) — подложка бралась мимо
+/// канона. Вид при переходе не изменился: те же цвет, радиус и отступы.
+public struct TFPill<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
-    let text: String
+    let content: Content
+    /// Текст пилюли — `nil` у формы с произвольным содержимым.
+    let text: String?
     let color: Color
     /// Доля альфы фона под текстом — приоритет/просрочка используют разные значения (15% против 26≈15%).
     let backgroundOpacity: Double
     /// Фон = `card` (срок), а не цвет + альфа — единственное исключение из общего правила пилюли.
     let solidBackground: Color?
+    /// Скругление капсулы: `pill` по умолчанию, `capsule` — настоящая капсула.
+    let shape: AnyShape
 
-    public init(_ text: String, color: Color, backgroundOpacity: Double = 0.15, solidBackground: Color? = nil) {
+    /// Пилюля с текстом — основная форма.
+    public init(_ text: String, color: Color, backgroundOpacity: Double = 0.15, solidBackground: Color? = nil) where Content == Text {
+        self.content = Text(text)
         self.text = text
         self.color = color
         self.backgroundOpacity = backgroundOpacity
         self.solidBackground = solidBackground
+        self.shape = AnyShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+    }
+
+    /// Пилюля с произвольным содержимым: подложка и скругление — канон,
+    /// содержимое и его отступы задаёт вызывающий.
+    public init(surface: Color, radius: CGFloat = TFRadius.pill, capsule: Bool = false, @ViewBuilder content: () -> Content) {
+        self.content = content()
+        self.text = nil
+        self.color = .clear
+        self.backgroundOpacity = 0
+        self.solidBackground = surface
+        self.shape = capsule ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: radius))
     }
 
     public var body: some View {
-        Text(text)
-            .tfText(.caption)
-            .foregroundStyle(colorScheme == .light || solidBackground != nil ? Color.tfText : color)
-            .padding(.horizontal, TFSpacing.sm)
-            .padding(.vertical, 2)
-            .background(solidBackground ?? color.opacity(backgroundOpacity))
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+        if let text {
+            Text(text)
+                .tfText(.caption)
+                .foregroundStyle(colorScheme == .light || solidBackground != nil ? Color.tfText : color)
+                .padding(.horizontal, TFSpacing.sm)
+                .padding(.vertical, 2)
+                .background(solidBackground ?? color.opacity(backgroundOpacity))
+                .clipShape(shape)
+        } else {
+            content
+                .background(solidBackground ?? Color.clear)
+                .clipShape(shape)
+        }
     }
 }
 

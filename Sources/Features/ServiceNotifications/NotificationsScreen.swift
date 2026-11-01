@@ -87,7 +87,7 @@ struct NotificationsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .refreshable { await loadSystemState(); await loadServiceTickets() }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         // Владелец 12.10.2026: «это уже не уведомление, а состояние системы».
         // Первый экран — сводка за сегодня, поток уведомлений — внутри.
         .tfNativeHeader("Состояние системы")
@@ -186,7 +186,7 @@ struct NotificationsScreen: View {
             .padding(.top, TFSpacing.md)
         }
         .refreshable { await loadSystemState() }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader(filter.title)
     }
 
@@ -241,7 +241,7 @@ struct NotificationsScreen: View {
             }
             .padding(TFSpacing.screenHorizontal)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Карточки работ")
         .refreshable { await loadSystemState(); await loadServiceTickets() }
     }

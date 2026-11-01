@@ -87,14 +87,14 @@ struct RescheduleSheetContent: View {
     /// Один в один кнопка из редактора срока в карточке задачи.
     private func quickButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .tfText(.body)
-                .fontWeight(.medium)
-                .foregroundStyle(Color.tfText)
-                .frame(maxWidth: .infinity)
-                .frame(height: TFHitTarget.min)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+            TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                Text(title)
+                    .tfText(.body)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.tfText)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TFHitTarget.min)
+            }
         }
         .buttonStyle(TFTapScaleStyle())
     }

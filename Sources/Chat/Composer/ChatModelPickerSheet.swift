@@ -61,6 +61,7 @@ struct ChatModelPickerSheet: View {
                     .accessibilityIdentifier("chat.model.effort")
                 }
             }
+            .tfScreenBackground()
             .listStyle(.plain)
             .navigationTitle("Выбор модели")
             .navigationBarTitleDisplayMode(.inline)

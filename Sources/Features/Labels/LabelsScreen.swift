@@ -96,56 +96,54 @@ struct LabelsScreen: View {
     // MARK: - Строка метки — без свайпа, две видимые иконки (spec §9)
 
     private func labelRow(_ label: ApiLabel) -> some View {
-        HStack(spacing: 0) {
-            NavigationLink(value: AppRoute.labelTasks(labelID: label.id)) {
-                HStack(spacing: TFSpacing.md) {
-                    RoundedRectangle(cornerRadius: TFRadius.md)
-                        .fill(Color(hex: label.color ?? TFHexDefault.unassigned).opacity(0.125))
-                        .frame(width: 28, height: 28)
-                        .overlay {
-                            Image(systemName: "tag")
-                                .tfTypeFont(size: 16)
-                                .foregroundStyle(Color.tfReadableText(Color(hex: label.color ?? TFHexDefault.unassigned)))
-                        }
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(label.name)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                            .lineLimit(1)
-                        if let count = taskCounts?[label.id] ?? (taskCounts != nil ? 0 : nil) {
-                            Text(count == 0 ? "Нет задач" : "\(count) \(DirectoryPluralize.taskWord(count))")
-                                .tfText(.caption)
-                                .foregroundStyle(Color.tfSub)
-                        }
+        TFCard(padding: 0, surface: .card, radius: TFRadius.lg) {
+            HStack(spacing: 0) {
+                NavigationLink(value: AppRoute.labelTasks(labelID: label.id)) {
+                    HStack(spacing: TFSpacing.md) {
+                        RoundedRectangle(cornerRadius: TFRadius.md)
+                            .fill(Color(hex: label.color ?? TFHexDefault.unassigned).opacity(0.125))
+                            .frame(width: 28, height: 28)
+                            .overlay {
+                                Image(systemName: "tag")
+                                    .tfTypeFont(size: 16)
+                                    .foregroundStyle(Color.tfReadableText(Color(hex: label.color ?? TFHexDefault.unassigned)))
+                            }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(label.name)
+                                .tfText(.body)
+                                .foregroundStyle(Color.tfText)
+                                .lineLimit(1)
+                            if let count = taskCounts?[label.id] ?? (taskCounts != nil ? 0 : nil) {
+                                Text(count == 0 ? "Нет задач" : "\(count) \(DirectoryPluralize.taskWord(count))")
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfSub)
+                            }                        }
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    .padding(.vertical, TFSpacing.md)
+                    .padding(.leading, TFSpacing.lg)
                 }
-                .padding(.vertical, TFSpacing.md)
-                .padding(.leading, TFSpacing.lg)
-            }
-            .buttonStyle(TFTapRowStyle())
+                .buttonStyle(TFTapRowStyle())
 
-            Button { editingID = label.id } label: {
-                Image(systemName: "pencil")
-                    .tfTypeFont(size: 16)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(TFTapRowStyle())
+                Button { editingID = label.id } label: {
+                    Image(systemName: "pencil")
+                        .tfTypeFont(size: 16)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(TFTapRowStyle())
 
-            Button { requestDelete(label) } label: {
-                Image(systemName: "trash")
-                    .tfTypeFont(size: 16)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(TFTapRowStyle())
-            .padding(.trailing, TFSpacing.xs)
+                Button { requestDelete(label) } label: {
+                    Image(systemName: "trash")
+                        .tfTypeFont(size: 16)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(TFTapRowStyle())
+                .padding(.trailing, TFSpacing.xs)            }
         }
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
     }
 
     private var emptyState: some View {
@@ -202,26 +200,25 @@ private struct LabelCreateForm: View {
     @State private var isSaving = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            TextField("Название метки", text: $name)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .padding(.horizontal, TFSpacing.sm + 4)
-                .padding(.vertical, TFSpacing.sm + 2)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        TFCard(padding: TFSpacing.lg, surface: .card, radius: TFRadius.xl) {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                    TextField("Название метки", text: $name)
+                        .tfText(.input)
+                        .foregroundStyle(Color.tfText)
+                        .padding(.horizontal, TFSpacing.sm + 4)
+                        .padding(.vertical, TFSpacing.sm + 2)
+                }
 
-            DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26, allowsCustomColor: true)
+                DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26, allowsCustomColor: true)
 
-            TFErrorBanner(labelStore.errorMessage, variant: .block)
+                TFErrorBanner(labelStore.errorMessage, variant: .block)
 
-            TFButton(isSaving ? "Создаём…" : "Создать", variant: .primary, isEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && !isSaving) {
-                Task { await create() }
+                TFButton(isSaving ? "Создаём…" : "Создать", variant: .primary, isEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && !isSaving) {
+                    Task { await create() }
+                }
             }
         }
-        .padding(TFSpacing.lg)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 
     private func create() async {
@@ -259,50 +256,49 @@ private struct LabelEditForm: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            TextField("Название метки", text: $name)
-                .tfText(.input)
-                .foregroundStyle(Color.tfText)
-                .padding(.horizontal, TFSpacing.sm + 4)
-                .padding(.vertical, TFSpacing.sm + 2)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-
-            DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26, allowsCustomColor: true)
-
-            TFErrorBanner(errorMessage, variant: .block)
-
-            HStack(spacing: TFSpacing.sm) {
-                Button("Отмена", action: onCancel)
-                    .buttonStyle(TFTapRowStyle())
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .tfText(.row)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tfSub)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-
-                Button {
-                    Task { await save() }
-                } label: {
-                    Text(isSaving ? "Сохраняем…" : "Сохранить")
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .tfText(.row)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tfPaper)
-                        .background(Color.tfRedSolid)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+        TFCard(padding: TFSpacing.lg, surface: .card, radius: TFRadius.xl) {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                    TextField("Название метки", text: $name)
+                        .tfText(.input)
+                        .foregroundStyle(Color.tfText)
+                        .padding(.horizontal, TFSpacing.sm + 4)
+                        .padding(.vertical, TFSpacing.sm + 2)
                 }
-                .buttonStyle(TFTapFadeStyle())
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
-                .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+
+                DirectoryColorSwatches(colors: DirectoryColors.label, selected: $color, size: 26, allowsCustomColor: true)
+
+                TFErrorBanner(errorMessage, variant: .block)
+
+                HStack(spacing: TFSpacing.sm) {
+                    TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                        Button("Отмена", action: onCancel)
+                            .buttonStyle(TFTapRowStyle())
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .tfText(.row)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tfSub)
+                    }
+
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        Text(isSaving ? "Сохраняем…" : "Сохранить")
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .tfText(.row)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.tfPaper)
+                            .background(Color.tfRedSolid)
+                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                    }
+                    .buttonStyle(TFTapFadeStyle())
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+                    .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+                }
             }
         }
-        .padding(TFSpacing.lg)
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 
     private func save() async {

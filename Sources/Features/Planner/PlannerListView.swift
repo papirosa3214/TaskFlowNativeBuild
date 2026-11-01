@@ -115,7 +115,7 @@ struct TodayListView: View {
                 }
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .tfScreenBackground()
     }
 
     /// Замеряет верх заголовка секции в координатах экрана.

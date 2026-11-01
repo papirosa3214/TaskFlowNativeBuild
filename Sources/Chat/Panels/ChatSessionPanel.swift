@@ -182,6 +182,7 @@ struct ChatSessionPanel: View {
     } footer: { Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю в текущем разговоре.") }
     .tint(.primary)
    }
+   .tfScreenBackground()
    // Обычный цвет текста вместо синего (владелец 29.10.2026).
    .tint(.primary)
    .disabled(choice.isSaving || actionRunning)

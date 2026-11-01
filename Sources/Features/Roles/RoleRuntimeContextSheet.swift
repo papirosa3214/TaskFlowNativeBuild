@@ -92,7 +92,7 @@ struct RoleRuntimeContextSheet: View {
             }
             .tfNativeHeader("Контекст роли", displayMode: .inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
-            .background(Color.tfBackground)
+            .tfScreenBackground()
             .task { await load() }
             .refreshable { await load() }
         }

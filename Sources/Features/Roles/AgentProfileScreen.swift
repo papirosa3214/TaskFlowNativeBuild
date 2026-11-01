@@ -41,7 +41,7 @@ struct AgentProfileScreen: View {
             }
             .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader(profile?.title ?? "Профиль")
         .task {
             viewModel.configure(currentUser: session.currentUser)

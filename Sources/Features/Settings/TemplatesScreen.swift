@@ -57,65 +57,63 @@ struct TemplatesScreen: View {
     }
 
     private func successBanner(_ text: String) -> some View {
-        HStack(spacing: TFSpacing.sm) {
-            Image(systemName: "checkmark")
-                .tfText(.input)
-                .foregroundStyle(Color.tfTeal)
-            Text(text).tfText(.action).foregroundStyle(Color.tfTeal)
+        TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+            HStack(spacing: TFSpacing.sm) {
+                Image(systemName: "checkmark")
+                    .tfText(.input)
+                    .foregroundStyle(Color.tfTeal)
+                Text(text).tfText(.action).foregroundStyle(Color.tfTeal)
+            }
+            .padding(TFSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(TFSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard)
         .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfTeal.opacity(0.3), lineWidth: TFBorder.width))
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 
     // MARK: - Форма создания/правки — веб рисует её ВСТРОЕННОЙ карточкой в
     // потоке (не шторкой): `showCreate && <form className="bg-card ...">`.
 
     private var formCard: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            HStack {
-                Text(editingTemplateID != nil ? "Редактировать шаблон" : "Новый шаблон")
-                    .tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
-                Spacer()
-                Button(action: closeForm) {
-                    Image(systemName: "xmark").tfTypeFont(size: TFIconSize.xs).foregroundStyle(Color.tfSub)
-                        .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                }
-                .buttonStyle(TFTapScaleStyle())
-            }
+        TFCard(padding: TFSpacing.lg, surface: .card, radius: TFRadius.xl) {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                HStack {
+                    Text(editingTemplateID != nil ? "Редактировать шаблон" : "Новый шаблон")
+                        .tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
+                    Spacer()
+                    Button(action: closeForm) {
+                        Image(systemName: "xmark").tfTypeFont(size: TFIconSize.xs).foregroundStyle(Color.tfSub)
+                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                    }
+                    .buttonStyle(TFTapScaleStyle())                }
 
-            labeledField("Название шаблона") {
-                TFTextField("например: 🚀 Онбординг проекта", text: $formTitle)
-            }
-            labeledField("Описание (опционально)") {
-                placeholderEditor("Краткое описание назначения шаблона...", text: $formDescription, minHeight: 52)
-            }
-            labeledField("Приоритет") {
-                HStack(spacing: TFSpacing.sm) {
-                    ForEach(TaskPriority.allCases, id: \.rawValue) { option in
-                        priorityChip(option)
+                labeledField("Название шаблона") {
+                    TFTextField("например: 🚀 Онбординг проекта", text: $formTitle)
+                }
+                labeledField("Описание (опционально)") {
+                    placeholderEditor("Краткое описание назначения шаблона...", text: $formDescription, minHeight: 52)
+                }
+                labeledField("Приоритет") {
+                    HStack(spacing: TFSpacing.sm) {
+                        ForEach(TaskPriority.allCases, id: \.rawValue) { option in
+                            priorityChip(option)
+                        }
+                    }
+                }
+                labeledField("Подзадачи (каждая с новой строки)") {
+                    placeholderEditor("Собрать требования\nОписать схему базы данных\nНаписать тесты", text: $formSubtasksText, minHeight: 84)
+                }
+
+                TFErrorBanner(formError)
+
+                HStack(spacing: TFSpacing.md) {
+                    TFButton("Отмена", variant: .secondary) { closeForm() }
+                    TFButton("Сохранить", variant: .secondary, isEnabled: !formTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                        saveForm()
                     }
                 }
             }
-            labeledField("Подзадачи (каждая с новой строки)") {
-                placeholderEditor("Собрать требования\nОписать схему базы данных\nНаписать тесты", text: $formSubtasksText, minHeight: 84)
-            }
-
-            TFErrorBanner(formError)
-
-            HStack(spacing: TFSpacing.md) {
-                TFButton("Отмена", variant: .secondary) { closeForm() }
-                TFButton("Сохранить", variant: .secondary, isEnabled: !formTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
-                    saveForm()
-                }
-            }
         }
-        .padding(TFSpacing.lg)
-        .background(Color.tfCard)
         .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 
     private func labeledField<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
@@ -128,24 +126,24 @@ struct TemplatesScreen: View {
     /// `TextEditor` не даёт плейсхолдер сам — тот же приём, что у большинства
     /// SwiftUI-форм: пустой текст поверх пустого поля, скрывается при вводе.
     private func placeholderEditor(_ placeholder: String, text: Binding<String>, minHeight: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
-            if text.wrappedValue.isEmpty {
-                Text(placeholder)
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+            ZStack(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text(placeholder)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfDim)
+                        .padding(.horizontal, TFSpacing.lg - 4)
+                        .padding(.vertical, TFSpacing.sm + 2)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: text)
                     .tfText(.body)
-                    .foregroundStyle(Color.tfDim)
-                    .padding(.horizontal, TFSpacing.lg - 4)
-                    .padding(.vertical, TFSpacing.sm + 2)
-                    .allowsHitTesting(false)
+                    .foregroundStyle(Color.tfText)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, TFSpacing.sm)
+                    .frame(minHeight: minHeight)
             }
-            TextEditor(text: text)
-                .tfText(.body)
-                .foregroundStyle(Color.tfText)
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, TFSpacing.sm)
-                .frame(minHeight: minHeight)
         }
-        .background(Color.tfCard2)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
     }
 
     private func priorityChip(_ option: TaskPriority) -> some View {
@@ -339,66 +337,65 @@ private struct TemplateCardView: View {
     let onApply: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            HStack(alignment: .top, spacing: TFSpacing.sm) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(template.title).tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
-                    if let description = template.description, !description.isEmpty {
-                        Text(description).tfText(.action).foregroundStyle(Color.tfSub).lineLimit(2)
+        TFCard(padding: TFSpacing.md, surface: .card, radius: TFRadius.xl) {
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                HStack(alignment: .top, spacing: TFSpacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(template.title).tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
+                        if let description = template.description, !description.isEmpty {
+                            Text(description).tfText(.action).foregroundStyle(Color.tfSub).lineLimit(2)
+                        }
+                    }
+                    Spacer()
+                    if let onEdit, let onDelete {
+                        HStack(spacing: TFSpacing.xs) {
+                            Button(action: onEdit) {
+                                Image(systemName: "pencil").font(.system(size: TFIconSize.xs)).foregroundStyle(Color.tfDim)
+                                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                            }.buttonStyle(TFTapScaleStyle())
+                            Button(action: onDelete) {
+                                Image(systemName: "trash").font(.system(size: TFIconSize.xs)).foregroundStyle(Color.tfDim)
+                                    .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                            }.buttonStyle(TFTapScaleStyle())
+                        }
+                    } else if let category = template.category {
+                        TFPill(category.uppercased(), color: .tfDim, backgroundOpacity: 1, solidBackground: Color.tfCard2)
                     }
                 }
-                Spacer()
-                if let onEdit, let onDelete {
+
+                if let subtasks = template.subtasks, !subtasks.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Подзадач: \(subtasks.count)").tfText(.caption).fontWeight(.semibold).foregroundStyle(Color.tfSub)
+                        ForEach(subtasks.prefix(3), id: \.self) { line in
+                            Text("• \(line)").tfText(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
+                        }
+                        if subtasks.count > 3 {
+                            Text("и ещё \(subtasks.count - 3)…").tfText(.caption).italic().foregroundStyle(Color.tfDim)
+                        }
+                    }
+                    .padding(TFSpacing.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tfCard2.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
+                }
+
+                Button(action: onApply) {
                     HStack(spacing: TFSpacing.xs) {
-                        Button(action: onEdit) {
-                            Image(systemName: "pencil").tfTypeFont(size: TFIconSize.xs).foregroundStyle(Color.tfDim)
-                                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                        }.buttonStyle(TFTapScaleStyle())
-                        Button(action: onDelete) {
-                            Image(systemName: "trash").tfTypeFont(size: TFIconSize.xs).foregroundStyle(Color.tfDim)
-                                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
-                        }.buttonStyle(TFTapScaleStyle())
+                        Image(systemName: "plus").tfTypeFont(size: 13, weight: .semibold)
+                        Text("Создать задачу по шаблону").tfText(.caption).fontWeight(.semibold)
                     }
-                } else if let category = template.category {
-                    TFPill(category.uppercased(), color: .tfDim, backgroundOpacity: 1, solidBackground: Color.tfCard2)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TFHitTarget.min)
+                    .foregroundStyle(Color.tfRed)
+                    .background(Color.tfRed.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
                 }
+                .buttonStyle(TFTapRowStyle())
+                .disabled(isApplying)
+                .opacity(isApplying ? 0.5 : 1)
             }
-
-            if let subtasks = template.subtasks, !subtasks.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Подзадач: \(subtasks.count)").tfText(.caption).fontWeight(.semibold).foregroundStyle(Color.tfSub)
-                    ForEach(subtasks.prefix(3), id: \.self) { line in
-                        Text("• \(line)").tfText(.caption).foregroundStyle(Color.tfDim).lineLimit(1)
-                    }
-                    if subtasks.count > 3 {
-                        Text("и ещё \(subtasks.count - 3)…").tfText(.caption).italic().foregroundStyle(Color.tfDim)
-                    }
-                }
-                .padding(TFSpacing.sm)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tfCard2.opacity(0.6))
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-            }
-
-            Button(action: onApply) {
-                HStack(spacing: TFSpacing.xs) {
-                    Image(systemName: "plus").tfTypeFont(size: 13, weight: .semibold)
-                    Text("Создать задачу по шаблону").tfText(.caption).fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: TFHitTarget.min)
-                .foregroundStyle(Color.tfRed)
-                .background(Color.tfRed.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: TFRadius.md))
-            }
-            .buttonStyle(TFTapRowStyle())
-            .disabled(isApplying)
-            .opacity(isApplying ? 0.5 : 1)
         }
-        .padding(TFSpacing.md)
-        .background(Color.tfCard)
         .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 }
 

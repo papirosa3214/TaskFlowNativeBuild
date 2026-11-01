@@ -136,6 +136,7 @@ public struct CoordinationScreen: View {
                 Section { Text("Обновлено \(updated.formatted(date: .omitted, time: .shortened))").tfText(.meta) }
             }
         }
+        .tfScreenBackground()
         .refreshable { await refresh() }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }

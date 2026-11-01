@@ -147,7 +147,7 @@ struct RoleChatsScreen: View {
             }
             .padding(.bottom, TFSpacing.xl)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         // Бывшая панель участников чата — теперь в корне раздела и
         // показывает комнаты (владелец 21.10.2026).
         .overlay(alignment: .trailing) {
@@ -430,7 +430,7 @@ struct RoleChatRoomLoader: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .task { await load() }
     }
 
@@ -1762,12 +1762,13 @@ struct RoleChatRoomScreen: View {
         }
         .safeAreaInset(edge: .top) {
             if let taskID = chat.taskID {
-                TaskCardLink(taskID: taskID) {
-                    Label { Text("Задача чата").foregroundStyle(Color.tfText) } icon: { Image(systemName: "checklist").foregroundStyle(Color.tfRed) }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(TFSpacing.md)
+                TFCard(padding: 0, surface: .card, radius: nil) {
+                    TaskCardLink(taskID: taskID) {
+                        Label { Text("Задача чата").foregroundStyle(Color.tfText) } icon: { Image(systemName: "checklist").foregroundStyle(Color.tfRed) }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(TFSpacing.md)
+                    }
                 }
-                .background(Color.tfCard)
             }
         }
     }
@@ -2183,7 +2184,7 @@ struct RoleChatRoomScreen: View {
         // Признак меняется только от его прокрутки, а не от роста ответа:
         // иначе привязка мигала и низ дёргался (владелец 30.10.2026).
         .defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
         .accessibilityIdentifier("chat.feed")
@@ -2878,13 +2879,13 @@ struct RoleChatRoomScreen: View {
     private func sessionMarkerRow(_ message: RoleChatMessage) -> some View {
         HStack {
             Spacer()
-            Text("Новая сессия")
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, 4)
-                .background(Color.tfCard)
-                .clipShape(Capsule())
+            TFPill(surface: .tfCard, capsule: true) {
+                Text("Новая сессия")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .padding(.horizontal, TFSpacing.md)
+                    .padding(.vertical, 4)
+            }
             Spacer()
         }
     }
@@ -3508,24 +3509,25 @@ struct RoleChatRoomScreen: View {
     }
 
     private var mentionSuggestions: some View {
-        VStack(spacing: 0) {
-            ForEach(mentionCandidates) { member in
-                Button { insertMention(member) } label: {
-                    HStack(spacing: TFSpacing.md) {
-                        RoleMemberAvatar(member: member, size: .md)
-                        Text(member.name)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                        Spacer()
+        TFCard(padding: 0, surface: .card, radius: nil) {
+            VStack(spacing: 0) {
+                ForEach(mentionCandidates) { member in
+                    Button { insertMention(member) } label: {
+                        HStack(spacing: TFSpacing.md) {
+                            RoleMemberAvatar(member: member, size: .md)
+                            Text(member.name)
+                                .tfText(.body)
+                                .foregroundStyle(Color.tfText)
+                            Spacer()
+                        }
+                        .padding(.horizontal, TFSpacing.lg)
+                        .padding(.vertical, TFSpacing.sm)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, TFSpacing.lg)
-                    .padding(.vertical, TFSpacing.sm)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .background(Color.tfCard)
     }
 
     /// «…@Раз» → «…@Разработчик » — пробел в конце, чтобы продолжение

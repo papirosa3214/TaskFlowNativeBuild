@@ -53,7 +53,7 @@ struct RuntimeProvidersScreen: View {
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.vertical, TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .tfNativeHeader("Модели и провайдеры")
         .task {
             await viewModel.load()

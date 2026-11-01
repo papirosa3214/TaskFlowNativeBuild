@@ -27,7 +27,7 @@ struct WidgetStateGalleryScreen: View {
             }
             .padding(TFSpacing.lg)
         }
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .preferredColorScheme(
             ProcessInfo.processInfo.environment["TASKFLOW_WIDGET_GALLERY_APPEARANCE"] == "light" ? .light : .dark
         )
@@ -48,15 +48,16 @@ struct WidgetStateGalleryScreen: View {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 Text("Доставка своего сообщения").font(.caption).foregroundStyle(Color.tfDim)
                 ForEach(ChatMessageDeliveryState.allCasesForPreview, id: \.self) { state in
-                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                        Text("Сделай вот это")
-                            .font(.body)
-                            .foregroundStyle(Color.tfText)
-                        ChatDeliveryBadge(state: state)
+                    TFCard(padding: 0, surface: .card, radius: nil) {
+                        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                            Text("Сделай вот это")
+                                .font(.body)
+                                .foregroundStyle(Color.tfText)
+                            ChatDeliveryBadge(state: state)
+                        }
+                        .padding(TFSpacing.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(TFSpacing.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tfCard)
                 }
             }
             VStack(alignment: .leading, spacing: TFSpacing.sm) {

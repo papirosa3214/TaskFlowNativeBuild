@@ -171,13 +171,13 @@ private struct RoutineRow: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                 if schedule.isPaused {
-                    Text("На паузе")
-                        .tfText(.caption)
-                        .foregroundStyle(Color.tfSub)
-                        .padding(.horizontal, TFSpacing.sm)
-                        .padding(.vertical, TFSpacing.xs)
-                        .background(Color.tfCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: TFRadius.pill))
+                    TFPill(surface: .tfCard2) {
+                        Text("На паузе")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, TFSpacing.xs)
+                    }
                 }
             }
             Text(ruleSummary)

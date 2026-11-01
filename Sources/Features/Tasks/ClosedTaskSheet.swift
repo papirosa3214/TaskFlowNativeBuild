@@ -53,6 +53,7 @@ struct ClosedTaskSheet: View {
                 }
                 .disabled(isBusy)
             }
+            .tfScreenBackground()
             .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

@@ -1248,7 +1248,7 @@ struct TaskCardContent: View {
         #endif
         // Прозрачные строки и промежутки показывают одну системную поверхность шторки.
         .listRowBackground(Color.clear)
-        .scrollContentBackground(.hidden)
+        .tfScreenBackground()
         // Без полосы прокрутки справа (владелец 02.10.2026).
         .scrollIndicators(.hidden)
         // Невидимый загрузчик плана, пока не известно, утверждён ли он.
@@ -2004,21 +2004,20 @@ struct TaskCardContent: View {
     private func activityChips(_ actions: [ApiTaskActivityAction], total: Int? = nil) -> some View {
         let count = total ?? actions.count
         return HStack(spacing: TFSpacing.xs) {
-            Text("\(count) \(pluralActions(count))")
-                .tfText(.micro)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.sm)
-                .frame(height: 24)
-                .background(Color.tfCard2)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            ForEach(Array(actions.suffix(5)), id: \.id) { action in
-                Image(systemName: activityIcon(action.kind))
-                    .tfTypeFont(size: 12)
-                    .foregroundStyle(Color.tfDim)
-                    .frame(width: 24, height: 24)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            TFPill(surface: .tfCard2, radius: TFRadius.sm) {
+                Text("\(count) \(pluralActions(count))")
+                    .tfText(.micro)
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, TFSpacing.sm)
+                    .frame(height: 24)
             }
+            ForEach(Array(actions.suffix(5)), id: \.id) { action in
+                TFPill(surface: .tfCard2, radius: TFRadius.sm) {
+                    Image(systemName: activityIcon(action.kind))
+                        .tfTypeFont(size: 12)
+                        .foregroundStyle(Color.tfDim)
+                        .frame(width: 24, height: 24)
+                }            }
         }
     }
 

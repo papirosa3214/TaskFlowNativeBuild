@@ -295,14 +295,14 @@ struct ServiceAccountsScreen: View {
                 Text("Показывается один раз. Потом можно только выпустить новый.")
                     .tfText(.meta)
                     .foregroundStyle(Color.tfSub)
-                Text(issued.token)
-                    .tfMonospaced(12, relativeTo: .caption)
-                    .foregroundStyle(Color.tfText)
-                    .padding(TFSpacing.md)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tfCard2)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-                    .textSelection(.enabled)
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                    Text(issued.token)
+                        .tfMonospaced(12, relativeTo: .caption)
+                        .foregroundStyle(Color.tfText)
+                        .padding(TFSpacing.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .textSelection(.enabled)
                 HStack(spacing: TFSpacing.sm) {
                     Button {
                         UIPasteboard.general.string = issued.token
@@ -520,13 +520,13 @@ struct ServiceAccountsScreen: View {
                     .disabled(viewModel.tokenDraft(for: account.id).trimmingCharacters(in: .whitespaces).isEmpty)
 
                     Button { Task { _ = await viewModel.rotateToken(account.id) } } label: {
-                        Text("Выпустить новый")
-                            .tfText(.row)
-                            .foregroundStyle(Color.tfSub)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: 36)
-                            .background(Color.tfCard2)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+                        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                            Text("Выпустить новый")
+                                .tfText(.row)
+                                .foregroundStyle(Color.tfSub)
+                                .padding(.horizontal, TFSpacing.lg)
+                                .frame(height: 36)
+                        }
                     }
                     .buttonStyle(TFTapScaleStyle())
                 }

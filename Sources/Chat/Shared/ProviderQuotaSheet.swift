@@ -27,7 +27,7 @@ struct ProviderQuotaSheet: View {
                 }
                 .padding(TFSpacing.lg)
             }
-            .background(Color.tfBackground)
+            .tfScreenBackground()
             .tfNativeHeader("Лимиты провайдеров", displayMode: .inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

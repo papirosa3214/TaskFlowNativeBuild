@@ -65,9 +65,9 @@ struct ChatWorkPlanRows: View {
     var body: some View {
         if floating {
             if !plans.isEmpty {
-                list(divided: false)
-                    .background(Color.tfCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
+                TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+                    list(divided: false)
+                }
                     .tfShadow(TFShadow.dropdown)
                     .padding(.horizontal, TFSpacing.lg)
                     .padding(.bottom, TFSpacing.sm)

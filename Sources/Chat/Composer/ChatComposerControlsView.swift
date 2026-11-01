@@ -174,7 +174,7 @@ struct ChatContextSheet: View {
                     Button("Обновить", systemImage: "arrow.clockwise", action: onRefresh)
                 }
             }
-            .scrollContentBackground(.hidden)
+            .tfScreenBackground()
             .navigationTitle(roleName.map { "Контекст · " + $0 } ?? "Контекст")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -218,7 +218,7 @@ struct ChatSlashSuggestions: View {
             }
         }
         .frame(maxHeight: 220)
-        .background(Color.tfBackground)
+        .tfScreenBackground()
         .accessibilityIdentifier("chat.slash-suggestions")
     }
 }
