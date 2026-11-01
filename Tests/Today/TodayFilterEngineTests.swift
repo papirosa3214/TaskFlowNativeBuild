@@ -42,12 +42,15 @@ final class TodayFilterEngineTests: XCTestCase {
         XCTAssertFalse(TodayFilterEngine.matches(make("t2", assigneeId: "u1"), filter))
     }
 
-    func testShowCompletedПоУмолчаниюСкрываетВыполненные() {
+    func testВыполненныеСкрытыИзЖивыхСписков() {
+        // Закрытые карточки из живых списков убраны (владелец 01.11.2026):
+        // переключателя «показывать выполненные» больше нет — выполненные
+        // не проходят ни при каком наборе фильтров.
         XCTAssertFalse(TodayFilterEngine.matches(make("t", status: .completed), .empty))
-    }
-
-    func testShowCompletedВключаетВыполненные() {
-        XCTAssertTrue(TodayFilterEngine.matches(make("t", status: .completed), TodayTaskFilters(showCompleted: true)))
+        XCTAssertFalse(TodayFilterEngine.matches(
+            make("t", projectId: "p1", labelIds: ["l1"], assigneeId: "u1", status: .completed),
+            TodayTaskFilters(projectId: "p1", labelId: "l1", assigneeKey: "u1")
+        ))
     }
 
     func testКомбинацияФильтровЭтоИ() {
@@ -99,6 +102,5 @@ final class TodayFilterEngineTests: XCTestCase {
         XCTAssertTrue(TodayTaskFilters(labelId: "l1").isActive)
         XCTAssertTrue(TodayTaskFilters(assigneeKey: "u1").isActive)
         XCTAssertTrue(TodayTaskFilters(assigneeKey: "__none").isActive)
-        XCTAssertTrue(TodayTaskFilters(showCompleted: true).isActive)
     }
 }
