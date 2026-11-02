@@ -21,3 +21,18 @@
 | Роли плана — это подзадачи | [2026-09-29-role-slot-execution-integration](2026-09-29-role-slot-execution-integration/) |
 | Миграция AgentProfile | [2026-09-agent-profile-migration](2026-09-agent-profile-migration/) |
 | Контракт Kanban | [2026-09-kanban-contract](2026-09-kanban-contract/) |
+
+## Реестр работ — кто что правит
+
+| Что | Где |
+| --- | --- |
+| Сводка для чтения: что в работе, что сломано, кто что правил и какого типа изменение (код / тесты / документы / инфраструктура) | [реестр-сводка.md](реестр-сводка.md) |
+| Реестр работ (источник правды, одна большая таблица) | [../AGENT-WORK-SCOPES.md](../AGENT-WORK-SCOPES.md) |
+
+Сводка генерируется из реестра скриптом `Tools/scopes_digest.py` — вручную её не правят.
+После того как реестр изменился, сводку пересобирают:
+
+```bash
+python3 Tools/scopes_digest.py
+```
+

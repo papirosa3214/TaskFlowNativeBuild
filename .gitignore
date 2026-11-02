@@ -57,3 +57,16 @@ simulator-frames/
 device-frames/
 
 .claude/settings.local.json
+
+# 02.11.2026: локальные артефакты проверок и сборки, которые копятся в дереве
+# и в worktree: снимки accessibility-дерева, кадры живого QA-набора, папки
+# сборки и вложения xcresult. По той же причине, что и выше, в Git они не
+# идут: это пересобирается, а не хранится.
+/qa_live/
+/qa-shots/
+/diag-screen.png
+/ax-lock.json
+/ax8.json
+/build_qa*/
+/dd/
+shots/
