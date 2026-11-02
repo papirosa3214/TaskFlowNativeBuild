@@ -111,4 +111,19 @@ final class TaskSyncCachePolicyTests: XCTestCase {
     func testBatchRequestIdsSkipEmpty() {
         XCTAssertEqual(TaskSyncCachePolicy.batchRequestIds(changedIds: ["", "a"]), ["a"])
     }
+
+    // MARK: - Телефон хранит только живое
+
+    func testStaleIdsAreThoseMissingFromLiveList() {
+        // Выполнено, отменено, в архиве, удалено — в живом списке их нет, и
+        // из телефонной базы они уходят.
+        XCTAssertEqual(
+            TaskSyncCachePolicy.staleIds(stored: ["a", "b", "c"], live: ["a"]),
+            ["b", "c"]
+        )
+    }
+
+    func testStaleIdsEmptyWhenEverythingIsLive() {
+        XCTAssertTrue(TaskSyncCachePolicy.staleIds(stored: ["a"], live: ["a", "b"]).isEmpty)
+    }
 }

@@ -8,8 +8,12 @@ import Foundation
 /// доформулировывает: сырые пути и команды владелец видеть не хочет,
 /// готовую формулировку по каждому действию сервер уже кладёт в `text`.
 ///
-/// Буфер живёт, только пока агент реально держит задачу: отдал или просрочил
-/// аренду — сервер отвечает `text: null` и пустым списком, строка гаснет сама.
+/// Буфер в памяти живёт 30 минут и гаснет, когда задача уходит в архив.
+/// История же работы роли лежит в журнале `role_tool_audit` — он живёт
+/// вместе с задачей, и по нему сервер считает статистику (`stats`): сколько
+/// операций, сколько успешных, сколько ошибок и по каким. Владелец
+/// 02.11.2026: «у меня нет информации, почему оно падает» — статистика и
+/// есть этот ответ.
 public struct ApiTaskActivity: Codable, Sendable, Hashable {
     /// Одна фраза о происходящем. `nil` — агент задачу не держит.
     public let text: String?
@@ -19,8 +23,11 @@ public struct ApiTaskActivity: Codable, Sendable, Hashable {
 
     public var bySubtask: [String: ApiTaskActivity]? = nil
 
+    /// Статистика действий роли по журналу. `nil` — старый сервер.
+    public var stats: ApiTaskActivityStats? = nil
+
     enum CodingKeys: String, CodingKey {
-        case text, actions, total
+        case text, actions, total, stats
         case bySubtask = "by_subtask"
     }
 
@@ -33,6 +40,44 @@ public struct ApiTaskActivity: Codable, Sendable, Hashable {
     public static let idle = ApiTaskActivity(text: nil, actions: [])
 
     public var isActive: Bool { text?.isEmpty == false || !actions.isEmpty }
+}
+
+/// Статистика действий роли по журналу `role_tool_audit` (сервер
+/// `roleActionStats`): сколько операций, сколько успешных, сколько ошибок и
+/// по каким операциям.
+public struct ApiTaskActivityStats: Codable, Sendable, Hashable {
+    /// Одна операция: сколько раз звали и сколько раз с ошибкой.
+    public struct Operation: Codable, Sendable, Hashable, Identifiable {
+        public let operation: String
+        public let total: Int
+        public let failed: Int
+        public var id: String { operation }
+    }
+
+    /// Одна ошибка: операция, текст и когда.
+    public struct Failure: Codable, Sendable, Hashable, Identifiable {
+        public let operation: String
+        public let message: String
+        public let at: String
+        public var id: String { "\(operation)-\(at)-\(message.prefix(12))" }
+    }
+
+    public let total: Int
+    public let ok: Int
+    public let failed: Int
+    public let byOperation: [Operation]
+    public let errors: [Failure]
+
+    enum CodingKeys: String, CodingKey {
+        case total, ok, failed, errors
+        case byOperation = "by_operation"
+    }
+
+    /// Операции, по которым были ошибки, — «в основном ошибки по каким
+    /// командам» (владелец 02.11.2026).
+    public var failedOperations: [Operation] {
+        byOperation.filter { $0.failed > 0 }.sorted { $0.failed > $1.failed }
+    }
 }
 
 public struct ApiTaskActivityAction: Codable, Sendable, Hashable, Identifiable {
