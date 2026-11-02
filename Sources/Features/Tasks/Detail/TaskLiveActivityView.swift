@@ -19,6 +19,29 @@ struct TaskLiveActivityView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            // Статистика действий роли по журналу сервера. Она переживает
+            // буфер в памяти, поэтому «почему оно падало» видно и спустя
+            // время: сколько операций, сколько успешных, сколько ошибок и
+            // по каким (владелец 02.11.2026).
+            if let stats = activity.stats, stats.total > 0 {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Действий роли: \(stats.total) · успешно \(stats.ok) · ошибок \(stats.failed)")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                    ForEach(stats.failedOperations.prefix(5)) { operation in
+                        Text("\(operation.operation) — ошибок \(operation.failed) из \(operation.total)")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfOrange)
+                    }
+                    ForEach(stats.errors.suffix(5)) { failure in
+                        Text("\(failure.operation): \(failure.message)")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                            .textSelection(.enabled)
+                    }
+                }
+                .accessibilityIdentifier("plan-slot-activity-stats")
+            }
             if let live {
                 RoleLiveTurnBubble(turn: live.turn, showsName: false, isComplete: live.complete, startsWithSnapshot: true)
                     .id(live.runID)
