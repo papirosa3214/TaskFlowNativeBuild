@@ -32,6 +32,9 @@ private struct CreateRoleChatBody: Encodable {
     let title: String?
     let kind: String
     let member_ids: [String]
+    /// Привязка к задаче: чат появляется в её переписке (сервер принимает
+    /// `task_id` в `POST /api/chats`).
+    let task_id: String?
 }
 
 public extension APIClient {
@@ -75,11 +78,12 @@ public extension APIClient {
         return response.chat
     }
 
-    func createRoleChat(title: String?, memberIDs: [String]) async throws -> RoleChat {
+    func createRoleChat(title: String?, memberIDs: [String], taskID: String? = nil) async throws -> RoleChat {
         let body = CreateRoleChatBody(
             title: title,
             kind: memberIDs.count == 1 ? "direct" : "group",
-            member_ids: memberIDs
+            member_ids: memberIDs,
+            task_id: taskID
         )
         let response: RoleChatEnvelope = try await request(.post, "/chats", body: body)
         return response.chat
