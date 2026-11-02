@@ -126,6 +126,40 @@ public extension APIClient {
         try await request(.get, "/tasks/changes", query: [URLQueryItem(name: "since", value: since)])
     }
 
+    /// БАТЧ карточек по id (`POST /api/tasks/batch`) — те же карточки, что
+    /// отдаёт список, но по списку id.
+    ///
+    /// Нужен дельте: раньше клиент дёргал `GET /api/tasks/:id` по одной на
+    /// каждую изменённую карточку (после разрыва связи их набиралось до 60
+    /// заходов подряд), и получал ДРУГУЮ форму ответа, чем список: полную
+    /// карточку вместо строки списка. Клиент кладёт в локальную базу ответ
+    /// сервера как есть — две формы одной карточки в одной базе расходятся по
+    /// полям (заметка «Кэш и синхронизация в мобильных клиентах», п.3 плана).
+    ///
+    /// Сырое тело: в базу кладём ответ сервера как есть.
+    ///
+    /// Старый сервер такой ручки не знает и отвечает 404 — клиент на это
+    /// возвращается к прежнему пути (по одной), чтобы не сломаться против
+    /// сервера без батча.
+    struct TaskBatchRequest: Encodable {
+        let ids: [String]
+    }
+
+    /// Конверт ответа батча: карточки в форме списка.
+    struct TaskBatchEnvelope: Decodable, Sendable {
+        let tasks: [ApiTask]
+    }
+
+    func taskBatch(ids: [String]) async throws -> Data {
+        let (data, _) = try await requestRaw(
+            .post,
+            "/tasks/batch",
+            body: TaskBatchRequest(ids: ids),
+            timeout: Self.localSyncTimeout
+        )
+        return data
+    }
+
     /// 404, если задача не видна по роли вызывающего (spec §2.3).
     func task(id: String) async throws -> ApiTask {
         try await request(.get, "/tasks/\(id)")
