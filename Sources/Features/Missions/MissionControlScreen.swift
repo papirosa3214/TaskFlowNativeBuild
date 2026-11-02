@@ -102,6 +102,7 @@ struct MissionControlScreen: View {
             }
         }
         .tfNativeHeader("Mission Control", displayMode: .inline)
+        .hintAnchor(HintAnchorID.missionControlScreen)
         .refreshable { await model.load(taskID: taskID) }
         .task { await model.load(taskID: taskID) }
     }
