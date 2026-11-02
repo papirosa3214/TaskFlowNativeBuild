@@ -39,6 +39,12 @@ public struct CoordinationScreen: View {
     @State private var reason = ""
     @State private var actionError: String?
     @State private var showDetails = false
+    /// Слот, для которого открыто окно исполнителя (тап по узлу графа).
+    @State private var executorSlotID: String?
+    /// Сводка по исполнителям — нужна для кнопки «Написать оркестратору».
+    @State private var executorSummary: TaskExecutorSummary?
+    /// Переписка по задаче — тема, где видно ответы исполнителей.
+    @State private var taskChatID: String?
 
     public init(state: CoordinationState, taskId: String, refreshIntervalSeconds: Double = 30,
                 onOpenTaskControls: @escaping () -> Void) {
@@ -80,7 +86,13 @@ public struct CoordinationScreen: View {
                 }
             } else {
                 Section("Состояние шагов") {
-                    ResolutionGraph(state: state, onSelect: { selectedID = $0 })
+                    ResolutionGraph(state: state) { nodeID in
+                        // Тап по узлу графа открывает окно исполнителя:
+                        // кто делает шаг, чего ждёт и что ему сказать
+                        // (владелец 02.11.2026).
+                        selectedID = nodeID
+                        executorSlotID = nodeID
+                    }
                 }
                 Section("Шаги") {
                     ForEach(state.nodes) { node in
@@ -102,6 +114,31 @@ public struct CoordinationScreen: View {
                     }
                 }
                 .hintAnchor(HintAnchorID.taskCoordination)
+            }
+            // Управление процессом из одного окна: написать оркестратору,
+            // который решает, кто что делает, или открыть переписку по задаче,
+            // где видно ответы исполнителей (владелец 02.11.2026).
+            Section("Управление") {
+                if let orchestratorSlot = executorSummary?.orchestrator.slotId {
+                    Button {
+                        executorSlotID = orchestratorSlot
+                    } label: {
+                        Label("Написать оркестратору", systemImage: "crown")
+                    }
+                    .accessibilityIdentifier("coordination.orchestrator")
+                    Text("Оркестратор разложил работу по ролям — ему можно написать прямо отсюда.")
+                        .tfText(.meta)
+                }
+                Button {
+                    Task {
+                        if let chat = try? await APIClient().taskTopic(taskID: taskId) {
+                            taskChatID = chat.id
+                        }
+                    }
+                } label: {
+                    Label("Переписка по задаче", systemImage: "bubble.left.and.bubble.right")
+                }
+                .accessibilityIdentifier("coordination.task-chat")
             }
             // Контракт миссии — те же критерии, что проверяет этот экран, но
             // записанные ДО работы: список ассерций, что не пройдено и журнал
@@ -165,6 +202,20 @@ public struct CoordinationScreen: View {
         .sheet(isPresented: $showDetails) {
             ResolutionDetailsSheet(resolution: selected)
         }
+        .sheet(isPresented: Binding(
+            get: { executorSlotID != nil },
+            set: { if !$0 { executorSlotID = nil } }
+        )) {
+            if let executorSlotID {
+                ExecutorWindow(taskID: taskId, subtaskID: executorSlotID)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { taskChatID != nil },
+            set: { if !$0 { taskChatID = nil } }
+        )) {
+            if let taskChatID { TaskChatSheet(chatID: taskChatID) }
+        }
         .alert("Перезапустить шаг?", isPresented: $showRestart) {
             TextField("Причина перезапуска", text: $reason)
             Button("Перезапустить", role: .destructive) {
@@ -192,6 +243,12 @@ public struct CoordinationScreen: View {
             }
         } catch {
             if !Task.isCancelled { state.applyFailure(error.localizedDescription) }
+        }
+        // Сводка по исполнителям — отдельным запросом и без фатальности:
+        // её отсутствие (старый сервер) не ломает координацию, нужен только
+        // кнопке «Написать оркестратору».
+        if let summary = try? await APIClient().taskExecutorSummary(taskId: taskId) {
+            executorSummary = summary
         }
     }
 
