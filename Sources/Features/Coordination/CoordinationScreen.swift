@@ -111,6 +111,7 @@ public struct CoordinationScreen: View {
                 NavigationLink(value: AppRoute.missionControl(taskID: taskId)) {
                     Text("Mission Control").tfText(.body)
                 }
+                .hintAnchor(HintAnchorID.missionControl)
                 .accessibilityIdentifier("coordination.mission-control")
                 Text("Что считается готовым по критериям, записанным до работы.")
                     .tfText(.meta)

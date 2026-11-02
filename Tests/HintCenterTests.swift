@@ -139,8 +139,57 @@ final class HintCenterTests: XCTestCase {
         center.isEnabled = true
         center.report(anchor: HintAnchorID.taskCoordination, frame: frame)
         XCTAssertEqual(center.active?.step, "step")
+        // Второй шаг (02.11.2026) — контракт миссии: он лежит в этом же
+        // экране и объясняет, почему шаг может не закрыться.
+        center.next()
+        XCTAssertEqual(center.active?.step, "mission")
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.missionControl)
         center.next()
         XCTAssertTrue(center.completed.contains("task-coordination"))
+    }
+
+    /// Контракт миссии (02.11.2026): новая функция — новая подсказка.
+    func testMissionControlHintWalksCoordinationToScreen() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "mission-control" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.taskCoordination, frame: frame)
+        XCTAssertEqual(center.active?.step, "coordination")
+        center.next()
+        XCTAssertEqual(center.active?.step, "mission")
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.missionControl)
+        center.next()
+        XCTAssertEqual(center.active?.step, "screen")
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.missionControlScreen)
+        center.next()
+        XCTAssertTrue(center.completed.contains("mission-control"))
+    }
+
+    /// Схема подсказок: у каждого сценария есть стартовый шаг, а каждый
+    /// переход ведёт в существующий шаг. Сломанная ссылка — это сценарий,
+    /// который молча не доходит до конца.
+    func testAllScenariosHaveValidStepsAndTransitions() {
+        for scenario in HintScenarios.all {
+            XCTAssertFalse(scenario.steps.isEmpty, "\(scenario.id): нет шагов")
+            XCTAssertNotNil(scenario.steps[scenario.start], "\(scenario.id): стартовый шаг «\(scenario.start)» не найден")
+            for (key, step) in scenario.steps {
+                if let next = step.next {
+                    XCTAssertNotNil(scenario.steps[next], "\(scenario.id): шаг «\(key)» ведёт в несуществующий «\(next)»")
+                }
+                for branch in step.branches {
+                    if let next = branch.next {
+                        XCTAssertNotNil(scenario.steps[next], "\(scenario.id): ветка «\(branch.title)» ведёт в несуществующий «\(next)»")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Идентификаторы сценариев не должны повторяться: список в настройках
+    /// показывает каждый сценарий один раз, а «Пройти заново» ищет по id.
+    func testScenarioIdsAreUnique() {
+        let ids = HintScenarios.all.map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count, "повторяющиеся id сценариев")
     }
 
     func testChatItemBudgetHintCompletes() throws {

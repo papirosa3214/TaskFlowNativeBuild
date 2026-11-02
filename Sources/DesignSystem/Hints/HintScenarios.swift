@@ -13,6 +13,10 @@ enum HintAnchorID {
     static let routinePlanTemplate = "routine.planTemplate"
     static let routineHistory = "routine.history"
     static let taskCoordination = "task.coordination"
+    /// Строка «Mission Control» в разделе «Контракт миссии» координации.
+    static let missionControl = "task.mission-control"
+    /// Сам экран Mission Control.
+    static let missionControlScreen = "task.mission-control.screen"
     static let chatItemBudget = "server.setting.chat_item_max_actions"
     static let chatOwnMessageCopy = "chat.own-message.copy"
     static let unifiedPlanner = "planner.all-tasks"
@@ -121,10 +125,28 @@ enum HintScenarios {
 
     static let taskCoordination = HintScenario(
         id: "task-coordination", title: "Почему шаг ждёт", start: "step",
-        steps: ["step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
-            text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.")])
+        steps: [
+            "step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
+                text: "В меню задачи выберите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.", next: "mission"),
+            "mission": HintStep(anchor: HintAnchorID.missionControl, title: "Контракт миссии",
+                text: "Ниже в этом же экране — раздел «Контракт миссии»: критерии, записанные до работы, и проверка по ним. Если шаг ждёт, посмотрите сначала здесь: непроверенный критерий не даёт закрыться задаче.", next: nil)
+        ])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
+    /// Контракт миссии (02.11.2026): что считается готовым по критериям,
+    /// записанным ДО работы. Новая функция — новая подсказка (правило
+    /// владельца 16.10.2026).
+    static let missionControl = HintScenario(
+        id: "mission-control", title: "Контракт миссии", start: "coordination",
+        steps: [
+            "coordination": HintStep(anchor: HintAnchorID.taskCoordination, title: "Где искать контракт",
+                text: "В меню задачи выберите «Координация». Внизу есть раздел «Контракт миссии» — критерии, записанные до работы: что именно считается готовым.", next: "mission"),
+            "mission": HintStep(anchor: HintAnchorID.missionControl, title: "Откройте Mission Control",
+                text: "Нажмите «Mission Control». Здесь видно, что считается готовым по контракту, какая проверка не прошла и кто её закрывал. Сам раздел ничего не меняет — это чтение.", next: "screen"),
+            "screen": HintStep(anchor: HintAnchorID.missionControlScreen, title: "Что здесь видно",
+                text: "Сверху — итог: сколько критериев пройдено, сколько провалено и сколько не проверяется вживую. Ниже — каждый критерий: номер, чем проверяется, какой шаг его закрыл. Отдельным списком — дыры в покрытии и журнал: кто что проверял и что открылось на доработку.", next: nil)
+        ])
+
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
