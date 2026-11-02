@@ -103,6 +103,8 @@ struct MissionControlScreen: View {
         }
         .tfNativeHeader("Mission Control", displayMode: .inline)
         .hintAnchor(HintAnchorID.missionControlScreen)
+        // Плоский список — как в координации (02.11.2026): без серых подложек.
+        .listStyle(.plain)
         .refreshable { await model.load(taskID: taskID) }
         .task { await model.load(taskID: taskID) }
     }

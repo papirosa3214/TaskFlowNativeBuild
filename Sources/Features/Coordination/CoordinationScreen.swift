@@ -150,6 +150,9 @@ public struct CoordinationScreen: View {
             }
         }
         .tfScreenBackground()
+        // Плоский список (02.11.2026): серые подложки секций прятали текст и
+        // превращали окно в набор серых блоков — здесь нужен плоский текст.
+        .listStyle(.plain)
         .refreshable { await refresh() }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
