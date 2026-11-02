@@ -163,7 +163,8 @@ struct TFTaskRowContent<Avatar: View, Metadata: View>: View {
         self.metadata = metadata()
     }
 
-    /// Название задачи — ступень `.listTitle` (16 pt). Кегль живёт в
+    /// Название задачи — ступень `.listTitle` (15 pt, группа «Основной текст»).
+    /// Кегль живёт в
     /// `Typography.swift`: раньше здесь стоял свой `@ScaledMetric`, и менять
     /// размер приходилось в этом файле отдельно от общей шкалы — теперь
     /// ступень общая, как у остального текста (LOCK-TYPOGRAPHY-SPEC).

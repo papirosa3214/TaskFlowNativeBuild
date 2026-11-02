@@ -219,8 +219,20 @@ final class LocalStore: @unchecked Sendable {
     func applyTaskList(payload: Data, etag: String?, cursor: String?) throws {
         guard let tasks = Self.array(in: payload) else { throw LocalStoreError.unexpectedPayload }
         try queue.write { db in
+            var live = Set<String>()
             for element in tasks {
                 try Self.writeTaskRow(db: db, element: element)
+                if let task = element as? [String: Any], let id = Self.string(task, "id") {
+                    live.insert(id)
+                }
+            }
+            // Телефон хранит только ЖИВОЕ. Всё, чего больше нет в живом
+            // списке (выполнено, отменено, ушло в архив, удалено), из базы
+            // уходит: на сервере оно лежит, а держать вторую копию на телефоне
+            // незачем (владелец 02.11.2026).
+            let stored = try String.fetchAll(db, sql: "SELECT id FROM task")
+            for id in TaskSyncCachePolicy.staleIds(stored: stored, live: live) {
+                try db.execute(sql: "DELETE FROM task WHERE id = ?", arguments: [id])
             }
             try Self.writeSyncState(db: db, key: SyncStateKeys.tasksETag, value: etag)
             try Self.writeSyncState(db: db, key: SyncStateKeys.tasksCursor, value: cursor)

@@ -48,6 +48,9 @@ struct PlanStepDetailSheet: View {
     @State private var reworkRemark = ""
     @State private var copiedResult = false
     @State private var isPreviousResultExpanded = false
+    /// Модель, на которой работала роль в этом шаге: «MiniMax-M3.1-Flash ·
+    /// minimax». Пусто — сервер не знает.
+    @State private var modelLine: String? = nil
 
     private var disclosureKey: String { "task.slot.\(node.taskId ?? plan.taskId).\(node.sourceSlotKey ?? node.slotKey)" }
 
@@ -72,12 +75,36 @@ struct PlanStepDetailSheet: View {
         plan.edges.filter { $0.toSlotKey == node.slotKey }.map(\.fromSlotKey)
     }
 
+    /// Модель, на которой реально работала роль в этом шаге.
+    ///
+    /// Владелец спрашивает об этом прямо: «на какой модели работает та или
+    /// иная роль в конкретном слоте». Берём из журнала действий — там модель
+    /// фактическая, с учётом переключения на запасную.
+    private func loadModelLine() async {
+        let taskID = node.taskId ?? plan.taskId
+        let subtaskID = node.sourceSubtaskId ?? subtask?.id
+        guard let activity = try? await APIClient().taskActivity(taskId: taskID).forSubtask(subtaskID),
+              let model = activity.stats?.model, !model.isEmpty
+        else { return }
+        let line = activity.stats?.provider.map { "\(model) · \($0)" } ?? model
+        await MainActor.run { modelLine = line }
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     LabeledContent("Роль") {
                         Text(roleTitle(node.roleKey)).foregroundStyle(Color.tfSub)
+                    }
+                    // На какой модели работает роль в этом шаге — ответ
+                    // владельцу нужен сразу, без раскрытия хода: модель
+                    // фактическая (фолбэк мог переключиться на другую).
+                    if let modelLine {
+                        LabeledContent("Модель") {
+                            Text(modelLine).foregroundStyle(Color.tfSub)
+                        }
+                        .accessibilityIdentifier("plan-step-model")
                     }
                     // Ожидающий шаг не стоит молча: от кого и какой результат ему нужен.
                     ForEach(node.waitingFor ?? [], id: \.fromSlotKey) { waiting in
@@ -86,41 +113,46 @@ struct PlanStepDetailSheet: View {
                             .tfText(.caption)
                             .foregroundStyle(Color.tfOrange)
                     }
-                    if stateLabel == "В работе" {
-                        DisclosureGroup(isExpanded: Binding(get: { isLiveExpanded }, set: { value in
-                            isLiveExpanded = value
-                            TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".live")
-                        })) {
-                            if isLiveExpanded {
-                                ScrollView(.vertical) {
-                                    TaskLiveActivityView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .frame(height: UIScreen.main.bounds.height * 0.5)
-                                // Без defaultScrollAnchor(.bottom): привязка к низу
-                                // пересчитывается на каждом обновлении содержимого
-                                // (живой ход идёт пачками раз в секунду), и окно
-                                // уводит владельца наверх — пролистать до кнопки
-                                // «Прервать» было невозможно (владелец 25.10.2026).
-                                .scrollBounceBehavior(.basedOnSize)
-                                .accessibilityIdentifier("plan-slot-live-window")
-                                // Перевод — значком в правом нижнем углу, на
-                                // строке «Работает · …», где справа пусто:
-                                // отдельная строка давала отступы и черту
-                                // (владелец 20.10.2026).
-                                .overlay(alignment: .bottomTrailing) { RoleTranslateSwitch() }
+                    // Окно хода доступно в ЛЮБОМ состоянии (владелец
+                    // 02.11.2026). Раньше группу раскрытия показывали только
+                    // когда шаг «В работе», и у заблокированного шага
+                    // «Состояние» было просто текстом: историю — что роль
+                    // делала, какие команды исполнила и на чём встала —
+                    // открыть было нельзя, а вопрос «почему оно падает»
+                    // оставался без ответа.
+                    //
+                    // Данные берутся те же: живой ход по сокету/снимку, а
+                    // если его уже нет — лента действий с сервера (что роль
+                    // делала до остановки).
+                    DisclosureGroup(isExpanded: Binding(get: { isLiveExpanded }, set: { value in
+                        isLiveExpanded = value
+                        TaskCardDisclosureState.saveFlag(value, key: disclosureKey + ".live")
+                    })) {
+                        if isLiveExpanded {
+                            ScrollView(.vertical) {
+                                TaskLiveActivityView(taskID: node.taskId ?? plan.taskId, subtaskID: node.sourceSubtaskId ?? subtask?.id)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                        } label: {
-                            LabeledContent("Состояние") {
-                                Text(stateLabel).foregroundStyle(Color.tfSub)
-                            }
+                            .frame(height: UIScreen.main.bounds.height * 0.5)
+                            // Без defaultScrollAnchor(.bottom): привязка к низу
+                            // пересчитывается на каждом обновлении содержимого
+                            // (живой ход идёт пачками раз в секунду), и окно
+                            // уводит владельца наверх — пролистать до кнопки
+                            // «Прервать» было невозможно (владелец 25.10.2026).
+                            .scrollBounceBehavior(.basedOnSize)
+                            .accessibilityIdentifier("plan-slot-live-window")
+                            // Перевод — значком в правом нижнем углу, на
+                            // строке «Работает · …», где справа пусто:
+                            // отдельная строка давала отступы и черту
+                            // (владелец 20.10.2026).
+                            .overlay(alignment: .bottomTrailing) { RoleTranslateSwitch() }
                         }
-                        .accessibilityIdentifier("plan-state-live")
-                    } else {
+                    } label: {
                         LabeledContent("Состояние") {
                             Text(stateLabel).foregroundStyle(Color.tfSub)
                         }
                     }
+                    .accessibilityIdentifier("plan-state-live")
                     if let iteration = node.iteration, iteration > 0 {
                         LabeledContent("Круг доработки") {
                             Text("\(iteration)").foregroundStyle(Color.tfSub)
@@ -266,6 +298,9 @@ struct PlanStepDetailSheet: View {
             .navigationTitle(roleTitle(node.roleKey))
             .navigationBarTitleDisplayMode(.inline)
             .tint(Color.tfText)
+            .task(id: "\(node.taskId ?? plan.taskId):\(node.sourceSubtaskId ?? subtask?.id ?? "")") {
+                await loadModelLine()
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
