@@ -39,6 +39,15 @@ public final class RealtimeClient {
         revisions.catchUp(changedTaskIDs: changedTaskIDs)
     }
 
+    /// Догон сущностей вне задачи (заметки, рутины, вложения) по курсору.
+    ///
+    /// События сокета в разрыв связи не доходят, поэтому после разрыва
+    /// экраны заметок и рутин узнают об изменениях только отсюда: ревизия
+    /// растёт, и они перечитывают себя.
+    func recordEntityCatchUp() {
+        entityRevision += 1
+    }
+
     /// Invalidation events wake only affected screens; no screen polling timer.
     func record(_ event: RealtimeEvent) {
         switch event {

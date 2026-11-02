@@ -169,6 +169,47 @@ struct RootView: View {
         }
     }
 
+    /// Обработчики догона сущностей вне задач.
+    ///
+    /// Проекты и метки — в сторах, их перечитываем списком. Заметки, дневник
+    /// и рутины живут на своих экранах: им достаточно роста ревизии
+    /// (`RealtimeClient.entityRevision`), по которой они перечитывают себя.
+    /// Вложения — часть карточки: перечитываем те карточки, чьи вложения
+    /// изменились (id приходят в дельте вместе с `task_id`).
+    @MainActor
+    private func entityCatchUpHandlers() -> EntitySyncCatchUp.Handlers {
+        // Сторы и канал — в локальные переменные: замыкания живут дольше
+        // вызова, а `@Environment` читается на экране.
+        let projects = projectStore
+        let labels = labelStore
+        let realtime = realtimeClient
+        let api = APIClient()
+        return EntitySyncCatchUp.Handlers(
+            reloadProjects: {
+                await projects.load()
+                return projects.errorMessage == nil
+            },
+            reloadLabels: {
+                await labels.load()
+                return labels.errorMessage == nil
+            },
+            reloadNotes: {
+                // Заметки и рутины живут на своих экранах и берутся из сети
+                // при каждом показе: список читаем здесь (это и проверка,
+                // что сервер отвечает), а экран будим ростом ревизии — он
+                // перечитает себя и покажет удалённое уже без рутины.
+                guard (try? await api.notesList()) != nil else { return false }
+                realtime.recordEntityCatchUp()
+                return true
+            },
+            reloadRoutines: {
+                guard (try? await api.schedules()) != nil else { return false }
+                realtime.recordEntityCatchUp()
+                return true
+            }
+        )
+    }
+
     private var launchScreen: some View {
         ZStack {
             Color.tfBackground.ignoresSafeArea()
@@ -214,12 +255,20 @@ struct RootView: View {
                 // нужна на экране уведомлений, а при переподключении хватает
                 // счётчика непрочитанных.
                 async let notificationsRefreshed: Void = notificationStore.load(unreadOnly: true)
-                // Проекты и метки раньше вообще не перечитывались после
-                // разрыва: правка названия проекта до разрыва не доезжала
-                // никогда. Дешёвые списки — читаем вместе с задачами.
-                async let projectsRefreshed: Void = projectStore.load()
-                async let labelsRefreshed: Void = labelStore.load()
-                let (changed, _, _, _) = await (changedTaskIDs, notificationsRefreshed, projectsRefreshed, labelsRefreshed)
+                let (changed, _) = await (changedTaskIDs, notificationsRefreshed)
+                // Сущности вне задач (проекты, метки, заметки, дневник,
+                // рутины, вложения): события сокета в разрыв связи не
+                // доходят, поэтому после разрыва их догоняем по курсору
+                // журнала — по тем же правилам, что и карточки (разбор
+                // 02.11.2026, заметка Архитектора).
+                let outcome = await EntitySyncCatchUp(apiClient: APIClient())
+                    .catchUp(handlers: entityCatchUpHandlers())
+                if !outcome.serverReachable {
+                    // Сервер без ручки дельты (старый) или сеть не поднялась:
+                    // перечитываем справочники целиком, как раньше.
+                    await projectStore.load()
+                    await labelStore.load()
+                }
                 realtimeClient.recordCatchUp(changedTaskIDs: changed)
             }
         }
