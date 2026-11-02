@@ -201,26 +201,74 @@ final class LocalStore: @unchecked Sendable {
         guard let tasks = Self.array(in: payload) else { return }
         try queue.write { db in
             for element in tasks {
-                guard let task = element as? [String: Any],
-                      let id = Self.string(task, "id"), !id.isEmpty
-                else { continue }
-                let arguments: StatementArguments = [
-                    "id": id,
-                    "updated_at": Self.string(task, "updated_at"),
-                    "payload_json": Self.data(element),
-                ]
-                try db.execute(
-                    sql: """
-                    INSERT INTO task (id, updated_at, payload_json)
-                    VALUES (:id, :updated_at, :payload_json)
-                    ON CONFLICT(id) DO UPDATE SET
-                      updated_at = excluded.updated_at,
-                      payload_json = excluded.payload_json
-                    """,
-                    arguments: arguments
-                )
+                try Self.writeTaskRow(db: db, element: element)
             }
         }
+    }
+
+    /// Записать полный список задач ВМЕСТЕ с отпечатком и курсором — ОДНОЙ
+    /// транзакцией.
+    ///
+    /// Почему вместе: отпечаток (ETag) — это «тело не менялось». Если он
+    /// записан раньше тела (или тело записалось с ошибкой, а отпечаток — нет),
+    /// то телефон пришлёт `If-None-Match`, получит 304 БЕЗ тела и останется со
+    /// старым или пустым списком навсегда: сервер ведь считает, что тело у
+    /// клиента уже есть. Это ровно тот сценарий, из-за которого список на
+    /// телефоне расходился с сервером (заметка «Кэш и синхронизация в
+    /// мобильных клиентах», раздел 4.2, риск «304 без проверки наличия тела»).
+    func applyTaskList(payload: Data, etag: String?, cursor: String?) throws {
+        guard let tasks = Self.array(in: payload) else { throw LocalStoreError.unexpectedPayload }
+        try queue.write { db in
+            for element in tasks {
+                try Self.writeTaskRow(db: db, element: element)
+            }
+            try Self.writeSyncState(db: db, key: SyncStateKeys.tasksETag, value: etag)
+            try Self.writeSyncState(db: db, key: SyncStateKeys.tasksCursor, value: cursor)
+        }
+    }
+
+    /// Применить дельту: изменившиеся карточки — перезапись, исчезнувшие —
+    /// удаление, курсор — сдвиг. Всё одной транзакцией.
+    ///
+    /// Курсор сдвигается ТОЛЬКО вместе с применёнными карточками: он означает
+    /// «до этого места я догнал», и сдвинуть его раньше — значит потерять
+    /// изменение навсегда (сервер больше его не пришлёт).
+    ///
+    /// `changedPayload` — ответ батча (`{"tasks":[…]}`) в форме списка.
+    /// `nil` — карточек в форме списка нет (старый сервер без батч-ручки):
+    /// тогда пишем только удаления и курсор, а сами карточки обновятся
+    /// полной перечиткой. Класть в базу полную карточку нельзя: у полной
+    /// карточки и у строки списка РАЗНЫЕ формы, и в одной базе они разойдутся
+    /// по полям.
+    func applyTaskDelta(changedPayload: Data?, removedIds: [String], cursor: String?) throws {
+        var changed: [Any] = []
+        if let changedPayload {
+            guard let items = Self.array(in: changedPayload, key: "tasks") else {
+                throw LocalStoreError.unexpectedPayload
+            }
+            changed = items
+        }
+        try queue.write { db in
+            for element in changed {
+                try Self.writeTaskRow(db: db, element: element)
+            }
+            for id in removedIds {
+                try db.execute(sql: "DELETE FROM task WHERE id = ?", arguments: [id])
+            }
+            try Self.writeSyncState(db: db, key: SyncStateKeys.tasksCursor, value: cursor)
+        }
+    }
+
+    /// Есть ли в базе карточки.
+    ///
+    /// Без них условие `If-None-Match` послать нельзя: сервер ответит 304
+    /// «список не менялся», а показать будет нечего.
+    func hasTasks() -> Bool {
+        guard database.isReady else { return false }
+        let count = (try? queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM task")
+        }) ?? 0
+        return count > 0
     }
 
     /// Задачи из базы. Порядок — как на сервере: сначала новые.
@@ -335,6 +383,51 @@ final class LocalStore: @unchecked Sendable {
         }
     }
 
+    // MARK: - Запись строк
+
+    /// Строка карточки — по элементу ответа сервера.
+    ///
+    /// В базу ложится СЫРОЙ элемент ответа: новая схема сервера базу не
+    /// ломает — старое тело просто не содержит нового поля.
+    private static func writeTaskRow(db: Database, element: Any) throws {
+        guard let task = element as? [String: Any],
+              let id = Self.string(task, "id"), !id.isEmpty
+        else { return }
+        let arguments: StatementArguments = [
+            "id": id,
+            "updated_at": Self.string(task, "updated_at"),
+            "payload_json": Self.data(element),
+        ]
+        try db.execute(
+            sql: """
+            INSERT INTO task (id, updated_at, payload_json)
+            VALUES (:id, :updated_at, :payload_json)
+            ON CONFLICT(id) DO UPDATE SET
+              updated_at = excluded.updated_at,
+              payload_json = excluded.payload_json
+            """,
+            arguments: arguments
+        )
+    }
+
+    /// Отпечаток или курсор — внутри той же транзакции, что и тело.
+    ///
+    /// Пишется только через этот помощник: отдельная запись мимо транзакции
+    /// тела — это и есть «отпечаток есть, тела нет».
+    private static func writeSyncState(db: Database, key: String, value: String?) throws {
+        if let value {
+            try db.execute(
+                sql: """
+                INSERT INTO sync_state (state_key, value) VALUES (:key, :value)
+                ON CONFLICT(state_key) DO UPDATE SET value = excluded.value
+                """,
+                arguments: ["key": key, "value": value]
+            )
+        } else {
+            try db.execute(sql: "DELETE FROM sync_state WHERE state_key = ?", arguments: [key])
+        }
+    }
+
     // MARK: - Разбор JSON
 
     /// Массив из тела ответа: либо сам ответ массив, либо поле-конверт.
@@ -369,6 +462,14 @@ final class LocalStore: @unchecked Sendable {
     private static func data(_ element: Any) -> Data {
         (try? JSONSerialization.data(withJSONObject: element)) ?? Data()
     }
+}
+
+/// Форма ответа сервера не та, которую ждал клиент.
+///
+/// Раньше такой разбор молча проглатывался (`try?`), и телефон продолжал
+/// считать, что данные записаны. Теперь это ошибка, которую видно.
+enum LocalStoreError: Error {
+    case unexpectedPayload
 }
 
 /// Ключи `sync_state`. Одно место — иначе курсор и отпечаток разъедутся

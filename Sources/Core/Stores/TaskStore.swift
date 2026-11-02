@@ -78,10 +78,28 @@ public final class TaskStore {
             // Отпечаток берём из памяти, а если его там нет — из базы:
             // он должен переживать перезапуск приложения, иначе каждый
             // старт стоит полной перечитки списка (402 КБ gzip).
-            let page = try await apiClient.taskListRaw(
-                includeChildren: true,
-                etag: listETag ?? LocalStore.shared.syncState(SyncStateKeys.tasksETag)
+            //
+            // Условие `If-None-Match` шлём ТОЛЬКО когда тело у нас есть.
+            // Отпечаток без тела — враньё: сервер ответит 304 «не менялось»,
+            // а показать будет нечего, и список останется пустым навсегда.
+            let storedETag = listETag ?? LocalStore.shared.syncState(SyncStateKeys.tasksETag)
+            let etag = TaskSyncCachePolicy.etagToSend(
+                localHasBody: LocalStore.shared.hasTasks(),
+                etag: storedETag
             )
+            var page = try await apiClient.taskListRaw(includeChildren: true, etag: etag)
+            if TaskSyncCachePolicy.needsBodyRetry(
+                notModified: page.notModified,
+                localHasBody: LocalStore.shared.hasTasks()
+            ) {
+                // Отпечаток врёт: сервер считает, что тело у нас есть, а его
+                // нет (база пересоздана, тело записалось с ошибкой, отпечаток
+                // записан был раньше тела). Сбрасываем отпечаток и просим тело
+                // заново, без условия.
+                listETag = nil
+                LocalStore.shared.setSyncState(SyncStateKeys.tasksETag, nil)
+                page = try await apiClient.taskListRaw(includeChildren: true, etag: nil)
+            }
             if page.notModified {
                 // Список не менялся — сервер ответил 304 без тела. Качать
                 // 402 КБ gzip впустую не нужно, состояние уже актуально.
@@ -96,14 +114,17 @@ public final class TaskStore {
             // (владелец 01.11.2026).
             agentWorkTasks = TaskVisibility.liveTasks(all)
             tasks = TaskVisibility.liveTasks(all).filter { Self.isRootTask($0) }
-            listETag = page.etag
             if let cursor = page.cursor { syncCursor = cursor }
-            // Отпечаток и курсор — в базу: в памяти они живут до перезапуска,
-            // а база переживает его. Это и есть «повторный вход — 0 байт».
-            if let etag = page.etag { LocalStore.shared.setSyncState(SyncStateKeys.tasksETag, etag) }
-            if let cursor = page.cursor { LocalStore.shared.setSyncState(SyncStateKeys.tasksCursor, cursor) }
-            // В базу — сырое тело ответа: новая схема сервера базу не ломает.
-            try? LocalStore.shared.upsertTasks(page.data)
+            // Тело, отпечаток и курсор — ОДНОЙ транзакцией. Отдельно записанный
+            // отпечаток при не записанном теле — это «сервер считает, что тело
+            // у меня есть, а у меня его нет»: телефон навсегда остаётся со
+            // старым или пустым списком.
+            try LocalStore.shared.applyTaskList(
+                payload: page.data,
+                etag: page.etag,
+                cursor: page.cursor
+            )
+            listETag = page.etag
         } catch is CancellationError {
             // Экран перезапросил список раньше, чем доехал предыдущий заход
             // (смена формата «Список»/«Один день», быстрый повторный вход) —
@@ -310,10 +331,13 @@ public final class TaskStore {
                 await load(silent: true)
                 return nil
             }
-            await apply(delta)
+            let applied = try await apply(delta)
+            // Курсор двигает только apply — и только вместе с применёнными
+            // карточками (в той же транзакции). Если дельта не применилась
+            // целиком, apply бросает ошибку, и курсор остаётся на месте: иначе
+            // потерянное изменение не придёт больше никогда.
             syncCursor = delta.serverTime
-            LocalStore.shared.setSyncState(SyncStateKeys.tasksCursor, delta.serverTime)
-            return Set(delta.changedIds).union(delta.removedIds)
+            return applied
         } catch {
             // Дельта не вышла — список оставлять старым нельзя, читаем
             // целиком (старая цена, но правильные данные).
@@ -323,25 +347,101 @@ public final class TaskStore {
     }
 
     /// Наложить дельту на локальный список: изменившиеся карточки — точечно
-    /// (тем же путём, что и по событию сокета), исчезнувшие — убрать.
-    private func apply(_ delta: APIClient.TaskChanges) async {
-        var byId = Dictionary(uniqueKeysWithValues: agentWorkTasks.map { ($0.id, $0) })
+    /// (одним запросом, той же формой, что и список), исчезнувшие — убрать.
+    ///
+    /// Возвращает id применённых карточек (и убранных). Бросает ошибку, если
+    /// дельта применилась не целиком: тогда курсор двигать нельзя, и дельта
+    /// повторится при следующем переподключении.
+    private func apply(_ delta: APIClient.TaskChanges) async throws -> Set<String> {
+        let ids = TaskSyncCachePolicy.batchRequestIds(changedIds: delta.changedIds)
+        let fetch = try await fetchChangedTasks(ids: ids)
+        guard !fetch.incomplete else { throw TaskSyncError.deltaIncomplete }
+        // Применённой считаем и «сервер сказал, что такой карточки больше
+        // нет» — это тоже ответ сервера, по нему догонять нечего.
+        let applied = Set(fetch.tasks.map(\.id)).union(fetch.missing)
+        guard TaskSyncCachePolicy.canAdvanceCursor(appliedIds: applied, requestedIds: ids) else {
+            throw TaskSyncError.deltaIncomplete
+        }
+
+        var byId = Dictionary(uniqueKeysWithValues: mergeBase().map { ($0.id, $0) })
         for id in delta.removedIds {
             byId.removeValue(forKey: id)
         }
-        for id in delta.changedIds {
-            if let task = try? await apiClient.task(id: id) {
-                byId[task.id] = task
-            }
+        for id in fetch.missing {
+            byId.removeValue(forKey: id)
+        }
+        for task in fetch.tasks {
+            byId[task.id] = task
         }
         // Локальная база: изменившиеся карточки — перезапись, исчезнувшие —
-        // удаление. Удалять можно только то, о чём сервер СКАЗАЛ: `removed_ids`
-        // — это явное «такой карточки больше нет».
-        try? LocalStore.shared.removeTasks(ids: delta.removedIds)
+        // удаление, курсор — сдвиг. Всё одной транзакцией: курсор означает
+        // «до этого места догнал», и двигать его раньше применения нельзя.
+        // Удалять можно только то, о чём сервер СКАЗАЛ: `removed_ids` — это
+        // явное «такой карточки больше нет», и карточки, которых сервер не
+        // вернул в батче, — тоже (сервер их больше не отдаёт).
+        try LocalStore.shared.applyTaskDelta(
+            changedPayload: fetch.listPayload,
+            removedIds: delta.removedIds + fetch.missing,
+            cursor: delta.serverTime
+        )
         // Порядок — как у полной выдачи (сервер сортирует по created_at DESC).
         let all = byId.values.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
         agentWorkTasks = TaskVisibility.liveTasks(all)
         tasks = TaskVisibility.liveTasks(all).filter { Self.isRootTask($0) }
+        return applied.union(delta.removedIds)
+    }
+
+    /// Основа для наложения дельты: текущий список в памяти, а если его нет
+    /// (холодный старт) — локальная база. Иначе дельта собрала бы список из
+    /// одних только своих карточек.
+    private func mergeBase() -> [ApiTask] {
+        agentWorkTasks.isEmpty ? ((try? LocalStore.shared.tasks()) ?? []) : agentWorkTasks
+    }
+
+    /// Что пришло по дельте.
+    private struct ChangedFetch {
+        /// Карточки, которые пришли.
+        var tasks: [ApiTask] = []
+        /// Сырое тело батча — только его кладём в локальную базу (форма
+        /// списка). Поштучный запасной путь отдаёт полные карточки: в базу
+        /// они не идут, там уже лежит форма списка.
+        var listPayload: Data?
+        /// id, которых сервер не вернул: их больше нет в живом списке.
+        var missing: [String] = []
+        /// Дельта применилась не целиком (сеть отвалилась) — курсор не
+        /// двигаем, дельта повторится.
+        var incomplete: Bool = false
+    }
+
+    /// Забрать карточки дельты — одним запросом (батч), а не по одной.
+    ///
+    /// Старый сервер без батч-ручки отвечает 404 — тогда берём карточки по
+    /// одной, как раньше, и в базу их не кладём (форма не та).
+    private func fetchChangedTasks(ids: [String]) async throws -> ChangedFetch {
+        guard !ids.isEmpty else { return ChangedFetch() }
+        do {
+            let payload = try await apiClient.taskBatch(ids: ids)
+            let envelope = try apiClient.decode(APIClient.TaskBatchEnvelope.self, from: payload)
+            let returned = Set(envelope.tasks.map(\.id))
+            return ChangedFetch(
+                tasks: envelope.tasks,
+                listPayload: payload,
+                missing: ids.filter { !returned.contains($0) }
+            )
+        } catch let error as APIError {
+            guard case .notFound = error else { throw error }
+            // Ручки нет (старый сервер) — прежний путь, по одной карточке.
+            var tasks: [ApiTask] = []
+            var missing: [String] = []
+            for id in ids {
+                if let task = try? await apiClient.task(id: id) {
+                    tasks.append(task)
+                } else {
+                    missing.append(id)
+                }
+            }
+            return ChangedFetch(tasks: tasks, listPayload: nil, missing: missing)
+        }
     }
 
     private func upsert(_ task: ApiTask) {
@@ -381,7 +481,14 @@ public final class TaskStore {
     }
 
     private static func message(for error: Error) -> String {
-        (error as? APIError)?.errorDescription ?? error.localizedDescription
+        if error is LocalStoreError {
+            // Локальная база не записалась — на экране данные свежие, но
+            // после перезапуска приложения они могут устареть. Молчать об
+            // этом нельзя: молчаливая рассинхронизация и есть тот самый
+            // «жёсткий рассинхрон», который чинили.
+            return "Не удалось сохранить список задач в локальную базу — после перезапуска данные могут устареть."
+        }
+        return (error as? APIError)?.errorDescription ?? error.localizedDescription
     }
 
     /// Сервер сказал именно «такой записи нет». Отсутствующий МАРШРУТ сюда
@@ -391,4 +498,12 @@ public final class TaskStore {
         if case .notFound = (error as? APIError) { return true }
         return false
     }
+}
+
+/// Дельта применилась не целиком.
+///
+/// Значит, часть изменений не догнана: курсор сдвигать нельзя, иначе эти
+/// изменения сервер больше не пришлёт (он считает, что клиент догнал).
+enum TaskSyncError: Error {
+    case deltaIncomplete
 }
