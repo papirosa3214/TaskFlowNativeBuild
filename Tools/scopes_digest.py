@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Сводка по реестру работ AGENT-WORK-SCOPES.md.
+"""Сводка по реестру работ.
 
-Реестр — одна большая таблица (775 строк, больше мегабайта), и по ней
-невозможно понять, что именно менялось: правка кода, документ или правка
-инфраструктуры. Этот скрипт читает реестр и собирает из него компактную
-сводку: что в работе, что сломано, кто что правил и какого это типа
-изменение (код / тесты / документы / инфраструктура).
+Реестр разбит по месяцам: `AGENT-WORK-SCOPES/ГГГГ-ММ.md` (активный месяц —
+`2026-11.md`). Записи из всех файлов складываются в сводку: что в работе,
+что сломано, кто что правил и какого это типа изменение (код / тесты /
+документы / инфраструктура).
 
 Запуск: python3 Tools/scopes_digest.py
 Результат: docs/реестр-сводка.md
 """
 from __future__ import annotations
 
+import datetime
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REGISTRY = ROOT / 'AGENT-WORK-SCOPES.md'
+REGISTRY_DIR = ROOT / 'AGENT-WORK-SCOPES'
 OUT = ROOT / 'docs' / 'реестр-сводка.md'
 
 STATUSES = ('REVIEW', 'IN_PROGRESS', 'BROKEN', 'CANCELLED', 'DONE')
@@ -136,15 +136,27 @@ def parse_row(line: str) -> dict | None:
 
 def collect() -> list[dict]:
     rows = []
-    for line in REGISTRY.read_text().splitlines():
-        row = parse_row(line)
-        if row:
-            rows.append(row)
+    for path in sorted(REGISTRY_DIR.glob('*.md')):
+        for line in path.read_text().splitlines():
+            row = parse_row(line)
+            if row:
+                row['file'] = path.name
+                rows.append(row)
     return rows
 
 
 def fmt_date(d: str) -> str:
     return f'{d[6:8]}.{d[4:6]}.{d[0:4]}' if len(d) == 8 else '—'
+
+
+def age_days(date: str, today: datetime.date) -> int | None:
+    if len(date) != 8:
+        return None
+    try:
+        d = datetime.date(int(date[:4]), int(date[4:6]), int(date[6:8]))
+    except ValueError:
+        return None
+    return (today - d).days
 
 
 def one_line(text: str, limit: int = 150) -> str:
@@ -172,7 +184,7 @@ def main() -> int:
     lines: list[str] = []
     lines.append('# Сводка по реестру работ')
     lines.append('')
-    lines.append('Сгенерировано из `AGENT-WORK-SCOPES.md` — скриптом `Tools/scopes_digest.py`.')
+    lines.append('Сгенерировано из `AGENT-WORK-SCOPES/ГГГГ-ММ.md` — скриптом `Tools/scopes_digest.py`.')
     lines.append('Реестр остаётся источником правды; эта сводка — только для чтения.')
     lines.append('')
     lines.append(f'Записей: **{len(rows)}**. Обновлено автоматически, вручную не правится.')
@@ -200,6 +212,9 @@ def main() -> int:
         lines.append(f'| {k} | {v} |')
     lines.append('')
 
+    today = datetime.date.today()
+    stale_days = 3
+
     for status, title in (
         ('IN_PROGRESS', 'Сейчас в работе'),
         ('BROKEN', 'Сломанное'),
@@ -219,14 +234,34 @@ def main() -> int:
             )
         lines.append('')
 
+    stale = [r for r in by_status.get('IN_PROGRESS', [])
+             if (age_days(r['date'], today) or 0) > stale_days]
+    if stale:
+        stale.sort(key=lambda r: age_days(r['date'], today) or 0, reverse=True)
+        lines.append(f'## Замерло в работе ({len(stale)})')
+        lines.append('')
+        lines.append(f'Записи в статусе `IN_PROGRESS` старше {stale_days} дней — их можно '
+                     f'закрыть или перевести в `REVIEW`.')
+        lines.append('')
+        lines.append('| Дней висит | Запись | Что | Автор |')
+        lines.append('| --- | --- | --- | --- |')
+        for r in stale:
+            days = age_days(r['date'], today) or 0
+            lines.append(
+                f'| {days} | `{r["lock"]}` | {one_line(r["what"], 100)} '
+                f'| {r["author"] or "—"} |'
+            )
+        lines.append('')
+
     lines.append(f'## Все записи ({len(rows)})')
     lines.append('')
-    lines.append('| Дата | Запись | Статус | Что | Тип | Автор |')
-    lines.append('| --- | --- | --- | --- | --- | --- |')
+    lines.append('| Дата | Запись | Статус | Что | Тип | Автор | Файл |')
+    lines.append('| --- | --- | --- | --- | --- | --- | --- |')
     for r in sorted(rows, key=lambda r: (r['date'], r['lock']), reverse=True):
         lines.append(
             f'| {fmt_date(r["date"])} | `{r["lock"]}` | {r["status"]} '
-            f'| {one_line(r["what"], 130)} | {r["kind"]} | {r["author"] or "—"} |'
+            f'| {one_line(r["what"], 130)} | {r["kind"]} | {r["author"] or "—"} '
+            f'| `{r["file"]}` |'
         )
     lines.append('')
 
