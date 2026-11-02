@@ -60,7 +60,10 @@ struct TaskCardContent: View {
     @State private var commentFocus = NoteEditorFocusState()
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
-    @State private var isCoordinationPresented = false
+    /// Задача, чей план показан в разделе «План совместной работы»:
+    /// координация открывает именно этот план (у дочерней ветки — план
+    /// родителя, а не свой).
+    @State private var coordinationTaskID: String?
     /// Mission Control прямо из карточки (владелец 02.11.2026): панель
     /// управления миссией не должна прятаться за шторкой координации.
     @State private var isMissionControlPresented = false
@@ -413,9 +416,12 @@ struct TaskCardContent: View {
         .modifier(TFSoftTopScrollEdge())
         .navigationBarBackButtonHidden(true)
         .toolbar { if !preview { formToolbarContent } }
-        .sheet(isPresented: $isCoordinationPresented) {
-            if let id = viewModel.taskID {
-                TaskCoordinationScreen(taskID: id) { isCoordinationPresented = false }
+        .sheet(isPresented: Binding(
+            get: { coordinationTaskID != nil },
+            set: { if !$0 { coordinationTaskID = nil } }
+        )) {
+            if let id = coordinationTaskID {
+                TaskCoordinationScreen(taskID: id) { coordinationTaskID = nil }
             }
         }
         .sheet(isPresented: $isMissionControlPresented) {
@@ -1036,6 +1042,8 @@ struct TaskCardContent: View {
         if let parentID = viewModel.executionStatus?.branchRootTaskId, parentID != taskID {
             collapsibleSection(.collaborationPlan, title: "План совместной работы") {
                 childBranchPlan(parentID)
+                coordinationRow(for: parentID)
+                    .listRowSeparator(.hidden)
             } preview: {
                 childBranchPlan(parentID)
             }
@@ -1043,6 +1051,8 @@ struct TaskCardContent: View {
             if hasCollaborationPlan {
                 collapsibleSection(.collaborationPlan, title: "План совместной работы") {
                     CollaborationPlanView(taskId: taskID, state: viewModel.collaborationPlanState, reloadToken: collaborationPlanReloadToken, subtasks: viewModel.subtasks, allowsPlanChanges: viewModel.canUsePlan, hasApprovedPlan: $hasCollaborationPlan, pendingApprovalPlanId: $pendingPlanApprovalId, pendingBranchSnapshot: $pendingBranchPlanSnapshot)
+                        .listRowSeparator(.hidden)
+                    coordinationRow(for: taskID)
                         .listRowSeparator(.hidden)
                 } preview: {
                     ForEach(runningSubtasks.filter { $0.collaborationPlanId != nil }) { subtask in
@@ -1561,6 +1571,23 @@ struct TaskCardContent: View {
                 }
             }
         }
+    }
+
+    /// «Координация» — под планом, в том же разделе (владелец 02.11.2026):
+    /// координация управляет именно этим планом, поэтому и живёт рядом с
+    /// ним, а не в меню «Ещё». Появляется вместе с разделом — то есть после
+    /// утверждения плана. Кнопка тихая: это вход в раздел, а не главное
+    /// действие карточки.
+    private func coordinationRow(for planTaskID: String) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            TFButton("Координация", icon: "point.3.connected.trianglepath.dotted", variant: .secondary) {
+                coordinationTaskID = planTaskID
+            }
+            .accessibilityIdentifier("card.plan.coordination")
+            Text("Кто чем занимается, чего ждёт и можно ли вмешаться")
+                .tfText(.meta)
+        }
+        .padding(.vertical, TFSpacing.xs)
     }
 
     /// Есть ли у карточки шаги в загруженном плане: свой план карточки — это уже
@@ -2556,9 +2583,6 @@ struct TaskCardContent: View {
             }
         }
         if viewModel.taskID != nil {
-            Button { isCoordinationPresented = true } label: {
-                Label("Координация", systemImage: "point.3.connected.trianglepath.dotted")
-            }
             // Mission Control — панель управления миссией. Владелец 02.11.2026:
             // управлять процессом нужно из карточки, а не через шторку
             // координации.
