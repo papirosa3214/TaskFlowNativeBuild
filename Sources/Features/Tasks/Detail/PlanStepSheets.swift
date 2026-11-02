@@ -48,6 +48,9 @@ struct PlanStepDetailSheet: View {
     @State private var reworkRemark = ""
     @State private var copiedResult = false
     @State private var isPreviousResultExpanded = false
+    /// Модель, на которой работала роль в этом шаге: «MiniMax-M3.1-Flash ·
+    /// minimax». Пусто — сервер не знает.
+    @State private var modelLine: String? = nil
 
     private var disclosureKey: String { "task.slot.\(node.taskId ?? plan.taskId).\(node.sourceSlotKey ?? node.slotKey)" }
 
@@ -72,12 +75,36 @@ struct PlanStepDetailSheet: View {
         plan.edges.filter { $0.toSlotKey == node.slotKey }.map(\.fromSlotKey)
     }
 
+    /// Модель, на которой реально работала роль в этом шаге.
+    ///
+    /// Владелец спрашивает об этом прямо: «на какой модели работает та или
+    /// иная роль в конкретном слоте». Берём из журнала действий — там модель
+    /// фактическая, с учётом переключения на запасную.
+    private func loadModelLine() async {
+        let taskID = node.taskId ?? plan.taskId
+        let subtaskID = node.sourceSubtaskId ?? subtask?.id
+        guard let activity = try? await APIClient().taskActivity(taskId: taskID).forSubtask(subtaskID),
+              let model = activity.stats?.model, !model.isEmpty
+        else { return }
+        let line = activity.stats?.provider.map { "\(model) · \($0)" } ?? model
+        await MainActor.run { modelLine = line }
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     LabeledContent("Роль") {
                         Text(roleTitle(node.roleKey)).foregroundStyle(Color.tfSub)
+                    }
+                    // На какой модели работает роль в этом шаге — ответ
+                    // владельцу нужен сразу, без раскрытия хода: модель
+                    // фактическая (фолбэк мог переключиться на другую).
+                    if let modelLine {
+                        LabeledContent("Модель") {
+                            Text(modelLine).foregroundStyle(Color.tfSub)
+                        }
+                        .accessibilityIdentifier("plan-step-model")
                     }
                     // Ожидающий шаг не стоит молча: от кого и какой результат ему нужен.
                     ForEach(node.waitingFor ?? [], id: \.fromSlotKey) { waiting in
@@ -271,6 +298,9 @@ struct PlanStepDetailSheet: View {
             .navigationTitle(roleTitle(node.roleKey))
             .navigationBarTitleDisplayMode(.inline)
             .tint(Color.tfText)
+            .task(id: "\(node.taskId ?? plan.taskId):\(node.sourceSubtaskId ?? subtask?.id ?? "")") {
+                await loadModelLine()
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }

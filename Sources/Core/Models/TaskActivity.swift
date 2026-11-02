@@ -67,9 +67,14 @@ public struct ApiTaskActivityStats: Codable, Sendable, Hashable {
     public let failed: Int
     public let byOperation: [Operation]
     public let errors: [Failure]
+    /// На какой модели реально работала роль в этом шаге (`nil` — сервер
+    /// старый или модель неизвестна).
+    public var model: String? = nil
+    /// Провайдер модели.
+    public var provider: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case total, ok, failed, errors
+        case total, ok, failed, errors, model, provider
         case byOperation = "by_operation"
     }
 
