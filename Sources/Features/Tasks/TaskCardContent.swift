@@ -61,6 +61,9 @@ struct TaskCardContent: View {
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
     @State private var isCoordinationPresented = false
+    /// Mission Control прямо из карточки (владелец 02.11.2026): панель
+    /// управления миссией не должна прятаться за шторкой координации.
+    @State private var isMissionControlPresented = false
     @State private var replyingSubtask: ApiSubtask?
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
@@ -413,6 +416,11 @@ struct TaskCardContent: View {
         .sheet(isPresented: $isCoordinationPresented) {
             if let id = viewModel.taskID {
                 TaskCoordinationScreen(taskID: id) { isCoordinationPresented = false }
+            }
+        }
+        .sheet(isPresented: $isMissionControlPresented) {
+            if let id = viewModel.taskID {
+                NavigationStack { MissionControlScreen(taskID: id) }
             }
         }
         .confirmationDialog("Отправить задачу в архив?", isPresented: $isDeleteConfirmationPresented, titleVisibility: .visible) {
@@ -2551,6 +2559,13 @@ struct TaskCardContent: View {
             Button { isCoordinationPresented = true } label: {
                 Label("Координация", systemImage: "point.3.connected.trianglepath.dotted")
             }
+            // Mission Control — панель управления миссией. Владелец 02.11.2026:
+            // управлять процессом нужно из карточки, а не через шторку
+            // координации.
+            Button { isMissionControlPresented = true } label: {
+                Label("Mission Control", systemImage: "checklist")
+            }
+            .accessibilityIdentifier("card.mission-control")
             Button { isPreparationPresented = true } label: {
                 Text("Подготовка")
                 if let preparationWaiting { Text(preparationWaiting) }

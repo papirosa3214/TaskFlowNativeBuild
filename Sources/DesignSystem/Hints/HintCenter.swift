@@ -33,7 +33,11 @@ final class HintCenter {
     init(defaults: UserDefaults = .standard, scenarios: [HintScenario] = HintScenarios.all) {
         self.defaults = defaults
         self.scenarios = scenarios
-        isEnabled = defaults.bool(forKey: Self.enabledKey)
+        // Режим подсказок — это обучение, а не украшение: включается сам
+        // (владелец 02.11.2026). Явный выбор владельца уважается — если ключ
+        // записан, берём его; если нет — включаем. Выключить — один тап в
+        // «Настройки → Подсказки», и выбор переживает перезапуск.
+        isEnabled = (defaults.object(forKey: Self.enabledKey) as? Bool) ?? true
         completed = Set(defaults.stringArray(forKey: Self.completedKey) ?? [])
     }
 
