@@ -51,20 +51,18 @@ final class ExecutorWindowModel {
     }
 
     /// Написать исполнителю: сообщение в тему задачи, адресованное его
-    /// слоту. Упоминание роли в начале — сервер по нему понимает, кого
-    /// разбудить (иначе сообщение в групповой теме остаётся просто текстом).
-    func send(taskID: String, subtaskID: String, text: String, role: String?, roleTitle: String?) async {
+    /// слоту. Упоминание роли не нужно: адресата определяет сам слот
+    /// (сервер, `dispatchRoleReplies`), поэтому текст остаётся владельческим.
+    func send(taskID: String, subtaskID: String, text: String) async {
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty, !sending else { return }
         sending = true
         defer { sending = false }
         do {
             let chat = try await api.taskTopic(taskID: taskID)
-            let mention = "@" + (roleTitle ?? role ?? "")
-            let full = mention == "@" ? body : "\(mention) \(body)"
             _ = try await api.sendRoleChatMessage(
                 chatID: chat.id,
-                text: full,
+                text: body,
                 executionMode: .card,
                 recipientSubtaskID: subtaskID
             )
@@ -310,9 +308,7 @@ struct ExecutorWindow: View {
                     await model.send(
                         taskID: taskID,
                         subtaskID: subtaskID,
-                        text: text,
-                        role: executor.role,
-                        roleTitle: executor.roleTitle
+                        text: text
                     )
                 }
             }
