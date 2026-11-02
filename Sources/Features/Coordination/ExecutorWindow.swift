@@ -185,7 +185,7 @@ struct ExecutorWindow: View {
         Section("Шаг") {
             Text(executor.title).tfText(.body)
             HStack(spacing: TFSpacing.sm) {
-                TFPill(executor.stateTitle, color: stateColor(executor.state))
+                TFPill(executor.stateTitle, color: executor.stateTint)
                 if executor.pendingMessages > 0 {
                     TFPill("Ждёт прочтения: \(executor.pendingMessages)", color: .tfOrange)
                 }
@@ -331,7 +331,12 @@ struct ExecutorWindow: View {
         }
     }
 
-    private func stateColor(_ state: String) -> Color {
+}
+
+/// Цвет состояния исполнителя — тот же язык, что у координации: «идёт работа»
+/// синяя, «ждёт вас» оранжевая, «готово» зелёная.
+extension TaskExecutor {
+    var stateTint: Color {
         switch state {
         case "working": return .tfBlue
         case "waiting": return .tfTeal
