@@ -2761,6 +2761,8 @@ struct RoleChatRoomScreen: View {
                 try await api.stopRoleCoordination(chatID: chat.id, messageID: message.id)
             }
             .hintAnchor(HintAnchorID.chatCoordination)
+        } else if let memoryUpdate = message.memoryUpdate {
+            memoryUpdateChipRow(memoryUpdate)
         } else if message.isSessionMarker {
             sessionMarkerRow(message)
         } else if isFlatReply(message) {
@@ -2900,6 +2902,28 @@ struct RoleChatRoomScreen: View {
                     .padding(.horizontal, TFSpacing.md)
                     .padding(.vertical, 4)
             }
+            Spacer()
+        }
+    }
+
+    /// Тихий чип наблюдателя памяти — как «Навык подключён», без пузыря ответа.
+    private func memoryUpdateChipRow(_ update: RoleChatMemoryUpdate) -> some View {
+        HStack {
+            Spacer()
+            TFPill(surface: .tfCard, capsule: true) {
+                HStack(spacing: TFSpacing.xs) {
+                    Image(systemName: "brain")
+                        .tfTypeFont(size: 12, weight: .medium)
+                    Text(update.chipLabel)
+                        .tfText(.caption)
+                        .lineLimit(1)
+                }
+                .foregroundStyle(Color.tfDim)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("chat.memoryUpdateChip")
+            .accessibilityLabel(update.chipLabel)
             Spacer()
         }
     }
