@@ -384,6 +384,15 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains("jev"))
     }
 
+    func testMemoryObserverHintCompletes() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.memoryObserver])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.memoryObserver, frame: frame)
+        XCTAssertEqual(center.active?.step, "screen")
+        center.next()
+        XCTAssertTrue(center.completed.contains("memory-observer"))
+    }
+
     func testWebhookHintExplainsGenericReceiverAndOptionalCodexBranch() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.webhooks])
         center.isEnabled = true

@@ -369,6 +369,9 @@ struct SettingsScreen: View {
                 navRow(icon: "checkmark.shield", title: "Оценщик JEV", route: .jevSettings)
                     .accessibilityIdentifier("settings-jev")
                 TFDivider(inset: rowDividerInset)
+                navRow(icon: "book.closed", title: "Наблюдатель памяти", route: .memoryObserverSettings)
+                    .accessibilityIdentifier("settings-memory-observer")
+                TFDivider(inset: rowDividerInset)
             }
             navRow(icon: "cpu", title: "Агенты (модели и провайдеры)", route: .runtimeProviders)
             TFDivider(inset: rowDividerInset)

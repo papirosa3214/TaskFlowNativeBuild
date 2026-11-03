@@ -135,6 +135,7 @@ struct ServerSettingsScreen: View {
         case "linear": "Синхронизация Linear"
         case "режим_приёма": "Приём задач"
         case "автоимпорт": "Автоимпорт"
+        case "память": "Память"
         default: group.capitalized
         }
     }
@@ -169,6 +170,11 @@ private struct ServerSettingEditor: View {
                                 Text(JSONValue.string(item).serverSettingText).tag(item)
                             }
                         }
+                    } else if setting.kind == "string" {
+                        TextField("Значение", text: $option)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("server-setting-value")
                     } else {
                         TextField("Значение", text: $number)
                             .keyboardType(.numbersAndPunctuation)
@@ -220,6 +226,10 @@ private struct ServerSettingEditor: View {
             else if setting.kind == "enum" {
                 guard (setting.options ?? []).contains(option) else { throw SettingValidationError(message: "Выберите значение") }
                 next = .string(option)
+            } else if setting.kind == "string" {
+                let text = option.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { throw SettingValidationError(message: "Введите значение") }
+                next = .string(text)
             } else { next = try setting.validatedNumber(number) }
             try await api.updateServerSetting(key: setting.key, value: next)
             await onSaved()

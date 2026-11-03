@@ -37,6 +37,7 @@ enum HintAnchorID {
     static let contextObservability = "role-load.context"
     static let jevUsage = "jev.usage"
     static let jevConnection = "jev.connection"
+    static let memoryObserver = "memory.observer"
     static let chatDictation = "chat.dictation"
     static let chatComposerActions = "chat.composer.actions"
     static let chatContextWindow = "chat.context-window"
@@ -146,7 +147,7 @@ enum HintScenarios {
                 text: "Сверху — итог: сколько критериев пройдено, сколько провалено и сколько не проверяется вживую. Ниже — каждый критерий: номер, чем проверяется, какой шаг его закрыл. Отдельным списком — дыры в покрытии и журнал: кто что проверял и что открылось на доработку.", next: nil)
         ])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
@@ -303,6 +304,11 @@ enum HintScenarios {
         id: "jev", title: "Оценщик JEV", start: "connection",
         steps: ["connection": HintStep(anchor: HintAnchorID.jevConnection, title: "Подключение JEV",
             text: "Сохраните адрес API, модель и ключ, затем нажмите «Проверить подключение». Ниже выберите, где использовать оценщик. Настройки общие с вебом; если JEV выключен, не отвечает или не уверен, работа продолжается как без него.", next: nil)])
+
+    static let memoryObserver = HintScenario(
+        id: "memory-observer", title: "Наблюдатель памяти", start: "screen",
+        steps: ["screen": HintStep(anchor: HintAnchorID.memoryObserver, title: "Наблюдатель памяти",
+            text: "После закрытия слота отдельная модель может записать урок в память роли. Здесь включают наблюдателя, выбирают ему модель и порог уверенности. Ниже порога он молчит. Роль этот вызов не видит.", next: nil)])
 
     static let chatDictation = HintScenario(
         id: "chat-dictation", title: "Диктовка в черновик", start: "dictation",

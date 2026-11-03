@@ -72,6 +72,8 @@ public enum AppRoute: Hashable {
     /// Локальные модели остаются на `.voiceModels` («На устройстве»).
     case runtimeProviders
     case jevSettings
+    /// Наблюдатель памяти слота: модель и порог (03.11.2026).
+    case memoryObserverSettings
     case providerDetail(providerID: String)
     /// LOCK-180: статус Pi Runtime из «Настройки → Сервер».
     case serverSettings
