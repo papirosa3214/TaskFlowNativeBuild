@@ -73,7 +73,7 @@ extension RuntimeModel {
     /// `провайдер/модель` (`KNOWN_MODEL_PROVIDERS` в `attemptModel.ts`).
     private static let routable: Set<String> = [
         "opencode-go", "opencode", "minimax", "anthropic",
-        "openai-codex", "openai", "kimi-coding", "ollama",
+        "openai-codex", "openai", "kimi-coding", "ollama", "xai",
     ]
 
     var isRoutable: Bool { Self.routable.contains(provider) }
@@ -95,6 +95,7 @@ extension RuntimeModel {
         case "minimax": "MiniMax"
         case "kimi-coding": "Kimi"
         case "ollama": "Ollama · локально"
+        case "xai": "xAI · подписка Grok"
         default: provider
         }
     }
@@ -106,6 +107,7 @@ extension RuntimeModel {
         case "openai-codex": "Codex"
         case "anthropic": "Anthropic"
         case "minimax": "MiniMax"
+        case "xai": "xAI"
         default: provider
         }
     }
