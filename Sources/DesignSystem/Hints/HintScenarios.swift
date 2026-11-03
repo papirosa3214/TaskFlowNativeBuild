@@ -308,7 +308,7 @@ enum HintScenarios {
     static let memoryObserver = HintScenario(
         id: "memory-observer", title: "Наблюдатель памяти", start: "screen",
         steps: ["screen": HintStep(anchor: HintAnchorID.memoryObserver, title: "Наблюдатель памяти",
-            text: "После закрытия слота отдельная модель может записать урок в память роли. Здесь включают наблюдателя, выбирают ему модель и порог уверенности. Ниже порога он молчит. Роль этот вызов не видит.", next: nil)])
+            text: "После закрытия слота отдельная модель может записать урок в память роли. Здесь включают наблюдателя, выбирают ему модель чата и порог уверенности, настраивают эмбеддинги и порог дублей. Ниже — статистика: сколько записано, пропущено или отсеяно. Роль этот вызов не видит.", next: nil)])
 
     static let chatDictation = HintScenario(
         id: "chat-dictation", title: "Диктовка в черновик", start: "dictation",
