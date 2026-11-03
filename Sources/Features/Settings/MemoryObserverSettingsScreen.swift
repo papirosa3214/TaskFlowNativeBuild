@@ -83,7 +83,7 @@ struct MemoryObserverSettingsScreen: View {
     private var toggleCard: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Запись уроков")
-            TFCard(padding: 0, bordered: true) {
+            TFCard(padding: 0) {
                 VStack(alignment: .leading, spacing: TFSpacing.xs) {
                     HStack(spacing: TFSpacing.md) {
                         Text("Включён").tfText(.body).foregroundStyle(Color.tfText)
@@ -108,7 +108,7 @@ struct MemoryObserverSettingsScreen: View {
     private var modelCard: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Модель")
-            TFCard(padding: 0, bordered: true) {
+            TFCard(padding: 0) {
                 HStack(spacing: TFSpacing.md) {
                     Text("Модель чата")
                         .tfText(.body)
@@ -140,7 +140,7 @@ struct MemoryObserverSettingsScreen: View {
     private var thresholdCard: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Порог")
-            TFCard(padding: 0, bordered: true) {
+            TFCard(padding: 0) {
                 Stepper(value: Binding(get: { confidence }, set: { value in
                     confidence = value
                     Task { await save("memory_observer_min_confidence", .number(Double(value))) }
@@ -163,7 +163,7 @@ struct MemoryObserverSettingsScreen: View {
     private var embeddingCard: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Эмбеддинги")
-            TFCard(padding: 0, bordered: true) {
+            TFCard(padding: 0) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: TFSpacing.md) {
                         Text("Модель")
@@ -224,7 +224,7 @@ struct MemoryObserverSettingsScreen: View {
     private var duplicateCard: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Дубли")
-            TFCard(padding: 0, bordered: true) {
+            TFCard(padding: 0) {
                 Stepper(value: Binding(get: { duplicateSimilarity }, set: { value in
                     duplicateSimilarity = value
                     Task { await save("memory_duplicate_similarity", .number(Double(value))) }
@@ -247,7 +247,7 @@ struct MemoryObserverSettingsScreen: View {
     private var statsCard: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Статистика")
-            TFCard(padding: 0, bordered: true) {
+            TFCard(padding: 0) {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     if let stats {
                         Text("За \(stats.days) дн.")
