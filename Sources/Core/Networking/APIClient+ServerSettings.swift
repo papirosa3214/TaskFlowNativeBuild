@@ -78,6 +78,67 @@ struct ServerSettingLog: Decodable, Identifiable, Sendable {
         case oldValue = "old_value", newValue = "new_value", createdAt = "created_at"
     }
 }
+/// Статистика наблюдателя памяти: `GET /api/admin/memory-observer/stats`.
+struct MemoryObserverStats: Decodable, Sendable {
+    struct Embedding: Decodable, Sendable {
+        let model: String
+        let timeoutMs: Int
+        let ok: Bool
+        let dim: Int?
+        let error: String?
+        enum CodingKeys: String, CodingKey {
+            case model, ok, dim, error
+            case timeoutMs = "timeout_ms"
+        }
+    }
+    struct Event: Decodable, Sendable, Identifiable {
+        let id: String
+        let createdAt: String
+        let outcome: String
+        let roleKey: String?
+        let taskId: String?
+        let subtaskId: String?
+        let sourceRef: String?
+        let confidence: Double?
+        let title: String?
+        let detail: String?
+        enum CodingKeys: String, CodingKey {
+            case id, outcome, confidence, title, detail
+            case createdAt = "created_at"
+            case roleKey = "role_key"
+            case taskId = "task_id"
+            case subtaskId = "subtask_id"
+            case sourceRef = "source_ref"
+        }
+    }
+    let days: Int
+    let embedding: Embedding
+    let duplicateSimilarity: Int
+    let counts: [String: Int]
+    let recent: [Event]
+    enum CodingKeys: String, CodingKey {
+        case days, embedding, counts, recent
+        case duplicateSimilarity = "duplicate_similarity"
+    }
+
+    static func outcomeTitle(_ raw: String) -> String {
+        switch raw {
+        case "wrote": "записано"
+        case "skip": "пропуск"
+        case "disabled": "выключен"
+        case "not_done": "не done"
+        case "no_role": "нет роли"
+        case "already": "уже было"
+        case "model": "ошибка модели"
+        case "low_confidence": "низкая уверенность"
+        case "similar": "похожая есть"
+        case "parse_error": "разбор JSON"
+        case "total": "всего"
+        default: raw
+        }
+    }
+}
+
 extension APIClient {
     func serverSettings() async throws -> ServerSettingsSnapshot {
         try await request(.get, "/admin/server-settings")
@@ -93,6 +154,13 @@ extension APIClient {
         struct Envelope: Decodable { let log: [ServerSettingLog] }
         let result: Envelope = try await request(.get, "/admin/server-settings/log")
         return result.log
+    }
+    func memoryObserverStats(days: Int = 7) async throws -> MemoryObserverStats {
+        try await request(
+            .get,
+            "/admin/memory-observer/stats",
+            query: [URLQueryItem(name: "days", value: String(days))]
+        )
     }
 }
 extension JSONValue {
