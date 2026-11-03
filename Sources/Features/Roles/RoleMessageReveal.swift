@@ -34,6 +34,7 @@ struct RoleMessageReveal<Content: View>: View {
         content()
             .roleReveal(fade)
             .onAppear(perform: startIfNeeded)
+            .onDisappear(perform: snapIfStillAnimating)
             .onChange(of: messageID) { _, _ in
                 // Другое сообщение в этой же ячейке — своя анимация.
                 finished = false
@@ -43,7 +44,16 @@ struct RoleMessageReveal<Content: View>: View {
     }
 
     private func startIfNeeded() {
-        guard animate, !finished, !text.isEmpty else { return }
+        // Уже проигрывали: если Task отменили на полдороге (ячейка ушла с
+        // экрана), `finished` остаётся true, а fade — с isAnimating. Без сброса
+        // вторая половина фразы так и висит прозрачной (владелец 03.11.2026).
+        if finished {
+            fade = RoleMessageRevealLifecycle.resolvedFade(
+                finished: true, current: fade, preferAnimate: animate && !text.isEmpty
+            )
+            return
+        }
+        guard animate, !text.isEmpty else { return }
         finished = true
         let length = Double(max(text.count, 1))
         let lag = min(RoleMessageRevealTiming.maximumLag,
@@ -53,16 +63,40 @@ struct RoleMessageReveal<Content: View>: View {
         // а не гаснут одним куском. Идущий ответ так не проявляется — там
         // хвост (см. `RoleTextFade.revealsForward`).
         fade = RoleTextFade(rate: rate, lastRevealAt: .now, isAnimating: true, revealsForward: true)
-        // Держим анимацию, пока идёт проявление, потом отпускаем отрисовку:
-        // иначе TimelineView крутился бы и на готовом тексте. Считаем по
-        // фактическому темпу: при упоре в максимальный темп сообщение печатается
-        // дольше, чем `lag`.
+        // Держим анимацию, пока идёт проявление, потом снимаем textRenderer:
+        // иначе TimelineView крутился бы и на готовом тексте. Снимаем fade
+        // целиком (nil) — так текст гарантированно полный, без «половины фразы».
         let revealDuration = length / rate
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(revealDuration * 1.15 + RoleTextFade.duration + 0.3))
-            guard !Task.isCancelled else { return }
-            fade = RoleTextFade(rate: rate, lastRevealAt: .now, isAnimating: false, revealsForward: true)
+            fade = RoleMessageRevealLifecycle.fadeAfterRevealCompleted()
         }
+    }
+
+    private func snapIfStillAnimating() {
+        fade = RoleMessageRevealLifecycle.fadeAfterInterrupt(current: fade)
+    }
+}
+
+/// Правила завершения проявления — без SwiftUI, чтобы ловить «половину фразы»
+/// unit-тестом на хосте.
+enum RoleMessageRevealLifecycle {
+    /// Конец таймера: убираем renderer, текст рисуется целиком.
+    static func fadeAfterRevealCompleted() -> RoleTextFade? { nil }
+
+    /// Ячейка ушла / Task отменён, пока буквы ещё проявлялись — не оставлять
+    /// полупрозрачный хвост.
+    static func fadeAfterInterrupt(current: RoleTextFade?) -> RoleTextFade? {
+        guard let current, current.isAnimating else { return current }
+        return nil
+    }
+
+    /// Повторный onAppear после `finished`: если fade всё ещё анимирует —
+    /// снять; иначе не трогать (уже полный текст или nil).
+    static func resolvedFade(finished: Bool, current: RoleTextFade?, preferAnimate: Bool) -> RoleTextFade? {
+        guard finished else { return current }
+        if current?.isAnimating == true { return nil }
+        return current
     }
 }
 

@@ -1265,3 +1265,32 @@ public struct RoleChatPartialFlag: Decodable, Sendable, Equatable {
         }
     }
 }
+
+/// Семя проявления при открытии комнаты (владелец 03.11.2026).
+///
+/// Короткий кэш/`lastMessages` мог содержать не всю историю. Тогда первое
+/// обновление с сервера приносило «новые» id, и последний ответ снова
+/// проявлялся блоками. Пока семя не зафиксировано первым снимком — ничего
+/// не анимируем; в семя входит всё, что уже на экране после этого снимка.
+enum RoleChatRevealSeed {
+    static func settle(current: Set<String>?, snapshotIDs: [String], settled: Bool) -> (seed: Set<String>, settled: Bool) {
+        if settled { return (current ?? [], true) }
+        return ((current ?? []).union(snapshotIDs), true)
+    }
+
+    static func shouldReveal(
+        messageID: String,
+        seed: Set<String>?,
+        settled: Bool,
+        isLast: Bool,
+        nearBottom: Bool,
+        closedTurnMessageIDs: Set<String>
+    ) -> Bool {
+        guard settled else { return false }
+        guard nearBottom, isLast else { return false }
+        guard !closedTurnMessageIDs.contains(messageID) else { return false }
+        guard let seed else { return false }
+        return !seed.contains(messageID)
+    }
+}
+

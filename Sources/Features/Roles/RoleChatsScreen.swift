@@ -905,6 +905,11 @@ struct RoleChatRoomScreen: View {
     /// и тем же составом, что и в живом пузыре: иначе на смене строки лента
     /// теряет сотни пунктов высоты и шатается (владелец 30.10.2026).
     @State private var closedTurnMessageIDs: Set<String> = []
+    /// Сообщения, уже лежавшие в ленте при открытии: не переигрываем проявление
+    /// (владелец 03.11.2026 — «открываю чат, и у меня проявляется текст»).
+    @State private var seedMessageIDs: Set<String>? = nil
+    /// Первый полный снимок после открытия уже вошёл в семя.
+    @State private var historySeedSettled = false
     /// Пункты хода такими, какими их видел владелец к моменту закрытия.
     @State private var closedTurnItems: [String: [RoleChatLiveItem]] = [:]
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
@@ -1117,13 +1122,22 @@ struct RoleChatRoomScreen: View {
         if let cached = Self.lastMessages[chat.id] {
             _messages = State(initialValue: cached)
             _hasLoadedMessages = State(initialValue: true)
+            // История уже на экране — но семя добираем после первого снимка
+            // (короткий кэш мог быть неполным).
+            _seedMessageIDs = State(initialValue: Set(cached.map(\.id)))
         } else if let local = try? LocalStore.shared.messages(chatID: chat.id), !local.isEmpty {
             // Локальная база: переписка открывается сразу, без сети.
             _messages = State(initialValue: local)
             _hasLoadedMessages = State(initialValue: true)
+            _seedMessageIDs = State(initialValue: Set(local.map(\.id)))
         } else if let cached = APIClient().cachedRoleChatMessages(id: chat.id) {
             _messages = State(initialValue: cached)
             _hasLoadedMessages = State(initialValue: true)
+            _seedMessageIDs = State(initialValue: Set(cached.map(\.id)))
+        } else {
+            // Пустая комната: пустое семя уже зафиксировано — новые ответы проявятся.
+            _seedMessageIDs = State(initialValue: [])
+            _historySeedSettled = State(initialValue: true)
         }
         let saved = UserDefaults.standard.string(forKey: "roleChat.mode." + chat.createdBy + "." + chat.id)
         let mode = saved.flatMap(RoleChatWorkMode.init(rawValue:)) ?? .work
@@ -3063,6 +3077,19 @@ struct RoleChatRoomScreen: View {
         message.fromUserID?.hasPrefix("role_") == true || message.fromUserID == "u-secretary" || chat.members.contains { $0.id == message.fromUserID && $0.roleKey != nil }
     }
 
+
+    /// Проявление — только у ответа, которого не было в семени истории.
+    private func shouldRevealMessage(_ message: RoleChatMessage) -> Bool {
+        RoleChatRevealSeed.shouldReveal(
+            messageID: message.id,
+            seed: seedMessageIDs,
+            settled: historySeedSettled,
+            isLast: message.id == messages.last?.id,
+            nearBottom: chatIsNearBottom,
+            closedTurnMessageIDs: closedTurnMessageIDs
+        )
+    }
+
     @ViewBuilder
     private func roleMessageContent(_ message: RoleChatMessage, allowsCommands: Bool) -> some View {
         let checklist = checklistContext(for: message)
@@ -3072,8 +3099,7 @@ struct RoleChatRoomScreen: View {
             // обрывалось на середине.
             ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
                 .roleMessageReveal(text: json, messageID: message.id,
-                                   animate: chatIsNearBottom && message.id == messages.last?.id
-                                       && !closedTurnMessageIDs.contains(message.id))
+                                   animate: shouldRevealMessage(message))
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
                 .equatable()
@@ -3081,8 +3107,7 @@ struct RoleChatRoomScreen: View {
                 // иначе проявление старых строк при прокрутке дёргает
                 // автопривязку к низу (жалоба владельца 17.10.2026).
                 .roleMessageReveal(text: message.text, messageID: message.id,
-                                   animate: chatIsNearBottom && message.id == messages.last?.id
-                                       && !closedTurnMessageIDs.contains(message.id))
+                                   animate: shouldRevealMessage(message))
         }
     }
 
@@ -3369,6 +3394,17 @@ struct RoleChatRoomScreen: View {
                 }
                 hasLoadedMessages = true
                 Self.lastMessages[chat.id] = messages
+                // Первый снимок при открытии — история. Добираем семя после
+                // короткого кэша, иначе последний ответ снова проявляется.
+                if !historySeedSettled {
+                    let settled = RoleChatRevealSeed.settle(
+                        current: seedMessageIDs,
+                        snapshotIDs: messages.map(\.id),
+                        settled: historySeedSettled
+                    )
+                    seedMessageIDs = settled.seed
+                    historySeedSettled = settled.settled
+                }
             }
             // Комната открыта — всё в ней прочитано. Бейдж в списке сервер
             // считает от отметки прочтения, а двигает её только этот вызов
