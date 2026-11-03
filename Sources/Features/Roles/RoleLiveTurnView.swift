@@ -970,6 +970,9 @@ final class RoleTextRevealHistory {
     /// Хвост идущего текста: одна история на весь растущий текст.
     private var tail = RoleTextRevealTimeline()
     /// Готовое сообщение: своя история на каждый независимый текст.
+    /// Ключ — порядковый слот отрисовки в кадре (0, 1, 2…), а не длина:
+    /// абзацы одной длины иначе делили один хвост и проявлялись синхронно
+    /// (владелец 03.11.2026).
     private var perText: [Int: RoleTextRevealTimeline] = [:]
     /// Текст, который рисуется прямо сейчас (последний записанный).
     private var current = RoleTextRevealTimeline()
@@ -977,6 +980,8 @@ final class RoleTextRevealHistory {
     private var frameNow: Date?
     /// Сколько глифов нарисовано раньше в этом кадре.
     private var frameOffset = 0
+    /// Какой по счёту независимый текст рисуется в этом кадре.
+    private var frameSlot = 0
     /// Начало текущего проявления — сменилось, значит сообщение новое.
     private var start: Date = .distantPast
 
@@ -991,6 +996,7 @@ final class RoleTextRevealHistory {
             // Хвост идущего текста: текст один и растёт кадрами.
             frameNow = nil
             frameOffset = 0
+            frameSlot = 0
             current = tail
             tail.record(count: count, now: now, rate: rate, animated: animated, start: base, forward: false)
             return
@@ -1001,22 +1007,28 @@ final class RoleTextRevealHistory {
             perText.removeAll()
             frameNow = nil
             frameOffset = 0
+            frameSlot = 0
         }
         if frameNow != now {
-            // Новый кадр: счётчик глифов перед текстом начинается заново.
+            // Новый кадр: слоты и счётчик глифов перед текстом — с нуля.
+            // Уже созданные слоты помнят свой offset от первого появления.
             frameNow = now
             frameOffset = 0
+            frameSlot = 0
         }
+        let slot = frameSlot
+        frameSlot += 1
         let timeline: RoleTextRevealTimeline
-        if let existing = perText[count] {
+        if let existing = perText[slot] {
             timeline = existing
         } else {
             let created = RoleTextRevealTimeline()
             created.offset = frameOffset
-            // Текст, который появился посреди проявления, печатается с текущего
-            // момента — иначе он ждал бы своей очереди в прошлом.
-            created.base = max(base, now)
-            perText[count] = created
+            // Всегда от начала проявления сообщения: поздний блок с верным
+            // offset уже «допечатает» прошедшее и встанет в общую очередь,
+            // а не откроет параллельный fade с текущего кадра.
+            created.base = base
+            perText[slot] = created
             timeline = created
         }
         frameOffset += count
