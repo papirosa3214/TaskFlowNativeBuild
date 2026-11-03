@@ -71,12 +71,14 @@ struct ChatSessionPanel: View {
     Section {
      TextField("Название", text: $title)
       .onSubmit { Task { await onRename(title) } }
+      .sessionFormRow()
     }
     Section {
      Button { showsModelPicker = true } label: {
       LabeledContent("Модель чата", value: choice.effectiveTitle ?? "По умолчанию")
      }
      .tint(.primary)
+     .sessionFormRow()
      .accessibilityIdentifier("chat.session.model")
      if !choice.availableThinkingLevels.isEmpty {
       Picker("Размышления", selection: Binding(get: { choice.thinkingLevel ?? "" }, set: { level in
@@ -88,81 +90,96 @@ struct ChatSessionPanel: View {
        }
       }
       .tint(.primary)
+      .sessionFormRow()
       .accessibilityIdentifier("chat.session.thinking")
      }
-     if choice.isSaving { TFLoading(.inline) }
+     if choice.isSaving { TFLoading(.inline).sessionFormRow() }
      if let error = choice.errorText {
-      Text(error).foregroundStyle(.red)
+      Text(error).foregroundStyle(.red).sessionFormRow()
       Button("Повторить загрузку") { Task { await onRefresh() } }
+       .sessionFormRow()
      }
     } header: { Text("Модель и размышления") }
+    // Три одинаковые строки без одинокой иконки у инструментов (владелец
+    // 03.11.2026: «с иконкой своей, когда остальные ее не имели»).
     Section("Рабочее пространство") {
      ChatWorkspaceMenu(choice: workspace) {
       LabeledContent("Рабочая папка", value: workspace.selected ?? "По умолчанию")
      }
+     .sessionFormRow()
      // Контекст — теми же полосками, что в панели ввода: общая и по
      // составляющим. Нажатие открывает окно разбора (владелец 29.10.2026).
      Button { showsContext = true } label: { contextRow }
       .tint(.primary)
+      .sessionFormRow()
       .accessibilityIdentifier("chat.session.context")
-     Button("Навыки и инструменты", systemImage: "wrench.and.screwdriver") { showsCommands = true }
-      .tint(.primary)
+     Button { showsCommands = true } label: {
+      Text("Навыки и инструменты")
+       .tfText(.body)
+       .foregroundStyle(Color.tfText)
+       .frame(maxWidth: .infinity, alignment: .leading)
+       .contentShape(Rectangle())
+     }
+     .tint(.primary)
+     .sessionFormRow()
+     .accessibilityIdentifier("chat.session.commands")
     }
-    // Вложения — блоками в ряд (владелец 29.10.2026: «фото, файл, камера в
-    // самом начале сделано прикольно»).
+    // Вложения — три равных плитки в ряд (владелец 29.10.2026; правка
+    // 03.11.2026: без лишней высоты и мелкого тонкого подписей).
     if let onAttachmentSource {
      Section("Вложения") {
-      HStack(spacing: TFSpacing.sm) {
+      HStack(spacing: TFSpacing.xs) {
        ForEach(ChatSessionAttachment.allCases) { attachment in
         Button { onAttachmentSource(source(for: attachment)) } label: {
-         VStack(spacing: TFSpacing.xs) {
+         VStack(spacing: 2) {
           Image(systemName: attachment.symbol)
-           .tfTypeFont(size: 18, weight: .medium)
+           .tfTypeFont(size: 16, weight: .semibold)
            .foregroundStyle(Color.tfText)
-           .frame(width: 38, height: 38)
-           .background(Color.white.opacity(0.08),
-                       in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+           .frame(width: 30, height: 30)
+           .background(Color.primary.opacity(0.08),
+                       in: RoundedRectangle(cornerRadius: TFRadius.sm, style: .continuous))
           Text(attachment.title)
-           .tfText(.caption)
+           .tfText(.action)
            .foregroundStyle(Color.tfText)
+           .lineLimit(1)
          }
          .frame(maxWidth: .infinity)
          .padding(.vertical, TFSpacing.xs)
-         .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous))
+         .sessionChoiceSurface(selected: false)
          .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("chat.session.attachment.\(attachment.rawValue)")
        }
       }
-      .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.md, bottom: TFSpacing.sm, trailing: TFSpacing.md))
+      .sessionFormRow()
      }
     }
-    // Способ выполнения — двумя блоками (владелец 31.10.2026). Стоит рядом
-    // с режимом работы: и то и другое отвечает на «как роль работает».
+    // Способ выполнения — две равные плитки (владелец 31.10.2026; правка
+    // 03.11.2026: одна высота, один шрифт, без пустоты вокруг).
     if let executionMode {
      Section {
-      HStack(spacing: TFSpacing.sm) {
+      HStack(alignment: .top, spacing: TFSpacing.xs) {
        ForEach(ChatExecutionMode.allCases, id: \.self) { mode in
         executionModeBlock(mode, selection: executionMode)
        }
       }
-      .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.md, bottom: TFSpacing.sm, trailing: TFSpacing.md))
+      .sessionFormRow()
      } header: { Text("Способ выполнения") }
-      footer: { Text("«В чате» — разговор здесь. «По карточке» — роль ведёт задачу: создаёт карточки, подзадачи и отмечает шаги.") }
+      footer: { Text("«В чате» — разговор здесь. «По карточке» — роль ведёт задачу.") }
     }
-    // Режимы работы — четырьмя блоками (владелец 29.10.2026: «4 блока
-    // поставить, режима работы, как минимум»).
+    // Режимы работы — симметричная сетка 2×2 (владелец 29.10.2026; правка
+    // 03.11.2026: по центру, равные клетки, без гигантских полей).
     if let workMode {
      Section("Режим работы") {
-      LazyVGrid(columns: [GridItem(.flexible(), spacing: TFSpacing.sm),
-                           GridItem(.flexible(), spacing: TFSpacing.sm)],
-                spacing: TFSpacing.sm) {
+      LazyVGrid(columns: [GridItem(.flexible(), spacing: TFSpacing.xs),
+                           GridItem(.flexible(), spacing: TFSpacing.xs)],
+                spacing: TFSpacing.xs) {
        ForEach(workModes, id: \.self) { mode in
         workModeBlock(mode, selection: workMode)
        }
       }
-      .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.md, bottom: TFSpacing.sm, trailing: TFSpacing.md))
+      .sessionFormRow()
      }
     }
     Section {
@@ -170,18 +187,25 @@ struct ChatSessionPanel: View {
       dismiss()
       onNewSession()
      }
+     .sessionFormRow()
      Button("Сжать контекст", systemImage: "arrow.down.right.and.arrow.up.left") {
       Task { await perform(onCompact) }
      }
+     .sessionFormRow()
      Button("Сбросить контекст", systemImage: "arrow.counterclockwise") { confirmsReset = true }
+      .sessionFormRow()
      if !chat.isPermanentRoom {
       Button("Закрыть сессию", systemImage: "archivebox") {
        Task { await perform(onClose); dismiss() }
       }
+      .sessionFormRow()
      }
-    } footer: { Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю в текущем разговоре.") }
+    } footer: { Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю.") }
     .tint(.primary)
    }
+   // Владелец 03.11.2026: отступы меню нормальные, не гигантские.
+   .listSectionSpacing(TFSpacing.sm)
+   .environment(\.defaultMinListRowHeight, 34)
    .tfScreenBackground()
    // Обычный цвет текста вместо синего (владелец 29.10.2026).
    .tint(.primary)
@@ -226,57 +250,59 @@ struct ChatSessionPanel: View {
   }
  }
 
- /// Контекст: полоска общая и полоски по составляющим — как в панели ввода.
+ /// Контекст: заголовок как у соседних строк + полоски под ним.
  @ViewBuilder private var contextRow: some View {
   VStack(alignment: .leading, spacing: TFSpacing.xs) {
-   HStack {
+   HStack(alignment: .firstTextBaseline) {
     Text("Контекст")
      .tfText(.body)
      .foregroundStyle(Color.tfText)
     Spacer(minLength: TFSpacing.sm)
     Text(context?.summary ?? "Нет замера")
-     .tfText(.caption)
+     .tfText(.body)
      .foregroundStyle(Color.tfSub)
+     .multilineTextAlignment(.trailing)
    }
    if let snapshot = context, snapshot.fraction != nil {
-    ChatContextBar(snapshot: snapshot).frame(height: 10)
+    ChatContextBar(snapshot: snapshot).frame(height: 8)
    }
   }
   .contentShape(Rectangle())
  }
 
- /// Блок способа выполнения: значок, название, строка пояснения и отметка.
- /// Стоит рядом с блоком режима работы и выглядит так же — только ниже
- /// названия ещё одна строка с пояснением.
+ /// Блок способа выполнения: две колонки одной высоты, один кегль текста.
  private func executionModeBlock(_ mode: ChatExecutionMode,
                                  selection: Binding<ChatExecutionMode>) -> some View {
   let isSelected = selection.wrappedValue == mode
   return Button {
    selection.wrappedValue = mode
   } label: {
-   VStack(alignment: .leading, spacing: TFSpacing.xs) {
-    HStack {
+   VStack(alignment: .leading, spacing: 2) {
+    HStack(spacing: TFSpacing.xs) {
      Image(systemName: mode.symbol)
-      .tfTypeFont(size: 16, weight: .medium)
-      .foregroundStyle(isSelected ? Color.tfText : Color.tfSub)
+      .tfTypeFont(size: 15, weight: .semibold)
+      .foregroundStyle(Color.tfText)
+      .frame(width: 18, alignment: .center)
      Spacer(minLength: 0)
-     if isSelected {
-      Image(systemName: "checkmark")
-       .tfTypeFont(size: 13, weight: .semibold)
-       .foregroundStyle(Color.tfText)
-     }
+     Image(systemName: "checkmark")
+      .tfTypeFont(size: 12, weight: .semibold)
+      .foregroundStyle(Color.tfText)
+      .opacity(isSelected ? 1 : 0)
+      .accessibilityHidden(!isSelected)
     }
     Text(mode.title)
      .tfText(.body)
      .foregroundStyle(Color.tfText)
+     .lineLimit(1)
     Text(mode.summary)
-     .tfText(.caption)
-     .foregroundStyle(Color.tfDim)
+     .tfText(.action)
+     .foregroundStyle(Color.tfSub)
      .fixedSize(horizontal: false, vertical: true)
+     .frame(maxWidth: .infinity, alignment: .leading)
    }
-   .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-   .padding(TFSpacing.md)
-   .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous))
+   .padding(TFSpacing.xs)
+   .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+   .sessionChoiceSurface(selected: isSelected)
    .contentShape(Rectangle())
   }
   .buttonStyle(.plain)
@@ -284,41 +310,73 @@ struct ChatSessionPanel: View {
   .accessibilityIdentifier("chat.session.executionMode.\(mode.rawValue)")
  }
 
- /// Блок режима работы: значок, название и отметка выбранного.
+ /// Блок режима работы: клетка 2×2 по центру, галочка в углу не ломает ось.
  private func workModeBlock(_ mode: RoleChatWorkMode, selection: Binding<RoleChatWorkMode>) -> some View {
   let isSelected = selection.wrappedValue == mode
   let isEnabled = mode != .deepResearch || allowsResearch
   return Button {
    selection.wrappedValue = mode
   } label: {
-   VStack(alignment: .leading, spacing: TFSpacing.xs) {
-    HStack {
-     Image(systemName: mode.symbol)
-      .tfTypeFont(size: 16, weight: .medium)
-      .foregroundStyle(isSelected ? Color.tfText : Color.tfSub)
-     Spacer(minLength: 0)
-     if isSelected {
-      Image(systemName: "checkmark")
-       .tfTypeFont(size: 13, weight: .semibold)
-       .foregroundStyle(Color.tfText)
-     }
-    }
+   VStack(spacing: 2) {
+    Image(systemName: mode.symbol)
+     .tfTypeFont(size: 16, weight: .semibold)
+     .foregroundStyle(isEnabled ? Color.tfText : Color.tfSub)
+     .frame(height: 18)
     Text(mode.title)
      .tfText(.body)
-     .foregroundStyle(isEnabled ? Color.tfText : Color.tfDim)
+     .foregroundStyle(isEnabled ? Color.tfText : Color.tfSub)
+     .lineLimit(1)
+     .minimumScaleFactor(0.85)
     if mode == .deepResearch && !allowsResearch {
      Text("Только у Исследователя и Помощника")
-      .tfText(.caption)
-      .foregroundStyle(Color.tfDim)
+      .tfText(.action)
+      .foregroundStyle(Color.tfSub)
+      .multilineTextAlignment(.center)
+      .lineLimit(2)
+      .minimumScaleFactor(0.9)
     }
    }
-   .frame(maxWidth: .infinity, alignment: .leading)
-   .padding(TFSpacing.md)
-   .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous))
+   .frame(maxWidth: .infinity, minHeight: 56)
+   .padding(.horizontal, TFSpacing.xs)
+   .padding(.vertical, TFSpacing.xs)
+   .sessionChoiceSurface(selected: isSelected)
+   .overlay(alignment: .topTrailing) {
+    Image(systemName: "checkmark")
+     .tfTypeFont(size: 11, weight: .semibold)
+     .foregroundStyle(Color.tfText)
+     .padding(TFSpacing.xs)
+     .opacity(isSelected ? 1 : 0)
+     .accessibilityHidden(!isSelected)
+   }
    .contentShape(Rectangle())
   }
   .buttonStyle(.plain)
   .disabled(!isEnabled)
   .accessibilityIdentifier("chat.session.workMode.\(mode.rawValue)")
+ }
+}
+
+private extension View {
+ /// Компактная строка Form: меньше полей, чем системные по умолчанию
+ /// (владелец 03.11.2026: «не гигантские» отступы).
+ func sessionFormRow() -> some View {
+  self.listRowInsets(EdgeInsets(
+   top: 6, leading: TFSpacing.md,
+   bottom: 6, trailing: TFSpacing.md
+  ))
+ }
+
+ /// Плитка выбора внутри секции Form: лёгкая заливка и тонкая обводка у
+ /// выбранной — без второго тяжёлого «карточного» слоя и без дыр по краям.
+ func sessionChoiceSurface(selected: Bool) -> some View {
+  self
+   .background(
+    RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
+     .fill(selected ? Color.tfCard2 : Color.primary.opacity(0.06))
+   )
+   .overlay(
+    RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
+     .strokeBorder(selected ? Color.tfText.opacity(0.28) : Color.clear, lineWidth: 1)
+   )
  }
 }

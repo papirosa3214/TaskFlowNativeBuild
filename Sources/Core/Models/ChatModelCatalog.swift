@@ -19,12 +19,32 @@ public struct ModelProfile: Equatable, Sendable {
     }
 
     public let kind: Kind
-    /// Короткая строка под названием модели.
+    /// Короткая строка под названием модели (для подсказок и a11y).
     public let summary: String
 
     public init(kind: Kind, summary: String) {
         self.kind = kind
         self.summary = summary
+    }
+
+    /// Ориентир стоимости: 1 — дёшево, 4 — дорого. В списке моделей рисуется
+    /// столбиками (владелец 03.11.2026: вместо текста пояснения).
+    public var costLevel: Int {
+        switch kind {
+        case .lightweight: 1
+        case .specialized: 2
+        case .balanced: 3
+        case .advanced: 4
+        }
+    }
+
+    public var costAccessibilityLabel: String {
+        switch costLevel {
+        case 1: "Стоимость: низкая"
+        case 2: "Стоимость: ниже средней"
+        case 3: "Стоимость: средняя"
+        default: "Стоимость: высокая"
+        }
     }
 }
 

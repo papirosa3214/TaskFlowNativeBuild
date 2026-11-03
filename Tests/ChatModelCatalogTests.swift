@@ -50,6 +50,20 @@ final class ChatModelCatalogTests: XCTestCase {
         XCTAssertEqual(ChatModelCatalog.profile(for: "openai-codex/gpt-6-luna").kind, .lightweight)
     }
 
+    /// Столбики в списке моделей: дешёвые — 1, дорогие — 4 (владелец 03.11.2026).
+    func testCostLevelFollowsKind() {
+        XCTAssertEqual(ChatModelCatalog.profile(for: "anthropic/claude-haiku-5-5").costLevel, 1)
+        XCTAssertEqual(ChatModelCatalog.profile(for: "openai-codex/gpt-5.3-codex-spark").costLevel, 2)
+        XCTAssertEqual(ChatModelCatalog.profile(for: "anthropic/claude-sonnet-5").costLevel, 3)
+        XCTAssertEqual(ChatModelCatalog.profile(for: "anthropic/claude-opus-5").costLevel, 4)
+        XCTAssertEqual(
+            ChatModelCatalog.profile(for: "anthropic/claude-haiku-5-5").costAccessibilityLabel,
+            "Стоимость: низкая")
+        XCTAssertEqual(
+            ChatModelCatalog.profile(for: "anthropic/claude-opus-5").costAccessibilityLabel,
+            "Стоимость: высокая")
+    }
+
     func testUnknownModelWithoutFamilyHasNoProfile() {
         XCTAssertFalse(ChatModelCatalog.hasProfile(for: "some-provider/some-model-42"))
     }
