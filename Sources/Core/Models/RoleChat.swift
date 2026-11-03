@@ -209,6 +209,9 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     public var checklistState: [ChecklistItemState]? = nil
     public var handoff: RoleChatHandoff? = nil
     public var coordination: RoleChatCoordination? = nil
+    /// Чип наблюдателя памяти (сервер с 03.11.2026): тихая метка «Память обновлена».
+    /// nil — старый сервер или обычное сообщение.
+    public var memoryUpdate: RoleChatMemoryUpdate? = nil
     public var sequence: Int? = nil
     /// Сохранено или уже передано исполнителю (карточка b504958a, контракт §10).
     /// Признак несёт сообщение владельца, которому роль должна ответить; у
@@ -265,6 +268,7 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case replyToMessageID = "reply_to_message_id"
         case replyToSenderName = "reply_to_sender_name"
         case id, text, kind, attachments, steps, reactions, sequence, handoff, coordination
+        case memoryUpdate = "memory_update"
         case checklistState = "checklist_state"
         case roleEnvelope = "role_envelope"
         case chatID = "chat_id"
@@ -309,6 +313,18 @@ public struct ChecklistItemState: Decodable, Sendable, Equatable {
         case widgetKey = "widget_key"
         case itemKey = "item_key"
         case done
+    }
+}
+
+/// Чип «Память обновлена» после записи наблюдателя слота.
+public struct RoleChatMemoryUpdate: Decodable, Sendable, Equatable {
+    public let title: String?
+    public let kind: String?
+    public let confidence: Double?
+
+    public var chipLabel: String {
+        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "Память обновлена" : "Память обновлена · \(trimmed)"
     }
 }
 
