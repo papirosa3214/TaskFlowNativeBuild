@@ -127,13 +127,13 @@ struct SystemControlSection: View {
 
     // Строки собраны ровно теми же кирпичами, что и «Пользовательские
     // настройки» (`SettingsScreen.toggleRow`): `TFListRow` с plain-иконкой
-    // 40×40, `titleStyle: .action`, `verticalPadding: TFSpacing.xs` и
+    // 40×40, `titleStyle: .body`, `verticalPadding: TFSpacing.xs` и
     // `TFToggle` в `trailing`. Голый системный `Toggle` с меткой, который
     // стоял здесь сначала, был полноразмерным и синим — в приложении
     // тумблеры уменьшены до 0.82 и красные (`TFToggle`), поэтому строка
     // выбивалась и высотой, и цветом из всех соседних.
     var body: some View {
-        TFCard(padding: 0) {
+        TFCard(padding: 0, bordered: true) {
             VStack(spacing: 0) {
                 TFListRow(
                     icon: "power", iconStyle: .plain,
@@ -141,7 +141,7 @@ struct SystemControlSection: View {
                     subtitle: systemSubtitle,
                     trailing: AnyView(TFToggle(isOn: systemBinding)
                         .disabled(!viewModel.isSystemStateKnown || viewModel.isTogglingSystem)),
-                    titleStyle: .action,
+                    titleStyle: .body,
                     verticalPadding: TFSpacing.xs
                 )
                 TFDivider(inset: rowDividerInset)
@@ -150,7 +150,7 @@ struct SystemControlSection: View {
                     title: "Авторевьюер",
                     trailing: AnyView(TFToggle(isOn: reviewerDefaultBinding)
                         .disabled(!viewModel.isReviewerDefaultKnown || viewModel.isSavingReviewerDefault)),
-                    titleStyle: .action,
+                    titleStyle: .body,
                     verticalPadding: TFSpacing.xs
                 )
                 // Расписание — отдельная лампа: воркер живёт независимо от
@@ -163,7 +163,7 @@ struct SystemControlSection: View {
                     icon: "clock.arrow.circlepath", iconStyle: .plain,
                     title: "Расписание",
                     trailing: AnyView(schedulerAccessory),
-                    titleStyle: .action,
+                    titleStyle: .body,
                     verticalPadding: TFSpacing.xs
                 )
                 // «Разбор заметок» — второй фоновый автомат того же класса:
@@ -179,7 +179,7 @@ struct SystemControlSection: View {
                         icon: "tray.full", iconStyle: .plain,
                         title: "Разбор заметок",
                         trailing: AnyView(triageAccessory(triage)),
-                        titleStyle: .action,
+                        titleStyle: .body,
                         verticalPadding: TFSpacing.xs
                     )
                 }

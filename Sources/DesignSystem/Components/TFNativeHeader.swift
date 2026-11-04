@@ -40,8 +40,9 @@ enum TFNavBarTitleFont {
     /// Цвет белый (`tfText`), как у заголовков разделов: владелец 12.10.2026
     /// вернул белый и разделам, и шапке после смены гарнитуры на
     /// PT Sans Narrow — с серым капс выглядел вялым.
-    /// `multiplier` — выбранная ступень группы «Заголовок». В чатах равен 1:
-    /// настройка шрифтов чаты не трогает.
+    /// `multiplier` / `face` — группа «Заголовок» из «Внешний вид». Шапка
+    /// экрана — хром приложения, не лента чата: даже под `.tfChatTypography()`
+    /// берём шкалу настроек (владелец 03.11.2026: «Чаты» ≠ другим вкладкам).
     static func title(_ title: String, multiplier: CGFloat = 1, face: TFTypeFace = .system) -> some View {
         Text(title.uppercased())
             .font(face == .system
@@ -137,15 +138,16 @@ extension View {
     }
 }
 
-/// Шапка экрана модификатором, а не цепочкой: только так она видит выключатель
-/// настройки шрифтов (чаты его гасят) и множитель группы «Заголовок».
+/// Шапка экрана модификатором: множитель и гарнитура группы «Заголовок».
+/// Лента чата гасит шкалу через `.tfChatTypography()`, но навбар — общий
+/// хром вкладок, поэтому всегда читает настройки (владелец 03.11.2026).
 private struct TFNativeHeaderModifier: ViewModifier {
     let title: String
 
-    @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
 
     func body(content: Content) -> some View {
+        let _ = typeRevision
         content
             .navigationTitle("")
             .toolbarTitleDisplayMode(.inline)
@@ -153,8 +155,8 @@ private struct TFNativeHeaderModifier: ViewModifier {
                 ToolbarItem(placement: .principal) {
                     TFNavBarTitleFont.title(
                         title,
-                        multiplier: typeSettingsEnabled ? TFTypeGroup.heading.multiplier : 1,
-                        face: typeSettingsEnabled ? TFTypeFace.saved : .system
+                        multiplier: TFTypeGroup.heading.multiplier,
+                        face: TFTypeFace.saved
                     )
                 }
             }

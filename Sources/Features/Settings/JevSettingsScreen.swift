@@ -133,7 +133,7 @@ struct JevSettingsScreen: View {
                     .tfText(.action).foregroundStyle(Color.tfSub)
                     .padding(.horizontal, TFSpacing.screenHorizontal)
             }
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     scenario("Выбор шаблона плана", id: "plan",
                              enabled: settings.planProfileEnabled,

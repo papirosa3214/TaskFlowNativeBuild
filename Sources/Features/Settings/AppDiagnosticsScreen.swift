@@ -152,6 +152,7 @@ struct AppDiagnosticsScreen: View {
         }
         .foregroundStyle(Color.tfText)
         .tint(Color.tfText)
+        .tfSettingsListChrome()
         .tfScreenBackground()
         .tfNativeHeader("Диагностика")
         .accessibilityIdentifier("app-diagnostics-screen")

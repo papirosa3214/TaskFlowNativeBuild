@@ -15,7 +15,7 @@ struct HintsSettingsSection: View {
                     .accessibilityLabel("Подсказки")
                     .accessibilityIdentifier("settings.hints")
             ),
-            titleStyle: .action,
+            titleStyle: .body,
             verticalPadding: TFSpacing.xs
         )
         if center.isEnabled {
@@ -32,7 +32,7 @@ struct HintsSettingsSection: View {
                                 .tfText(.meta)
                                 .foregroundStyle(Color.tfText)
                         ),
-                        titleStyle: .action,
+                        titleStyle: .body,
                         verticalPadding: TFSpacing.xs
                     )
                 }

@@ -2,9 +2,9 @@ import SwiftUI
 
 /// Выбор модели для сессии.
 ///
-/// Владелец 03.11.2026: без лишнего текста, шрифт как в меню сессии, минимум
-/// отступов, без полосок-разделителей; звезда избранного; ориентир стоимости —
-/// столбики, как у приоритета, вместо поясняющей подписи под названием.
+/// Владелец 03.11.2026: insetGrouped, `.tfText` + гарнитура/кегль из настроек
+/// приложения (как проекты); звезда справа; столбики стоимости.
+/// Чат вокруг гасит шкалу — эту шторку снова включаем.
 struct ChatModelPickerSheet: View {
     @Bindable var choice: ChatModelChoice
     @Environment(\.dismiss) private var dismiss
@@ -23,7 +23,6 @@ struct ChatModelPickerSheet: View {
         models.filter { !favorites.isFavorite($0.id) }
     }
 
-    /// Разделы по провайдерам (владелец 31.10.2026).
     private var groups: [RoleModelOption.ProviderGroup] {
         RoleModelOption.grouped(otherModels)
     }
@@ -35,16 +34,6 @@ struct ChatModelPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if !favoritesModels.isEmpty {
-                    Section("Избранные") { rows(favoritesModels) }
-                }
-                ForEach(groups) { group in
-                    Section {
-                        rows(group.models)
-                    } header: {
-                        Text(groupTitle(group.provider))
-                    }
-                }
                 Section {
                     Button { showsEffort = true } label: {
                         HStack {
@@ -56,20 +45,38 @@ struct ChatModelPickerSheet: View {
                                 .tfText(.body)
                                 .foregroundStyle(Color.tfSub)
                         }
-                        .frame(minHeight: 36)
+                        .frame(minHeight: 40)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(Self.rowInsets)
+                    .modelPickerRow(selected: false)
                     .accessibilityIdentifier("chat.model.effort")
                 }
+                if !favoritesModels.isEmpty {
+                    Section {
+                        rows(favoritesModels)
+                    } header: {
+                        Text("Избранные")
+                            .tfText(.title)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
+                ForEach(groups) { group in
+                    Section {
+                        rows(group.models)
+                    } header: {
+                        Text(groupTitle(group.provider))
+                            .tfText(.title)
+                            .foregroundStyle(Color.tfSub)
+                    }
+                }
             }
-            .tfScreenBackground()
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
             .listSectionSpacing(TFSpacing.sm)
-            .navigationTitle("Выбор модели")
-            .navigationBarTitleDisplayMode(.inline)
+            .environment(\.defaultMinListRowHeight, 40)
+            .tfScreenBackground()
+            .tfNativeHeader("Выбор модели")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
@@ -79,12 +86,8 @@ struct ChatModelPickerSheet: View {
                 effortSheet
             }
         }
+        .environment(\.tfTypeSettingsEnabled, true)
     }
-
-    private static let rowInsets = EdgeInsets(
-        top: TFSpacing.xs, leading: TFSpacing.md,
-        bottom: TFSpacing.xs, trailing: TFSpacing.md
-    )
 
     @ViewBuilder
     private func rows(_ options: [RoleModelOption]) -> some View {
@@ -95,8 +98,7 @@ struct ChatModelPickerSheet: View {
                 modelRow(option)
             }
             .buttonStyle(.plain)
-            .listRowSeparator(.hidden)
-            .listRowInsets(Self.rowInsets)
+            .modelPickerRow(selected: choice.selected == option.id)
             .accessibilityIdentifier("chat.model.\(option.id)")
         }
     }
@@ -106,18 +108,12 @@ struct ChatModelPickerSheet: View {
         let selected = choice.selected == option.id
         let favorite = favorites.isFavorite(option.id)
         return HStack(spacing: TFSpacing.sm) {
-            Button {
-                favorites.toggle(option.id)
-            } label: {
-                Image(systemName: favorite ? "star.fill" : "star")
-                    .tfTypeFont(size: 15, weight: .medium)
-                    .foregroundStyle(favorite ? Color.tfYellow : Color.tfSub)
-                    .frame(width: 28, height: 36)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(favorite ? "Убрать из избранного" : "В избранное")
-            .accessibilityIdentifier("chat.model.favorite.\(option.id)")
+            Image(systemName: "checkmark")
+                .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
+                .foregroundStyle(Color.tfText)
+                .frame(width: 18, height: 40)
+                .opacity(selected ? 1 : 0)
+                .accessibilityHidden(!selected)
 
             Text(option.title)
                 .tfText(.body)
@@ -128,14 +124,20 @@ struct ChatModelPickerSheet: View {
             ModelCostBars(level: profile.costLevel)
                 .accessibilityLabel(profile.costAccessibilityLabel)
 
-            Image(systemName: "checkmark")
-                .tfTypeFont(size: 14, weight: .semibold)
-                .foregroundStyle(Color.tfText)
-                .frame(width: 16, height: 36)
-                .opacity(selected ? 1 : 0)
-                .accessibilityHidden(!selected)
+            Button {
+                favorites.toggle(option.id)
+            } label: {
+                Image(systemName: favorite ? "star.fill" : "star")
+                    .tfTypeFont(size: TFIconSize.sm, weight: .regular)
+                    .foregroundStyle(favorite ? Color.tfYellow : Color.tfSub)
+                    .frame(width: 28, height: 40)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(favorite ? "Убрать из избранного" : "В избранное")
+            .accessibilityIdentifier("chat.model.favorite.\(option.id)")
         }
-        .frame(minHeight: 36)
+        .frame(minHeight: 40)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(option.title)
@@ -145,8 +147,6 @@ struct ChatModelPickerSheet: View {
             profile.costAccessibilityLabel
         ].compactMap { $0 }.joined(separator: ", "))
     }
-
-    // MARK: - Усилия
 
     private var effortTitle: String {
         guard let level = choice.thinkingLevel else { return "По настройке роли" }
@@ -163,8 +163,7 @@ struct ChatModelPickerSheet: View {
                     effortRow(title: "По настройке роли", selected: choice.thinkingLevel == nil)
                 }
                 .buttonStyle(.plain)
-                .listRowSeparator(.hidden)
-                .listRowInsets(Self.rowInsets)
+                .modelPickerRow(selected: choice.thinkingLevel == nil)
                 ForEach(choice.availableThinkingLevels, id: \.self) { level in
                     Button {
                         Task { await choice.selectThinking(level) }
@@ -176,18 +175,19 @@ struct ChatModelPickerSheet: View {
                             selected: choice.thinkingLevel == level)
                     }
                     .buttonStyle(.plain)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(Self.rowInsets)
+                    .modelPickerRow(selected: choice.thinkingLevel == level)
                 }
             }
-            .listStyle(.plain)
-            .navigationTitle("Усилия")
-            .navigationBarTitleDisplayMode(.inline)
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .tfScreenBackground()
+            .tfNativeHeader("Усилия")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { showsEffort = false }
                 }
             }
+            .environment(\.tfTypeSettingsEnabled, true)
         }
     }
 
@@ -198,18 +198,27 @@ struct ChatModelPickerSheet: View {
                 .foregroundStyle(Color.tfText)
             Spacer(minLength: 0)
             Image(systemName: "checkmark")
-                .tfTypeFont(size: 14, weight: .semibold)
+                .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
                 .foregroundStyle(Color.tfText)
                 .opacity(selected ? 1 : 0)
                 .accessibilityHidden(!selected)
         }
-        .frame(minHeight: 36)
+        .frame(minHeight: 40)
         .contentShape(Rectangle())
     }
 }
 
-/// Столбики стоимости модели: слева низкий, справа высокий (как ориентир
-/// приоритета). Заполненные — текущий уровень, пустые — серые.
+private extension View {
+    /// Строка окна выбора модели: общий контур секции, серые разделители,
+    /// выбор — галочкой. Не плитки режима работы (владелец 03.11.2026).
+    /// `selected` только для VoiceOver; окантовку строки не рисуем.
+    func modelPickerRow(selected: Bool) -> some View {
+        self
+            .tfSettingsListRow(selected: false)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
 private struct ModelCostBars: View {
     let level: Int
     private let maxLevel = 4

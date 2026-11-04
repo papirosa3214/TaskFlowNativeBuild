@@ -79,7 +79,7 @@ struct RemoteMachinesScreen: View {
                 description: "Поставьте taskflow-host на мак — он сам покажет код для сопряжения."
             )
         } else {
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.machines.enumerated()), id: \.element.id) { index, машина in
                         if index > 0 { TFDivider(inset: TFSpacing.lg + 40 + TFSpacing.md) }
@@ -116,7 +116,7 @@ struct RemoteMachinesScreen: View {
     /// Код для сканирования телефоном. Показываем и текстом, и картинкой:
     /// сканировать с этого же телефона нельзя, а ввести руками — можно.
     private func pairingCodeView(_ код: PairingCodeResponse) -> some View {
-        TFCard(padding: TFSpacing.md, surface: .card2, radius: TFRadius.md) {
+        TFCard(padding: TFSpacing.md, surface: .card2, radius: TFRadius.md, bordered: true) {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 Text("Отсканируй этот код на маке (или введи вручную):")
                     .tfText(.meta)

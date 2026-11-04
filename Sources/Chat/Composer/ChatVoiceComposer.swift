@@ -60,13 +60,13 @@ struct ChatVoiceComposer: View {
     var availableModes: [RoleChatWorkMode] = [.work, .plan]
     /// Пилюля модели рядом с режимом; nil или пустой список — не рисуется.
     var modelChoice: ChatModelChoice? = nil
-    /// Рабочая папка (чат с Помощником владельца); nil — чипа нет.
+    /// Рабочая папка личного чата с одной ролью; nil — чипа нет.
     var workspaceChoice: ChatWorkspaceChoice? = nil
+    /// Устаревший слот: раньше у Помощника тут был отдельный ярлык «Сессия».
+    /// Теперь у всех одна схема (мозг / папка), сессия — левая круглая кнопка.
     var sessionControls: AnyView? = nil
-    /// Открыть панель сессии (владелец 29.10.2026: «в левую точку нужно
-    /// добавить… как в чате с помощником, там называется она сессия»).
-    /// nil — окна сессии в этом чате нет, и левая кнопка остаётся меню
-    /// действий.
+    /// Открыть окно сессии. В личном чате с одной ролью — всегда; иначе nil,
+    /// и левая кнопка остаётся меню вложений.
     var onOpenSession: (() -> Void)? = nil
     /// Вложения и режим работы — в панель сессии (владелец 29.10.2026: «в
     /// полосках то, что там есть, просто добавь в эту страничку»).
@@ -252,43 +252,50 @@ struct ChatVoiceComposer: View {
     /// Ряд действий под полем — в полной панели.
     private var promptActionRow: some View {
         HStack(spacing: 0) {
-            promptAttachmentMenu
-            if showsMentionButton { mentionButton }
-            // Режим не дублируется подписью: он виден в меню настроек слева.
-            if let sessionControls {
-                sessionControls
+            if let onOpenSession {
+                // Модель, папка, вложения и режимы — в окне сессии.
+                // Здесь только три полоски (владелец 03.11.2026).
+                Button(action: onOpenSession) {
+                    promptIcon("slider.horizontal.3")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Сессия")
+                .accessibilityIdentifier("chat.session")
+                .hintAnchor(HintAnchorID.chatSession)
             } else {
-                if let modelChoice, modelChoice.isAvailable {
-                    // «Мозги» — размером как кольцо контекста и значок вложений
-                    // (20 pt в поле 40), без своей подложки (владелец 27.10.2026).
-                    ChatModelMenu(choice: modelChoice) {
-                        HStack(spacing: 4) {
-                            Image("ModelBrain")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 20, height: 20)
+                promptAttachmentMenu
+                if let sessionControls {
+                    sessionControls
+                } else {
+                    if let modelChoice, modelChoice.isAvailable {
+                        ChatModelMenu(choice: modelChoice) {
+                            HStack(spacing: 4) {
+                                Image("ModelBrain")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                            }
+                            .frame(minWidth: 40, minHeight: 40)
+                            .contentShape(Rectangle())
                         }
-                        .frame(minWidth: 40, minHeight: 40)
-                        .contentShape(Rectangle())
                     }
-                }
-                if let workspaceChoice, workspaceChoice.isAvailable {
-                    // Тот же вид, что у пилюли модели слева от неё.
-                    ChatWorkspaceMenu(choice: workspaceChoice) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "folder")
-                                .tfTypeFont(size: 20, weight: .regular)
-                                .frame(width: 20, height: 20)
+                    if let workspaceChoice, workspaceChoice.isAvailable {
+                        ChatWorkspaceMenu(choice: workspaceChoice) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "folder")
+                                    .tfTypeFont(size: 20, weight: .regular)
+                                    .frame(width: 20, height: 20)
+                            }
+                            .frame(minWidth: 40, minHeight: 40)
+                            .contentShape(Rectangle())
                         }
-                        .frame(minWidth: 40, minHeight: 40)
-                        .contentShape(Rectangle())
+                        .padding(.leading, 4)
                     }
-                    .padding(.leading, 4)
+                    if let contextControls { contextControls }
                 }
-                // Кольцо контекста — крайнее справа из ярлычков (владелец 27.10.2026).
-                if let contextControls { contextControls }
             }
+            if showsMentionButton { mentionButton }
             Spacer(minLength: 8)
             micButton
             sendButton()
@@ -407,11 +414,16 @@ struct ChatVoiceComposer: View {
         }
     }
 
-    /// Подпись под рамкой: папка у левого края, модель у правого
-    /// (владелец 27.10.2026).
+    /// Подпись под рамкой: папка слева, модель справа (владелец 27.10.2026).
+    /// Модель здесь всегда — иначе из чата пропадает, хотя выбор уехал в
+    /// сессию (владелец 03.11.2026). Папку в личном чате с сессией не
+    /// дублируем: она в окне сессии.
     private var workingCaption: ChatWorkingCaptionInset {
-        ChatWorkingCaptionInset(folder: workingFolder, model: workingModel,
-                                shows: !isRecording && preview == nil)
+        let inSession = onOpenSession != nil
+        return ChatWorkingCaptionInset(
+            folder: inSession ? nil : workingFolder,
+            model: workingModel,
+            shows: !isRecording && preview == nil)
     }
 
     @ViewBuilder private var promptComposer: some View {

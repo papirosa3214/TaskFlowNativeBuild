@@ -133,24 +133,18 @@ struct SettingsScreen: View {
         section(title: "Внешний вид", isExpanded: $appearanceExpanded) {
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 Text("Тон текста")
-                    .tfText(.meta)
+                    .tfText(.title)
                     .foregroundStyle(Color.tfSub)
                 HStack(spacing: TFSpacing.sm) {
                     ForEach(TFTextTone.allCases) { tone in
                         let isSelected = textToneRaw == tone.rawValue
                         Button { textToneRaw = tone.rawValue } label: {
                             VStack(spacing: TFSpacing.xs) {
-                                TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
-                                    Text("Аа")
-                                        .tfText(.title)
-                                        .foregroundStyle(tone.color)
-                                        .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
-                                }
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: TFRadius.md)
-                                        .strokeBorder(isSelected ? Color.tfRed : Color.tfStroke,
-                                                      lineWidth: isSelected ? 2 : TFBorder.width)
-                                )
+                                Text("Аа")
+                                    .tfText(.title)
+                                    .foregroundStyle(isSelected ? tone.color : Color.tfDim)
+                                    .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
+                                    .tfSelectTile(selected: isSelected)
                                 Text(tone.title)
                                     .tfText(.micro)
                                     .foregroundStyle(isSelected ? Color.tfText : Color.tfDim)
@@ -168,7 +162,7 @@ struct SettingsScreen: View {
 
             TFDivider(inset: rowDividerInset)
             Text("Размер текста")
-                .tfText(.meta)
+                .tfText(.title)
                 .foregroundStyle(Color.tfSub)
                 .padding(.horizontal, TFSpacing.md)
                 .padding(.top, TFSpacing.md)
@@ -176,24 +170,27 @@ struct SettingsScreen: View {
                 if index > 0 { TFDivider(inset: rowDividerInset) }
                 let isSelected = textScaleRaw == scale.rawValue
                 Button { textScaleRaw = scale.rawValue } label: {
+                    let ink: Color = isSelected ? .tfText : .tfDim
                     HStack(spacing: TFSpacing.md) {
                         Text("Аа")
                             .tfText(Self.scaleSamples[index])
-                            .foregroundStyle(Color.tfText)
+                            .foregroundStyle(ink)
                             .frame(width: 34, alignment: .leading)
                         Text(scale.title)
                             .tfText(.body)
-                            .foregroundStyle(Color.tfText)
+                            .foregroundStyle(ink)
                         Spacer()
                         if isSelected {
                             Image(systemName: "checkmark")
-                                .tfTypeFont(size: 14, weight: .semibold)
-                                .foregroundStyle(Color.tfRed)
+                                .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
+                                .foregroundStyle(Color.tfText)
                         }
                     }
                     .padding(.horizontal, TFSpacing.md)
                     .frame(minHeight: TFHitTarget.min)
                     .contentShape(Rectangle())
+                    .tfSelectTile(selected: isSelected)
+                    .padding(.horizontal, TFSpacing.xs)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings.text-scale.\(scale.rawValue)")
@@ -202,24 +199,36 @@ struct SettingsScreen: View {
             // Гарнитура (владелец, 01.11.2026): 11 шрифтов с кириллицей.
             TFDivider(inset: rowDividerInset)
             Text("Гарнитура")
-                .tfText(.meta)
+                .tfText(.title)
                 .foregroundStyle(Color.tfSub)
                 .padding(.horizontal, TFSpacing.md)
                 .padding(.top, TFSpacing.md)
             faceRow
 
             // Шрифты по пяти группам (владелец, 01.11.2026): заголовок,
-            // подзаголовок, основной, второстепенный, мелкий. Чаты настройку
-            // не читают: их корни ставят `.tfChatTypography()`.
+            // подзаголовок, основной, второстепенный, мелкий. Чаты эту
+            // шкалу не читают — у них своя ниже.
             TFDivider(inset: rowDividerInset)
             Text("Шрифты")
-                .tfText(.meta)
+                .tfText(.title)
                 .foregroundStyle(Color.tfSub)
                 .padding(.horizontal, TFSpacing.md)
                 .padding(.top, TFSpacing.md)
             ForEach(Array(TFTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
                 if index > 0 { TFDivider(inset: rowDividerInset) }
                 typeGroupRow(group)
+            }
+
+            // Шрифт чата — отдельная шкала по схеме ленты (владелец 03.11.2026).
+            TFDivider(inset: rowDividerInset)
+            Text("Шрифт чата")
+                .tfText(.title)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.top, TFSpacing.md)
+            ForEach(Array(TFChatTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
+                if index > 0 { TFDivider(inset: rowDividerInset) }
+                chatTypeGroupRow(group)
             }
         }
     }
@@ -305,6 +314,47 @@ struct SettingsScreen: View {
         .accessibilityIdentifier("settings.type-group.\(group.rawValue)")
     }
 
+    /// Строка группы шкалы чата — те же ступени, свои базовые кегли ленты.
+    private func chatTypeGroupRow(_ group: TFChatTypeGroup) -> some View {
+        let current = TFTypeScale.saved(forChat: group)
+        return Menu {
+            ForEach(TFTypeScale.allCases) { scale in
+                Button {
+                    TFTypeScale.save(scale, forChat: group)
+                    typeRevision &+= 1
+                } label: {
+                    Text(scale.title + " " + String(Int((group.baseSize * scale.multiplier).rounded())))
+                }
+            }
+        } label: {
+            HStack(spacing: TFSpacing.md) {
+                Text("Аа")
+                    // design-system-guard: ignore — образец кегля группы чата
+                    .font(.tfChat(group))
+                    .foregroundStyle(Color.tfText)
+                    .frame(width: 40, alignment: .leading)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(group.title)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                    Text(group.subtitle)
+                        .tfText(.micro)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: TFSpacing.sm)
+                Text(current.title)
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfDim)
+            }
+            .padding(.horizontal, TFSpacing.md)
+            .frame(minHeight: TFHitTarget.min)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.chat-type-group.\(group.rawValue)")
+    }
+
     @ViewBuilder
     private var userSettingsSection: some View {
         section(title: "Пользовательские настройки", isExpanded: $userSettingsExpanded) {
@@ -315,7 +365,7 @@ struct SettingsScreen: View {
                         .accessibilityLabel("Тёмная тема")
                         .accessibilityIdentifier("settings.appearance")
                 ),
-                titleStyle: .action,
+                titleStyle: .body,
                 verticalPadding: TFSpacing.xs
             )
             TFDivider(inset: rowDividerInset)
@@ -329,7 +379,7 @@ struct SettingsScreen: View {
                 appIconSheetOpen = true
             } label: {
                 TFListRow(icon: "photo", iconStyle: .plain, title: "Иконка",
-                          trailing: AnyView(editAction), titleStyle: .action,
+                          trailing: AnyView(editAction), titleStyle: .body,
                           verticalPadding: TFSpacing.xs)
             }
             .buttonStyle(.plain)
@@ -342,6 +392,11 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             toggleRow(icon: "rectangle.bottomhalf.filled", title: "Системный таббар",
                       isOn: $viewModel.isPillTabBarEnabled, toggleIdentifier: "settings.pillTabBar")
+            // Красный «+» и QuickAdd — код остаётся, тумблер только прячет
+            // (владелец 03.11.2026). Выкл. → четыре вкладки на всю полосу.
+            TFDivider(inset: rowDividerInset)
+            toggleRow(icon: "plus.circle.fill", title: "Кнопка создания задачи",
+                      isOn: $viewModel.isQuickCreateEnabled, toggleIdentifier: "settings.quickCreate")
             // Панель ввода в чатах — по образцу таббара выше: родная или новая
             // (владелец 29.10.2026: «переключатель сделать наподобие, как вот
             // эта нижняя таб-бар»).
@@ -379,7 +434,7 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             NavigationLink(value: AppRoute.secretaryVoicePicker) {
                 TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Помощника владельца",
-                          trailing: AnyView(secretaryVoiceValue), titleStyle: .action,
+                          trailing: AnyView(secretaryVoiceValue), titleStyle: .body,
                           verticalPadding: TFSpacing.xs, chevron: .shown)
             }
             .buttonStyle(.plain)
@@ -431,7 +486,7 @@ struct SettingsScreen: View {
             // Владелец 20.10.2026: «Интеграции» — из «Общих» сюда.
             TFDivider(inset: rowDividerInset)
             NavigationLink(value: AppRoute.integrations) {
-                TFListRow(icon: "link", iconStyle: .asset("IntegrationsLink"), title: "Интеграции", titleStyle: .action, verticalPadding: TFSpacing.xs, chevron: .shown)
+                TFListRow(icon: "link", iconStyle: .asset("IntegrationsLink"), title: "Интеграции", titleStyle: .body, verticalPadding: TFSpacing.xs, chevron: .shown)
             }
             .buttonStyle(.plain)
         }
@@ -471,7 +526,7 @@ struct SettingsScreen: View {
             .buttonStyle(.plain)
             .accessibilityValue(isExpanded.wrappedValue ? "Развернут" : "Свернут")
             if isExpanded.wrappedValue {
-                TFCard(padding: 0) { VStack(spacing: 0) { content() } }
+                TFCard(padding: 0, bordered: true) { VStack(spacing: 0) { content() } }
                     .padding(.horizontal, TFSpacing.screenHorizontal)
             }
         }
@@ -483,7 +538,7 @@ struct SettingsScreen: View {
     /// только `NavigationLink(value:)`).
     private func navRow(icon: String, title: String, route: AppRoute) -> some View {
         NavigationLink(value: route) {
-            TFListRow(icon: icon, iconStyle: .plain, title: title, titleStyle: .action, verticalPadding: TFSpacing.xs, chevron: .shown)
+            TFListRow(icon: icon, iconStyle: .plain, title: title, titleStyle: .body, verticalPadding: TFSpacing.xs, chevron: .shown)
         }
         .buttonStyle(.plain)
     }
@@ -500,20 +555,19 @@ struct SettingsScreen: View {
                     }
                 }
             ),
-            titleStyle: .action,
+            titleStyle: .body,
             verticalPadding: TFSpacing.xs
         )
     }
 
     private var editAction: some View {
-        TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.md, bordered: true) {
             Text("Изменить")
-                .tfText(.meta)
+                .tfText(.action)
                 .foregroundStyle(Color.tfText)
                 .padding(.horizontal, TFSpacing.sm)
                 .padding(.vertical, TFSpacing.xs)
         }
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 
     private var rowDividerInset: CGFloat { TFSpacing.lg + 40 + TFSpacing.md }

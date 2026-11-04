@@ -3,18 +3,14 @@ import SwiftUI
 // Кнопки — spec/DESIGN-TOKENS.md §4 «Кнопки». Три вида, все 48px/12px радиус/15px 600.
 // Нажатие — не тень/подъём, а `tap-scale` (0.94, мгновенно, без анимации на снятие);
 // на native ближайший честный эквивалент — `.scaleEffect` без implicit animation delay.
+//
+// 03.11.2026, владелец: заливка — градиент тёмно-красный по краям к тёмно-серому
+// в середине, окантовка того же тёмно-красного. Primary держит центр чуть
+// краснее, чтобы белый текст оставался читаемым.
 public enum TFButtonVariant {
-    case primary   // red-solid фон (НЕ tfRed — контраст под белый текст, см. Color+Palette)
-    case secondary // card2 фон + рамка stroke
-    case outline   // прозрачный фон + рамка stroke, текст sub
-
-    var background: Color {
-        switch self {
-        case .primary: .tfRedSolid
-        case .secondary: .tfCard2
-        case .outline: .clear
-        }
-    }
+    case primary
+    case secondary
+    case outline
 
     var foreground: Color {
         switch self {
@@ -24,11 +20,11 @@ public enum TFButtonVariant {
         }
     }
 
-    var hasStroke: Bool {
-        switch self {
-        case .primary: false
-        case .secondary, .outline: true
-        }
+    var hasStroke: Bool { true }
+
+    var stroke: Color {
+        // Все виды — тёмно-красная кромка рутины, не светлый `tfStroke`.
+        .tfButtonEdge
     }
 }
 
@@ -40,8 +36,6 @@ public struct TFButton: View {
     let variant: TFButtonVariant
     let isEnabled: Bool
     let action: () -> Void
-
-    @State private var isPressed = false
 
     /// 14.09.2026, Dynamic Type: высота растёт вместе с текстом.
     /// Было жёсткое `.frame(height: 48)` — при увеличенном системном размере
@@ -79,18 +73,49 @@ public struct TFButton: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: minHeight)
             .foregroundStyle(variant.foreground)
-            .background(variant.background)
+            .background { fill }
             .overlay {
                 if variant.hasStroke {
-                    RoundedRectangle(cornerRadius: TFButtonMetrics.radius)
-                        .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
+                    RoundedRectangle(cornerRadius: TFButtonMetrics.radius, style: .continuous)
+                        .strokeBorder(variant.stroke, lineWidth: TFBorder.width)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: TFButtonMetrics.radius))
+            .clipShape(RoundedRectangle(cornerRadius: TFButtonMetrics.radius, style: .continuous))
         }
         .buttonStyle(TFTapScaleStyle())
         .opacity(isEnabled ? 1 : 0.5)
         .disabled(!isEnabled)
+    }
+
+    /// Края — тёмно-красный `tfButtonEdge` (= `tfFieldBorder`), середина —
+    /// почти чёрный `tfFieldDark`, как поля рутины (владелец 03.11.2026).
+    @ViewBuilder private var fill: some View {
+        switch variant {
+        case .primary:
+            RadialGradient(
+                colors: [
+                    Color.tfButtonEdge.opacity(0.85),
+                    Color.tfFieldDark,
+                    Color.tfButtonEdge
+                ],
+                center: .center,
+                startRadius: 4,
+                endRadius: 120
+            )
+        case .secondary:
+            RadialGradient(
+                colors: [
+                    Color.tfFieldDark,
+                    Color.tfFieldDark,
+                    Color.tfButtonEdge
+                ],
+                center: .center,
+                startRadius: 8,
+                endRadius: 130
+            )
+        case .outline:
+            Color.clear
+        }
     }
 }
 

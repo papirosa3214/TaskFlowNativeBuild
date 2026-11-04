@@ -8,6 +8,9 @@ public struct TFPillTabBar<Content: View>: View {
     @Binding var selectedIndex: Int?
     let onSelect: (Int) -> Void
     let onCreateTap: () -> Void
+    /// Красный «+» и системный prominent-слот. `false` — только вкладки на
+    /// всю полосу; код кнопки и QuickAdd не удаляем (владелец 03.11.2026).
+    private let showsCreateButton: Bool
     private let content: (Int) -> Content
     private let isTabBarVisible: Bool
     @Environment(\.displayScale) private var displayScale
@@ -16,6 +19,7 @@ public struct TFPillTabBar<Content: View>: View {
     public init(
         items: [TFTabItem], selectedIndex: Binding<Int?>,
         isCreateMenuOpen: Bool, isTabBarVisible: Bool = true,
+        showsCreateButton: Bool = true,
         onSelect: @escaping (Int) -> Void,
         onCreateTap: @escaping () -> Void,
         @ViewBuilder content: @escaping (Int) -> Content
@@ -24,6 +28,7 @@ public struct TFPillTabBar<Content: View>: View {
         self._selectedIndex = selectedIndex
         self.onSelect = onSelect
         self.onCreateTap = onCreateTap
+        self.showsCreateButton = showsCreateButton
         self.content = content
         self.isTabBarVisible = isTabBarVisible
     }
@@ -87,10 +92,14 @@ public struct TFPillTabBar<Content: View>: View {
             // Системный prominent-круг: место справа, стекло, плюс и нажатие
             // всё его. Свой слой под ним пробовали — системное стекло
             // преломляет его в радужное пятно, поэтому круг остаётся системным.
-            SwiftUI.Tab("Создать", systemImage: "plus", value: items.count, role: createRole) {
-                EmptyView()
+            // Пока тумблер «Кнопка создания задачи» выкл. — слот не рисуем,
+            // четыре вкладки занимают всю полосу (код слота оставляем).
+            if showsCreateButton {
+                SwiftUI.Tab("Создать", systemImage: "plus", value: items.count, role: createRole) {
+                    EmptyView()
+                }
+                .accessibilityIdentifier("tab.add")
             }
-            .accessibilityIdentifier("tab.add")
         }
         .tabViewStyle(.tabBarOnly)
         // Акцент панели: выбранный ярлык с подписью красится в него сразу,
@@ -100,7 +109,9 @@ public struct TFPillTabBar<Content: View>: View {
         // 18.10.2026). Тинт наследуется содержимым вкладок, поэтому внутри
         // вкладки он снимается — см. `content(index).tint(nil)` ниже.
         .tint(Color.tfRed)
-        .overlay(alignment: .bottomTrailing) { createButtonOverlay }
+        .overlay(alignment: .bottomTrailing) {
+            if showsCreateButton { createButtonOverlay }
+        }
     }
 
     /// Круг «+» живёт вместе с панелью: когда системный таббар скрыт
@@ -258,11 +269,12 @@ extension TFPillTabBar where Content == EmptyView {
     public init(
         items: [TFTabItem], selectedIndex: Binding<Int?>,
         isCreateMenuOpen: Bool, isTabBarVisible: Bool = true,
+        showsCreateButton: Bool = true,
         onSelect: @escaping (Int) -> Void,
         onCreateTap: @escaping () -> Void
     ) {
         self.init(items: items, selectedIndex: selectedIndex, isCreateMenuOpen: isCreateMenuOpen,
-                  isTabBarVisible: isTabBarVisible,
+                  isTabBarVisible: isTabBarVisible, showsCreateButton: showsCreateButton,
                   onSelect: onSelect, onCreateTap: onCreateTap, content: { _ in EmptyView() })
     }
 }

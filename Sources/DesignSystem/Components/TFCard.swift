@@ -41,24 +41,49 @@ public struct TFCard<Content: View>: View {
     /// Радиус скругления. `nil` — подложка без скругления (прямоугольная
     /// плашка, как всплывающий список подсказок в чате).
     let radius: CGFloat?
+    /// Окантовка как у полей рутины: тонкая тёмно-красная `tfFieldBorder`
+    /// (владелец 03.11.2026 — скрин рутины, не светлый `tfStroke`).
+    let bordered: Bool
 
     public init(
         padding: CGFloat = TFSpacing.lg,
         surface: Surface = .card,
         radius: CGFloat? = TFRadius.xl,
+        bordered: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.padding = padding
         self.surface = surface
         self.radius = radius
+        self.bordered = bordered
         self.content = content()
     }
 
     public var body: some View {
         content
             .padding(padding)
-            .background(surface.color)
+            // С окантовкой — почти чёрная подложка рутины, иначе светлый
+            // `tfCard` и «толстая светлая линия» (жалоба владельца 03.11.2026).
+            .background(bordered ? Color.tfFieldDark : surface.color)
             .modifier(ClipRadius(radius: radius))
+            .modifier(TFCardBorder(radius: radius, enabled: bordered))
+    }
+}
+
+/// Рамка рутины: 1px тёмно-красная, не полупрозрачная белая.
+private struct TFCardBorder: ViewModifier {
+    let radius: CGFloat?
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled, let radius {
+            content.overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
+            )
+        } else {
+            content
+        }
     }
 }
 
@@ -337,6 +362,61 @@ public struct TFListRow: View {
 }
 
 /// Разделитель между строками внутри карточки-списка (`TFListRow` и подобных) —
+public extension View {
+    /// Плитка выбора (сессия, тон текста, дни…): выбранная — `tfFieldDark` +
+    /// тонкая `tfFieldBorder`; невыбранная — тот же фон без окантовки.
+    /// Цвет иконки/текста задаёт вызывающий: выбранная → `tfText`, иначе
+    /// `tfDim` (владелец 03.11.2026).
+    func tfSelectTile(selected: Bool, radius: CGFloat = TFRadius.md) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Color.tfFieldDark)
+            )
+            .overlay {
+                if selected {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
+                }
+            }
+    }
+
+    /// Строка `List`/`Form` в настройках: одна сплошная группа как карточка
+    /// рутины (без щелей → без «пилюль»), `tfFieldDark` + тонкая тёмно-красная
+    /// окантовка у выбранной (владелец 03.11.2026).
+    func tfSettingsListRow(selected: Bool = false) -> some View {
+        self
+            .listRowInsets(EdgeInsets(
+                top: 0, leading: TFSpacing.md,
+                bottom: 0, trailing: TFSpacing.md
+            ))
+            .listRowSeparator(.visible, edges: .bottom)
+            .listRowSeparatorTint(Color.tfStroke)
+            .alignmentGuide(.listRowSeparatorLeading) { _ in TFSpacing.md }
+            .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+                dimensions.width - TFSpacing.md
+            }
+            .listRowBackground(
+                ZStack {
+                    Color.tfFieldDark
+                    if selected {
+                        RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
+                            .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
+                            .padding(1)
+                    }
+                }
+            )
+    }
+
+    /// Список настроек поверх чёрного фона экрана, без серой системной подложки.
+    func tfSettingsListChrome() -> some View {
+        self
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .listSectionSpacing(TFSpacing.sm)
+    }
+}
+
 /// 1px `stroke`, вставляется вручную между строками (спека держит инсет
 /// разный по месту, поэтому не делаем это неявным поведением контейнера).
 ///

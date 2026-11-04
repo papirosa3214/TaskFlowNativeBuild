@@ -83,7 +83,7 @@ struct WebhooksScreen: View {
     }
 
     private func hookCard(_ hook: TaskFlowWebhook) -> some View {
-        TFCard(padding: 0) {
+        TFCard(padding: 0, bordered: true) {
             VStack(spacing: 0) {
                 Button { editing = hook } label: {
                     TFListRow(
@@ -99,7 +99,7 @@ struct WebhooksScreen: View {
                                 .tfTypeFont(size: 13)
                                 .foregroundStyle(Color.tfDim)
                         }),
-                        titleStyle: .action,
+                        titleStyle: .body,
                         verticalPadding: TFSpacing.md
                     )
                 }

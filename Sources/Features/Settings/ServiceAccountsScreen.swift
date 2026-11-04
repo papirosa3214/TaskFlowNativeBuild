@@ -295,7 +295,7 @@ struct ServiceAccountsScreen: View {
                 Text("Показывается один раз. Потом можно только выпустить новый.")
                     .tfText(.meta)
                     .foregroundStyle(Color.tfSub)
-                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg, bordered: true) {
                     Text(issued.token)
                         .tfMonospaced(12, relativeTo: .caption)
                         .foregroundStyle(Color.tfText)
@@ -332,7 +332,7 @@ struct ServiceAccountsScreen: View {
     private var clientInfoSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Что получает подключившийся")
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     infoRow(.instructions, title: "Инструкция при подключении", count: nil)
                     TFDivider(inset: TFSpacing.lg)
@@ -431,7 +431,7 @@ struct ServiceAccountsScreen: View {
             if viewModel.isLoading && viewModel.accounts.isEmpty {
                 TFLoading(.block)
             }
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.accounts.enumerated()), id: \.element.id) { index, account in
                         if index > 0 { TFDivider(inset: rowDividerInset) }
@@ -520,7 +520,7 @@ struct ServiceAccountsScreen: View {
                     .disabled(viewModel.tokenDraft(for: account.id).trimmingCharacters(in: .whitespaces).isEmpty)
 
                     Button { Task { _ = await viewModel.rotateToken(account.id) } } label: {
-                        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg, bordered: true) {
                             Text("Выпустить новый")
                                 .tfText(.row)
                                 .foregroundStyle(Color.tfSub)

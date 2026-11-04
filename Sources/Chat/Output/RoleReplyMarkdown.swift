@@ -26,8 +26,12 @@ struct RoleReplyMarkdown: View, Equatable {
     /// Куски, уже собранные из блоков сервера (живой ход: блок, обрезанный по
     /// открытой части). Есть — текст не раскладывается.
     var prepared: [ChatRichSegment]? = nil
+    /// Жирный читает «Подзаголовок» — без этого счётчика `.equatable()` не
+    /// перерисует ответ при смене ступени в настройках.
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
 
     var body: some View {
+        let _ = typeRevision
         let segments = prepared
             ?? serverBlocks.map { ChatRichContent.segments(fromServer: $0, key: text) }
             ?? ChatRichContent.split(text, isStreaming: isStreaming)
@@ -43,10 +47,12 @@ struct RoleReplyMarkdown: View, Equatable {
             // проявляется по всему тексту, а не у каждого куска отдельно.
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-                    segmentView(segment, fade: fade, widgetKey: widgetKey(in: segments, at: index))
+                    // fade только у корня ниже — не у каждого куска.
+                    segmentView(segment, fade: nil, widgetKey: widgetKey(in: segments, at: index))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .roleReveal(fade)
         }
     }
 
@@ -75,7 +81,7 @@ struct RoleReplyMarkdown: View, Equatable {
     private func segmentView(_ segment: ChatRichSegment, fade: RoleTextFade?, widgetKey: String?) -> some View {
         switch segment {
         case .markdown(let part):
-            RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: fade)
+            RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: nil)
         case .document(let blocks, _):
             documentBody(blocks)
         case .table(let table):
@@ -131,14 +137,18 @@ struct RoleReplyMarkdown: View, Equatable {
     @ViewBuilder
     private func documentBody(_ parsed: [NoteBlock]) -> some View {
         let blocks = Self.numbered(parsed)
+        // Один `roleReveal` на всё дерево: иначе каждый `Text` заводит свою
+        // историю и абзацы одной длины проявляются синхронно (владелец
+        // 03.11.2026). Общая история слотов печатает сверху вниз.
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             // Индекс, а не id блока: парсер раздаёт новые UUID на каждый
             // разбор, а живой текст разбирается заново каждые 150 мс.
             ForEach(Array(blocks.enumerated()), id: \.offset) { index, item in
-                blockView(item.block, number: item.number, fade: fade)
+                blockView(item.block, number: item.number)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .roleReveal(fade)
     }
 
     /// Сколько символов идёт после каждого блока — хвост проявляется по
@@ -172,26 +182,27 @@ struct RoleReplyMarkdown: View, Equatable {
     }
 
     @ViewBuilder
-    private func blockView(_ block: NoteBlock, number: Int, fade: RoleTextFade?) -> some View {
+    private func blockView(_ block: NoteBlock, number: Int) -> some View {
         switch block.kind {
         case .paragraph:
-            inline(block, fade: fade)
+            inline(block)
         case .heading(let level):
-            inline(block, fade: fade, liftBold: false)
-                .font(level <= 1 ? .title3.weight(.semibold) : .headline)
+            // Заголовок ответа — группа «Заголовок» шкалы чата; h1 чуть крупнее h2.
+            inline(block, liftBold: false)
+                .font(.tfChat(.heading, weight: .semibold, scale: level <= 1 ? 1.15 : 1))
                 .padding(.top, TFSpacing.xs)
         case .bulletItem:
-            listRow(marker: Text("•"), block: block, fade: fade)
+            listRow(marker: Text("•"), block: block)
         case .orderedItem:
-            listRow(marker: Text("\(number)."), block: block, fade: fade)
+            listRow(marker: Text("\(number)."), block: block)
         case .taskItem(let checked):
-            listRow(marker: Text(Image(systemName: checked ? "checkmark.square" : "square")), block: block, fade: fade)
+            listRow(marker: Text(Image(systemName: checked ? "checkmark.square" : "square")), block: block)
         case .blockquote:
             HStack(alignment: .top, spacing: TFSpacing.sm) {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(Color.tfStroke)
                     .frame(width: 3)
-                inline(block, fade: fade)
+                inline(block)
                     .foregroundStyle(Color.tfSub)
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -200,12 +211,11 @@ struct RoleReplyMarkdown: View, Equatable {
                 BashCommandBlock(command: block.runs.map(\.text).joined())
                     .id(block.runs.map(\.text).joined())
             } else {
-            TFCard(padding: 0, surface: .card, radius: TFRadius.md) {
+            TFCard(padding: 0, surface: .card, radius: TFRadius.md, bordered: true) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     Text(block.runs.map(\.text).joined())
-                        .font(.system(.callout, design: .monospaced))
+                        .font(.tfChat(.mono, design: .monospaced))
                         .foregroundStyle(color)
-                        .roleReveal(fade)
                         .textSelection(.enabled)
                         .padding(TFSpacing.md)
                 }
@@ -224,12 +234,12 @@ struct RoleReplyMarkdown: View, Equatable {
         }
     }
 
-    private func listRow(marker: Text, block: NoteBlock, fade: RoleTextFade?) -> some View {
+    private func listRow(marker: Text, block: NoteBlock) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             marker
                 .foregroundStyle(Color.tfSub)
                 .frame(minWidth: 14, alignment: .trailing)
-            inline(block, fade: fade)
+            inline(block)
         }
         .padding(.leading, CGFloat(block.level) * TFSpacing.lg)
     }
@@ -237,49 +247,43 @@ struct RoleReplyMarkdown: View, Equatable {
     /// `liftBold` — увеличивать ли жирное на ступень. В обычном тексте да,
     /// в заголовках нет: там жирное и так крупное, и лишний шаг вверх
     /// сбивал бы уровень (владелец 17.10.2026: жирное сливалось с текстом).
-    private func inline(_ block: NoteBlock, fade: RoleTextFade?, liftBold: Bool = true) -> some View {
+    private func inline(_ block: NoteBlock, liftBold: Bool = true) -> some View {
         Self.readableText(Self.pieces(for: block), color: color, liftBold: liftBold)
-            .roleReveal(fade)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// Выделение — ТОЛЬКО весом, цвет у основного текста и жирного один
-    /// (владелец 17.10.2026: «основной текст серый, жирный чуть ярже, но не
-    /// вообще разные уровни текста»). Раньше основной текст рисовался как
-    /// `color.opacity(0.65)` — это и был серый, и жирный на его фоне читался
-    /// как другой уровень текста. Теперь оба `color`, различает вес.
-    /// Вес задаётся на Text, чтобы сохранить унаследованный размер заголовка
-    /// и Dynamic Type; разметка кода, ссылок и курсива остаётся у прогона.
+    /// Кегли — из шкалы «Шрифт чата» (владелец 03.11.2026). Цвет у основного
+    /// и жирного один; обычный чуть тише на 5%.
     private static func readableText(_ pieces: [RunPiece], color: Color, liftBold: Bool = true) -> Text {
         pieces.reduce(Text("")) { result, piece in
             var text = Text(piece.attributed)
                 .fontWeight(piece.bold ? .bold : nil)
                 .foregroundColor(color)
-            // Жирьём выделение не читалось: кегль был как у соседних слов,
-            // и на телефоне выделение сливалось с текстом (владелец
-            // 17.10.2026: «как будто бы и не выделяешь»). Поэтому жирное в
-            // обычном тексте идёт на ступень выше — токеном `.body` (15
-            // против 14 у строки), а не своей цифрой: кривая масштабирования
-            // и Dynamic Type остаются системными.
-            if piece.bold, liftBold {
-                text = text.font(TFFont.body).foregroundColor(color)
-            } else if liftBold {
-                // Обычный текст чуть тише жирного — буквально на 5%: полностью
-                // приглушать нельзя, владелец уже возвращал серый основной текст
-                // (17.10.2026), но на его фоне жирное снова сливалось. Теперь
-                // разница есть и видна, и основной текст остаётся читаемым.
-                text = text.foregroundColor(color.opacity(0.94))
+            if piece.code {
+                text = text
+                    .font(.tfChat(.mono, design: .monospaced))
+                    .foregroundColor(color)
+            } else if piece.bold, liftBold {
+                text = text
+                    .font(.tfChat(.emphasis, weight: .bold))
+                    .foregroundColor(color)
+            } else {
+                text = text.font(.tfChat(.body))
+                if liftBold {
+                    text = text.foregroundColor(color.opacity(0.94))
+                }
             }
             return Text("\(result)\(text)")
         }
     }
 
-    /// Готовый кусок текста: разметка прогона и признак жирного.
+    /// Готовый кусок текста: разметка прогона и признаки начертания.
     struct RunPiece {
         let attributed: AttributedString
         let bold: Bool
+        let code: Bool
     }
 
     /// Кэш готовых кусков текста по блоку.
@@ -299,7 +303,9 @@ struct RoleReplyMarkdown: View, Equatable {
     static func pieces(for block: NoteBlock) -> [RunPiece] {
         let key = block.id.uuidString
         if let cached = runPieces.value(for: key) { return cached }
-        let built = block.runs.map { RunPiece(attributed: attributed([$0]), bold: $0.bold) }
+        let built = block.runs.map {
+            RunPiece(attributed: attributed([$0]), bold: $0.bold, code: $0.code)
+        }
         runPieces.set(built, for: key)
         return built
     }

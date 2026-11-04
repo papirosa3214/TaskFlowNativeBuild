@@ -41,6 +41,12 @@ struct RoleMessageReveal<Content: View>: View {
                 fade = nil
                 startIfNeeded()
             }
+            .onChange(of: animate) { _, shouldAnimate in
+                // История при открытии сначала без проявления; новое
+                // сообщение потом включает animate — без этого старт не
+                // сработает (ячейка уже на экране).
+                if shouldAnimate { startIfNeeded() }
+            }
     }
 
     private func startIfNeeded() {

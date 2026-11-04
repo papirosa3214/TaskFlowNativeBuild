@@ -22,7 +22,7 @@ struct SecretaryVoicePickerScreen: View {
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
                     .padding(.horizontal, TFSpacing.lg)
-                TFCard(padding: 0) {
+                TFCard(padding: 0, bordered: true) {
                     VStack(spacing: 0) {
                         ForEach(SecretaryVoice.allCases) { voice in
                             if voice != SecretaryVoice.allCases.first {

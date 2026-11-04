@@ -102,12 +102,26 @@ struct AppIconPickerSheet: View {
                                 Spacer()
                                 if option == selection {
                                     Image(systemName: "checkmark")
+                                        .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
                                         .foregroundStyle(Color.tfRed)
                                 }
                             }
-                            .padding(.horizontal, TFSpacing.lg)
+                            .padding(.horizontal, TFSpacing.md)
                             .padding(.vertical, TFSpacing.sm)
                             .contentShape(Rectangle())
+                            .background(
+                                RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
+                                    .fill(option == selection ? Color.tfCard2 : Color.tfCard)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
+                                    .strokeBorder(
+                                        option == selection ? Color.tfRed : Color.tfStroke,
+                                        lineWidth: option == selection ? 2 : TFBorder.width
+                                    )
+                            )
+                            .padding(.horizontal, TFSpacing.sm)
+                            .padding(.vertical, 4)
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("settings.app-icon.\(option.rawValue)")

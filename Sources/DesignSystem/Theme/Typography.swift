@@ -428,8 +428,21 @@ public extension EnvironmentValues {
     }
 }
 
-/// Гасит настройку шрифтов в поддереве: все чаты (роли, Помощник,
-/// групповые, проектные). Решение владельца 01.11.2026: чат остаётся как был.
+/// Кегль шкалы «Шрифт чата» — размеры живут в `TFChatTypeGroup`, не в сырых
+/// числах на экране (сторож ловит `.font(.system(size:))` на `Text`).
+extension Font {
+    static func tfChat(
+        _ group: TFChatTypeGroup,
+        weight: Font.Weight = .regular,
+        design: Font.Design = .default,
+        scale: CGFloat = 1
+    ) -> Font {
+        .system(size: group.size * scale, weight: weight, design: design)
+    }
+}
+
+/// Гасит настройку шрифтов приложения в поддереве чата, но оставляет
+/// отдельную шкалу `TFChatTypeGroup` (владелец 03.11.2026).
 public extension View {
     func tfChatTypography() -> some View {
         environment(\.tfTypeSettingsEnabled, false)
@@ -448,6 +461,18 @@ public extension View {
     }
 }
 
+extension View {
+    /// Текст ленты чата по группе шкалы «Шрифт чата» (`TFChatTypeGroup` —
+    /// internal, поэтому модификатор не в `public extension`).
+    func tfChatText(
+        _ group: TFChatTypeGroup,
+        weight: Font.Weight = .regular,
+        design: Font.Design = .default
+    ) -> some View {
+        modifier(TFChatTextModifier(group: group, weight: weight, design: design))
+    }
+}
+
 /// Модификатор гарнитуры для мест с ручным кеглем.
 private struct TFTypeFontModifier: ViewModifier {
     let size: CGFloat
@@ -462,5 +487,20 @@ private struct TFTypeFontModifier: ViewModifier {
         content.font(
             TFTypeFace.active(size: size, weight: weight, design: design, enabled: typeSettingsEnabled)
         )
+    }
+}
+
+/// Кегль группы «Шрифт чата»; следит за `typeRevision`, чтобы лента
+/// перерисовалась после смены ступени в настройках.
+private struct TFChatTextModifier: ViewModifier {
+    let group: TFChatTypeGroup
+    let weight: Font.Weight
+    let design: Font.Design
+
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
+
+    func body(content: Content) -> some View {
+        let _ = typeRevision
+        content.font(.tfChat(group, weight: weight, design: design))
     }
 }

@@ -53,7 +53,7 @@ struct RuntimeStatusScreen: View {
                 }
 
                 if let status = viewModel.status {
-                    TFCard(padding: 0) {
+                    TFCard(padding: 0, bordered: true) {
                         VStack(spacing: 0) {
                             statusRow(status)
                             TFDivider(inset: rowDividerInset)
@@ -142,7 +142,7 @@ struct RuntimeStatusRow: View {
                 iconStyle: .plain,
                 title: "Pi Runtime",
                 trailing: AnyView(valueText),
-                titleStyle: .action,
+                titleStyle: .body,
                 verticalPadding: TFSpacing.xs,
                 chevron: .shown
             )

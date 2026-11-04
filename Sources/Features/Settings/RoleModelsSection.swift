@@ -149,7 +149,7 @@ struct RoleModelsSection: View {
     private var rolesCard: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Модели ролей")
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     row(title: "Всем ролям", subtitle: "основная модель на всех сразу") {
                         ModelMenu(

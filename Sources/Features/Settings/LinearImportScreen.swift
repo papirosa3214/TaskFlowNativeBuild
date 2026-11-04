@@ -169,7 +169,7 @@ struct LinearImportScreen: View {
         TFListRow(icon: "link", iconStyle: .plain, title: "Подключение аккаунта Linear",
             subtitle: "Интеграции → Composio → Linear",
             trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)),
-            titleStyle: .action, verticalPadding: TFSpacing.xs)
+            titleStyle: .body, verticalPadding: TFSpacing.xs)
     }
 
     @ViewBuilder private var selectionSection: some View {
@@ -191,7 +191,7 @@ struct LinearImportScreen: View {
                 Button("Все задачи в работе") { Task { await model.chooseSource(nil) } }
                 ForEach(model.sourceProjects) { project in Button(project.name) { Task { await model.chooseSource(project.id) } } }
             } label: {
-                TFCard(padding: 0) { TFListRow(icon: "tray.and.arrow.down", iconStyle: .plain, title: "Проект Linear", subtitle: model.selectedSourceName,
+                TFCard(padding: 0, bordered: true) { TFListRow(icon: "tray.and.arrow.down", iconStyle: .plain, title: "Проект Linear", subtitle: model.selectedSourceName,
                     trailing: AnyView(Image(systemName: "chevron.up.chevron.down").foregroundStyle(Color.tfDim))) }
             }
                 .accessibilityIdentifier("linear.sourceProject")
@@ -200,14 +200,14 @@ struct LinearImportScreen: View {
                 Button("Без проекта") { model.projectID = nil }
                 ForEach(model.projects) { project in Button(project.name) { model.projectID = project.id } }
             } label: {
-                TFCard(padding: 0) { TFListRow(icon: "folder", iconStyle: .plain, title: "Проект TaskFlow", subtitle: model.selectedProjectName,
+                TFCard(padding: 0, bordered: true) { TFListRow(icon: "folder", iconStyle: .plain, title: "Проект TaskFlow", subtitle: model.selectedProjectName,
                     trailing: AnyView(Image(systemName: "chevron.up.chevron.down").foregroundStyle(Color.tfDim))) }
             }
                 .accessibilityIdentifier("linear.project")
                 .disabled(model.loading)
             TFTextField("Найти среди загруженных задач", text: $model.search, icon: "magnifyingglass")
             TFSectionHeader("Задачи Linear · выбрано \(model.selected.count)")
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(Array(model.filteredIssues.enumerated()), id: \.element.id) { index, issue in
                         if index > 0 { TFDivider(inset: TFSpacing.lg) }
@@ -245,7 +245,7 @@ struct LinearImportScreen: View {
             Text("Уже перенесённые задачи будут обновлены в существующих карточках — копии не создаются. Дочерние задачи находятся внутри родительской. Локальные правки сохраняются.")
                 .tfText(.action).foregroundStyle(Color.tfSub)
             ForEach(preview.warnings, id: \.self) { Text($0).tfText(.caption).foregroundStyle(Color.tfSub) }
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(preview.rows) { row in
                         VStack(alignment: .leading, spacing: TFSpacing.xs) {
@@ -288,7 +288,7 @@ struct LinearImportScreen: View {
             Text("Перенос завершён").tfText(.title).accessibilityIdentifier("linear.import.done")
             Text("Создано: \(result.created) · Обновлено: \(result.updated)").tfText(.body)
             if !result.conflicts.isEmpty { Text("Локальные правки сохранены у \(result.conflicts.count) карточек.").tfText(.action).foregroundStyle(Color.tfSub) }
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(result.taskIDs) { task in
                         let source = model.importedPreview?.items.first { $0.id == task.sourceID }

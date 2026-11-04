@@ -56,14 +56,14 @@ struct ServerRestartRow: View {
     @State private var showConfirm = false
 
     var body: some View {
-        TFCard(padding: 0) {
+        TFCard(padding: 0, bordered: true) {
             VStack(spacing: 0) {
                 TFListRow(
                     icon: "arrow.triangle.2.circlepath", iconStyle: .plain,
                     title: "Перезапустить сервер",
                     subtitle: subtitle,
                     trailing: viewModel.isRestarting ? AnyView(ProgressView()) : nil,
-                    titleStyle: .action,
+                    titleStyle: .body,
                     verticalPadding: TFSpacing.xs,
                     action: {
                         guard !viewModel.isRestarting else { return }

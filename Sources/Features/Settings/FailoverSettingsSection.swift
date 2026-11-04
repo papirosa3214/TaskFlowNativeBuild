@@ -19,7 +19,7 @@ struct FailoverSettingsSection: View {
                     quotaCard(status.quotas)
                 }
                 TFSectionHeader("Автопереключение моделей")
-                TFCard(padding: 0) {
+                TFCard(padding: 0, bordered: true) {
                     VStack(spacing: 0) {
                         toggleRow(
                             title: "Автопереключение при лимите",
@@ -68,7 +68,7 @@ struct FailoverSettingsSection: View {
     /// Остаток по каждому провайдеру, который его сообщает: зелёный — живой,
     /// оранжевый — в лимите, с точным временем сброса от провайдера.
     private func quotaCard(_ quotas: [ProviderQuotaState]) -> some View {
-        TFCard(padding: 0) {
+        TFCard(padding: 0, bordered: true) {
             VStack(spacing: 0) {
                 ForEach(Array(quotas.enumerated()), id: \.element.id) { index, quota in
                     if index > 0 { TFDivider(inset: TFSpacing.lg) }

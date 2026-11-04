@@ -58,10 +58,15 @@ struct SecretsScreen: View {
                             SecretDetailScreen(secret: secret) { await model.load() }
                         } label: {
                             VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                                Text(secret.name).foregroundStyle(Color.tfText)
-                                Text(secret.displayOrigin).font(.footnote).foregroundStyle(Color.tfSub)
+                                Text(secret.name)
+                                    .tfText(.body)
+                                    .foregroundStyle(Color.tfText)
+                                Text(secret.displayOrigin)
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfSub)
                             }
                         }
+                        .tfSettingsListRow()
                         .swipeActions {
                             Button("Удалить", role: .destructive) { deleting = secret }
                         }
@@ -71,6 +76,7 @@ struct SecretsScreen: View {
                 }
             }
         }
+        .tfSettingsListChrome()
         .tfScreenBackground()
         .tfNativeHeader("Секреты", displayMode: .inline)
         .toolbar {

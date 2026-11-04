@@ -110,6 +110,9 @@ public struct TFTabBar: View {
     let items: [TFTabItem]
     @Binding var selectedIndex: Int?
     let isCreateMenuOpen: Bool
+    /// Центральный красный «+». `false` — четыре вкладки подряд на всю
+    /// ширину; кнопку и QuickAdd не удаляем (владелец 03.11.2026).
+    let showsCreateButton: Bool
     let onSelect: (Int) -> Void
     let onCreateTap: () -> Void
 
@@ -117,6 +120,7 @@ public struct TFTabBar: View {
         items: [TFTabItem],
         selectedIndex: Binding<Int?>,
         isCreateMenuOpen: Bool,
+        showsCreateButton: Bool = true,
         onSelect: @escaping (Int) -> Void,
         onCreateTap: @escaping () -> Void
     ) {
@@ -124,6 +128,7 @@ public struct TFTabBar: View {
         self.items = items
         self._selectedIndex = selectedIndex
         self.isCreateMenuOpen = isCreateMenuOpen
+        self.showsCreateButton = showsCreateButton
         self.onSelect = onSelect
         self.onCreateTap = onCreateTap
     }
@@ -131,9 +136,13 @@ public struct TFTabBar: View {
     public var body: some View {
         let leftCount = items.count / 2
         return HStack(spacing: 0) {
-            ForEach(0..<leftCount, id: \.self) { tabButton($0) }
-            createButton
-            ForEach(leftCount..<items.count, id: \.self) { tabButton($0) }
+            if showsCreateButton {
+                ForEach(0..<leftCount, id: \.self) { tabButton($0) }
+                createButton
+                ForEach(leftCount..<items.count, id: \.self) { tabButton($0) }
+            } else {
+                ForEach(0..<items.count, id: \.self) { tabButton($0) }
+            }
         }
         .frame(height: TFTabBarMetrics.heightCompact)
         .frame(maxWidth: .infinity)

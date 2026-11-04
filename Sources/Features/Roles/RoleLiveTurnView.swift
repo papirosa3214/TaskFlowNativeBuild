@@ -114,14 +114,14 @@ struct RoleLiveStepRow: View {
                 .tfTypeFont(size: 12, weight: .medium)
                 .frame(width: 16)
             Text(RoleActionPresentation.forStep(step).title)
-                .tfText(.meta)
+                .tfChatText(.meta)
                 .foregroundStyle(Color.tfSub)
                 // Одна строка: перенос поднял бы строку шага и изменил высоту
                 // живого пузыря — лента от этого прыгает (владелец 25.10.2026).
                 .lineLimit(1)
             if showsDetail, let detail = RoleActionPresentation.forStep(step).skillName ?? step.detail, !detail.isEmpty {
                 Text(detail)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.tfChat(.mono, design: .monospaced))
                     .foregroundStyle(Color.tfDim)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -235,7 +235,7 @@ struct RoleLiveItemsList: View {
                         if expanded, hasDetail, let text = step.detail {
                             // «Подробно»: команда или путь целиком, окошком с кодом.
                             Text(text)
-                                .font(.system(.caption, design: .monospaced))
+                                .font(.tfChat(.mono, design: .monospaced))
                                 .foregroundStyle(Color.tfText)
                                 .multilineTextAlignment(.leading)
                                 .padding(TFSpacing.sm)
@@ -360,7 +360,7 @@ struct RoleLiveTurnBubble: View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if showsName {
                 Text(turn.name)
-                    .tfText(.meta)
+                    .tfChatText(.meta)
                     .foregroundStyle(Color.tfSub)
             }
             if !(pacesText ? visibleItems : turn.items).isEmpty {
@@ -375,12 +375,12 @@ struct RoleLiveTurnBubble: View {
             }
             if isComplete {
                 Text(footer(now: completedAt ?? .now))
-                    .tfText(.caption)
+                    .tfChatText(.meta)
                     .foregroundStyle(Color.tfDim)
             } else {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(footer(now: context.date))
-                        .tfText(.caption)
+                        .tfChatText(.meta)
                         .foregroundStyle(Color.tfDim)
                 }
                 .hintAnchor(HintAnchorID.roleActions)
@@ -549,7 +549,7 @@ struct RoleShimmerText: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let label = Text(text).tfText(.meta)
+        let label = Text(text).tfChatText(.meta)
         if reduceMotion {
             label.foregroundStyle(Color.tfSub)
         } else {
@@ -601,7 +601,7 @@ struct RoleThinkingWindow: View {
                 // `код` и **жирное** — ярче приглушённого текста, чтобы главное
                 // сразу бросалось в глаза (владелец 14.10.2026, по образцу).
                 Text(Self.highlighted(visible))
-                    .tfText(.caption)
+                    .tfChatText(.thinking)
                     .italic()
                     .foregroundStyle(Color.tfSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -652,9 +652,12 @@ struct RoleThinkingWindow: View {
     private static let highlightedCache = LastValueCache<AttributedString>()
 
     static func highlighted(_ text: String) -> AttributedString {
-        if let cached = highlightedCache.value(for: text) { return cached }
+        // Кегль кода/жирного в attributed читает шкалу чата — ключ с
+        // revision, иначе кэш отдаст старый размер после настроек.
+        let key = text + "\u{1e}" + String(UserDefaults.standard.integer(forKey: TFTypeScale.revisionKey))
+        if let cached = highlightedCache.value(for: key) { return cached }
         let result = buildHighlighted(text)
-        highlightedCache.set(result, for: text)
+        highlightedCache.set(result, for: key)
         return result
     }
 
@@ -665,10 +668,11 @@ struct RoleThinkingWindow: View {
             for run in MarkdownParser.parseInline(line) {
                 var piece = AttributedString(run.text)
                 if run.code {
-                    piece.font = .system(.caption, design: .monospaced)
+                    piece.font = .tfChat(.mono, design: .monospaced)
                     piece.foregroundColor = .tfText
                 } else if run.bold {
                     piece.inlinePresentationIntent = .stronglyEmphasized
+                    piece.font = .tfChat(.emphasis, weight: .bold)
                     piece.foregroundColor = .tfText
                 } else if run.italic {
                     piece.inlinePresentationIntent = .emphasized
@@ -705,11 +709,11 @@ struct RoleThinkingDoneRow: View {
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 16)
             Text("Размышления")
-                .tfText(.meta)
+                .tfChatText(.meta)
                 .foregroundStyle(Color.tfSub)
             if let seconds = thinking.durationSeconds {
                 Text(RoleLiveFormat.duration(seconds: seconds))
-                    .tfText(.caption)
+                    .tfChatText(.meta)
                     .foregroundStyle(Color.tfDim)
             }
             Image(systemName: "chevron.right")
@@ -751,7 +755,7 @@ struct RoleLiveDetailSheet: View {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {
                     if let meta, !meta.isEmpty {
                         Text(meta)
-                            .tfText(.caption)
+                            .tfChatText(.meta)
                             .foregroundStyle(Color.tfDim)
                     }
                     content
@@ -815,7 +819,7 @@ struct RoleLiveDetailSheet: View {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 if let detail = step.detail, !detail.isEmpty {
                     Text(detail)
-                        .font(.system(.callout, design: .monospaced))
+                        .font(.tfChat(.mono, design: .monospaced))
                         .foregroundStyle(Color.tfText)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -826,7 +830,7 @@ struct RoleLiveDetailSheet: View {
                 if let output = step.output, !output.isEmpty { ioSection("Ответ", output, id: "role.step.output") }
                 if (step.detail ?? "").isEmpty, (step.args ?? "").isEmpty, (step.output ?? "").isEmpty {
                     Text("Подробностей у шага нет.")
-                        .tfText(.meta)
+                        .tfChatText(.meta)
                         .foregroundStyle(Color.tfSub)
                 }
             }
@@ -837,10 +841,10 @@ struct RoleLiveDetailSheet: View {
 private func ioSection(_ title: String, _ text: String, id: String) -> some View {
     VStack(alignment: .leading, spacing: TFSpacing.xs) {
         Text(title)
-            .tfText(.meta)
+            .tfChatText(.meta)
             .foregroundStyle(Color.tfSub)
         Text(text)
-            .font(.system(.caption, design: .monospaced))
+            .font(.tfChat(.mono, design: .monospaced))
             .foregroundStyle(Color.tfText)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)

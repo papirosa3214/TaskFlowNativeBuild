@@ -29,7 +29,7 @@ struct ComposioIntegrationsScreen: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: TFSpacing.lg) {
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio",
                           subtitle: model.loading ? "Проверяем подключение…" : model.available ? "В сети" : "Подключение недоступно",
                           trailing: AnyView(Image(systemName: model.available ? "checkmark.circle" : "exclamationmark.circle").foregroundStyle(model.available ? Color.tfTeal : Color.tfSub)))
@@ -44,7 +44,7 @@ struct ComposioIntegrationsScreen: View {
                 NavigationLink {
                     ComposioCatalogScreen()
                 } label: {
-                    TFCard(padding: 0) {
+                    TFCard(padding: 0, bordered: true) {
                         TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Все интеграции",
                                   subtitle: "полный каталог сервисов Composio",
                                   trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
@@ -54,7 +54,7 @@ struct ComposioIntegrationsScreen: View {
                 NavigationLink {
                     ComposioServiceScreen(model: model, toolkit: nil)
                 } label: {
-                    TFCard(padding: 0) {
+                    TFCard(padding: 0, bordered: true) {
                         TFListRow(icon: "square.grid.2x2", iconStyle: .plain, title: "Весь каталог",
                                   subtitle: accessSummary(nil), trailing: AnyView(Image(systemName: "chevron.right").foregroundStyle(Color.tfDim)))
                     }
@@ -76,7 +76,7 @@ struct ComposioIntegrationsScreen: View {
             Text(section.note)
                 .tfText(.caption)
                 .foregroundStyle(Color.tfDim)
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 // LazyVStack: рисуются только видимые строки, а не весь
                 // раздел разом.
                 LazyVStack(spacing: 0) {
@@ -139,7 +139,7 @@ struct ComposioCatalogScreen: View {
                 .accessibilityIdentifier("composio.search")
             TFErrorBanner(model.error, variant: .block)
             if model.loaded {
-                TFCard(padding: 0) {
+                TFCard(padding: 0, bordered: true) {
                     // LazyVStack: в каталоге до 1600 строк, рисуются только
                     // видимые.
                     LazyVStack(spacing: 0) {
@@ -206,7 +206,7 @@ struct ComposioServiceScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     if let toolkit = currentToolkit {
-                        TFCard(padding: 0) {
+                        TFCard(padding: 0, bordered: true) {
                             HStack(spacing: TFSpacing.md) {
                                 ComposioServiceIcon(slug: toolkit.slug)
                                 VStack(alignment: .leading, spacing: 2) {
@@ -242,7 +242,7 @@ struct ComposioServiceScreen: View {
                             .tfText(.action).foregroundStyle(Color.tfSub)
                     }
                     TFSectionHeader("Кого подключить")
-                    TFCard(padding: 0) {
+                    TFCard(padding: 0, bordered: true) {
                         VStack(spacing: 0) {
                             selectionRow("Все роли", checked: selected.count == model.roles.count) {
                                 selected = Set(model.roles.map(\.id)); saved = false
@@ -254,7 +254,7 @@ struct ComposioServiceScreen: View {
                             }.accessibilityIdentifier("composio.roles.choose")
                         }
                     }
-                    TFCard(padding: 0) {
+                    TFCard(padding: 0, bordered: true) {
                         VStack(spacing: 0) {
                             ForEach(Array(model.roles.enumerated()), id: \.element.id) { index, role in
                                 if index > 0 { TFDivider(inset: TFSpacing.lg) }

@@ -130,7 +130,7 @@ struct VoiceModelsScreen: View {
     private var onDeviceSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("На телефоне", style: .caps)
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     Button {
                         toggleExpanded(.speech)
@@ -329,7 +329,7 @@ struct VoiceModelsScreen: View {
             // `TextEditor` с моноширинным шрифтом: промпт — код, а не
             // художественный текст, и моноширинный лучше читается при
             // редактировании многострочных инструкций.
-            TFCard(padding: 0, surface: .card2, radius: TFRadius.md) {
+            TFCard(padding: 0, surface: .card2, radius: TFRadius.md, bordered: true) {
                 ZStack(alignment: .topLeading) {
                     if text.wrappedValue.isEmpty {
                         Text(placeholder)
@@ -350,10 +350,6 @@ struct VoiceModelsScreen: View {
                         .onChange(of: text.wrappedValue) { _, _ in onCommit() }
                 }
             }
-            .overlay(
-                RoundedRectangle(cornerRadius: TFRadius.md)
-                    .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
-            )
             HStack(spacing: TFSpacing.sm) {
                 saveStatusLabel(saveState)
                 Spacer()
@@ -474,7 +470,7 @@ struct VoiceModelsScreen: View {
     private var onServerSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("На сервере", style: .caps)
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     // Тап — развернуть промпт этой способности прямо в карточке,
                     // долгое нажатие — выбор серверной модели.
@@ -679,7 +675,7 @@ struct VoiceModelsScreen: View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Диагностика диктовки", style: .caps)
 
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     VoiceModelRow(
                         icon: "icloud.and.arrow.up",
@@ -718,7 +714,7 @@ struct VoiceModelsScreen: View {
             }
 
             if !logEntries.isEmpty {
-                TFCard(padding: 0) {
+                TFCard(padding: 0, bordered: true) {
                     VStack(spacing: 0) {
                         ForEach(Array(logEntries.enumerated()), id: \.element.at) { index, entry in
                             dictationLogRow(entry)

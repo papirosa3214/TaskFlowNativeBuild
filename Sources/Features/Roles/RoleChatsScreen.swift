@@ -1320,7 +1320,16 @@ struct RoleChatRoomScreen: View {
             isWorking: working,
             onRefresh: refreshSession,
             onRename: renameChat,
-            onNewSession: { Task { await createAssistantSession() } },
+            // Одна схема для Помощника и любой личной роли (владелец 03.11.2026).
+            onNewSession: {
+                Task {
+                    if chat.isAssistantOnly {
+                        await createAssistantSession()
+                    } else {
+                        await newSession(roleID: sessionContextRoleID)
+                    }
+                }
+            },
             onCompact: { await compactSessionRole() },
             onResetContext: { await resetSessionContext() },
             onClose: { await closeSession() },
@@ -1351,13 +1360,13 @@ struct RoleChatRoomScreen: View {
     }
 
     private func compactSessionRole() async {
-        guard let member = chat.members.first(where: { $0.id == "u-secretary" || $0.roleKey == "secretary" })
-        else { return }
+        let roleID = sessionContextRoleID
+        guard let member = chat.members.first(where: { $0.id == roleID }) else { return }
         await compact(member)
     }
 
     private func resetSessionContext() async {
-        await newSession(roleID: "u-secretary")
+        await newSession(roleID: sessionContextRoleID)
     }
 
     private func closeSession() async {
@@ -1525,20 +1534,9 @@ struct RoleChatRoomScreen: View {
                     availableModes: RoleChatWorkMode.available(in: chat),
                     modelChoice: modelChoice,
                     workspaceChoice: workspaceChoice,
-                    sessionControls: chat.isAssistantOnly ? AnyView(
-                        Button { showsSessionPanel = true } label: {
-                            Label("Сессия", systemImage: "bubble.left.and.text.bubble.right")
-                                .tfText(.caption)
-                                .frame(minWidth: 40, minHeight: 40)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("chat.session")
-                        .hintAnchor(HintAnchorID.chatSession)
-                    ) : nil,
-                    // Левая кнопка новой панели открывает окно сессии
-                    // (владелец 29.10.2026: «в левую точку нужно добавить…
-                    // как в чате с помощником, там называется она сессия»).
-                    // Окно есть в личном чате с одной ролью: там оно и нужно.
+                    // Модель/папка/вложения — в окне сессии; в композере только
+                    // три полоски (владелец 03.11.2026).
+                    sessionControls: nil,
                     onOpenSession: chat.composerRoleKeys.count == 1 ? { showsSessionPanel = true } : nil,
                     sessionAttachments: { source in
                         switch source {
@@ -1550,10 +1548,8 @@ struct RoleChatRoomScreen: View {
                     sessionWorkMode: $workMode,
                     sessionAvailableWorkModes: RoleChatWorkMode.available(in: chat),
                     onShowCommands: { showsComposerCommands = true },
-                    // Кольца контекста — в комнате ролей: по одному на роль,
-                    // там своя схема (владелец 29.10.2026: «в чате с
-                    // помощником там немножечко другая схема»). В личном чате
-                    // с одной ролью ряд ярлычков — это «мозг» и папка.
+                    // Кольца контекста — только в комнате с несколькими ролями;
+                    // в личном чате контекст в окне сессии (владелец 03.11.2026).
                     contextControls: chat.composerRoleKeys.count > 1 ? AnyView(HStack(spacing: 0) {
                         ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
                             ChatContextControl(snapshot: composerControls.contexts[member.id],
@@ -1817,15 +1813,17 @@ struct RoleChatRoomScreen: View {
                 Task { await refresh() }
             }, onDeleted: { dismiss() })
         }
-        .confirmationDialog("Удалить выбранные сообщения?", isPresented: $isDeleteSelectedConfirmOpen,
-                            titleVisibility: .visible) {
+        // `alert`, не `confirmationDialog`: иначе на части экранов вылезает
+        // пузырь с хвостиком-указателем у кнопки (владелец 03.11.2026).
+        .alert("Удалить выбранные сообщения?", isPresented: $isDeleteSelectedConfirmOpen) {
             Button("Удалить (\(selectedMessageIDs.count))", role: .destructive) {
                 Task { await deleteSelected() }
             }
+            Button("Отмена", role: .cancel) {}
         }
-        .confirmationDialog("Удалить все сообщения чата?", isPresented: $isClearChatConfirmOpen,
-                            titleVisibility: .visible) {
+        .alert("Удалить все сообщения чата?", isPresented: $isClearChatConfirmOpen) {
             Button("Удалить все", role: .destructive) { Task { await clearChat() } }
+            Button("Отмена", role: .cancel) {}
         }
     }
 
@@ -1867,7 +1865,13 @@ struct RoleChatRoomScreen: View {
         .task(id: chat.members.map(\.id).joined(separator: ":") + ":" + (messages.last?.id ?? "")) {
             await composerControls.load(chat: chat)
         }
-        .sheet(isPresented: $showsSessionPanel) { sessionPanelSheet }
+        // Шторка сессии — не лента: шкала «Внешний вид» снова включена
+        // (чат гасит её через `.tfChatTypography()`, без явного true здесь
+        // наследование с презентера оставляло сессию без регуляторов).
+        .sheet(isPresented: $showsSessionPanel) {
+            sessionPanelSheet
+                .environment(\.tfTypeSettingsEnabled, true)
+        }
         .sheet(isPresented: $showsComposerCommands) {
             ChatCommandPicker(commands: composerControls.commands, errorText: composerControls.errorText,
                               onRefresh: { Task { await composerControls.load(chat: chat) } }) { command in
@@ -2282,11 +2286,14 @@ struct RoleChatRoomScreen: View {
             // ход доигрывает ответ, его текст уже в живом пузыре. Раньше
             // скрывалось ЛЮБОЕ сообщение того же автора, попавшее в окно
             // времени хода, — из-за этого из ленты пропадали ответы.
+            // Пустой доигрывающий ход не монтируется — тогда сообщение
+            // не прячем (иначе ответ виден только после перезахода).
             return !completingTurns.keys.contains { playbackID in
+                guard let turn = completingTurns[playbackID],
+                      RoleChatLiveCompletion.shouldHoldSavedMessage(for: turn) else { return false }
                 if let completed = completedMessageIDByTurn[playbackID] { return completed == message.id }
                 // Ход восстановлен после перезапуска приложения: какое
                 // сообщение его закрыло — неизвестно, берём прежнее правило.
-                guard let turn = completingTurns[playbackID] else { return false }
                 return turn.isCompleted(by: message)
             }
         }
@@ -2425,12 +2432,7 @@ struct RoleChatRoomScreen: View {
                     // Ответ прерванного хода: ход уже доигрывает на своём
                     // месте, и сообщение занимает его строку, а не встаёт
                     // второй раз ниже (владелец 30.10.2026).
-                    completingTurns[parked.playbackID] = parked.completed(with: message)
-                    completedMessageIDByTurn[parked.playbackID] = message.id
-                    rowIDByMessageID[message.id] = RoleChatRowID.turn(parked.playbackID)
-                    endedTurnIDs.insert(parked.playbackID)
-                    closedTurnMessageIDs.insert(message.id)
-                    closedTurnItems[message.id] = parked.itemsWithoutAnswerText(for: message)
+                    completeLiveTurn(parked, with: message)
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
                     typistTools[author] = nil
@@ -2454,14 +2456,26 @@ struct RoleChatRoomScreen: View {
 
     /// Готовый ответ закрывает ход: пока ход доигрывает ответ, сообщение
     /// скрыто из ленты, а при его появлении занимает ту же строку.
+    ///
+    /// Если доигрывать нечего (пустые пункты после снятия текста конверта),
+    /// сообщение сразу остаётся в ленте: пустой пузырь не монтируется, и
+    /// `onPlaybackComplete` иначе никогда не отпустит ответ.
     private func completeLiveTurn(_ turn: RoleChatLiveTurn, with message: RoleChatMessage) {
-        completingTurns[turn.playbackID] = turn.completed(with: message)
-        completedMessageIDByTurn[turn.playbackID] = message.id
+        let completed = turn.completed(with: message)
         rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
-        endedTurnIDs.insert(turn.playbackID)
         closedTurnMessageIDs.insert(message.id)
         closedTurnItems[message.id] = turn.itemsWithoutAnswerText(for: message)
         if message.stopReason != nil { stoppedTurnIDs.insert(turn.playbackID) }
+        guard RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed) else {
+            completingTurns[turn.playbackID] = nil
+            completedMessageIDByTurn[turn.playbackID] = nil
+            endedTurnIDs.remove(turn.playbackID)
+            stoppedTurnIDs.remove(turn.playbackID)
+            return
+        }
+        completingTurns[turn.playbackID] = completed
+        completedMessageIDByTurn[turn.playbackID] = message.id
+        endedTurnIDs.insert(turn.playbackID)
     }
 
     /// Ход, который сменился новым и ждёт свой сохранённый ответ: по нему
@@ -2993,6 +3007,7 @@ struct RoleChatRoomScreen: View {
                 if (!message.text.isEmpty || message.roleEnvelopeJSON != nil) && !hasAudio {
                     if mine {
                         Text(message.text)
+                            .tfText(.body)
                             .textSelection(.enabled)
                             .foregroundStyle(Color.tfText)
                     } else {
@@ -3027,17 +3042,24 @@ struct RoleChatRoomScreen: View {
             // ветвления (владелец 26.10.2026).
             .contextMenu { if !isSelecting { messageContextMenu(message, isMine: mine) } }
             .padding(hasAudio ? 0 : TFSpacing.md)
-            // Подложка одна и та же у своих и у чужих — отличает их только
-            // обводка (владелец 21.09.2026: «в моих сообщениях делай такую же
-            // самую подложку, как фон делаешь другим»).
-            .background(hasAudio ? Color.clear : Color.tfCard)
-            .overlay {
-                if mine && !hasAudio {
-                    RoundedRectangle(cornerRadius: TFRadius.lg)
-                        .strokeBorder(Color.tfRed, lineWidth: TFBorder.width)
+            // Как поле рутины: почти чёрный фон и тонкая тёмно-красная
+            // окантовка у своего; чужое — та же подложка, кромка слабее
+            // (владелец 03.11.2026). Без `clipShape` после обводки.
+            .background {
+                if !hasAudio {
+                    RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
+                        .fill(Color.tfFieldDark)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
+            .overlay {
+                if !hasAudio {
+                    RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
+                        .strokeBorder(
+                            Color.tfFieldBorder.opacity(mine ? 1 : 0.55),
+                            lineWidth: TFBorder.width
+                        )
+                }
+            }
             if !mine { Spacer(minLength: 48) }
         }
         // Долгое нажатие только ВКЛЮЧАЕТ выбор — с этим сообщением уже

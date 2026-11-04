@@ -155,15 +155,15 @@ struct ServerStatusSection: View {
     @State private var viewModel = ServerStatusViewModel()
 
     var body: some View {
-        TFCard(padding: 0) {
+        TFCard(padding: 0, bordered: true) {
             VStack(spacing: 0) {
                 switch viewModel.phase {
                 case .failed:
-                    TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("не отвечает", color: .tfCoral)), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                    TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("не отвечает", color: .tfCoral)), titleStyle: .body, verticalPadding: TFSpacing.xs)
                     TFDivider(inset: rowDividerInset)
-                    TFListRow(icon: "arrow.clockwise", iconStyle: .plain, title: "Сервер", trailing: AnyView(Image(systemName: "arrow.clockwise")), titleStyle: .action, verticalPadding: TFSpacing.xs, action: { Task { await viewModel.load() } })
+                    TFListRow(icon: "arrow.clockwise", iconStyle: .plain, title: "Сервер", trailing: AnyView(Image(systemName: "arrow.clockwise")), titleStyle: .body, verticalPadding: TFSpacing.xs, action: { Task { await viewModel.load() } })
                 case .loading:
-                    TFListRow(icon: "server.rack", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("проверяю связь…")), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                    TFListRow(icon: "server.rack", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("проверяю связь…")), titleStyle: .body, verticalPadding: TFSpacing.xs)
                 case .loaded:
                     loadedRows
                 }
@@ -194,7 +194,7 @@ struct ServerStatusSection: View {
                 icon: "server.rack", iconStyle: .plain,
                 title: "Сервер (192.168.1.110)",
                 trailing: AnyView(valueText(ServerStatusFormat.uptime(status.uptimeSec))),
-                titleStyle: .action,
+                titleStyle: .body,
                 verticalPadding: TFSpacing.xs
             )
             // Строка «Локальная LLM» отсюда убрана — просьба владельца
@@ -213,7 +213,7 @@ struct ServerStatusSection: View {
                 icon: "bolt.fill", iconStyle: .plain,
                 title: "Пинг",
                 trailing: AnyView(pingAccessory),
-                titleStyle: .action,
+                titleStyle: .body,
                 verticalPadding: TFSpacing.xs,
                 action: { Task { await viewModel.ping() } }
             )
@@ -227,7 +227,7 @@ struct ServerStatusSection: View {
                 title: "Задачи",
                 trailing: AnyView(valueText(status.dbBytes.map { "\(status.tasksActive) из \(status.tasksTotal) · \(ServerStatusFormat.bytes($0))" }
                     ?? "\(status.tasksActive) из \(status.tasksTotal)")),
-                titleStyle: .action,
+                titleStyle: .body,
                 verticalPadding: TFSpacing.xs
             )
         }

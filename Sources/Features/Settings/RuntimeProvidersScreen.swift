@@ -71,7 +71,7 @@ struct RuntimeProvidersScreen: View {
             if viewModel.isLoading && viewModel.providers.isEmpty {
                 TFLoading(.block)
             }
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.providers.enumerated()), id: \.element.id) { index, provider in
                         if index > 0 { TFDivider(inset: rowDividerInset) }
@@ -117,7 +117,7 @@ struct RuntimeProvidersScreen: View {
     private var modelsSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Доступные модели")
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.models.enumerated()), id: \.element.uid) { index, model in
                         if index > 0 { TFDivider(inset: rowDividerInset) }

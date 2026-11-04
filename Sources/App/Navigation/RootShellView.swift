@@ -98,6 +98,9 @@ struct RootShellView: View {
     /// Тумблер «Таббар-пилюля» в настройках; по умолчанию пилюля — этого просил
     /// владелец 18.10.2026. Ключ общий с `SettingsViewModel`.
     @AppStorage(SettingsViewModel.pillTabBarKey) private var isPillTabBarEnabled = true
+    /// Красный «+» и мелкая форма создания. По умолчанию выкл. — четыре
+    /// вкладки на всю полосу; код QuickAdd не удаляем (владелец 03.11.2026).
+    @AppStorage(SettingsViewModel.quickCreateKey) private var isQuickCreateEnabled = false
     #if DEBUG || TASKFLOW_DEV_ROUTES
     /// Debug-роут `tasksheet:<id>` открывает ту же единую карточку, что и приложение.
     @State private var debugTaskSheetID: String?
@@ -109,6 +112,7 @@ struct RootShellView: View {
             TFPillTabBar(items: tabItems, selectedIndex: selectedIndexBinding,
                          isCreateMenuOpen: isCreateMenuOpen,
                          isTabBarVisible: quickAddDraft == nil && (paths[selectedTab]?.isEmpty ?? true),
+                         showsCreateButton: isQuickCreateEnabled,
                          onSelect: handleTabSelection,
                          onCreateTap: { openQuickAddTask() }) { index in
                 if let tab = Tab(rawValue: index) { navigationStack(for: tab) }
@@ -365,7 +369,10 @@ struct RootShellView: View {
     /// «+» открывает короткое окно создания задачи сразу, без меню создания
     /// (владелец 18.10.2026: «убрать уже вот эту панельку… а исключительно одно
     /// действие сразу же открывается короткое окно создания задачи»).
+    /// Пока тумблер «Кнопка создания задачи» выкл. — no-op: код формы
+    /// остаётся, вход с таббара закрыт (владелец 03.11.2026).
     private func openQuickAddTask() {
+        guard isQuickCreateEnabled else { return }
         isCreateMenuOpen = false
         quickAddDraft = QuickAddDraft(viewModel: TaskFormViewModel(taskID: nil))
     }
@@ -424,7 +431,8 @@ struct RootShellView: View {
             }
 
                 VStack(spacing: 0) {
-                    if isCreateMenuOpen {
+                    // Меню «что создать» — только вместе с красным «+».
+                    if isQuickCreateEnabled, isCreateMenuOpen {
                         TFCreateMenu(items: createMenuItems)
                             .padding(.bottom, TFCreateMenuMetrics.gapAboveTabBar)
                             .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
@@ -433,6 +441,7 @@ struct RootShellView: View {
                         items: tabItems,
                         selectedIndex: selectedIndexBinding,
                         isCreateMenuOpen: isCreateMenuOpen,
+                        showsCreateButton: isQuickCreateEnabled,
                         onSelect: handleTabSelection,
                         onCreateTap: { isCreateMenuOpen.toggle() }
                     )

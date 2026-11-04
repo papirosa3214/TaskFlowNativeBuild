@@ -322,7 +322,7 @@ struct IntegrationsScreen: View {
                                     title: "Вебхуки",
                                     subtitle: "События TaskFlow → внешний сервис",
                                     trailing: AnyView(webhookAccessory),
-                                    titleStyle: .action,
+                                    titleStyle: .body,
                                     verticalPadding: TFSpacing.xs,
                                     chevron: .shown
                                 )
@@ -342,7 +342,7 @@ struct IntegrationsScreen: View {
                                 NavigationLink {
                                     ComposioServiceScreen(model: composio, toolkit: ComposioToolkit(slug: service.slug, name: service.name ?? service.slug, logo: service.logo, description: service.description, connected: true, noAuth: false))
                                 } label: {
-                                    TFListRow(icon: "link", iconStyle: .bundledLogo(service.slug), title: service.name ?? service.slug, subtitle: "Подключение TaskFlow", trailing: AnyView(Text("Подключено").tfText(.meta).foregroundStyle(Color.tfTeal)), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                                    TFListRow(icon: "link", iconStyle: .bundledLogo(service.slug), title: service.name ?? service.slug, subtitle: "Подключение TaskFlow", trailing: AnyView(Text("Подключено").tfText(.meta).foregroundStyle(Color.tfTeal)), titleStyle: .body, verticalPadding: TFSpacing.xs)
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("integrations.connected.\(service.slug)")
@@ -351,7 +351,7 @@ struct IntegrationsScreen: View {
                             NavigationLink {
                                 ComposioIntegrationsScreen()
                             } label: {
-                                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio", subtitle: "Основные интеграции и каталог сервисов", titleStyle: .action, verticalPadding: TFSpacing.xs, chevron: .shown)
+                                TFListRow(icon: "puzzlepiece.extension", iconStyle: .asset("IntegrationComposio"), title: "Composio", subtitle: "Основные интеграции и каталог сервисов", titleStyle: .body, verticalPadding: TFSpacing.xs, chevron: .shown)
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("integrations.composio")
@@ -413,19 +413,18 @@ struct IntegrationsScreen: View {
     private func integrationGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             Text(title).tfText(.body).foregroundStyle(Color.tfSub)
-            TFCard(padding: 0) { VStack(spacing: 0) { content() } }
+            TFCard(padding: 0, bordered: true) { VStack(spacing: 0) { content() } }
         }
     }
 
     private func successBanner(_ text: String) -> some View {
-        TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+        TFCard(padding: 0, surface: .card, radius: TFRadius.xl, bordered: true) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "checkmark").tfTypeFont(size: 16).foregroundStyle(Color.tfSub)
                 Text(text).tfText(.action).foregroundStyle(Color.tfSub)
             }
             .padding(TFSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)        }
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfSub.opacity(0.3), lineWidth: TFBorder.width))
     }
 
     // MARK: - Apple Экосистема (iOS)
@@ -644,7 +643,7 @@ struct IntegrationsScreen: View {
                     Button(option.title) { onSelect(option.id) }
                 }
             } label: {
-                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+                TFCard(padding: 0, surface: .card2, radius: TFRadius.lg, bordered: true) {
                     HStack {
                         Text(options.first { $0.id == selectedId }?.title ?? selectedId)
                             .tfText(.action).foregroundStyle(Color.tfText).lineLimit(1)
@@ -653,7 +652,6 @@ struct IntegrationsScreen: View {
                     }
                     .padding(.horizontal, TFSpacing.md)
                     .frame(height: TFHitTarget.min)                }
-                .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
             }
         }
     }
@@ -691,7 +689,7 @@ private struct IntegrationAccordionCard<Content: View>: View {
                         Image(systemName: "chevron.right")
                             .tfTypeFont(size: 13).foregroundStyle(Color.tfDim)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    }), titleStyle: .action, verticalPadding: TFSpacing.xs)
+                    }), titleStyle: .body, verticalPadding: TFSpacing.xs)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier(identifier.isEmpty ? "integrations.\(icon).\(title)" : identifier)

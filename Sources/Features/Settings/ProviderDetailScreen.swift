@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import UIKit
 
 /// LOCK-179 (этап 7): карточка провайдера и авторизация.
 ///
@@ -77,6 +78,7 @@ final class ProviderDetailViewModel {
     func startOAuth() async {
         isStartingOAuth = true
         errorMessage = nil
+        openedAuthURL = nil
         do {
             let start = try await api.startProviderAuth(provider: providerID)
             guard let sessionID = start.authSessionID else {
@@ -91,6 +93,15 @@ final class ProviderDetailViewModel {
             errorMessage = Self.message(error)
         }
         isStartingOAuth = false
+    }
+
+    /// URL для авто-открытия браузера — один раз на появившуюся ссылку.
+    func takeAuthURLToOpen() -> URL? {
+        guard let url = authURL else { return nil }
+        let key = url.absoluteString
+        guard openedAuthURL != key else { return nil }
+        openedAuthURL = key
+        return url
     }
 
     private func startPolling(sessionID: String) {
@@ -134,23 +145,52 @@ final class ProviderDetailViewModel {
         pollTask?.cancel()
         try? await api.cancelProviderAuth(sessionID: session.id)
         self.session = nil
+        openedAuthURL = nil
     }
 
     /// URL авторизации из событий сессии.
+    ///
+    /// Обычный OAuth шлёт `auth_url`. xAI (Grok) — `device_code` с
+    /// `verificationUri` (+ код на экране). Раньше читали только auth_url:
+    /// кнопка «Открыть браузер» не появлялась (владелец 03.11.2026).
     var authURL: URL? {
-        for event in session?.events.reversed() ?? [] where event.type == "auth_url" {
-            if case .string(let raw) = event.data["url"], let url = URL(string: raw) {
-                return url
+        for event in session?.events.reversed() ?? [] {
+            switch event.type {
+            case "auth_url":
+                if case .string(let raw) = event.data["url"], let url = URL(string: raw) {
+                    return url
+                }
+            case "device_code":
+                if case .string(let raw) = event.data["verificationUri"],
+                   let url = URL(string: raw) {
+                    return url
+                }
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
+    /// Код для ввода на странице xAI (device_code). Nil у обычного auth_url.
+    var deviceUserCode: String? {
+        for event in session?.events.reversed() ?? [] where event.type == "device_code" {
+            if case .string(let code) = event.data["userCode"], !code.isEmpty {
+                return code
             }
         }
         return nil
     }
 
     var lastMessage: String? {
+        if let error = session?.error, !error.isEmpty { return error }
         guard let event = session?.events.last else { return nil }
         if case .string(let message) = event.data["message"], !message.isEmpty { return message }
         return nil
     }
+
+    /// Открыть браузер один раз, когда появился URL (не на каждом poll).
+    private(set) var openedAuthURL: String?
 
     private static func message(_ error: Error) -> String {
         (error as? APIError)?.errorDescription ?? error.localizedDescription
@@ -194,6 +234,9 @@ struct ProviderDetailScreen: View {
         .tfNativeHeader(viewModel.provider?.name ?? "Провайдер")
         .task { await viewModel.load() }
         .onDisappear { viewModel.stopPolling() }
+        .onChange(of: viewModel.session?.events.count) { _, _ in
+            if let url = viewModel.takeAuthURLToOpen() { openURL(url) }
+        }
     }
 
     private func statusSection(_ provider: RuntimeProvider) -> some View {
@@ -247,7 +290,7 @@ struct ProviderDetailScreen: View {
             TFSectionHeader("OAuth")
             TFCard {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {
-                    Text("Откроется системный браузер. После входа провайдер подтвердит доступ — вернитесь в приложение, статус обновится сам.")
+                    Text("Откроется браузер со страницей входа. У xAI дополнительно покажем код — его нужно подтвердить на сайте. После входа вернитесь сюда: статус обновится сам.")
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
                     Button {
@@ -281,7 +324,27 @@ struct ProviderDetailScreen: View {
                         if let message = viewModel.lastMessage {
                             Text(message)
                                 .tfText(.caption)
-                                .foregroundStyle(Color.tfSub)
+                                .foregroundStyle(session.status == .failed ? Color.tfWarningText : Color.tfSub)
+                        }
+                        if let code = viewModel.deviceUserCode {
+                            VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                                Text("Код для сайта xAI")
+                                    .tfText(.caption)
+                                    .foregroundStyle(Color.tfSub)
+                                Text(code)
+                                    .tfText(.title)
+                                    .foregroundStyle(Color.tfText)
+                                    .textSelection(.enabled)
+                                Button {
+                                    UIPasteboard.general.string = code
+                                } label: {
+                                    Text("Скопировать код")
+                                        .tfText(.action)
+                                        .foregroundStyle(Color.tfText)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .accessibilityIdentifier("provider-oauth-device-code")
                         }
                         if let url = viewModel.authURL {
                             Button {
@@ -296,6 +359,7 @@ struct ProviderDetailScreen: View {
                                     .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                             }
                             .buttonStyle(TFTapScaleStyle())
+                            .accessibilityIdentifier("provider-oauth-open-browser")
                         }
                         if let prompt = session.currentPrompt {
                             Text(prompt.message)
@@ -331,7 +395,7 @@ struct ProviderDetailScreen: View {
     private var modelsSection: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             TFSectionHeader("Модели")
-            TFCard(padding: 0) {
+            TFCard(padding: 0, bordered: true) {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.models.enumerated()), id: \.element.uid) { index, model in
                         if index > 0 { TFDivider(inset: rowDividerInset) }

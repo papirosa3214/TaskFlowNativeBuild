@@ -1176,6 +1176,31 @@ enum RoleChatRowID {
     }
 }
 
+/// Передача сохранённого ответа из доигрывающего живого пузыря в ленту.
+///
+/// Сообщение прячется, пока пузырь допечатывает текст. Пустой ход в ленту
+/// не попадает (`visibleLiveTurns`), пузырь не монтируется, `onPlaybackComplete`
+/// не вызывается — ответ виден только после перезахода (владелец 03.11.2026).
+enum RoleChatLiveCompletion {
+    /// Есть ли что показать в доигрывающем пузыре.
+    static func canPlayback(itemsEmpty: Bool, thinking: String?) -> Bool {
+        !itemsEmpty || thinking != nil
+    }
+
+    /// Держать ли сохранённый ответ скрытым, пока доигрывает пузырь.
+    static func shouldHoldSavedMessage(itemsEmpty: Bool, thinking: String?) -> Bool {
+        canPlayback(itemsEmpty: itemsEmpty, thinking: thinking)
+    }
+
+    static func canPlayback(_ turn: RoleChatLiveTurn) -> Bool {
+        canPlayback(itemsEmpty: turn.items.isEmpty, thinking: turn.thinking)
+    }
+
+    static func shouldHoldSavedMessage(for turn: RoleChatLiveTurn) -> Bool {
+        shouldHoldSavedMessage(itemsEmpty: turn.items.isEmpty, thinking: turn.thinking)
+    }
+}
+
 /// SQLite sequence is shared by REST and WebSocket; ties on older servers retain input order.
 enum RoleChatMessageOrder {
     static func mergingSnapshot(_ snapshot: [RoleChatMessage], current: [RoleChatMessage], receivedAfterRequest: Set<String>) -> [RoleChatMessage] {

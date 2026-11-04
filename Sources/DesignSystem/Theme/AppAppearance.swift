@@ -258,9 +258,70 @@ enum TFTypeScale: String, CaseIterable, Identifiable {
 
     static func save(_ scale: TFTypeScale, for group: TFTypeGroup) {
         UserDefaults.standard.set(scale.rawValue, forKey: group.storageKey)
+        bumpRevision()
+    }
+
+    static func saved(forChat group: TFChatTypeGroup) -> TFTypeScale {
+        guard let raw = UserDefaults.standard.string(forKey: group.storageKey),
+              let scale = TFTypeScale(rawValue: raw) else { return .standard }
+        return scale
+    }
+
+    static func save(_ scale: TFTypeScale, forChat group: TFChatTypeGroup) {
+        UserDefaults.standard.set(scale.rawValue, forKey: group.storageKey)
+        bumpRevision()
+    }
+
+    private static func bumpRevision() {
         let next = UserDefaults.standard.integer(forKey: revisionKey) + 1
         UserDefaults.standard.set(next, forKey: revisionKey)
     }
+}
+
+/// Шкала шрифта чата — по фактической схеме ленты (владелец 03.11.2026).
+/// Пятигрупповая шкала приложения чат не читает (`.tfChatTypography()`);
+/// здесь свои ступени: основной, жирное, заголовок, код, размышления, мелкий.
+enum TFChatTypeGroup: String, CaseIterable, Identifiable {
+    case body, emphasis, heading, mono, thinking, meta
+
+    var id: String { rawValue }
+    var storageKey: String { "taskflow_chat_type_\(rawValue)" }
+
+    /// Базовые кегли — как сейчас в ленте до регулятора.
+    var baseSize: CGFloat {
+        switch self {
+        case .body: 15          // обычный текст ответа (`TFFont.body`)
+        case .emphasis: 15      // **жирное** — тот же кегль, вес bold
+        case .heading: 17       // `#` / `##` → headline / title3 ступень
+        case .mono: 16          // блоки кода и `inline` (callout monospaced)
+        case .thinking: 11      // размышления курсивом (caption + italic)
+        case .meta: 12          // подписи шагов, токены, длительности
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .body: "Основной"
+        case .emphasis: "Жирное"
+        case .heading: "Заголовок"
+        case .mono: "Код"
+        case .thinking: "Размышления"
+        case .meta: "Мелкий"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .body: "Текст ответа роли"
+        case .emphasis: "Выделение **…** в ответе"
+        case .heading: "Заголовки # в ответе"
+        case .mono: "Блоки кода и моноширинный"
+        case .thinking: "Курсив мыслей роли"
+        case .meta: "Подписи, шаги, токены"
+        }
+    }
+
+    var size: CGFloat { baseSize * TFTypeScale.saved(forChat: self).multiplier }
 }
 
 /// Размер текста приложения поверх системного Dynamic Type: одна настройка на всё

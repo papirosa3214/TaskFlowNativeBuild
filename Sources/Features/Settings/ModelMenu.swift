@@ -90,15 +90,17 @@ private struct ModelPickerSheet: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .tfSettingsListRow()
                             .accessibilityLabel("\(model.displayName), \(RuntimeModel.providerShort(model.provider))")
                         }
                     }
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Модель или провайдер")
+            .tfSettingsListChrome()
             .tfScreenBackground()
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
+            .tfNativeHeader(title)
+            .environment(\.tfTypeSettingsEnabled, true)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Отмена") { dismiss() } }
             }

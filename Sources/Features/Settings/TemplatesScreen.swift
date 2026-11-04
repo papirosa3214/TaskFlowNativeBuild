@@ -57,7 +57,7 @@ struct TemplatesScreen: View {
     }
 
     private func successBanner(_ text: String) -> some View {
-        TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+        TFCard(padding: 0, surface: .card, radius: TFRadius.xl, bordered: true) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "checkmark")
                     .tfText(.input)
@@ -113,7 +113,6 @@ struct TemplatesScreen: View {
                 }
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 
     private func labeledField<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
@@ -126,7 +125,7 @@ struct TemplatesScreen: View {
     /// `TextEditor` не даёт плейсхолдер сам — тот же приём, что у большинства
     /// SwiftUI-форм: пустой текст поверх пустого поля, скрывается при вводе.
     private func placeholderEditor(_ placeholder: String, text: Binding<String>, minHeight: CGFloat) -> some View {
-        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg) {
+        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg, bordered: true) {
             ZStack(alignment: .topLeading) {
                 if text.wrappedValue.isEmpty {
                     Text(placeholder)
@@ -395,7 +394,6 @@ private struct TemplateCardView: View {
                 .opacity(isApplying ? 0.5 : 1)
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 }
 

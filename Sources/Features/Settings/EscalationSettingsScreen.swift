@@ -26,8 +26,10 @@ struct EscalationSettingsScreen: View {
                 }
             }
         }
+        .tfSettingsListChrome()
         .tfScreenBackground()
         .tfNativeHeader("Напоминания о просрочке")
+        .tint(Color.tfText)
         .accessibilityIdentifier("escalation-settings-screen")
         .task { await model.load() }
         .refreshable { await model.load() }
@@ -45,6 +47,8 @@ private struct EscalationMainSection: View {
         Section {
             HStack {
                 Text("Напоминать о просроченных задачах")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfText)
                 Spacer()
                 TFToggle(isOn: Binding(
                     get: { rule.enabled },
@@ -53,6 +57,7 @@ private struct EscalationMainSection: View {
                 .accessibilityLabel("Напоминания о просрочке")
                 .accessibilityIdentifier("escalation-enabled")
             }
+            .tfSettingsListRow()
         } footer: {
             Text("Касается ваших активных задач со сроком, который уже прошёл.")
         }
@@ -67,14 +72,17 @@ private struct EscalationScheduleSection: View {
     var body: some View {
         Section {
             DatePicker("Не беспокоить с", selection: timeBinding(\.quietFrom), displayedComponents: .hourAndMinute)
+                .tfSettingsListRow()
                 .accessibilityIdentifier("escalation-quiet-from")
             DatePicker("до", selection: timeBinding(\.quietTo), displayedComponents: .hourAndMinute)
+                .tfSettingsListRow()
                 .accessibilityIdentifier("escalation-quiet-to")
             HStack(spacing: TFSpacing.xs) {
                 ForEach(1...7, id: \.self) { day in
                     dayButton(day)
                 }
             }
+            .tfSettingsListRow()
         } header: {
             Text("Когда можно присылать")
         } footer: {
@@ -86,13 +94,14 @@ private struct EscalationScheduleSection: View {
         let isOn = rule.weekdays.contains(day)
         return Button { Task { await model.toggleWeekday(day) } } label: {
             Text(Self.dayTitles[day - 1])
+                .tfText(.body)
+                .foregroundStyle(isOn ? Color.tfText : Color.tfDim)
                 .lineLimit(1)
-                .fixedSize()
                 .frame(maxWidth: .infinity, minHeight: 32)
+                .padding(.vertical, TFSpacing.xs)
+                .tfSelectTile(selected: isOn)
         }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .tint(isOn ? Color.tfRed : Color.tfSub)
+            .buttonStyle(.plain)
             .frame(minHeight: 44)
             .accessibilityValue(isOn ? "Включён" : "Выключен")
             .accessibilityIdentifier("escalation-day-\(day)")
@@ -120,6 +129,8 @@ private struct EscalationStepsSection: View {
                 Button { editing = EscalationStepDraft(index: index, step: step) } label: {
                     EscalationStepRow(step: step)
                 }
+                .buttonStyle(.plain)
+                .tfSettingsListRow()
                 .accessibilityIdentifier("escalation-step-\(index)")
             }
             .onDelete { offsets in
@@ -128,6 +139,8 @@ private struct EscalationStepsSection: View {
             Button("Добавить шаг") {
                 editing = EscalationStepDraft(index: nil, step: EscalationStep(afterHours: nextFreeHours, priorityMax: 4, channels: ["inapp"]))
             }
+            .tfText(.body)
+            .tfSettingsListRow()
             .accessibilityIdentifier("escalation-add-step")
         } header: {
             Text("Когда напоминать")

@@ -46,10 +46,18 @@ final class SettingsViewModel {
         didSet { UserDefaults.standard.set(isPillTabBarEnabled, forKey: Self.pillTabBarKey) }
     }
 
+    /// Красный «+» и мелкая форма создания задачи на таббаре.
+    /// Код QuickAdd / кнопки не удаляем — только прячем (владелец 03.11.2026).
+    /// По умолчанию выкл.: четыре вкладки занимают всю полосу.
+    var isQuickCreateEnabled: Bool {
+        didSet { UserDefaults.standard.set(isQuickCreateEnabled, forKey: Self.quickCreateKey) }
+    }
+
     var errorMessage: String?
 
     static let customKeyboardKey = "taskflow_custom_keyboard_enabled"
     static let pillTabBarKey = "taskflow_tabbar_pill_enabled"
+    static let quickCreateKey = "taskflow_tabbar_quick_create_enabled"
     private static let biometryKey = "taskflow_settings_biometry_enabled"
 
     init(apiClient: APIClient = APIClient()) {
@@ -64,6 +72,12 @@ final class SettingsViewModel {
             isPillTabBarEnabled = stored
         } else {
             isPillTabBarEnabled = true
+        }
+        // Быстрое создание — по умолчанию спрятано (владелец 03.11.2026).
+        if let stored = UserDefaults.standard.object(forKey: Self.quickCreateKey) as? Bool {
+            isQuickCreateEnabled = stored
+        } else {
+            isQuickCreateEnabled = false
         }
         detectBiometry()
     }

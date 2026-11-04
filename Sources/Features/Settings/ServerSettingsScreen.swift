@@ -60,12 +60,16 @@ struct ServerSettingsScreen: View {
                                     title: setting.label,
                                     trailing: AnyView(
                                         Text(setting.displayText(snapshot.values[setting.key] ?? setting.defaultValue))
+                                            .tfText(.body)
                                             .foregroundStyle(Color.tfSub)
                                     ),
+                                    titleStyle: .body,
                                     horizontalPadding: 0,
                                     chevron: .shown
                                 )
                             }
+                            .buttonStyle(.plain)
+                            .tfSettingsListRow()
                             .accessibilityIdentifier("server-setting-" + setting.key)
                             .hintAnchor("server.setting." + setting.key)
                         }
@@ -76,7 +80,9 @@ struct ServerSettingsScreen: View {
                         showsLog = true
                         Task { await model.loadLog() }
                     }
+                    .tfText(.body)
                     .foregroundStyle(Color.tfText)
+                    .tfSettingsListRow()
                 }
             }
             Section {
@@ -84,13 +90,17 @@ struct ServerSettingsScreen: View {
                     AppDiagnosticsScreen()
                 } label: {
                     Label("Диагностика", systemImage: "waveform.path.ecg")
+                        .tfText(.body)
                         .foregroundStyle(Color.tfText)
                 }
+                .tfSettingsListRow()
                 .accessibilityIdentifier("server-settings-diagnostics")
             }
         }
+        .tfSettingsListChrome()
         .tfScreenBackground()
         .tfNativeHeader("Параметры сервера")
+        .tint(Color.tfText)
         .accessibilityIdentifier("server-settings-screen")
         .task { await model.load() }
         .refreshable { await model.load() }
