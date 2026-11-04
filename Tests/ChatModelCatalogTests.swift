@@ -8,6 +8,15 @@ final class ChatModelCatalogTests: XCTestCase {
         RoleModelOption(id: id, title: title, provider: "anthropic", modelID: id, contextWindow: nil)
     }
 
+    func testFreeVariantsHaveAnExplicitFreeMarker() {
+        XCTAssertTrue(ChatModelCatalog.isFree("opencode/beam-free"))
+        XCTAssertTrue(ChatModelCatalog.isFree("opencode/glm-5.3-flash-free"))
+        XCTAssertTrue(ChatModelCatalog.isFree("openrouter/vendor/model:free"))
+        XCTAssertFalse(ChatModelCatalog.isFree("opencode/beam"))
+        XCTAssertFalse(ChatModelCatalog.isFree("openai/free-text-model"))
+        XCTAssertFalse(ChatModelCatalog.isFree("ollama/local-free"))
+    }
+
     func testFavoritesComeFirstThenAlphabetical() {
         let models = [
             option("anthropic/claude-sonnet-5", "Sonnet 5"),

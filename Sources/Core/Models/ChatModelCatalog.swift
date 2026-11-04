@@ -54,6 +54,18 @@ public struct ModelProfile: Equatable, Sendable {
 /// избранное живут на устройстве: это подсказка для выбора, а не часть
 /// настройки роли.
 public enum ChatModelCatalog {
+    /// Explicit free variants advertised by Zen and OpenRouter. Subscription
+    /// access and a local model do not imply a free cloud variant.
+    public static func isFree(_ id: String) -> Bool {
+        let parts = id.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return false }
+        switch parts[0] {
+        case "opencode": return parts[1].hasSuffix("-free")
+        case "openrouter": return parts[1].hasSuffix(":free")
+        default: return false
+        }
+    }
+
     /// Порядок избранного: сначала помеченные владельцем, потом остальные по
     /// алфавиту. Владелец 29.10.2026: «добавь там звёздочки, чтобы я мог
     /// выбирать потом, чтобы были отображены в первую очередь избранные».

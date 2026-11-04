@@ -121,6 +121,11 @@ struct ChatModelPickerSheet: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+            if ChatModelCatalog.isFree(option.id) {
+                TFPill("Бесплатно", color: .tfText)
+                    .fixedSize()
+            }
+
             ModelCostBars(level: profile.costLevel)
                 .accessibilityLabel(profile.costAccessibilityLabel)
 
@@ -144,7 +149,7 @@ struct ChatModelPickerSheet: View {
         .accessibilityValue([
             selected ? "Выбрана" : nil,
             favorite ? "Избранная" : nil,
-            profile.costAccessibilityLabel
+            ChatModelCatalog.isFree(option.id) ? "Бесплатно" : profile.costAccessibilityLabel
         ].compactMap { $0 }.joined(separator: ", "))
     }
 
