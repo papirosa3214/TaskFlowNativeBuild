@@ -63,7 +63,7 @@ struct ProjectChatScreen: View {
             Text(unread > 0 ? "\(title) · \(unread)" : title)
                 .tfText(.action)
                 .lineLimit(1)
-                .foregroundStyle(isSelected ? Color.tfPaper : closed ? Color.tfDim : Color.tfText)
+                .foregroundStyle(isSelected ? Color.tfBackground : closed ? Color.tfDim : Color.tfText)
                 .padding(.horizontal, TFSpacing.sm)
                 .frame(minHeight: 32)
                 .frame(maxWidth: 220)
