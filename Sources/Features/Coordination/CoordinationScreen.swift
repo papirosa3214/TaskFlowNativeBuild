@@ -92,7 +92,7 @@ public struct CoordinationScreen: View {
                 }
                 codeChangesSection
                 if isOwner, let context = board.context {
-                    TaskContextSection(context: context)
+                    TaskContextSection(context: context, roleTitle: board.roleTitle(_:))
                         .padding(.horizontal, TFSpacing.screenHorizontal)
                 }
                 chatRow

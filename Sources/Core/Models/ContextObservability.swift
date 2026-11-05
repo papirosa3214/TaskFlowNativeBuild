@@ -208,11 +208,56 @@ struct TaskContextObservability: Decodable, Sendable, Equatable {
         let inputCount: Int?
         let outputCount: Int?
         let details: [String]
+        var role: String? = nil
+        var items: [ContextItem]? = nil
         var id: String { "\(kind):\(scenario)" }
+    }
+    /// Что получила роль от источника: последнее срабатывание и его объём.
+    struct RoleSource: Decodable, Identifiable, Sendable, Equatable {
+        let role: String
+        let kind: String
+        let scenario: String
+        let calls: Int
+        let status: String
+        let reason: String?
+        let outputCount: Int?
+        let chars: Int
+        let items: [ContextItem]
+        var id: String { "\(role):\(kind):\(scenario)" }
+        /// У стартового контекста объём приходит символами в счётчике, записей у него нет.
+        var size: Int { chars > 0 ? chars : (scenario == "taskContext" ? (outputCount ?? 0) : 0) }
     }
     let trackingSince: String
     let models: ContextObservability.Models
     let summary: [Source]
     let stages: [String: [StageSource]]
+    var roles: [RoleSource]? = nil
+}
+
+/// Что именно попало в контекст: запись, откуда она, её объём и начало текста.
+struct ContextItem: Decodable, Sendable, Equatable, Identifiable {
+    let title: String
+    let source: String
+    let chars: Int
+    let excerpt: String
+    var id: String { source + ":" + title }
+
+    var sourceTitle: String {
+        switch source {
+        case "role": "личная память"
+        case "team": "память команды"
+        case "project": "память проекта"
+        case "library": "библиотека"
+        case "kb": "база знаний"
+        default: source
+        }
+    }
+}
+
+extension ContextObservability {
+    /// Примерный объём в токенах: для русского текста около четырёх символов на токен.
+    static func sizeText(chars: Int) -> String {
+        chars < 4000 ? "≈\(max(1, chars / 4)) ток." : "≈\(chars / 4000) тыс. ток."
+    }
 }
 

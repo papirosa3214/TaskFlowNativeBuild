@@ -393,7 +393,7 @@ struct MissionControlScreen: View {
             worksSection
             contractSection
             if !model.skills.isEmpty { skillsSection }
-            if isOwner, let context = board.context { TaskContextSection(context: context) }
+            if isOwner, let context = board.context { TaskContextSection(context: context, roleTitle: board.roleTitle(_:)) }
             logSection
             chatSection
         }
