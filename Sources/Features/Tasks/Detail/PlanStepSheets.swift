@@ -397,6 +397,8 @@ struct PlanStepEditorSheet: View {
     let pendingSlots: Set<String>
     let roleTitle: (String) -> String
     let onSave: (ApiPlanOp) -> Void
+    /// Куда новый этап поставил плюс на полотне «Координации».
+    var preset: CoordinationBoard.StepPreset? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var roleKey = ""
@@ -494,6 +496,7 @@ struct PlanStepEditorSheet: View {
     private func stepLabel(_ node: ApiCollaborationPlanNode) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(roleTitle(node.roleKey))
+                .tfText(.body)
             Text(node.expectedResult)
                 .tfText(.meta)
                 .foregroundStyle(Color.tfSub)
@@ -513,7 +516,9 @@ struct PlanStepEditorSheet: View {
     private func fill() {
         switch mode {
         case .add:
-            roleKey = roles.first?.key ?? ""
+            roleKey = preset?.roleKey ?? roles.first?.key ?? ""
+            after = Set(preset?.after ?? [])
+            before = Set(preset?.before ?? [])
         case .edit(let node):
             roleKey = node.roleKey
             expectedResult = node.expectedResult

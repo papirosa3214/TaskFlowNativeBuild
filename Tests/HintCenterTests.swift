@@ -139,25 +139,17 @@ final class HintCenterTests: XCTestCase {
         center.isEnabled = true
         center.report(anchor: HintAnchorID.taskCoordination, frame: frame)
         XCTAssertEqual(center.active?.step, "step")
-        // Второй шаг (02.11.2026) — контракт миссии: он лежит в этом же
-        // экране и объясняет, почему шаг может не закрыться.
-        center.next()
-        XCTAssertEqual(center.active?.step, "mission")
-        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.missionControl)
         center.next()
         XCTAssertTrue(center.completed.contains("task-coordination"))
     }
 
-    /// Контракт миссии (02.11.2026): новая функция — новая подсказка.
-    func testMissionControlHintWalksCoordinationToScreen() throws {
+    /// Mission Control открывается с карточки, а не из «Координации» (05.11.2026).
+    func testMissionControlHintWalksCardButtonToScreen() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "mission-control" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])
         center.isEnabled = true
-        center.report(anchor: HintAnchorID.taskCoordination, frame: frame)
-        XCTAssertEqual(center.active?.step, "coordination")
-        center.next()
+        center.report(anchor: HintAnchorID.missionControl, frame: frame)
         XCTAssertEqual(center.active?.step, "mission")
-        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.missionControl)
         center.next()
         XCTAssertEqual(center.active?.step, "screen")
         XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.missionControlScreen)

@@ -67,6 +67,8 @@ struct TaskCardContent: View {
     /// Mission Control прямо из карточки (владелец 02.11.2026): панель
     /// управления миссией не должна прятаться за шторкой координации.
     @State private var isMissionControlPresented = false
+    /// Карточка, чей план открыт в Mission Control; nil — текущая.
+    @State private var missionControlPlanTaskID: String?
     @State private var replyingSubtask: ApiSubtask?
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
@@ -421,11 +423,11 @@ struct TaskCardContent: View {
             set: { if !$0 { coordinationTaskID = nil } }
         )) {
             if let id = coordinationTaskID {
-                TaskCoordinationScreen(taskID: id) { coordinationTaskID = nil }
+                TaskCoordinationScreen(taskID: id, allowsPlanChanges: viewModel.canUsePlan) { coordinationTaskID = nil }
             }
         }
-        .sheet(isPresented: $isMissionControlPresented) {
-            if let id = viewModel.taskID {
+        .sheet(isPresented: $isMissionControlPresented, onDismiss: { missionControlPlanTaskID = nil }) {
+            if let id = missionControlPlanTaskID ?? viewModel.taskID {
                 NavigationStack { MissionControlScreen(taskID: id) }
             }
         }
@@ -1573,19 +1575,31 @@ struct TaskCardContent: View {
         }
     }
 
-    /// «Координация» — под планом, в том же разделе (владелец 02.11.2026):
-    /// координация управляет именно этим планом, поэтому и живёт рядом с
-    /// ним, а не в меню «Ещё». Появляется вместе с разделом — то есть после
-    /// утверждения плана. Кнопка тихая: это вход в раздел, а не главное
-    /// действие карточки.
+    /// Вход в управление планом — под планом, в том же разделе (владелец
+    /// 02.11.2026). Появляется вместе с разделом, то есть после утверждения
+    /// плана. Командный план открывает «Координацию», а план из одного
+    /// оркестратора на этом же месте — Mission Control (владелец 05.11.2026).
+    @ViewBuilder
     private func coordinationRow(for planTaskID: String) -> some View {
+        let orchestratorOnly = viewModel.collaborationPlanState.plan.map(CoordinationBoard.isOrchestratorOnly) ?? false
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            TFButton("Координация", icon: "point.3.connected.trianglepath.dotted", variant: .secondary) {
-                coordinationTaskID = planTaskID
+            if orchestratorOnly {
+                TFButton("Mission Control", icon: "checklist", variant: .secondary) {
+                    missionControlPlanTaskID = planTaskID
+                    isMissionControlPresented = true
+                }
+                .hintAnchor(HintAnchorID.missionControl)
+                .accessibilityIdentifier("card.plan.mission-control")
+                Text("Вся работа оркестратора: что идёт, что проверено и как вмешаться")
+                    .tfText(.meta)
+            } else {
+                TFButton("Координация", icon: "point.3.connected.trianglepath.dotted", variant: .secondary) {
+                    coordinationTaskID = planTaskID
+                }
+                .accessibilityIdentifier("card.plan.coordination")
+                Text("Что сделано, что дальше, и здесь же меняется план")
+                    .tfText(.meta)
             }
-            .accessibilityIdentifier("card.plan.coordination")
-            Text("Кто чем занимается, чего ждёт и можно ли вмешаться")
-                .tfText(.meta)
         }
         .padding(.vertical, TFSpacing.xs)
     }

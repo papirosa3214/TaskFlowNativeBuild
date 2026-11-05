@@ -19,7 +19,9 @@ public struct ActionBar: View {
             if blockedByVersionMismatch {
                 Text("Версия сервера изменилась. Действия недоступны.").tfText(.meta)
             } else if let r = resolution, let label = r.controlLabel {
-                Button(label) { onAction(r.actionEnum) }
+                Button { onAction(r.actionEnum) } label: {
+                    Text(label).tfText(.body).foregroundStyle(Color.tfText)
+                }
                     .disabled(!enabled)
                     .accessibilityIdentifier("coord.action.btn")
             } else {

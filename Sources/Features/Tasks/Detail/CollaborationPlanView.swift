@@ -238,6 +238,10 @@ public struct CollaborationPlanView: View {
 
     private func canAddSteps(to plan: ApiCollaborationPlan) -> Bool {
         guard plan.branchSnapshot == nil, isOwner, allowsPlanChanges else { return false }
+        // Утверждённый командный план дополняется на полотне «Координации»
+        // (владелец 05.11.2026). Здесь плюс остаётся для черновика и для плана
+        // из одного оркестратора: у них «Координации» нет.
+        if plan.status == "approved", !CoordinationBoard.isOrchestratorOnly(plan) { return false }
         // Идущий план владелец тоже дополняет: когда круги доработки исчерпаны,
         // сервер оставляет решение за ним (07.10.2026).
         return true
@@ -484,7 +488,11 @@ public struct CollaborationPlanView: View {
     /// отдельно в `CollaborationPlanGraph` из entries+edges (нужен полный
     /// список узлов, а не один).
     private func baseState(for subtask: ApiSubtask?, plan: ApiCollaborationPlan) -> String {
-        guard plan.status == "approved", let subtask else { return "waiting" }
+        Self.baseState(for: subtask, planStatus: plan.status)
+    }
+
+    static func baseState(for subtask: ApiSubtask?, planStatus: String) -> String {
+        guard planStatus == "approved", let subtask else { return "waiting" }
         if subtask.done { return subtask.result?.hasPrefix("changes_requested:") == true ? "returned" : "accepted" }
         switch subtask.agentState {
         case .inProgress: return "active"

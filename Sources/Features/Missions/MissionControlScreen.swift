@@ -18,6 +18,8 @@ final class MissionControlModel {
     var executors: TaskExecutorSummary?
     /// Потоки: последние сообщения темы задачи.
     var streams: [RoleChatMessage] = []
+    /// Этапы плана: вся работа, которую разложил оркестратор.
+    let board = CoordinationBoardModel()
     var loaded = false
     var loading = false
     var error: String?
@@ -27,10 +29,11 @@ final class MissionControlModel {
 
     private let api = APIClient()
 
-    func load(taskID: String) async {
+    func load(taskID: String, isOwner: Bool) async {
         guard !loading else { return }
         loading = true
         defer { loading = false }
+        await board.load(taskID: taskID, isOwner: isOwner)
         do {
             let contract = try await api.missionContract(taskID: taskID)
             assertions = contract.assertions
@@ -88,10 +91,15 @@ struct MissionControlScreen: View {
     @AppStorage("mission.showContexts") private var showContexts = true
     @State private var executorSlotID: String?
     @State private var taskChatID: String?
+    @State private var stageSlot: String?
+    @Environment(SessionStore.self) private var session
+
+    private var isOwner: Bool { session.currentUser?.role == .owner }
 
     var body: some View {
         List {
             controlSection
+            workSection
             visibilitySection
             if model.unsupported {
                 Section {
@@ -99,7 +107,7 @@ struct MissionControlScreen: View {
                         .tfText(.body)
                         .accessibilityIdentifier("mission.unsupported")
                     Text("Обновите TaskFlow на .110 — после выкладки экран покажет контракт задачи.")
-                        .tfText(.meta)
+                        .tfText(.action)
                 }
             }
             if let error = model.error {
@@ -107,7 +115,9 @@ struct MissionControlScreen: View {
                     Text(error)
                         .tfText(.body)
                         .accessibilityIdentifier("mission.error")
-                    Button("Обновить") { Task { await model.load(taskID: taskID) } }
+                    TFActionRow(title: "Обновить", icon: "arrow.clockwise") {
+                        Task { await model.load(taskID: taskID, isOwner: isOwner) }
+                    }
                 }
             }
             if model.loading && !model.loaded {
@@ -128,13 +138,14 @@ struct MissionControlScreen: View {
                             .tfText(.body)
                             .accessibilityIdentifier("mission.no-contract")
                         Text("Пока контракта нет, «готово» значит «критик посмотрел и одобрил» — критерии подгоняются под получившееся. Контракт фиксирует критерии до работы, и непроверенное «готово» больше не проходит.")
-                            .tfText(.meta)
+                            .tfText(.action)
                     }
                 }
                 if showContexts { contextsSection }
                 if showStreams { streamsSection }
             }
         }
+        .tfScreenBackground()
         .tfNativeHeader("Mission Control", displayMode: .inline)
         .hintAnchor(HintAnchorID.missionControlScreen)
         .toolbar {
@@ -142,8 +153,16 @@ struct MissionControlScreen: View {
         }
         // Плоский список — как в координации (02.11.2026): без серых подложек.
         .listStyle(.plain)
-        .refreshable { await model.load(taskID: taskID) }
-        .task { await model.load(taskID: taskID) }
+        .refreshable { await model.load(taskID: taskID, isOwner: isOwner) }
+        .task { await model.load(taskID: taskID, isOwner: isOwner) }
+        .sheet(isPresented: Binding(
+            get: { stageSlot != nil },
+            set: { if !$0 { stageSlot = nil } }
+        )) {
+            if let stageSlot {
+                CoordinationStageSheet(taskID: taskID, slot: stageSlot, model: model.board, editable: false)
+            }
+        }
         .sheet(isPresented: Binding(
             get: { executorSlotID != nil },
             set: { if !$0 { executorSlotID = nil } }
@@ -165,33 +184,53 @@ struct MissionControlScreen: View {
     /// Управление — сверху, до всего остального: сюда владелец приходит
     /// вмешаться, а не читать отчёт.
     private var controlSection: some View {
-        Section("Управление") {
+        TFPlainSection("Управление") {
             if let slot = model.executors?.orchestrator.slotId {
-                Button {
+                TFActionRow(title: "Написать оркестратору", icon: "crown") {
                     executorSlotID = slot
-                } label: {
-                    Label("Написать оркестратору", systemImage: "crown")
                 }
                 .accessibilityIdentifier("mission.orchestrator")
                 Text("Оркестратор разложил работу по ролям — решение по задаче за ним.")
-                    .tfText(.meta)
+                    .tfText(.action)
             }
-            Button {
+            TFActionRow(title: "Переписка по задаче", icon: "bubble.left.and.bubble.right") {
                 Task {
                     if let chat = try? await APIClient().taskTopic(taskID: taskID) {
                         taskChatID = chat.id
                     }
                 }
-            } label: {
-                Label("Переписка по задаче", systemImage: "bubble.left.and.bubble.right")
             }
             .accessibilityIdentifier("mission.task-chat")
         }
     }
 
+    /// Масштаб миссии: все этапы, которые разложил оркестратор, и сколько закрыто.
+    /// Полотно только для чтения: решения по составу работы за оркестратором.
+    @ViewBuilder
+    private var workSection: some View {
+        if let plan = model.board.plan {
+            TFPlainSection("Вся работа") {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    let stages = model.board.orderedStages.filter { !$0.isSkipped }
+                    Text("Сделано \(stages.filter(\.isDone).count) из \(stages.count)")
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                    Text("В работе \(stages.filter(\.isActive).count), ждут вас \(stages.filter(\.needsOwner).count)")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                }
+                .listRowSeparator(.hidden)
+                CoordinationBoardView(plan: plan, model: model.board, editable: false,
+                                      onSelect: { stageSlot = $0 }, onAdd: { _ in })
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+            }
+        }
+    }
+
     /// Тумблеры: что панель показывает. Один взгляд — и лишнее убрано.
     private var visibilitySection: some View {
-        Section("Что показывать") {
+        TFPlainSection("Что показывать") {
             TFListRow(
                 icon: "text.bubble", iconStyle: .plain, title: "Потоки переписки",
                 trailing: AnyView(
@@ -218,48 +257,46 @@ struct MissionControlScreen: View {
     // MARK: - Секции
 
     private func summarySection(_ outcome: MissionOutcome) -> some View {
-        Section("Итог по контракту") {
-            LabeledContent("Пройдено", value: "\(outcome.passed) из \(outcome.total)")
+        TFPlainSection("Итог по контракту") {
+            TFInfoRow(label: "Пройдено", value: "\(outcome.passed) из \(outcome.total)")
             if outcome.failed > 0 {
-                LabeledContent("Не пройдено", value: "\(outcome.failed)")
-                    .foregroundStyle(Color.tfRed)
+                TFInfoRow(label: "Не пройдено", value: "\(outcome.failed)", valueColor: .tfRed)
             }
             if outcome.blocked > 0 {
-                LabeledContent("Не проверяется вживую", value: "\(outcome.blocked)")
-                    .foregroundStyle(Color.tfOrange)
+                TFInfoRow(label: "Не проверяется вживую", value: "\(outcome.blocked)", valueColor: .tfOrange)
             }
             if outcome.pending > 0 {
-                LabeledContent("Ещё не проверено", value: "\(outcome.pending)")
+                TFInfoRow(label: "Ещё не проверено", value: "\(outcome.pending)")
             }
-            LabeledContent("Миссия", value: outcome.closed ? "закрыта" : "открыта")
-                .foregroundStyle(outcome.closed ? Color.tfGreen : Color.tfText)
+            TFInfoRow(label: "Миссия", value: outcome.closed ? "закрыта" : "открыта",
+                                valueColor: outcome.closed ? .tfGreen : .tfText)
         }
     }
 
     private var assertionsSection: some View {
-        Section("Ассерции") {
+        TFPlainSection("Ассерции") {
             ForEach(model.assertions) { assertion in
                 VStack(alignment: .leading, spacing: TFSpacing.xs) {
                     HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
                         Text(assertion.assertionId)
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfDim)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
                         Spacer(minLength: 0)
                         TFPill(assertion.statusEnum.title, color: color(for: assertion.statusEnum))
                     }
                     Text(assertion.title)
                         .tfText(.body)
                     Text(assertion.behavior)
-                        .tfText(.meta)
+                        .tfText(.action)
                     if let tool = assertion.tool {
                         Text("Проверка: \(tool)")
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfDim)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
                     }
                     if let slot = assertion.claimedBySlot {
                         Text("Закрыл шаг: \(slot)")
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfDim)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
                 .padding(.vertical, TFSpacing.xs)
@@ -268,7 +305,7 @@ struct MissionControlScreen: View {
     }
 
     private func coverageSection(_ coverage: AssertionCoverage) -> some View {
-        Section("Дыры в покрытии") {
+        TFPlainSection("Дыры в покрытии") {
             ForEach(coverage.violations, id: \.message) { violation in
                 Text(violation.message)
                     .tfText(.body)
@@ -278,16 +315,16 @@ struct MissionControlScreen: View {
     }
 
     private var skillsSection: some View {
-        Section("Навыки миссии") {
+        TFPlainSection("Навыки миссии") {
             ForEach(model.skills) { skill in
                 VStack(alignment: .leading, spacing: TFSpacing.xs) {
                     Text(skill.name)
                         .tfText(.body)
                     Text(skill.description)
-                        .tfText(.meta)
+                        .tfText(.action)
                     Text("Роль: \(skill.role)")
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfDim)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 .padding(.vertical, TFSpacing.xs)
             }
@@ -295,17 +332,17 @@ struct MissionControlScreen: View {
     }
 
     private var eventsSection: some View {
-        Section("Журнал миссии") {
+        TFPlainSection("Журнал миссии") {
             if model.events.isEmpty {
-                Text("Событий пока нет").tfText(.meta)
+                Text("Событий пока нет").tfText(.action)
             }
             ForEach(model.events) { event in
                 VStack(alignment: .leading, spacing: TFSpacing.xs) {
                     Text(event.kindTitle)
                         .tfText(.body)
                     Text(event.ts)
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfDim)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                 }
                 .padding(.vertical, TFSpacing.xs)
             }
@@ -315,7 +352,7 @@ struct MissionControlScreen: View {
     /// Кто чем занимается: роль, состояние, чего ждёт и что она последнее
     /// писала по своему шагу. Тап открывает окно исполнителя.
     private var contextsSection: some View {
-        Section("Кто чем занимается") {
+        TFPlainSection("Кто чем занимается") {
             if let executors = model.executors?.executors, !executors.isEmpty {
                 ForEach(executors) { executor in
                     Button {
@@ -329,16 +366,16 @@ struct MissionControlScreen: View {
                                 TFPill(executor.stateTitle, color: executor.stateTint)
                             }
                             Text(executor.statusText)
-                                .tfText(.meta)
+                                .tfText(.action)
                             if !executor.waitingFor.isEmpty {
                                 Text("Ожидает: " + executor.waitingFor.joined(separator: ", "))
-                                    .tfText(.meta)
-                                    .foregroundStyle(Color.tfDim)
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfSub)
                             }
                             if let last = executor.messages.first(where: { !$0.isFromOwner }) {
                                 Text(last.text)
-                                    .tfText(.meta)
-                                    .foregroundStyle(Color.tfDim)
+                                    .tfText(.action)
+                                    .foregroundStyle(Color.tfSub)
                                     .lineLimit(3)
                             }
                         }
@@ -346,7 +383,7 @@ struct MissionControlScreen: View {
                     .accessibilityIdentifier("mission.executor.\(executor.subtaskId)")
                 }
             } else {
-                Text("Исполнители не найдены").tfText(.meta)
+                Text("Исполнители не найдены").tfText(.action)
             }
         }
     }
@@ -354,15 +391,15 @@ struct MissionControlScreen: View {
     /// Потоки: последние сообщения темы задачи — что говорят роли и что
     /// отвечает владелец.
     private var streamsSection: some View {
-        Section("Потоки переписки") {
+        TFPlainSection("Потоки переписки") {
             if model.streams.isEmpty {
-                Text("Сообщений пока нет").tfText(.meta)
+                Text("Сообщений пока нет").tfText(.action)
             }
             ForEach(model.streams) { message in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(message.fromUserName ?? "Роль")
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfDim)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
                     Text(message.text)
                         .tfText(.body)
                         .lineLimit(8)

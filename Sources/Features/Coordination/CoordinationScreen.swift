@@ -3,13 +3,15 @@ import SwiftUI
 /// Собственная жизнь панели: закрытие sheet отменяет обновление данных.
 struct TaskCoordinationScreen: View {
     let taskID: String
+    var allowsPlanChanges = true
     let onOpenTaskControls: () -> Void
     @StateObject private var state = CoordinationState()
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            CoordinationScreen(state: state, taskId: taskID, onOpenTaskControls: onOpenTaskControls)
+            CoordinationScreen(state: state, taskId: taskID, allowsPlanChanges: allowsPlanChanges,
+                               onOpenTaskControls: onOpenTaskControls)
                 .navigationTitle("Координация")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -24,172 +26,81 @@ struct TaskCoordinationScreen: View {
     }
 }
 
-/// Причины, зависимости и управление выбранным шагом. Без демонстрационных сообщений.
+/// Рабочее место владельца по командному плану: что сделано, что ждём, полотно
+/// этапов и переписка. Здесь же меняется сам план: этапы добавляются,
+/// распараллеливаются и убираются прямо на ходу.
 public struct CoordinationScreen: View {
     @ObservedObject public var state: CoordinationState
     public let taskId: String
     public let refreshIntervalSeconds: Double
+    public let allowsPlanChanges: Bool
     public let onOpenTaskControls: () -> Void
     @Environment(\.scenePhase) private var scenePhase
-    @State private var selectedID: String?
+    @Environment(SessionStore.self) private var session
+    @State private var board = CoordinationBoardModel()
     @State private var refreshing = false
-    @State private var performingAction = false
-    @State private var showRestart = false
-    @State private var restartTarget: APIClient.CoordinationResolution?
-    @State private var reason = ""
-    @State private var actionError: String?
-    @State private var showDetails = false
-    /// Слот, для которого открыто окно исполнителя (тап по узлу графа).
-    @State private var executorSlotID: String?
-    /// Сводка по исполнителям — нужна для кнопки «Написать оркестратору».
+    @State private var loadedOnce = false
+    @State private var sheet: BoardSheet?
     @State private var executorSummary: TaskExecutorSummary?
     /// Переписка по задаче — тема, где видно ответы исполнителей.
     @State private var taskChatID: String?
 
+    private enum BoardSheet: Identifiable {
+        case stage(String)
+        case add(CoordinationBoard.StepPreset)
+        var id: String {
+            switch self {
+            case .stage(let slot): "stage-\(slot)"
+            case .add(let preset): "add-\(preset.after)-\(preset.before)"
+            }
+        }
+    }
+
     public init(state: CoordinationState, taskId: String, refreshIntervalSeconds: Double = 30,
-                onOpenTaskControls: @escaping () -> Void) {
+                allowsPlanChanges: Bool = true, onOpenTaskControls: @escaping () -> Void) {
         self.state = state
         self.taskId = taskId
         self.refreshIntervalSeconds = refreshIntervalSeconds
+        self.allowsPlanChanges = allowsPlanChanges
         self.onOpenTaskControls = onOpenTaskControls
     }
 
-    private var selected: APIClient.CoordinationResolution? {
-        if let selectedID { return state.resolution(forSubtaskId: selectedID) }
-        if let stalled = state.stalledNodeId { return state.resolution(forSubtaskId: stalled) }
-        return state.nodes.compactMap(\.resolution).first
-    }
+    private var isOwner: Bool { session.currentUser?.role == .owner }
     private var compatible: Bool {
         if case .versionMismatch = state.loadState { return false }
         return true
     }
-    private var canAct: Bool {
-        state.loadState == .loaded && !refreshing && !performingAction
-    }
+    private var canEdit: Bool { isOwner && allowsPlanChanges && board.ownsStructure && compatible }
+    private var stages: [CoordinationStage] { board.orderedStages }
+    private var done: [CoordinationStage] { stages.filter(\.isDone) }
+    private var ahead: [CoordinationStage] { stages.filter { !$0.isDone && !$0.isSkipped } }
 
     public var body: some View {
-        List {
-            if case .failed(let error) = state.loadState {
-                Section {
-                    Text("Не удалось обновить статус. Показаны последние полученные данные.")
-                    Text(error).tfText(.meta)
-                    Button("Повторить") { Task { await refresh() } }.disabled(refreshing)
+        ScrollView {
+            VStack(alignment: .leading, spacing: TFSpacing.xl) {
+                banners
+                if let plan = board.plan {
+                    summary
+                    boardSection(plan)
+                    if !done.isEmpty { stageList("Сделано", stages: done) { $0.result ?? $0.node.expectedResult } }
+                    if !ahead.isEmpty { stageList("В работе и дальше", stages: ahead) { $0.node.expectedResult } }
+                } else if refreshing || !loadedOnce {
+                    TFLoading(.inline).frame(maxWidth: .infinity)
+                } else {
+                    TFEmptyState(icon: "point.3.connected.trianglepath.dotted", text: "Нет утверждённого плана",
+                                 description: "Этапы появятся здесь после утверждения плана.")
+                }
+                chatRow
+                if let updated = state.lastUpdatedAt {
+                    Text("Обновлено \(updated.formatted(date: .omitted, time: .shortened))")
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
                 }
             }
-            if !compatible {
-                Text("Версия данных сервера изменилась. Просмотр доступен, действия отключены.")
-            }
-            if state.nodes.isEmpty {
-                Section {
-                    if refreshing { TFLoading(.inline) }
-                    else { Text("Нет данных о выполнении задачи") }
-                }
-            } else {
-                Section("Состояние шагов") {
-                    ResolutionGraph(state: state) { nodeID in
-                        // Тап по узлу графа открывает окно исполнителя:
-                        // кто делает шаг, чего ждёт и что ему сказать
-                        // (владелец 02.11.2026).
-                        selectedID = nodeID
-                        executorSlotID = nodeID
-                    }
-                }
-                Section("Шаги") {
-                    ForEach(state.nodes) { node in
-                        Button {
-                            selectedID = node.id
-                            actionError = nil
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                                    Text(node.resolution?.displayTitle ?? "Шаг временно недоступен").tfText(.body)
-                                    Text(node.resolution?.displayStatus ?? "Обновите данные").tfText(.meta)
-                                }
-                                Spacer()
-                                if node.id == selected?.id { Image(systemName: "checkmark") }
-                            }
-                        }
-                        .accessibilityLabel(node.resolution?.displayTitle ?? "Шаг недоступен")
-                        .accessibilityValue(node.resolution?.displayStatus ?? "Нет данных")
-                    }
-                }
-                .hintAnchor(HintAnchorID.taskCoordination)
-            }
-            // Управление процессом из одного окна: написать оркестратору,
-            // который решает, кто что делает, или открыть переписку по задаче,
-            // где видно ответы исполнителей (владелец 02.11.2026).
-            Section("Управление") {
-                if let orchestratorSlot = executorSummary?.orchestrator.slotId {
-                    Button {
-                        executorSlotID = orchestratorSlot
-                    } label: {
-                        Label("Написать оркестратору", systemImage: "crown")
-                    }
-                    .accessibilityIdentifier("coordination.orchestrator")
-                    Text("Оркестратор разложил работу по ролям — ему можно написать прямо отсюда.")
-                        .tfText(.meta)
-                }
-                Button {
-                    Task {
-                        if let chat = try? await APIClient().taskTopic(taskID: taskId) {
-                            taskChatID = chat.id
-                        }
-                    }
-                } label: {
-                    Label("Переписка по задаче", systemImage: "bubble.left.and.bubble.right")
-                }
-                .accessibilityIdentifier("coordination.task-chat")
-            }
-            // Контракт миссии — те же критерии, что проверяет этот экран, но
-            // записанные ДО работы: список ассерций, что не пройдено и журнал
-            // прохождения. Отдельный маршрут, потому что это пуш, а не
-            // действие над шагом.
-            Section("Контракт миссии") {
-                NavigationLink(value: AppRoute.missionControl(taskID: taskId)) {
-                    Text("Mission Control").tfText(.body)
-                }
-                .hintAnchor(HintAnchorID.missionControl)
-                .accessibilityIdentifier("coordination.mission-control")
-                Text("Что считается готовым по критериям, записанным до работы.")
-                    .tfText(.meta)
-            }
-            if let r = selected {
-                Section(r.displayTitle) {
-                    Text(r.displayStatus).tfText(.body)
-                    LabeledContent("Ответственный", value: r.assigneeName ?? "Не указан сервером")
-                    if let notes = r.notes, !notes.isEmpty {
-                        Text(notes).tfText(.body).textSelection(.enabled)
-                    }
-                    if let waiting = r.waitingFor, !waiting.isEmpty {
-                        Text("Ожидает: " + waiting.joined(separator: ", ")).tfText(.body)
-                    }
-                    if r.actionEnum == .switchProvider || r.actionEnum == .fixConfig {
-                        NavigationLink("Открыть настройки моделей", value: AppRoute.runtimeProviders)
-                            .disabled(!canAct || !compatible)
-                    } else {
-                        ActionBar(resolution: r, blockedByVersionMismatch: !compatible, enabled: canAct) { _ in
-                            if r.canRestartStep {
-                                restartTarget = r
-                                reason = ""
-                                showRestart = true
-                            } else {
-                                onOpenTaskControls()
-                            }
-                        }
-                    }
-                    Button("Подробности состояния") { showDetails = true }
-                }
-            }
-            if let actionError { Section { Text(actionError).tfText(.body) } }
-            if performingAction { TFLoading(.inline) }
-            if let updated = state.lastUpdatedAt {
-                Section { Text("Обновлено \(updated.formatted(date: .omitted, time: .shortened))").tfText(.meta) }
-            }
+            .padding(.vertical, TFSpacing.md)
         }
         .tfScreenBackground()
-        // Плоский список (02.11.2026): серые подложки секций прятали текст и
-        // превращали окно в набор серых блоков — здесь нужен плоский текст.
-        .listStyle(.plain)
         .refreshable { await refresh() }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
@@ -199,69 +110,184 @@ public struct CoordinationScreen: View {
                 catch { return }
             }
         }
-        .sheet(isPresented: $showDetails) {
-            ResolutionDetailsSheet(resolution: selected)
-        }
-        .sheet(isPresented: Binding(
-            get: { executorSlotID != nil },
-            set: { if !$0 { executorSlotID = nil } }
-        )) {
-            if let executorSlotID {
-                ExecutorWindow(taskID: taskId, subtaskID: executorSlotID)
-            }
-        }
+        .sheet(item: $sheet) { boardSheet($0) }
         .sheet(isPresented: Binding(
             get: { taskChatID != nil },
             set: { if !$0 { taskChatID = nil } }
         )) {
             if let taskChatID { TaskChatSheet(chatID: taskChatID) }
         }
-        .alert("Перезапустить шаг?", isPresented: $showRestart) {
-            TextField("Причина перезапуска", text: $reason)
-            Button("Перезапустить", role: .destructive) {
-                guard let target = restartTarget else { return }
-                Task { await restart(target) }
-            }
-            .disabled(!canAct || reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reason.count > 1000)
-            Button("Отмена", role: .cancel) { restartTarget = nil }
+        .alert("План не изменён", isPresented: Binding(
+            get: { board.errorMessage != nil },
+            set: { if !$0 { board.errorMessage = nil } }
+        )) {
+            Button("Понятно", role: .cancel) { board.errorMessage = nil }
         } message: {
-            Text("\(restartTarget?.displayTitle ?? "Выбранный шаг"): текущая попытка будет остановлена, затем запущена новая. Другие шаги не перезапускаются.")
+            Text(board.errorMessage ?? "")
         }
     }
 
+    // MARK: - Разделы
+
+    @ViewBuilder
+    private var banners: some View {
+        if case .failed(let error) = state.loadState {
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                TFErrorBanner("Не удалось обновить статус. Показаны последние полученные данные. \(error)", variant: .block)
+                TFActionRow(title: "Повторить", icon: "arrow.clockwise", isEnabled: !refreshing) {
+                    Task { await refresh() }
+                }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+        }
+        if !compatible {
+            Text("Версия данных сервера изменилась. Просмотр доступен, действия отключены.")
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+        }
+    }
+
+    /// Сводка одним взглядом: сколько сделано и кому что нужно.
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+            let total = stages.filter { !$0.isSkipped }.count
+            Text("Сделано \(done.count) из \(total)")
+                .tfText(.title)
+                .foregroundStyle(Color.tfText)
+            Text(summaryLine)
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    private var summaryLine: String {
+        var parts: [String] = []
+        let active = stages.filter(\.isActive).count
+        let needsOwner = stages.filter(\.needsOwner).count
+        let questions = executorSummary?.pendingQuestions.count ?? 0
+        if active > 0 { parts.append("в работе \(active)") }
+        if needsOwner > 0 { parts.append("ждут вас \(needsOwner)") }
+        if questions > 0 { parts.append("вопросов к вам \(questions)") }
+        let waiting = ahead.count - active - needsOwner
+        if waiting > 0 { parts.append("впереди \(waiting)") }
+        return parts.isEmpty ? "Все этапы закрыты" : parts.joined(separator: " · ").capitalizedFirst
+    }
+
+    private func boardSection(_ plan: ApiCollaborationPlan) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            TFPlainSectionTitle("Этапы")
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+            CoordinationBoardView(plan: plan, model: board, editable: canEdit,
+                                  onSelect: { sheet = .stage($0) }, onAdd: { sheet = .add($0) })
+        }
+        .hintAnchor(HintAnchorID.taskCoordination)
+    }
+
+    /// Сжатый список: роль и пара строк, полный текст в панели этапа.
+    private func stageList(_ title: String, stages: [CoordinationStage],
+                           text: @escaping (CoordinationStage) -> String) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            TFPlainSectionTitle(title)
+            ForEach(stages) { stage in
+                Button { sheet = .stage(stage.id) } label: {
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+                            Text(board.roleTitle(stage.node.roleKey))
+                                .tfText(.body)
+                                .foregroundStyle(Color.tfText)
+                            Spacer(minLength: 0)
+                            Text(stage.label)
+                                .tfText(.caption)
+                                .foregroundStyle(stage.tint)
+                        }
+                        Text(text(stage))
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(TFTapRowStyle())
+                .accessibilityIdentifier("coord.row.\(stage.id)")
+            }
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    private var chatRow: some View {
+        TFActionRow(title: "Переписка по задаче", icon: "bubble.left.and.bubble.right") {
+            Task {
+                if let chat = try? await APIClient().taskTopic(taskID: taskId) {
+                    taskChatID = chat.id
+                }
+            }
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+        .accessibilityIdentifier("coordination.task-chat")
+    }
+
+    // MARK: - Шторки
+
+    @ViewBuilder
+    private func boardSheet(_ sheet: BoardSheet) -> some View {
+        switch sheet {
+        case .stage(let slot):
+            CoordinationStageSheet(
+                taskID: taskId, slot: slot, model: board, editable: canEdit,
+                resolution: board.stage(slot)?.subtask.flatMap { state.resolution(forSubtaskId: $0.id) },
+                compatible: compatible,
+                onOpenTaskControls: onOpenTaskControls,
+                onChanged: { Task { await refresh() } }
+            )
+        case .add(let preset):
+            if let plan = board.plan {
+                PlanStepEditorSheet(
+                    mode: .add, plan: plan, roles: board.roleOptions, pendingSlots: board.pendingSlots,
+                    roleTitle: board.roleTitle(_:),
+                    onSave: { op in
+                        Task {
+                            await board.apply([op], taskID: taskId, isOwner: isOwner)
+                            await refresh()
+                        }
+                    },
+                    preset: preset
+                )
+            }
+        }
+    }
+
+    // MARK: - Данные
+
     @MainActor private func refresh() async {
-        guard !refreshing, !performingAction else { return }
+        guard !refreshing else { return }
         refreshing = true
-        defer { refreshing = false }
+        defer {
+            refreshing = false
+            loadedOnce = true
+        }
+        await board.load(taskID: taskId, isOwner: isOwner)
         do {
             let items = try await APIClient().fetchTaskResolutions(taskId: taskId)
             guard !Task.isCancelled else { return }
             state.apply(resolutions: items, contractVersion: items.first?.contractVersion)
             state.pruneStaleNodes(olderThan: Date().addingTimeInterval(-300))
-            if let selectedID, !state.nodes.contains(where: { $0.id == selectedID }) {
-                self.selectedID = nil
-            }
         } catch {
             if !Task.isCancelled { state.applyFailure(error.localizedDescription) }
         }
-        // Сводка по исполнителям — отдельным запросом и без фатальности:
-        // её отсутствие (старый сервер) не ломает координацию, нужен только
-        // кнопке «Написать оркестратору».
+        // Сводка отдельным запросом и без фатальности: без неё экран работает,
+        // пропадает только счётчик вопросов к владельцу.
         if let summary = try? await APIClient().taskExecutorSummary(taskId: taskId) {
             executorSummary = summary
         }
     }
+}
 
-    @MainActor private func restart(_ target: APIClient.CoordinationResolution) async {
-        guard canAct else { return }
-        performingAction = true
-        actionError = nil
-        do { try await APIClient().restartCoordinationStep(target, reason: reason) }
-        catch { actionError = error.localizedDescription }
-        performingAction = false
-        restartTarget = nil
-        await refresh()
-    }
+private extension String {
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
 
 public struct ResolutionDetailsSheet: View {
@@ -272,23 +298,29 @@ public struct ResolutionDetailsSheet: View {
         NavigationStack {
             List {
                 if let r = resolution {
-                    Section(r.displayTitle) {
-                        Text(r.displayStatus)
-                        if let notes = r.notes { Text(notes).textSelection(.enabled) }
+                    TFPlainSection(r.displayTitle) {
+                        Text(r.displayStatus).tfText(.body).foregroundStyle(Color.tfText)
+                        if let notes = r.notes {
+                            Text(notes).tfText(.body).foregroundStyle(Color.tfText).textSelection(.enabled)
+                        }
                     }
                     if !r.evidence.isEmpty {
-                        Section("Основания") {
+                        TFPlainSection("Основания") {
                             ForEach(Array(r.evidence.enumerated()), id: \.offset) { _, item in
-                                Text(item.ref).tfText(.meta).textSelection(.enabled)
+                                Text(item.ref).tfText(.action).foregroundStyle(Color.tfSub).textSelection(.enabled)
                             }
                         }
                     }
-                    Section("Данные") {
-                        LabeledContent("Версия", value: r.contractVersion)
-                        LabeledContent("Обновлено сервером", value: r.generatedAt)
+                    TFPlainSection("Данные") {
+                        TFInfoRow(label: "Версия", value: r.contractVersion)
+                        TFInfoRow(label: "Обновлено сервером", value: r.generatedAt)
                     }
-                } else { Text("Нет данных") }
+                } else {
+                    Text("Нет данных").tfText(.body).foregroundStyle(Color.tfSub)
+                }
             }
+            .listStyle(.plain)
+            .tfScreenBackground()
             .navigationTitle("Состояние шага")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }

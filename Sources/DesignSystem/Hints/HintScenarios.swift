@@ -124,26 +124,22 @@ enum HintScenarios {
             text: "Пока в чате нет сообщений, здесь приветствие роли и четыре быстрые команды — типичные для неё задачи. Нажмите команду: текст подставится в поле ввода, его можно дописать своим или отправить сразу. Команды подсказывают направление, а не ограничивают: обычное сообщение работает так же.", next: nil)])
 
     static let taskCoordination = HintScenario(
-        id: "task-coordination", title: "Почему шаг ждёт", start: "step",
+        id: "task-coordination", title: "Координация плана", start: "step",
         steps: [
-            "step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Выберите шаг",
-                text: "В разделе «План совместной работы» нажмите «Координация». Нажмите нужный шаг: ниже появятся его состояние, причина ожидания и доступное действие. Перезапуск требует причины и подтверждения. Настройки моделей и остальные решения открываются в существующем управлении. Открытие панели само ничего не запускает.", next: "mission"),
-            "mission": HintStep(anchor: HintAnchorID.missionControl, title: "Контракт миссии",
-                text: "Ниже в этом же экране — раздел «Контракт миссии»: критерии, записанные до работы, и проверка по ним. Если шаг ждёт, посмотрите сначала здесь: непроверенный критерий не даёт закрыться задаче.", next: nil)
+            "step": HintStep(anchor: HintAnchorID.taskCoordination, title: "Нажмите этап",
+                text: "В разделе «План совместной работы» нажмите «Координация». Этапы идут сверху вниз, параллельные стоят рядом. Нажмите этап: откроются его итог или ожидаемый результат, разговор с ролью и правка. Плюс на связи вставляет этап, плюс сбоку добавляет параллельный."),
         ])
 
-    /// Контракт миссии (02.11.2026): что считается готовым по критериям,
-    /// записанным ДО работы. Новая функция — новая подсказка (правило
+    /// Mission Control (05.11.2026): открывается вместо «Координации», когда в
+    /// плане один оркестратор. Новая функция — новая подсказка (правило
     /// владельца 16.10.2026).
     static let missionControl = HintScenario(
-        id: "mission-control", title: "Контракт миссии", start: "coordination",
+        id: "mission-control", title: "Mission Control", start: "mission",
         steps: [
-            "coordination": HintStep(anchor: HintAnchorID.taskCoordination, title: "Где искать контракт",
-                text: "В разделе «План совместной работы» нажмите «Координация». Внизу есть раздел «Контракт миссии» — критерии, записанные до работы: что именно считается готовым.", next: "mission"),
             "mission": HintStep(anchor: HintAnchorID.missionControl, title: "Откройте Mission Control",
-                text: "Нажмите «Mission Control». Здесь видно, что считается готовым по контракту, какая проверка не прошла и кто её закрывал. Сам раздел ничего не меняет — это чтение.", next: "screen"),
+                text: "Когда в плане один оркестратор, в разделе «План совместной работы» вместо «Координации» стоит эта кнопка."),
             "screen": HintStep(anchor: HintAnchorID.missionControlScreen, title: "Что здесь видно",
-                text: "Сверху — итог: сколько критериев пройдено, сколько провалено и сколько не проверяется вживую. Ниже — каждый критерий: номер, чем проверяется, какой шаг его закрыл. Отдельным списком — дыры в покрытии и журнал: кто что проверял и что открылось на доработку.", next: nil)
+                text: "Сверху — как написать оркестратору, ниже — вся его работа по этапам, итог по контракту, кто чем занят и переписка."),
         ])
 
     static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]

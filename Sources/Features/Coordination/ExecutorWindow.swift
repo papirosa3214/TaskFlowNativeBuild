@@ -149,7 +149,7 @@ struct ExecutorWindow: View {
                 if model.unsupported {
                     Section {
                         Text("Сервер пока не знает про сводку исполнителей").tfText(.body)
-                        Text("Обновите TaskFlow на .110 — после выкладки окно покажет, кто чем занимается.").tfText(.meta)
+                        Text("Обновите TaskFlow на .110 — после выкладки окно покажет, кто чем занимается.").tfText(.action)
                     }
                 }
                 if let error = model.error {
@@ -193,8 +193,8 @@ struct ExecutorWindow: View {
     // MARK: - Секции
 
     private func stepSection(_ executor: TaskExecutor) -> some View {
-        Section("Шаг") {
-            Text(executor.title).tfText(.body)
+        TFPlainSection("Этап") {
+            Text(executor.title).tfText(.body).foregroundStyle(Color.tfText)
             HStack(spacing: TFSpacing.sm) {
                 TFPill(executor.stateTitle, color: executor.stateTint)
                 if executor.pendingMessages > 0 {
@@ -204,40 +204,40 @@ struct ExecutorWindow: View {
                     TFPill("Идёт обсуждение", color: .tfPurple)
                 }
             }
-            Text(executor.statusText).tfText(.meta)
+            Text(executor.statusText).tfText(.action)
             if !executor.waitingFor.isEmpty {
-                Text("Ожидает: " + executor.waitingFor.joined(separator: ", ")).tfText(.meta)
+                Text("Ожидает: " + executor.waitingFor.joined(separator: ", ")).tfText(.action)
             }
             if let notes = executor.notes, !notes.isEmpty {
-                Text(notes).tfText(.meta).textSelection(.enabled)
+                Text(notes).tfText(.action).textSelection(.enabled)
             }
         }
     }
 
     private func roleSection(_ executor: TaskExecutor) -> some View {
-        Section("Исполнитель") {
-            LabeledContent("Роль", value: executor.roleTitle ?? "Не назначена")
-            LabeledContent("Состояние", value: executor.stateTitle)
+        TFPlainSection("Исполнитель") {
+            TFInfoRow(label: "Роль", value: executor.roleTitle ?? "Не назначена")
+            TFInfoRow(label: "Состояние", value: executor.stateTitle)
             if let started = executor.attempt.startedAt {
-                LabeledContent("Попытка началась", value: started)
+                TFInfoRow(label: "Попытка началась", value: started)
             }
             if let outcome = executor.attempt.outcome {
-                LabeledContent("Итог попытки", value: outcome)
+                TFInfoRow(label: "Итог попытки", value: outcome)
             }
             if executor.metrics.attemptsInWindow > 0 {
-                LabeledContent("Попыток за окно", value: "\(executor.metrics.attemptsInWindow)")
+                TFInfoRow(label: "Попыток за окно", value: "\(executor.metrics.attemptsInWindow)")
             }
             if executor.addressBlockReason != nil {
-                Text("Написать сейчас нельзя: " + (executor.addressBlockReason ?? "")).tfText(.meta)
+                Text("Написать сейчас нельзя: " + (executor.addressBlockReason ?? "")).tfText(.action)
             }
         }
     }
 
     private func questionsSection(_ executor: TaskExecutor) -> some View {
-        Section("Ждёт вашего ответа") {
+        TFPlainSection("Ждёт вашего ответа") {
             ForEach(executor.questions) { question in
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                    Text(question.roleTitle ?? "Роль").tfText(.meta).foregroundStyle(Color.tfDim)
+                    Text(question.roleTitle ?? "Роль").tfText(.action).foregroundStyle(Color.tfSub)
                     if model.answered.contains(question.id) {
                         TFPill("Отвечено", color: .tfGreen)
                     } else if let payload = question.payload {
@@ -245,7 +245,7 @@ struct ExecutorWindow: View {
                             questionItem(question: question, index: index, item: item)
                         }
                     } else {
-                        Text("Вопрос без вариантов ответа").tfText(.meta)
+                        Text("Вопрос без вариантов ответа").tfText(.action)
                     }
                 }
                 .padding(.vertical, TFSpacing.xs)
@@ -275,7 +275,7 @@ struct ExecutorWindow: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(option.label).tfText(.body)
                             if let description = option.description, !description.isEmpty {
-                                Text(description).tfText(.meta).foregroundStyle(Color.tfDim)
+                                Text(description).tfText(.action).foregroundStyle(Color.tfSub)
                             }
                         }
                         Spacer(minLength: 0)
@@ -292,11 +292,11 @@ struct ExecutorWindow: View {
     }
 
     private func messagesSection(_ executor: TaskExecutor) -> some View {
-        Section("Переписка по шагу") {
+        TFPlainSection("Переписка по этапу") {
             ForEach(executor.messages) { message in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(message.isFromOwner ? "Вы" : (executor.roleTitle ?? "Роль"))
-                        .tfText(.meta)
+                        .tfText(.action)
                         .foregroundStyle(Color.tfDim)
                     Text(message.text).tfText(.body)
                 }
@@ -306,9 +306,9 @@ struct ExecutorWindow: View {
     }
 
     private func composeSection(_ executor: TaskExecutor) -> some View {
-        Section("Написать исполнителю") {
+        TFPlainSection("Написать исполнителю") {
             TFTextField("Что сказать исполнителю", text: $draft, icon: "bubble.left.and.bubble.right")
-            Text("Сообщение уходит в тему задачи и адресуется этому шагу — роль увидит его в своей работе.").tfText(.meta)
+            Text("Сообщение уходит в тему задачи и адресуется этому этапу. Роль увидит его в своей работе.").tfText(.action)
             TFButton(
                 model.sentText.isEmpty ? "Отправить" : "Отправить ещё",
                 icon: "paperplane.fill",
@@ -331,7 +331,7 @@ struct ExecutorWindow: View {
 
     private var taskChatSection: some View {
         Section {
-            Button("Открыть переписку по задаче") {
+            TFActionRow(title: "Открыть переписку по задаче", icon: "bubble.left.and.bubble.right") {
                 Task {
                     if let chat = try? await APIClient().taskTopic(taskID: taskID) {
                         taskChatID = chat.id
