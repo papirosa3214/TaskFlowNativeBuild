@@ -11,6 +11,7 @@ struct ChatRoomsPanel: View {
     let snapshot: ChatRoomsSnapshot?
     let onOpenCommon: () -> Void
     let onOpenRole: (ChatRoomsSnapshot.RoleRoom) -> Void
+    let onOpenGroups: () -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
     /// Вкладку тянут за упор — аватарки растягиваются вместе с ней.
@@ -27,6 +28,13 @@ struct ChatRoomsPanel: View {
                             .accessibilityLabel(label(for: role, in: snapshot))
                             .accessibilityIdentifier("chats.rooms.\(role.id)")
                     }
+                    Button(action: onOpenGroups) {
+                        TFGroupAvatar(identity: "chats.groups", size: ChatEdgeRailMetrics.avatar)
+                            .scaleEffect(1 + stretch)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Групповые чаты")
+                    .accessibilityIdentifier("chats.rooms.groups")
                     // Общая — внизу, под ролями (владелец 21.10.2026).
                     Button(action: onOpenCommon) {
                         TFGroupAvatar(identity: snapshot.common.chatID, size: ChatEdgeRailMetrics.avatar)
