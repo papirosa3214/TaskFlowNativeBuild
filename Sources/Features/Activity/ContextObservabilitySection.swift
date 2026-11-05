@@ -17,6 +17,7 @@ struct ContextObservabilitySection: View {
             if let data {
                 Text("Учёт с \(ContextObservability.dateText(data.trackingSince))")
                     .tfText(.caption).foregroundStyle(Color.tfDim)
+                if let models = data.models { ContextModelsRows(models: models) }
                 ForEach(data.summary) { summary in
                     VStack(alignment: .leading, spacing: 3) {
                         Text("\(summary.kind == "jev" ? "JEV · " : "")\(summary.title)").tfText(.body).foregroundStyle(Color.tfText)
@@ -24,6 +25,12 @@ struct ContextObservabilitySection: View {
                             .tfText(.action).foregroundStyle(Color.tfSub)
                         Text("Время: \(Double(summary.durationMs) / 1000, specifier: "%.2f") с")
                             .tfText(.caption).foregroundStyle(Color.tfDim)
+                        if let note = ContextObservability.note(summary.scenario) {
+                            Text(note).tfText(.caption).foregroundStyle(Color.tfDim)
+                        }
+                        if let last = summary.lastAt {
+                            Text("Последний раз: \(ContextObservability.dateText(last))").tfText(.caption).foregroundStyle(Color.tfDim)
+                        }
                     }
                 }
                 if data.events.isEmpty {

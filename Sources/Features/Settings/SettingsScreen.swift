@@ -427,6 +427,9 @@ struct SettingsScreen: View {
                 navRow(icon: "book.closed", title: "Наблюдатель памяти", route: .memoryObserverSettings)
                     .accessibilityIdentifier("settings-memory-observer")
                 TFDivider(inset: rowDividerInset)
+                navRow(icon: "square.stack.3d.up", title: "Энричеры и модели", route: .contextSources)
+                    .accessibilityIdentifier("settings-context-sources")
+                TFDivider(inset: rowDividerInset)
             }
             navRow(icon: "cpu", title: "Агенты (модели и провайдеры)", route: .runtimeProviders)
             TFDivider(inset: rowDividerInset)

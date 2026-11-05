@@ -91,6 +91,10 @@ public struct CoordinationScreen: View {
                                  description: "Этапы появятся здесь после утверждения плана.")
                 }
                 codeChangesSection
+                if isOwner, let context = board.context {
+                    TaskContextSection(context: context)
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                }
                 chatRow
                 if let updated = state.lastUpdatedAt {
                     Text("Обновлено \(updated.formatted(date: .omitted, time: .shortened))")
@@ -291,7 +295,10 @@ public struct CoordinationScreen: View {
             loadedOnce = true
         }
         await board.load(taskID: taskId, isOwner: isOwner)
-        if isOwner { await board.loadCodeChanges(taskID: taskId) }
+        if isOwner {
+            await board.loadCodeChanges(taskID: taskId)
+            await board.loadContext(taskID: taskId)
+        }
         do {
             let items = try await APIClient().fetchTaskResolutions(taskId: taskId)
             guard !Task.isCancelled else { return }

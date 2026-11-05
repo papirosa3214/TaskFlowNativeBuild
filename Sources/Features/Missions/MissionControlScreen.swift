@@ -54,6 +54,7 @@ final class MissionControlModel {
         timeFetchedAt = Date()
         activity = try? await api.taskActivity(taskId: taskID)
         streams = await loadStreams(taskID: taskID)
+        if isOwner { await board.loadContext(taskID: taskID) }
         loaded = true
     }
 
@@ -392,6 +393,7 @@ struct MissionControlScreen: View {
             worksSection
             contractSection
             if !model.skills.isEmpty { skillsSection }
+            if isOwner, let context = board.context { TaskContextSection(context: context) }
             logSection
             chatSection
         }

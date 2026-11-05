@@ -7,6 +7,14 @@ struct ContextObservability: Decodable, Sendable {
     let events: [Event]
     let summary: [Summary]
     let limit: Int
+    /// Модели контекста. nil — старый сервер.
+    var models: Models? = nil
+
+    struct Models: Decodable, Sendable, Equatable {
+        let embedding: String
+        let jev: String?
+        let observer: String?
+    }
 
     struct Summary: Decodable, Identifiable, Sendable {
         let kind: String
@@ -19,6 +27,7 @@ struct ContextObservability: Decodable, Sendable {
         let durationMs: Int
         let inputCount: Int?
         let outputCount: Int?
+        var lastAt: String? = nil
         var id: String { "\(kind):\(scenario)" }
         var title: String { ContextObservability.title(scenario) }
     }
@@ -42,7 +51,15 @@ struct ContextObservability: Decodable, Sendable {
         let outputTokens: Int?
         let details: [String]
         var title: String { ContextObservability.title(scenario) }
-        var outcome: String {
+        var outcome: String { ContextObservability.outcome(reason: reason, status: status) }
+        var countsText: String? {
+            guard let inputCount, let outputCount else { return nil }
+            if scenario == "taskContext" { return "Контекст: \(outputCount) символов" }
+            if scenario == "repository" { return "Изменённых файлов: \(outputCount)" }
+            return "На входе \(inputCount) → на выходе \(outputCount)"
+        }
+    }
+    static func outcome(reason: String?, status: String) -> String {
             switch reason {
             case "disabled_or_no_key": return "Выключен или ключ не задан"
             case "disabled": return "Сценарий выключен"
@@ -74,12 +91,31 @@ struct ContextObservability: Decodable, Sendable {
                 default: return "Статус неизвестен"
                 }
             }
-        }
-        var countsText: String? {
-            guard let inputCount, let outputCount else { return nil }
-            if scenario == "taskContext" { return "Контекст: \(outputCount) символов" }
-            if scenario == "repository" { return "Изменённых файлов: \(outputCount)" }
-            return "На входе \(inputCount) → на выходе \(outputCount)"
+    }
+    /// Когда срабатывает и что делает источник. Показывается рядом со статистикой.
+    static func note(_ scenario: String) -> String? {
+        switch scenario {
+        case "taskContext": "При запуске этапа: собирает стартовый контекст роли"
+        case "kb": "При запуске этапа: ищет уроки в базе знаний"
+        case "mnemosyne": "При запуске этапа: ищет в рабочей памяти"
+        case "repository": "При запуске этапа: смотрит изменения в ветке"
+        case "dependencies": "При запуске этапа: берёт результаты связанных задач"
+        case "collaboration": "При запуске этапа: берёт артефакты прошлых этапов"
+        case "history": "При запуске этапа: читает ленту задачи"
+        case "teamMemory": "Подбирает записи памяти команды под задачу"
+        case "projectLibrary": "Подбирает заметки проекта под задачу"
+        case "skills": "Модель отбирает навыки под задачу"
+        case "memoryRecall": "Модель отбирает, что из памяти показать роли"
+        case "memoryWrite": "Модель решает, стоит ли запись в памяти"
+        case "thoughtReview": "Модель проверяет ход рассуждений роли"
+        case "reportReview": "Модель проверяет отчёт роли"
+        case "chatIntent": "Модель определяет намерение сообщения в чате"
+        case "planProfile": "Модель выбирает шаблон плана"
+        case "subtaskRole": "Модель подбирает роли для подзадач"
+        case "memory": "Векторы для записи и поиска в памяти"
+        case "taskMatch": "Векторы для подбора задач по смыслу"
+        case "chat": "Векторы для поиска по чату"
+        default: nil
         }
     }
     static func title(_ scenario: String) -> String {
@@ -99,6 +135,14 @@ struct ContextObservability: Decodable, Sendable {
         case "planProfile": "Выбор шаблона плана"
         case "subtaskRole": "Роли для подзадач"
         case "connectionTest": "Проверка подключения"
+        case "thoughtReview": "Проверка хода роли"
+        case "reportReview": "Проверка отчёта"
+        case "chatIntent": "Намерение в чате"
+        case "memory": "Эмбеддинг: память"
+        case "taskMatch": "Эмбеддинг: подбор задач"
+        case "chat": "Эмбеддинг: чат"
+        case "probe": "Эмбеддинг: проверка"
+        case "other": "Эмбеддинг: прочее"
         default: "Другая операция"
         }
     }
@@ -141,3 +185,34 @@ struct JevUsage: Decodable, Sendable {
     }
     var moneyText: String { "Стоимость и баланс провайдером не предоставлены" }
 }
+
+/// Контекст одной задачи: участвовал ли каждый источник, по всей задаче и по этапам.
+struct TaskContextObservability: Decodable, Sendable, Equatable {
+    struct Source: Decodable, Identifiable, Sendable, Equatable {
+        let kind: String
+        let scenario: String
+        let calls: Int
+        let succeeded: Int
+        let skipped: Int
+        let failed: Int
+        let lastAt: String?
+        let lastReason: String?
+        var id: String { "\(kind):\(scenario)" }
+    }
+    struct StageSource: Decodable, Identifiable, Sendable, Equatable {
+        let kind: String
+        let scenario: String
+        let calls: Int
+        let status: String
+        let reason: String?
+        let inputCount: Int?
+        let outputCount: Int?
+        let details: [String]
+        var id: String { "\(kind):\(scenario)" }
+    }
+    let trackingSince: String
+    let models: ContextObservability.Models
+    let summary: [Source]
+    let stages: [String: [StageSource]]
+}
+

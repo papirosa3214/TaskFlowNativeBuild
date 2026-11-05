@@ -109,6 +109,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         JevSettingsScreen()
     case .memoryObserverSettings:
         MemoryObserverSettingsScreen()
+    case .contextSources:
+        ContextSourcesScreen()
     case .runtimeProviders:
         RuntimeProvidersScreen()
     case .providerDetail(let providerID):

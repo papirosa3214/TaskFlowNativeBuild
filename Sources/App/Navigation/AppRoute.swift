@@ -74,6 +74,8 @@ public enum AppRoute: Hashable {
     case jevSettings
     /// Наблюдатель памяти слота: модель и порог (03.11.2026).
     case memoryObserverSettings
+    /// Энричеры и модели: как собирается контекст ролей.
+    case contextSources
     case providerDetail(providerID: String)
     /// LOCK-180: статус Pi Runtime из «Настройки → Сервер».
     case serverSettings

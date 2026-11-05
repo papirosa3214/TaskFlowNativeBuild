@@ -52,6 +52,7 @@ struct CoordinationStageSheet: View {
                     stateSection(stage)
                     workSections(stage)
                     incomingSection(stage, plan: plan)
+                    contextSection(stage)
                     problemSection
                     actionsSection(stage)
                 }
@@ -166,6 +167,18 @@ struct CoordinationStageSheet: View {
                             .lineLimit(4)
                     }
                     .listRowSeparator(.hidden)
+                }
+            }
+        }
+    }
+
+    /// Какие источники контекста сработали на этом этапе, а какие нет.
+    @ViewBuilder
+    private func contextSection(_ stage: CoordinationStage) -> some View {
+        if isOwner, let subtask = stage.subtask, let sources = model.context?.stages[subtask.id], !sources.isEmpty {
+            TFPlainSection("Контекст этапа") {
+                ForEach(sources) { source in
+                    StageContextRow(source: source).listRowSeparator(.hidden)
                 }
             }
         }

@@ -45,6 +45,8 @@ final class CoordinationBoardModel {
     private var childSubtasks: [ApiSubtask] = []
     /// Изменения кода по веткам: своя карточка и дочерние. Пустые не показываем.
     var codeChanges: [TaskCodeChanges] = []
+    /// Что сделали энричеры и эмбеддинги. Только для владельца.
+    var context: TaskContextObservability?
     private var codeChangesLoadedAt: Date?
     private let api = APIClient()
 
@@ -81,6 +83,10 @@ final class CoordinationBoardModel {
             if let changes = try? await api.taskCodeChanges(taskID: id), !changes.isEmpty { loaded.append(changes) }
         }
         if codeChanges != loaded { codeChanges = loaded }
+    }
+
+    func loadContext(taskID: String) async {
+        if let fresh = try? await api.taskContextObservability(taskId: taskID), context != fresh { context = fresh }
     }
 
     func cardTitle(_ taskID: String) -> String? {

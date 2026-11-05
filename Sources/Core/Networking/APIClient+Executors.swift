@@ -9,6 +9,11 @@ import Foundation
 /// `GET /api/coordination/tasks/:id/executors` (PR #53).
 public extension APIClient {
 
+    /// Что сделали энричеры и эмбеддинги по задаче. Только для владельца.
+    internal func taskContextObservability(taskId: String) async throws -> TaskContextObservability {
+        try await request(.get, "/coordination/tasks/\(taskId)/context-observability")
+    }
+
     /// `GET /api/coordination/tasks/:id/executors` — сводка по исполнителям.
     func taskExecutorSummary(taskId: String) async throws -> TaskExecutorSummary {
         try await request(.get, "/coordination/tasks/\(taskId)/executors")
