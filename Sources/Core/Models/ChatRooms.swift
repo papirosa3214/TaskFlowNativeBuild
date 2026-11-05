@@ -64,17 +64,6 @@ public struct ChatRoomsSnapshot: Decodable, Sendable {
 
         /// Живые лички роли — по ним горит облачко.
         public var liveDMs: [DirectRoom] { dms.filter(\.live) }
-
-        /// Итог для аватарки роли в боковой панели (владелец 27.10.2026): в
-        /// какой-то из её комнат ход кончился, а владелец туда не заходил.
-        /// Важнее то, что требует внимания: лимит, потом сбой, потом ответ.
-        public var pendingOutcome: RoomTurn.Outcome? {
-            let outcomes = ([personalTurn] + dms.map(\.turn)).compactMap { $0?.outcome }
-            for outcome in [RoomTurn.Outcome.limit, .failed, .answered] where outcomes.contains(outcome) {
-                return outcome
-            }
-            return nil
-        }
     }
 
     public struct DirectRoom: Decodable, Identifiable, Sendable {
@@ -112,28 +101,18 @@ public struct ChatRoomsSnapshot: Decodable, Sendable {
     }
 }
 
-/// Ход роли в комнате для строки списка (владелец 27.10.2026): идёт ход —
-/// аватарка играет ролик; после хода точка — ответила, отвалилась или
-/// кончился лимит. Итог сервер гасит сам, когда владелец открыл комнату.
+/// Ход роли в комнате для строки списка (владелец 27.10.2026): идёт сейчас или нет.
 public struct RoomTurn: Decodable, Sendable, Equatable {
-    public enum Outcome: String, Sendable, Equatable {
-        case answered, failed, limit
-    }
-
     public let running: Bool
-    /// `nil` — итога нет или сервер прислал незнакомый.
-    public let outcome: Outcome?
 
-    public init(running: Bool, outcome: Outcome?) {
+    public init(running: Bool) {
         self.running = running
-        self.outcome = outcome
     }
 
-    enum CodingKeys: String, CodingKey { case running, outcome }
+    enum CodingKeys: String, CodingKey { case running }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         running = try c.decodeIfPresent(Bool.self, forKey: .running) ?? false
-        outcome = try c.decodeIfPresent(String.self, forKey: .outcome).flatMap(Outcome.init(rawValue:))
     }
 }

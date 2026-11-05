@@ -9,41 +9,25 @@ final class RoomTurnTests: XCTestCase {
         try JSONDecoder().decode(type, from: Data(json.utf8))
     }
 
-    func testOutcomesDecode() throws {
-        XCTAssertEqual(try decode(RoomTurn.self, #"{"running":true,"outcome":null}"#), RoomTurn(running: true, outcome: nil))
-        XCTAssertEqual(try decode(RoomTurn.self, #"{"running":false,"outcome":"answered"}"#).outcome, .answered)
-        XCTAssertEqual(try decode(RoomTurn.self, #"{"running":false,"outcome":"failed"}"#).outcome, .failed)
-        XCTAssertEqual(try decode(RoomTurn.self, #"{"running":false,"outcome":"limit"}"#).outcome, .limit)
+    func testRunningDecodes() throws {
+        XCTAssertEqual(try decode(RoomTurn.self, #"{"running":true}"#), RoomTurn(running: true))
+        XCTAssertEqual(try decode(RoomTurn.self, #"{"running":false}"#), RoomTurn(running: false))
     }
 
-    func testUnknownOutcomeIsNoDot() throws {
-        XCTAssertNil(try decode(RoomTurn.self, #"{"running":false,"outcome":"something_new"}"#).outcome)
+    func testOldServerFieldOutcomeIsIgnored() throws {
+        XCTAssertEqual(try decode(RoomTurn.self, #"{"running":false,"outcome":"limit"}"#), RoomTurn(running: false))
     }
 
     func testRoomsSnapshotCarriesTurns() throws {
         let snapshot = try decode(ChatRoomsSnapshot.self, #"""
         {"common":{"chat_id":"common","live":false,"last_message":null},
          "roles":[{"id":"u-secretary","name":"Помощник","working":true,"personal_chat_id":"chat-secretary",
-           "personal_turn":{"running":true,"outcome":null},"last_message":null,
+           "personal_turn":{"running":true},"last_message":null,
            "dms":[{"chat_id":"dm1","peer_id":"role_qa","pair":"a:b","live":false,"last_message":null,
-             "turn":{"running":false,"outcome":"limit"}}]}]}
+             "turn":{"running":false}}]}]}
         """#)
-        XCTAssertEqual(snapshot.roles[0].personalTurn, RoomTurn(running: true, outcome: nil))
-        XCTAssertEqual(snapshot.roles[0].dms[0].turn?.outcome, .limit)
-    }
-
-    func testRolePendingOutcomeTakesMostUrgentAcrossRooms() throws {
-        let snapshot = try decode(ChatRoomsSnapshot.self, #"""
-        {"common":{"chat_id":"common","live":false,"last_message":null},
-         "roles":[{"id":"u-secretary","name":"Помощник","working":false,"personal_chat_id":"chat-secretary",
-           "personal_turn":{"running":false,"outcome":"answered"},"last_message":null,
-           "dms":[{"chat_id":"dm1","peer_id":"role_qa","pair":"a:b","live":false,"last_message":null,"turn":{"running":false,"outcome":"failed"}},
-                  {"chat_id":"dm2","peer_id":"role_x","pair":"a:c","live":false,"last_message":null,"turn":{"running":false,"outcome":null}}]},
-          {"id":"role_qa","name":"Тестировщик","working":false,"personal_chat_id":"p2",
-           "personal_turn":{"running":false,"outcome":null},"last_message":null,"dms":[]}]}
-        """#)
-        XCTAssertEqual(snapshot.roles[0].pendingOutcome, .failed)
-        XCTAssertNil(snapshot.roles[1].pendingOutcome)
+        XCTAssertEqual(snapshot.roles[0].personalTurn, RoomTurn(running: true))
+        XCTAssertEqual(snapshot.roles[0].dms[0].turn, RoomTurn(running: false))
     }
 
     func testOldServerWithoutTurnStillDecodes() throws {

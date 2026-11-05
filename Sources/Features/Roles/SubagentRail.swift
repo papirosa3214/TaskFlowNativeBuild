@@ -6,7 +6,6 @@ struct SubagentRailItem: Identifiable {
     let id: String
     let member: RoleChatMember
     let working: Bool
-    let outcome: RoomTurn.Outcome?
 
     /// Субагенты чата из карточек обращений: одна комната — один портрет,
     /// в порядке первого вызова. Обращения без своей комнаты не показываются.
@@ -22,19 +21,9 @@ struct SubagentRailItem: Identifiable {
                                   avatarColor: nil, avatarURL: nil, initials: nil, roleKey: nil)
             if byRoom[room] == nil { order.append(room) }
             byRoom[room] = SubagentRailItem(id: room, member: member,
-                                            working: !coordination.terminal,
-                                            outcome: outcome(of: coordination))
+                                            working: !coordination.terminal)
         }
         return order.compactMap { byRoom[$0] }
-    }
-
-    private static func outcome(of coordination: RoleChatCoordination) -> RoomTurn.Outcome? {
-        guard coordination.terminal else { return nil }
-        switch coordination.status {
-        case "answered": return .answered
-        case "error": return .failed
-        default: return nil
-        }
     }
 }
 
@@ -44,9 +33,7 @@ struct SubagentRailPanel: View {
     let items: [SubagentRailItem]
     let onOpen: (SubagentRailItem) -> Void
 
-    @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
     @Environment(\.chatEdgeRailStretch) private var stretch
-    private var avatarSide: CGFloat { (ChatEdgeRailMetrics.avatar.rawValue * scalePercent / 100).rounded() }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -66,17 +53,11 @@ struct SubagentRailPanel: View {
     private func avatar(_ item: SubagentRailItem) -> some View {
         RoleMemberAvatar(member: item.member, size: ChatEdgeRailMetrics.avatar)
             .environment(\.tfAvatarLiveTurn, item.working)
-            .overlay(alignment: .bottomTrailing) {
-                if !item.working, let outcome = item.outcome {
-                    RoomTurnOutcomeDot(outcome: outcome, diameter: avatarSide * 0.26, ringed: true)
-                }
-            }
     }
 
     private func label(for item: SubagentRailItem) -> String {
         var parts = [item.member.name]
         if item.working { parts.append("работает") }
-        else if let outcome = item.outcome { parts.append(RoomTurnOutcomeDot(outcome: outcome).label) }
         return parts.joined(separator: ", ")
     }
 }

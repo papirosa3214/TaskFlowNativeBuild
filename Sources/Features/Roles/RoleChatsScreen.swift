@@ -450,7 +450,7 @@ struct ChatListRow: View {
     let unread: Int
     /// Название задачи, за которой закреплён чат (`nil` — свободный).
     var taskTitle: String?
-    /// Ход роли в комнате: идёт — аватарка играет ролик; после — точка итога.
+    /// Ход роли в комнате: идёт — аватарка играет ролик.
     var turn: RoomTurn? = nil
     /// Занятый контекст сессии, например «Контекст 42%».
     var contextLabel: String? = nil
@@ -506,10 +506,7 @@ struct ChatListRow: View {
                         .tfText(.meta)
                         .foregroundStyle(Color.tfDim)
                 }
-                HStack(spacing: TFSpacing.xs) {
-                    if let outcome = turn?.outcome { RoomTurnOutcomeDot(outcome: outcome) }
-                    if unread > 0 { badge }
-                }
+                if unread > 0 { badge }
             }
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)

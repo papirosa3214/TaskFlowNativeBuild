@@ -47,14 +47,13 @@ final class SubagentRailTests: XCTestCase {
         XCTAssertTrue(items.isEmpty)
     }
 
-    func testFinishedCallShowsOutcome() throws {
+    func testFinishedCallIsNotWorking() throws {
         let answered = SubagentRailItem.items(messages: [try message(id: "c1", room: "r1", status: "answered", terminal: true)],
                                               members: [], chatID: "chat")
         XCTAssertEqual(answered.first?.working, false)
-        XCTAssertEqual(answered.first?.outcome, .answered)
         let failed = SubagentRailItem.items(messages: [try message(id: "c2", room: "r2", status: "error", terminal: true)],
                                             members: [], chatID: "chat")
-        XCTAssertEqual(failed.first?.outcome, .failed)
+        XCTAssertEqual(failed.first?.working, false)
     }
 
     func testRoomsKeepOrderOfFirstCall() throws {
@@ -63,6 +62,6 @@ final class SubagentRailTests: XCTestCase {
                                                       try message(id: "c3", room: "r1", status: "answered", terminal: true)],
                                            members: [], chatID: "chat")
         XCTAssertEqual(items.map(\.id), ["r1", "r2"])
-        XCTAssertEqual(items.first?.outcome, .answered)
+        XCTAssertEqual(items.first?.working, false)
     }
 }

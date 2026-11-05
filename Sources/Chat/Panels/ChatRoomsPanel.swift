@@ -69,19 +69,11 @@ struct ChatRoomsPanel: View {
                     RoomLinkBadge(colors: links.map { RoomLinkPalette.color(for: $0.pair) }, side: avatarSide)
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
-                // Точка — в какой-то комнате роли ход кончился, а владелец
-                // туда не заходил: зайти в её список и посмотреть.
-                if !role.working, let outcome = role.pendingOutcome {
-                    RoomTurnOutcomeDot(outcome: outcome, diameter: avatarSide * 0.26, ringed: true)
-                }
-            }
     }
 
     private func label(for role: ChatRoomsSnapshot.RoleRoom, in snapshot: ChatRoomsSnapshot) -> String {
         var parts = [role.name]
         if role.working { parts.append("работает") }
-        else if let outcome = role.pendingOutcome { parts.append(RoomTurnOutcomeDot(outcome: outcome).label) }
         let peers = role.liveDMs.compactMap { snapshot.role($0.peerID)?.name }
         if !peers.isEmpty { parts.append("на связи с: " + peers.joined(separator: ", ")) }
         return parts.joined(separator: ", ")
