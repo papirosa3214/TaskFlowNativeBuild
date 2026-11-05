@@ -127,36 +127,3 @@ struct ProjectTopicsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 }
-
-struct ProjectChatPicker: View {
-    let onCreated: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var projects: [ApiProject] = []
-    @State private var errorMessage: String?
-    private let api = APIClient()
-    var body: some View {
-        NavigationStack {
-            List {
-                TFErrorBanner(errorMessage.map { _ in "Не удалось открыть группу" }, variant: .block)
-                ForEach(projects) { project in
-                    Button(project.name) {
-                        Task {
-                            do {
-                                _ = try await api.projectChat(projectID: project.id)
-                                onCreated()
-                                dismiss()
-                            } catch { errorMessage = error.localizedDescription }
-                        }
-                    }
-                }
-            }
-            .tint(Color.tfText)
-            .navigationTitle("Группа проекта")
-            .toolbar { Button("Закрыть") { dismiss() } }
-            .task {
-                do { projects = try await api.projects() }
-                catch { errorMessage = error.localizedDescription }
-            }
-        }
-    }
-}

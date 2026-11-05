@@ -3,13 +3,11 @@ import SwiftUI
 /// Содержимое панели «Комнаты» в корне раздела «Чаты» (владелец 21.10.2026,
 /// схема `docs/2026-10-21-chats-rooms-and-sessions.md` в New-Todoist).
 ///
-/// Сверху Общая, ниже все роли: личная комната каждой с владельцем и её
-/// лички с коллегами. Пока две роли переписываются, у обеих горит облачко
+/// Все роли и пункт «Групповые чаты», куда входит и Общая. Пока две роли переписываются, у обеих горит облачко
 /// одного цвета — цвет берётся от ключа пары, поэтому одинаков на обоих
 /// концах. Зелёная точка — роль прямо сейчас делает ход.
 struct ChatRoomsPanel: View {
     let snapshot: ChatRoomsSnapshot?
-    let onOpenCommon: () -> Void
     let onOpenRole: (ChatRoomsSnapshot.RoleRoom) -> Void
     let onOpenGroups: () -> Void
 
@@ -35,18 +33,6 @@ struct ChatRoomsPanel: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Групповые чаты")
                     .accessibilityIdentifier("chats.rooms.groups")
-                    // Общая — внизу, под ролями (владелец 21.10.2026).
-                    Button(action: onOpenCommon) {
-                        TFGroupAvatar(identity: snapshot.common.chatID, size: ChatEdgeRailMetrics.avatar)
-                            .scaleEffect(1 + stretch)
-                            .overlay(alignment: .topTrailing) {
-                                if snapshot.common.live { RoomLinkBadge(colors: [Color.tfTeal], side: avatarSide) }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(snapshot.common.live ? "Общая комната, идёт разговор" : "Общая комната")
-                    .accessibilityIdentifier("chats.rooms.common")
-
                 } else {
                     TFLoading(.block)
                 }

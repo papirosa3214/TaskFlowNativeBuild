@@ -62,7 +62,7 @@ public struct RoleSessionCandidate: Sendable {
 }
 
 /// Сессии выбранного пункта панели: плоско, свежие сверху (владелец 05.11.2026).
-/// Общая, лички ролей и группы проектов живут в своих местах и сюда не входят.
+/// Общая и чаты проектов — в «Групповых»; лички ролей сюда не входят.
 public enum RoleSessionList {
     public static func select(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope) -> [String] {
         candidates
@@ -79,9 +79,8 @@ public enum RoleSessionList {
     }
 
     private static func belongs(_ chat: RoleSessionCandidate, to scope: RoleSessionScope) -> Bool {
-        if chat.roomKind == "common" || chat.roomKind == "dm" { return false }
-        if chat.parentChatID == nil && chat.projectID != nil { return false }
-        let isGroup = chat.kind == "group" || chat.otherMemberIDs.count > 1
+        if chat.roomKind == "dm" { return false }
+        let isGroup = chat.roomKind == "common" || chat.kind == "group" || chat.otherMemberIDs.count > 1
         switch scope {
         case .groups: return isGroup
         case .role(let id): return !isGroup && chat.otherMemberIDs == [id]

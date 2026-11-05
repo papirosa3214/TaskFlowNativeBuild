@@ -36,12 +36,17 @@ final class RoleSessionListTests: XCTestCase {
         XCTAssertEqual(RoleSessionList.select(list, scope: .groups), ["topic", "two", "old"])
     }
 
-    func testCommonRoleDmAndProjectGroupsStayOutOfSessions() {
+    func testCommonAndProjectChatsLiveInGroups() {
         let list = [
-            item("common", others: ["a", "b"], kind: "group", room: "common"),
-            item("dm", others: ["a"], room: "dm"),
-            item("project", others: ["a", "b"], kind: "group", project: "p"),
+            item("common", others: ["a", "b"], kind: "group", room: "common", last: "2026-11-02 01:00:00"),
+            item("project", others: ["a", "b"], kind: "group", project: "p", last: "2026-11-03 01:00:00"),
         ]
+        XCTAssertEqual(RoleSessionList.select(list, scope: .groups), ["project", "common"])
+        XCTAssertEqual(RoleSessionList.select(list, scope: .role("a")), [])
+    }
+
+    func testRoleDmStaysOutOfSessions() {
+        let list = [item("dm", others: ["a"], room: "dm")]
         XCTAssertEqual(RoleSessionList.select(list, scope: .groups), [])
         XCTAssertEqual(RoleSessionList.select(list, scope: .role("a")), [])
     }
