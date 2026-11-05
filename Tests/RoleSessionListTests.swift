@@ -95,6 +95,18 @@ final class RoleSessionListTests: XCTestCase {
         XCTAssertNil(RoleSessionList.projectGroupID(chatID: "s", parentChatID: nil, projectID: nil))
     }
 
+    func testOnlyNumberedSlotsOfTheRoleBecomeMentions() throws {
+        let raw = #"""
+        [{"subtask_id":"a","role_id":"role_builder","label":"Разработчик 1","state":"blocked"},
+         {"subtask_id":"b","role_id":"role_builder","label":"Разработчик 2","state":null},
+         {"subtask_id":"c","role_id":"role_qa","label":"Тестировщик","state":null}]
+        """#
+        let slots = try JSONDecoder().decode([RoleChatSlot].self, from: Data(raw.utf8))
+        XCTAssertEqual(RoleChatSlot.numbered(for: "role_builder", in: slots).map(\.label), ["Разработчик 1", "Разработчик 2"])
+        XCTAssertEqual(RoleChatSlot.numbered(for: "role_qa", in: slots), [])
+        XCTAssertEqual(RoleChatSlot.numbered(for: "role_builder", in: nil), [])
+    }
+
     func testScopeSurvivesStorageRoundTrip() {
         XCTAssertEqual(RoleSessionScope(stored: RoleSessionScope.groups.stored), .groups)
         XCTAssertEqual(RoleSessionScope(stored: RoleSessionScope.role("u-secretary").stored), .role("u-secretary"))

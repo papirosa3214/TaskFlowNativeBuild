@@ -1516,7 +1516,7 @@ struct RoleChatRoomScreen: View {
                     // Вдвоём выбирать не из кого — кнопка появляется, когда
                     // участников больше двух (владелец 14.10.2026).
                     mentionCandidates: chat.members.count > 2
-                        ? chat.members.filter { $0.id != session.currentUser?.id } : [],
+                        ? chat.mentionMembers(excluding: session.currentUser?.id) : [],
                     isResponding: !liveTurns.isEmpty || !typists.isEmpty,
                     isStopping: isStopping,
                     onStop: { Task { await stopTurns() } },
@@ -2794,6 +2794,7 @@ struct RoleChatRoomScreen: View {
                 // (владелец 14.10.2026: «приходит только виджет»).
                 if !message.text.isEmpty || message.roleEnvelopeJSON != nil {
                     roleMessageContent(message, allowsCommands: session.currentUser?.role == .owner && !isSelecting)
+                .environment(\.continueSlotPlan, slotContinueAction(for: message))
                 }
                 if let handoff = message.handoff {
                     ChatHandoffCard(handoff: handoff)
@@ -2943,6 +2944,7 @@ struct RoleChatRoomScreen: View {
                     } else {
                         // В группе ответ роли использует тот же разбор контракта.
                         roleMessageContent(message, allowsCommands: session.currentUser?.role == .owner && !isSelecting)
+                .environment(\.continueSlotPlan, slotContinueAction(for: message))
                     }
                 }
                 if let handoff = message.handoff {
@@ -3040,6 +3042,13 @@ struct RoleChatRoomScreen: View {
             nearBottom: chatIsNearBottom,
             closedTurnMessageIDs: closedTurnMessageIDs
         )
+    }
+
+    /// Кнопка «Продолжить» под планом: только пока слот заблокирован.
+    private func slotContinueAction(for message: RoleChatMessage) -> (@MainActor @Sendable () async throws -> Void)? {
+        guard message.slotResumable == true else { return nil }
+        let chatID = chat.id, messageID = message.id, client = api
+        return { try await client.continueSlot(chatID: chatID, messageID: messageID) }
     }
 
     @ViewBuilder
@@ -3496,7 +3505,7 @@ struct RoleChatRoomScreen: View {
     /// начала имени, потом по вхождению.
     private var mentionCandidates: [RoleChatMember] {
         guard !isSelecting, let query = mentionQuery?.lowercased() else { return [] }
-        let others = chat.members.filter { $0.id != session.currentUser?.id }
+        let others = chat.mentionMembers(excluding: session.currentUser?.id)
         guard !query.isEmpty else { return others }
         let matching = others.filter { $0.name.lowercased().contains(query) }
         return matching.filter { $0.name.lowercased().hasPrefix(query) }

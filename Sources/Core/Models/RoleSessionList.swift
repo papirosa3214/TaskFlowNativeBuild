@@ -39,6 +39,26 @@ public struct RoleChatContextUsage: Decodable, Equatable, Sendable {
     public var label: String? { percent.map { "Контекст \($0)%" } }
 }
 
+/// Слот задачи в чате: несколько слотов одной роли различаются номером.
+public struct RoleChatSlot: Decodable, Equatable, Sendable {
+    public let subtaskID: String
+    public let roleID: String
+    public let label: String
+    public let state: String?
+
+    enum CodingKeys: String, CodingKey {
+        case subtaskID = "subtask_id"
+        case roleID = "role_id"
+        case label, state
+    }
+
+    /// Слоты роли с номером. Единственный слот роли адресуется по её имени.
+    public static func numbered(for roleID: String, in slots: [RoleChatSlot]?) -> [RoleChatSlot] {
+        let own = (slots ?? []).filter { $0.roleID == roleID }
+        return own.count > 1 ? own : []
+    }
+}
+
 /// Данные чата, которые решают, в какой список он попадёт.
 public struct RoleSessionCandidate: Sendable {
     public let id: String

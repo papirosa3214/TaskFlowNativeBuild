@@ -207,7 +207,9 @@ struct RoleReplyMarkdown: View, Equatable {
             }
             .fixedSize(horizontal: false, vertical: true)
         case .codeBlock(let language):
-            if allowsCommands && fade == nil && language?.lowercased() == "bash" {
+            if language?.lowercased() == "plan" {
+                ResolutionPlanBlock(plan: block.runs.map(\.text).joined())
+            } else if allowsCommands && fade == nil && language?.lowercased() == "bash" {
                 BashCommandBlock(command: block.runs.map(\.text).joined())
                     .id(block.runs.map(\.text).joined())
             } else {

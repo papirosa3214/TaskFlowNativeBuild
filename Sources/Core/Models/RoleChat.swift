@@ -42,6 +42,8 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     public var turn: RoomTurn? = nil
     /// Занятое окно контекста сессии (05.11.2026). Старый сервер поля не шлёт.
     public var contextUsage: RoleChatContextUsage? = nil
+    /// Слоты задачи этого чата с подписями «Разработчик 1», «Разработчик 2».
+    public var slots: [RoleChatSlot]? = nil
 
     /// Постоянная комната: живёт в панели «Комнаты», а не в списке сессий.
     public var isPermanentRoom: Bool { roomKind == "personal" || roomKind == "dm" || roomKind == "common" }
@@ -62,6 +64,7 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case closedAt = "closed_at"
         case turn
         case contextUsage = "context_usage"
+        case slots
     }
 
     public var unread: Int { unreadCount ?? 0 }
@@ -208,6 +211,8 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// 21842242): клиент их шлёт, сервер хранит и отдаёт и клиенту, и роли.
     /// Пустой массив — отметок не было, сам блок виджета остаётся в тексте.
     public var checklistState: [ChecklistItemState]? = nil
+    /// Под планом решения можно нажать «Продолжить»: слот заблокирован.
+    public var slotResumable: Bool? = nil
     public var handoff: RoleChatHandoff? = nil
     public var coordination: RoleChatCoordination? = nil
     /// Чип наблюдателя памяти (сервер с 03.11.2026): тихая метка «Память обновлена».
@@ -271,6 +276,7 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case id, text, kind, attachments, steps, reactions, sequence, handoff, coordination
         case memoryUpdate = "memory_update"
         case checklistState = "checklist_state"
+        case slotResumable = "slot_resumable"
         case roleEnvelope = "role_envelope"
         case chatID = "chat_id"
         case fromUserID = "from_user_id"
@@ -1017,6 +1023,17 @@ extension RoleChat {
     /// карточку, а режим по умолчанию в его комнате остаётся «в чате».
     var composerExecutionMode: ChatExecutionMode { executionMode }
     /// Настройки (модель, папка, режим) есть только у личного чата без задачи.
+    /// Кому можно написать через «@»: роль с несколькими слотами идёт по номерам.
+    func mentionMembers(excluding userID: String?) -> [RoleChatMember] {
+        others(excluding: userID).flatMap { member -> [RoleChatMember] in
+            let numbered = RoleChatSlot.numbered(for: member.id, in: slots)
+            guard !numbered.isEmpty else { return [member] }
+            return numbered.map {
+                RoleChatMember(id: member.id + ":" + $0.subtaskID, name: $0.label, avatarColor: member.avatarColor,
+                               avatarURL: member.avatarURL, initials: member.initials, roleKey: member.roleKey)
+            }
+        }
+    }
     var hasOwnSettings: Bool { taskID == nil && kind != "group" && composerRoleKeys.count == 1 }
 }
 
