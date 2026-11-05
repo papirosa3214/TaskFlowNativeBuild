@@ -16,9 +16,8 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     public let taskID: String?
     public let projectID: String?
     public let parentChatID: String?
-    public var storedExecutionMode: ChatExecutionMode? = nil
     public var executionMode: ChatExecutionMode {
-        ChatExecutionMode.resolve(stored: storedExecutionMode, taskID: taskID, parentChatID: parentChatID)
+        ChatExecutionMode.resolve(taskID: taskID)
     }
     public let members: [RoleChatMember]
     public let lastMessage: RoleChatPreview?
@@ -55,7 +54,6 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case taskID = "task_id"
         case projectID = "project_id"
         case parentChatID = "parent_chat_id"
-        case storedExecutionMode = "execution_mode"
         case lastMessage = "last_message"
         case unreadCount = "unread_count"
         case taskTitle = "task_title"
@@ -1018,6 +1016,8 @@ extension RoleChat {
     /// жёсткий `.chat`; владелец это отменил: Помощник тоже умеет вести
     /// карточку, а режим по умолчанию в его комнате остаётся «в чате».
     var composerExecutionMode: ChatExecutionMode { executionMode }
+    /// Настройки (модель, папка, режим) есть только у личного чата без задачи.
+    var hasOwnSettings: Bool { taskID == nil && kind != "group" && composerRoleKeys.count == 1 }
 }
 
 

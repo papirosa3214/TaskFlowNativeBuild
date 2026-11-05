@@ -18,7 +18,9 @@ public enum ChatExecutionMode: String, Codable, CaseIterable, Sendable {
             : "Работа по карточке: роль ведёт задачу и меняет её состояние"
     }
 
-    public static func resolve(stored: Self?, taskID: String?, parentChatID: String?) -> Self {
-        stored ?? (taskID != nil && parentChatID != nil ? .card : .chat)
+    /// Правило владельца (05.11.2026): способ не выбирается. Чат с задачей работает
+    /// по карточке, любой другой — в чате.
+    public static func resolve(taskID: String?) -> Self {
+        taskID != nil ? .card : .chat
     }
 }

@@ -262,33 +262,6 @@ final class HintCenterTests: XCTestCase {
         center.next()
         XCTAssertTrue(center.completed.contains("ai-usage"))
     }
-
-    func testRoleLoadCollapseHintCompletes() {
-        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleLoadRows])
-        center.start("role-load-rows")
-        XCTAssertEqual(center.active?.step, "collapse")
-        XCTAssertEqual(HintScenarios.roleLoadRows.steps["collapse"]?.anchor, HintAnchorID.roleLoadRows)
-        center.next()
-        XCTAssertTrue(center.completed.contains("role-load-rows"))
-    }
-    func testRoleBehaviorHintExplainsSaveAndApplySeparately() {
-        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.roleBehavior])
-        center.isEnabled = true
-        center.report(anchor: HintAnchorID.roleBehavior, frame: frame)
-        XCTAssertEqual(center.active?.step, "templates")
-        XCTAssertTrue(center.currentStep?.text.contains("Сохранить шаблон") == true)
-        XCTAssertTrue(center.currentStep?.text.contains("Применить личность") == true)
-        center.next()
-        XCTAssertTrue(center.completed.contains("role-behavior"))
-    }
-    func testChatExecutionModeHintCompletes() {
-        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.chatExecutionMode])
-        center.isEnabled = true
-        center.report(anchor: HintAnchorID.chatExecutionMode, frame: frame)
-        XCTAssertEqual(center.active?.step, "choose")
-        center.next()
-        XCTAssertTrue(center.completed.contains("chat-execution-mode"))
-    }
     func testNoteMarkdownEditingHintCompletes() {
         let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.noteMarkdownEditing])
         center.isEnabled = true

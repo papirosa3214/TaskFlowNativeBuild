@@ -96,12 +96,6 @@ public extension APIClient {
         return response.chat
     }
 
-    func setChatExecutionMode(chatID: String, mode: ChatExecutionMode) async throws -> RoleChat {
-        struct Body: Encodable { let execution_mode: ChatExecutionMode }
-        let response: RoleChatEnvelope = try await request(.post, "/chats/\(chatID)/execution-mode", body: Body(execution_mode: mode))
-        return response.chat
-    }
-
     func roleChat(id: String) async throws -> RoleChat {
         let response: RoleChatEnvelope = try await request(.get, "/chats/\(id)")
         return response.chat

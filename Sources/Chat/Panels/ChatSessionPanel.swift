@@ -13,30 +13,16 @@ struct ChatSessionPanel: View {
     let controls: ChatComposerControlStore
     let isWorking: Bool
     let onRefresh: () async -> Void
-    let onRename: (String) async -> Void
-    let onNewSession: () -> Void
-    let onCompact: () async -> Void
-    let onResetContext: () async -> Void
-    let onClose: () async -> Void
     var onAttachmentSource: ((ChatAttachmentSource) -> Void)? = nil
     var workMode: Binding<RoleChatWorkMode>? = nil
-    var executionMode: Binding<ChatExecutionMode>? = nil
-    var canChangeExecutionMode: Bool = true
     var chatRoles: [String] = []
     @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
     @State private var showsContext = false
     @State private var showsModelPicker = false
-    @State private var confirmsReset = false
-    @State private var actionRunning = false
 
     private var workModes: [RoleChatWorkMode] {
         ChatSessionWorkModePolicy.allModes
     }
-
-    /// В групповых чатах один способ работы — по карточке: выбирать нечего, а
-    /// действия над чатом есть в верхнем меню (владелец 05.11.2026).
-    private var isGroup: Bool { chat.kind == "group" || chatRoles.count > 1 }
 
     private var allowsResearch: Bool {
         ChatSessionWorkModePolicy.allowsResearch(roles: chatRoles)
@@ -48,15 +34,6 @@ struct ChatSessionPanel: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                    sessionCard {
-                        TextField("Название", text: $title)
-                            .tfText(.input)
-                            .foregroundStyle(Color.tfText)
-                            .padding(.horizontal, TFSpacing.md)
-                            .padding(.vertical, 10)
-                            .onSubmit { Task { await onRename(title) } }
-                    }
-
                     sessionBlock(title: "Модель") {
                         sessionCard {
                             sessionButton(showsModelPicker = true) {
@@ -129,22 +106,7 @@ struct ChatSessionPanel: View {
                         }
                     }
 
-                    if !isGroup, let executionMode {
-                        // Пояснение — вопросик у заголовка, как в рутинах
-                        // (владелец 03.11.2026: не «здоровые» подписи под плитками).
-                        sessionBlock(
-                            title: "Способ выполнения",
-                            hint: "В чате — ответы остаются в этом разговоре. Роль не создаёт подзадачи и не меняет карточку сама.\n\nПо карточке — роль ведёт задачу: дробит шаги, отмечает прогресс и обновляет состояние карточки."
-                        ) {
-                            HStack(spacing: TFSpacing.xs) {
-                                ForEach(ChatExecutionMode.allCases, id: \.self) { mode in
-                                    executionModeBlock(mode, selection: executionMode)
-                                }
-                            }
-                        }
-                    }
-
-                    if !isGroup, let workMode {
+                    if let workMode {
                         sessionBlock(
                             title: "Режим работы",
                             hint: "Работа — обычное выполнение поручения.\n\nПланирование — сначала собирает план шагов, без спешки к итогу.\n\nЦель — держит фокус на результате: что должно получиться.\n\nИсследование — глубокий поиск и разбор (у Исследователя и Помощника)."
@@ -160,45 +122,13 @@ struct ChatSessionPanel: View {
                         }
                     }
 
-                    if !isGroup {
-                        sessionBlock(
-                            title: "Настройки сессии",
-                            hint: "Новая сессия — отдельный разговор с чистым контекстом.\n\nСжать контекст — ужать историю, чтобы освободить место в окне модели.\n\nСбросить контекст — сообщения остаются на экране, модель начинает новый контекст.\n\nЗакрыть сессию — убрать разговор из списка, если он не постоянный."
-                        ) {
-                            sessionCard {
-                                sessionAction("Новая сессия", symbol: "plus.bubble") {
-                                    dismiss()
-                                    onNewSession()
-                                }
-                                sessionDivider()
-                                sessionAction("Сжать контекст",
-                                              symbol: "arrow.down.right.and.arrow.up.left") {
-                                    Task { await perform(onCompact) }
-                                }
-                                sessionDivider()
-                                sessionAction("Сбросить контекст", symbol: "arrow.counterclockwise") {
-                                    confirmsReset = true
-                                }
-                                if !chat.isPermanentRoom {
-                                    sessionDivider()
-                                    sessionAction("Закрыть сессию", symbol: "archivebox") {
-                                        Task { await perform(onClose); dismiss() }
-                                    }
-                                }
-                            }
-                        }
-                        Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю.")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
-                            .padding(.horizontal, TFSpacing.xs)
-                    }
                 }
                 .padding(.horizontal, TFSpacing.lg)
                 .padding(.vertical, TFSpacing.sm)
             }
             .tfScreenBackground()
             .tint(.primary)
-            .disabled(choice.isSaving || actionRunning)
+            .disabled(choice.isSaving)
             // Без заголовка и кнопки: шторка закрывается свайпом (владелец 05.11.2026).
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showsContext) {
@@ -209,17 +139,9 @@ struct ChatSessionPanel: View {
                 ChatModelPickerSheet(choice: choice)
                     .environment(\.tfTypeSettingsEnabled, true)
             }
-            .confirmationDialog("Сбросить контекст этой сессии?",
-                                isPresented: $confirmsReset, titleVisibility: .visible) {
-                Button("Сбросить контекст") { Task { await perform(onResetContext) } }
-                Button("Отмена", role: .cancel) {}
-            } message: {
-                Text("История останется в чате. Помощник начнёт новый контекст.")
-            }
         }
         // Шторка сессии — не лента чата: снова включаем шкалу из настроек.
         .environment(\.tfTypeSettingsEnabled, true)
-        .task { title = chat.title ?? "" }
     }
 
     // MARK: - Строки
@@ -243,42 +165,6 @@ struct ChatSessionPanel: View {
         .padding(.horizontal, TFSpacing.md)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
-    }
-
-    private func executionModeBlock(_ mode: ChatExecutionMode,
-                                    selection: Binding<ChatExecutionMode>) -> some View {
-        let isSelected = selection.wrappedValue == mode
-        return Button {
-            selection.wrappedValue = mode
-        } label: {
-            VStack(spacing: TFSpacing.xs) {
-                Image(systemName: mode.symbol)
-                    .tfTypeFont(size: TFIconSize.sm, weight: .semibold)
-                    .foregroundStyle(isSelected ? Color.tfText : Color.tfDim)
-                    .frame(height: 20)
-                Text(mode.title)
-                    .tfText(.body)
-                    .foregroundStyle(isSelected ? Color.tfText : Color.tfDim)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .padding(.horizontal, TFSpacing.xs)
-            .padding(.vertical, TFSpacing.sm)
-            .tfSelectTile(selected: isSelected)
-            .overlay(alignment: .topTrailing) {
-                Image(systemName: "checkmark")
-                    .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
-                    .foregroundStyle(Color.tfText)
-                    .padding(TFSpacing.sm)
-                    .opacity(isSelected ? 1 : 0)
-                    .accessibilityHidden(!isSelected)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!canChangeExecutionMode)
-        .accessibilityIdentifier("chat.session.executionMode.\(mode.rawValue)")
-        .accessibilityHint(mode.summary)
     }
 
     private func workModeBlock(_ mode: RoleChatWorkMode,
@@ -391,19 +277,6 @@ struct ChatSessionPanel: View {
             .buttonStyle(.plain)
     }
 
-    private func sessionAction(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .tfText(.body)
-                .foregroundStyle(Color.tfText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
     /// Разделитель внутри карточки: одинаковый отступ с обеих сторон,
     /// чтобы линия не «висела» только у левого края (владелец 03.11.2026).
     private func sessionDivider() -> some View {
@@ -413,13 +286,6 @@ struct ChatSessionPanel: View {
             .fill(Color.tfStroke)
             .frame(height: TFBorder.width)
             .padding(.horizontal, TFSpacing.md)
-    }
-
-    private func perform(_ action: () async -> Void) async {
-        guard !actionRunning else { return }
-        actionRunning = true
-        defer { actionRunning = false }
-        await action()
     }
 
     private func source(for attachment: ChatSessionAttachment) -> ChatAttachmentSource {

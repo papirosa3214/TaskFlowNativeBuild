@@ -55,8 +55,6 @@ struct ChatVoiceComposer: View {
     let onSendVoice: (VoiceMessage) async -> Bool
     let onDiscardVoice: (VoiceMessage) -> Void
     var workMode: Binding<RoleChatWorkMode>? = nil
-    var executionMode: Binding<ChatExecutionMode>? = nil
-    var canChangeExecutionMode = true
     var availableModes: [RoleChatWorkMode] = [.work, .plan]
     /// Пилюля модели рядом с режимом; nil или пустой список — не рисуется.
     var modelChoice: ChatModelChoice? = nil
@@ -106,19 +104,6 @@ struct ChatVoiceComposer: View {
     @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
     private var composerStyle: ChatComposerStyle { ChatComposerStyle.resolve(composerStyleRaw) }
 
-    @ViewBuilder private var executionModeMenu: some View {
-        if let executionMode {
-            Divider()
-            Picker("", selection: executionMode) {
-                ForEach(ChatExecutionMode.allCases, id: \.self) { choice in
-                    Text(choice.title).tag(choice)
-                }
-            }
-            .pickerStyle(.inline)
-            .disabled(!canChangeExecutionMode)
-        }
-    }
-
     var body: some View {
         ZStack {
             promptComposer
@@ -156,7 +141,6 @@ struct ChatVoiceComposer: View {
                     }
                 }
             }
-            executionModeMenu
             if let onShowCommands {
                 Button("Навыки и инструменты", systemImage: "slash", action: onShowCommands)
             }
@@ -172,7 +156,6 @@ struct ChatVoiceComposer: View {
                 promptIcon("slider.horizontal.3")
             }
         }
-        .disabled(!canChangeExecutionMode)
         .accessibilityLabel("Действия чата" + (workMode.map { ": " + $0.wrappedValue.title } ?? ""))
         .accessibilityIdentifier("chat.actions")
         .hintAnchor(HintAnchorID.chatComposerActions)
@@ -744,7 +727,6 @@ struct AgentChatComposerPreview: View {
     @State private var text = ""
     @State private var sentText = ""
     @State private var mode: RoleChatWorkMode = .work
-    @State private var executionMode: ChatExecutionMode = .chat
     @State private var voice = RoleChatVoiceController()
     @State private var responding = ProcessInfo.processInfo.environment["TASKFLOW_PROMPT_BOX_PREVIEW"] != "1"
     @State private var stream = ""
@@ -783,7 +765,7 @@ struct AgentChatComposerPreview: View {
                 ChatVoiceComposer(text: $text, placeholder: "Сообщение", canSendText: !text.isEmpty,
                                   voice: voice, onAttachmentSource: { _ in }, onSendText: { sentText = text; text = "" },
                                   onSendVoice: { _ in false }, onDiscardVoice: { _ in },
-                                  workMode: $mode, executionMode: $executionMode, availableModes: RoleChatWorkMode.allCases,
+                                  workMode: $mode, availableModes: RoleChatWorkMode.allCases,
                                   mentionCandidates: [RoleChatMember(id: "preview-role", name: "Архитектор", avatarColor: nil, avatarURL: nil, initials: nil, roleKey: "architect")],
                                   isResponding: responding, onStop: { responding = false })
             }

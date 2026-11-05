@@ -10,10 +10,8 @@ final class ChatExecutionModeTests: XCTestCase {
         XCTAssertEqual(ChatExecutionMode.card.title, "По карточке")
         XCTAssertThrowsError(try JSONDecoder().decode(ChatExecutionMode.self, from: Data(#""unknown""#.utf8)))
     }
-    func testLegacyRoomsDefaultToChatButTaskTopicsKeepCardLifecycle() {
-        XCTAssertEqual(ChatExecutionMode.resolve(stored: nil, taskID: nil, parentChatID: nil), .chat)
-        XCTAssertEqual(ChatExecutionMode.resolve(stored: nil, taskID: "task", parentChatID: nil), .chat)
-        XCTAssertEqual(ChatExecutionMode.resolve(stored: nil, taskID: "task", parentChatID: "project"), .card)
-        XCTAssertEqual(ChatExecutionMode.resolve(stored: .chat, taskID: "task", parentChatID: "project"), .chat)
+    func testModeFollowsTheTaskBindingOnly() {
+        XCTAssertEqual(ChatExecutionMode.resolve(taskID: nil), .chat)
+        XCTAssertEqual(ChatExecutionMode.resolve(taskID: "task"), .card)
     }
 }

@@ -907,7 +907,6 @@ struct RoleChatRoomScreen: View {
     @State private var discussionStatus: RoleChatDiscussion? = nil
     /// Идёт запрос «Остановить» — кнопка не жмётся дважды.
     @State private var isStopping = false
-    @State private var isSavingExecutionMode = false
     @State private var pendingVoiceExecutionModes: [UUID: ChatExecutionMode] = [:]
     @State private var workMode: RoleChatWorkMode = .work
     /// Столбец участников справа (владелец 20.10.2026) — помнит, открыт ли.
@@ -1313,28 +1312,8 @@ struct RoleChatRoomScreen: View {
             controls: composerControls,
             isWorking: working,
             onRefresh: refreshSession,
-            onRename: renameChat,
-            // Одна схема для Помощника и любой личной роли (владелец 03.11.2026).
-            onNewSession: {
-                Task {
-                    if chat.isAssistantOnly {
-                        await createAssistantSession()
-                    } else {
-                        await newSession(roleID: sessionContextRoleID)
-                    }
-                }
-            },
-            onCompact: { await compactSessionRole() },
-            onResetContext: { await resetSessionContext() },
-            onClose: { await closeSession() },
             onAttachmentSource: handleAttachmentSource,
             workMode: $workMode,
-            // Способ выполнения — в окне сессии (владелец 31.10.2026),
-            // у всех ролей, включая Помощника.
-            executionMode: Binding(get: { chat.executionMode }, set: { mode in
-                Task { await changeExecutionMode(mode) }
-            }),
-            canChangeExecutionMode: !isSavingExecutionMode && !isSending && !isUploadingAttachment,
             chatRoles: sessionRoles)
     }
 
@@ -1342,26 +1321,6 @@ struct RoleChatRoomScreen: View {
         await modelChoice.load(chat: chat)
         await workspaceChoice.load(chat: chat)
         await composerControls.load(chat: chat)
-    }
-
-    private func renameChat(_ title: String) async {
-        do { chat = try await api.renameRoleChat(id: chat.id, title: title) }
-        catch { errorMessage = error.localizedDescription }
-    }
-
-    private func compactSessionRole() async {
-        let roleID = sessionContextRoleID
-        guard let member = chat.members.first(where: { $0.id == roleID }) else { return }
-        await compact(member)
-    }
-
-    private func resetSessionContext() async {
-        await newSession(roleID: sessionContextRoleID)
-    }
-
-    private func closeSession() async {
-        do { chat = try await api.closeRoleChat(id: chat.id, closed: true); dismiss() }
-        catch { errorMessage = error.localizedDescription }
     }
 
     /// Вложения из окна сессии: фото, файл, камера.
@@ -1521,26 +1480,24 @@ struct RoleChatRoomScreen: View {
                     text: $draft,
                     placeholder: "Сообщение",
                     canSendText: (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
-                        && !isSending && !isUploadingAttachment && !isSavingExecutionMode
+                        && !isSending && !isUploadingAttachment
                         && (!chat.isAssistantOnly || (modelChoice.isReady && !modelChoice.isSaving)),
                     voice: voice,
                     onAttachmentSource: handleAttachmentSource,
                     onSendText: { Task { await send() } },
                     onSendVoice: sendVoicePreview,
                     onDiscardVoice: { _ in },
-                    workMode: $workMode,
-                    executionMode: Binding(get: { chat.executionMode }, set: { mode in
-                        Task { await changeExecutionMode(mode) }
-                    }),
-                    canChangeExecutionMode: !isSavingExecutionMode && !isSending && !isUploadingAttachment,
+                    workMode: chat.hasOwnSettings ? $workMode : nil,
                     availableModes: RoleChatWorkMode.available(in: chat),
-                    modelChoice: modelChoice,
-                    workspaceChoice: workspaceChoice,
+                    // Чат задачи работает на модели и в папке роли: выбирать нечего.
+                    modelChoice: chat.hasOwnSettings ? modelChoice : nil,
+                    workspaceChoice: chat.hasOwnSettings ? workspaceChoice : nil,
                     // Модель/папка/вложения — в окне сессии; в композере только
                     // три полоски (владелец 03.11.2026).
                     sessionControls: nil,
-                    // Одна панель для личных и групповых чатов (владелец 05.11.2026).
-                    onOpenSession: chat.composerRoleKeys.isEmpty ? nil : { showsSessionPanel = true },
+                    // Настройки есть только у личного чата: в чате задачи и группе
+                    // левая кнопка открывает вложения (владелец 05.11.2026).
+                    onOpenSession: chat.hasOwnSettings ? { showsSessionPanel = true } : nil,
                     sessionAttachments: { source in
                         switch source {
                         case .photo: isPhotoPickerPresented = true
@@ -1550,7 +1507,7 @@ struct RoleChatRoomScreen: View {
                     },
                     sessionWorkMode: $workMode,
                     sessionAvailableWorkModes: RoleChatWorkMode.available(in: chat),
-                    onShowCommands: { showsComposerCommands = true },
+                    onShowCommands: chat.hasOwnSettings ? { showsComposerCommands = true } : nil,
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
                     // что у подсказок при наборе «@» (RoleChatsScreen
                     // mentionCandidates), только берётся по нажатию, а не по
@@ -1568,7 +1525,6 @@ struct RoleChatRoomScreen: View {
                 // Панель ввода ниже на 8 pt (владелец 27.10.2026: «чуть выше
                 // требуемого»); общий компонент панели не трогаем.
                 .padding(.bottom, -8)
-                .disabled(isSavingExecutionMode)
             }
         }
     }
@@ -1739,8 +1695,8 @@ struct RoleChatRoomScreen: View {
                                 Button { Task { await newSession() } } label: {
                                     Label("Новая сессия", systemImage: "arrow.triangle.2.circlepath")
                                 }
-                                compactMenuItem
                             }
+                            compactMenuItem
                             ShareLink(item: RoleChatTranscript(title: chat.displayTitle(excluding: session.currentUser?.id),
                                                                messages: visibleMessages),
                                       preview: SharePreview("Чат")) {
@@ -2716,14 +2672,6 @@ struct RoleChatRoomScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private func createAssistantSession() async {
-        do {
-            let next = try await api.createRoleChat(title: nil, memberIDs: ["u-secretary"])
-            branchChat = next
-            isBranchPresented = true
-        } catch { errorMessage = error.localizedDescription }
-    }
-
     private func newSession(roleID selectedRoleID: String? = nil) async {
         guard let roleID = selectedRoleID ?? chat.others(excluding: session.currentUser?.id).first?.id else { return }
         do {
@@ -3475,30 +3423,13 @@ struct RoleChatRoomScreen: View {
         .padding(.vertical, TFSpacing.xs)
     }
 
-    /// Отправка без ожидания сети: пузырь встаёт в ленту сразу, поле ввода
-    /// очищается тем же нажатием, сеть догоняет в фоне.
-    private func changeExecutionMode(_ mode: ChatExecutionMode) async {
-        // Раньше здесь стоял `!chat.isAssistantOnly`: у Помощника переключатель
-        // не работал вовсе. Владелец 31.10.2026: «не нужно отбирать у него
-        // возможность создавать карточки» — теперь режим доступен всем.
-        guard !isSavingExecutionMode, mode != chat.executionMode else { return }
-        isSavingExecutionMode = true
-        defer { isSavingExecutionMode = false }
-        do {
-            let updated = try await api.setChatExecutionMode(chatID: chat.id, mode: mode)
-            // A refresh started before this response must not restore the old mode.
-            refreshRevision += 1
-            chat = updated
-        } catch { errorMessage = error.localizedDescription }
-    }
-
     private func send() async {
         guard !chat.isAssistantOnly || (modelChoice.isReady && !modelChoice.isSaving) else {
             errorMessage = modelChoice.errorText ?? "Дождитесь сохранения настроек сессии."
             return
         }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment, !isSavingExecutionMode else { return }
+        guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment else { return }
         let pending = PendingOutgoing(id: "local-\(UUID().uuidString)", text: text,
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.composerExecutionMode)
         draft = ""

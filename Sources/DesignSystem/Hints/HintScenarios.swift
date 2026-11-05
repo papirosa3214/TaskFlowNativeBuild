@@ -26,7 +26,6 @@ enum HintAnchorID {
     static let roleBehavior = "role.behavior"
     static let agentInstructions = "team.agent-instructions"
     static let chatDiscussionDelivery = "chat.discussion-delivery"
-    static let chatExecutionMode = "chat.execution-mode"
     static let noteMarkdownEditing = "note.markdown-editing"
     static let voiceScreenShare = "voice.screen-share"
     static let voiceMinimize = "voice.minimize"
@@ -147,7 +146,7 @@ enum HintScenarios {
                 text: "Сверху — итог: сколько критериев пройдено, сколько провалено и сколько не проверяется вживую. Ниже — каждый критерий: номер, чем проверяется, какой шаг его закрыл. Отдельным списком — дыры в покрытии и журнал: кто что проверял и что открылось на доработку.", next: nil)
         ])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, chatExecutionMode, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
@@ -204,11 +203,6 @@ enum HintScenarios {
         id: "role-behavior", title: "Личность и шаблоны роли", start: "templates",
         steps: ["templates": HintStep(anchor: HintAnchorID.roleBehavior, title: "Настройте характер роли",
             text: "Шаблон открывается в редакторе. Можно изменить описание личности и выбрать мужской или женский пол — так роль будет говорить о себе. «Сохранить шаблон» добавляет свой вариант в библиотеку; «Применить личность» отдельно сохраняет действующее поведение для следующего запуска. Общие и персональные инструкции доступны в контексте роли.", next: nil)])
-
-    static let chatExecutionMode = HintScenario(
-        id: "chat-execution-mode", title: "Как выполнять работу", start: "choose",
-        steps: ["choose": HintStep(anchor: HintAnchorID.chatExecutionMode, title: "В чате или по карточке",
-            text: "Откройте меню «Работа» у поля ввода. После разделителя выберите «В чате», чтобы роль выполнила поручение здесь без создания карточки, или «По карточке» — для работы через задачу с этапами и приёмкой. Выбор сохраняется для разговора и голосовых сообщений. Уже отправленное поручение продолжает работу в своём режиме.", next: nil)])
 
     static let noteMarkdownEditing = HintScenario(
         id: "note-markdown-editing", title: "Чтение и правка заметки", start: "edit",
