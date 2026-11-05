@@ -3,9 +3,9 @@ import XCTest
 
 final class RoleSessionListTests: XCTestCase {
     private func item(_ id: String, others: [String], kind: String = "direct", room: String? = nil,
-                      parent: String? = nil, project: String? = nil, last: String? = nil) -> RoleSessionCandidate {
+                      parent: String? = nil, project: String? = nil, last: String? = nil, branchOf: String? = nil) -> RoleSessionCandidate {
         RoleSessionCandidate(id: id, kind: kind, roomKind: room, parentChatID: parent, projectID: project,
-                             otherMemberIDs: others, lastActivity: last)
+                             otherMemberIDs: others, lastActivity: last, branchOfChatID: branchOf)
     }
 
     func testRoleShowsOnlyItsOwnPrivateSessions() {
@@ -30,10 +30,10 @@ final class RoleSessionListTests: XCTestCase {
         let list = [
             item("single", others: ["secretary"], last: "2026-11-05 05:00:00"),
             item("old", others: ["secretary", "designer"], kind: "group", last: "2026-11-01 01:00:00"),
-            item("topic", others: ["builder", "qa"], kind: "group", parent: "project", project: "p", last: "2026-11-04 01:00:00"),
+            item("topic", others: ["builder", "qa"], kind: "group", parent: "project", project: "p", last: "2026-11-06 01:00:00"),
             item("two", others: ["builder", "qa"], last: "2026-11-02 01:00:00"),
         ]
-        XCTAssertEqual(RoleSessionList.select(list, scope: .groups), ["topic", "two", "old"])
+        XCTAssertEqual(RoleSessionList.select(list, scope: .groups), ["two", "old"])
     }
 
     func testCommonAndProjectChatsLiveInGroups() {
@@ -49,6 +49,50 @@ final class RoleSessionListTests: XCTestCase {
         let list = [item("dm", others: ["a"], room: "dm")]
         XCTAssertEqual(RoleSessionList.select(list, scope: .groups), [])
         XCTAssertEqual(RoleSessionList.select(list, scope: .role("a")), [])
+    }
+
+    func testTopicsLiveInsideProjectNotInLists() {
+        let list = [item("topic", others: ["a"], parent: "project", project: "p", last: "2026-11-05 01:00:00")]
+        XCTAssertEqual(RoleSessionList.select(list, scope: .role("a")), [])
+        XCTAssertEqual(RoleSessionList.select(list, scope: .groups), [])
+    }
+
+    func testBranchesFollowTheirParentAsTree() {
+        let list = [
+            item("root", others: ["a"], last: "2026-11-05 01:00:00"),
+            item("newer", others: ["a"], last: "2026-11-05 03:00:00"),
+            item("b1", others: ["a"], last: "2026-11-05 05:00:00", branchOf: "root"),
+            item("b2", others: ["a"], last: "2026-11-05 04:00:00", branchOf: "root"),
+            item("b11", others: ["a"], last: "2026-11-05 06:00:00", branchOf: "b1"),
+        ]
+        let rows = RoleSessionList.rows(list, scope: .role("a"))
+        XCTAssertEqual(rows.map(\.id), ["newer", "root", "b1", "b11", "b2"])
+        XCTAssertEqual(rows.map(\.lines), [
+            [], [],
+            [.branch],
+            [.through, .lastBranch],
+            [.lastBranch],
+        ])
+    }
+
+    func testDeepRowUnderLastBranchHasNoThroughLine() {
+        let list = [
+            item("root", others: ["a"], last: "2026-11-05 01:00:00"),
+            item("b", others: ["a"], last: "2026-11-05 02:00:00", branchOf: "root"),
+            item("bb", others: ["a"], last: "2026-11-05 03:00:00", branchOf: "b"),
+        ]
+        XCTAssertEqual(RoleSessionList.rows(list, scope: .role("a")).last?.lines, [.blank, .lastBranch])
+    }
+
+    func testBranchWithoutVisibleParentIsARootRow() {
+        let list = [item("orphan", others: ["a"], last: "2026-11-05 01:00:00", branchOf: "closed")]
+        XCTAssertEqual(RoleSessionList.rows(list, scope: .role("a")).first?.lines, [])
+    }
+
+    func testProjectGroupResolvesFromGroupAndTopic() {
+        XCTAssertEqual(RoleSessionList.projectGroupID(chatID: "g", parentChatID: nil, projectID: "p"), "g")
+        XCTAssertEqual(RoleSessionList.projectGroupID(chatID: "t", parentChatID: "g", projectID: "p"), "g")
+        XCTAssertNil(RoleSessionList.projectGroupID(chatID: "s", parentChatID: nil, projectID: nil))
     }
 
     func testScopeSurvivesStorageRoundTrip() {

@@ -38,18 +38,22 @@ struct RoleChatsScreen: View {
     private let api = APIClient()
 
 
-    /// Список — сессии выбранного на панели пункта. Лички ролей показаны
-    /// отдельно, под сессиями роли.
-    private var visibleChats: [RoleChat] {
-        guard isOwner else { return chats.filter { !$0.isPermanentRoom } }
+    /// Список — сессии выбранного на панели пункта, ветки деревом под своей
+    /// сессией. Лички ролей показаны отдельно, под сессиями роли.
+    private var visibleRows: [(row: RoleSessionRow, chat: RoleChat)] {
+        guard isOwner else {
+            return chats.filter { !$0.isPermanentRoom }.map { (RoleSessionRow(id: $0.id, lines: []), $0) }
+        }
         let ownerID = session.currentUser?.id
         let candidates = chats.map {
             RoleSessionCandidate(id: $0.id, kind: $0.kind, roomKind: $0.roomKind, parentChatID: $0.parentChatID,
                                  projectID: $0.projectID, otherMemberIDs: $0.others(excluding: ownerID).map(\.id),
-                                 lastActivity: $0.lastMessage?.createdAt)
+                                 lastActivity: $0.lastMessage?.createdAt, branchOfChatID: $0.branchOfChatID)
         }
         let byID = Dictionary(chats.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return RoleSessionList.select(candidates, scope: selectedScope).compactMap { byID[$0] }
+        return RoleSessionList.rows(candidates, scope: selectedScope).compactMap { row in
+            byID[row.id].map { (row, $0) }
+        }
     }
     /// Переписка выбранной роли с коллегами: открывается только на чтение.
     private var selectedRoleDMs: [ChatRoomsSnapshot.DirectRoom] {
@@ -70,7 +74,7 @@ struct RoleChatsScreen: View {
             VStack(spacing: 0) {
                 if isLoading && chats.isEmpty {
                     TFLoading(.block)
-                } else if visibleChats.isEmpty && selectedRoleDMs.isEmpty {
+                } else if visibleRows.isEmpty && selectedRoleDMs.isEmpty {
                     Text("Пока нет сессий.")
                         .tfText(.action)
                         .foregroundStyle(Color.tfDim)
@@ -78,9 +82,15 @@ struct RoleChatsScreen: View {
                         .padding(.horizontal, TFSpacing.screenHorizontal)
                         .padding(.top, TFSpacing.xl)
                 } else {
-                    ForEach(Array(visibleChats.enumerated()), id: \.element.id) { index, chat in
-                        sessionLink(chat)
-                        if index < visibleChats.count - 1 { rowDivider }
+                    let rows = visibleRows
+                    ForEach(Array(rows.enumerated()), id: \.element.row.id) { index, item in
+                        HStack(spacing: 0) {
+                            if !item.row.lines.isEmpty { SessionBranchLines(lines: item.row.lines) }
+                            sessionLink(item.chat, isBranch: !item.row.lines.isEmpty)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        // Под сессией с ветками линии не прерываем разделителем.
+                        if index < rows.count - 1, rows[index + 1].row.lines.isEmpty { rowDivider }
                     }
                     if !selectedRoleDMs.isEmpty {
                         Text("Переписка с коллегами")
@@ -191,9 +201,9 @@ struct RoleChatsScreen: View {
         TFDivider(inset: TFSpacing.screenHorizontal)
     }
 
-    private func sessionLink(_ chat: RoleChat) -> some View {
+    private func sessionLink(_ chat: RoleChat, isBranch: Bool) -> some View {
         NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
-            chatRow(chat)
+            chatRow(chat, isBranch: isBranch)
                 .opacity(chat.closedAt == nil ? 1 : 0.55)
         }
         .buttonStyle(.plain)
@@ -251,9 +261,9 @@ struct RoleChatsScreen: View {
 
     // MARK: - Строка чата с ролями
 
-    private func chatRow(_ chat: RoleChat) -> some View {
+    private func chatRow(_ chat: RoleChat, isBranch: Bool) -> some View {
         ChatListRow(
-            title: chat.roomKind == "personal" ? "Личная комната" : chat.displayTitle(excluding: session.currentUser?.id),
+            title: rowTitle(chat, isBranch: isBranch),
             preview: previewText(chat),
             time: ChatListTime.label(chat.lastMessage?.createdAt),
             unread: chat.unread + chats.filter { $0.parentChatID == chat.id }.reduce(0) { $0 + $1.unread },
@@ -263,6 +273,13 @@ struct RoleChatsScreen: View {
             // У чата проекта название и так совпадает с проектом.
             projectName: chat.projectName == chat.title ? nil : chat.projectName
         )
+    }
+
+    private func rowTitle(_ chat: RoleChat, isBranch: Bool) -> String {
+        if chat.roomKind == "personal" { return "Личная комната" }
+        let title = chat.displayTitle(excluding: session.currentUser?.id)
+        // В дереве и так видно, что это ветка.
+        return isBranch && title.hasPrefix("Ветка: ") ? String(title.dropFirst("Ветка: ".count)) : title
     }
 
     /// Чьё последнее сообщение — видно по имени: в личке ролей «Вы» не бывает.
@@ -357,8 +374,6 @@ final class ChatEventBatchBox {
 /// состав чата с собой.
 struct RoleChatRoomLoader: View {
     let chatID: String
-    /// true — открыть переписку группы проекта, а не список её тем.
-    var opensGroupRoom = false
     @State private var chat: RoleChat?
     @State private var failed = false
     private let api = APIClient()
@@ -366,8 +381,8 @@ struct RoleChatRoomLoader: View {
     var body: some View {
         Group {
             if let chat {
-                if chat.projectID != nil && chat.parentChatID == nil && !opensGroupRoom {
-                    ProjectTopicsScreen(group: chat)
+                if let groupID = RoleSessionList.projectGroupID(chatID: chat.id, parentChatID: chat.parentChatID, projectID: chat.projectID) {
+                    ProjectChatScreen(groupID: groupID, opened: chat)
                 } else {
                     RoleChatRoomScreen(chat: chat)
                 }
@@ -389,6 +404,50 @@ struct RoleChatRoomLoader: View {
     private func load() async {
         do { chat = try await api.roleChat(id: chatID) }
         catch { failed = true }
+    }
+}
+
+/// Линии дерева слева от ветки: отводы и вертикали до следующих веток.
+private struct SessionBranchLines: View {
+    let lines: [RoleSessionRow.Line]
+    private static let levelWidth: CGFloat = 16
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                SessionBranchLineShape(line: line)
+                    .stroke(Color.tfDim.opacity(0.6), style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
+                    .frame(width: Self.levelWidth)
+            }
+        }
+        .padding(.leading, TFSpacing.screenHorizontal)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct SessionBranchLineShape: Shape {
+    let line: RoleSessionRow.Line
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let x = rect.minX + 1
+        switch line {
+        case .blank:
+            break
+        case .through:
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+        case .branch:
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            path.move(to: CGPoint(x: x, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        case .lastBranch:
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        }
+        return path
     }
 }
 
@@ -1033,7 +1092,11 @@ struct RoleChatRoomScreen: View {
     }
     #endif
 
-    init(chat: RoleChat) {
+    /// Топики проекта над полем ввода (05.11.2026); вне проекта полоски нет.
+    private let topicStrip: AnyView?
+
+    init(chat: RoleChat, topicStrip: AnyView? = nil) {
+        self.topicStrip = topicStrip
         _chat = State(initialValue: chat)
         if let cached = Self.lastMessages[chat.id] {
             _messages = State(initialValue: cached)
@@ -1418,6 +1481,7 @@ struct RoleChatRoomScreen: View {
                 }
                 .padding(.horizontal, TFSpacing.lg)
             }
+            if let topicStrip { topicStrip }
         }
         .chatComposerBar {
             if isSelecting {

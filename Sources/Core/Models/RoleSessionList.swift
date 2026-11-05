@@ -48,9 +48,10 @@ public struct RoleSessionCandidate: Sendable {
     public let projectID: String?
     public let otherMemberIDs: [String]
     public let lastActivity: String?
+    public let branchOfChatID: String?
 
     public init(id: String, kind: String, roomKind: String?, parentChatID: String?, projectID: String?,
-                otherMemberIDs: [String], lastActivity: String?) {
+                otherMemberIDs: [String], lastActivity: String?, branchOfChatID: String? = nil) {
         self.id = id
         self.kind = kind
         self.roomKind = roomKind
@@ -58,28 +59,82 @@ public struct RoleSessionCandidate: Sendable {
         self.projectID = projectID
         self.otherMemberIDs = otherMemberIDs
         self.lastActivity = lastActivity
+        self.branchOfChatID = branchOfChatID
     }
 }
 
-/// Сессии выбранного пункта панели: плоско, свежие сверху (владелец 05.11.2026).
-/// Общая и чаты проектов — в «Групповых»; лички ролей сюда не входят.
+/// Строка списка сессий: чат и линии дерева слева от него.
+public struct RoleSessionRow: Equatable, Sendable {
+    /// Что нарисовано на одном уровне вложенности.
+    public enum Line: Equatable, Sendable {
+        /// Пусто: ветка этого уровня уже закончилась.
+        case blank
+        /// Вертикаль идёт дальше вниз, к следующей ветке.
+        case through
+        /// Отвод к строке, ниже есть ещё ветки.
+        case branch
+        /// Отвод к последней ветке.
+        case lastBranch
+    }
+
+    public let id: String
+    /// Пусто — сессия верхнего уровня.
+    public let lines: [Line]
+}
+
+/// Сессии выбранного пункта панели: плоско, свежие сверху, ветки — деревом под
+/// своей сессией (владелец 05.11.2026). Топики живут внутри чата проекта, лички
+/// ролей показаны отдельно.
 public enum RoleSessionList {
     public static func select(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope) -> [String] {
-        candidates
-            .filter { belongs($0, to: scope) }
-            .enumerated()
+        rows(candidates, scope: scope).map(\.id)
+    }
+
+    public static func rows(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope) -> [RoleSessionRow] {
+        let visible = sorted(candidates.filter { belongs($0, to: scope) })
+        let ids = Set(visible.map(\.id))
+        let parent: (RoleSessionCandidate) -> String? = { chat in
+            guard let id = chat.branchOfChatID, ids.contains(id), id != chat.id else { return nil }
+            return id
+        }
+        let children = Dictionary(grouping: visible.filter { parent($0) != nil }, by: { parent($0)! })
+        var result: [RoleSessionRow] = []
+        func append(_ chat: RoleSessionCandidate, prefix: [RoleSessionRow.Line], last: Bool?) {
+            let own: [RoleSessionRow.Line] = last.map { prefix + [$0 ? .lastBranch : .branch] } ?? []
+            result.append(RoleSessionRow(id: chat.id, lines: own))
+            let next: [RoleSessionRow.Line] = last.map { prefix + [$0 ? .blank : .through] } ?? []
+            let branches = children[chat.id] ?? []
+            for (index, branch) in branches.enumerated() {
+                append(branch, prefix: next, last: index == branches.count - 1)
+            }
+        }
+        for root in visible where parent(root) == nil {
+            append(root, prefix: [], last: nil)
+        }
+        return result
+    }
+
+    /// Группа проекта, к которой относится чат: сам чат проекта или родитель
+    /// топика. `nil` — чат вне проекта, полоски топиков у него нет.
+    public static func projectGroupID(chatID: String, parentChatID: String?, projectID: String?) -> String? {
+        if let parentChatID { return parentChatID }
+        return projectID == nil ? nil : chatID
+    }
+
+    /// Время с сервера — строка «ГГГГ-ММ-ДД ЧЧ:ММ:СС»: порядок строк совпадает
+    /// с порядком дат. Без сообщений — в конец.
+    private static func sorted(_ chats: [RoleSessionCandidate]) -> [RoleSessionCandidate] {
+        chats.enumerated()
             .sorted { lhs, rhs in
-                // Время с сервера — строка «ГГГГ-ММ-ДД ЧЧ:ММ:СС»: порядок строк
-                // совпадает с порядком дат. Без сообщений — в конец.
                 let left = lhs.element.lastActivity ?? ""
                 let right = rhs.element.lastActivity ?? ""
                 return left == right ? lhs.offset < rhs.offset : left > right
             }
-            .map(\.element.id)
+            .map(\.element)
     }
 
     private static func belongs(_ chat: RoleSessionCandidate, to scope: RoleSessionScope) -> Bool {
-        if chat.roomKind == "dm" { return false }
+        if chat.roomKind == "dm" || chat.parentChatID != nil { return false }
         let isGroup = chat.roomKind == "common" || chat.kind == "group" || chat.otherMemberIDs.count > 1
         switch scope {
         case .groups: return isGroup

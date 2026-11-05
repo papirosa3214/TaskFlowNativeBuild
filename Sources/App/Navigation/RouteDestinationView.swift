@@ -135,7 +135,5 @@ private func routeContent(_ route: AppRoute) -> some View {
         // Комната грузится по идентификатору: маршрут несёт только id, а
         // состав и последнее сообщение берутся запросом (LOCK-195).
         RoleChatRoomLoader(chatID: id).tfChatTypography()
-    case .projectGroupRoom(let id):
-        RoleChatRoomLoader(chatID: id, opensGroupRoom: true).tfChatTypography()
     }
 }
