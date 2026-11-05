@@ -164,10 +164,10 @@ struct ChatVoiceComposer: View {
             if circle {
                 Image(systemName: "slider.horizontal.3")
                     .tfTypeFont(size: 19, weight: .regular)
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(Color.secondary)
                     .frame(width: 40, height: 40)
-                    .background(Color(white: 0.125), in: Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12)))
+                    .background(Color(uiColor: .secondarySystemBackground), in: Circle())
+                    .overlay(Circle().strokeBorder(Color(uiColor: .separator)))
             } else {
                 promptIcon("slider.horizontal.3")
             }
@@ -208,8 +208,8 @@ struct ChatVoiceComposer: View {
         .padding(compact ? 0 : 8)
         .background {
             if !compact {
-                RoundedRectangle(cornerRadius: 24).fill(Color(white: 0.125))
-                RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12))
+                RoundedRectangle(cornerRadius: 24).fill(Color(uiColor: .secondarySystemBackground))
+                RoundedRectangle(cornerRadius: 24).strokeBorder(Color(uiColor: .separator))
             }
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
@@ -228,7 +228,7 @@ struct ChatVoiceComposer: View {
                 .textInputAutocapitalization(.sentences)
                 .focused(textFieldFocus)
                 .onSubmit { if !(isRecording || preview != nil) { onSubmitText() } }
-                .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.tfPaper)
+                .foregroundStyle(isRecording || preview != nil ? Color.clear : Color.primary)
                 .accessibilityIdentifier("chat.message")
                 .padding(.horizontal, compact ? 0 : 10)
                 .padding(.top, compact ? 0 : 10)
@@ -242,11 +242,11 @@ struct ChatVoiceComposer: View {
         .frame(minHeight: compact ? Self.compactKnobSize : nil)
         .background {
             if compact {
-                RoundedRectangle(cornerRadius: 22).fill(Color(white: 0.125))
-                RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.12))
+                RoundedRectangle(cornerRadius: 22).fill(Color(uiColor: .secondarySystemBackground))
+                RoundedRectangle(cornerRadius: 22).strokeBorder(Color(uiColor: .separator))
             }
         }
-        .foregroundStyle(Color.white.opacity(0.6))
+        .foregroundStyle(Color.secondary)
     }
 
     /// Ряд действий под полем — в полной панели.
@@ -300,7 +300,7 @@ struct ChatVoiceComposer: View {
             micButton
             sendButton()
         }
-        .foregroundStyle(Color.white.opacity(0.6))
+        .foregroundStyle(Color.secondary)
     }
 
     /// Левая кнопка в новой панели: открывает окно сессии, если оно есть в
@@ -310,10 +310,10 @@ struct ChatVoiceComposer: View {
             Button(action: onOpenSession) {
                 Image(systemName: "slider.horizontal.3")
                     .tfTypeFont(size: 19, weight: .regular)
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(Color.secondary)
                     .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
-                    .background(Color(white: 0.125), in: Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12)))
+                    .background(Color(uiColor: .secondarySystemBackground), in: Circle())
+                    .overlay(Circle().strokeBorder(Color(uiColor: .separator)))
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -337,10 +337,10 @@ struct ChatVoiceComposer: View {
         Button(action: startVoiceRecording) {
             Image(systemName: "mic")
                 .tfTypeFont(size: 19, weight: .regular)
-                .foregroundStyle(Color.white.opacity(0.6))
+                .foregroundStyle(Color.secondary)
                 .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
-                .background(Color(white: 0.125), in: Circle())
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.12)))
+                .background(Color(uiColor: .secondarySystemBackground), in: Circle())
+                .overlay(Circle().strokeBorder(Color(uiColor: .separator)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -387,9 +387,9 @@ struct ChatVoiceComposer: View {
             Button(action: onStop) {
                 Image(systemName: "stop.fill")
                     .tfTypeFont(size: 15, weight: .semibold)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(width: knob - 4, height: knob - 4)
-                    .background(.white, in: Circle())
+                    .background(Color.primary, in: Circle())
                     .frame(width: knob, height: knob)
                     .contentShape(Circle())
             }
@@ -401,9 +401,9 @@ struct ChatVoiceComposer: View {
             Button(action: onSendText) {
                 Image(systemName: "arrow.up")
                     .tfTypeFont(size: 17, weight: .semibold)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(width: knob - 4, height: knob - 4)
-                    .background(Color.white.opacity(canSendText ? 1 : 0.25), in: Circle())
+                    .background(Color.primary.opacity(canSendText ? 1 : 0.25), in: Circle())
                     .frame(width: knob, height: knob)
                     .contentShape(Circle())
             }
@@ -481,7 +481,7 @@ struct ChatVoiceComposer: View {
         HStack(spacing: 12) {
             HStack(spacing: 6) {
                 Circle().fill(.red).frame(width: 8, height: 8)
-                Text(recordingDuration).font(.callout.monospacedDigit()).foregroundStyle(Color.tfPaper)
+                Text(recordingDuration).font(.callout.monospacedDigit()).foregroundStyle(Color.primary)
             }
             VoiceRecordingWaveformView(level: recordingLevel, elapsed: recordingElapsed,
                                        color: .red.mix(with: .black, by: 0.55), peakColor: .red, maxHeight: 30)
@@ -489,9 +489,9 @@ struct ChatVoiceComposer: View {
             Button(action: stopVoiceRecording) {
                 Image(systemName: "stop.fill")
                     .tfTypeFont(size: 15, weight: .semibold)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(width: 36, height: 36)
-                    .background(.white, in: Circle())
+                    .background(Color.primary, in: Circle())
                     .frame(width: 40, height: 40)
                     .contentShape(Circle())
             }
@@ -501,8 +501,8 @@ struct ChatVoiceComposer: View {
         .padding(.leading, 16).padding(.trailing, 8)
         .frame(minHeight: 56)
         .padding(.vertical, 8)
-        .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12)))
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color(uiColor: .separator)))
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.vertical, 10)
         .transition(.opacity)
@@ -516,7 +516,7 @@ struct ChatVoiceComposer: View {
             if let transcript = readyTranscript(message) {
                 Text(transcript)
                     .font(.body)
-                    .foregroundStyle(Color.tfPaper)
+                    .foregroundStyle(Color.primary)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("chat.voice.transcript")
@@ -532,7 +532,7 @@ struct ChatVoiceComposer: View {
                 Button(action: discardPreview) {
                     Image(systemName: "xmark")
                         .tfTypeFont(size: 18, weight: .medium)
-                        .foregroundStyle(Color.tfPaper)
+                        .foregroundStyle(Color.primary)
                         .frame(width: 40, height: 40)
                         .contentShape(Circle())
                 }
@@ -544,7 +544,7 @@ struct ChatVoiceComposer: View {
                 let transcribing = message.transcript == .pending
                 if transcribing {
                     HStack(spacing: 8) {
-                        ProgressView().tint(.white)
+                        ProgressView()
                         Text("Расшифровываю…").tfText(.action).foregroundStyle(.gray)
                     }
                     .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
@@ -564,9 +564,9 @@ struct ChatVoiceComposer: View {
                     Button(action: sendPreview) {
                         Image(systemName: "square.and.pencil")
                             .tfTypeFont(size: 20, weight: .medium)
-                            .foregroundStyle(.black)
+                            .foregroundStyle(Color(uiColor: .systemBackground))
                             .frame(width: 40, height: 40)
-                            .background(.white, in: Circle())
+                            .background(Color.primary, in: Circle())
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -575,11 +575,11 @@ struct ChatVoiceComposer: View {
                     .disabled(readyTranscript(message)?.isEmpty != false)
                 }
             }
-            .foregroundStyle(Color.tfPaper)
+            .foregroundStyle(Color.primary)
         }
         .padding(14)
-        .background(Color(white: 0.125), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color.white.opacity(0.12)))
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color(uiColor: .separator)))
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal).padding(.vertical, 10)
         .transition(.opacity)

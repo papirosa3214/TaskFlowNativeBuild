@@ -407,6 +407,21 @@ struct RoleChatRoomLoader: View {
     }
 }
 
+private extension View {
+    /// Пока открыта клавиатура, содержимое под этим щитом не реагирует: тап или
+    /// свайп только прячут клавиатуру (владелец 05.11.2026).
+    @ViewBuilder func keyboardDismissShield(isActive: Bool, dismiss: @escaping () -> Void) -> some View {
+        overlay {
+            if isActive {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0).onEnded { _ in dismiss() })
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
 /// Линии дерева слева от ветки: отводы и вертикали до следующих веток.
 private struct SessionBranchLines: View {
     let lines: [RoleSessionRow.Line]
@@ -1449,6 +1464,16 @@ struct RoleChatRoomScreen: View {
 
     private var composerContent: some View {
         VStack(spacing: 0) {
+            // Над лентой, а не поверх неё: подложки нет, и текст под подпись не заходит.
+            if let taskID = chat.taskID {
+                TaskCardLink(taskID: taskID) {
+                    Label { Text("Задача чата").foregroundStyle(Color.tfText) } icon: { Image(systemName: "checklist").foregroundStyle(Color.tfRed) }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, TFSpacing.screenHorizontal)
+                        .padding(.vertical, TFSpacing.sm)
+                }
+                .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
+            }
             // Панель участников переехала в корень раздела «Чаты» и стала
             // панелью комнат (владелец 21.10.2026); состав чата — в «О чате».
             // Рабочий план роли — висячей карточкой поверх ленты (28.10.2026):
@@ -1457,6 +1482,7 @@ struct RoleChatRoomScreen: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent)
                 }
+                .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
             discussionStatusBar
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
@@ -1517,7 +1543,8 @@ struct RoleChatRoomScreen: View {
                     // Модель/папка/вложения — в окне сессии; в композере только
                     // три полоски (владелец 03.11.2026).
                     sessionControls: nil,
-                    onOpenSession: chat.composerRoleKeys.count == 1 ? { showsSessionPanel = true } : nil,
+                    // Одна панель для личных и групповых чатов (владелец 05.11.2026).
+                    onOpenSession: chat.composerRoleKeys.isEmpty ? nil : { showsSessionPanel = true },
                     sessionAttachments: { source in
                         switch source {
                         case .photo: isPhotoPickerPresented = true
@@ -1528,16 +1555,6 @@ struct RoleChatRoomScreen: View {
                     sessionWorkMode: $workMode,
                     sessionAvailableWorkModes: RoleChatWorkMode.available(in: chat),
                     onShowCommands: { showsComposerCommands = true },
-                    // Кольца контекста — только в комнате с несколькими ролями;
-                    // в личном чате контекст в окне сессии (владелец 03.11.2026).
-                    contextControls: chat.composerRoleKeys.count > 1 ? AnyView(HStack(spacing: 0) {
-                        ForEach(chat.members.filter { $0.roleKey != nil || $0.id == "u-secretary" || $0.id.hasPrefix("role_") }) { member in
-                            ChatContextControl(snapshot: composerControls.contexts[member.id],
-                                roleName: member.name,
-                                loadError: composerControls.errorText,
-                                onRefresh: { Task { await composerControls.load(chat: chat) } })
-                        }
-                    }) : nil,
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
                     // что у подсказок при наборе «@» (RoleChatsScreen
                     // mentionCandidates), только берётся по нажатию, а не по
@@ -1747,17 +1764,6 @@ struct RoleChatRoomScreen: View {
                         Image(systemName: "ellipsis")
                     }
                     .accessibilityLabel("Ещё")
-                }
-            }
-        }
-        .safeAreaInset(edge: .top) {
-            if let taskID = chat.taskID {
-                TFCard(padding: 0, surface: .card, radius: nil) {
-                    TaskCardLink(taskID: taskID) {
-                        Label { Text("Задача чата").foregroundStyle(Color.tfText) } icon: { Image(systemName: "checklist").foregroundStyle(Color.tfRed) }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(TFSpacing.md)
-                    }
                 }
             }
         }

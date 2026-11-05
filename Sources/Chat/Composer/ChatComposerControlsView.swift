@@ -81,12 +81,12 @@ struct ChatContextRing: View {
     let fraction: Double
 
     private var color: Color {
-        fraction >= 0.85 ? .red : fraction >= 0.6 ? .yellow : .white
+        fraction >= 0.85 ? .red : fraction >= 0.6 ? .yellow : .primary
     }
 
     var body: some View {
         ZStack {
-            Circle().stroke(Color.white.opacity(0.2), lineWidth: 2.5)
+            Circle().stroke(Color.primary.opacity(0.2), lineWidth: 2.5)
             Circle()
                 .trim(from: 0, to: min(1, max(0, fraction)))
                 .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
@@ -247,7 +247,7 @@ struct ChatCommandCard: View {
                 .tfTypeFont(size: 16, weight: .medium)
                 .foregroundStyle(Color.tfText)
                 .frame(width: 34, height: 34)
-                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(command.title)
                     .tfText(.row)
@@ -277,7 +277,7 @@ private struct ChatCommandDetailScreen: View {
                         .tfTypeFont(size: 24, weight: .medium)
                         .foregroundStyle(Color.tfText)
                         .frame(width: 52, height: 52)
-                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(command.title).tfText(.taskTitle).foregroundStyle(Color.tfText)
                         Text(command.kind == "skill" ? "Навык" : "Инструмент")
