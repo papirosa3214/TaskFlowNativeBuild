@@ -128,7 +128,6 @@ struct TaskCardContent: View {
     /// (`.id(...)`) и заново загрузиться после утверждения плана — у неё
     /// свой `didStartLoad`, обычный `onAppear` второй раз не сработает.
     @State private var collaborationPlanReloadToken = 0
-    @State private var integrationValidationError = false
     @State private var isPreparationPresented = false
     @State private var openedTaskChatID: String?
     /// Причина блокировки карточки — по тапу на чип «заблокировано» в шапке
@@ -1033,9 +1032,6 @@ struct TaskCardContent: View {
 
         collapsibleSection(.details, title: "Сведения") {
             detailsContent.modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("details"), identifier: "details", text: "\(nativeDueText), \(viewModel.priority.label), метки: \(nativeLabelsText), исполнитель: \(selectedRoleTitle)", arm: { armedEditors.insert("details") }))
-            if let id = viewModel.taskID {
-                IntegrationResponsibilityView(taskID: id, reloadToken: collaborationPlanReloadToken, validationError: $integrationValidationError)
-            }
         }
 
         // Дочерняя ветки: показываем её собственный граф — свой план, если
@@ -2699,11 +2695,6 @@ struct TaskCardContent: View {
             toast = TaskToastMessage("План утверждён — роли начинают работу")
         } catch {
             let message = (error as? APIError)?.errorDescription ?? "Не удалось утвердить план"
-            if message.contains("Назначьте ответственного") {
-                integrationValidationError = true
-                expandedSections.insert(.details)
-                collaborationPlanReloadToken += 1
-            }
             toast = TaskToastMessage(message)
         }
         isApprovingCollaborationPlan = false
