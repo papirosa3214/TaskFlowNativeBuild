@@ -138,9 +138,11 @@ DESIGN.md про разные наборы статус-иконок по экр
 |---|---|---|
 | `TFBottomSheetContent<Content>` | `NavigationStack`-обёртка: заголовок + кнопка действия, без кастомного хрома | `title: String? = nil, actionTitle: String? = nil, action: (() -> Void)? = nil, onClose, @ViewBuilder content` |
 | `.tfBottomSheet(...)` | Модификатор `View`, подключает системную нижнюю шторку с детентами и индикатором | `isPresented: Binding<Bool>, title, actionTitle, action, @ViewBuilder content` |
+| `.tfSheet(isPresented:)`, `.tfSheet(item:)` | `Components/TFSheet.swift`: системная шторка, содержимое которой не заливается фоном приложения | как у `.sheet` |
 
-Любая шторка/лист — через `.tfBottomSheet(...)`, не через ручной `.sheet` со
-своим фоном/индикатором.
+Любая шторка/лист — через `.tfBottomSheet(...)` или `.tfSheet(...)`. Голый
+`.sheet` сторож (`Tools/design-system-guard.py`, правило `raw-sheet`) не пропускает:
+с ним фон приложения красит шторку в чёрный вместо системного цвета.
 
 ## Пустые состояния, загрузка, ошибки — `Components/TFEmptyState.swift`, `Components/TFLoading.swift`
 

@@ -228,6 +228,13 @@ RULES = [
                "и оставляет фон приложения под `refreshable`",
     },
     {
+        "id": "raw-sheet",
+        "severity": "error",
+        "title": "голый `.sheet` вместо `tfSheet`",
+        "fix": "шторка — `.tfSheet(isPresented:)` или `.tfSheet(item:)`: только так "
+               "в ней виден системный цвет, а не чёрный фон приложения",
+    },
+    {
         "id": "raw-pill",
         "severity": "error",
         "title": "самодельная плашка-капсула вместо `TFPill`",
@@ -348,6 +355,13 @@ RAW_SCREEN_BACKGROUND_ALLOWED = {
     # Сквозная подложка на весь экран (не «фон экрана»).
     "Features/Secretary/SecretaryVoiceScreen.swift",
     "Chat/Composer/ChatVoiceComposer.swift",
+}
+# Владелец 05.11.2026: шторка снизу вверх — оригинального цвета. Голый `.sheet`
+# не сообщает содержимому, что оно в шторке, и фон приложения красит её в чёрный.
+RAW_SHEET = re.compile(r"(?<!`)\.sheet\s*\(\s*(?:(?:item|isPresented)\s*:|$)|(?<![\w.`])sheet\s*\(\s*(?:item|isPresented)\s*:")
+RAW_SHEET_ALLOWED = {
+    # Сам `tfSheet`: единственное место, где зовётся системный `.sheet`.
+    "DesignSystem/Components/TFSheet.swift",
 }
 # F12: самодельная плашка — капсула, скруглённая `TFRadius.pill`, собранная
 # руками: либо подложка `tfCard`/`tfCard2` под скруглением-капсулой, либо
@@ -553,6 +567,8 @@ def check_line(path: str, lines, index: int, preview=None, canon_lines=None):
         if (RAW_SCREEN_BACKGROUND.search(code)
                 and rel not in RAW_SCREEN_BACKGROUND_ALLOWED):
             hits.append("raw-screen-background")
+    if RAW_SHEET.search(code) and rel not in RAW_SHEET_ALLOWED:
+        hits.append("raw-sheet")
     if SYSTEM_COLOR.search(code):
         hits.append("system-text-color")
     head = strip_comment(statement_head(lines, index))
