@@ -105,8 +105,9 @@ struct ProjectChatScreen: View {
             }
             .tint(Color.tfText)
             .navigationTitle("Выберите задачу")
-            .toolbar { Button("Закрыть") { showingTasks = false } }
         }
+        // Шторка раскрывается и закрывается свайпом, кнопка не нужна (владелец 05.11.2026).
+        .presentationDetents([.medium, .large])
     }
 
     private func openGeneral() {
