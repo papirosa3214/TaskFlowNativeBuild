@@ -39,7 +39,9 @@ struct ProjectChatScreen: View {
                 tab(id: groupID, title: "Общее", unread: 0, closed: false) { openGeneral() }
                     .accessibilityIdentifier("projectChat.general")
                 ForEach(visibleTopics) { topic in
-                    tab(id: topic.id, title: topic.title ?? "Задача", unread: topic.unread, closed: topic.closedAt != nil) {
+                    tab(id: topic.id, title: topic.title ?? "Задача",
+                        unread: UnreadBadgePolicy.topicCount(unread: topic.unread, isOpen: topic.id == selected.id),
+                        closed: topic.closedAt != nil) {
                         selected = topic
                         stripPosition = topic.id
                     }

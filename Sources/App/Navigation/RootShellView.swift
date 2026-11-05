@@ -94,6 +94,7 @@ struct RootShellView: View {
     /// после первого захода на «Сегодня» в текущий календарный день и не
     /// появляется заново до полуночи, даже если список задач изменился.
     @AppStorage("taskflow_today_badge_seen_date") private var todayBadgeSeenDate: String = ""
+    @Environment(\.scenePhase) private var scenePhase
     /// Нижняя панель «пилюлей» (LOCK-TABBAR-PILL-20261018) или нынешний таббар.
     /// Тумблер «Таббар-пилюля» в настройках; по умолчанию пилюля — этого просил
     /// владелец 18.10.2026. Ключ общий с `SettingsViewModel`.
@@ -199,6 +200,12 @@ struct RootShellView: View {
             if url.scheme == "taskflow", url.host == "voice", voiceSession.presentation.isActive {
                 voiceSession.expand()
             }
+        }
+        .onChange(of: selectedTab, initial: true) { previous, current in
+            rememberTodayTabSeen(isOnTodayTab: previous == .upcoming || current == .upcoming)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { rememberTodayTabSeen(isOnTodayTab: selectedTab == .upcoming) }
         }
         .onChange(of: session.currentUser?.id) { _, _ in
             Task { await voiceSession.stop() }
@@ -391,8 +398,20 @@ struct RootShellView: View {
     /// Активные задачи со сроком «сегодня» — то же условие, что у веба
     /// (`due_date === todayStr() && status === "active"`, spec §2.1).
     private var todayBadgeCount: Int {
-        guard todayBadgeSeenDate != TaskDay.todayString() else { return 0 }
-        return taskStore.tasks.count { $0.status == .active && $0.isDueToday }
+        UnreadBadgePolicy.todayTabCount(
+            dueToday: taskStore.tasks.count { $0.status == .active && $0.isDueToday },
+            seenDate: todayBadgeSeenDate,
+            today: TaskDay.todayString(),
+            isOnTodayTab: selectedTab == .upcoming
+        )
+    }
+
+    private func rememberTodayTabSeen(isOnTodayTab: Bool) {
+        todayBadgeSeenDate = UnreadBadgePolicy.todaySeenDate(
+            current: todayBadgeSeenDate,
+            today: TaskDay.todayString(),
+            isOnTodayTab: isOnTodayTab
+        )
     }
 
     /// Root-owned controls participate in UIKit's interactive navigation transition.
