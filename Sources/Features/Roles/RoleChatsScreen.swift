@@ -808,9 +808,6 @@ struct RoleChatRoomScreen: View {
     /// значит «ещё грузится», а не «сообщений нет» (26.10.2026: при каждом
     /// открытии чата мелькала пустая страница «Пока нет сообщений»).
     @State private var hasLoadedMessages = false
-    /// Последняя лента каждого открытого чата в памяти: при повторном входе
-    /// переписка стоит сразу, сервер только досылает новое (26.10.2026).
-    @MainActor private static var lastMessages: [String: [RoleChatMessage]] = [:]
     @State private var draft = ""
     @State private var isSending = false
     @State private var errorMessage: String?
@@ -1119,13 +1116,10 @@ struct RoleChatRoomScreen: View {
     init(chat: RoleChat, topicStrip: AnyView? = nil) {
         self.topicStrip = topicStrip
         _chat = State(initialValue: chat)
-        if let cached = Self.lastMessages[chat.id] {
-            _messages = State(initialValue: cached)
-            _hasLoadedMessages = State(initialValue: true)
-            // История уже на экране — но семя добираем после первого снимка
-            // (короткий кэш мог быть неполным).
-            _seedMessageIDs = State(initialValue: Set(cached.map(\.id)))
-        } else if let local = try? LocalStore.shared.messages(chatID: chat.id), !local.isEmpty {
+        // Лента — это локальная база (05.11.2026): своей копии в памяти у
+        // экрана больше нет, иначе пришедшее, пока чат был закрыт, на экран
+        // не попадало.
+        if let local = try? LocalStore.shared.messages(chatID: chat.id), !local.isEmpty {
             // Локальная база: переписка открывается сразу, без сети.
             _messages = State(initialValue: local)
             _hasLoadedMessages = State(initialValue: true)
@@ -1731,6 +1725,7 @@ struct RoleChatRoomScreen: View {
     private var composerSession: some View {
         composerNavigation
         .task { await connectRealtime() }
+        .task { await followLocalStore() }
         .onDisappear { realtimeObserver.clear(remove: realtime.removeObserver) }
         .onChange(of: realtime.connectionRevision) {
             guard realtimeObserver.isActive else { return }
@@ -1836,6 +1831,26 @@ struct RoleChatRoomScreen: View {
         }
         .onDisappear { voice.cancel(); player.stop() }
         .taskCardSheet(taskID: $pendingTaskID)
+    }
+
+    /// Лента следует за локальной базой (05.11.2026). Всё, что туда легло —
+    /// догрузка при открытии, фоновая синхронизация по сокету, пока чат был
+    /// закрыт, — встаёт в ленту тем же путём, что сообщение из сокета
+    /// (`insertIncoming`): живой ход автора закрывается, лента не прыгает.
+    /// Удалённое владельцем стирается из базы там же, где из ленты.
+    private func followLocalStore() async {
+        if readingPreview { return }
+        do {
+            for try await stored in LocalStore.shared.messageUpdates(chatID: chat.id) {
+                let onScreen = Set(messages.map(\.id))
+                for message in stored where !onScreen.contains(message.id) {
+                    insertIncoming(message)
+                }
+            }
+        } catch {
+            // Подписка оборвалась (база недоступна) — лента остаётся на
+            // догрузке с сервера, как раньше.
+        }
     }
 
     private func connectRealtime() async {
@@ -2650,6 +2665,7 @@ struct RoleChatRoomScreen: View {
         guard !ids.isEmpty else { return }
         do {
             try await api.deleteRoleChatMessages(chatID: chat.id, ids: Array(ids))
+            try? LocalStore.shared.deleteMessages(chatID: chat.id, ids: Array(ids))
             messages.removeAll { ids.contains($0.id) }
             exitSelection()
         } catch { errorMessage = error.localizedDescription }
@@ -2694,6 +2710,7 @@ struct RoleChatRoomScreen: View {
     private func clearChat() async {
         do {
             try await api.deleteRoleChatMessages(chatID: chat.id)
+            try? LocalStore.shared.deleteAllMessages(chatID: chat.id)
             messages = []
             exitSelection()
         } catch { errorMessage = error.localizedDescription }
@@ -3201,6 +3218,7 @@ struct RoleChatRoomScreen: View {
         guard message.fromUserID == session.currentUser?.id, message.canWithdraw == true else { return }
         do {
             try await api.withdrawRoleChatMessage(chatID: chat.id, messageID: message.id)
+            try? LocalStore.shared.deleteMessages(chatID: chat.id, ids: [message.id])
             messages.removeAll { $0.id == message.id }
             selectedMessageIDs.remove(message.id)
         } catch {
@@ -3364,7 +3382,6 @@ struct RoleChatRoomScreen: View {
                     )
                 }
                 hasLoadedMessages = true
-                Self.lastMessages[chat.id] = messages
                 // Первый снимок при открытии — история. Добираем семя после
                 // короткого кэша, иначе последний ответ снова проявляется.
                 if !historySeedSettled {

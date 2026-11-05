@@ -5,9 +5,9 @@ import GRDB
 /// сервера как есть.
 ///
 /// Правила хранения (общие для всех таблиц):
-/// - **Ключ — `id`.** Запись только обновляется (upsert по `id`), НИЧЕГО не
-///   удаляется: удалённое на сервере сообщение должно остаться в локальной
-///   истории — в этом весь смысл локальной базы.
+/// - **Ключ — `id`.** Запись только обновляется (upsert по `id`). Сообщение
+///   удаляется только когда его отозвали или удалил владелец (05.11.2026):
+///   экран чата показывает базу, и без удаления оно вернулось бы в ленту.
 /// - **`payload_json` — сырой JSON сервера.** Экран декодирует его один раз
 ///   при чтении. Новое поле на сервере не ломает базу: старое тело просто
 ///   не содержит этого поля.
@@ -166,13 +166,47 @@ final class LocalStore: @unchecked Sendable {
 
     /// История чата из базы, по возрастанию номера сообщения.
     func messages(chatID: String) throws -> [RoleChatMessage] {
-        let rows = try queue.read { db in
-            try Row.fetchAll(
-                db,
-                sql: "SELECT payload_json FROM message WHERE chat_id = ? ORDER BY sequence ASC, id ASC",
-                arguments: [chatID]
-            )
+        try queue.read { db in try Self.fetchMessages(db, chatID: chatID) }
+    }
+
+    /// Лента чата с подпиской: первое значение — что лежит в базе сейчас,
+    /// дальше — после каждой записи в сообщения этого чата.
+    ///
+    /// Экран чата показывает ровно базу (05.11.2026): любая догрузка —
+    /// при открытии, из сокета, в фоне, пока чат закрыт, — пишет сюда, и
+    /// сообщение появляется в ленте само. Раньше лента жила своей копией в
+    /// памяти, и пришедшее, пока чат был закрыт, на экран не попадало.
+    func messageUpdates(chatID: String) -> AsyncValueObservation<[RoleChatMessage]> {
+        ValueObservation
+            .tracking { db in try Self.fetchMessages(db, chatID: chatID) }
+            .removeDuplicates(by: { $0.map(\.id) == $1.map(\.id) })
+            .values(in: queue)
+    }
+
+    /// Удалить сообщения чата: отозванные и удалённые владельцем. Иначе
+    /// лента из базы вернула бы их на экран.
+    func deleteMessages(chatID: String, ids: [String]) throws {
+        guard !ids.isEmpty else { return }
+        try queue.write { db in
+            for id in ids {
+                try db.execute(sql: "DELETE FROM message WHERE chat_id = ? AND id = ?", arguments: [chatID, id])
+            }
         }
+    }
+
+    /// Очистить переписку чата целиком (владелец очистил чат).
+    func deleteAllMessages(chatID: String) throws {
+        try queue.write { db in
+            try db.execute(sql: "DELETE FROM message WHERE chat_id = ?", arguments: [chatID])
+        }
+    }
+
+    private static func fetchMessages(_ db: Database, chatID: String) throws -> [RoleChatMessage] {
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT payload_json FROM message WHERE chat_id = ? ORDER BY sequence ASC, id ASC",
+            arguments: [chatID]
+        )
         return rows.compactMap { row in
             guard let raw: Data = row["payload_json"] else { return nil }
             return try? JSONDecoder().decode(RoleChatMessage.self, from: raw)

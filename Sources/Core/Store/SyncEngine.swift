@@ -142,6 +142,11 @@ public final class SyncEngine {
         switch event {
         case .roleChatMessage(let chatID, _):
             Task { await syncMessages(chatID: chatID) }
+        case .unknown("chat:withdrawn", .object(let payload)):
+            // Отозванное сообщение уходит и из базы: лента чата читает базу.
+            if let chatID = payload["chat_id"]?.stringValue, let id = payload["message_id"]?.stringValue {
+                try? store.deleteMessages(chatID: chatID, ids: [id])
+            }
         case .notificationNew(_):
             Task { await syncNotifications(unreadOnly: true) }
         default:
