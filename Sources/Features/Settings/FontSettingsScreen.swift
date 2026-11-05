@@ -132,6 +132,7 @@ struct FontSettingsScreen: View {
                 }
             }
             .pickerStyle(.segmented)
+            .sensoryFeedback(.selection, trigger: binding.wrappedValue)
         }
         .padding(.horizontal, TFSpacing.md)
         .frame(minHeight: TFHitTarget.min)
