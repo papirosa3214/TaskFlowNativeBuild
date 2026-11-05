@@ -1327,10 +1327,6 @@ struct RoleChatRoomScreen: View {
             onCompact: { await compactSessionRole() },
             onResetContext: { await resetSessionContext() },
             onClose: { await closeSession() },
-            onSelectCommand: { command in
-                draft = command.inserting(into: draft)
-                composerFocused = true
-            },
             onAttachmentSource: handleAttachmentSource,
             workMode: $workMode,
             // Способ выполнения — в окне сессии (владелец 31.10.2026),

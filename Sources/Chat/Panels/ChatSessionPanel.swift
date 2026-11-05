@@ -18,7 +18,6 @@ struct ChatSessionPanel: View {
     let onCompact: () async -> Void
     let onResetContext: () async -> Void
     let onClose: () async -> Void
-    let onSelectCommand: (ChatSlashCommand) -> Void
     var onAttachmentSource: ((ChatAttachmentSource) -> Void)? = nil
     var workMode: Binding<RoleChatWorkMode>? = nil
     var executionMode: Binding<ChatExecutionMode>? = nil
@@ -26,7 +25,6 @@ struct ChatSessionPanel: View {
     var chatRoles: [String] = []
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
-    @State private var showsCommands = false
     @State private var showsContext = false
     @State private var showsModelPicker = false
     @State private var confirmsReset = false
@@ -35,6 +33,10 @@ struct ChatSessionPanel: View {
     private var workModes: [RoleChatWorkMode] {
         ChatSessionWorkModePolicy.allModes
     }
+
+    /// В групповых чатах один способ работы — по карточке: выбирать нечего, а
+    /// действия над чатом есть в верхнем меню (владелец 05.11.2026).
+    private var isGroup: Bool { chat.kind == "group" || chatRoles.count > 1 }
 
     private var allowsResearch: Bool {
         ChatSessionWorkModePolicy.allowsResearch(roles: chatRoles)
@@ -87,7 +89,7 @@ struct ChatSessionPanel: View {
 
                     sessionBlock(
                         title: "Рабочее пространство",
-                        hint: "Рабочая папка — каталог, в котором роль читает и пишет файлы этого разговора.\n\nКонтекст — сколько места занято в окне модели; по нажатию — разбор по частям.\n\nНавыки и инструменты — команды и возможности роли в этом чате."
+                        hint: "Рабочая папка — каталог, в котором роль читает и пишет файлы этого разговора.\n\nКонтекст — сколько места занято в окне модели; по нажатию — разбор по частям."
                     ) {
                         sessionCard {
                             ChatWorkspaceMenu(choice: workspace) {
@@ -97,17 +99,6 @@ struct ChatSessionPanel: View {
                             sessionDivider()
                             sessionButton(showsContext = true) { contextRow }
                                 .accessibilityIdentifier("chat.session.context")
-                            sessionDivider()
-                            sessionButton(showsCommands = true) {
-                                Text("Навыки и инструменты")
-                                    .tfText(.body)
-                                    .foregroundStyle(Color.tfText)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, TFSpacing.md)
-                                    .padding(.vertical, 10)
-                                    .contentShape(Rectangle())
-                            }
-                            .accessibilityIdentifier("chat.session.commands")
                         }
                     }
 
@@ -138,7 +129,7 @@ struct ChatSessionPanel: View {
                         }
                     }
 
-                    if let executionMode {
+                    if !isGroup, let executionMode {
                         // Пояснение — вопросик у заголовка, как в рутинах
                         // (владелец 03.11.2026: не «здоровые» подписи под плитками).
                         sessionBlock(
@@ -153,7 +144,7 @@ struct ChatSessionPanel: View {
                         }
                     }
 
-                    if let workMode {
+                    if !isGroup, let workMode {
                         sessionBlock(
                             title: "Режим работы",
                             hint: "Работа — обычное выполнение поручения.\n\nПланирование — сначала собирает план шагов, без спешки к итогу.\n\nЦель — держит фокус на результате: что должно получиться.\n\nИсследование — глубокий поиск и разбор (у Исследователя и Помощника)."
@@ -169,36 +160,38 @@ struct ChatSessionPanel: View {
                         }
                     }
 
-                    sessionBlock(
-                        title: "Настройки сессии",
-                        hint: "Новая сессия — отдельный разговор с чистым контекстом.\n\nСжать контекст — ужать историю, чтобы освободить место в окне модели.\n\nСбросить контекст — сообщения остаются на экране, модель начинает новый контекст.\n\nЗакрыть сессию — убрать разговор из списка, если он не постоянный."
-                    ) {
-                        sessionCard {
-                            sessionAction("Новая сессия", symbol: "plus.bubble") {
-                                dismiss()
-                                onNewSession()
-                            }
-                            sessionDivider()
-                            sessionAction("Сжать контекст",
-                                          symbol: "arrow.down.right.and.arrow.up.left") {
-                                Task { await perform(onCompact) }
-                            }
-                            sessionDivider()
-                            sessionAction("Сбросить контекст", symbol: "arrow.counterclockwise") {
-                                confirmsReset = true
-                            }
-                            if !chat.isPermanentRoom {
+                    if !isGroup {
+                        sessionBlock(
+                            title: "Настройки сессии",
+                            hint: "Новая сессия — отдельный разговор с чистым контекстом.\n\nСжать контекст — ужать историю, чтобы освободить место в окне модели.\n\nСбросить контекст — сообщения остаются на экране, модель начинает новый контекст.\n\nЗакрыть сессию — убрать разговор из списка, если он не постоянный."
+                        ) {
+                            sessionCard {
+                                sessionAction("Новая сессия", symbol: "plus.bubble") {
+                                    dismiss()
+                                    onNewSession()
+                                }
                                 sessionDivider()
-                                sessionAction("Закрыть сессию", symbol: "archivebox") {
-                                    Task { await perform(onClose); dismiss() }
+                                sessionAction("Сжать контекст",
+                                              symbol: "arrow.down.right.and.arrow.up.left") {
+                                    Task { await perform(onCompact) }
+                                }
+                                sessionDivider()
+                                sessionAction("Сбросить контекст", symbol: "arrow.counterclockwise") {
+                                    confirmsReset = true
+                                }
+                                if !chat.isPermanentRoom {
+                                    sessionDivider()
+                                    sessionAction("Закрыть сессию", symbol: "archivebox") {
+                                        Task { await perform(onClose); dismiss() }
+                                    }
                                 }
                             }
                         }
+                        Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю.")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .padding(.horizontal, TFSpacing.xs)
                     }
-                    Text("Новая сессия создаёт отдельный разговор. Сброс контекста оставляет историю.")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                        .padding(.horizontal, TFSpacing.xs)
                 }
                 .padding(.horizontal, TFSpacing.lg)
                 .padding(.vertical, TFSpacing.sm)
@@ -206,12 +199,8 @@ struct ChatSessionPanel: View {
             .tfScreenBackground()
             .tint(.primary)
             .disabled(choice.isSaving || actionRunning)
-            .tfNativeHeader("Сессия")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") { dismiss() }.tint(.primary)
-                }
-            }
+            // Без заголовка и кнопки: шторка закрывается свайпом (владелец 05.11.2026).
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showsContext) {
                 ChatContextSheet(snapshot: context, roleName: nil, loadError: controls.errorText,
                                  onRefresh: { Task { await onRefresh() } })
@@ -219,13 +208,6 @@ struct ChatSessionPanel: View {
             .sheet(isPresented: $showsModelPicker) {
                 ChatModelPickerSheet(choice: choice)
                     .environment(\.tfTypeSettingsEnabled, true)
-            }
-            .sheet(isPresented: $showsCommands) {
-                ChatCommandPicker(commands: controls.commands, errorText: controls.errorText,
-                                  onRefresh: { Task { await onRefresh() } }) { command in
-                    dismiss()
-                    onSelectCommand(command)
-                }
             }
             .confirmationDialog("Сбросить контекст этой сессии?",
                                 isPresented: $confirmsReset, titleVisibility: .visible) {
