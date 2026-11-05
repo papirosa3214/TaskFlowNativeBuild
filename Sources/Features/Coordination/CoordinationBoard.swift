@@ -162,3 +162,80 @@ enum CoordinationBoard {
         return layout
     }
 }
+
+/// Что показывает шапка Mission Control. Оркестратор на экране — одна сессия, хотя в плане
+/// у него два шага: разложить работу и собрать итог.
+enum MissionProgress {
+    struct Slot: Equatable {
+        let key: String
+        let roleKey: String
+        let isDone: Bool
+        let isActive: Bool
+        let needsOwner: Bool
+        let isSkipped: Bool
+    }
+
+    private static let orchestratorRoles: Set<String> = ["code_orchestrator", "orchestrator"]
+    /// Ключи шагов оркестратора: сервер, `orchestratedPlan.ts`.
+    private static let assembleSlot = "assemble"
+
+    static func status(slots: [Slot], paused: Bool) -> String {
+        let alive = slots.filter { !$0.isSkipped }
+        if paused { return "На паузе" }
+        if !alive.isEmpty, alive.allSatisfy(\.isDone) { return "Завершена" }
+        if alive.contains(where: \.needsOwner) { return "Ждёт вас" }
+        let active = alive.filter(\.isActive)
+        if active.isEmpty { return "Ждёт запуска" }
+        if active.contains(where: { $0.key == assembleSlot }) { return "Оркестратор собирает итог" }
+        if active.allSatisfy({ orchestratorRoles.contains($0.roleKey) }) { return "Оркестратор раскладывает работу" }
+        return "Команда работает"
+    }
+
+    static func progress(slots: [Slot]) -> (done: Int, total: Int) {
+        let alive = slots.filter { !$0.isSkipped }
+        return (alive.filter(\.isDone).count, alive.count)
+    }
+
+    /// Сессии по порядку: сначала оркестратор на текущем шаге, потом команда.
+    static func sessions(slots: [Slot]) -> [String] {
+        let own = slots.filter { orchestratorRoles.contains($0.roleKey) }
+        let team = slots.filter { !orchestratorRoles.contains($0.roleKey) }.map(\.key)
+        guard let current = currentOrchestratorStep(own) else { return team }
+        return [current] + team
+    }
+
+    private static func currentOrchestratorStep(_ own: [Slot]) -> String? {
+        if let assemble = own.first(where: { $0.key == assembleSlot && ($0.isActive || $0.isDone || $0.needsOwner) }) {
+            return assemble.key
+        }
+        return own.first(where: { !$0.isSkipped })?.key
+    }
+
+    /// Какую сессию открыть сразу: где работа идёт, иначе где ждут владельца, иначе оркестратора.
+    static func defaultSession(slots: [Slot]) -> String? {
+        let order = sessions(slots: slots)
+        let bySlot = Dictionary(uniqueKeysWithValues: slots.map { ($0.key, $0) })
+        return order.first { bySlot[$0]?.isActive == true }
+            ?? order.first { bySlot[$0]?.needsOwner == true }
+            ?? order.first
+    }
+
+    /// Паузить есть что, пока работа не закончена; снять паузу можно всегда.
+    static func canPause(slots: [Slot], paused: Bool) -> Bool {
+        if paused { return true }
+        return slots.contains { !$0.isSkipped && !$0.isDone }
+    }
+
+    static func duration(seconds: Int) -> String {
+        let total = max(0, seconds)
+        return String(format: "%d:%02d:%02d", total / 3600, total % 3600 / 60, total % 60)
+    }
+
+    static func tokens(_ count: Int) -> String {
+        if count <= 0 { return "—" }
+        if count < 1000 { return "\(count)" }
+        if count < 1_000_000 { return "\(Int((Double(count) / 1000).rounded())) тыс." }
+        let millions = (Double(count) / 1_000_000 * 10).rounded() / 10
+        return String(format: "%.1f млн", millions).replacingOccurrences(of: ".", with: ",")
+    }
+}

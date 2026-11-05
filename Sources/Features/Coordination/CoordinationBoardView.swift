@@ -43,6 +43,9 @@ final class CoordinationBoardModel {
     var errorMessage: String?
     /// Шаги дочерних карточек: в плане ветки у узлов чужие подзадачи.
     private var childSubtasks: [ApiSubtask] = []
+    /// Изменения кода по веткам: своя карточка и дочерние. Пустые не показываем.
+    var codeChanges: [TaskCodeChanges] = []
+    private var codeChangesLoadedAt: Date?
     private let api = APIClient()
 
     var plan: ApiCollaborationPlan? { planState.plan }
@@ -66,6 +69,22 @@ final class CoordinationBoardModel {
             if let steps = try? await api.subtasks(taskId: child) { loaded += steps }
         }
         if childSubtasks != loaded { childSubtasks = loaded }
+    }
+
+    /// Дифф считается на сервере дорого, поэтому не чаще раза в две минуты. Смотреть может владелец.
+    func loadCodeChanges(taskID: String, force: Bool = false) async {
+        if !force, let codeChangesLoadedAt, Date().timeIntervalSince(codeChangesLoadedAt) < 120 { return }
+        codeChangesLoadedAt = Date()
+        let children = Set(plan?.nodes.compactMap(\.taskId) ?? []).subtracting([taskID]).sorted()
+        var loaded: [TaskCodeChanges] = []
+        for id in [taskID] + children {
+            if let changes = try? await api.taskCodeChanges(taskID: id), !changes.isEmpty { loaded.append(changes) }
+        }
+        if codeChanges != loaded { codeChanges = loaded }
+    }
+
+    func cardTitle(_ taskID: String) -> String? {
+        plan?.nodes.first { $0.taskId == taskID }?.taskTitle
     }
 
     func stage(_ slot: String) -> CoordinationStage? {

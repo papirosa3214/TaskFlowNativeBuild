@@ -119,6 +119,95 @@ private struct CodeCountsText: View {
     }
 }
 
+/// Строка файла: имя, папка, что с ним сделано, сколько строк.
+private struct CodeFileRow: View {
+    let file: CodeFile
+
+    var body: some View {
+        HStack(spacing: TFSpacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.fileName).tfText(.row).lineLimit(1)
+                if !file.directory.isEmpty {
+                    Text(file.directory)
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+            }
+            Spacer(minLength: 0)
+            if let badge = file.statusBadge {
+                Text(badge).tfText(.meta).foregroundStyle(Color.tfSub)
+            }
+            CodeCountsText(additions: file.additions, deletions: file.deletions)
+        }
+    }
+}
+
+/// «Координация» → изменения кода: раскрываются прямо на экране, файл открывается
+/// шторкой с диффом, замечания уходят роли одним комментарием (владелец 05.11.2026).
+struct TaskCodeChangesDisclosure: View {
+    let changes: TaskCodeChanges
+    var title: String? = nil
+
+    @State private var isExpanded = false
+    @State private var comments: [CodeReviewComment] = []
+    @State private var sheetFile: CodeFile?
+    @State private var isSending = false
+    @State private var sendError: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            Button { isExpanded.toggle() } label: {
+                HStack(spacing: TFSpacing.sm) {
+                    Text(title ?? "Ветка карточки").tfText(.body).foregroundStyle(Color.tfText).lineLimit(1)
+                    Spacer(minLength: 0)
+                    CodeCountsText(files: changes.totals.files, additions: changes.totals.additions, deletions: changes.totals.deletions)
+                    Image(systemName: "chevron.right")
+                        .tfTypeFont(size: 13)
+                        .foregroundStyle(Color.tfDim)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Изменения кода, \(changes.summary)")
+            .accessibilityIdentifier("coord.code-changes")
+            if isExpanded {
+                Text(changes.state == .merged ? "Уже влито в основную ветку." : "Ветка \(changes.branch), ещё не влита.")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                ForEach(changes.files) { file in
+                    Button { sheetFile = file } label: { CodeFileRow(file: file).foregroundStyle(Color.tfText) }
+                        .buttonStyle(TFTapRowStyle())
+                }
+                if !comments.isEmpty {
+                    TFActionRow(title: "Отправить замечания роли: \(comments.count)", icon: "paperplane", isEnabled: !isSending) {
+                        Task { await send() }
+                    }
+                }
+                if let sendError { TFErrorBanner(sendError, variant: .block) }
+            }
+        }
+        .sheet(item: $sheetFile) { file in
+            NavigationStack { TaskCodeFileScreen(file: file, comments: $comments) }
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func send() async {
+        isSending = true
+        defer { isSending = false }
+        do {
+            _ = try await APIClient().createComment(taskId: changes.taskID, text: CodeReviewComment.message(comments))
+            comments = []
+            sendError = nil
+        } catch {
+            sendError = error.localizedDescription
+        }
+    }
+}
+
 /// Список файлов и отправка замечаний — общая шторка карточки и чата.
 struct CodeChangesScreen: View {
     let files: [CodeFile]
@@ -187,23 +276,7 @@ struct CodeChangesScreen: View {
     }
 
     private func fileRow(_ file: CodeFile) -> some View {
-        HStack(spacing: TFSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.fileName).tfText(.row).lineLimit(1)
-                if !file.directory.isEmpty {
-                    Text(file.directory)
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
-                        .truncationMode(.head)
-                }
-            }
-            Spacer(minLength: 0)
-            if let badge = file.statusBadge {
-                Text(badge).tfText(.meta).foregroundStyle(Color.tfSub)
-            }
-            CodeCountsText(additions: file.additions, deletions: file.deletions)
-        }
+        CodeFileRow(file: file)
     }
 
     /// Все замечания — одним текстом: файл, строка, код, что не так.

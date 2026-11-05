@@ -90,6 +90,7 @@ public struct CoordinationScreen: View {
                     TFEmptyState(icon: "point.3.connected.trianglepath.dotted", text: "Нет утверждённого плана",
                                  description: "Этапы появятся здесь после утверждения плана.")
                 }
+                codeChangesSection
                 chatRow
                 if let updated = state.lastUpdatedAt {
                     Text("Обновлено \(updated.formatted(date: .omitted, time: .shortened))")
@@ -218,6 +219,26 @@ public struct CoordinationScreen: View {
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
+    /// Что реально изменилось в коде: раскрывается здесь же, до диффа по файлу.
+    @ViewBuilder
+    private var codeChangesSection: some View {
+        if isOwner, !board.codeChanges.isEmpty {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                TFPlainSectionTitle("Изменения кода")
+                ForEach(board.codeChanges, id: \.taskID) { changes in
+                    TaskCodeChangesDisclosure(
+                        changes: changes,
+                        title: board.codeChanges.count > 1 ? board.cardTitle(changes.taskID) : nil
+                    )
+                }
+                Text("Показана вся ветка карточки: роли работают в одной ветке, поэтому по этапам изменения не разделяются.")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+        }
+    }
+
     private var chatRow: some View {
         TFActionRow(title: "Переписка по задаче", icon: "bubble.left.and.bubble.right") {
             Task {
@@ -270,6 +291,7 @@ public struct CoordinationScreen: View {
             loadedOnce = true
         }
         await board.load(taskID: taskId, isOwner: isOwner)
+        if isOwner { await board.loadCodeChanges(taskID: taskId) }
         do {
             let items = try await APIClient().fetchTaskResolutions(taskId: taskId)
             guard !Task.isCancelled else { return }

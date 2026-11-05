@@ -111,6 +111,15 @@ public extension APIClient {
         return envelope.plan
     }
 
+    /// Поставить миссию на паузу или продолжить.
+    @discardableResult
+    func setCollaborationPlanPaused(taskId: String, planId: String, paused: Bool) async throws -> ApiCollaborationPlan {
+        let envelope: CollaborationPlanEnvelope = try await request(
+            .post, "/tasks/\(taskId)/collaboration-plans/\(planId)/\(paused ? "pause" : "resume")"
+        )
+        return envelope.plan
+    }
+
     @discardableResult
     func applyCollaborationPlanOps(taskId: String, planId: String, baseVersion: Int?, ops: [ApiPlanOp],
                                    reason: String? = nil, branchSnapshot: String? = nil) async throws -> ApiCollaborationPlan {

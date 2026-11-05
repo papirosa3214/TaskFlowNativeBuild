@@ -18,14 +18,31 @@ public struct TaskExecutorSummary: Decodable, Sendable, Equatable {
     public let orchestrator: TaskExecutorOrchestrator
     public let executors: [TaskExecutor]
     public let pendingQuestions: [TaskExecutorQuestion]
+    /// Время и расход миссии. nil — старый сервер.
+    public let time: TaskMissionTime?
 
     enum CodingKeys: String, CodingKey {
+        case time
         case taskId = "task_id"
         case taskTitle = "task_title"
         case generatedAt = "generated_at"
         case orchestrator
         case executors
         case pendingQuestions = "pending_questions"
+    }
+}
+
+/// Сколько команда реально работала и сколько потратила токенов, с дочерними карточками.
+public struct TaskMissionTime: Decodable, Sendable, Equatable {
+    public let startedAt: String?
+    public let workedSeconds: Int
+    public let running: Bool
+    public let tokens: Int
+
+    enum CodingKeys: String, CodingKey {
+        case startedAt = "started_at"
+        case workedSeconds = "worked_seconds"
+        case running, tokens
     }
 }
 

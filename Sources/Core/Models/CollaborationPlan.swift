@@ -194,9 +194,12 @@ public struct ApiCollaborationPlan: Codable, Sendable, Hashable, Identifiable {
     public let branchRootTaskId: String?
     public var branchTeam: [ApiBranchTeamMember]? = nil
     public var branchCards: [ApiBranchCard]? = nil
+    /// Когда план поставлен на паузу; nil — идёт.
+    public var pausedAt: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
+        case pausedAt = "paused_at"
         case taskId = "task_id"
         case revision, status, profile, rationale, nodes, edges, version
         case pendingProposals = "pending_proposals"

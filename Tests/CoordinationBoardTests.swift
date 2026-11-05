@@ -141,6 +141,74 @@ final class CoordinationBoardTests: XCTestCase {
         XCTAssertTrue(CoordinationBoard.canGrow(diamond))
     }
 
+    // MARK: - Mission Control
+
+    private func slot(_ key: String, role: String = "builder", done: Bool = false, active: Bool = false,
+                      owner: Bool = false, skipped: Bool = false) -> MissionProgress.Slot {
+        MissionProgress.Slot(key: key, roleKey: role, isDone: done, isActive: active, needsOwner: owner, isSkipped: skipped)
+    }
+
+    private let orchestrate = "orchestrate"
+    private let assemble = "assemble"
+
+    func testStatusFollowsTheOrchestratorWork() {
+        let boss = "code_orchestrator"
+        var slots = [slot(orchestrate, role: boss, active: true), slot(assemble, role: boss)]
+        XCTAssertEqual(MissionProgress.status(slots: slots, paused: false), "Оркестратор раскладывает работу")
+        slots = [slot(orchestrate, role: boss, done: true), slot("build", active: true), slot(assemble, role: boss)]
+        XCTAssertEqual(MissionProgress.status(slots: slots, paused: false), "Команда работает")
+        slots = [slot(orchestrate, role: boss, done: true), slot("build", done: true), slot(assemble, role: boss, active: true)]
+        XCTAssertEqual(MissionProgress.status(slots: slots, paused: false), "Оркестратор собирает итог")
+        slots = [slot(orchestrate, role: boss, done: true), slot("build", done: true), slot(assemble, role: boss, done: true)]
+        XCTAssertEqual(MissionProgress.status(slots: slots, paused: false), "Завершена")
+    }
+
+    func testPauseAndOwnerOutrankTheRest() {
+        let slots = [slot("a", active: true), slot("b", owner: true)]
+        XCTAssertEqual(MissionProgress.status(slots: slots, paused: true), "На паузе")
+        XCTAssertEqual(MissionProgress.status(slots: slots, paused: false), "Ждёт вас")
+        XCTAssertEqual(MissionProgress.status(slots: [slot("a")], paused: false), "Ждёт запуска")
+    }
+
+    func testProgressCountsWithoutSkipped() {
+        let slots = [slot("a", done: true), slot("b"), slot("c", skipped: true)]
+        XCTAssertEqual(MissionProgress.progress(slots: slots).done, 1)
+        XCTAssertEqual(MissionProgress.progress(slots: slots).total, 2)
+    }
+
+    func testOrchestratorIsOneSessionOnCurrentStep() {
+        let boss = "code_orchestrator"
+        let early = [slot(orchestrate, role: boss, active: true), slot("b"), slot(assemble, role: boss)]
+        XCTAssertEqual(MissionProgress.sessions(slots: early), [orchestrate, "b"])
+        let late = [slot(orchestrate, role: boss, done: true), slot("b", done: true), slot(assemble, role: boss, active: true)]
+        XCTAssertEqual(MissionProgress.sessions(slots: late), [assemble, "b"])
+    }
+
+    func testDefaultSessionIsWhereTheWorkIs() {
+        let boss = "code_orchestrator"
+        let slots = [slot(orchestrate, role: boss, done: true), slot("a", done: true), slot("b", active: true), slot(assemble, role: boss)]
+        XCTAssertEqual(MissionProgress.defaultSession(slots: slots), "b")
+        let stuck = [slot(orchestrate, role: boss, done: true), slot("a", owner: true), slot(assemble, role: boss)]
+        XCTAssertEqual(MissionProgress.defaultSession(slots: stuck), "a")
+        let idle = [slot(orchestrate, role: boss, done: true), slot(assemble, role: boss)]
+        XCTAssertEqual(MissionProgress.defaultSession(slots: idle), orchestrate)
+    }
+
+    func testResumeLeavesWorkingAndFinishedAlone() {
+        XCTAssertTrue(MissionProgress.canPause(slots: [slot("a", active: true)], paused: false))
+        XCTAssertFalse(MissionProgress.canPause(slots: [slot("a", done: true)], paused: false))
+        XCTAssertTrue(MissionProgress.canPause(slots: [slot("a", done: true), slot("b")], paused: true))
+    }
+
+    func testNumbersReadLikeInTheHeader() {
+        XCTAssertEqual(MissionProgress.duration(seconds: 36191), "10:03:11")
+        XCTAssertEqual(MissionProgress.duration(seconds: 65), "0:01:05")
+        XCTAssertEqual(MissionProgress.tokens(0), "—")
+        XCTAssertEqual(MissionProgress.tokens(950), "950")
+        XCTAssertEqual(MissionProgress.tokens(18240), "18 тыс.")
+        XCTAssertEqual(MissionProgress.tokens(1_250_000), "1,3 млн")
+    }
+
     // MARK: - Раскладка
 
     private let metrics = CoordinationBoard.Metrics(cardWidth: 100, cardHeight: 50, columnGap: 10, levelGap: 40, plusSize: 30)

@@ -104,6 +104,20 @@ public struct MissionEvent: Decodable, Identifiable, Hashable, Sendable {
         case "mission_closed": return "Миссия закрыта"
         case "mission_skill_registered": return "Навык миссии записан"
         case "mission_skill_released": return "Навык миссии снят"
+        case "mission_paused": return "Миссия на паузе"
+        case "mission_resumed": return "Миссия продолжена"
+        case "plan_subtask_started": return "Роль начала этап"
+        case "subtask_done": return "Этап сдан"
+        case "plan_subtask_artifact_submitted": return "Этап сдан с результатом"
+        case "step_abandoned": return "Этап оборвался"
+        case "collaboration_plan_changed": return "План изменён"
+        case "plan_help_requested": return "Роль попросила помощи"
+        case "accepted_merge_queued": return "Принято, в очереди в main"
+        case "auto_merged": return "Влито в main"
+        case "merge_conflict": return "Конфликт при вливании"
+        case "merge_test_failed": return "Тесты не прошли при вливании"
+        case "merge_returned_to_author": return "Вливание вернулось автору"
+        case "merge_held_by_contract": return "Контракт держит вливание"
         default: return kind
         }
     }

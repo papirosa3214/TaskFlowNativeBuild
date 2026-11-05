@@ -139,7 +139,7 @@ enum HintScenarios {
             "mission": HintStep(anchor: HintAnchorID.missionControl, title: "Откройте Mission Control",
                 text: "Когда в плане один оркестратор, в разделе «План совместной работы» вместо «Координации» стоит эта кнопка."),
             "screen": HintStep(anchor: HintAnchorID.missionControlScreen, title: "Что здесь видно",
-                text: "Сверху — как написать оркестратору, ниже — вся его работа по этапам, итог по контракту, кто чем занят и переписка."),
+                text: "Сверху — время, прогресс, расход и пауза. Во вкладке «Ход» видно, что делает каждая роль, и ей можно написать. «Миссия» — модели, работы, контракт и журнал, «Карта» — все этапы."),
         ])
 
     static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
