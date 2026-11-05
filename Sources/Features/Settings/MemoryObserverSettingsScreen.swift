@@ -94,7 +94,7 @@ struct MemoryObserverSettingsScreen: View {
                         }))
                         .accessibilityIdentifier("memory-observer-enabled")
                     }
-                    Text("После полного снимка слота отдельная модель решает, есть ли устойчивый урок, и пишет его в память роли. Роль этого вызова не видит.")
+                    Text("После сдачи шага, 15 минут тишины в личном чате или закрытия сессии отдельная модель решает, есть ли устойчивый урок, и пишет его в личную память роли.")
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
                         .frame(maxWidth: .infinity, alignment: .leading)
