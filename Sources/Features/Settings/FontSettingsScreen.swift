@@ -117,19 +117,21 @@ struct FontSettingsScreen: View {
         }
     }
 
-    private func sizeRow(title: String, baseSize: CGFloat, binding: Binding<Double>) -> some View {
+    /// Ячейки с кеглем вместо ползунка (владелец 05.11.2026): ступеней всего
+    /// пять, и плавный на вид `Slider` прыгал между ними и опаздывал с цифрой.
+    private func sizeRow(title: String, baseSize: CGFloat, binding: Binding<TFTypeScale>) -> some View {
         HStack(spacing: TFSpacing.md) {
             Text(title)
                 .tfText(.action)
                 .foregroundStyle(Color.tfText)
                 .frame(width: 118, alignment: .leading)
                 .lineLimit(1)
-            Slider(value: binding, in: 0...Double(TFTypeScale.allCases.count - 1), step: 1)
-            Text(String(Int((baseSize * scale(at: binding.wrappedValue).multiplier).rounded())))
-                .tfText(.action)
-                .foregroundStyle(Color.tfSub)
-                .monospacedDigit()
-                .frame(width: 24, alignment: .trailing)
+            Picker(title, selection: binding) {
+                ForEach(TFTypeScale.allCases) { scale in
+                    Text(String(Int((baseSize * scale.multiplier).rounded()))).tag(scale)
+                }
+            }
+            .pickerStyle(.segmented)
         }
         .padding(.horizontal, TFSpacing.md)
         .frame(minHeight: TFHitTarget.min)
@@ -203,23 +205,18 @@ struct FontSettingsScreen: View {
         else { chatFaceRaw = face.rawValue }
     }
 
-    private func scaleBinding(for group: TFTypeGroup) -> Binding<Double> {
+    private func scaleBinding(for group: TFTypeGroup) -> Binding<TFTypeScale> {
         Binding(
-            get: { Double(TFTypeScale.allCases.firstIndex(of: .saved(for: group)) ?? 2) },
-            set: { TFTypeScale.save(scale(at: $0), for: group) }
+            get: { .saved(for: group) },
+            set: { TFTypeScale.save($0, for: group) }
         )
     }
 
-    private func scaleBinding(for group: TFChatTypeGroup) -> Binding<Double> {
+    private func scaleBinding(for group: TFChatTypeGroup) -> Binding<TFTypeScale> {
         Binding(
-            get: { Double(TFTypeScale.allCases.firstIndex(of: .saved(forChat: group)) ?? 2) },
-            set: { TFTypeScale.save(scale(at: $0), forChat: group) }
+            get: { .saved(forChat: group) },
+            set: { TFTypeScale.save($0, forChat: group) }
         )
-    }
-
-    private func scale(at value: Double) -> TFTypeScale {
-        let index = min(max(Int(value.rounded()), 0), TFTypeScale.allCases.count - 1)
-        return TFTypeScale.allCases[index]
     }
 
     private func previewText(
