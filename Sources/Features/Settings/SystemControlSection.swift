@@ -133,8 +133,7 @@ struct SystemControlSection: View {
     // тумблеры уменьшены до 0.82 и красные (`TFToggle`), поэтому строка
     // выбивалась и высотой, и цветом из всех соседних.
     var body: some View {
-        TFCard(padding: 0, bordered: true) {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                 TFListRow(
                     icon: "power", iconStyle: .plain,
                     title: "Система",
@@ -188,7 +187,6 @@ struct SystemControlSection: View {
                         .padding(.horizontal, TFSpacing.lg)
                         .padding(.bottom, TFSpacing.sm)
                 }
-            }
         }
         .task { await viewModel.load() }
         // Ждём РОВНО до момента обхода и перечитываем состояние один раз.

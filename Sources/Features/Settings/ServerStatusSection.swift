@@ -155,8 +155,7 @@ struct ServerStatusSection: View {
     @State private var viewModel = ServerStatusViewModel()
 
     var body: some View {
-        TFCard(padding: 0, bordered: true) {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                 switch viewModel.phase {
                 case .failed:
                     TFListRow(icon: "xmark.circle", iconStyle: .plain, title: "Сервер 192.168.1.110", trailing: AnyView(valueText("не отвечает", color: .tfCoral)), titleStyle: .body, verticalPadding: TFSpacing.xs)
@@ -167,7 +166,6 @@ struct ServerStatusSection: View {
                 case .loaded:
                     loadedRows
                 }
-            }
         }
         .task { await viewModel.load() }
         .alert("Будильник", isPresented: Binding(

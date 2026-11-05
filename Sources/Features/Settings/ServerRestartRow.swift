@@ -56,8 +56,7 @@ struct ServerRestartRow: View {
     @State private var showConfirm = false
 
     var body: some View {
-        TFCard(padding: 0, bordered: true) {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                 TFListRow(
                     icon: "arrow.triangle.2.circlepath", iconStyle: .plain,
                     title: "Перезапустить сервер",
@@ -76,7 +75,6 @@ struct ServerRestartRow: View {
                         .padding(.horizontal, TFSpacing.lg)
                         .padding(.bottom, TFSpacing.sm)
                 }
-            }
         }
         .task { await viewModel.load() }
         .confirmationDialog("Перезапустить сервер?", isPresented: $showConfirm, titleVisibility: .visible) {
