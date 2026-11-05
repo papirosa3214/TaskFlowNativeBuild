@@ -155,12 +155,12 @@ struct MissionControlScreen: View {
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
             }
         }
-        .sheet(isPresented: Binding(get: { stageSlot != nil }, set: { if !$0 { stageSlot = nil } })) {
+        .tfSheet(isPresented: Binding(get: { stageSlot != nil }, set: { if !$0 { stageSlot = nil } })) {
             if let stageSlot {
                 CoordinationStageSheet(taskID: taskID, slot: stageSlot, model: board, editable: false)
             }
         }
-        .sheet(isPresented: Binding(get: { taskChatID != nil }, set: { if !$0 { taskChatID = nil } })) {
+        .tfSheet(isPresented: Binding(get: { taskChatID != nil }, set: { if !$0 { taskChatID = nil } })) {
             if let taskChatID { TaskChatSheet(chatID: taskChatID) }
         }
         .confirmationDialog("Поставить миссию на паузу?", isPresented: $showPauseConfirm, titleVisibility: .visible) {

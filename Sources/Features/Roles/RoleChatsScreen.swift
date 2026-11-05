@@ -160,7 +160,7 @@ struct RoleChatsScreen: View {
                     .accessibilityIdentifier("chats.menu")
             }
         }
-        .sheet(isPresented: $showingCreate) {
+        .tfSheet(isPresented: $showingCreate) {
             CreateRoleChatScreen {
                 Task { await load() }
             }
@@ -1194,7 +1194,7 @@ struct RoleChatRoomScreen: View {
             // углы) сквозь скругление просвечивал фон корневого UIWindow
             // (чёрный) — композер стоит НАД клавиатурой, его собственный фон
             // до этого места физически не достаёт.
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             composerRoom
         }
         // Роли, которых позвали субагентами, — та же выезжающая панель, что
@@ -1546,10 +1546,10 @@ struct RoleChatRoomScreen: View {
         .navigationDestination(isPresented: $isBranchPresented) {
             if let branchChat { RoleChatRoomScreen(chat: branchChat) }
         }
-        .sheet(item: $selectingText) { item in
+        .tfSheet(item: $selectingText) { item in
             SelectableTextSheet(text: item.text)
         }
-        .sheet(isPresented: $isContentsPresented) {
+        .tfSheet(isPresented: $isContentsPresented) {
             RoleChatContentsSheet(messages: visibleMessages, currentUserID: session.currentUser?.id) { id in
                 isContentsPresented = false
                 contentsTargetID = id
@@ -1756,13 +1756,13 @@ struct RoleChatRoomScreen: View {
             get: { noticeMessage != nil },
             set: { if !$0 { noticeMessage = nil } }
         )) { Button("Готово", role: .cancel) { noticeMessage = nil } }
-        .sheet(isPresented: Binding(
+        .tfSheet(isPresented: Binding(
             get: { editedQuickActionIndex != nil },
             set: { if !$0 { editedQuickActionIndex = nil } }
         )) {
             quickActionEditorSheet
         }
-        .sheet(isPresented: $isDetailsPresented) {
+        .tfSheet(isPresented: $isDetailsPresented) {
             RoleChatDetailsSheet(chat: chat, onChanged: { updated in
                 chat = updated
                 Task { await refresh() }
@@ -1823,11 +1823,11 @@ struct RoleChatRoomScreen: View {
         // Шторка сессии — не лента: шкала «Внешний вид» снова включена
         // (чат гасит её через `.tfChatTypography()`, без явного true здесь
         // наследование с презентера оставляло сессию без регуляторов).
-        .sheet(isPresented: $showsSessionPanel) {
+        .tfSheet(isPresented: $showsSessionPanel) {
             sessionPanelSheet
                 .environment(\.tfTypeSettingsEnabled, true)
         }
-        .sheet(isPresented: $showsComposerCommands) {
+        .tfSheet(isPresented: $showsComposerCommands) {
             ChatCommandPicker(commands: composerControls.commands, errorText: composerControls.errorText,
                               onRefresh: { Task { await composerControls.load(chat: chat) } }) { command in
                 draft = command.inserting(into: draft)

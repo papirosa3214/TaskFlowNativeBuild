@@ -100,7 +100,7 @@ struct MemoryScreen: View {
                       allowedContentTypes: [.plainText, .text, .pdf, .data, .item]) { result in
             Task { await importFile(result) }
         }
-        .sheet(item: $editing) { target in
+        .tfSheet(item: $editing) { target in
             MemoryEditorSheet(target: target, roles: roles, api: api) {
                 Task { await load() }
             }

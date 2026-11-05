@@ -32,7 +32,7 @@ struct JevSettingsScreen: View {
         // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
         // iOS 26): фон одним слоем на самом верху тела экрана.
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.xl) {
                     TFErrorBanner(error)

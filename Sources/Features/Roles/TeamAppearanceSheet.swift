@@ -173,7 +173,7 @@ struct TeamAppearanceSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .tint(.tfRed)
             }
-            .sheet(item: Binding(
+            .tfSheet(item: Binding(
                 get: { editingRole.map { RoleBox(id: $0) } },
                 set: { editingRole = $0?.id }
             )) { box in

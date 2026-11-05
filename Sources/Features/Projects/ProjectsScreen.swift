@@ -51,7 +51,7 @@ struct ProjectsScreen: View {
         // были те же уголки. Создание проекта теперь идёт через `.fullScreenCover`
         // (`QuickAddProjectView`), а не inline в списке.
         ZStack {
-        Color.tfBackground.ignoresSafeArea()
+        TFScreenFill()
         // Основные разделы находятся вне List: каждая плитка — отдельная ссылка.
         VStack(spacing: 0) {
             if !isSelecting {
@@ -126,7 +126,7 @@ struct ProjectsScreen: View {
         // Штатная SwiftUI-шапка. Системная стрелка назад добавляется стеком
         // навигации; пару кнопок группирует сам toolbar iOS.
         .tfNativeHeader("Проекты", displayMode: .inline)
-        .sheet(isPresented: $searchPresented) {
+        .tfSheet(isPresented: $searchPresented) {
             NavigationStack {
                 Form { TextField("Поиск проектов", text: $searchText).accessibilityIdentifier("projects.search.field") }
                     .navigationTitle("Поиск проектов")

@@ -11,7 +11,7 @@ import SwiftUI
 extension View {
     /// Шторка карточки по идентификатору задачи. `nil` — закрыта.
     func taskCardSheet(taskID: Binding<String?>, onDismiss: (() -> Void)? = nil) -> some View {
-        sheet(item: Binding(
+        tfSheet(item: Binding(
             get: { taskID.wrappedValue.map(TaskCardSheetID.init) },
             set: { taskID.wrappedValue = $0?.id }
         ), onDismiss: onDismiss) { ref in

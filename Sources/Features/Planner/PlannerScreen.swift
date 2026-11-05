@@ -191,14 +191,14 @@ public struct UpcomingScreen: View {
             }
         }
         .tfScreenBackground()
-        .sheet(item: Binding(get: { openDay.map(IdentifiableDate.init) }, set: { _ in openDay = nil })) { day in
+        .tfSheet(item: Binding(get: { openDay.map(IdentifiableDate.init) }, set: { _ in openDay = nil })) { day in
             daySheet(date: day.id)
         }
-        .sheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
+        .tfSheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
         // Любая существующая задача открывает одну и ту же интерактивную карточку.
         .taskCardSheet(taskID: $pushedTaskID)
         .taskCreateFlow(isPresented: $createTaskOpen)
-        .sheet(item: $selectedOccurrence, onDismiss: { Task { await loadRoutineCalendar() } }) { occurrence in
+        .tfSheet(item: $selectedOccurrence, onDismiss: { Task { await loadRoutineCalendar() } }) { occurrence in
             NavigationStack { RoutineOccurrenceDestination(occurrence: occurrence) }
         }
         // Календарь рутин — по событиям сокета, а не опросом раз в 30 с.

@@ -17,12 +17,12 @@ import SwiftUI
 /// 3. оставляет фон под `refreshable`, поэтому оттягивание вниз показывает
 ///    тот же тон, а не системный серый.
 ///
-/// Согласованное исключение: экраны, где фон задаёт сама система
-/// (`.presentationBackground`, шторки) — модификатор к ним не применяется.
+/// В шторке (`tfSheet`) фон приложения не кладётся: виден системный цвет шторки.
 public struct TFScreenBackgroundModifier: ViewModifier {
     /// Цвет подложки. По умолчанию фон приложения; отличается только у
     /// экранов с намеренно иной подложкой (снимок в `LiveWindowRecheck`).
     private let color: Color
+    @Environment(\.tfInSheet) private var inSheet
 
     public init(color: Color = .tfBackground) {
         self.color = color
@@ -31,7 +31,7 @@ public struct TFScreenBackgroundModifier: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
-            .background(color)
+            .background(inSheet && color == .tfBackground ? Color.clear : color)
     }
 }
 

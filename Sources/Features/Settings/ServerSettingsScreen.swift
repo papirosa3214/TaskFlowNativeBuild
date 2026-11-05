@@ -104,13 +104,13 @@ struct ServerSettingsScreen: View {
         .accessibilityIdentifier("server-settings-screen")
         .task { await model.load() }
         .refreshable { await model.load() }
-        .sheet(item: $editing) { setting in
+        .tfSheet(item: $editing) { setting in
             ServerSettingEditor(setting: setting,
                 value: model.snapshot?.values[setting.key] ?? setting.defaultValue) {
                     await model.load()
                 }
         }
-        .sheet(isPresented: $showsLog) {
+        .tfSheet(isPresented: $showsLog) {
             NavigationStack {
                 List {
                     if model.logLoading { TFLoading(.inline) }

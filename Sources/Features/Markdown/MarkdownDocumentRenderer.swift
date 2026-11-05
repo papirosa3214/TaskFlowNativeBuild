@@ -268,7 +268,7 @@ struct MarkdownDocumentPreviewScreen: View {
 
     var body: some View {
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             ScrollView {
                 Group {
                     if let markdown {

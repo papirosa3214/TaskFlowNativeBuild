@@ -22,7 +22,7 @@ struct LabelsScreen: View {
         // прямо на месте открывается `LabelCreateForm`/`LabelEditForm` с
         // текстовым полем, и до фикса под клавиатурой были те же уголки.
         ZStack {
-        Color.tfBackground.ignoresSafeArea()
+        TFScreenFill()
         ScrollView {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 if showCreate {

@@ -117,7 +117,7 @@ public struct CollaborationPlanView: View {
         .onChange(of: subtasks.map { "\($0.id):\($0.done):\($0.agentState?.rawValue ?? "")" }.joined(separator: "|")) { _, _ in
             Task { await load() }
         }
-        .sheet(item: $sheet) { sheet in
+        .tfSheet(item: $sheet) { sheet in
             sheetView(sheet)
         }
         .alert("План не изменён", isPresented: Binding(

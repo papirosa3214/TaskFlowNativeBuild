@@ -42,7 +42,7 @@ struct NoteEditorScreen: View {
         // `.keyboard` входит в `.all` по умолчанию) — не через `.background`
         // на внутреннем контейнере, до угла клавиатуры он не достаёт.
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             content
         }
         // Раньше формат-панель сидела статично у верха экрана, а микрофон
@@ -112,7 +112,7 @@ struct NoteEditorScreen: View {
         } message: {
             Text("Действие нельзя отменить.")
         }
-        .sheet(isPresented: $showMovePicker) {
+        .tfSheet(isPresented: $showMovePicker) {
             FolderPickerSheet(folders: viewModel.folders, title: "Переместить в папку") { folderID in
                 Task { await viewModel.moveToFolder(folderID) }
             }

@@ -54,7 +54,7 @@ struct HintOverlayView: View {
             }
         }
         .ignoresSafeArea()
-        .sheet(isPresented: Binding(
+        .tfSheet(isPresented: Binding(
             get: { documentMarkdown != nil || documentError != nil },
             set: {
                 if !$0 {

@@ -49,7 +49,7 @@ public struct NotesScreen: View {
 
     public var body: some View {
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
 
             ScrollViewReader { proxy in
             ScrollView {
@@ -164,7 +164,7 @@ public struct NotesScreen: View {
             }
             isSearchingKnowledge = false
         }
-        .sheet(isPresented: $showMovePicker) {
+        .tfSheet(isPresented: $showMovePicker) {
             FolderPickerSheet(folders: viewModel.folders, title: "Переместить в папку") { folderID in
                 Task { await viewModel.moveSelectedNotes(toFolderID: folderID) }
             }

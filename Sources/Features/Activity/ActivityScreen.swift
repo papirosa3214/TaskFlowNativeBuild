@@ -87,7 +87,7 @@ struct ActivityScreen: View {
             }
         }
         .taskCardNavigation(route: $route)
-        .sheet(item: $selectedClosedTask) { task in
+        .tfSheet(item: $selectedClosedTask) { task in
             // Формат карточки — тот же, что в архиве: одна сводка на
             // выполненную и отменённую, различается только пометка.
             ClosedTaskSheet(

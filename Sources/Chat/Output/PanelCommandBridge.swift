@@ -92,7 +92,7 @@ struct PanelCommandConfirmation: ViewModifier {
     let bridge: PanelCommandBridge
     let active: Bool
     func body(content: Content) -> some View {
-        content.sheet(isPresented: Binding(get: { active && bridge.pending != nil }, set: { if !$0 && active { bridge.cancel() } })) {
+        content.tfSheet(isPresented: Binding(get: { active && bridge.pending != nil }, set: { if !$0 && active { bridge.cancel() } })) {
             NavigationStack {
                 Form {
                     Section("Команда на сервере .110") {

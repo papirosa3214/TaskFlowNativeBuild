@@ -58,7 +58,7 @@ struct RoutineFormScreen: View {
         .onChange(of: model.weekdays) { _, _ in Task { await model.refreshPreview() } }
         .onChange(of: model.intervalMinutes) { _, _ in Task { await model.refreshPreview() } }
         .onChange(of: model.timeMinutes) { _, _ in Task { await model.refreshPreview() } }
-        .sheet(isPresented: $isDescriptionEditorPresented) {
+        .tfSheet(isPresented: $isDescriptionEditorPresented) {
             NavigationStack {
                 TextEditor(text: $model.instructions)
                     .scrollContentBackground(.hidden)

@@ -52,7 +52,7 @@ struct MemoryObserverSettingsScreen: View {
 
     var body: some View {
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.xl) {
                     TFErrorBanner(error)

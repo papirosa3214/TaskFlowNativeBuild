@@ -72,15 +72,15 @@ struct AgentsScreen: View {
             viewModel.configure(currentUser: session.currentUser)
             await viewModel.load()
         }
-        .sheet(isPresented: $showCommonInstructions) {
+        .tfSheet(isPresented: $showCommonInstructions) {
             if let role = viewModel.profiles.first {
                 RolePromptSettingsSheet(role: role, blockID: "role.system", title: "Общие инструкции агентов")
             }
         }
-        .sheet(isPresented: $showAppearance) {
+        .tfSheet(isPresented: $showAppearance) {
             TeamAppearanceSheet()
         }
-        .sheet(item: $editorMode) { mode in
+        .tfSheet(item: $editorMode) { mode in
             RoleEditorSheet(mode: mode, viewModel: viewModel)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)

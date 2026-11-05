@@ -41,7 +41,7 @@ private struct TaskCreateFlowModifier: ViewModifier {
                 )
                 .presentationBackground(.clear)
             }
-            .sheet(item: $expanded, onDismiss: { isPresented = false }) { item in
+            .tfSheet(item: $expanded, onDismiss: { isPresented = false }) { item in
                 NavigationStack {
                     TaskFormScreen(expandingFrom: item.viewModel)
                 }

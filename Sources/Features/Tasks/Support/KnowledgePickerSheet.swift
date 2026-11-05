@@ -47,7 +47,6 @@ struct KnowledgePickerSheet: View {
                 }
             }
         }
-        .presentationBackground(Color.tfSheetBackground)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .task { await load() }
@@ -74,14 +73,13 @@ struct KnowledgePickerSheet: View {
                                 }
                             }
                         }
-                        .listRowBackground(Color.tfSheetBackground)
+                        .listRowBackground(Color.clear)
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.tfSheetBackground)
         .searchable(text: $query, prompt: "Поиск по документам")
     }
 

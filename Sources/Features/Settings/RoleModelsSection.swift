@@ -141,7 +141,7 @@ struct RoleModelsSection: View {
         } message: {
             Text("Основная модель каждой роли станет «\(pendingAll.map { models.label(forRef: $0.routeRef) } ?? "")». Запасные остаются как есть.")
         }
-        .sheet(item: $editing) { profile in
+        .tfSheet(item: $editing) { profile in
             RoleChainSheet(viewModel: viewModel, profile: profile, models: models)
         }
     }

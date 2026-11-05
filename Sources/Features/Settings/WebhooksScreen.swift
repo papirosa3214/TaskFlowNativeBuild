@@ -60,10 +60,10 @@ struct WebhooksScreen: View {
                     .hintAnchor(HintAnchorID.webhooksAdd)
             }
         }
-        .sheet(isPresented: $adding) {
+        .tfSheet(isPresented: $adding) {
             WebhookEditor(hook: nil) { await load() }
         }
-        .sheet(item: $editing) { hook in WebhookEditor(hook: hook) { await load() } }
+        .tfSheet(item: $editing) { hook in WebhookEditor(hook: hook) { await load() } }
         .confirmationDialog("Удалить вебхук?", isPresented: Binding(
             get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("Удалить", role: .destructive) {

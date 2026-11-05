@@ -33,7 +33,7 @@ private struct DirectoryConfirmModifier: ViewModifier {
     @Binding var request: DirectoryConfirmRequest?
 
     func body(content: Content) -> some View {
-        content.sheet(item: $request) { req in
+        content.tfSheet(item: $request) { req in
             TFBottomSheetContent(title: req.title, onClose: { request = nil }) {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {
                     if let description = req.description {
@@ -51,7 +51,6 @@ private struct DirectoryConfirmModifier: ViewModifier {
             }
             .presentationDetents([.height(240)])
             .presentationDragIndicator(.hidden)
-            .presentationBackground(Color.tfSheetBackground)
             .interactiveDismissDisabled() // spec §0.5 — без drag-to-dismiss
         }
     }

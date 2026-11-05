@@ -71,7 +71,7 @@ struct VoiceModelsScreen: View {
         // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
         // `.ignoresSafeArea()` без ограничения edges.
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: TFSpacing.lg) {

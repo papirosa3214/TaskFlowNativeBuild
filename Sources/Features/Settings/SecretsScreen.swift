@@ -88,7 +88,7 @@ struct SecretsScreen: View {
         }
         .refreshable { await model.load() }
         .task { await model.load() }
-        .sheet(item: $editing) { target in
+        .tfSheet(item: $editing) { target in
             SecretEditor(target: target) { await model.load() }
         }
         .confirmationDialog(
@@ -155,7 +155,7 @@ private struct SecretDetailScreen: View {
             }
         }
         .tfNativeHeader(secret.name, displayMode: .inline)
-        .sheet(item: $replacing) { target in
+        .tfSheet(item: $replacing) { target in
             SecretEditor(target: target) {
                 value = nil
                 await onChanged()

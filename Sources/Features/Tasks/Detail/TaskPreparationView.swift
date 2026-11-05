@@ -129,7 +129,7 @@ struct TaskPreparationView: View {
                     .accessibilityIdentifier("preparation.continue")
                 }
                 .padding(TFSpacing.lg)
-                .background(Color.tfSheetBackground)
+                .background(.bar)
             }
         }
         .disabled(isApplying)

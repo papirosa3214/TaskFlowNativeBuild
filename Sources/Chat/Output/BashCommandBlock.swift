@@ -35,7 +35,7 @@ struct BashCommandBlock: View {
         .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
         // Вывод прошлого запуска возвращается после повторного открытия чата.
         .onAppear { if result == nil && !running { result = OwnerCommandResultStore.load(command) } }
-        .sheet(isPresented: $confirming) {
+        .tfSheet(isPresented: $confirming) {
             NavigationStack {
                 Form {
                     Section("Команда на сервере .110") {

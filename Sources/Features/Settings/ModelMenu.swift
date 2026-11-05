@@ -34,7 +34,7 @@ struct ModelMenu: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .accessibilityLabel(accessibility)
-        .sheet(isPresented: $picking) {
+        .tfSheet(isPresented: $picking) {
             ModelPickerSheet(title: accessibility, options: options, problem: problem) { model in
                 picking = false
                 onPick(model)

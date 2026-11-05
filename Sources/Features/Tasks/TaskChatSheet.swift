@@ -36,6 +36,5 @@ struct TaskChatSheet: View {
             .presentationDetents([.large])
             .presentationContentInteraction(.scrolls)
             .presentationDragIndicator(.hidden)
-            .presentationBackground(Color.tfSheetBackground)
     }
 }

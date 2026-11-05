@@ -82,7 +82,7 @@ struct ChatModelPickerSheet: View {
                     Button("Готово") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showsEffort) {
+            .tfSheet(isPresented: $showsEffort) {
                 effortSheet
             }
         }

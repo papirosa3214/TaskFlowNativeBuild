@@ -66,7 +66,7 @@ public extension View {
         action: (() -> Void)? = nil,
         @ViewBuilder content: @escaping () -> SheetContent
     ) -> some View {
-        self.sheet(isPresented: isPresented) {
+        self.tfSheet(isPresented: isPresented) {
             TFBottomSheetContent(title: title, actionTitle: actionTitle, action: action, onClose: {
                 isPresented.wrappedValue = false
             }, content: content)

@@ -58,7 +58,7 @@ struct ChatWorkspaceMenu<MenuLabel: View>: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat.workspace")
             .accessibilityLabel("Рабочая папка: " + choice.title)
-            .sheet(isPresented: $isPresented) {
+            .tfSheet(isPresented: $isPresented) {
                 ChatWorkspaceBrowser(choice: choice)
                     .presentationDetents([.medium, .large])
             }

@@ -107,7 +107,7 @@ struct NotificationsScreen: View {
                 .accessibilityIdentifier("system-state.menu")
             }
         }
-        .sheet(item: $resolutionSheetItem) { item in
+        .tfSheet(item: $resolutionSheetItem) { item in
             ServiceTicketResolutionSheet(item: item, taskId: resolutionSheetTaskId ?? "", onSubmitted: {
                 resolutionSheetItem = nil; resolutionSheetTaskId = nil
             })

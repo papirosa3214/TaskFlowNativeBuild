@@ -14,7 +14,7 @@ struct TaskCodeChangesRow: View {
     var body: some View {
         CodeChangesSummaryButton(totals: changes.totals, summary: changes.summary,
                                  identifier: "outcome-code-changes") { isPresented = true }
-            .sheet(isPresented: $isPresented) {
+            .tfSheet(isPresented: $isPresented) {
                 NavigationStack {
                     CodeChangesScreen(
                         files: changes.files,
@@ -44,7 +44,7 @@ struct TurnCodeChangesRow: View {
     var body: some View {
         CodeChangesSummaryButton(totals: changes.totals, summary: changes.summary,
                                  identifier: "chat.message.code-changes", quietIcon: true) { isPresented = true }
-            .sheet(isPresented: $isPresented) {
+            .tfSheet(isPresented: $isPresented) {
                 // Шторка — сначала до половины экрана, файл — тоже шторкой
                 // снизу (владелец 27.10.2026).
                 NavigationStack {
@@ -189,7 +189,7 @@ struct TaskCodeChangesDisclosure: View {
                 if let sendError { TFErrorBanner(sendError, variant: .block) }
             }
         }
-        .sheet(item: $sheetFile) { file in
+        .tfSheet(item: $sheetFile) { file in
             NavigationStack { TaskCodeFileScreen(file: file, comments: $comments) }
                 .presentationDetents([.medium, .large])
         }
@@ -256,7 +256,7 @@ struct CodeChangesScreen: View {
             }
         }
         .tfNativeHeader("Изменения кода", displayMode: .inline)
-        .sheet(item: $sheetFile) { file in
+        .tfSheet(item: $sheetFile) { file in
             NavigationStack {
                 TaskCodeFileScreen(file: file, comments: $comments)
             }

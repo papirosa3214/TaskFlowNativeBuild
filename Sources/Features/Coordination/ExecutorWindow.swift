@@ -181,7 +181,7 @@ struct ExecutorWindow: View {
             }
             .task { await model.load(taskID: taskID) }
             .refreshable { await model.load(taskID: taskID) }
-            .sheet(isPresented: Binding(
+            .tfSheet(isPresented: Binding(
                 get: { taskChatID != nil },
                 set: { if !$0 { taskChatID = nil } }
             )) {

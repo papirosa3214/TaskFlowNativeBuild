@@ -29,7 +29,7 @@ struct RemoteMachinesScreen: View {
         // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
         // `.ignoresSafeArea()` без ограничения edges.
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     content

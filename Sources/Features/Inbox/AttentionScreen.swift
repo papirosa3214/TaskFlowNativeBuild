@@ -101,7 +101,7 @@ struct AttentionScreen: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.load() } }
         }
-        .sheet(item: $answeringTicket, onDismiss: { Task { await model.load() } }) { ticket in
+        .tfSheet(item: $answeringTicket, onDismiss: { Task { await model.load() } }) { ticket in
             if let question = ticket.question, let chatID = ticket.chat_id {
                 NavigationStack {
                     ScrollView {

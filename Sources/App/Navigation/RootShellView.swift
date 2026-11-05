@@ -156,7 +156,7 @@ struct RootShellView: View {
             // Копия шторки задачи из `PlannerSection.swift` (detents/индикатор/
             // радиус/фон) — единственный debug-роут, который реально
             // воспроизводит нативную шторку, а не пуш.
-            .sheet(isPresented: Binding(
+            .tfSheet(isPresented: Binding(
                 get: { debugTaskSheetID != nil },
                 set: { if !$0 { debugTaskSheetID = nil } }
             )) {
@@ -245,7 +245,7 @@ struct RootShellView: View {
         } message: {
             Text(resumeStuckMessage ?? "")
         }
-        .sheet(item: $expandedDraft) { draft in
+        .tfSheet(item: $expandedDraft) { draft in
             NavigationStack {
                 TaskFormScreen(expandingFrom: draft.viewModel)
             }

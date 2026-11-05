@@ -115,8 +115,8 @@ public struct CoordinationScreen: View {
                 catch { return }
             }
         }
-        .sheet(item: $sheet) { boardSheet($0) }
-        .sheet(isPresented: Binding(
+        .tfSheet(item: $sheet) { boardSheet($0) }
+        .tfSheet(isPresented: Binding(
             get: { taskChatID != nil },
             set: { if !$0 { taskChatID = nil } }
         )) {

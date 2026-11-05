@@ -33,7 +33,7 @@ struct EscalationSettingsScreen: View {
         .accessibilityIdentifier("escalation-settings-screen")
         .task { await model.load() }
         .refreshable { await model.load() }
-        .sheet(item: $editing) { draft in
+        .tfSheet(item: $editing) { draft in
             EscalationStepEditor(draft: draft, model: model)
         }
     }

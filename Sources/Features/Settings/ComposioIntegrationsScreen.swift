@@ -202,7 +202,7 @@ struct ComposioServiceScreen: View {
 
     var body: some View {
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     if let toolkit = currentToolkit {

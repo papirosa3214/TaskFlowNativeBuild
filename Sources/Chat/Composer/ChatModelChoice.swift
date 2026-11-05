@@ -123,7 +123,7 @@ struct ChatModelMenu<MenuLabel: View>: View {
    .disabled(choice.isSaving)
    .accessibilityIdentifier("chat.model")
    .accessibilityLabel("Модель: " + choice.title)
-   .sheet(isPresented: $showsPicker) {
+   .tfSheet(isPresented: $showsPicker) {
     ChatModelPickerSheet(choice: choice)
    }
  }

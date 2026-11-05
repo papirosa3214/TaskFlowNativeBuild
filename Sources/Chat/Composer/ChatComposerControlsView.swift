@@ -45,7 +45,7 @@ struct ChatContextControl: View {
 
     var body: some View {
         contextRingButton
-            .sheet(isPresented: $showsDetails) { contextSheet }
+            .tfSheet(isPresented: $showsDetails) { contextSheet }
     }
 
     /// Кольцо в ряду ярлычков (владелец 26.10.2026): заполняется по мере
@@ -294,7 +294,6 @@ private struct ChatCommandDetailScreen: View {
             .padding(TFSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color.tfSheetBackground)
         .tfNativeHeader("Подробнее", displayMode: .inline)
     }
 }

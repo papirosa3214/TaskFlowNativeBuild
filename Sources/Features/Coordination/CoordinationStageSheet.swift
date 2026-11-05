@@ -68,8 +68,8 @@ struct CoordinationStageSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
             .navigationDestination(for: AppRoute.self) { routeDestination($0) }
-            .sheet(item: $inner) { innerSheet($0) }
-            .sheet(isPresented: $showDetails) { ResolutionDetailsSheet(resolution: resolution) }
+            .tfSheet(item: $inner) { innerSheet($0) }
+            .tfSheet(isPresented: $showDetails) { ResolutionDetailsSheet(resolution: resolution) }
             .confirmationDialog("Убрать этап?", isPresented: $showRemove, titleVisibility: .visible) {
                 Button("Убрать", role: .destructive) { remove() }
             } message: {

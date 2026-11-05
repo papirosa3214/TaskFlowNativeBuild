@@ -332,7 +332,7 @@ struct TaskCardContent: View {
                 },
                 set: { if $0 == nil { linkedTaskNavigation = nil } }
             ))
-            .sheet(isPresented: $isExistingTaskPickerPresented) {
+            .tfSheet(isPresented: $isExistingTaskPickerPresented) {
                 LinkedTaskPicker(
                     tasks: taskStore.tasks,
                     excludedIDs: linkedTaskExcludedIDs,
@@ -358,7 +358,7 @@ struct TaskCardContent: View {
             // LOCK-253: та же шторка, что у обычной задачи (см. RootShellView.swift) —
             // развёрнутая форма создания дочерней задачи не должна отличаться
             // от открытия существующей.
-            .sheet(isPresented: expandedLinkedTaskPresented, onDismiss: {
+            .tfSheet(isPresented: expandedLinkedTaskPresented, onDismiss: {
                 Task { await viewModel.loadIfNeeded() }
             }) {
                 if let expandedLinkedTaskViewModel {
@@ -417,7 +417,7 @@ struct TaskCardContent: View {
         .modifier(TFSoftTopScrollEdge())
         .navigationBarBackButtonHidden(true)
         .toolbar { if !preview { formToolbarContent } }
-        .sheet(isPresented: Binding(
+        .tfSheet(isPresented: Binding(
             get: { coordinationTaskID != nil },
             set: { if !$0 { coordinationTaskID = nil } }
         )) {
@@ -425,7 +425,7 @@ struct TaskCardContent: View {
                 TaskCoordinationScreen(taskID: id, allowsPlanChanges: viewModel.canUsePlan) { coordinationTaskID = nil }
             }
         }
-        .sheet(isPresented: $isMissionControlPresented, onDismiss: { missionControlPlanTaskID = nil }) {
+        .tfSheet(isPresented: $isMissionControlPresented, onDismiss: { missionControlPlanTaskID = nil }) {
             if let id = missionControlPlanTaskID ?? viewModel.taskID {
                 NavigationStack { MissionControlScreen(taskID: id) }
             }
@@ -515,7 +515,7 @@ struct TaskCardContent: View {
             allowedContentTypes: [.item],
             onCompletion: handleAttachmentImport
         )
-        .sheet(isPresented: $isKnowledgePickerPresented) {
+        .tfSheet(isPresented: $isKnowledgePickerPresented) {
             KnowledgePickerSheet { noteID, title in
                 let old = replaceAttachmentTarget
                 replaceAttachmentTarget = nil
@@ -526,7 +526,7 @@ struct TaskCardContent: View {
             }
             .onDisappear { replaceAttachmentTarget = nil }
         }
-        .sheet(isPresented: Binding(
+        .tfSheet(isPresented: Binding(
             get: { openedReportNoteID != nil },
             set: { if !$0 { openedReportNoteID = nil } }
         )) {
@@ -534,7 +534,7 @@ struct TaskCardContent: View {
                 NavigationStack { NoteEditorScreen(noteID: noteID) }
             }
         }
-        .sheet(isPresented: Binding(
+        .tfSheet(isPresented: Binding(
             get: { openedReportPreviewNoteID != nil },
             set: { if !$0 { openedReportPreviewNoteID = nil } }
         )) {
@@ -547,7 +547,7 @@ struct TaskCardContent: View {
         // Переписка по задаче — шторкой поверх карточки: карточка сама открыта
         // шторкой, и переход по маршруту в ней некому обработать (владелец
         // 07.10.2026: строка «Чат по задаче» была видна, но никуда не вела).
-        .sheet(isPresented: Binding(
+        .tfSheet(isPresented: Binding(
             get: { openedTaskChatID != nil },
             set: { if !$0 { openedTaskChatID = nil } }
         )) {

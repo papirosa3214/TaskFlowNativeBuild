@@ -211,7 +211,7 @@ struct RoleLiveItemsList: View {
                 }
             }
         }
-        .sheet(item: $detail) { detail in
+        .tfSheet(item: $detail) { detail in
             RoleLiveDetailSheet(detail: detail)
         }
         .modifier(RoleTranslationHost(texts: finishedTexts))

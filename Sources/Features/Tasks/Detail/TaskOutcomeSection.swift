@@ -130,7 +130,7 @@ struct OutcomeTextRow<Label: View>: View {
             label().contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .sheet(isPresented: $isPresented) {
+        .tfSheet(isPresented: $isPresented) {
             OutcomeTextSheet(title: sheetTitle, markdown: markdown, blocks: blocks)
         }
     }

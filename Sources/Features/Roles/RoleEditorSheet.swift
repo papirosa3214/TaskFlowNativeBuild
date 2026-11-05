@@ -77,7 +77,7 @@ struct RoleEditorSheet: View {
         // iOS 26): фон одним слоем на самом верху тела экрана, `ZStack` +
         // `.ignoresSafeArea()` без ограничения edges.
         ZStack {
-            Color.tfBackground.ignoresSafeArea()
+            TFScreenFill()
             ScrollView {
               VStack(alignment: .leading, spacing: TFSpacing.lg) {
                 Text(mode.isEdit ? "Настройки агента" : "Новая роль")
@@ -110,7 +110,7 @@ struct RoleEditorSheet: View {
               }
         }
         .safeAreaInset(edge: .bottom) { actions }
-        .sheet(isPresented: $showsRuntimeContext, onDismiss: {
+        .tfSheet(isPresented: $showsRuntimeContext, onDismiss: {
             if let profile = mode.profile {
                 Task {
                     if let fresh = try? await APIClient().role(id: profile.role) {
@@ -130,19 +130,19 @@ struct RoleEditorSheet: View {
                 RoleRuntimeContextSheet(role: profile)
             }
         }
-        .sheet(isPresented: $showsPersonality) {
+        .tfSheet(isPresented: $showsPersonality) {
             if let profile = mode.profile {
                 NavigationStack {
                     RoleBehaviorTemplatesView(role: profile.role, canEdit: viewModel.isOwner, isStandalone: true)
                 }
             }
         }
-        .sheet(isPresented: $showsPersonalInstructions) {
+        .tfSheet(isPresented: $showsPersonalInstructions) {
             if let profile = mode.profile {
                 RolePromptSettingsSheet(role: profile, blockID: "role.prompt", title: "Личные инструкции")
             }
         }
-        .sheet(isPresented: $showsProfile) {
+        .tfSheet(isPresented: $showsProfile) {
             if let profile = mode.profile {
                 NavigationStack {
                     AgentProfileScreen(roleID: profile.role)

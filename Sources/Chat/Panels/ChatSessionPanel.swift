@@ -131,11 +131,11 @@ struct ChatSessionPanel: View {
             .disabled(choice.isSaving)
             // Без заголовка и кнопки: шторка закрывается свайпом (владелец 05.11.2026).
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showsContext) {
+            .tfSheet(isPresented: $showsContext) {
                 ChatContextSheet(snapshot: context, roleName: nil, loadError: controls.errorText,
                                  onRefresh: { Task { await onRefresh() } })
             }
-            .sheet(isPresented: $showsModelPicker) {
+            .tfSheet(isPresented: $showsModelPicker) {
                 ChatModelPickerSheet(choice: choice)
                     .environment(\.tfTypeSettingsEnabled, true)
             }
