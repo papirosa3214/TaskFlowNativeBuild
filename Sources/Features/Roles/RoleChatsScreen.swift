@@ -34,7 +34,8 @@ struct RoleChatsScreen: View {
     @State private var errorMessage: String?
     @Environment(\.openRoute) private var openRoute
     @State private var showingCreate = false
-    @State private var realtime = RealtimeClient()
+    @Environment(RealtimeClient.self) private var realtime
+    @State private var realtimeObserver = RealtimeObserverSlot<UUID>()
     private let api = APIClient()
 
 
@@ -167,23 +168,28 @@ struct RoleChatsScreen: View {
         .task { await load() }
         .refreshable { await load() }
         // Живое обновление (владелец 22.09.2026: «чтобы не выходить и не
-        // заходить заново»): пока список открыт, слушаем сокет и на новое
+        // заходить заново»): пока список открыт, слушаем общий сокет и на новое
         // сообщение тихо перечитываем превью и непрочитанные.
         .task {
-            realtime.onEvent = { event in
-                switch event {
-                case .roleChatMessage:
-                    Task { await reloadSilently() }
-                case .chatNew:
-                    Task { await reloadSilently() }
-                default:
-                    break
+            guard !Task.isCancelled else { return }
+            realtimeObserver.replace(add: {
+                realtime.addObserver { event in
+                    switch event {
+                    case .roleChatMessage:
+                        Task { await reloadSilently() }
+                    case .chatNew:
+                        Task { await reloadSilently() }
+                    default:
+                        break
+                    }
                 }
-            }
-            realtime.onReconnected = { Task { await reloadSilently() } }
-            realtime.connect()
+            }, remove: realtime.removeObserver)
         }
-        .onDisappear { realtime.disconnect() }
+        .onDisappear { realtimeObserver.clear(remove: realtime.removeObserver) }
+        .onChange(of: realtime.connectionRevision) {
+            guard realtimeObserver.isActive else { return }
+            Task { await reloadSilently() }
+        }
         .onChange(of: showsClosed) { Task { await load() } }
         .alert("Не удалось загрузить чаты", isPresented: Binding(
             get: { errorMessage != nil },
@@ -850,7 +856,8 @@ struct RoleChatRoomScreen: View {
     /// Текст, открытый в «Выделить текст» — системное выделение с ручками.
     @State private var selectingText: SelectableMessageText?
     @State private var contentsTargetID: String?
-    @State private var realtime = RealtimeClient()
+    @Environment(RealtimeClient.self) private var realtime
+    @State private var realtimeObserver = RealtimeObserverSlot<UUID>()
     @State private var roomEventRevision = 0
     /// Счётчик для строки рабочего плана роли (21.10.2026).
     @State private var workPlanRevision = 0
@@ -1724,7 +1731,17 @@ struct RoleChatRoomScreen: View {
     private var composerSession: some View {
         composerNavigation
         .task { await connectRealtime() }
-        .onDisappear { realtime.disconnect() }
+        .onDisappear { realtimeObserver.clear(remove: realtime.removeObserver) }
+        .onChange(of: realtime.connectionRevision) {
+            guard realtimeObserver.isActive else { return }
+            // За время разрыва сигнал «закончил» мог потеряться.
+            typists = [:]
+            typistTools = [:]
+            Task {
+                await refresh()
+                await loadLiveTurns()
+            }
+        }
         .task {
             if !readingPreview { await refresh() }
         }
@@ -1877,23 +1894,16 @@ struct RoleChatRoomScreen: View {
         // События, пришедшие почти разом (ход роли, «печатает», готовое
         // сообщение), применяются одним обновлением: лента перекладывается
         // один раз, а не на каждое событие (владелец 27.10.2026).
-        realtime.onEvent = { event in
-            guard eventBatch.enqueue(event) else { return }
-            Task { @MainActor in
-                try? await Task.sleep(for: ChatEventCoalescer<RealtimeEvent>.window)
-                eventBatch.drain().forEach(apply)
+        guard !Task.isCancelled else { return }
+        realtimeObserver.replace(add: {
+            realtime.addObserver { event in
+                guard eventBatch.enqueue(event) else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: ChatEventCoalescer<RealtimeEvent>.window)
+                    eventBatch.drain().forEach(apply)
+                }
             }
-        }
-        realtime.onReconnected = {
-            // За время разрыва сигнал «закончил» мог потеряться.
-            typists = [:]
-            typistTools = [:]
-            Task {
-                await refresh()
-                await loadLiveTurns()
-            }
-        }
-        realtime.connect()
+        }, remove: realtime.removeObserver)
         // Чат открыт посреди ответа роли — подтягиваем, что уже сделано.
         await loadLiveTurns()
     }
