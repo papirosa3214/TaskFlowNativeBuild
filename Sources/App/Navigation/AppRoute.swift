@@ -65,6 +65,7 @@ public enum AppRoute: Hashable {
     case settings
     case integrations
     case templates
+    case fontSettings
     case voiceModels
     /// LOCK-218: Настройки → ИИ → выбор голоса Помощника владельца с прослушиванием.
     case secretaryVoicePicker

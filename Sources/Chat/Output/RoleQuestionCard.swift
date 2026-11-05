@@ -108,7 +108,7 @@ struct RoleQuestionCard: View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             Text(question.isAnswered ? "Ответ отправлен" : "Нужен ваш выбор")
                 .tfText(.title)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
             if question.isAnswered {
                 Text("Роль продолжает работу").tfText(.meta).foregroundStyle(Color.tfSub)
             }
@@ -123,7 +123,7 @@ struct RoleQuestionCard: View {
             }
             Text(item.question)
                 .tfText(.body)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .fixedSize(horizontal: false, vertical: true)
             options(index: index, item: item)
             if question.isAnswered {
@@ -175,14 +175,14 @@ struct RoleQuestionCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .foregroundStyle(Color.tfText)
+        .foregroundStyle(Color.tfChatText)
         .padding(.horizontal, TFSpacing.md)
         .padding(.vertical, TFSpacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.lg))
         .overlay {
             RoundedRectangle(cornerRadius: TFRadius.lg)
-                .strokeBorder(selected ? Color.tfText : Color.tfStroke, lineWidth: TFBorder.width)
+                .strokeBorder(selected ? Color.tfChatText : Color.tfStroke, lineWidth: TFBorder.width)
         }
         .accessibilityIdentifier("chat.question.option." + option.label)
     }

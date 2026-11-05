@@ -21,7 +21,7 @@ struct ResolutionPlanBlock: View {
                 .foregroundStyle(Color.tfSub)
             Text(plan.trimmingCharacters(in: .whitespacesAndNewlines))
                 .tfText(.body)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .textSelection(.enabled)
             if started {
                 Label("Этап продолжает работу", systemImage: "checkmark")

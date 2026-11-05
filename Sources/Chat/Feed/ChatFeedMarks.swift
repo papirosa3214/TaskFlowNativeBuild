@@ -190,7 +190,7 @@ struct ChatScrollToBottomButton: View {
             // кружка, ширина 16:9 от неё; зона нажатия 72×44.
             Image(systemName: "chevron.down")
                 .tfTypeFont(size: 17, weight: .semibold)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .frame(width: 64, height: 36)
                 .voiceCapsuleSurface()
                 .frame(width: 72, height: TFHitTarget.min)

@@ -73,7 +73,7 @@ private struct CompareSide: View {
                 Text(valueText)
                     .tfText(.taskTitle)
                     .tfMonospaced(20, weight: .semibold)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
                 if let unit {
                     Text(unit).tfText(.caption).foregroundStyle(Color.tfSub)
                 }

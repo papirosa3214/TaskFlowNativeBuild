@@ -8,9 +8,8 @@ import SDWebImageWebPCoder
 @main
 struct TaskFlowApp: App {
     @AppStorage(AppAppearance.storageKey) private var appearanceRaw = AppAppearance.dark.rawValue
-    // Внешний вид (28.10.2026): тон текста и размер шрифта из «Настроек».
+    // Тон текста из «Настройки → Шрифт».
     @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
-    @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
     @State private var apiClient: APIClient
     @State private var session: SessionStore
     @State private var realtimeClient = RealtimeClient()
@@ -22,6 +21,7 @@ struct TaskFlowApp: App {
     init() {
         AppDiagnostics.shared.startMonitoring()
         AppAppearance.migratePreference()
+        TypographyPreferences.migrateIfNeeded()
         // Заголовок экрана задаёт `tfNativeHeader` слотом `.principal`
         // (12.10.2026) — глобальной настройки шрифта шапки больше нет.
 
@@ -77,12 +77,10 @@ struct TaskFlowApp: App {
                 // руками. Модификатор действует на вложенные прокрутки,
                 // поэтому ставится один раз здесь.
                 .tfSoftTopScrollEdge()
-                // Тон и размер текста из «Настройки → Внешний вид»: цвет — на
-                // корне (наследуется всем текстом без своего цвета; токен
-                // `tfText` читает тот же выбор сам), размер — через Dynamic Type,
-                // чтобы шкала `.tfText(...)` пересчиталась во всех экранах.
+                // Тон текста на корне; отдельные пять групп размера
+                // читаются модификаторами Typography. Системный Dynamic Type
+                // больше не переопределяется второй общей шкалой.
                 .foregroundStyle(Color.tfText)
-                .dynamicTypeSize((TFTextScale(rawValue: textScaleRaw) ?? .standard).dynamicTypeSize)
                 // Раньше здесь стоял `.id(...)`: смена настройки пересоздавала
                 // дерево и выбрасывала владельца из «Настроек» в «Обзор».
                 // Теперь каждое место текста само следит за счётчиком правок

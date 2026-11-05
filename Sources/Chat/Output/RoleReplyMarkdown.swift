@@ -10,7 +10,7 @@ struct RoleReplyMarkdown: View, Equatable {
     }
 
     let text: String
-    var color: Color = .tfText
+    var color: Color = .tfChatText
     var allowsCommands = false
     /// Проявление хвоста у идущего ответа (30.09.2026); nil — готовый текст.
     var fade: RoleTextFade?

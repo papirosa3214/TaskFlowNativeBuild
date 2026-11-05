@@ -61,7 +61,7 @@ struct ChatHTMLView: View {
                 .foregroundStyle(Color.tfRed)
             Text(Self.title(of: html) ?? "Интерактив")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .lineLimit(1)
             Spacer()
             Menu {
@@ -109,9 +109,9 @@ struct ChatHTMLView: View {
         <style>
         :root { color-scheme: light dark; }
         html, body { margin: 0; background: transparent; }
-        body { padding: 12px; font: -apple-system-body; font-family: -apple-system, system-ui, sans-serif;
+        body { padding: 12px; font: -apple-system-body; font-family: \(TFTypeFace.saved(for: .chat).cssFamily), -apple-system, system-ui, sans-serif;
                color: #171717; -webkit-text-size-adjust: 100%; }
-        @media (prefers-color-scheme: dark) { body { color: \(TFTextTone.saved.hex); } }
+        @media (prefers-color-scheme: dark) { body { color: \(TFTextTone.saved(for: .chat).hex); } }
         button { font: inherit; }
         </style>
         </head><body>

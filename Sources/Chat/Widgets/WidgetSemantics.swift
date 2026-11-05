@@ -123,7 +123,7 @@ struct WidgetStateMark: View {
             Circle().fill(ink.fill(tone))
             Image(systemName: tone.icon)
                 .tfTypeFont(size: glyph, weight: .semibold)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
         }
         .frame(width: diameter, height: diameter)
         .accessibilityHidden(true)
@@ -162,7 +162,7 @@ struct WidgetTitle: View {
                 if let title {
                     Text(title)
                         .tfText(.title)
-                        .foregroundStyle(Color.tfText)
+                        .foregroundStyle(Color.tfChatText)
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)
@@ -474,7 +474,7 @@ struct WidgetTextFallback: View {
             if let text = summary {
                 Text(text)
                     .tfText(.row)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             ScrollView(.horizontal, showsIndicators: false) {

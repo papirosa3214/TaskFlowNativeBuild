@@ -45,7 +45,8 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 enum TFTextTone: String, CaseIterable, Identifiable {
     case pure, paper, cream, ash
 
-    static let storageKey = "taskflow_text_tone"
+    static let storageKey = TypographyPreferences.toneKey(for: .app)
+    static let chatStorageKey = TypographyPreferences.toneKey(for: .chat)
     var id: String { rawValue }
 
     var title: String {
@@ -71,7 +72,11 @@ enum TFTextTone: String, CaseIterable, Identifiable {
 
     /// Сохранённый выбор; по умолчанию — чистый белый, то есть как было до настройки.
     static var saved: TFTextTone {
-        guard let raw = UserDefaults.standard.string(forKey: storageKey),
+        saved(for: .app)
+    }
+
+    static func saved(for context: TypographyContext) -> TFTextTone {
+        guard let raw = UserDefaults.standard.string(forKey: TypographyPreferences.toneKey(for: context)),
               let tone = TFTextTone(rawValue: raw) else { return .pure }
         return tone
     }
@@ -85,7 +90,8 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
     case system, golos, onest, nunito, comfortaa, unbounded
     case lora, playfair, cormorant, caveat, marck, mono
 
-    static let storageKey = "taskflow_type_face"
+    static let storageKey = TypographyPreferences.faceKey(for: .app)
+    static let chatStorageKey = TypographyPreferences.faceKey(for: .chat)
     var id: String { rawValue }
 
     var title: String {
@@ -122,6 +128,24 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
         }
     }
 
+    /// CSS family для HTML-артефактов в ленте чата.
+    var cssFamily: String {
+        switch self {
+        case .system: "-apple-system"
+        case .golos: "'Golos Text'"
+        case .onest: "'Onest'"
+        case .nunito: "'Nunito'"
+        case .comfortaa: "'Comfortaa'"
+        case .unbounded: "'Unbounded'"
+        case .lora: "'Lora'"
+        case .playfair: "'Playfair Display'"
+        case .cormorant: "'Cormorant Garamond'"
+        case .caveat: "'Caveat'"
+        case .marck: "'Marck Script'"
+        case .mono: "'JetBrains Mono'"
+        }
+    }
+
     /// PostScript-имена: (обычное, жирное). У `system` — nil.
     var names: (regular: String, bold: String)? {
         switch self {
@@ -141,7 +165,11 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
     }
 
     static var saved: TFTypeFace {
-        guard let raw = UserDefaults.standard.string(forKey: storageKey),
+        saved(for: .app)
+    }
+
+    static func saved(for context: TypographyContext) -> TFTypeFace {
+        guard let raw = UserDefaults.standard.string(forKey: TypographyPreferences.faceKey(for: context)),
               let face = TFTypeFace(rawValue: raw) else { return .system }
         return face
     }
@@ -153,7 +181,11 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
     /// пересоздаётся и выбранная гарнитура не видна (владелец 01.11.2026:
     /// «шрифты вроде меняются, но большинство не меняет ничего»).
     static func save(_ face: TFTypeFace) {
-        UserDefaults.standard.set(face.rawValue, forKey: storageKey)
+        save(face, for: .app)
+    }
+
+    static func save(_ face: TFTypeFace, for context: TypographyContext) {
+        UserDefaults.standard.set(face.rawValue, forKey: TypographyPreferences.faceKey(for: context))
         let next = UserDefaults.standard.integer(forKey: TFTypeScale.revisionKey) + 1
         UserDefaults.standard.set(next, forKey: TFTypeScale.revisionKey)
     }

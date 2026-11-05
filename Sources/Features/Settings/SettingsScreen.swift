@@ -18,11 +18,7 @@ struct SettingsScreen: View {
     @State private var profileOverride: ApiUser?
     @AppStorage("settings.user.expanded") private var userSettingsExpanded = true
     @AppStorage("settings.ai.expanded") private var aiExpanded = true
-    @AppStorage(SecretaryVoice.storageKey) private var secretaryVoice = SecretaryVoice.default.rawValue
     @AppStorage("settings.server.expanded") private var serverExpanded = true
-    @AppStorage(TFTextTone.storageKey) private var textToneRaw = TFTextTone.pure.rawValue
-    @AppStorage(TFTextScale.storageKey) private var textScaleRaw = TFTextScale.standard.rawValue
-    @State private var typeRevision = 0
     /// Панель ввода в чатах: родная или новая (владелец 29.10.2026).
     @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
     /// Тумблер «Новая панель ввода» — как у нижней панели: включена новая,
@@ -33,14 +29,12 @@ struct SettingsScreen: View {
             set: { composerStyleRaw = ($0 ? ChatComposerStyle.unified : .standard).rawValue }
         )
     }
-    @AppStorage("settings.appearance.expanded") private var appearanceExpanded = true
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: TFSpacing.xl) {
                     accountSection
-                    appearanceSection
                     userSettingsSection
                     aiSection
                     serverSection
@@ -119,242 +113,6 @@ struct SettingsScreen: View {
         )
     }
 
-    // MARK: - Внешний вид (просьба владельца 28.10.2026)
-
-    /// Образцы ступеней шкалы для выбора размера: кегль берётся из `Typography`,
-    /// а не задаётся числом в разметке (правило дизайн-системы).
-    private static let scaleSamples: [TFTextStyle] = [.action, .body, .title, .titleLarge]
-
-    /// Тон основного текста и размер шрифта на всё приложение. Обе настройки
-    /// живут в `@AppStorage`: тон читает токен `tfText` в корне приложения,
-    /// размер — `.dynamicTypeSize(...)` там же.
-    @ViewBuilder
-    private var appearanceSection: some View {
-        section(title: "Внешний вид", isExpanded: $appearanceExpanded) {
-            VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                Text("Тон текста")
-                    .tfText(.title)
-                    .foregroundStyle(Color.tfSub)
-                HStack(spacing: TFSpacing.sm) {
-                    ForEach(TFTextTone.allCases) { tone in
-                        let isSelected = textToneRaw == tone.rawValue
-                        Button { textToneRaw = tone.rawValue } label: {
-                            VStack(spacing: TFSpacing.xs) {
-                                Text("Аа")
-                                    .tfText(.title)
-                                    .foregroundStyle(isSelected ? tone.color : Color.tfDim)
-                                    .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
-                                    .tfSelectTile(selected: isSelected)
-                                Text(tone.title)
-                                    .tfText(.micro)
-                                    .foregroundStyle(isSelected ? Color.tfText : Color.tfDim)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(2)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("settings.text-tone.\(tone.rawValue)")
-                    }
-                }
-            }
-            .padding(.horizontal, TFSpacing.md)
-            .padding(.vertical, TFSpacing.md)
-
-            TFDivider(inset: rowDividerInset)
-            Text("Размер текста")
-                .tfText(.title)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.top, TFSpacing.md)
-            ForEach(Array(TFTextScale.allCases.enumerated()), id: \.element.id) { index, scale in
-                if index > 0 { TFDivider(inset: rowDividerInset) }
-                let isSelected = textScaleRaw == scale.rawValue
-                Button { textScaleRaw = scale.rawValue } label: {
-                    let ink: Color = isSelected ? .tfText : .tfDim
-                    HStack(spacing: TFSpacing.md) {
-                        Text("Аа")
-                            .tfText(Self.scaleSamples[index])
-                            .foregroundStyle(ink)
-                            .frame(width: 34, alignment: .leading)
-                        Text(scale.title)
-                            .tfText(.body)
-                            .foregroundStyle(ink)
-                        Spacer()
-                        if isSelected {
-                            Image(systemName: "checkmark")
-                                .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
-                                .foregroundStyle(Color.tfText)
-                        }
-                    }
-                    .padding(.horizontal, TFSpacing.md)
-                    .frame(minHeight: TFHitTarget.min)
-                    .contentShape(Rectangle())
-                    .tfSelectTile(selected: isSelected)
-                    .padding(.horizontal, TFSpacing.xs)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings.text-scale.\(scale.rawValue)")
-            }
-
-            // Гарнитура (владелец, 01.11.2026): 11 шрифтов с кириллицей.
-            TFDivider(inset: rowDividerInset)
-            Text("Гарнитура")
-                .tfText(.title)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.top, TFSpacing.md)
-            faceRow
-
-            // Шрифты по пяти группам (владелец, 01.11.2026): заголовок,
-            // подзаголовок, основной, второстепенный, мелкий. Чаты эту
-            // шкалу не читают — у них своя ниже.
-            TFDivider(inset: rowDividerInset)
-            Text("Шрифты")
-                .tfText(.title)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.top, TFSpacing.md)
-            ForEach(Array(TFTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
-                if index > 0 { TFDivider(inset: rowDividerInset) }
-                typeGroupRow(group)
-            }
-
-            // Шрифт чата — отдельная шкала по схеме ленты (владелец 03.11.2026).
-            TFDivider(inset: rowDividerInset)
-            Text("Шрифт чата")
-                .tfText(.title)
-                .foregroundStyle(Color.tfSub)
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.top, TFSpacing.md)
-            ForEach(Array(TFChatTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
-                if index > 0 { TFDivider(inset: rowDividerInset) }
-                chatTypeGroupRow(group)
-            }
-        }
-    }
-
-    /// Строка выбора гарнитуры: образец рисуется самим шрифтом.
-    private var faceRow: some View {
-        let current = TFTypeFace.saved
-        return Menu {
-            ForEach(TFTypeFace.allCases) { face in
-                Button {
-                    TFTypeFace.save(face)
-                    typeRevision &+= 1
-                } label: {
-                    Text(face.title + " — " + face.subtitle)
-                }
-            }
-        } label: {
-            HStack(spacing: TFSpacing.md) {
-                Text("Аа")
-                    .font(current.font(size: 21, weight: .regular))
-                    .foregroundStyle(Color.tfText)
-                    .frame(width: 40, alignment: .leading)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(current.title)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfText)
-                    Text(current.subtitle)
-                        .tfText(.micro)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: TFSpacing.sm)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 12, weight: .semibold))  // design-system-guard: ignore — значок меню
-                    .foregroundStyle(Color.tfDim)
-            }
-            .padding(.horizontal, TFSpacing.md)
-            .frame(minHeight: TFHitTarget.min)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("settings.type-face")
-    }
-
-    /// Строка одной группы шрифтов: образец в её кегле и меню со ступенями.
-    private func typeGroupRow(_ group: TFTypeGroup) -> some View {
-        let current = TFTypeScale.saved(for: group)
-        return Menu {
-            ForEach(TFTypeScale.allCases) { scale in
-                Button {
-                    TFTypeScale.save(scale, for: group)
-                    typeRevision &+= 1
-                } label: {
-                    Text(scale.title + " " + String(Int((group.baseSize * scale.multiplier).rounded())))
-                }
-            }
-        } label: {
-            HStack(spacing: TFSpacing.md) {
-                Text("Аа")
-                    // design-system-guard: ignore — образец обязан быть ровно в кегле своей группы
-                    .tfTypeFont(size: group.baseSize * current.multiplier, weight: .regular)
-                    .foregroundStyle(Color.tfText)
-                    .frame(width: 40, alignment: .leading)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(group.title)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfText)
-                    Text(group.subtitle)
-                        .tfText(.micro)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: TFSpacing.sm)
-                Text(current.title)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfDim)
-            }
-            .padding(.horizontal, TFSpacing.md)
-            .frame(minHeight: TFHitTarget.min)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("settings.type-group.\(group.rawValue)")
-    }
-
-    /// Строка группы шкалы чата — те же ступени, свои базовые кегли ленты.
-    private func chatTypeGroupRow(_ group: TFChatTypeGroup) -> some View {
-        let current = TFTypeScale.saved(forChat: group)
-        return Menu {
-            ForEach(TFTypeScale.allCases) { scale in
-                Button {
-                    TFTypeScale.save(scale, forChat: group)
-                    typeRevision &+= 1
-                } label: {
-                    Text(scale.title + " " + String(Int((group.baseSize * scale.multiplier).rounded())))
-                }
-            }
-        } label: {
-            HStack(spacing: TFSpacing.md) {
-                Text("Аа")
-                    // design-system-guard: ignore — образец кегля группы чата
-                    .font(.tfChat(group))
-                    .foregroundStyle(Color.tfText)
-                    .frame(width: 40, alignment: .leading)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(group.title)
-                        .tfText(.body)
-                        .foregroundStyle(Color.tfText)
-                    Text(group.subtitle)
-                        .tfText(.micro)
-                        .foregroundStyle(Color.tfSub)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: TFSpacing.sm)
-                Text(current.title)
-                    .tfText(.action)
-                    .foregroundStyle(Color.tfDim)
-            }
-            .padding(.horizontal, TFSpacing.md)
-            .frame(minHeight: TFHitTarget.min)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("settings.chat-type-group.\(group.rawValue)")
-    }
-
     @ViewBuilder
     private var userSettingsSection: some View {
         section(title: "Пользовательские настройки", isExpanded: $userSettingsExpanded) {
@@ -368,6 +126,9 @@ struct SettingsScreen: View {
                 titleStyle: .body,
                 verticalPadding: TFSpacing.xs
             )
+            TFDivider(inset: rowDividerInset)
+            navRow(icon: "textformat", title: "Шрифт", route: .fontSettings)
+                .accessibilityIdentifier("settings-font")
             TFDivider(inset: rowDividerInset)
             HintsSettingsSection(dividerInset: rowDividerInset)
             if viewModel.isBiometryAvailable {
@@ -437,18 +198,12 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             NavigationLink(value: AppRoute.secretaryVoicePicker) {
                 TFListRow(icon: "waveform", iconStyle: .plain, title: "Голос Помощника владельца",
-                          trailing: AnyView(secretaryVoiceValue), titleStyle: .body,
-                          verticalPadding: TFSpacing.xs, chevron: .shown)
+                          titleStyle: .body, verticalPadding: TFSpacing.xs,
+                          chevron: .shown)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.secretary-voice")
         }
-    }
-
-    /// Текущий голос: выбор и прослушивание — на отдельном экране.
-    /// Шеврон справа рисует сам канон `TFListRow` (`chevron: .shown`).
-    private var secretaryVoiceValue: some View {
-        Text(secretaryVoice).tfText(.body).foregroundStyle(Color.tfSub)
     }
 
     @ViewBuilder

@@ -108,7 +108,7 @@ private struct TimelineItemText: View {
             }
             Text(item.string("label") ?? "—")
                 .tfText(.row)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .lineLimit(2)
         }
         .padding(.bottom, TFSpacing.sm)
@@ -255,7 +255,7 @@ private struct CalendarDayCell: View {
         Text(count > 0 ? WidgetFormat.integer(Double(count)) : "")
             .tfText(.caption)
             .tfMonospaced(11, weight: .medium)
-            .foregroundStyle(count > 0 ? (tone == .over ? tone.color : Color.tfText) : Color.tfDim)
+            .foregroundStyle(count > 0 ? (tone == .over ? tone.color : Color.tfChatText) : Color.tfDim)
             .frame(width: 32, height: 32)
             .background(cell != nil && count > 0 ? ink.fill(tone) : ink.track,
                         in: RoundedRectangle(cornerRadius: TFRadius.md))

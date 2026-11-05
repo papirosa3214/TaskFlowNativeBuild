@@ -1,0 +1,74 @@
+import Foundation
+
+private enum TestFailure: Error, CustomStringConvertible {
+    case mismatch(String)
+
+    var description: String {
+        switch self {
+        case .mismatch(let message): message
+        }
+    }
+}
+
+@main
+struct TypographyPreferencesHostTests {
+    static func main() throws {
+        try migrationFillsOnlyMissingAppGroups()
+        try migrationCopiesChatToneOnlyOnce()
+        try appAndChatFacesStayIndependent()
+        print("PASS typography preferences")
+    }
+
+    private static func migrationFillsOnlyMissingAppGroups() throws {
+        let defaults = isolatedDefaults("groups")
+        defaults.set("xlarge", forKey: TypographyPreferences.legacyGlobalScaleKey)
+        defaults.set("small", forKey: TypographyPreferences.appScaleKey("heading"))
+
+        TypographyPreferences.migrateIfNeeded(defaults)
+
+        try expect(defaults.string(forKey: TypographyPreferences.appScaleKey("heading")) == "small",
+                   "migration overwrote an existing group")
+        for group in ["subheading", "body", "secondary", "tertiary"] {
+            try expect(defaults.string(forKey: TypographyPreferences.appScaleKey(group)) == "xlarge",
+                       "migration did not fill missing \(group) from legacy global scale")
+        }
+    }
+
+    private static func migrationCopiesChatToneOnlyOnce() throws {
+        let defaults = isolatedDefaults("tone")
+        defaults.set("paper", forKey: TypographyPreferences.toneKey(for: .app))
+
+        TypographyPreferences.migrateIfNeeded(defaults)
+        try expect(defaults.string(forKey: TypographyPreferences.toneKey(for: .chat)) == "paper",
+                   "first migration did not preserve the visible chat tone")
+
+        defaults.set("cream", forKey: TypographyPreferences.toneKey(for: .app))
+        TypographyPreferences.migrateIfNeeded(defaults)
+        try expect(defaults.string(forKey: TypographyPreferences.toneKey(for: .chat)) == "paper",
+                   "later app tone change leaked into chat")
+    }
+
+    private static func appAndChatFacesStayIndependent() throws {
+        let defaults = isolatedDefaults("faces")
+        defaults.set("onest", forKey: TypographyPreferences.faceKey(for: .app))
+        defaults.set("golos", forKey: TypographyPreferences.faceKey(for: .chat))
+
+        try expect(defaults.string(forKey: TypographyPreferences.faceKey(for: .app)) == "onest",
+                   "app face key resolved to the chat value")
+        try expect(defaults.string(forKey: TypographyPreferences.faceKey(for: .chat)) == "golos",
+                   "chat face key resolved to the app value")
+        try expect(TypographyPreferences.faceKey(for: .app) != TypographyPreferences.faceKey(for: .chat),
+                   "app and chat face keys are identical")
+    }
+
+    private static func isolatedDefaults(_ suffix: String) -> UserDefaults {
+        let suite = "TaskFlow.TypographyPreferencesTests.\(suffix).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+
+    private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) throws {
+        guard condition() else { throw TestFailure.mismatch(message) }
+    }
+}

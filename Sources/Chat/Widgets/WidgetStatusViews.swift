@@ -76,14 +76,14 @@ private struct StatusRow: View {
             WidgetStateMark(tone: tone, ink: ink)
             Text(group.string("label") ?? "—")
                 .tfText(.row)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .lineLimit(2)
             Spacer(minLength: TFSpacing.sm)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(WidgetFormat.integer(group.number("value") ?? 0))
                     .tfText(.row)
                     .tfMonospaced(14)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
                 if let share = group.number("share") {
                     Text(WidgetFormat.percent(share / 100))
                         .tfText(.micro)
@@ -143,7 +143,7 @@ private struct BarsListRow: View {
             HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
                 Text(item.string("label") ?? "—")
                     .tfText(.row)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
                     .lineLimit(2)
                 Spacer(minLength: TFSpacing.sm)
                 if tone == .over {
@@ -254,12 +254,12 @@ private struct ChainLink: View {
                 Circle().fill(ink.fill(tone))
                 Image(systemName: tone.icon)
                     .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
             }
             .frame(width: 28, height: 28)
             Text(link.string("label") ?? "—")
                 .tfText(.caption)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
             if let meta = link.string("meta") {
@@ -311,7 +311,7 @@ private struct LadderOverall: View {
             Text(WidgetFormat.percent(value / 100))
                 .tfText(.taskTitle)
                 .tfMonospaced(20, weight: .semibold)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
             Text("готность")
                 .tfText(.micro)
                 .foregroundStyle(Color.tfSub)
@@ -330,7 +330,7 @@ private struct LadderStepRow: View {
         HStack(alignment: .center, spacing: TFSpacing.sm) {
             Text(step.string("label") ?? "—")
                 .tfText(.row)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .lineLimit(1)
                 .frame(width: 76, alignment: .leading)
             LadderStep(fraction: fraction, tone: tone, ink: ink)

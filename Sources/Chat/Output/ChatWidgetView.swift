@@ -77,7 +77,7 @@ struct ChatWidgetView: View {
         case .success(let table):
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
                 if let title = table.title {
-                    Text(title).tfText(.action).foregroundStyle(Color.tfText)
+                    Text(title).tfText(.action).foregroundStyle(Color.tfChatText)
                 }
                 ChatTableView(table: ChatTable(
                     header: table.columns,
@@ -271,7 +271,7 @@ struct WidgetCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             if let title {
-                Text(title).tfText(.title).foregroundStyle(Color.tfText)
+                Text(title).tfText(.title).foregroundStyle(Color.tfChatText)
             }
             content
         }
@@ -414,7 +414,7 @@ private struct MetricsWidget: View {
                         Text(item.string("value") ?? "—")
                             .font(.title2.weight(.semibold))
                             .monospacedDigit()
-                            .foregroundStyle(Color.tfText)
+                            .foregroundStyle(Color.tfChatText)
                         if let delta = item.string("delta") {
                             let trend = item.string("trend") ?? ""
                             Label(delta, systemImage: trend == "up" ? "arrow.up.right"
@@ -445,7 +445,7 @@ private struct ProgressWidget: View {
                 let fraction = min(1, max(0, raw > 1 ? raw / 100 : raw))
                 VStack(alignment: .leading, spacing: TFSpacing.xs) {
                     HStack {
-                        Text(item.string("label") ?? "").foregroundStyle(Color.tfText)
+                        Text(item.string("label") ?? "").foregroundStyle(Color.tfChatText)
                         Spacer()
                         Text("\(Int((fraction * 100).rounded()))%")
                             .monospacedDigit()
@@ -485,7 +485,7 @@ private struct ChecklistWidget: View {
                         TFCheckbox(isChecked: done)
                         Text(item.string("text") ?? "")
                             .strikethrough(done)
-                            .foregroundStyle(done ? Color.tfSub : Color.tfText)
+                            .foregroundStyle(done ? Color.tfSub : Color.tfChatText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -545,7 +545,7 @@ private struct CardWidget: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 if let title = data.string("title") {
-                    Text(title).tfText(.title).foregroundStyle(Color.tfText)
+                    Text(title).tfText(.title).foregroundStyle(Color.tfChatText)
                 }
                 if let subtitle = data.string("subtitle") {
                     Text(subtitle).tfText(.body).foregroundStyle(Color.tfSub)
@@ -562,7 +562,7 @@ private struct CardWidget: View {
                             Text(row.string("label") ?? "").foregroundStyle(Color.tfSub)
                             Spacer(minLength: TFSpacing.md)
                             Text(row.string("value") ?? "—")
-                                .foregroundStyle(Color.tfText)
+                                .foregroundStyle(Color.tfChatText)
                                 .multilineTextAlignment(.trailing)
                         }
                         .tfText(.body)

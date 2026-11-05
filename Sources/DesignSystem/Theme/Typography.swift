@@ -437,7 +437,11 @@ extension Font {
         design: Font.Design = .default,
         scale: CGFloat = 1
     ) -> Font {
-        .system(size: group.size * scale, weight: weight, design: design)
+        let size = group.size * scale
+        if group == .mono {
+            return .system(size: size, weight: weight, design: .monospaced)
+        }
+        return TFTypeFace.saved(for: .chat).font(size: size, weight: weight, design: design)
     }
 }
 

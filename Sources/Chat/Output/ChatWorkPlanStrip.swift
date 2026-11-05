@@ -148,7 +148,7 @@ struct ChatWorkPlanRows: View {
                         .foregroundStyle(tint(item.state))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title).foregroundStyle(item.state == .stopped ? Color.tfSub : Color.tfText)
+                        Text(item.title).foregroundStyle(item.state == .stopped ? Color.tfSub : Color.tfChatText)
                         if let note = item.statusNote {
                             Text(note)
                                 .tfText(.meta)

@@ -101,6 +101,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         IntegrationsScreen()
     case .templates:
         TemplatesScreen()
+    case .fontSettings:
+        FontSettingsScreen()
     case .voiceModels:
         VoiceModelsScreen()
     case .secretaryVoicePicker:

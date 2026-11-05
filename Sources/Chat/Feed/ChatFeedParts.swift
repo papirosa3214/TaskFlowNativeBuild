@@ -77,7 +77,7 @@ struct ChatFileChip: View {
                     .foregroundStyle(Color.tfSub)
                 Text(fileName)
                     .tfText(.meta)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }

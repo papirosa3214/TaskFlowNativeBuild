@@ -188,7 +188,7 @@ struct ChatStructuredOutputView: View {
         if let columns = block.columns, !columns.isEmpty, let rows = block.rows {
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
                 if let title = block.title, !title.isEmpty {
-                    Text(title).tfText(.action).foregroundStyle(Color.tfText)
+                    Text(title).tfText(.action).foregroundStyle(Color.tfChatText)
                 }
                 StructuredDocumentBlocksView(blocks: [
                     .table([
@@ -211,7 +211,7 @@ struct ChatStructuredOutputView: View {
                 .foregroundStyle(statusColor(code))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                Text(title).tfText(.action).foregroundStyle(Color.tfText)
+                Text(title).tfText(.action).foregroundStyle(Color.tfChatText)
                 if let text, !text.isEmpty {
                     Text(text).tfText(.body).foregroundStyle(Color.tfSub)
                 }
@@ -269,7 +269,7 @@ struct ChatStructuredOutputView: View {
                             .foregroundStyle(statusColor(item.state))
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                            Text(item.label).tfText(.body).foregroundStyle(Color.tfText)
+                            Text(item.label).tfText(.body).foregroundStyle(Color.tfChatText)
                             if let detail = item.detail, !detail.isEmpty {
                                 Text(detail).tfText(.caption).foregroundStyle(Color.tfSub)
                             }
@@ -298,7 +298,7 @@ struct ChatStructuredOutputView: View {
     @ViewBuilder
     private func reportSection(_ title: String, _ blocks: [StructuredOutputBlock]) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Text(title).tfText(.title).foregroundStyle(Color.tfText)
+            Text(title).tfText(.title).foregroundStyle(Color.tfChatText)
             if blocks.isEmpty {
                 Text(emptySectionText(title)).tfText(.caption).foregroundStyle(Color.tfSub)
             } else {
@@ -311,7 +311,7 @@ struct ChatStructuredOutputView: View {
 
     private func checksSection(_ checks: [StructuredOutputCheck]) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Text("Проверки").tfText(.title).foregroundStyle(Color.tfText)
+            Text("Проверки").tfText(.title).foregroundStyle(Color.tfChatText)
             if checks.isEmpty {
                 Text("Проверки не запускались").tfText(.caption).foregroundStyle(Color.tfSub)
             } else {
@@ -320,7 +320,7 @@ struct ChatStructuredOutputView: View {
                         Image(systemName: statusSymbol(check.status))
                             .foregroundStyle(statusColor(check.status))
                         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                            Text(check.label).tfText(.body).foregroundStyle(Color.tfText)
+                            Text(check.label).tfText(.body).foregroundStyle(Color.tfChatText)
                             if let detail = check.detail, !detail.isEmpty {
                                 Text(detail).tfText(.caption).foregroundStyle(Color.tfSub)
                             }
@@ -333,7 +333,7 @@ struct ChatStructuredOutputView: View {
 
     private func materialsSection(_ materials: [StructuredOutputMaterial]) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            Text("Материалы").tfText(.title).foregroundStyle(Color.tfText)
+            Text("Материалы").tfText(.title).foregroundStyle(Color.tfChatText)
             if materials.isEmpty {
                 Text("Материалы не приложены").tfText(.caption).foregroundStyle(Color.tfSub)
             } else {
@@ -377,7 +377,7 @@ struct ChatStructuredOutputView: View {
             }
         case nil:
             VStack(alignment: .leading, spacing: 2) {
-                Text(material.title).tfText(.body).foregroundStyle(Color.tfText)
+                Text(material.title).tfText(.body).foregroundStyle(Color.tfChatText)
                 Text(material.ref).tfText(.caption).foregroundStyle(Color.tfSub).textSelection(.enabled)
             }
         }
@@ -427,7 +427,7 @@ struct ChatStructuredOutputView: View {
                     Text("Артефакт: \(key)").tfText(.caption).foregroundStyle(Color.tfSub)
                 }
                 if let summary = block.summary {
-                    Text(summary).tfText(.body).foregroundStyle(Color.tfText)
+                    Text(summary).tfText(.body).foregroundStyle(Color.tfChatText)
                 }
             }
         }

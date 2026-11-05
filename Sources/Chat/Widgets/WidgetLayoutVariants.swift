@@ -42,7 +42,7 @@ private struct MetricsTile: View {
                 Text(item.string("value") ?? "—")
                     .tfText(.taskTitle)
                     .tfMonospaced(20, weight: .semibold)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
                     .lineLimit(1)
                 MetricsDelta(item: item)
             }
@@ -125,7 +125,7 @@ private struct ChecklistStatusRow: View {
                 WidgetStateMark(tone: tone, ink: ink)
                 Text(item.string("text") ?? "")
                     .tfText(.row)
-                    .foregroundStyle(isDone ? Color.tfSub : Color.tfText)
+                    .foregroundStyle(isDone ? Color.tfSub : Color.tfChatText)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let meta = item.string("meta") {
@@ -197,7 +197,7 @@ private struct ChartBarRow: View {
                 Text(WidgetFormat.integer(point.value))
                     .tfText(.row)
                     .tfMonospaced(14)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
             }
             WidgetBar(fraction: fraction, fill: RoleChartBlock.ink.opacity(scheme == .dark ? 0.18 : 0.25), height: 8)
         }
@@ -241,7 +241,7 @@ private struct ProgressMilestoneRow: View {
             HStack {
                 Text(item.string("label") ?? "")
                     .tfText(.row)
-                    .foregroundStyle(Color.tfText)
+                    .foregroundStyle(Color.tfChatText)
                     .lineLimit(1)
                 Spacer(minLength: TFSpacing.sm)
                 Text(WidgetFormat.percent(fraction))
@@ -372,7 +372,7 @@ private struct MetricsStripCell: View {
             Text(item.string("value") ?? "—")
                 .tfText(.taskTitle)
                 .tfMonospaced(20, weight: .semibold)
-                .foregroundStyle(Color.tfText)
+                .foregroundStyle(Color.tfChatText)
                 .lineLimit(1)
             Text(item.string("label") ?? "")
                 .tfText(.micro)
