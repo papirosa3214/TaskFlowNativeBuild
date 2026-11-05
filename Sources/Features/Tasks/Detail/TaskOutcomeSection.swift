@@ -43,43 +43,13 @@ struct TaskOutcomeContent: View {
             }
         }
 
-        ForEach(outcome.documents) { document in
-            HStack(spacing: TFSpacing.sm) {
-                // Кнопка, а не переход по маршруту: карточка сама открыта
-                // шторкой, и маршрут в ней некому обработать.
-                Button { onOpenDocument(document.id) } label: {
-                    Label(document.title, systemImage: document.isOutcome ? "flag.checkered" : "doc.text")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfText)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                Menu {
-                    Button {
-                        onPreviewDocument(document.id, document.title)
-                    } label: {
-                        Label("Предпросмотр", systemImage: "doc.text.magnifyingglass")
-                    }
-                    Button {
-                        Task { await pushToKnowledge(document) }
-                    } label: {
-                        Label("В базу знаний", systemImage: "books.vertical")
-                    }
-                    ShareLink(
-                        item: NoteMarkdownExport(id: document.id, title: document.title),
-                        preview: SharePreview(document.title)
-                    ) {
-                        Label("Сохранить на телефон", systemImage: "square.and.arrow.down")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(Color.tfSub)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Действия с документом")
-            }
+        let documents = TaskOutcomeDocumentGroups(outcome.documents, kind: \.kind)
+        ForEach(documents.results) { documentRow($0) }
+        if !documents.reports.isEmpty {
+            Text("Отчёты о проделанной работе")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+            ForEach(documents.reports) { documentRow($0) }
         }
 
         if let branch = outcome.branch {
@@ -94,6 +64,45 @@ struct TaskOutcomeContent: View {
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(2)
             }
+        }
+    }
+
+    private func documentRow(_ document: ApiTaskOutcome.Document) -> some View {
+        HStack(spacing: TFSpacing.sm) {
+            // Кнопка, а не переход по маршруту: карточка сама открыта
+            // шторкой, и маршрут в ней некому обработать.
+            Button { onOpenDocument(document.id) } label: {
+                Label(document.title, systemImage: document.isOutcome ? "flag.checkered" : "doc.text")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfText)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Menu {
+                Button {
+                    onPreviewDocument(document.id, document.title)
+                } label: {
+                    Label("Предпросмотр", systemImage: "doc.text.magnifyingglass")
+                }
+                Button {
+                    Task { await pushToKnowledge(document) }
+                } label: {
+                    Label("В базу знаний", systemImage: "books.vertical")
+                }
+                ShareLink(
+                    item: NoteMarkdownExport(id: document.id, title: document.title),
+                    preview: SharePreview(document.title)
+                ) {
+                    Label("Сохранить на телефон", systemImage: "square.and.arrow.down")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(Color.tfSub)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Действия с документом")
         }
     }
 

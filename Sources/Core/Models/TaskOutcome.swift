@@ -97,9 +97,11 @@ public struct ApiTaskOutcome: Decodable, Sendable, Equatable {
         public let title: String
         public let updatedAt: String?
         public let isOutcome: Bool
+        /// `result` — сам документ, `outcome` — сводка, `report` — отчёт роли; nil — старый сервер.
+        public var kind: String? = nil
 
         enum CodingKeys: String, CodingKey {
-            case id, title
+            case id, title, kind
             case updatedAt = "updated_at"
             case isOutcome = "is_outcome"
         }
