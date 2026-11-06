@@ -41,18 +41,17 @@ private struct DirectoryConfirmModifier: ViewModifier {
                             .tfText(.body)
                             .foregroundStyle(Color.tfSub)
                     }
-                    // Одна кнопка — действие (владелец 06.11.2026: «по
-                    // возможности одна кнопочка»). Отмена — смахиванием вниз,
-                    // как у остальных шторок приложения.
                     TFButton(req.confirmLabel, variant: req.danger ? .primary : .secondary) {
                         request = nil
                         req.onConfirm()
                     }
+                    TFButton(req.cancelLabel, variant: .outline) { request = nil }
                 }
                 .padding(.bottom, TFSpacing.xl)
             }
             .presentationDetents([.height(240)])
-            .presentationDragIndicator(.visible)
+            .presentationDragIndicator(.hidden)
+            .interactiveDismissDisabled() // spec §0.5 — без drag-to-dismiss
         }
     }
 }
