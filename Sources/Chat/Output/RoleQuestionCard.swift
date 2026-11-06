@@ -18,11 +18,16 @@ struct RoleQuestionCard: View {
     @State private var note: String = ""
     @State private var isSending = false
     @State private var failure: String?
+    /// Ответ ушёл: в чате карточка сразу убирается, не дожидаясь перечитки.
+    @State private var submitted = false
 
     var body: some View {
         if nativePresentation {
             nativeContent
-        } else {
+        } else if !submitted && !question.isAnswered {
+            // В чате отвеченный вопрос карточкой не висит: его место — сообщение
+            // владельца с ответом, которое пишет сервер (владелец 06.11.2026:
+            // «форма не должна висеть, она заменяется моим ответом»).
             styledContent
         }
     }
@@ -268,8 +273,12 @@ struct RoleQuestionCard: View {
             ))
         }
         let noteText = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Клавиатуру — вниз сразу: курсор оставался в поле карточки, и опустить
+        // её было нечем (владелец 06.11.2026).
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         do {
             try await onAnswer(entries, noteText.isEmpty ? nil : noteText)
+            submitted = true
         } catch {
             failure = (error as? APIError)?.localizedDescription ?? error.localizedDescription
         }
