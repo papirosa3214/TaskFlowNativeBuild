@@ -28,14 +28,16 @@ struct RoleQuestionCard: View {
     }
 
     private var styledContent: some View {
-        TFCard {
+        // Как виджеты чата: тёмная подложка, тёмно-красная рамка, тёмные поля
+        // (владелец 06.11.2026: «остался светлый фон… не в тему»).
+        TFCard(bordered: true) {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 header
                 ForEach(Array(question.questions.enumerated()), id: \.offset) { index, item in
                     questionBlock(index: index, item: item)
                 }
                 if !question.isAnswered {
-                    TFTextField("Заметка для роли (необязательно)", text: $note)
+                    TFTextField("Заметка для роли (необязательно)", text: $note, surface: .dark)
                     sendButton
                 } else {
                     answeredFooter
@@ -132,7 +134,7 @@ struct RoleQuestionCard: View {
                 TFTextField("Свой вариант", text: Binding(
                     get: { custom[index] ?? "" },
                     set: { custom[index] = $0 }
-                ))
+                ), surface: .dark)
             }
         }
     }
