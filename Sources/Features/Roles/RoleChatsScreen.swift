@@ -396,7 +396,9 @@ struct RoleChatRoomLoader: View {
                 TFEmptyState(
                     icon: "bubble.left",
                     text: "Чат не открылся",
-                    description: "Проверьте связь и зайдите ещё раз."
+                    description: "Проверьте связь и зайдите ещё раз.",
+                    actionTitle: "Повторить",
+                    action: { failed = false; Task { await load() } }
                 )
             } else {
                 TFLoading(.block)
@@ -407,7 +409,15 @@ struct RoleChatRoomLoader: View {
         .task { await load() }
     }
 
+    /// Чат из локальной базы открывается сразу и без сети: экран чата сам
+    /// перечитывает его с сервера. Сеть нужна, только если чата в базе нет
+    /// (владелец 06.11.2026: «Чат не открылся» при пропавшей связи, хотя
+    /// переписка уже лежала на телефоне).
     private func load() async {
+        if let local = try? LocalStore.shared.chats().first(where: { $0.id == chatID }) {
+            chat = local
+            return
+        }
         do { chat = try await api.roleChat(id: chatID) }
         catch { failed = true }
     }
