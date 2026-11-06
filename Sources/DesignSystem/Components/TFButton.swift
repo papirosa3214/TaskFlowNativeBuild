@@ -1,12 +1,11 @@
 import SwiftUI
 
-// Кнопки (владелец 06.11.2026, скрин «Повторить»): все кнопки — маленькие
-// красные системные капсулы по размеру подписи, как действие пустого
-// состояния (`TFEmptyState`): `.borderedProminent` + красный. Раньше была
-// полноширинная плашка 48 pt с тёмно-красным градиентом и кромкой.
+// Кнопки (владелец 06.11.2026, второй раз в тот же день): как выбранный
+// вариант в карточке вопроса на образце, но в наших цветах — широкая плашка,
+// тонкая тёмно-красная кромка `tfButtonEdge` и полупрозрачная красная
+// заливка. Надпись — через `.tfText`, подчиняется «Настройки → Шрифт».
+// До этого (в тот же день) — маленькие красные системные капсулы.
 //
-// Вид у всех вариантов один; вариант оставлен в API, чтобы не трогать 74
-// места вызова, и пригодится, если владелец захочет различать вторичные.
 public enum TFButtonVariant {
     case primary
     case secondary
@@ -37,12 +36,8 @@ public struct TFButton: View {
     }
 
     public var body: some View {
-        // Неактивная — красная, но бледнее (владелец 06.11.2026: «Сохранить
-        // серая»). Системный `.disabled` красит капсулу в серый, поэтому
-        // нажатие отключается иначе.
+        // Неактивная — та же кнопка, но бледнее; нажатие отключено.
         Button(action: { if isEnabled { action() } }) {
-            // Надпись — через `.tfText`, чтобы подчинялась «Настройки → Шрифт»
-            // (владелец 06.11.2026: «любой текст должен реагировать на ручки»).
             Group {
                 if let icon {
                     Label(title, systemImage: icon)
@@ -52,9 +47,18 @@ public struct TFButton: View {
             }
             .tfText(.body)
             .fontWeight(.semibold)
+            .foregroundStyle(Color.tfText)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, TFSpacing.lg)
+            .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
+            .background(Color.tfRed.opacity(0.18), in: RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
+                    .strokeBorder(Color.tfButtonEdge, lineWidth: TFBorder.width)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous))
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.tfRed)
+        .buttonStyle(TFTapScaleStyle())
         .opacity(isEnabled ? 1 : 0.45)
         .allowsHitTesting(isEnabled)
         .accessibilityValue(isEnabled ? "" : "Недоступно")
