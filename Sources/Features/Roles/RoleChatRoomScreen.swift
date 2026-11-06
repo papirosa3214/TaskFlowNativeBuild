@@ -2394,23 +2394,19 @@ struct RoleChatRoomScreen: View {
     @ViewBuilder
     private func roleMessageContent(_ message: RoleChatMessage, allowsCommands: Bool) -> some View {
         let checklist = checklistContext(for: message)
-        if isAgentReply(message), let json = message.roleEnvelopeJSON {
-            // Темп проявления считаем по конверту: разобранный отчёт длиннее
-            // плоского текста ответа, и по плоскому тексту проявление
-            // обрывалось на середине.
-            ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
-                .roleMessageReveal(text: json, messageID: message.id,
-                                   animate: shouldRevealMessage(message), pace: .structured)
-        } else {
-            RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
-                .equatable()
-                // Анимируем только новое сообщение и только когда лента внизу:
-                // иначе проявление старых строк при прокрутке дёргает
-                // автопривязку к низу (жалоба владельца 17.10.2026).
-                .roleMessageReveal(text: message.text, messageID: message.id,
-                                   animate: shouldRevealMessage(message),
-                                   pace: .of(markdown: message.text))
-        }
+        // Ответ в конверте рисуется той же разметкой, что и во время печати
+        // (текст, заголовки, таблицы, виджеты, код), а не карточками отчёта:
+        // два способа рисовать один ответ давали скачок высоты при подмене
+        // (владелец 07.11.2026: «в пизду эти отчёты, если из-за них весь
+        // головняк»). Текст сообщения сервер уже собрал из блоков конверта.
+        RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
+            .equatable()
+            // Анимируем только новое сообщение и только когда лента внизу:
+            // иначе проявление старых строк при прокрутке дёргает
+            // автопривязку к низу (жалоба владельца 17.10.2026).
+            .roleMessageReveal(text: message.text, messageID: message.id,
+                               animate: shouldRevealMessage(message),
+                               pace: .of(markdown: message.text))
     }
 
     private func copyMessage(_ message: RoleChatMessage) {
