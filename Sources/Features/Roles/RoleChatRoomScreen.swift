@@ -73,6 +73,12 @@ struct RoleChatRoomScreen: View {
     /// Текст, открытый в «Выделить текст» — системное выделение с ручками.
     @State private var selectingText: SelectableMessageText?
     @State private var contentsTargetID: String?
+    /// Сколько последних сообщений рисует лента (владелец 07.11.2026: «пять
+    /// моих и пять ответов, дальше пусть подгружаются»). Ленивая лента
+    /// угадывала высоту десятков длинных сообщений, и после отправки высота
+    /// скакала 30 000 → 63 000 → 57 000 pt — лента улетала вверх. Старые
+    /// сообщения лежат в памяти и дорисовываются по 10, когда долистал вверх.
+    @State private var feedWindow = RoleChatFeedWindow.step
     @Environment(RealtimeClient.self) private var realtime
     @State private var realtimeObserver = RealtimeObserverSlot<UUID>()
     @State private var roomEventRevision = 0
@@ -1323,6 +1329,16 @@ struct RoleChatRoomScreen: View {
                 // Один элемент ленты — одна вью: полоса даты и строка лежат в
                 // общем контейнере, иначе LazyVStack ошибается в оценке высот
                 // и лента дёргается при прокрутке вверх (27.10.2026).
+                if self.visibleMessages.count > feedWindow {
+                    // Долистал до верха окна — дорисовать ещё 10 и остаться
+                    // на том же сообщении.
+                    Color.clear.frame(height: 1)
+                        .onAppear {
+                            let keep = orderedFeed.first?.id
+                            feedWindow += RoleChatFeedWindow.step
+                            if let keep { chatScrollPosition.scrollTo(id: keep, anchor: .top) }
+                        }
+                }
                 ForEach(orderedFeed) { item in
                     VStack(alignment: .leading, spacing: TFSpacing.md) {
                         if let title = dayDividers[item.id] {
@@ -1484,6 +1500,10 @@ struct RoleChatRoomScreen: View {
         }
         .onChange(of: contentsTargetID) { _, id in
             guard let id else { return }
+            // Переход по оглавлению к старому сообщению: окно раскрываем до него.
+            if let index = visibleMessages.firstIndex(where: { $0.id == id }) {
+                feedWindow = max(feedWindow, visibleMessages.count - index)
+            }
             let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
             chatScrollPosition.scrollTo(id: feedID, anchor: .top)
             chatFollowsBottom = false
@@ -1540,7 +1560,7 @@ struct RoleChatRoomScreen: View {
         // Видимые сообщения и ходы — один раз на сборку ленты: раньше каждое
         // свойство считалось дважды, и вся история проходилась лишний раз
         // на каждую пачку событий живого хода (06.11.2026).
-        let visibleMessages = self.visibleMessages
+        let visibleMessages = Array(self.visibleMessages.suffix(feedWindow))
         let liveRows = self.visibleLiveRows
         let history = visibleMessages.enumerated().map { index, message in
             return FeedItem(id: feedItemID(for: message),
@@ -2920,4 +2940,9 @@ struct RoleChatRoomScreen: View {
             uploadedVoiceIDs.removeValue(forKey: id)
         } catch { errorMessage = error.localizedDescription }
     }
+}
+
+/// Окно ленты: сколько последних сообщений рисуется и шаг подгрузки.
+enum RoleChatFeedWindow {
+    static let step = 10
 }
