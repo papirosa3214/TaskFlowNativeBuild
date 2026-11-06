@@ -40,19 +40,6 @@ public struct UpcomingScreen: View {
     @State private var gridMonth: (year: Int, month: Int)? = nil
     private let monthGridInitialMonday = UpcomingDate.mondayOf(UpcomingDate.todayString())
 
-    /// Видимые проекты бывшего «Планирования» (ключ `plannerVisibleProjects`).
-    /// Рутины с проектом вне этого списка в календаре не показываются — так
-    /// было и до удаления планирования; меню выбора в календаре рутин не
-    /// показывалось и раньше.
-    private let plannerVisibleProjectIds: Set<String> = Set(
-        UserDefaults.standard.stringArray(forKey: "plannerVisibleProjects") ?? []
-    )
-    /// Пустое хранилище имеет два смысла: на новой установке проекты ещё не
-    /// выбирались и надо показать всё; после явного снятия всех галочек пустой
-    /// список означает «только беспроектные».
-    private let plannerProjectsConfigured =
-        UserDefaults.standard.object(forKey: "plannerVisibleProjects") != nil
-
     /// В шапке — текущий месяц видимого диапазона.
     private var navigationTitle: String {
         switch view {
@@ -227,7 +214,7 @@ public struct UpcomingScreen: View {
     }
 
     private var routineOccurrences: [RoutineOccurrence] {
-        RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: effectivePlannerVisibleProjectIds)
+        RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: nil)
     }
 
     /// Статус вхождения рутины берётся из её задачи, поэтому календарь
@@ -244,16 +231,6 @@ public struct UpcomingScreen: View {
               let from = Calendar.current.date(byAdding: .day, value: -7, to: anchor),
               let until = Calendar.current.date(byAdding: .day, value: 63, to: anchor) else { return }
         await routinePlanner.load(from: from, until: until)
-    }
-
-    private var effectivePlannerVisibleProjectIds: Set<String> {
-        guard plannerProjectsConfigured else {
-            // Сторы могут прийти не одновременно: не скрываем рутины, пока
-            // список проектов ещё не успел загрузиться.
-            return Set(projectStore.projects.map(\.id))
-                .union(taskStore.tasks.compactMap(\.projectId))
-        }
-        return plannerVisibleProjectIds
     }
 }
 
