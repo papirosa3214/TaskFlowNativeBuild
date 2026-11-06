@@ -156,6 +156,9 @@ struct RoleChatRoomScreen: View {
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
+    /// До какого момента писать геометрию ленты в журнал телефона (после
+    /// отправки; владелец 07.11.2026: «после отправки всё улетает вверх»).
+    @State private var scrollLogUntil: Date = .distantPast
     /// Лента держится за низ, пока владелец сам не отлистал вверх. Отдельный
     /// признак, а не «не листал ИЛИ у низа»: пока роль пишет, высота растёт
     /// каждый кадр, и лента на миг оказывается «не у низа» — привязка то
@@ -1432,6 +1435,12 @@ struct RoleChatRoomScreen: View {
         }
         .onScrollPhaseChange { _, phase in
             chatScrollPhase = phase
+        }
+        .onScrollGeometryChange(for: [Int].self) { g in
+            [Int(g.contentSize.height), Int(g.visibleRect.maxY), Int(g.contentOffset.y), Int(g.containerSize.height)]
+        } action: { _, v in
+            guard Date() < scrollLogUntil else { return }
+            ClientLog.shared.add("scroll content=\(v[0]) visible_max=\(v[1]) below=\(v[0] - v[1]) offset=\(v[2]) viewport=\(v[3]) phase=\(chatScrollPhase) follows=\(chatFollowsBottom) rows=\(feedItems.count)")
         }
         #if DEBUG
         .onScrollGeometryChange(for: ChatScrollGeometry.self) { geometry in
@@ -2734,6 +2743,8 @@ struct RoleChatRoomScreen: View {
         chatScrollTrace.event("send")
         #endif
         chatFollowsBottom = true
+        scrollLogUntil = Date().addingTimeInterval(6)
+        ClientLog.shared.add("chat=\(chat.id) send")
         pendingOutgoing.append(pending)
         await deliver(pending.id)
     }
