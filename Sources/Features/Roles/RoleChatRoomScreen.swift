@@ -1413,6 +1413,11 @@ struct RoleChatRoomScreen: View {
                     }
                 }
             }
+            // Боковые отступы — внутри ленты, а не полями прокрутки: кнопка
+            // «вниз» (`scrollTo(edge: .bottom)`) сдвигала ленту и по
+            // горизонтали в ноль, мимо поля, — текст прилипал к левому краю
+            // (владелец 07.11.2026, скрин).
+            .padding(.horizontal, TFSpacing.lg)
             .scrollTargetLayout()
             // Никакой анимации на контейнер ленты: `animation(_:value:)` на
             // `LazyVStack` применяется ко ВСЕМУ поддереву, включая вставку
@@ -1421,7 +1426,7 @@ struct RoleChatRoomScreen: View {
             // до следующей дельты (150 мс) и перецеливается — лента шатается
             // вверх-вниз (владелец 30.10.2026, ревью ленты п.1.1).
         }
-        .contentMargins(TFSpacing.lg, for: .scrollContent)
+        .contentMargins(.vertical, TFSpacing.lg, for: .scrollContent)
         // Якорь у привязки позиции не задан: «быть у низа» держит один
         // `defaultScrollAnchor`, а не два механизма сразу. Два спорили между
         // собой на каждом кадре роста ответа — лента ездила вниз-вверх
