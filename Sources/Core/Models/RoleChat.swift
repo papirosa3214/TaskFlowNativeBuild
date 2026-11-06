@@ -1183,7 +1183,10 @@ extension RoleChatLiveTurn {
         // (таблица markdown, виджет сырым JSON). Такой текст в пузыре не
         // нужен: ответ рисует конверт нативными блоками, иначе один и тот же
         // ответ виден дважды (владелец 30.10.2026).
-        merged = Self.withoutAnswerText(merged, of: message)
+        // Ответ с конвертом: напечатанное потоком НЕ убираем — пузырь
+        // допечатывает его, и только потом место занимает конверт
+        // (владелец 06.11.2026: «всё за раз прилетает»).
+        if !message.hasStructuredAnswer { merged = Self.withoutAnswerText(merged, of: message) }
         let finalText = message.hasStructuredAnswer ? "" : message.text
         if !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             if let lastText = merged.lastIndex(where: { if case .text = $0 { return true }; return false }) {

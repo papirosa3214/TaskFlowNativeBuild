@@ -429,6 +429,7 @@ struct RoleLiveTurnBubble: View {
         }
         if !seeded {
             seeded = true
+            ClientLog.shared.add("bubble:seed turn=\(turn.playbackID) snapshot=\(startsWithSnapshot) complete=\(isComplete) pending=\(driver.pacer.pendingCharacters)")
             if startsWithSnapshot { driver.pacer.flush() }
         }
         publish()

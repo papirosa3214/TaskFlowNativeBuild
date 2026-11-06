@@ -1235,6 +1235,7 @@ struct RoleChatRoomScreen: View {
     /// незнакомый ход — перечитываем снимок.
     private func applyLiveDelta(_ delta: RoleChatLiveDelta) {
         let userID = delta.userID
+        if case .start = delta { ClientLog.shared.add("chat=\(chat.id) live:start user=\(userID)") }
         // Запись того же значения в состояние экрана тоже будит его — на
         // каждую порцию ответа; вставляем только новую роль.
         if !deltaUsers.contains(userID) { deltaUsers.insert(userID) }
@@ -1252,6 +1253,7 @@ struct RoleChatRoomScreen: View {
             liveDeltas[userID] = state
             showLiveTurn(state.liveTurn, userID: userID)
         case .ended(let messageID):
+            ClientLog.shared.add("chat=\(chat.id) live:end user=\(userID) message=\(messageID ?? "-")")
             liveDeltas[userID] = nil
             endLiveTurn(userID: userID, messageID: messageID)
         case .needsSnapshot:
@@ -1681,6 +1683,7 @@ struct RoleChatRoomScreen: View {
     /// `onPlaybackComplete` иначе никогда не отпустит ответ.
     private func completeLiveTurn(_ turn: RoleChatLiveTurn, with message: RoleChatMessage) {
         let completed = turn.completed(with: message)
+        ClientLog.shared.add("chat=\(chat.id) complete turn=\(turn.playbackID) message=\(message.id) structured=\(message.hasStructuredAnswer) hold=\(RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed)) text_chars=\(completed.items.reduce(0) { if case .text(let t) = $1 { return $0 + t.count }; return $0 })")
         rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
         closedTurnMessageIDs.insert(message.id)
         closedTurnItems[message.id] = turn.itemsWithoutAnswerText(for: message)
@@ -1797,6 +1800,7 @@ struct RoleChatRoomScreen: View {
                                startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID)
                                    || endedTurnIDs.contains(turn.playbackID),
                                onPlaybackComplete: {
+                                   ClientLog.shared.add("chat=\(chat.id) playback:done turn=\(turn.playbackID)")
                                    completingTurns[turn.playbackID] = nil
                                    endedTurnIDs.remove(turn.playbackID)
                                    stoppedTurnIDs.remove(turn.playbackID)
