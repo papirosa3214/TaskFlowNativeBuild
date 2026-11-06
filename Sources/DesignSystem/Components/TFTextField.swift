@@ -117,11 +117,13 @@ public struct TFFieldGroup<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            content
+        // Как карточки «Настроек»: тёмная подложка и тонкая тёмно-красная
+        // рамка (владелец 06.11.2026: «верхнюю почему-то забил»).
+        TFCard(padding: 0, bordered: true) {
+            VStack(spacing: 0) {
+                content
+            }
         }
-        .background(Color.tfCard)
-        .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
     }
 }
 

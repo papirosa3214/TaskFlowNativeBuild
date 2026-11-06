@@ -91,29 +91,33 @@ struct JevSettingsScreen: View {
                 .padding(.horizontal, TFSpacing.lg)
                 .frame(minHeight: TFField.height)
                 TFFieldDivider()
-                SecureField("", text: $apiKey,
-                            prompt: Text(settings.hasApiKey ? "Ключ сохранён — новый заменит" : "Ключ API TypeSafe")
-                                .foregroundStyle(Color.tfDim))
-                    .tfText(.input)
-                    .foregroundStyle(Color.tfText)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .padding(.horizontal, TFSpacing.lg)
-                    .frame(minHeight: TFField.height)
-                    .accessibilityLabel("Ключ API").accessibilityIdentifier("jev-key")
-            }
-            HStack(spacing: TFSpacing.sm) {
-                TFButton("Сохранить", variant: .secondary, isEnabled: dirty && !busy) {
-                    Task { await saveConnection() }
+                // Проверка подключения — плоской иконкой в строке ключа, по
+                // центру строки (владелец 06.11.2026: «поставь в строчку, где
+                // ключик»). Кнопка под карточкой одна — «Сохранить».
+                HStack(spacing: TFSpacing.sm) {
+                    SecureField("", text: $apiKey,
+                                prompt: Text(settings.hasApiKey ? "Ключ сохранён — новый заменит" : "Ключ API TypeSafe")
+                                    .foregroundStyle(Color.tfDim))
+                        .tfText(.input)
+                        .foregroundStyle(Color.tfText)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .accessibilityLabel("Ключ API").accessibilityIdentifier("jev-key")
+                    TFIconButton("arrow.clockwise", label: "Проверить подключение") {
+                        Task { await test() }
+                    }
+                    .disabled(!(settings.hasApiKey && !dirty && !busy))
+                    .opacity(settings.hasApiKey && !dirty && !busy ? 1 : 0.35)
+                    .accessibilityIdentifier("jev-test")
                 }
-                .accessibilityIdentifier("jev-save")
-                .frame(maxWidth: .infinity)
-                TFButton("", icon: "arrow.clockwise", variant: .secondary,
-                         isEnabled: settings.hasApiKey && !dirty && !busy) {
-                    Task { await test() }
-                }
-                .accessibilityIdentifier("jev-test")
-                .accessibilityLabel("Проверить подключение")
+                .padding(.leading, TFSpacing.lg)
+                .padding(.trailing, TFSpacing.xs)
+                .frame(minHeight: TFField.height)
             }
+            TFButton("Сохранить", variant: .secondary, isEnabled: dirty && !busy) {
+                Task { await saveConnection() }
+            }
+            .accessibilityIdentifier("jev-save")
+            .frame(maxWidth: .infinity)
             if busy { TFLoading(.inline) }
             if let result {
                 Text(result.message).tfText(.action).foregroundStyle(Color.tfSub)

@@ -266,11 +266,11 @@ struct ProviderDetailScreen: View {
             TFCard {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {
                     TFTextField("Вставьте ключ провайдера", text: $viewModel.apiKeyDraft, icon: "key.fill")
-                    TFButton(viewModel.isSavingKey ? "Сохраняю…" : "Сохранить ключ") {
+                    TFButton(viewModel.isSavingKey ? "Сохраняю…" : "Сохранить ключ",
+                             isEnabled: !(viewModel.isSavingKey
+                                          || viewModel.apiKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)) {
                         Task { _ = await viewModel.saveAPIKey() }
                     }
-                    .disabled(viewModel.isSavingKey
-                              || viewModel.apiKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
@@ -284,10 +284,10 @@ struct ProviderDetailScreen: View {
                     Text("Откроется браузер со страницей входа. У xAI дополнительно покажем код — его нужно подтвердить на сайте. После входа вернитесь сюда: статус обновится сам.")
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
-                    TFButton(viewModel.provider?.status == .connected ? "Переподключить" : "Подключить через браузер") {
+                    TFButton(viewModel.provider?.status == .connected ? "Переподключить" : "Подключить через браузер",
+                             isEnabled: !viewModel.isStartingOAuth) {
                         Task { await viewModel.startOAuth() }
                     }
-                    .disabled(viewModel.isStartingOAuth)
                 }
             }
         }
@@ -339,11 +339,11 @@ struct ProviderDetailScreen: View {
                                 .tfText(.action)
                                 .foregroundStyle(Color.tfText)
                             TFTextField(prompt.placeholder ?? "Введите значение", text: $viewModel.promptDraft)
-                            TFButton("Отправить") {
+                            TFButton("Отправить",
+                                     isEnabled: !(viewModel.isSubmittingPrompt
+                                                  || viewModel.promptDraft.trimmingCharacters(in: .whitespaces).isEmpty)) {
                                 Task { await viewModel.submitPrompt() }
                             }
-                            .disabled(viewModel.isSubmittingPrompt
-                                      || viewModel.promptDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                         if !session.status.isFinished {
                             Button("Отменить") { Task { await viewModel.cancelSession() } }

@@ -258,7 +258,7 @@ struct ServiceAccountsScreen: View {
                 TFTextField("Имя учётки", text: $newName)
                 TFErrorBanner(viewModel.createErrorMessage, variant: .block)
                 HStack(spacing: TFSpacing.sm) {
-                    TFButton("Завести") {
+                    TFButton("Завести", isEnabled: !newName.trimmingCharacters(in: .whitespaces).isEmpty) {
                         Task {
                             await viewModel.create(name: newName)
                             if viewModel.issuedToken != nil {
@@ -267,7 +267,6 @@ struct ServiceAccountsScreen: View {
                             }
                         }
                     }
-                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
 
                     Button("Отмена") { isCreateFormOpen = false; newName = "" }
                         .tfText(.row)
@@ -489,8 +488,7 @@ struct ServiceAccountsScreen: View {
                     set: { viewModel.updateTokenDraft(account.id, value: $0) }
                 ), icon: "key.fill")
                 HStack(spacing: TFSpacing.sm) {
-                    TFButton("Сохранить") { Task { _ = await viewModel.saveToken(account.id) } }
-                    .disabled(viewModel.tokenDraft(for: account.id).trimmingCharacters(in: .whitespaces).isEmpty)
+                    TFButton("Сохранить", isEnabled: !viewModel.tokenDraft(for: account.id).trimmingCharacters(in: .whitespaces).isEmpty) { Task { _ = await viewModel.saveToken(account.id) } }
 
                     TFButton("Выпустить новый") { Task { _ = await viewModel.rotateToken(account.id) } }
                 }

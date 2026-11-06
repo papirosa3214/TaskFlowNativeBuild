@@ -37,7 +37,10 @@ public struct TFButton: View {
     }
 
     public var body: some View {
-        Button(action: action) {
+        // Неактивная — красная, но бледнее (владелец 06.11.2026: «Сохранить
+        // серая»). Системный `.disabled` красит капсулу в серый, поэтому
+        // нажатие отключается иначе.
+        Button(action: { if isEnabled { action() } }) {
             // Надпись — через `.tfText`, чтобы подчинялась «Настройки → Шрифт»
             // (владелец 06.11.2026: «любой текст должен реагировать на ручки»).
             Group {
@@ -52,7 +55,9 @@ public struct TFButton: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(.tfRed)
-        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
+        .allowsHitTesting(isEnabled)
+        .accessibilityValue(isEnabled ? "" : "Недоступно")
     }
 }
 
