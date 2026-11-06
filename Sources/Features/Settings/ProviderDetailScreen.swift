@@ -266,18 +266,9 @@ struct ProviderDetailScreen: View {
             TFCard {
                 VStack(alignment: .leading, spacing: TFSpacing.md) {
                     TFTextField("Вставьте ключ провайдера", text: $viewModel.apiKeyDraft, icon: "key.fill")
-                    Button {
+                    TFButton(viewModel.isSavingKey ? "Сохраняю…" : "Сохранить ключ") {
                         Task { _ = await viewModel.saveAPIKey() }
-                    } label: {
-                        Text(viewModel.isSavingKey ? "Сохраняю…" : "Сохранить ключ")
-                            .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: 44)
-                            .background(Color.tfRedSolid)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                     }
-                    .buttonStyle(TFTapScaleStyle())
                     .disabled(viewModel.isSavingKey
                               || viewModel.apiKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -293,18 +284,9 @@ struct ProviderDetailScreen: View {
                     Text("Откроется браузер со страницей входа. У xAI дополнительно покажем код — его нужно подтвердить на сайте. После входа вернитесь сюда: статус обновится сам.")
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
-                    Button {
+                    TFButton(viewModel.provider?.status == .connected ? "Переподключить" : "Подключить через браузер") {
                         Task { await viewModel.startOAuth() }
-                    } label: {
-                        Text(viewModel.provider?.status == .connected ? "Переподключить" : "Подключить через браузер")
-                            .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: 44)
-                            .background(Color.tfRedSolid)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                     }
-                    .buttonStyle(TFTapScaleStyle())
                     .disabled(viewModel.isStartingOAuth)
                 }
             }
@@ -347,18 +329,9 @@ struct ProviderDetailScreen: View {
                             .accessibilityIdentifier("provider-oauth-device-code")
                         }
                         if let url = viewModel.authURL {
-                            Button {
+                            TFButton("Открыть браузер") {
                                 openURL(url)
-                            } label: {
-                                Text("Открыть браузер")
-                                    .tfText(.row).fontWeight(.semibold)
-                                    .foregroundStyle(Color.tfPaper)
-                                    .padding(.horizontal, TFSpacing.lg)
-                                    .frame(height: 44)
-                                    .background(Color.tfBlue)
-                                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                             }
-                            .buttonStyle(TFTapScaleStyle())
                             .accessibilityIdentifier("provider-oauth-open-browser")
                         }
                         if let prompt = session.currentPrompt {
@@ -366,18 +339,9 @@ struct ProviderDetailScreen: View {
                                 .tfText(.action)
                                 .foregroundStyle(Color.tfText)
                             TFTextField(prompt.placeholder ?? "Введите значение", text: $viewModel.promptDraft)
-                            Button {
+                            TFButton("Отправить") {
                                 Task { await viewModel.submitPrompt() }
-                            } label: {
-                                Text("Отправить")
-                                    .tfText(.row).fontWeight(.semibold)
-                                    .foregroundStyle(Color.tfPaper)
-                                    .padding(.horizontal, TFSpacing.lg)
-                                    .frame(height: 44)
-                                    .background(Color.tfRedSolid)
-                                    .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                             }
-                            .buttonStyle(TFTapScaleStyle())
                             .disabled(viewModel.isSubmittingPrompt
                                       || viewModel.promptDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                         }

@@ -258,7 +258,7 @@ struct ServiceAccountsScreen: View {
                 TFTextField("Имя учётки", text: $newName)
                 TFErrorBanner(viewModel.createErrorMessage, variant: .block)
                 HStack(spacing: TFSpacing.sm) {
-                    Button {
+                    TFButton("Завести") {
                         Task {
                             await viewModel.create(name: newName)
                             if viewModel.issuedToken != nil {
@@ -266,16 +266,7 @@ struct ServiceAccountsScreen: View {
                                 isCreateFormOpen = false
                             }
                         }
-                    } label: {
-                        Text("Завести")
-                            .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: 44)
-                            .background(Color.tfRedSolid)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                     }
-                    .buttonStyle(TFTapScaleStyle())
                     .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
 
                     Button("Отмена") { isCreateFormOpen = false; newName = "" }
@@ -304,19 +295,10 @@ struct ServiceAccountsScreen: View {
                 }
                 .textSelection(.enabled)
                 HStack(spacing: TFSpacing.sm) {
-                    Button {
+                    TFButton(isKeyCopied ? "Скопировано" : "Скопировать") {
                         UIPasteboard.general.string = issued.token
                         isKeyCopied = true
-                    } label: {
-                        Text(isKeyCopied ? "Скопировано" : "Скопировать")
-                            .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: 44)
-                            .background(Color.tfRedSolid)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
                     }
-                    .buttonStyle(TFTapScaleStyle())
                     Button("Готово") { viewModel.dismissIssuedToken(); isKeyCopied = false }
                         .tfText(.row)
                         .foregroundStyle(Color.tfSub)
@@ -507,28 +489,10 @@ struct ServiceAccountsScreen: View {
                     set: { viewModel.updateTokenDraft(account.id, value: $0) }
                 ), icon: "key.fill")
                 HStack(spacing: TFSpacing.sm) {
-                    Button { Task { _ = await viewModel.saveToken(account.id) } } label: {  // design-system-guard: ignore — две компактные кнопки в строку, TFButton полноширинная
-                        Text("Сохранить")
-                            .tfText(.row).fontWeight(.semibold)
-                            .foregroundStyle(Color.tfPaper)
-                            .padding(.horizontal, TFSpacing.lg)
-                            .frame(height: 36)
-                            .background(Color.tfRedSolid)
-                            .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
-                    }
-                    .buttonStyle(TFTapScaleStyle())
+                    TFButton("Сохранить") { Task { _ = await viewModel.saveToken(account.id) } }
                     .disabled(viewModel.tokenDraft(for: account.id).trimmingCharacters(in: .whitespaces).isEmpty)
 
-                    Button { Task { _ = await viewModel.rotateToken(account.id) } } label: {
-                        TFCard(padding: 0, surface: .card2, radius: TFRadius.lg, bordered: true) {
-                            Text("Выпустить новый")
-                                .tfText(.row)
-                                .foregroundStyle(Color.tfSub)
-                                .padding(.horizontal, TFSpacing.lg)
-                                .frame(height: 36)
-                        }
-                    }
-                    .buttonStyle(TFTapScaleStyle())
+                    TFButton("Выпустить новый") { Task { _ = await viewModel.rotateToken(account.id) } }
                 }
             }
 
