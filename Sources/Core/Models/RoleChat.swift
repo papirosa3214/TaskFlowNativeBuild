@@ -632,7 +632,7 @@ struct RoleLiveTextPacer {
             !revealedActions.contains($0)
         }.count
         completionRemaining = max(Self.completionDrain,
-            Double(pendingCharacters) / Self.maxRate
+            Double(pendingCharacters) / Self.maxProseRate
             + Double(pendingActions) * Self.actionInterval + actionWait + Self.tailWait)
         initialDelay = 0
     }
@@ -647,6 +647,12 @@ struct RoleLiveTextPacer {
     // До этого было 120…1200 зн/с при запасе 0,15 с: экран гнался за сетью.
     static let minRate: Double = 60
     static let maxRate: Double = 900
+    /// Потолок для прозы, знаков в секунду. Владелец 06.11.2026: длинный
+    /// ответ помощника «в секунду весь шлёпнулся» — экран гнался за сервером
+    /// до `maxRate`. Теперь проза печатается не быстрее этого темпа, даже
+    /// если сервер прислал всё разом; блоки (таблицы, виджеты, код) идут
+    /// целиком и в этот темп не входят.
+    static let maxProseRate: Double = 120
     /// На сколько секунд экран в среднем отстаёт от сервера.
     static let targetLag: TimeInterval = 0.6
     /// За сколько секунд скорость подтягивается к нужной: разгон и торможение.
@@ -759,10 +765,10 @@ struct RoleLiveTextPacer {
         }
         // Скорость тянется к «очередь уйдёт за targetLag», но плавно — без
         // скачков, из-за которых поток то бежит, то встаёт.
-        let desired = min(Self.maxRate, max(Self.minRate, Double(pending) / Self.targetLag))
+        let desired = min(Self.maxProseRate, max(Self.minRate, Double(pending) / Self.targetLag))
         if let remaining = completionRemaining {
             // Дописываем остаток к сроку, не сбавляя уже набранной скорости.
-            rate = min(Self.maxRate, max(rate, Double(pending) / max(remaining, 0.016)))
+            rate = min(Self.maxProseRate, max(rate, Double(pending) / max(remaining, 0.016)))
         } else {
             let blend = min(1, elapsed / (desired > rate ? Self.rateRise : Self.rateFall))
             rate += (desired - rate) * blend
@@ -846,7 +852,10 @@ struct RoleLiveTextPacer {
                 let count = visibleCharacters[index]
                 let chars = texts[index]
                 if immediateText.contains(index) {
-                    result.append(target[index])
+                    // Блок целиком (таблица, виджет, код, HTML) — только когда
+                    // до него дошла проза: строго по порядку, а не раньше
+                    // текста над ним (владелец 06.11.2026).
+                    if !blocked { result.append(target[index]) }
                 } else if !blocked {
                     if count > 0 { result.append(.text(String(chars[0..<count]))) }
                     if count < chars.count { blocked = true }

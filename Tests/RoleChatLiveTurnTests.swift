@@ -108,7 +108,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
 
     /// С 17.10.2026 (`1f58d8d7`) срок досыпа считается по остатку символов,
     /// а не как однократные две секунды: `finish()` даёт бюджет
-    /// `max(completionDrain, остаток / maxRate + tailWait)`.
+    /// `max(completionDrain, остаток / maxProseRate + tailWait)`.
     func testCompletedLongReplyDrainsWithinDeclaredBudget() {
         var pacer = RoleLiveTextPacer()
         let text = String(repeating: "длинный ответ ", count: 1000)
@@ -144,7 +144,7 @@ final class RoleChatLiveTurnTests: XCTestCase {
     /// только пол этого срока.
     private func drainBudget(_ pacer: RoleLiveTextPacer) -> TimeInterval {
         max(RoleLiveTextPacer.completionDrain,
-            Double(pacer.pendingCharacters) / RoleLiveTextPacer.maxRate
+            Double(pacer.pendingCharacters) / RoleLiveTextPacer.maxProseRate
             + RoleLiveTextPacer.tailWait)
     }
 
@@ -168,14 +168,16 @@ final class RoleChatLiveTurnTests: XCTestCase {
         }
     }
 
-    func testRichContentOvertakesQueuedProseAndActionsButDoesNotRevealTail() {
+    /// Владелец 06.11.2026: блок вставляется целиком, когда до него дошла
+    /// проза, — строго по порядку, а не раньше текста над ним.
+    func testRichContentWaitsForProseAndActionsBeforeIt() {
         let prefix = String(repeating: "Объяснение ", count: 100) + "\n"
         let html = "```html\n<h1>Готово</h1>\n```\n"
         let widget = "```widget\n{\"type\":\"metric\"}\n```"
         let step = RoleChatLiveStep(id: "later", tool: "read", detail: nil, status: .done)
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text(prefix + html + "Обычный хвост"), .step(step), .text(widget)])
-        XCTAssertEqual(pacer.visibleItems, [.text(html), .text(widget)])
+        XCTAssertEqual(pacer.visibleItems, [])
         XCTAssertEqual(pacer.pendingCharacters, prefix.count + "Обычный хвост".count)
         drain(&pacer)
         XCTAssertEqual(pacer.visibleItems, [.text(prefix), .text(html), .text("Обычный хвост"), .step(step), .text(widget)])
@@ -186,13 +188,16 @@ final class RoleChatLiveTurnTests: XCTestCase {
         let partial = "```html\n<h1>Привет"
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text(prefix + partial)])
-        XCTAssertEqual(pacer.visibleItems, [.text(partial)])
+        XCTAssertEqual(pacer.visibleItems, [])
         XCTAssertEqual(ChatRichContent.split(partial), [.pending(.html)])
         pacer.advance(elapsed: 1)
         let progress = pacer.visibleCharacters[0]
         let ready = partial + "</h1>\n```"
         pacer.ingest([.text(prefix + ready)])
         XCTAssertEqual(pacer.visibleCharacters[0], progress)
+        // Блок готов, но проза над ним ещё печатается — он ждёт своей очереди.
+        XCTAssertFalse(pacer.visibleItems.contains(.text(ready)))
+        drain(&pacer)
         XCTAssertTrue(pacer.visibleItems.contains(.text(ready)))
         XCTAssertEqual(ChatRichContent.split(ready), [.html("<h1>Привет</h1>")])
     }

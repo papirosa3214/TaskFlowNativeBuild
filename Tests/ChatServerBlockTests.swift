@@ -80,8 +80,11 @@ final class ChatServerBlockTests: XCTestCase {
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text(text)])
         XCTAssertEqual(pacer.target, [.text("Итог: всё"), .text("```widget\n{}\n```")])
-        // Виджет виден сразу, текст ещё не начал проявляться.
-        XCTAssertEqual(pacer.visibleItems, [.text("```widget\n{}\n```")])
+        // Виджет ждёт, пока допечатается текст над ним (владелец 06.11.2026:
+        // блоки — строго по порядку).
+        XCTAssertEqual(pacer.visibleItems, [])
+        for _ in 0..<200 where pacer.hasPendingText { pacer.advance(elapsed: 0.05) }
+        XCTAssertEqual(pacer.visibleItems, [.text("Итог: всё"), .text("```widget\n{}\n```")])
     }
 
     func testLiveSegmentsFollowShownStart() throws {
