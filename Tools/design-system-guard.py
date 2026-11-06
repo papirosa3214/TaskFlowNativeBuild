@@ -134,6 +134,13 @@ RULES = [
                "в `Sources/DesignSystem/Theme/Typography.swift`",
     },
     {
+        "id": "system-font-style",
+        "severity": "error",
+        "title": "системный стиль шрифта (`.font(.headline)`, `Font.body`…) — не подчиняется «Настройки → Шрифт»",
+        "fix": "ступень шкалы через `.tfText(.title/.body/.action/.meta/…)`: только она "
+               "слушает ползунки «Настройки → Шрифт» (владелец 06.11.2026)",
+    },
+    {
         "id": "bespoke-button",
         "severity": "warn",
         "title": "похоже на самодельную кнопку со своей рамкой/фоном",
@@ -520,6 +527,20 @@ def tf_list_row_lines(lines) -> set:
     return inside
 
 
+# Системные стили шрифта идут мимо шкалы `.tfText` и не слушают «Настройки →
+# Шрифт» (владелец 06.11.2026: «любой текст должен реагировать на ручки»).
+# Ловим `.font(.headline)`, `.font(Font.body.weight(…))`, `.font(.system(.caption…))`
+# и `Font.callout` где угодно. Сама шкала собирается из системных кривых —
+# файл шкалы исключён.
+_TEXT_STYLES = r"(?:largeTitle|title[23]?|headline|subheadline|body|callout|footnote|caption2?)"
+SYSTEM_FONT_STYLE = re.compile(
+    r"\.font\(\s*(?:Font)?\." + _TEXT_STYLES + r"\b"
+    r"|\.font\(\s*(?:Font)?\.system\(\s*\."
+    r"|\bFont\." + _TEXT_STYLES + r"\b"
+)
+SYSTEM_FONT_STYLE_ALLOWED = {"DesignSystem/Theme/Typography.swift"}
+
+
 def check_line(path: str, lines, index: int, preview=None, canon_lines=None):
     """Возвращает список сработавших правил для строки (index — 0-based)."""
     raw = lines[index]
@@ -569,6 +590,8 @@ def check_line(path: str, lines, index: int, preview=None, canon_lines=None):
             hits.append("raw-screen-background")
     if RAW_SHEET.search(code) and rel not in RAW_SHEET_ALLOWED:
         hits.append("raw-sheet")
+    if SYSTEM_FONT_STYLE.search(code) and rel not in SYSTEM_FONT_STYLE_ALLOWED:
+        hits.append("system-font-style")
     if SYSTEM_COLOR.search(code):
         hits.append("system-text-color")
     head = strip_comment(statement_head(lines, index))
