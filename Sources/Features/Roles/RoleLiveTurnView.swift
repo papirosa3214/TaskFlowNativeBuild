@@ -406,7 +406,7 @@ struct RoleLiveTurnBubble: View {
             defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
             // Часы работают только до опустошения очереди и проявления хвоста.
             while !Task.isCancelled && driver.isAnimating(now: .now) {
-                do { try await Task.sleep(for: RoleLiveFrame.interval) } catch { break }
+                do { try await Task.sleep(for: RoleLiveFrame.pacing) } catch { break }
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
                 if animating != fade.isAnimating { fade.isAnimating = animating }
@@ -551,6 +551,9 @@ struct RoleThinkingLiveRow: View {
 enum RoleLiveFrame {
     static let seconds: Double = 1.0 / 30
     static let interval: Duration = .milliseconds(33)
+    /// Такт выпуска текста. Чаще, чем проявление: за 16 мс на 240 зн/с
+    /// приходится 4 знака, и текст идёт по буквам, а не пачками по слову.
+    static let pacing: Duration = .milliseconds(16)
 }
 
 /// «Думает…» с бликом, пробегающим по буквам — как индикатор в Claude.

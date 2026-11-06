@@ -661,6 +661,10 @@ struct RoleLiveTextPacer {
     static let rateFall: TimeInterval = 2.5
     /// Сколько ждать продолжения оборванного слова в конце снимка.
     static let tailWait: TimeInterval = 0.15
+    /// Запас очереди (знаков), при котором слово выпускается по буквам, а не
+    /// целиком. Ниже этого запаса буквы идут по словам — так хвост не мигает
+    /// недописанными словами.
+    static let partialWordBacklog: Int = 24
 
     mutating func ingest(_ incoming: [RoleChatLiveItem], isFinal: Bool = false) {
         // Rich blocks bypass the prose clock, including unfinished blocks whose
@@ -798,10 +802,15 @@ struct RoleLiveTextPacer {
         }
         let chars = texts[index]
         // Текст, за которым уже идёт шаг, дописан; у последнего куска
-        // хвостовое слово может быть оборвано снимком посередине.
+        // хвостовое слово может быть обрезано снимком посередине.
         let mayGrow = index == texts.count - 1
         var shown = visibleCharacters[index]
         let before = shown
+        // Запас очереди: пока сервер далеко впереди, слово можно выпускать
+        // по буквам — иначе текст идёт пачками по слову (владелец 06.11.2026:
+        // «не получается немножечко плавный текст»). У хвоста правило прежнее:
+        // недописанное слово ждём, чтобы оно не дёргалось.
+        let deepQueue = pending > Self.partialWordBacklog
         while shown < chars.count {
             // Конец следующего слова: пробелы перед ним и само слово.
             var stop = shown
@@ -820,7 +829,16 @@ struct RoleLiveTextPacer {
                 shown = stop
                 break
             }
-            if cost > budget { break }
+            if cost > budget {
+                // Слова целиком не хватает — выпускаем столько букв, на
+                // сколько хватает бюджета (в глубине очереди).
+                let partial = deepQueue ? min(stop, shown + Int(budget)) : shown
+                if partial > shown {
+                    budget -= Double(partial - shown)
+                    shown = partial
+                }
+                break
+            }
             budget -= cost
             shown = stop
         }
