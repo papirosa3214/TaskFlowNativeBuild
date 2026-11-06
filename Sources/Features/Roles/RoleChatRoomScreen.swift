@@ -1170,6 +1170,11 @@ struct RoleChatRoomScreen: View {
     }
 
     private func showLiveTurn(_ turn: RoleChatLiveTurn, userID: String) {
+        // Журнал: у роли появляется ход с другим номером, пока прежний ещё
+        // в ленте, — так выглядит вторая строка «Работает» (скрин 9486).
+        if let previous = liveTurns[userID], previous.playbackID != turn.playbackID {
+            ClientLog.shared.add("chat=\(chat.id) turn:new-playback user=\(userID) old=\(previous.playbackID) new=\(turn.playbackID) ended=\(endedTurnIDs.contains(turn.playbackID)) completing=\(completingTurns.count) slots=\(liveStore.slots.count)")
+        }
         guard !endedTurnIDs.contains(turn.playbackID) else { return }
         if let trigger = turn.triggerMessageID, hasAnswer(on: trigger, from: userID) { return }
         if let previous = liveTurns[userID], previous.playbackID != turn.playbackID {

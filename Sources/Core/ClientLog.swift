@@ -32,6 +32,18 @@ final class ClientLog {
         guard !batch.isEmpty else { return }
         struct Body: Encodable { let lines: [String] }
         struct Ok: Decodable { let ok: Bool }
-        _ = try? await APIClient().request(.post, "/client-log", body: Body(lines: batch)) as Ok
+        do {
+            let _: Ok = try await APIClient().request(.post, "/client-log", body: Body(lines: batch))
+        } catch {
+            // Не дошло — строки не выбрасываем: вернуть в начало и дослать
+            // следующей пачкой (с пометкой о сбое), а не молчать.
+            lines = Array((batch + ["sendfail \(error.localizedDescription)"] + lines).suffix(400))
+            if flushTask == nil {
+                flushTask = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(5))
+                    await self?.flush()
+                }
+            }
+        }
     }
 }
