@@ -17,7 +17,8 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SCREEN = (ROOT / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
+from chat_screen_sources import read_chat_screen
+SCREEN = read_chat_screen(ROOT)
 BUBBLE = (ROOT / 'Sources/Features/Roles/RoleLiveTurnView.swift').read_text()
 MODEL = (ROOT / 'Sources/Core/Models/RoleChat.swift').read_text()
 

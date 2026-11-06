@@ -7,7 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class NativeChatScrollingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.screen = (ROOT / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
+        from chat_screen_sources import read_chat_screen
+        cls.screen = read_chat_screen(ROOT)
         cls.feed = cls.screen.split('private var messageScroll: some View {', 1)[1].split('private var visibleLiveTurns:', 1)[0]
         cls.composer = (ROOT / 'Sources/Chat/Composer/ChatVoiceComposer.swift').read_text()
 

@@ -55,7 +55,8 @@ src_root = repo / "Sources"
 SHEET_OK = {
     "Features/Roles/RoleInstructionEditor.swift": "редактор инструкции: List внутри шторки, фон задаёт материал",
     "Features/Roles/RoleEditorSheet.swift": "редактор роли: List внутри шторки, фон задаёт материал",
-    "Features/Roles/RoleChatsScreen.swift": "создание чата/редактирование — Form внутри шторки, фон задаёт материал",
+    "Features/Roles/RoleChatCreateScreen.swift": "создание чата — Form внутри шторки, фон задаёт материал",
+    "Features/Roles/RoleChatDetailsSheet.swift": "редактирование чата — Form внутри шторки, фон задаёт материал",
     "Features/Roles/TeamAppearanceSheet.swift": "шторка внешнего вида команды, фон задаёт материал",
     "Features/Knowledge/FolderPickerSheet.swift": "шторка выбора папки, фон задаёт материал",
     "Features/Settings/EscalationStepEditor.swift": "окно правки шага напоминания, фон задаёт материал",
@@ -101,7 +102,7 @@ KNOWN = {
 # `.tint(Color.tfText)` в теле экрана, и обе кнопки «Повторить» в ленте
 # лежат внутри этого тела. Находки правила 3 здесь ложные.
 TINTED_SCREENS = {
-    "Features/Roles/RoleChatsScreen.swift": "экран под .tint(Color.tfText): системные кнопки в нём серые",
+    "Features/Roles/RoleChatRoomScreen.swift": "экран под .tint(Color.tfText): системные кнопки в нём серые",
 }
 
 # Правило 2: подписи, где .primary — норма (подтверждение, сохранение).

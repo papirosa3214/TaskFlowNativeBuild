@@ -28,7 +28,8 @@ def block(text, marker):
     return text[start:end]
 
 
-screen = read('Sources/Features/Roles/RoleChatsScreen.swift')
+from chat_screen_sources import read_chat_screen
+screen = read_chat_screen(Path(__file__).resolve().parents[1])
 model = read('Sources/Core/Models/RoleChat.swift')
 source = 'import Foundation\nimport XCTest\n'
 for name in ['Sources/Core/Common/JSONValue.swift', 'Sources/Core/Models/ChatMessageInterruption.swift',
@@ -121,7 +122,7 @@ final class Loader {
 '''
 source += block(screen, 'private func loadRoles() async').replace('private ', '')
 source += '\n}\n'
-details = screen[screen.index('private struct RoleChatDetailsSheet:'):]
+details = screen[screen.index('struct RoleChatDetailsSheet:'):]
 source += '''
 final class DetailsLoader {
     var roles: [RoleProfile] = []

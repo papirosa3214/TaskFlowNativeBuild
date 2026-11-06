@@ -7,7 +7,8 @@ import sys
 
 root = Path(__file__).resolve().parents[1]
 src = (root / "Sources/Core/Models/RoleChat.swift").read_text()
-screen = (root / "Sources/Features/Roles/RoleChatsScreen.swift").read_text()
+from chat_screen_sources import read_chat_screen
+screen = read_chat_screen(root)
 
 marker = "enum RoleChatRevealSeed"
 if marker not in src:

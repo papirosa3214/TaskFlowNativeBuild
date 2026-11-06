@@ -21,7 +21,8 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 model = (root / 'Sources/Core/Models/RoleChat.swift').read_text()
-screen = (root / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
+from chat_screen_sources import read_chat_screen
+screen = read_chat_screen(root)
 
 
 def method(text: str, signature: str) -> str:

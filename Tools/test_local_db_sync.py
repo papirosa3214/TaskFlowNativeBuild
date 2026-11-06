@@ -164,7 +164,8 @@ check(
     'лента уведомлений сначала берётся из базы',
 )
 
-screen = read('Sources/Features/Roles/RoleChatsScreen.swift')
+from chat_screen_sources import read_chat_screen
+screen = read_chat_screen(Path(__file__).resolve().parents[1])
 check(
     'LocalStore.shared.chats(' in screen,
     'список чатов сначала берётся из базы',

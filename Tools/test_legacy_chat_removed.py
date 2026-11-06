@@ -55,7 +55,8 @@ for dead in DEAD_TYPES:
     check(re.search(re.escape(dead) + r'\b', sources) is None,
           'мёртвый тип в Sources: ' + dead)
 
-screen = (ROOT / 'Sources/Features/Roles/RoleChatsScreen.swift').read_text()
+from chat_screen_sources import read_chat_screen
+screen = read_chat_screen(ROOT)
 check('.scrollPosition($chatScrollPosition)' in screen,
       'живой чат потерял привязку позиции ленты')
 check('.defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)' in screen,

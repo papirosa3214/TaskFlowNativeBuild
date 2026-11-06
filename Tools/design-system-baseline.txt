@@ -33,18 +33,18 @@ Sources/Chat/Output/PanelCommandBridge.swift	implicit-system-blue	.toolbar { Too
 Sources/Chat/Shared/ProviderQuotaSheet.swift	implicit-system-blue	Button { Task { await load() } } label: {
 Sources/Features/Roles/RoleBehaviorTemplatesView.swift	implicit-system-blue	if changed { ToolbarItem(placement: .cancellationAction) { Button("Назад") { showDiscard = true } } }
 Sources/Features/Roles/RoleChatsScreen.swift	red-button	Button(action: onToggle) {
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button {
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button { dismiss() } label: { Image(systemName: "xmark") }
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button { Task { await create() } } label: {
-Sources/Features/Roles/RoleChatsScreen.swift	red-button	Button(role: .destructive) {
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button("Повторить отправку") { Task { await sendVoice(message.id) } }
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button("Повторить") { Task { await deliver(pending.id) } }
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button("Убрать", role: .destructive) {
-Sources/Features/Roles/RoleChatsScreen.swift	red-button	Button("Убрать", role: .destructive) {
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button(allMessagesSelected ? "Снять выбор" : "Выбрать все") {
+Sources/Features/Roles/RoleChatCreateScreen.swift	implicit-system-blue	Button {
+Sources/Features/Roles/RoleChatCreateScreen.swift	implicit-system-blue	Button { dismiss() } label: { Image(systemName: "xmark") }
+Sources/Features/Roles/RoleChatCreateScreen.swift	implicit-system-blue	Button { Task { await create() } } label: {
+Sources/Features/Roles/RoleChatDetailsSheet.swift	red-button	Button(role: .destructive) {
+Sources/Features/Roles/RoleChatRoomScreen.swift	implicit-system-blue	Button("Повторить отправку") { Task { await sendVoice(message.id) } }
+Sources/Features/Roles/RoleChatRoomScreen.swift	implicit-system-blue	Button("Повторить") { Task { await deliver(pending.id) } }
+Sources/Features/Roles/RoleChatRoomScreen.swift	implicit-system-blue	Button("Убрать", role: .destructive) {
+Sources/Features/Roles/RoleChatRoomScreen.swift	red-button	Button("Убрать", role: .destructive) {
+Sources/Features/Roles/RoleChatRoomScreen.swift	implicit-system-blue	Button(allMessagesSelected ? "Снять выбор" : "Выбрать все") {
 Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Menu {
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button { Task { await compact(member) } } label: {
-Sources/Features/Roles/RoleChatsScreen.swift	implicit-system-blue	Button(action: action) {
+Sources/Features/Roles/RoleChatRoomScreen.swift	implicit-system-blue	Button { Task { await compact(member) } } label: {
+Sources/Features/Roles/RoleChatRoomScreen.swift	implicit-system-blue	Button(action: action) {
 Sources/Features/Roles/RoleCoordinationCard.swift	implicit-system-blue	Button(stopping ? "Останавливаю…" : "Остановить обращение") {
 Sources/Features/Roles/RoleInstructionEditor.swift	implicit-system-blue	Picker("Область правки", selection: Binding(get: { team }, set: { value in
 Sources/Features/Roles/RoleInstructionEditor.swift	implicit-system-blue	ToolbarItem(placement: .cancellationAction) { Button("Назад") { showDiscard = true } }
@@ -218,7 +218,7 @@ Sources/Features/Overview/CompletionHeatmap.swift	system-font-style	Button("Ис
 Sources/Features/Overview/CompletionHeatmap.swift	system-font-style	.font(.caption).foregroundStyle(Color.tfSub), at: .zero, anchor: .topLeading)
 Sources/Features/Projects/ProjectsScreen.swift	system-font-style	.font(.body)
 Sources/Features/Projects/ProjectsScreen.swift	system-font-style	.font(.title2)
-Sources/Features/Roles/RoleChatsScreen.swift	system-font-style	.font(.body)
+Sources/Features/Roles/RoleChatRoomScreen.swift	system-font-style	.font(.body)
 Sources/Features/Roles/RoleLoadScreen.swift	system-font-style	Text(title).font(.caption).foregroundStyle(Color.tfSub)
 Sources/Features/Roles/RoleTranslation.swift	system-font-style	.font(.footnote)
 Sources/Features/Settings/RemoteMachinesScreen.swift	system-font-style	.font(.title2)
