@@ -1323,12 +1323,15 @@ struct RoleChatRoomScreen: View {
                         if let title = dayDividers[item.id] {
                             ChatFeedDivider(title: title)
                         }
-                        if let turn = item.completingTurn {
-                            liveTurnRow(turn, replyExcerpts: replyExcerpts)
-                        } else if let slot = item.liveSlot {
+                        if let slot = item.liveSlot {
                             // Текст хода читает строка хода, а не экран:
                             // порция ответа перерисовывает только её.
-                            RoleChatLiveSlotView(store: liveStore, slot: slot) { turn in
+                            // Доигрывающий ход — в ТОЙ ЖЕ ветке: отдельная
+                            // ветка давала SwiftUI новую вью, очередь печати
+                            // терялась, и пришедший ответ выпадал целиком
+                            // (владелец 06.11.2026: «всё сразу ляпнулось»).
+                            RoleChatLiveSlotView(store: liveStore, slot: slot,
+                                                 completing: item.completingTurn) { turn in
                                 liveTurnRow(turn, replyExcerpts: replyExcerpts)
                             }
                         } else if let pending = item.pending {

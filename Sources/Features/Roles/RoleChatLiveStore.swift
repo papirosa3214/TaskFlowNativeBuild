@@ -82,11 +82,23 @@ final class RoleChatLiveStore {
 struct RoleChatLiveSlotView<Content: View>: View {
     let store: RoleChatLiveStore
     let slot: RoleChatLiveSlot
+    /// Ход уже закончился и доигрывает ответ — он живёт не в `store.turns`.
+    /// Рисуется той же вью, что и идущий: иначе пузырь пересоздаётся, и
+    /// недопечатанный текст выпадает разом.
+    var completing: RoleChatLiveTurn? = nil
     @ViewBuilder let content: (RoleChatLiveTurn) -> Content
 
     var body: some View {
-        if let turn = store.turns[slot.userID], turn.playbackID == slot.playbackID {
+        if let turn = Self.turn(completing: completing, live: store.turns[slot.userID], slot: slot) {
             content(turn)
         }
+    }
+
+    /// Какой ход рисовать в строке: доигрывающий, иначе идущий того же хода.
+    static func turn(completing: RoleChatLiveTurn?, live: RoleChatLiveTurn?,
+                     slot: RoleChatLiveSlot) -> RoleChatLiveTurn? {
+        if let completing, completing.playbackID == slot.playbackID { return completing }
+        if let live, live.playbackID == slot.playbackID { return live }
+        return nil
     }
 }
