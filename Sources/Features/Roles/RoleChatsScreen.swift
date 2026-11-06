@@ -322,7 +322,14 @@ struct RoleChatsScreen: View {
         defer { isLoading = false }
         do { try await refreshList(forceFull: true) }
         catch is CancellationError { }
-        catch { errorMessage = error.localizedDescription }
+        catch {
+            // Нет связи или сервер перезапускается, а список уже на экране из
+            // локальной базы — окно ничего не даёт, список обновится при
+            // следующем заходе или событии (владелец 06.11.2026). Окно — для
+            // пустого экрана и настоящих ошибок сервера.
+            if case APIError.transport = error, !chats.isEmpty { return }
+            errorMessage = error.localizedDescription
+        }
     }
 
     /// `forceFull` — забрать список телом, без отпечатка. Нужен при открытии
