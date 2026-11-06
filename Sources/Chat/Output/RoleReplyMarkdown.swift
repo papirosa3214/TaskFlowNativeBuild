@@ -110,7 +110,7 @@ struct RoleReplyMarkdown: View, Equatable {
                     }
                 }
             } else {
-                TFCard(padding: TFSpacing.md, radius: TFRadius.xl, bordered: true) {
+                TFCard(padding: TFSpacing.md, surface: .dark, radius: TFRadius.xl) {
                     HStack(spacing: TFSpacing.sm) {
                         ProgressView()
                         Text("Собираю интерактив…")
@@ -213,7 +213,7 @@ struct RoleReplyMarkdown: View, Equatable {
                 BashCommandBlock(command: block.runs.map(\.text).joined())
                     .id(block.runs.map(\.text).joined())
             } else {
-            TFCard(padding: 0, surface: .card, radius: TFRadius.md, bordered: true) {
+            TFCard(padding: 0, surface: .dark, radius: TFRadius.md) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     Text(block.runs.map(\.text).joined())
                         .font(.tfChat(.mono, design: .monospaced))
@@ -403,7 +403,7 @@ struct ChatTableView: View {
         // Тёмная подложка и тёмно-красная рамка, как у виджетов; без светлой
         // полосы шапки и «зебры» — строки делят линии цвета рамки
         // (владелец 06.11.2026: «чтобы не было светло-серого»).
-        TFCard(padding: 0, radius: TFRadius.lg, bordered: true) {
+        TFCard(padding: 0, surface: .dark, radius: TFRadius.lg) {
             ScrollView([.horizontal, .vertical], showsIndicators: false) {
                 VStack(spacing: 0) {
                     HStack(alignment: .top, spacing: 0) {

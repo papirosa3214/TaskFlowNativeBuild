@@ -7,7 +7,7 @@ struct ChatHandoffCard: View {
 
     var body: some View {
         // Тёмная подложка и тёмно-красная рамка, как у виджетов (владелец 06.11.2026).
-        TFCard(padding: 0, radius: TFRadius.lg, bordered: true) {
+        TFCard(padding: 0, surface: .dark, radius: TFRadius.lg) {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "checkmark.seal")

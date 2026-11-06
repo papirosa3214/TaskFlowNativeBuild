@@ -204,7 +204,7 @@ struct WidgetSkeletonCard: View {
 
     var body: some View {
         // Та же подложка, что у готового виджета (`WidgetCard`).
-        TFCard(padding: TFSpacing.lg, bordered: true) {
+        TFCard(padding: TFSpacing.lg, surface: .dark) {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     bar(ratio: row.ratio, height: row.height)

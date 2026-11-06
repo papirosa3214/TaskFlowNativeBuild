@@ -7,6 +7,8 @@ public enum TFFieldSurface {
     case card
     /// Почти чёрное поле с тонкой тёмно-красной кромкой — форма рутины.
     case dark
+    /// Плитка без рамки — поле внутри карточки чата (`tfTile`).
+    case tile
 }
 
 public struct TFTextField: View {
@@ -44,7 +46,7 @@ public struct TFTextField: View {
         }
         .padding(.horizontal, TFSpacing.lg)
         .frame(minHeight: minHeight)
-        .background(surface == .dark ? Color.tfFieldDark : Color.tfCard)
+        .background(surface == .dark ? Color.tfFieldDark : surface == .tile ? Color.tfTile : Color.tfCard)
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.lg))
         .overlay {
             if surface == .dark {

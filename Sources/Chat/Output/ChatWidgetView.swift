@@ -265,14 +265,14 @@ struct WidgetData {
 /// Подложка виджета. Не `private`: ею пользуются все восемь новых типов и
 /// компоновки из `Widgets/`.
 ///
-/// Вид — как карточки «Настроек» (владелец 06.11.2026): тёмная подложка и
-/// тонкая тёмно-красная рамка, тот же `TFCard(bordered: true)`.
+/// Тёмная подложка без рамки (владелец 06.11.2026: «в чате вообще не
+/// должно быть ни у кого никакой окантовки»).
 struct WidgetCard<Content: View>: View {
     var title: String?
     @ViewBuilder var content: Content
 
     var body: some View {
-        TFCard(padding: TFSpacing.lg, bordered: true) {
+        TFCard(padding: TFSpacing.lg, surface: .dark) {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 if let title {
                     Text(title).tfText(.title).foregroundStyle(Color.tfChatText)
@@ -428,9 +428,8 @@ private struct MetricsWidget: View {
                     }
                     .padding(TFSpacing.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    // Плитка — тёмная, с рамкой цвета карточки, а не светлая
-                    // (владелец 06.11.2026).
-                    .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width))
+                    // Плитка на тон светлее карточки, без рамки (владелец 06.11.2026).
+                    .background(Color.tfTile, in: RoundedRectangle(cornerRadius: TFRadius.lg))
                 }
             }
         }

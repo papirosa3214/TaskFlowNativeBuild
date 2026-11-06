@@ -2262,15 +2262,7 @@ struct RoleChatRoomScreen: View {
                         .fill(Color.tfFieldDark)
                 }
             }
-            .overlay {
-                if !hasAudio {
-                    RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
-                        .strokeBorder(
-                            Color.tfFieldBorder.opacity(mine ? 1 : 0.55),
-                            lineWidth: TFBorder.width
-                        )
-                }
-            }
+            // Без рамки: в чате окантовки нет ни у чего (владелец 06.11.2026).
             if !mine { Spacer(minLength: 48) }
         }
         // Долгое нажатие только ВКЛЮЧАЕТ выбор — с этим сообщением уже
@@ -2684,9 +2676,11 @@ struct RoleChatRoomScreen: View {
             .foregroundStyle(Color.tfText)
             .padding(.horizontal, TFSpacing.md)
             .padding(.vertical, TFSpacing.sm)
-            .voiceCapsuleSurface()
+            // Быстрый ответ — кнопка, вид как у кнопок приложения: полупрозрачный
+            // красный и тёмно-красная кромка (владелец 06.11.2026).
+            .background(Color.tfRed.opacity(0.18), in: Capsule())
             .overlay {
-                Capsule().strokeBorder(Color.tfRed.opacity(0.3), lineWidth: TFBorder.width)
+                Capsule().strokeBorder(Color.tfButtonEdge, lineWidth: TFBorder.width)
             }
     }
 

@@ -22,7 +22,7 @@ struct ChatHTMLView: View {
     private static let inlineMaxHeight: CGFloat = 520
 
     var body: some View {
-        TFCard(padding: 0, radius: TFRadius.xl, bordered: true) {
+        TFCard(padding: 0, surface: .dark, radius: TFRadius.xl) {
             VStack(spacing: 0) {
                 header
                 if commands.running { TFLoading(.inline) }

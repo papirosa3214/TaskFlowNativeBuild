@@ -206,7 +206,7 @@ struct ChatStructuredOutputView: View {
     }
 
     private func statusBlock(title: String, code: String?, text: String?) -> some View {
-        TFCard(padding: TFSpacing.md, radius: TFRadius.lg, bordered: true) {
+        TFCard(padding: TFSpacing.md, surface: .dark, radius: TFRadius.lg) {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
             Image(systemName: statusSymbol(code))
                 .foregroundStyle(statusColor(code))

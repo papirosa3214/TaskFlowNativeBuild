@@ -252,11 +252,8 @@ struct ChatSessionPanel: View {
     private func sessionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) { content() }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Без рамки: в чате окантовки нет ни у чего (владелец 06.11.2026).
             .background(Color.tfFieldDark, in: RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
-                    .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
-            )
     }
 
     private func sessionLabeled(_ title: String, value: String) -> some View {

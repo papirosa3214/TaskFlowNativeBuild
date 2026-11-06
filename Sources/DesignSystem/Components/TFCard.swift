@@ -26,11 +26,15 @@ public struct TFCard<Content: View>: View {
         case card
         /// Вложенная подложка — `tfCard2` (на тон темнее).
         case card2
+        /// Тёмная подложка без рамки — карточки в чате (владелец 06.11.2026:
+        /// «в чате вообще не должно быть ни у кого никакой окантовки»).
+        case dark
 
         var color: Color {
             switch self {
             case .card: return .tfCard
             case .card2: return .tfCard2
+            case .dark: return .tfFieldDark
             }
         }
     }

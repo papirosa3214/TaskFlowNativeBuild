@@ -9,7 +9,7 @@ struct BashCommandBlock: View {
 
     var body: some View {
         // Тёмная подложка и тёмно-красная рамка, как у виджетов (владелец 06.11.2026).
-        TFCard(padding: TFSpacing.md, radius: TFRadius.md, bordered: true) {
+        TFCard(padding: TFSpacing.md, surface: .dark, radius: TFRadius.md) {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             ScrollView(.horizontal) {
                 Text(command).font(.system(.callout, design: .monospaced)).textSelection(.enabled)

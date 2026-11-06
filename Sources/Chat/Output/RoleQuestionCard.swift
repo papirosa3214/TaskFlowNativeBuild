@@ -28,16 +28,16 @@ struct RoleQuestionCard: View {
     }
 
     private var styledContent: some View {
-        // Как виджеты чата: тёмная подложка, тёмно-красная рамка, тёмные поля
-        // (владелец 06.11.2026: «остался светлый фон… не в тему»).
-        TFCard(bordered: true) {
+        // По образцу владельца (06.11.2026): тёмная карточка без рамки,
+        // варианты — плитки столбцом, выбранный — красный, как кнопка.
+        TFCard(surface: .dark) {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 header
                 ForEach(Array(question.questions.enumerated()), id: \.offset) { index, item in
                     questionBlock(index: index, item: item)
                 }
                 if !question.isAnswered {
-                    TFTextField("Заметка для роли (необязательно)", text: $note, surface: .dark)
+                    TFTextField("Заметка для роли (необязательно)", text: $note, surface: .tile)
                     sendButton
                 } else {
                     answeredFooter
@@ -121,7 +121,7 @@ struct RoleQuestionCard: View {
     private func questionBlock(index: Int, item: ChatQuestionItem) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             if let header = item.header, !header.isEmpty {
-                TFPill(header, color: .tfSub)
+                TFSectionHeader(header, style: .caps)
             }
             Text(item.question)
                 .tfText(.body)
@@ -134,7 +134,7 @@ struct RoleQuestionCard: View {
                 TFTextField("Свой вариант", text: Binding(
                     get: { custom[index] ?? "" },
                     set: { custom[index] = $0 }
-                ), surface: .dark)
+                ), surface: .tile)
             }
         }
     }
@@ -143,7 +143,8 @@ struct RoleQuestionCard: View {
     /// — отметка накапливается.
     @ViewBuilder
     private func options(index: Int, item: ChatQuestionItem) -> some View {
-        FlowLayout(spacing: TFSpacing.sm) {
+        // Плитки столбцом на всю ширину — как на образце владельца.
+        VStack(spacing: TFSpacing.sm) {
             ForEach(item.options) { option in
                 Button {
                     toggle(index: index, label: option.label, multi: item.multiSelect)
@@ -167,26 +168,28 @@ struct RoleQuestionCard: View {
                 Text(option.label)
                     .tfText(.action)
                     .fontWeight(.semibold)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let description = option.description, !description.isEmpty {
                 Text(description)
                     .tfText(.caption)
                     .foregroundStyle(Color.tfSub)
-                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .foregroundStyle(Color.tfChatText)
-        .padding(.horizontal, TFSpacing.md)
-        .padding(.vertical, TFSpacing.sm)
+        .foregroundStyle(selected ? Color.tfText : Color.tfChatText)
+        .padding(.horizontal, TFSpacing.lg)
+        .padding(.vertical, TFSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Тёмная подложка и тёмно-красная рамка; выбранный вариант — светлая
-        // рамка, как раньше (владелец 06.11.2026).
-        .background(Color.tfFieldDark, in: RoundedRectangle(cornerRadius: TFRadius.lg))
+        // Плитка без рамки; выбранная — как кнопка: полупрозрачный красный и
+        // тёмно-красная кромка (образец владельца 06.11.2026, там — синим).
+        .background(selected ? Color.tfRed.opacity(0.18) : Color.tfTile,
+                    in: RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: TFRadius.lg)
-                .strokeBorder(selected ? Color.tfChatText : Color.tfFieldBorder, lineWidth: TFBorder.width)
+            if selected {
+                RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
+                    .strokeBorder(Color.tfButtonEdge, lineWidth: TFBorder.width)
+            }
         }
         .accessibilityIdentifier("chat.question.option." + option.label)
     }

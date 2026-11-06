@@ -133,7 +133,7 @@ struct RoleChatStartView: View {
                 onCommand(command.prompt)
             }
         } label: {
-            TFCard(padding: TFSpacing.md, radius: TFRadius.lg) {
+            TFCard(padding: TFSpacing.md, surface: .dark, radius: TFRadius.lg) {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     HStack {
                         Image(systemName: command.icon)
@@ -162,10 +162,6 @@ struct RoleChatStartView: View {
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: TFRadius.lg)
-                    .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
             }
             .contentShape(Rectangle())
         }

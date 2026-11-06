@@ -82,7 +82,7 @@ struct ChatWorkPlanRows: View {
     var body: some View {
         if floating {
             if !plans.isEmpty {
-                TFCard(padding: 0, radius: TFRadius.xl, bordered: true) {
+                TFCard(padding: 0, surface: .dark, radius: TFRadius.xl) {
                     list(divided: false)
                 }
                     .tfShadow(TFShadow.dropdown)

@@ -54,6 +54,7 @@ struct ResolutionPlanBlock: View {
         }
         .padding(TFSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.md).strokeBorder(Color(uiColor: .separator)))
+        // Тёмная подложка без рамки — как остальные блоки чата (06.11.2026).
+        .background(Color.tfFieldDark, in: RoundedRectangle(cornerRadius: TFRadius.md))
     }
 }
