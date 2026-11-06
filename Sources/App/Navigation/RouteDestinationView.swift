@@ -75,10 +75,6 @@ private func routeContent(_ route: AppRoute) -> some View {
         TaskArchiveScreen()
     case .allTasks:
         ProjectTasksScreen(projectID: nil)
-    case .labels:
-        LabelsScreen()
-    case .labelTasks(let labelID):
-        LabelTasksScreen(labelID: labelID)
     case .activity:
         AIUsageScreen()
     case .routines:
@@ -97,8 +93,6 @@ private func routeContent(_ route: AppRoute) -> some View {
         SettingsScreen()
     case .integrations:
         IntegrationsScreen()
-    case .templates:
-        TemplatesScreen()
     case .fontSettings:
         FontSettingsScreen()
     case .voiceModels:

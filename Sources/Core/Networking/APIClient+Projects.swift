@@ -49,18 +49,4 @@ public extension APIClient {
     func labels() async throws -> [ApiLabel] {
         try await request(.get, "/labels")
     }
-
-    func createLabel(name: String, color: String? = nil) async throws -> ApiLabel {
-        var body: [String: JSONValue] = ["name": .string(name)]
-        if let color { body["color"] = .string(color) }
-        return try await request(.post, "/labels", body: body)
-    }
-
-    func patchLabel(id: String, fields: [String: JSONValue]) async throws -> ApiLabel {
-        try await request(.patch, "/labels/\(id)", body: fields)
-    }
-
-    func deleteLabel(id: String) async throws {
-        let _: APIOkResponse = try await request(.delete, "/labels/\(id)")
-    }
 }

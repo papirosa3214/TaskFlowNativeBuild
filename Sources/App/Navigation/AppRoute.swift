@@ -40,8 +40,6 @@ public enum AppRoute: Hashable {
     /// осталось входа к общему списку — он лежит в меню «…».
     case allTasks
     case taskArchive
-    case labels
-    case labelTasks(labelID: String)
     case activity
     /// Рутины (крон-задачи) — экран «Мои рутины».
     case routines
@@ -61,7 +59,6 @@ public enum AppRoute: Hashable {
     case missionControl(taskID: String)
     case settings
     case integrations
-    case templates
     case fontSettings
     case voiceModels
     /// LOCK-218: Настройки → ИИ → выбор голоса Помощника владельца с прослушиванием.

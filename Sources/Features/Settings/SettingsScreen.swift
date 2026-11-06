@@ -164,11 +164,6 @@ struct SettingsScreen: View {
             TFDivider(inset: rowDividerInset)
             toggleRow(icon: "text.bubble", title: "Новая панель ввода",
                       isOn: composerStyleBinding, toggleIdentifier: "settings.chat-composer-style")
-            // Владелец 20.10.2026: «Шаблоны задач» и «Метки» — из «Общих» сюда.
-            TFDivider(inset: rowDividerInset)
-            navRow(icon: "bookmark", title: "Шаблоны задач", route: .templates)
-            TFDivider(inset: rowDividerInset)
-            navRow(icon: "tag", title: "Метки", route: .labels)
         }
     }
 

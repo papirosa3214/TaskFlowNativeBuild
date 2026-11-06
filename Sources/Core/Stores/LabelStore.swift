@@ -26,27 +26,4 @@ public final class LabelStore {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
     }
-
-    @discardableResult
-    public func create(name: String, color: String? = nil) async -> ApiLabel? {
-        do {
-            let created = try await apiClient.createLabel(name: name, color: color)
-            labels.append(created)
-            return created
-        } catch {
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
-            return nil
-        }
-    }
-
-    public func delete(labelId: String) async {
-        let snapshot = labels
-        labels.removeAll { $0.id == labelId }
-        do {
-            try await apiClient.deleteLabel(id: labelId)
-        } catch {
-            labels = snapshot
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
-        }
-    }
 }
