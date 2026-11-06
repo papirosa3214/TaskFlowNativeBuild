@@ -38,11 +38,17 @@ public struct TFButton: View {
 
     public var body: some View {
         Button(action: action) {
-            if let icon {
-                Label(title, systemImage: icon)
-            } else {
-                Text(title)
+            // Надпись — через `.tfText`, чтобы подчинялась «Настройки → Шрифт»
+            // (владелец 06.11.2026: «любой текст должен реагировать на ручки»).
+            Group {
+                if let icon {
+                    Label(title, systemImage: icon)
+                } else {
+                    Text(title)
+                }
             }
+            .tfText(.body)
+            .fontWeight(.semibold)
         }
         .buttonStyle(.borderedProminent)
         .tint(.tfRed)

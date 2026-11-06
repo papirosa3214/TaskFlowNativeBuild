@@ -58,9 +58,8 @@ public struct TFEmptyState: View {
                     Text(description)
                 }
             } actions: {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.tfRed)
+                // Та же кнопка, что везде: надпись подчиняется «Настройки → Шрифт».
+                TFButton(actionTitle, action: action)
             }
         } else if description != nil {
             ContentUnavailableView {
