@@ -23,6 +23,9 @@ public final class SyncEngine {
 
     private let store = LocalStore.shared
     private let api = APIClient()
+    /// Догрузки одного чата не множатся: пока идёт одна, новые события ставят
+    /// один повтор (`KeyedRunCoalescer`).
+    private var messageRuns = KeyedRunCoalescer()
 
     private init() {}
 
@@ -64,6 +67,16 @@ public final class SyncEngine {
         // применяется к ленте на экране. Догружаем только там, где сервер
         // умеет отдать новое (`after`).
         guard store.syncState(SyncStateKeys.chatsPaging) == "1" else { return }
+        // Пока роль отвечает, события «новое сообщение» идут пачкой: раньше
+        // каждое запускало свой запрос той же страницы (7 за секунду).
+        guard messageRuns.begin(chatID) else { return }
+        repeat {
+            await fetchNewMessages(chatID: chatID)
+        } while messageRuns.finish(chatID)
+    }
+
+    /// Один запрос новых сообщений после курсора из базы.
+    private func fetchNewMessages(chatID: String) async {
         let cursor = try? store.maxSequence(chatID: chatID)
         do {
             let page = try await attempt {
