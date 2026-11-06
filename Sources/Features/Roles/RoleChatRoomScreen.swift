@@ -1464,7 +1464,8 @@ struct RoleChatRoomScreen: View {
                     chatFollowsBottom = true
                     chatScrollPosition.scrollTo(edge: .bottom)
                 }
-                .padding(.bottom, TFSpacing.md)
+                // Небольшой зазор до чек-листа (владелец 06.11.2026).
+                .padding(.bottom, TFSpacing.xs)
             }
         }
         .onChange(of: contentsTargetID) { _, id in

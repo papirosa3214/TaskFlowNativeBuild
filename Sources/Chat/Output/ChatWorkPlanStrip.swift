@@ -87,7 +87,8 @@ struct ChatWorkPlanRows: View {
                 }
                     .tfShadow(TFShadow.dropdown)
                     .padding(.horizontal, TFSpacing.lg)
-                    .padding(.bottom, TFSpacing.sm)
+                    // Небольшой зазор до поля ввода (владелец 06.11.2026).
+                    .padding(.bottom, TFSpacing.xs)
             }
         } else {
             list(divided: true)
