@@ -206,6 +206,7 @@ struct ChatStructuredOutputView: View {
     }
 
     private func statusBlock(title: String, code: String?, text: String?) -> some View {
+        TFCard(padding: TFSpacing.md, radius: TFRadius.lg, bordered: true) {
         HStack(alignment: .top, spacing: TFSpacing.sm) {
             Image(systemName: statusSymbol(code))
                 .foregroundStyle(statusColor(code))
@@ -218,8 +219,7 @@ struct ChatStructuredOutputView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TFSpacing.md)
-        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.lg))
+        }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("chat.structured-output.status")
     }

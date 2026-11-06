@@ -22,7 +22,7 @@ struct ChatHTMLView: View {
     private static let inlineMaxHeight: CGFloat = 520
 
     var body: some View {
-        TFCard(padding: 0, surface: .card, radius: TFRadius.xl) {
+        TFCard(padding: 0, radius: TFRadius.xl, bordered: true) {
             VStack(spacing: 0) {
                 header
                 if commands.running { TFLoading(.inline) }
@@ -31,7 +31,6 @@ struct ChatHTMLView: View {
                     .frame(height: min(max(height, 60), Self.inlineMaxHeight))
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
         .modifier(PanelCommandConfirmation(bridge: commands, active: !isFullScreen))
         .fullScreenCover(isPresented: $isFullScreen) {
             NavigationStack {

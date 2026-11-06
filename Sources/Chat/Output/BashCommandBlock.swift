@@ -8,6 +8,8 @@ struct BashCommandBlock: View {
     @State private var error: String?
 
     var body: some View {
+        // Тёмная подложка и тёмно-красная рамка, как у виджетов (владелец 06.11.2026).
+        TFCard(padding: TFSpacing.md, radius: TFRadius.md, bordered: true) {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             ScrollView(.horizontal) {
                 Text(command).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
@@ -30,9 +32,8 @@ struct BashCommandBlock: View {
             }
             if let error { Text(error).foregroundStyle(Color.tfCoral) }
         }
-        .padding(TFSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
+        }
         // Вывод прошлого запуска возвращается после повторного открытия чата.
         .onAppear { if result == nil && !running { result = OwnerCommandResultStore.load(command) } }
         .tfSheet(isPresented: $confirming) {

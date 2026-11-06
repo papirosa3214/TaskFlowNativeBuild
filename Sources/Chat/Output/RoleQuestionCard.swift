@@ -179,10 +179,12 @@ struct RoleQuestionCard: View {
         .padding(.horizontal, TFSpacing.md)
         .padding(.vertical, TFSpacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.lg))
+        // Тёмная подложка и тёмно-красная рамка; выбранный вариант — светлая
+        // рамка, как раньше (владелец 06.11.2026).
+        .background(Color.tfFieldDark, in: RoundedRectangle(cornerRadius: TFRadius.lg))
         .overlay {
             RoundedRectangle(cornerRadius: TFRadius.lg)
-                .strokeBorder(selected ? Color.tfChatText : Color.tfStroke, lineWidth: TFBorder.width)
+                .strokeBorder(selected ? Color.tfChatText : Color.tfFieldBorder, lineWidth: TFBorder.width)
         }
         .accessibilityIdentifier("chat.question.option." + option.label)
     }

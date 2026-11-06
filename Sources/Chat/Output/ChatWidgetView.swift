@@ -428,7 +428,9 @@ private struct MetricsWidget: View {
                     }
                     .padding(TFSpacing.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tfCard2, in: RoundedRectangle(cornerRadius: TFRadius.lg))
+                    // Плитка — тёмная, с рамкой цвета карточки, а не светлая
+                    // (владелец 06.11.2026).
+                    .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width))
                 }
             }
         }

@@ -6,6 +6,8 @@ struct ChatHandoffCard: View {
     let handoff: RoleChatHandoff
 
     var body: some View {
+        // Тёмная подложка и тёмно-красная рамка, как у виджетов (владелец 06.11.2026).
+        TFCard(padding: 0, radius: TFRadius.lg, bordered: true) {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: TFSpacing.sm) {
                 Image(systemName: "checkmark.seal")
@@ -44,8 +46,7 @@ struct ChatHandoffCard: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat.handoff.report")
         }
-        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.lg))
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.lg).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
+        }
         .accessibilityIdentifier("chat.handoff")
     }
 }
