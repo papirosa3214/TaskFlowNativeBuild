@@ -1337,6 +1337,10 @@ struct RoleChatRoomScreen: View {
                     // на том же сообщении.
                     Color.clear.frame(height: 1)
                         .onAppear {
+                            // Только когда владелец сам листает вверх: при
+                            // открытии короткого чата полоска видна сразу, и
+                            // прокрутка к старому сообщению увозила ленту от низа.
+                            guard chatScrollPhase != .idle else { return }
                             let keep = orderedFeed.first?.id
                             feedWindow += RoleChatFeedWindow.step
                             if let keep { chatScrollPosition.scrollTo(id: keep, anchor: .top) }
@@ -1514,7 +1518,14 @@ struct RoleChatRoomScreen: View {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
                     chatFollowsBottom = true
-                    chatScrollPosition.scrollTo(edge: .bottom)
+                    // К последней строке, а не к краю: высоту невидимых строк
+                    // ленивая лента угадывает, и прокрутка к краю уезжала за
+                    // конец — внизу оставалась пустота (владелец 07.11.2026).
+                    if let last = feedItems.last?.id {
+                        chatScrollPosition.scrollTo(id: last, anchor: .bottom)
+                    } else {
+                        chatScrollPosition.scrollTo(edge: .bottom)
+                    }
                 }
                 // Небольшой зазор до чек-листа (владелец 06.11.2026).
                 .padding(.bottom, TFSpacing.xs)

@@ -46,9 +46,13 @@ struct RoleReplyMarkdown: View, Equatable {
             // видами; текст между ними — как раньше. Хвост идущего ответа
             // проявляется по всему тексту, а не у каждого куска отдельно.
             VStack(alignment: .leading, spacing: TFSpacing.md) {
-                ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                // Ключ куска — вид и порядковый номер среди своего вида, а не
+                // номер в списке: когда посреди ответа встаёт таблица, абзац
+                // за ней не пересоздаётся и не мигает (владелец 07.11.2026).
+                let keys = Self.segmentKeys(segments)
+                ForEach(Array(zip(keys, segments.indices)), id: \.0) { pair in
                     // fade только у корня ниже — не у каждого куска.
-                    segmentView(segment, fade: nil, widgetKey: widgetKey(in: segments, at: index))
+                    segmentView(segments[pair.1], fade: nil, widgetKey: widgetKey(in: segments, at: pair.1))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -465,3 +469,20 @@ struct ChatTableView: View {
 
 }
 
+extension RoleReplyMarkdown {
+    /// Устойчивые ключи кусков: «text-N» для текста, «block-N» для остального
+    /// (недописанный блок и он же готовый — один ключ).
+    static func segmentKeys(_ segments: [ChatRichSegment]) -> [String] {
+        var text = 0, block = 0
+        return segments.map { segment in
+            switch segment {
+            case .markdown, .document:
+                defer { text += 1 }
+                return "text-\(text)"
+            default:
+                defer { block += 1 }
+                return "block-\(block)"
+            }
+        }
+    }
+}
