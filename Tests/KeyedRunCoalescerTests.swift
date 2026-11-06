@@ -1,4 +1,8 @@
+import Foundation
 import XCTest
+#if canImport(TaskFlow)
+@testable import TaskFlow
+#endif
 
 /// Склейка одновременных догрузок одного ключа (06.11.2026: на одну секунду
 /// ответа роли телефон запрашивал одну и ту же страницу сообщений семь раз).
