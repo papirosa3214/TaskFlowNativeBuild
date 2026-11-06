@@ -9,56 +9,6 @@ import XCTest
 @MainActor
 final class PerfMeasurementTests: XCTestCase {
 
-    func testЗамерСнимкаСегодня() {
-        let tasks = (0..<300).map { index in
-            let due: String?
-            switch index % 4 {
-            case 0: due = "2026-10-20"
-            case 1: due = "2026-10-22"
-            case 2: due = "2026-10-25"
-            default: due = nil
-            }
-            return TestTaskFactory.makeTask(id: "t\(index)", title: "Задача \(index)", dueDate: due)
-        }
-        let iterations = 100
-        // Холодный путь: данные меняются → снимок собирается заново.
-        var coldStart = DispatchTime.now().uptimeNanoseconds
-        for index in 0..<iterations {
-            _ = TodayComputation(
-                allTasks: tasks + [TestTaskFactory.makeTask(id: "x\(index)")],
-                currentUser: nil,
-                agents: [],
-                filters: .empty,
-                showAgentTasks: false,
-                visibleProjectIds: [],
-                today: "2026-10-22",
-                activeHourDate: "2026-10-22",
-                isLoading: false,
-                isError: false
-            )
-        }
-        let coldElapsed = Double(DispatchTime.now().uptimeNanoseconds - coldStart) / 1_000_000
-
-        // Горячий путь: те же данные → отдача из кэша.
-        let start = DispatchTime.now().uptimeNanoseconds
-        for _ in 0..<iterations {
-            _ = TodayComputation(
-                allTasks: tasks,
-                currentUser: nil,
-                agents: [],
-                filters: .empty,
-                showAgentTasks: false,
-                visibleProjectIds: [],
-                today: "2026-10-22",
-                activeHourDate: "2026-10-22",
-                isLoading: false,
-                isError: false
-            )
-        }
-        let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        print("ЗАМЕР today: \(iterations) сборок на 300 задачах — холодная \(String(format: "%.3f", coldElapsed / Double(iterations))) мс, из кэша \(String(format: "%.4f", elapsed / Double(iterations))) мс")
-    }
-
     func testЗамерДереваЗаметок() {
         let model = NotesViewModel()
         model.folders = (0..<10).map { ApiJournalFolder(id: $0, name: "Папка \($0)", parentId: nil) }

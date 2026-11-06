@@ -7,10 +7,8 @@ private let swipeMinPx: CGFloat = 70 // SWIPE_MIN_PX
 
 struct UpcomingWeekView: View {
     let monday: String
-    let byDate: [String: [ApiTask]]
     let occurrences: [RoutineOccurrence]
     let onRoutineTap: (RoutineOccurrence) -> Void
-    let onTaskTap: (String) -> Void
     let onDayTap: (String) -> Void
     let onPickDate: (String) -> Void
     let onPrevWeek: () -> Void
@@ -18,16 +16,14 @@ struct UpcomingWeekView: View {
 
     private let days: [String]
     init(
-        monday: String, byDate: [String: [ApiTask]],
+        monday: String,
         occurrences: [RoutineOccurrence] = [], onRoutineTap: @escaping (RoutineOccurrence) -> Void = { _ in },
-        onTaskTap: @escaping (String) -> Void, onDayTap: @escaping (String) -> Void,
+        onDayTap: @escaping (String) -> Void,
         onPickDate: @escaping (String) -> Void, onPrevWeek: @escaping () -> Void, onNextWeek: @escaping () -> Void
     ) {
         self.monday = monday
-        self.byDate = byDate
         self.occurrences = occurrences
         self.onRoutineTap = onRoutineTap
-        self.onTaskTap = onTaskTap
         self.onDayTap = onDayTap
         self.onPickDate = onPickDate
         self.onPrevWeek = onPrevWeek
@@ -65,7 +61,6 @@ struct UpcomingWeekView: View {
         let ds = days[i]
         let today = UpcomingDate.todayString()
         let isToday = ds == today
-        let tasks = byDate[ds] ?? []
         return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(UpcomingDate.weekdaysShort[i])
@@ -83,9 +78,6 @@ struct UpcomingWeekView: View {
 
             ForEach(occurrences.filter { $0.day() == ds }) { occurrence in
                 RoutineOccurrenceRow(occurrence: occurrence, compact: true) { onRoutineTap(occurrence) }
-            }
-            ForEach(tasks, id: \.id) { task in
-                UpcomingTaskChip(task: task, compact: false) { onTaskTap(task.id) }
             }
         }
         .padding(6)

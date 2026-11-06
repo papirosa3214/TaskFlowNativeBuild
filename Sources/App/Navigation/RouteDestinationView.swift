@@ -39,8 +39,6 @@ func routeDestination(_ route: AppRoute, reservesTabBarSpace: Bool = false) -> s
 @ViewBuilder
 private func routeContent(_ route: AppRoute) -> some View {
     switch route {
-    case .today:
-        UpcomingScreen()
     case .overview:
         OverviewScreen()
     case .upcoming:

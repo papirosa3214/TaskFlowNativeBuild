@@ -5,8 +5,6 @@ import SwiftUI
 /// `UpcomingScreen.daySheet`.
 struct UpcomingDaySheetContent: View {
     let date: String
-    let tasks: [ApiTask]
-    let onTaskTap: (String) -> Void
     var occurrences: [RoutineOccurrence] = []
     var onRoutineTap: (RoutineOccurrence) -> Void = { _ in }
 
@@ -23,7 +21,7 @@ struct UpcomingDaySheetContent: View {
     @ViewBuilder
     private var content: some View {
         Group {
-            if tasks.isEmpty && occurrences.isEmpty {
+            if occurrences.isEmpty {
                 Text("На этот день ничего не запланировано")
                     .tfText(.action)
                     .foregroundStyle(Color.tfDim)
@@ -33,11 +31,6 @@ struct UpcomingDaySheetContent: View {
                 VStack(spacing: 0) {
                     ForEach(occurrences) { occurrence in
                         RoutineOccurrenceRow(occurrence: occurrence) { onRoutineTap(occurrence) }
-                    }
-                    ForEach(tasks, id: \.id) { task in
-                        TFTaskRow(UpcomingTaskRow.model(for: task)) {
-                            onTaskTap(task.id)
-                        }
                     }
                 }
                 .padding(.bottom, TFSpacing.lg)

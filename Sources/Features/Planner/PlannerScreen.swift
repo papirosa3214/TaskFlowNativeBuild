@@ -5,9 +5,11 @@ private struct IdentifiableDate: Identifiable, Equatable {
     let id: String
 }
 
-// Экран «Планирование» (`/upcoming`) — spec/SCREENS-1.md §5.2. Имя структуры
-// и параметры инициализации фиксированы контрактом (spec/INTEGRATION.md):
-// `UpcomingScreen`, без параметров.
+/// Календарь рутин: «Неделя» и «Месяц». Открывается из «Моих рутин»
+/// (владелец 28.10.2026: «там смотрим исключительно рутины, проекты уже не
+/// смотрим»). Раньше это был общий экран «Планирования» с разделами
+/// «Сегодня», «Три дня», задачами и фильтрами; владелец 06.11.2026 оставил
+/// из планирования только эти два календаря, остальное удалено.
 public struct UpcomingScreen: View {
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
@@ -16,85 +18,21 @@ public struct UpcomingScreen: View {
     @State private var routinePlanner = RoutinePlanner()
     @State private var loadedRoutineRevision: Int?
     @State private var selectedOccurrence: RoutineOccurrence?
-    @State private var agentsProvider = UpcomingAgentsProvider()
 
-    /// Четыре раздела единого «Планирования». «Сегодня» больше не отдельная
-    /// вкладка приложения: это первый, сохранённый по умолчанию раздел.
-    enum ViewMode: String, CaseIterable { case today, threeDays, week, month }
-
-    /// Пункты правого календаря. Отдельный тип нужен ровно потому, что
-    /// «Список» и «Часы» — это один `ViewMode.today`, различаемый только
-    /// `todayLayout`.
-    enum PlannerSection: String, CaseIterable { case list, hours, threeDays, week, month }
-
-    /// Владелец 28.10.2026: в календаре остаются только «Неделя» и «Месяц».
-    /// Один день (Список/Часы) и «Три дня» убраны из меню разделов; сохранённое
-    /// у владельца старое значение молча ведёт на неделю. Сами виды не удалены —
-    /// вернуть их потом можно одним списком `selectableModes`.
-    private static let selectableModes: [ViewMode] = [.week, .month]
+    /// Владелец 28.10.2026: в календаре только «Неделя» и «Месяц».
+    /// Сохранённое у владельца старое значение (`today`, `threeDays`) молча
+    /// ведёт на неделю.
+    enum ViewMode: String, CaseIterable { case week, month }
 
     @AppStorage("plannerSection") private var upcomingLayoutRaw = ViewMode.week.rawValue
     private var view: ViewMode {
-        get {
-            guard let mode = ViewMode(rawValue: upcomingLayoutRaw),
-                  Self.selectableModes.contains(mode) else { return .week }
-            return mode
-        }
+        get { ViewMode(rawValue: upcomingLayoutRaw) ?? .week }
         nonmutating set { upcomingLayoutRaw = newValue.rawValue }
     }
 
-    @AppStorage("today_layout") private var todayLayoutRaw = TodayLayout.list.rawValue
-    private var todayLayout: TodayLayout {
-        // У тех, кто пользовался доской, в настройках осталось `board` —
-        // режима с таким именем больше нет, и он молча превращается в список.
-        get { TodayLayout(rawValue: todayLayoutRaw) ?? .list }
-        nonmutating set { todayLayoutRaw = newValue.rawValue }
-    }
-
-    /// Пара `view` + `todayLayout` одним значением — для правого календаря.
-    private var plannerSection: PlannerSection {
-        get {
-            switch view {
-            case .today: todayLayout == .hours ? .hours : .list
-            case .threeDays: .threeDays
-            case .week: .week
-            case .month: .month
-            }
-        }
-        nonmutating set {
-            switch newValue {
-            case .list: view = .today; todayLayout = .list
-            case .hours: view = .today; todayLayout = .hours
-            case .threeDays: view = .threeDays
-            case .week: view = .week
-            case .month: view = .month
-            }
-        }
-    }
-
-    /// «Выполненные» переехали в «Показывать в разделе» и вместе с остальным
-    /// составом раздела теперь переживают перезапуск (09.09.2026).
-    @State private var filters = UpcomingTaskFilters()
-    /// Показывать задачи, назначенные на ИИ-агента. Раньше они вырезались из
-    /// раздела безусловно — теперь это условие состава, как и проекты.
-    @State private var plannerShowAgentTasks = UserDefaults.standard.bool(forKey: "plannerShowAgentTasks")
-    /// Название текущей вкладки списка «Сегодня» — показывается в шапке.
-    @State private var listTabTitle = ""
-    @State private var selectedDate: String?
     @State private var openDay: String?
-    @State private var pushedTaskID: String?
-    @State private var createTaskOpen = false
-    @State private var rescheduleTask: ApiTask?
-    @State private var rescheduleOpen = false
 
     @State private var gridMonday = UpcomingDate.mondayOf(UpcomingDate.todayString())
-    /// Стартовая дата трёхдневного диапазона — меняется горизонтальным
-    /// перелистыванием (по три дня за жест) и задаёт, какой месяц виден в шапке.
-    @State private var threeDayStart = UpcomingDate.todayString()
-    /// Видимая дата почасового режима в разделе «Сегодня» — принадлежит
-    /// родителю, чтобы заголовок месяца менялся при перелистывании через
-    /// границу месяца.
-    @State private var todayHourDate = UpcomingDate.todayString()
     /// Опциональный: до первого появления экрана и до прихода первого
     /// `onVisibleMonthChange` — пусто. Без этого View запоминал бы месяц
     /// на момент своей инициализации (запуск в августе → в сентябре всё
@@ -102,48 +40,22 @@ public struct UpcomingScreen: View {
     @State private var gridMonth: (year: Int, month: Int)? = nil
     private let monthGridInitialMonday = UpcomingDate.mondayOf(UpcomingDate.todayString())
 
-    /// Зеркало `store/index.ts` `plannerVisibleProjects` — общая точка со
-    /// «Сегодня» (спека §4.4: тот же ключ, opt-in список видимых в
-    /// ежедневнике проектов). Ключ ЛИТЕРАЛЬНЫЙ — как `taskflow_today_badge_seen_date`
-    /// у `RootShellView` — так автор «Сегодня» может завести тот же ключ и
-    /// оба экрана честно разделят состояние без общего Core-стора.
-    @State private var plannerVisibleProjectIds: Set<String> = Set(
+    /// Видимые проекты бывшего «Планирования» (ключ `plannerVisibleProjects`).
+    /// Рутины с проектом вне этого списка в календаре не показываются — так
+    /// было и до удаления планирования; меню выбора в календаре рутин не
+    /// показывалось и раньше.
+    private let plannerVisibleProjectIds: Set<String> = Set(
         UserDefaults.standard.stringArray(forKey: "plannerVisibleProjects") ?? []
     )
-    /// Пустое хранилище имеет два разных смысла: на новой установке проекты
-    /// ещё не выбирались и надо показать всё; после явного снятия всех галочек
-    /// пустой список означает «только беспроектные». Различаем эти состояния,
-    /// иначе доска на свежем запуске выглядит пустой.
-    @State private var plannerProjectsConfigured =
+    /// Пустое хранилище имеет два смысла: на новой установке проекты ещё не
+    /// выбирались и надо показать всё; после явного снятия всех галочек пустой
+    /// список означает «только беспроектные».
+    private let plannerProjectsConfigured =
         UserDefaults.standard.object(forKey: "plannerVisibleProjects") != nil
 
-    /// В шапке показывается текущий месяц, а не техническое имя режима —
-    /// кроме «Сегодня» (список/почасовой): владелец 07.09.2026 попросил там
-    /// день недели и число вместо голого месяца («Понедельник, 7 сентября»).
-    /// Остальные режимы (три дня/неделя/месяц) не трогать — там месяц и так
-    /// уместен, это диапазон дней, а не один день.
+    /// В шапке — текущий месяц видимого диапазона.
     private var navigationTitle: String {
         switch view {
-        case .today:
-            // Владелец 07.09.2026: свайп по дням в почасовой шкале работает, а
-            // число в шапке стояло мёртво — оно бралось из сегодняшней даты,
-            // а не из ВИДИМОЙ (`todayHourDate`, её и двигает жест). Раздел
-            // по-прежнему открывается на сегодня, но, отлистав на завтра или
-            // вчера, видно, какой это день.
-            // Пролистывание есть только у почасовой шкалы: в списке день
-            // всегда сегодняшний, иначе шапка показывала бы завтрашнее
-            // число над сегодняшним списком.
-            // В списке в шапке стоит название текущей вкладки, а не дата:
-            // оно по центру под островом и меняется при выборе вкладки
-            // (владелец 15.09.2026). Раньше так же показывалось название
-            // видимой колонки доски, которой больше нет.
-            if todayLayout == .list, !listTabTitle.isEmpty { return listTabTitle }
-            let visible = todayLayout == .hours ? todayHourDate : today
-            let (_, month) = UpcomingDate.yearMonth(visible)
-            let weekdayIndex = (UpcomingDate.jsWeekday(visible) + 6) % 7
-            return "\(UpcomingDate.weekdaysFull[weekdayIndex]), \(UpcomingDate.day(visible)) \(UpcomingDate.monthsGen[month])"
-        case .threeDays:
-            return UpcomingDate.monthsNom[UpcomingDate.yearMonth(threeDayStart).month]
         case .week:
             return UpcomingDate.monthsNom[UpcomingDate.weekMonth(monday: gridMonday).month]
         case .month:
@@ -151,12 +63,7 @@ public struct UpcomingScreen: View {
         }
     }
 
-    /// Календарь открыт из «Моих рутин» (владелец 28.10.2026: «там смотрим
-    /// исключительно рутины, проекты уже не смотрим») — задачи проектов и
-    /// фильтры в этом режиме не показываются, остаются одни рутины.
-    public let routinesOnly: Bool
-
-    public init(routinesOnly: Bool = false) { self.routinesOnly = routinesOnly }
+    public init() {}
 
     // 15.09.2026: см. карточку задачи — тип экрана стирается на границе,
     // чтобы цепочка обёрток не копила неразворачиваемый обобщённый тип.
@@ -165,28 +72,11 @@ public struct UpcomingScreen: View {
     @ViewBuilder private var bodyContent: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Refresh задаётся у конкретной прокрутки ниже. На всей content
-        // он попадал в TodaySectionView и его шторку карточки, где List
-        // перехватывал свайпы ради pull-to-refresh (16.10.2026).
-        // Заголовок всегда `.inline` (мелкий по центру); в списке «Сегодня»
-        // это название текущей вкладки. Крупный `.large` тянулся из времён
-        // доски, где сжатие при скролле нативно не получалось (LOCK-153/154);
-        // после отказа от доски список снова живёт под одной прокруткой, но
-        // выбранный владельцем мелкий заголовок оставлен как есть.
         .tfNativeHeader(navigationTitle, displayMode: .inline)
         .toolbar {
-            // Вкладки списка теперь рисует сам список (`TodaySectionView`):
-            // на iOS 26 `ToolbarItem(.topBarLeading)`, повешенный здесь,
-            // выводился в шапке дважды. Слот остаётся только под правую
-            // кнопку диапазонов, где списка нет.
-            if view != .today {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 0) {
-                        // Фильтр (проекты/метки/исполнитель) в календаре рутин
-                        // не нужен — владелец 28.10.2026.
-                        if !routinesOnly { filterMenu.tfPlannerWideControl() }
-                        viewSwitcherMenu.tfPlannerWideControl()
-                    }
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 0) {
+                    viewSwitcherMenu.tfPlannerWideControl()
                 }
             }
         }
@@ -194,10 +84,6 @@ public struct UpcomingScreen: View {
         .tfSheet(item: Binding(get: { openDay.map(IdentifiableDate.init) }, set: { _ in openDay = nil })) { day in
             daySheet(date: day.id)
         }
-        .tfSheet(item: $rescheduleTask) { task in rescheduleSheet(task: task) }
-        // Любая существующая задача открывает одну и ту же интерактивную карточку.
-        .taskCardSheet(taskID: $pushedTaskID)
-        .taskCreateFlow(isPresented: $createTaskOpen)
         .tfSheet(item: $selectedOccurrence, onDismiss: { Task { await loadRoutineCalendar() } }) { occurrence in
             NavigationStack { RoutineOccurrenceDestination(occurrence: occurrence) }
         }
@@ -211,19 +97,11 @@ public struct UpcomingScreen: View {
             loadedRoutineRevision = routineRevision
             await loadRoutineCalendar()
         }
-        .task { await agentsProvider.load() }
         .onAppear {
             // Сбрасываем заголовок на месяц «сегодня» каждый раз при появлении
             // экрана (а не только при первом создании View — иначе View,
             // созданный в августе, остаётся с августом и в сентябре).
             gridMonth = UpcomingDate.yearMonth(UpcomingDate.todayString())
-            // Отлистанный день живёт, пока не устарел: вернуться со вчера или
-            // из позавчера раздел «Сегодня» должен сам (например, если
-            // приложение провисело в фоне через полночь). Дни вперёд не
-            // трогаем — владелец мог отлистать на завтра осознанно.
-            if todayHourDate < UpcomingDate.todayString() {
-                todayHourDate = UpcomingDate.todayString()
-            }
         }
     }
 
@@ -238,38 +116,10 @@ public struct UpcomingScreen: View {
                 TFErrorBanner(error, variant: .inline).padding(.horizontal, TFSpacing.screenHorizontal)
             }
             switch view {
-            case .today:
-                TodaySectionView(
-                    layout: Binding(get: { todayLayout }, set: { todayLayout = $0 }),
-                    activeHourDate: $todayHourDate,
-                    onAddTask: { createTaskOpen = true },
-                    plannerViewSwitcher: AnyView(viewSwitcherMenu),
-                    sectionCompositionMenu: AnyView(sectionCompositionMenu),
-                    visibleProjectIds: effectivePlannerVisibleProjectIds,
-                    showAgentTasks: plannerShowAgentTasks,
-                    onTitleChange: { listTabTitle = $0 },
-                    routineOccurrences: routineOccurrences,
-                    onOpenRoutine: { selectedOccurrence = $0 }
-                )
-            case .threeDays:
-                UpcomingHoursView(
-                    days: hourDays,
-                    projectColor: { task in
-                        projectStore.projects.first { $0.id == task.projectId }?.color.map(Color.init(hex:)) ?? Color(hex: TFHexDefault.unassigned)
-                    },
-                    onTaskTap: { pushedTaskID = $0 },
-                    onSchedule: { id, date, time in schedule(id: id, date: date, time: time) },
-                    onResize: { id, startTime, minutes in resize(id: id, startTime: startTime, minutes: minutes) },
-                    onPage: { direction in
-                        threeDayStart = UpcomingDate.addDays(threeDayStart, direction * 3)
-                    }
-                )
-                .refreshable { await refreshPlanner() }
             case .week:
                 UpcomingWeekView(
-                    monday: gridMonday, byDate: byDate,
+                    monday: gridMonday,
                     occurrences: routineOccurrences, onRoutineTap: { selectedOccurrence = $0 },
-                    onTaskTap: { pushedTaskID = $0 },
                     onDayTap: { openDay = $0 },
                     onPickDate: { gridMonday = UpcomingDate.mondayOf($0) },
                     onPrevWeek: { gridMonday = UpcomingDate.addDays(gridMonday, -7) },
@@ -280,7 +130,6 @@ public struct UpcomingScreen: View {
                 UpcomingMonthView(
                     initialMonday: monthGridInitialMonday,
                     initialMonth: UpcomingDate.yearMonth(UpcomingDate.todayString()),
-                    byDate: byDate,
                     occurrences: routineOccurrences, onRoutineTap: { selectedOccurrence = $0 },
                     onDayTap: { openDay = $0 },
                     onVisibleMonthChange: { y, m in gridMonth = (y, m) }
@@ -296,17 +145,15 @@ public struct UpcomingScreen: View {
         await loadRoutineCalendar()
     }
 
-    /// Нативная шторка — тот же приём, что `TodaySectionView.sheetTaskID`: свой
-    /// `NavigationStack` ради toolbar (крестик слева, «Готово» справа),
-    /// системный хендл вместо самодельного (просьба владельца 03.09.2026 —
-    /// «пусть Apple сама сделает скругление и открытие-закрытие», от нас
-    /// только правильное расположение задач).
+    /// Нативная шторка: свой `NavigationStack` ради toolbar (крестик слева,
+    /// «Готово» справа), системный хендл вместо самодельного (просьба
+    /// владельца 03.09.2026 — «пусть Apple сама сделает скругление и
+    /// открытие-закрытие»).
     @ViewBuilder
     private func daySheet(date openDay: String) -> some View {
         NavigationStack {
             UpcomingDaySheetContent(
-                date: openDay, tasks: byDate[openDay] ?? [],
-                onTaskTap: { self.openDay = nil; pushedTaskID = $0 },
+                date: openDay,
                 occurrences: routineOccurrences.filter { $0.day() == openDay },
                 onRoutineTap: { occurrence in
                     self.openDay = nil
@@ -348,129 +195,15 @@ public struct UpcomingScreen: View {
         .presentationContentInteraction(.scrolls)
     }
 
-    /// Тот же системный вид, что у переноса с «Сегодня»: заголовок и кнопка
-    /// закрытия — в навбаре шторки, половинное и полное состояние, родной
-    /// хендл. Здесь шторка открывается своим `.sheet(item:)`, мимо общего
-    /// `tfBottomSheet`, поэтому обвязку задаём тут же (09.09.2026).
-    @ViewBuilder
-    private func rescheduleSheet(task: ApiTask) -> some View {
-        NavigationStack {
-            RescheduleSheetContent(
-                taskIds: [task.id],
-                taskStore: taskStore,
-                onClose: {
-                    rescheduleTask = nil
-                    rescheduleOpen = false
-                }
-            )
-            .navigationTitle("Срок")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-
-    /// Нативное системное меню — тот же приём, что меню фильтров `TodaySectionView`:
-    /// стеклянный попап вместо самодельной шторки-карточки (просьба владельца
-    /// 03.09.2026 — «Планирование» должно быть нативным, как «Сегодня»).
-    /// Полоска чипов «Показывать в разделе» с кнопкой «+» отсюда пропала по
-    /// той же причине, что и у «Сегодня»: у `Menu`
-    /// нет способа открыть себя программно на нужном пункте, а сам выбор
-    /// проектов никуда не делся — он в подменю «Показывать в разделе» ниже.
-    private var filterMenu: some View {
-        let projectOptions = UpcomingFilterEngine.projectOptions(optionDatedTasks)
-        let labelOptions = UpcomingFilterEngine.labelOptions(optionDatedTasks)
-        let assigneeOptions = UpcomingFilterEngine.assigneeOptions(optionDatedTasks)
-        return Menu {
-            Menu {
-                filterOption("Все проекты", selected: filters.projectId == nil) { filters.projectId = nil }
-                if projectOptions.isEmpty {
-                    Text("Нет задач с проектом")
-                } else {
-                    ForEach(projectOptions) { option in
-                        filterOption(option.label, selected: filters.projectId == option.id) { filters.projectId = option.id }
-                    }
-                }
-            } label: {
-                Label("Проект", systemImage: "folder")
-            }
-
-            Menu {
-                filterOption("Все метки", selected: filters.labelId == nil) { filters.labelId = nil }
-                if labelOptions.isEmpty {
-                    Text("Нет задач с метками")
-                } else {
-                    ForEach(labelOptions) { option in
-                        filterOption(option.label, selected: filters.labelId == option.id) { filters.labelId = option.id }
-                    }
-                }
-            } label: {
-                Label("Метка", systemImage: "tag")
-            }
-
-            Menu {
-                filterOption("Все исполнители", selected: filters.assigneeKey == nil) { filters.assigneeKey = nil }
-                if assigneeOptions.hasUnassigned {
-                    filterOption("Без исполнителя", selected: filters.assigneeKey == "__none") { filters.assigneeKey = "__none" }
-                }
-                if assigneeOptions.list.isEmpty && !assigneeOptions.hasUnassigned {
-                    Text("Нет данных об исполнителях")
-                } else {
-                    ForEach(assigneeOptions.list) { option in
-                        filterOption(option.name, selected: filters.assigneeKey == option.id) { filters.assigneeKey = option.id }
-                    }
-                }
-            } label: {
-                Label("Исполнитель", systemImage: "person")
-            }
-
-            Divider()
-
-            sectionCompositionMenu
-
-            if filters.isActive {
-                Divider()
-                // Сброс не трогает «Выполненные» — это настройка состава
-                // раздела, а не разовый прицел (см. `isActive`).
-                Button(role: .destructive) {
-                    filters = UpcomingTaskFilters()
-                } label: {
-                    Label("Сбросить фильтры", systemImage: "arrow.counterclockwise")
-                }
-            }
-        } label: {
-            TFPlannerToolbarIcon(
-                systemName: "line.3.horizontal.decrease",
-                tint: filters.isActive ? .tfRed : .tfText
-            )
-        }
-        .accessibilityLabel("Фильтры")
-        .accessibilityIdentifier("upcoming.filters")
-    }
-
-    /// Системное меню разделов. Оно используется и самим экраном, и дочерним
-    /// «Сегодня», поэтому переключение не создаёт отдельную, самодельную
-    /// панель под навбаром.
-    /// ПРАВЫЙ календарь — все разделы планирования, от списка до месяца
-    /// (владелец 16.09.2026: «где у нас календарь — часы, три дня, неделя,
-    /// месяц — пятым должен быть список… получается у нас должен быть
-    /// список, часы, три дня, неделя, месяц»). Порядок взят из последней
-    /// его формулировки: «Список» стоит первым.
-    ///
-    /// «Список» и «Часы» — это один и тот же `ViewMode.today` с разным
-    /// `todayLayout`, поэтому у пунктов свой пятизначный тип: `ViewMode`
-    /// один эти два пункта не различает.
+    /// Системное меню разделов: «Неделя» и «Месяц».
     private var viewSwitcherMenu: some View {
         Menu {
             Picker("Раздел", selection: Binding(
-                get: { plannerSection },
-                set: { plannerSection = $0 }
+                get: { view },
+                set: { view = $0 }
             )) {
-                // Владелец 28.10.2026: «календарь оставь только неделя и месяц,
-                // а один день и 3 дня не отображай». Пункты «Список», «Часы»,
-                // «Три дня» живут в коде (PlannerSection), но в меню их нет.
-                Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(PlannerSection.week)
-                Label("Месяц", systemImage: "calendar").tag(PlannerSection.month)
+                Label("Неделя", systemImage: "calendar.day.timeline.leading").tag(ViewMode.week)
+                Label("Месяц", systemImage: "calendar").tag(ViewMode.month)
             }
             .pickerStyle(.inline)
         } label: {
@@ -478,44 +211,6 @@ public struct UpcomingScreen: View {
         }
         .accessibilityLabel("Выбрать раздел планирования")
         .accessibilityIdentifier("planner.view-switcher")
-    }
-
-    /// ЛЕВАЯ кнопка шапки — вкладки списка: «Входящие», «Ждут вас»,
-    /// «Сегодня» (владелец 15.09.2026: «с левой стороны должны быть только
-    /// вот эти входящие, ждут вас и сегодня»). Раньше здесь жил выбор вида
-    /// список/доска/часы — отдельной такой ручки больше нет: список
-    /// выбирается этой кнопкой, а почасовая сетка — пунктом «Часы» в
-    /// календаре справа.
-    ///
-    /// Кнопка видна только в разделе «Список» (владелец 16.09.2026): в
-    /// «Трёх днях» и прочих сетках вкладки списка ничего не значат. Выйти
-    /// из сетки обратно в список — пункт «Список» в правом календаре.
-    private func todayLayoutIcon(_ layout: TodayLayout) -> String {
-        switch layout {
-        case .list: "list.bullet"
-        case .hours: "clock"
-        }
-    }
-
-    private func todayLayoutLabel(_ layout: TodayLayout) -> String {
-        switch layout {
-        case .list: "Список"
-        case .hours: "Часы"
-        }
-    }
-
-    private func filterOption(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            if selected {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
-            }
-        }
-    }
-
-    private var openDaySheetBinding: Binding<Bool> {
-        Binding(get: { openDay != nil && view == .week }, set: { if !$0 { openDay = nil } })
     }
 
     // MARK: - Данные
@@ -528,15 +223,15 @@ public struct UpcomingScreen: View {
         case .month:
             let month = gridMonth ?? UpcomingDate.yearMonth(today)
             return String(format: "%04d-%02d-01", month.year, month.month + 1)
-        case .threeDays: return threeDayStart
-        case .today: return todayLayout == .list ? today : todayHourDate
         }
     }
 
     private var routineOccurrences: [RoutineOccurrence] {
-        RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: view == .today && todayLayout == .list ? nil : effectivePlannerVisibleProjectIds)
+        RoutineScheduleProjection.visible(routinePlanner.occurrences, projects: effectivePlannerVisibleProjectIds)
     }
 
+    /// Статус вхождения рутины берётся из её задачи, поэтому календарь
+    /// перечитывается и по событиям задач.
     private var routineRevision: Int {
         realtime.staleRevision + realtime.taskRevisions.values.reduce(0, +)
     }
@@ -551,295 +246,14 @@ public struct UpcomingScreen: View {
         await routinePlanner.load(from: from, until: until)
     }
 
-
-    /// Агентские задачи сюда не попадают вовсе; дата обязана быть, но НЕ
-    /// обязана быть будущей. Отсечка `due_date >= today` (спека §5.2) снята
-    /// 09.09.2026 по прямому слову владельца: «три дня — это три дня, а не
-    /// три дня вперёд». Диапазоны листаются в обе стороны, и до этой правки
-    /// все дни левее сегодняшнего стояли пустыми, хотя задачи на них есть.
-    private var datedTasks: [ApiTask] {
-        // Множество задач рутин — ОДИН раз на фильтр: раньше оно собиралось
-        // внутри замыкания, то есть заново на каждую задачу (O(N×M)).
-        let routineTaskIDs = Set(routineOccurrences.compactMap(\.taskId))
-        return taskStore.tasks.filter { t in
-            !routineTaskIDs.contains(t.id) && (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents))
-                && t.dueDate != nil
-                && (t.projectId == nil || effectivePlannerVisibleProjectIds.contains(t.projectId!))
-        }
-    }
-
     private var effectivePlannerVisibleProjectIds: Set<String> {
         guard plannerProjectsConfigured else {
-            // Сторы могут прийти не одновременно: не скрываем задачи, пока
+            // Сторы могут прийти не одновременно: не скрываем рутины, пока
             // список проектов ещё не успел загрузиться.
             return Set(projectStore.projects.map(\.id))
                 .union(taskStore.tasks.compactMap(\.projectId))
         }
         return plannerVisibleProjectIds
-    }
-
-    /// Тот же «раздел», но БЕЗ сужения по видимым проектам — источник опций
-    /// фильтра «Проект» (спека §4.3: опции должны показывать что МОЖНО
-    /// добавить, а не что уже добавлено).
-    private var optionDatedTasks: [ApiTask] {
-        taskStore.tasks.filter { t in
-            (plannerShowAgentTasks || !UpcomingFilterEngine.isAgentAssigned(t, agentsProvider.agents)) && t.dueDate != nil
-        }
-    }
-
-    /// Кэш данных планировщика: отфильтрованный список, группировка по датам
-    /// и три колонки часов считались заново на каждый доступ — 6–10 раз за
-    /// проход `body` (список задач фильтровался, сортировался и
-    /// группировался). Теперь считаются один раз и переиспользуются, пока
-    /// входы те же.
-    @State private var plannerCache = PlannerCache()
-
-    /// Входы планировщика: пока они те же — пересчитывать нечего.
-    private struct PlannerKey: Equatable {
-        let tasksRevision: Int
-        let filters: UpcomingTaskFilters
-        let today: String
-        let threeDayStart: String
-        let showAgentTasks: Bool
-        let visibleProjectIds: Set<String>
-        let agents: [ApiUser]
-        let occurrences: [RoutineOccurrence]
-    }
-
-    /// Готовые данные планировщика на текущие входы.
-    private struct PlannerPlan {
-        let tasks: [ApiTask]
-        let byDate: [String: [ApiTask]]
-        let hourDays: [UpcomingHourColumn]
-        /// Просроченные и бессрочные — сырьё для планирования на часовой сетке.
-        let awaitingPlanning: [ApiTask]
-        /// Задачи с датой есть, но под фильтры не подошли.
-        let hasDatedTasks: Bool
-    }
-
-    private final class PlannerCache {
-        private let lock = NSLock()
-        private var key: PlannerKey?
-        private var plan: PlannerPlan?
-
-        func plan(for input: PlannerKey, build: () -> PlannerPlan) -> PlannerPlan {
-            lock.lock()
-            if let stored = key, stored == input, let plan {
-                lock.unlock()
-                return plan
-            }
-            lock.unlock()
-            let fresh = build()
-            lock.lock()
-            key = input
-            plan = fresh
-            lock.unlock()
-            return fresh
-        }
-    }
-
-    /// Данные планировщика на текущие входы.
-    private var plannerPlan: PlannerPlan {
-        plannerCache.plan(for: PlannerKey(
-            tasksRevision: taskStore.tasksRevision,
-            filters: filters,
-            today: today,
-            threeDayStart: threeDayStart,
-            showAgentTasks: plannerShowAgentTasks,
-            visibleProjectIds: effectivePlannerVisibleProjectIds,
-            agents: agentsProvider.agents,
-            occurrences: routineOccurrences
-        )) { buildPlannerPlan() }
-    }
-
-    private func buildPlannerPlan() -> PlannerPlan {
-        let dated = datedTasks
-        let tasks = UpcomingFilterEngine.filter(dated, filters)
-        let byDate = UpcomingDate.groupByDate(tasks)
-        let awaiting = tasks.filter { task in
-            guard let due = task.dueDate, !due.isEmpty else { return true }
-            return due < today
-        }
-        let hourDays = (0..<3).map { i in
-            let date = UpcomingDate.addDays(threeDayStart, i)
-            var dayTasks = byDate[date] ?? []
-            // К первой колонке добавляем то, что ждёт распределения:
-            // просроченное и бессрочное. На шкалу оно не встанет (сетка
-            // рисует только задачи своего дня) — сетка покажет его в пуле
-            // сверху, откуда владелец перетаскивает задачи на часы.
-            // Владелец 15.09.2026: «в пуле должны отображаться просроченные
-            // и неназначенные, чтобы я мог их оттуда забрать и выставить
-            // планы». Будущие сюда не идут: «то, что ещё не наступило, зачем
-            // его показывать».
-            if i == 0 { dayTasks += awaiting }
-            return UpcomingHourColumn(date: date, tasks: dayTasks, isToday: date == today)
-        }
-        return PlannerPlan(
-            tasks: tasks,
-            byDate: byDate,
-            hourDays: hourDays,
-            awaitingPlanning: awaiting,
-            hasDatedTasks: !dated.isEmpty
-        )
-    }
-
-    private var tasks: [ApiTask] { plannerPlan.tasks }
-    private var byDate: [String: [ApiTask]] { routinesOnly ? [:] : plannerPlan.byDate }
-
-    private var hourDays: [UpcomingHourColumn] { plannerPlan.hourDays }
-
-    /// Просроченные и бессрочные — сырьё для планирования на почасовой сетке.
-    private var tasksAwaitingPlanning: [ApiTask] { plannerPlan.awaitingPlanning }
-
-    /// Состояния общие для оставшихся 3 видов (Неделя/Месяц/Три дня) — в
-    /// «Список» такой баннер владелец 03.09.2026 явно попросил НЕ добавлять
-    /// («убираем из списков эту хрень»): там сброс фильтров живёт только
-    /// пунктом внутри Menu фильтров, и всё. Здесь — случай, что не покрыт
-    /// загрузкой/ошибкой: фильтры вычистили список подчистую.
-    private var emptyFilterBanner: AnyView? {
-        // Владелец 28.10.2026: красного текста «ничего не подошло» не надо —
-        // пусто значит пусто. Код оставлен на случай возврата фильтров.
-        guard !routinesOnly, view != .today, selectedDate == nil, !taskStore.isLoading, taskStore.errorMessage == nil,
-              plannerPlan.hasDatedTasks, plannerPlan.tasks.isEmpty else { return nil }
-        return AnyView(
-            HStack(spacing: 6) {
-                Text("Под выбранные фильтры ничего не подошло").tfText(.action).foregroundStyle(Color.tfDim)
-                Button("Сбросить фильтры") { filters = .empty }
-                    .tfText(.action).fontWeight(.medium).foregroundStyle(Color.tfRed)
-            }
-            .padding(.horizontal, TFSpacing.screenHorizontal).padding(.vertical, TFSpacing.sm)
-        )
-    }
-
-    @ViewBuilder
-    private var belowContentView: some View {
-        switch view {
-        case .week:
-            let (year, month) = UpcomingDate.weekMonth(monday: gridMonday)
-            Text("\(UpcomingDate.monthsNom[month]) \(year)")
-                .tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, TFSpacing.screenHorizontal).padding(.bottom, 6)
-        case .month:
-            let m = gridMonth ?? UpcomingDate.yearMonth(UpcomingDate.todayString())
-            Text(UpcomingDate.monthsNom[m.month])
-                .tfText(.body).fontWeight(.semibold).foregroundStyle(Color.tfText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, TFSpacing.screenHorizontal).padding(.bottom, 6)
-        case .threeDays:
-            UpcomingDayColumnsHeader(days: hourDays)
-        case .today:
-            EmptyView()
-        }
-    }
-
-    // MARK: - Действия
-
-    private func deleteTask(_ id: String) {
-        Task { await taskStore.delete(taskId: id) }
-    }
-
-    /// Плашку растянули за край прямо на сетке — сохраняем длительность и,
-    /// если тянули за верх, новое начало. Владелец 15.09.2026 просил задавать
-    /// продолжительность здесь, «а не проваливаться в карточку».
-    private func resize(id: String, startTime: String?, minutes: Int) {
-        var fields: [String: JSONValue] = ["duration_min": .number(Double(minutes))]
-        if let startTime { fields["start_time"] = .string(startTime) }
-        Task { await taskStore.patch(taskId: id, fields: fields) { _ in } }
-    }
-
-    private func schedule(id: String, date: String, time: String) {
-        let hadDuration = taskStore.tasks.first { $0.id == id }?.durationMin != nil
-        var fields: [String: JSONValue] = ["due_date": .string(date), "start_time": .string(time)]
-        // duration_min шлётся ТОЛЬКО когда его раньше не было — иначе PATCH
-        // затёр бы уже заданную длительность (спека §3.5: 15 минут только
-        // «если раньше не было»; отсутствие ключа ≠ .null в JSONValue-контракте PATCH).
-        if !hadDuration { fields["duration_min"] = 15 }
-        Task {
-            // apply-замыкание TaskStore.patch не может частично обновить
-            // локальную копию: поля `ApiTask` — `let` (структура собирается
-            // только через `Decodable.init`, без memberwise-инициализатора),
-            // править их точечно нельзя без правки Core. Оставляю пустым —
-            // UI обновится по факту ответа сервера (небольшая задержка вместо
-            // истинно оптимистичного отклика), см. отчёт.
-            await taskStore.patch(taskId: id, fields: fields) { _ in }
-        }
-    }
-
-    /// Все проекты сейчас показываются? Пустой список проектов не считается:
-    /// отмечать «все» там нечего.
-    private var allPlannerProjectsVisible: Bool {
-        !projectStore.projects.isEmpty
-            && projectStore.projects.allSatisfy { effectivePlannerVisibleProjectIds.contains($0.id) }
-    }
-
-    private func togglePlannerAllProjects() {
-        if allPlannerProjectsVisible {
-            plannerVisibleProjectIds.removeAll()
-        } else {
-            plannerVisibleProjectIds = Set(projectStore.projects.map(\.id))
-        }
-        plannerProjectsConfigured = true
-        UserDefaults.standard.set(Array(plannerVisibleProjectIds), forKey: "plannerVisibleProjects")
-    }
-
-    /// Состав раздела — ОДНО подменю на всё «Планирование». Тот же самый
-    /// `Menu` уезжает внутрь «Сегодня» (`TodaySectionView`), а не копируется:
-    /// состояние живёт здесь, расходиться нечему. Раньше копий было две, с
-    /// разными ключами в `UserDefaults`, и настройка в одном месте не влияла
-    /// на другое (владелец 10.09.2026 — вернуть пункт в «Сегодня», но общий).
-    @ViewBuilder
-    var sectionCompositionMenu: some View {
-        Menu {
-            if projectStore.projects.isEmpty {
-                Text("Нет проектов")
-            } else {
-                // «Все проекты» — одним тапом вместо пятнадцати. Отмечено,
-                // когда выбраны все; повторный тап снимает выбор целиком,
-                // чтобы дальше отметить один-два (просьба владельца
-                // 08.09.2026).
-                filterOption("Все проекты", selected: allPlannerProjectsVisible) {
-                    togglePlannerAllProjects()
-                }
-                Divider()
-                ForEach(projectStore.projects) { project in
-                    filterOption(project.name, selected: effectivePlannerVisibleProjectIds.contains(project.id)) {
-                        togglePlannerVisibleProject(project.id)
-                    }
-                }
-            }
-            // Владелец 09.09.2026: агентские задачи и выполненные — такие же
-            // условия состава раздела, как проекты, и жить им здесь же, а не
-            // отдельными переключателями в корне меню. Агентские до этого
-            // вырезались из «Планирования» жёстко, без возможности показать.
-            Divider()
-            filterOption("Агентские задачи", selected: plannerShowAgentTasks) {
-                togglePlannerAgentTasks()
-            }
-        } label: {
-            Label("Показывать в разделе", systemImage: "eye")
-        }
-        // Единственный пункт с МНОЖЕСТВЕННЫМ выбором, поэтому меню здесь не
-        // закрывается после каждой галочки. Владелец 08.09.2026: «по одному
-        // проекту выбирать — он свернул, ты опять открыл, свернул; а так
-        // прощёлкал их и всё». У одиночных фильтров поведение прежнее:
-        // выбрал — меню закрылось, это и ожидается.
-        .menuActionDismissBehavior(.disabled)
-    }
-
-    private func togglePlannerAgentTasks() {
-        plannerShowAgentTasks.toggle()
-        UserDefaults.standard.set(plannerShowAgentTasks, forKey: "plannerShowAgentTasks")
-    }
-
-    private func togglePlannerVisibleProject(_ id: String) {
-        if plannerVisibleProjectIds.contains(id) {
-            plannerVisibleProjectIds.remove(id)
-        } else {
-            plannerVisibleProjectIds.insert(id)
-        }
-        plannerProjectsConfigured = true
-        UserDefaults.standard.set(Array(plannerVisibleProjectIds), forKey: "plannerVisibleProjects")
     }
 }
 

@@ -33,7 +33,6 @@ struct UpcomingMonthView: View {
     /// от 1 числа), стартовая неделя уедет на месяц назад — открываемся
     /// на прошедшем месяце, а не на текущем.
     let initialMonth: (year: Int, month: Int)
-    let byDate: [String: [ApiTask]]
     let occurrences: [RoutineOccurrence]
     let onRoutineTap: (RoutineOccurrence) -> Void
     let onDayTap: (String) -> Void
@@ -45,14 +44,12 @@ struct UpcomingMonthView: View {
 
     init(
         initialMonday: String, initialMonth: (year: Int, month: Int),
-        byDate: [String: [ApiTask]],
         occurrences: [RoutineOccurrence] = [], onRoutineTap: @escaping (RoutineOccurrence) -> Void = { _ in },
         onDayTap: @escaping (String) -> Void,
         onVisibleMonthChange: @escaping (Int, Int) -> Void
     ) {
         self.initialMonday = initialMonday
         self.initialMonth = initialMonth
-        self.byDate = byDate
         self.occurrences = occurrences
         self.onRoutineTap = onRoutineTap
         self.onDayTap = onDayTap
@@ -176,11 +173,9 @@ struct UpcomingMonthView: View {
         let today = UpcomingDate.todayString()
         let isToday = ds == today
         let startsMonth = UpcomingDate.day(ds) == 1
-        let tasks = byDate[ds] ?? []
         let automations = occurrences.filter { $0.day() == ds }
         let shownAutomations = Array(automations.prefix(monthChipLimit))
-        let shown = Array(tasks.prefix(max(0, monthChipLimit - shownAutomations.count)))
-        let rest = tasks.count + automations.count - shown.count - shownAutomations.count
+        let rest = automations.count - shownAutomations.count
 
         return VStack(spacing: 2) {
             Text("\(UpcomingDate.day(ds))")
@@ -193,9 +188,6 @@ struct UpcomingMonthView: View {
 
             ForEach(shownAutomations) { occurrence in
                 RoutineOccurrenceRow(occurrence: occurrence, compact: true) { onRoutineTap(occurrence) }
-            }
-            ForEach(shown, id: \.id) { task in
-                UpcomingTaskChip(task: task, compact: true) { onDayTap(ds) }
             }
             if rest > 0 {
                 Text("+\(rest)").tfText(.micro).foregroundStyle(Color.tfDim)

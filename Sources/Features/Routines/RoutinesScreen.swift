@@ -52,7 +52,7 @@ struct RoutinesScreen: View {
                 RoutineFormScreen()
             }
             .navigationDestination(isPresented: $isShowingPlan) {
-                UpcomingScreen(routinesOnly: true)
+                UpcomingScreen()
             }
             .task { await model.load() }
             // Рутина изменилась на сервере (событие `schedule:changed`,
