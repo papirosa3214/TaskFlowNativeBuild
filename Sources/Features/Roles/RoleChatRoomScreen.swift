@@ -154,6 +154,9 @@ struct RoleChatRoomScreen: View {
     @State private var workMode: RoleChatWorkMode = .work
     /// Столбец участников справа (владелец 20.10.2026) — помнит, открыт ли.
     @State private var noticeMessage: String?
+    /// Идёт сжатие сессии этой роли — плашка «Сжимаю…» над лентой (владелец
+    /// 07.11.2026: «нажал сжать — никакой реакции»).
+    @State private var compactingRoleName: String?
     @State private var modelChoice = ChatModelChoice()
     @State private var workspaceChoice = ChatWorkspaceChoice()
     @State private var composerControls = ChatComposerControlStore()
@@ -1488,6 +1491,20 @@ struct RoleChatRoomScreen: View {
             chatScrollTrace.update({ $0.keyboardHeight = Double(height) }, event: "keyboard")
         }
         #endif
+        .overlay(alignment: .top) {
+            if let compactingRoleName {
+                HStack(spacing: TFSpacing.sm) {
+                    TFLoading(.inline)
+                    Text("Сжимаю сессию «\(compactingRoleName)»…")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfChatText)
+                }
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, TFSpacing.sm)
+                .background(Color.tfTile, in: Capsule())
+                .padding(.top, TFSpacing.sm)
+            }
+        }
         .overlay(alignment: .bottom) {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
@@ -1951,12 +1968,17 @@ struct RoleChatRoomScreen: View {
     private func deleteSelected() async {
         let ids = selectedMessageIDs
         guard !ids.isEmpty else { return }
+        // Сразу с экрана (владелец 07.11.2026: «нажал удалить — должно сразу
+        // удалиться»); сервер следом, не вышло — перечитываем ленту.
+        messages.removeAll { ids.contains($0.id) }
+        exitSelection()
         do {
             try await api.deleteRoleChatMessages(chatID: chat.id, ids: Array(ids))
             try? LocalStore.shared.deleteMessages(chatID: chat.id, ids: Array(ids))
-            messages.removeAll { ids.contains($0.id) }
-            exitSelection()
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            errorMessage = error.localizedDescription
+            await refresh()
+        }
     }
 
     /// Новая сессия (владелец 25.09.2026, docs/ПЛАН Супер Помощник владельца/):
@@ -1979,6 +2001,9 @@ struct RoleChatRoomScreen: View {
     }
 
     private func compact(_ member: RoleChatMember) async {
+        guard compactingRoleName == nil else { return }
+        compactingRoleName = member.name
+        defer { compactingRoleName = nil }
         do {
             try await api.compactRoleChatSession(chatID: chat.id, roleID: member.id)
             noticeMessage = "Сессия «\(member.name)» сжата."
@@ -1996,12 +2021,15 @@ struct RoleChatRoomScreen: View {
     }
 
     private func clearChat() async {
+        messages = []
+        exitSelection()
         do {
             try await api.deleteRoleChatMessages(chatID: chat.id)
             try? LocalStore.shared.deleteAllMessages(chatID: chat.id)
-            messages = []
-            exitSelection()
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            errorMessage = error.localizedDescription
+            await refresh()
+        }
     }
 
     /// Привязать чат к задаче (`taskID == nil` — отвязать). Сервер отвечает
