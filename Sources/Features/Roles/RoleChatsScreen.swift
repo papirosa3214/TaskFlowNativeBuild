@@ -2289,6 +2289,11 @@ struct RoleChatRoomScreen: View {
         let date: Date
     }
     private var feedItems: [FeedItem] {
+        // Видимые сообщения и ходы — один раз на сборку ленты: раньше каждое
+        // свойство считалось дважды, и вся история проходилась лишний раз
+        // на каждую пачку событий живого хода (06.11.2026).
+        let visibleMessages = self.visibleMessages
+        let visibleLiveTurns = self.visibleLiveTurns
         let history = visibleMessages.enumerated().map { index, message in
             return FeedItem(id: feedItemID(for: message),
                 dateString: message.createdAt, position: index, message: message, turn: nil,

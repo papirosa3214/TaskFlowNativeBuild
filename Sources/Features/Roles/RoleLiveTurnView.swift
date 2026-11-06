@@ -406,7 +406,7 @@ struct RoleLiveTurnBubble: View {
             defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
             // Часы работают только до опустошения очереди и проявления хвоста.
             while !Task.isCancelled && driver.isAnimating(now: .now) {
-                do { try await Task.sleep(for: .milliseconds(16)) } catch { break }
+                do { try await Task.sleep(for: RoleLiveFrame.interval) } catch { break }
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
                 if animating != fade.isAnimating { fade.isAnimating = animating }
@@ -543,6 +543,16 @@ struct RoleThinkingLiveRow: View {
     }
 }
 
+/// Частота кадров покадровых механизмов чата: часы живого хода и мыслей,
+/// блик «Думает…», проявление по буквам. 30 кадров/с вместо 60 (владелец
+/// 06.11.2026: «в чате крутятся пять покадровых механизмов… лечится
+/// настройкой»). Темп текста считается по прошедшему времени, не по числу
+/// тиков, поэтому скорость появления текста от частоты не зависит.
+enum RoleLiveFrame {
+    static let seconds: Double = 1.0 / 30
+    static let interval: Duration = .milliseconds(33)
+}
+
 /// «Думает…» с бликом, пробегающим по буквам — как индикатор в Claude.
 struct RoleShimmerText: View {
     let text: String
@@ -553,7 +563,7 @@ struct RoleShimmerText: View {
         if reduceMotion {
             label.foregroundStyle(Color.tfSub)
         } else {
-            TimelineView(.animation) { context in
+            TimelineView(.animation(minimumInterval: RoleLiveFrame.seconds)) { context in
                 let period = 1.8
                 let phase = context.date.timeIntervalSinceReferenceDate
                     .truncatingRemainder(dividingBy: period) / period
@@ -638,7 +648,7 @@ struct RoleThinkingWindow: View {
             let diagnosticID = driver.isAnimating(now: .now) ? AppDiagnostics.shared.begin(.thinking) : nil
             defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
             while !Task.isCancelled && driver.isAnimating(now: .now) {
-                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+                do { try await Task.sleep(for: RoleLiveFrame.interval) } catch { return }
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
                 if animating != fade.isAnimating { fade.isAnimating = animating }
@@ -1089,7 +1099,7 @@ private struct RoleTextRevealModifier: ViewModifier {
     @State private var history = RoleTextRevealHistory()
 
     func body(content: Content) -> some View {
-        TimelineView(.animation(minimumInterval: nil, paused: !fade.isAnimating)) { context in
+        TimelineView(.animation(minimumInterval: RoleLiveFrame.seconds, paused: !fade.isAnimating)) { context in
             content.textRenderer(RoleRevealRenderer(
                 fade: fade,
                 now: fade.isAnimating ? context.date : .distantFuture,
