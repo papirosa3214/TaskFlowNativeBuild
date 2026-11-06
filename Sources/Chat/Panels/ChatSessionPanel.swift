@@ -142,6 +142,12 @@ struct ChatSessionPanel: View {
         }
         // Шторка сессии — не лента чата: снова включаем шкалу из настроек.
         .environment(\.tfTypeSettingsEnabled, true)
+        // Каталог моделей и провайдеров перед показом — свежий (владелец
+        // 06.11.2026: в чате были старые данные, в настройках — свежие).
+        .onChange(of: showsModelPicker) { _, shows in
+            guard shows else { return }
+            Task { await choice.refresh(chat: chat) }
+        }
     }
 
     // MARK: - Строки

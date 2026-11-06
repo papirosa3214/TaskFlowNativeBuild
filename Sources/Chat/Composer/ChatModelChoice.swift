@@ -15,6 +15,8 @@ final class ChatModelChoice {
  private(set) var errorText: String?
  private var key: String?
  private var chatID: String?
+ /// Роль, для которой загружен каталог (нужна для обновления без чата).
+ private var loadedRole: String?
  private var usesSessionPreferences = false
  private var revision = 0
  private let api = APIClient()
@@ -40,6 +42,7 @@ final class ChatModelChoice {
   let roles = chat.composerRoleKeys
   guard roles.count == 1, let role = roles.first else { options = []; return }
   chatID = chat.id
+  loadedRole = role
   key = "roleChat.model." + chat.createdBy + "." + chat.id
   do {
    let result = try await api.roleModels(role: role)
@@ -71,6 +74,44 @@ final class ChatModelChoice {
   } catch {
    guard revision == version else { return }
    errorText = error.localizedDescription
+  }
+ }
+
+ /// Обновить каталог моделей и провайдеров без смены выбора.
+ ///
+ /// Владелец 06.11.2026: в чате список моделей был старым — он грузился
+ /// один раз при открытии чата, а настройки показывали свежий. Теперь окно
+ /// выбора модели перед показом спрашивает каталог заново.
+ func refresh() async {
+  guard let loadedRole else { return }
+  await refresh(role: loadedRole)
+ }
+
+ func refresh(chat: RoleChat) async {
+  let roles = chat.composerRoleKeys
+  guard roles.count == 1, let role = roles.first else { return }
+  await refresh(role: role)
+ }
+
+ /// Обновить каталог по уже известной роли — для окна выбора модели, где
+ /// чата под рукой нет.
+ func refresh(role: String) async {
+  let version = revision
+  do {
+   let result = try await api.roleModels(role: role)
+   guard revision == version else { return }
+   options = result.models
+   current = RoleModelOption.resolveSelection(result.current, in: options) ?? result.current
+   // Выбранная модель могла уйти из каталога — тогда выбор возвращается
+   // к модели роли, а не остаётся на несуществующей.
+   if let selected, !options.contains(where: { $0.id == selected }) {
+    self.selected = RoleModelOption.resolveSelection(current, in: options)
+    thinkingLevel = nil
+   }
+  } catch {
+   guard version == revision else { return }
+   // Старый список лучше пустого: показываем его и пишем об ошибке.
+   if options.isEmpty { errorText = error.localizedDescription }
   }
  }
 
@@ -125,6 +166,11 @@ struct ChatModelMenu<MenuLabel: View>: View {
    .accessibilityLabel("Модель: " + choice.title)
    .tfSheet(isPresented: $showsPicker) {
     ChatModelPickerSheet(choice: choice)
+   }
+   // Каталог перед показом — свежий (владелец 06.11.2026).
+   .onChange(of: showsPicker) { _, shows in
+    guard shows else { return }
+    Task { await choice.refresh() }
    }
  }
 }
