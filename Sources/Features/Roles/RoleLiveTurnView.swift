@@ -410,15 +410,21 @@ struct RoleLiveTurnBubble: View {
             // завтыкало, зависло и пук»).
             var lastBeat = Date()
             var lastReport = Date()
+            var maxGap = 0.0
+            var hitches = 0
             while !Task.isCancelled && driver.isAnimating(now: .now) {
                 do { try await Task.sleep(for: RoleLiveFrame.pacing) } catch { break }
                 let beat = Date()
                 let gap = beat.timeIntervalSince(lastBeat)
                 lastBeat = beat
-                if gap > 0.25 || beat.timeIntervalSince(lastReport) > 2 {
+                maxGap = max(maxGap, gap)
+                if gap > 0.05 { hitches += 1 }
+                if beat.timeIntervalSince(lastReport) > 2 {
                     lastReport = beat
                     let shown = driver.pacer.visibleCharacters.reduce(0, +)
-                    ClientLog.shared.add("bubble:\(gap > 0.25 ? "STALL" : "tick") turn=\(turn.playbackID) gap_ms=\(Int(gap * 1000)) shown=\(shown) pending=\(driver.pacer.pendingCharacters) rate=\(Int(driver.pacer.rate)) items=\(visibleItems.count) complete=\(isComplete)")
+                    ClientLog.shared.add("bubble:tick turn=\(turn.playbackID) max_gap_ms=\(Int(maxGap * 1000)) hitches50=\(hitches) shown=\(shown) pending=\(driver.pacer.pendingCharacters) rate=\(Int(driver.pacer.rate)) items=\(visibleItems.count) complete=\(isComplete)")
+                    maxGap = 0
+                    hitches = 0
                 }
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
