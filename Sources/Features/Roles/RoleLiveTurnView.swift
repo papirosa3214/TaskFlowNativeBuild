@@ -405,8 +405,21 @@ struct RoleLiveTurnBubble: View {
             let diagnosticID = driver.isAnimating(now: .now) ? AppDiagnostics.shared.begin(.reply) : nil
             defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
             // Часы работают только до опустошения очереди и проявления хвоста.
+            // Журнал телефона: подвисание (такт пришёл позже 250 мс) и ход
+            // печати раз в 2 с (владелец 07.11.2026: «сначала плавно, потом
+            // завтыкало, зависло и пук»).
+            var lastBeat = Date()
+            var lastReport = Date()
             while !Task.isCancelled && driver.isAnimating(now: .now) {
                 do { try await Task.sleep(for: RoleLiveFrame.pacing) } catch { break }
+                let beat = Date()
+                let gap = beat.timeIntervalSince(lastBeat)
+                lastBeat = beat
+                if gap > 0.25 || beat.timeIntervalSince(lastReport) > 2 {
+                    lastReport = beat
+                    let shown = driver.pacer.visibleCharacters.reduce(0, +)
+                    ClientLog.shared.add("bubble:\(gap > 0.25 ? "STALL" : "tick") turn=\(turn.playbackID) gap_ms=\(Int(gap * 1000)) shown=\(shown) pending=\(driver.pacer.pendingCharacters) rate=\(Int(driver.pacer.rate)) items=\(visibleItems.count) complete=\(isComplete)")
+                }
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
                 if animating != fade.isAnimating { fade.isAnimating = animating }
