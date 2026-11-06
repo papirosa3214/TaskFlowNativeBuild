@@ -203,15 +203,15 @@ struct WidgetSkeletonCard: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                bar(ratio: row.ratio, height: row.height)
+        // Та же подложка, что у готового виджета (`WidgetCard`).
+        TFCard(padding: TFSpacing.lg, bordered: true) {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    bar(ratio: row.ratio, height: row.height)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(TFSpacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.xl))
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Виджет готовится")
     }

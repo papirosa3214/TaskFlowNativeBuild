@@ -75,6 +75,16 @@ private struct MetricsDelta: View {
 
 /// `checklist` с полями `tone`/`meta`/`progress`: у пункта появляется статус и
 /// вторичная величина справа, поэтому строка перестаёт быть просто пунктом.
+/// Линия между пунктами чек-листа — того же тёмно-красного, что рамка
+/// карточки (владелец 06.11.2026: серые на тёмной подложке слипаются).
+struct ChecklistDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.tfFieldBorder)
+            .frame(height: TFBorder.width)
+    }
+}
+
 struct ChecklistRowsWidget: View {
     let items: [WidgetData]
     /// nil — виджет вне переписки: отметка локальная (галерея, превью).
@@ -83,8 +93,9 @@ struct ChecklistRowsWidget: View {
     @State private var toggled: Set<Int> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                if index > 0 { ChecklistDivider() }
                 ChecklistStatusRow(item: item,
                                    ink: WidgetInk(scheme),
                                    isDone: isDone(index: index, item: item),

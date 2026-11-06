@@ -264,21 +264,23 @@ struct WidgetData {
 
 /// Подложка виджета. Не `private`: ею пользуются все восемь новых типов и
 /// компоновки из `Widgets/`.
+///
+/// Вид — как карточки «Настроек» (владелец 06.11.2026): тёмная подложка и
+/// тонкая тёмно-красная рамка, тот же `TFCard(bordered: true)`.
 struct WidgetCard<Content: View>: View {
     var title: String?
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            if let title {
-                Text(title).tfText(.title).foregroundStyle(Color.tfChatText)
+        TFCard(padding: TFSpacing.lg, bordered: true) {
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                if let title {
+                    Text(title).tfText(.title).foregroundStyle(Color.tfChatText)
+                }
+                content
             }
-            content
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(TFSpacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.xl))
-        .overlay(RoundedRectangle(cornerRadius: TFRadius.xl).strokeBorder(Color.tfStroke, lineWidth: TFBorder.width))
     }
 }
 
@@ -476,8 +478,11 @@ private struct ChecklistWidget: View {
 
     var body: some View {
         WidgetCard(title: data.string("title")) {
+            // Пункты разделены линией цвета рамки (`ChecklistDivider`).
+            VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(data.array("items").enumerated()), id: \.offset) { index, item in
                 let done = isDone(index: index, item: item)
+                if index > 0 { ChecklistDivider() }
                 Button {
                     toggle(index: index, item: item)
                 } label: {
@@ -489,10 +494,12 @@ private struct ChecklistWidget: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                .frame(minHeight: TFHitTarget.min)
                 .buttonStyle(.plain)
                 .sensoryFeedback(.selection, trigger: done)
                 .accessibilityLabel(item.string("text") ?? "Пункт")
                 .accessibilityValue(done ? "Отмечен" : "Не отмечен")
+            }
             }
             ChecklistSyncNotice(failure: binding?.failure())
         }
