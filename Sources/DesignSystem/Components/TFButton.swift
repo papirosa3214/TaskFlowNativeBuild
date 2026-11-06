@@ -1,48 +1,26 @@
 import SwiftUI
 
-// Кнопки — spec/DESIGN-TOKENS.md §4 «Кнопки». Три вида, все 48px/12px радиус/15px 600.
-// Нажатие — не тень/подъём, а `tap-scale` (0.94, мгновенно, без анимации на снятие);
-// на native ближайший честный эквивалент — `.scaleEffect` без implicit animation delay.
+// Кнопки (владелец 06.11.2026, скрин «Повторить»): все кнопки — маленькие
+// красные системные капсулы по размеру подписи, как действие пустого
+// состояния (`TFEmptyState`): `.borderedProminent` + красный. Раньше была
+// полноширинная плашка 48 pt с тёмно-красным градиентом и кромкой.
 //
-// 03.11.2026, владелец: заливка — градиент тёмно-красный по краям к тёмно-серому
-// в середине, окантовка того же тёмно-красного. Primary держит центр чуть
-// краснее, чтобы белый текст оставался читаемым.
+// Вид у всех вариантов один; вариант оставлен в API, чтобы не трогать 74
+// места вызова, и пригодится, если владелец захочет различать вторичные.
 public enum TFButtonVariant {
     case primary
     case secondary
     case outline
-
-    var foreground: Color {
-        switch self {
-        case .primary: .white
-        case .secondary: .tfText
-        case .outline: .tfSub
-        }
-    }
-
-    var hasStroke: Bool { true }
-
-    var stroke: Color {
-        // Все виды — тёмно-красная кромка рутины, не светлый `tfStroke`.
-        .tfButtonEdge
-    }
 }
 
-/// Полноширинная кнопка (`Button`, UI.tsx). Иконка опциональна — используется,
-/// например, в «Завершить задачу» (check 16px) / «Открыть заново» (sync).
+/// Кнопка-капсула по размеру подписи. Иконка опциональна — используется,
+/// например, в «Завершить задачу» (check) / «Открыть заново» (sync).
 public struct TFButton: View {
     let title: String
     let icon: String?
     let variant: TFButtonVariant
     let isEnabled: Bool
     let action: () -> Void
-
-    /// 14.09.2026, Dynamic Type: высота растёт вместе с текстом.
-    /// Было жёсткое `.frame(height: 48)` — при увеличенном системном размере
-    /// подпись кнопки обрезалась. Берём `minHeight`, а не `height`: базовый
-    /// ритм 48 сохраняется на дефолтном размере, но при крупном тексте
-    /// кнопка вырастает, а не режет содержимое.
-    @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = TFButtonMetrics.height
 
     public init(
         _ title: String,
@@ -60,62 +38,15 @@ public struct TFButton: View {
 
     public var body: some View {
         Button(action: action) {
-            HStack(spacing: TFSpacing.sm) {
-                if let icon {
-                    Image(systemName: icon)
-                        .tfTypeFont(size: 16, weight: .semibold)
-                }
+            if let icon {
+                Label(title, systemImage: icon)
+            } else {
                 Text(title)
-                    .tfText(.body)
-                    .fontWeight(.semibold)
-                    .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: minHeight)
-            .foregroundStyle(variant.foreground)
-            .background { fill }
-            .overlay {
-                if variant.hasStroke {
-                    RoundedRectangle(cornerRadius: TFButtonMetrics.radius, style: .continuous)
-                        .strokeBorder(variant.stroke, lineWidth: TFBorder.width)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: TFButtonMetrics.radius, style: .continuous))
         }
-        .buttonStyle(TFTapScaleStyle())
-        .opacity(isEnabled ? 1 : 0.5)
+        .buttonStyle(.borderedProminent)
+        .tint(.tfRed)
         .disabled(!isEnabled)
-    }
-
-    /// Края — тёмно-красный `tfButtonEdge` (= `tfFieldBorder`), середина —
-    /// почти чёрный `tfFieldDark`, как поля рутины (владелец 03.11.2026).
-    @ViewBuilder private var fill: some View {
-        switch variant {
-        case .primary:
-            RadialGradient(
-                colors: [
-                    Color.tfButtonEdge.opacity(0.85),
-                    Color.tfFieldDark,
-                    Color.tfButtonEdge
-                ],
-                center: .center,
-                startRadius: 4,
-                endRadius: 120
-            )
-        case .secondary:
-            RadialGradient(
-                colors: [
-                    Color.tfFieldDark,
-                    Color.tfFieldDark,
-                    Color.tfButtonEdge
-                ],
-                center: .center,
-                startRadius: 8,
-                endRadius: 130
-            )
-        case .outline:
-            Color.clear
-        }
     }
 }
 

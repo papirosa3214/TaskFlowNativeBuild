@@ -236,8 +236,8 @@ struct RoleEditorSheet: View {
     }
 
     private var actions: some View {
+        // Одна кнопка (владелец 06.11.2026): закрыть без сохранения — смахиванием.
         HStack(spacing: TFSpacing.md) {
-            TFButton("Отмена", variant: .secondary) { dismiss() }
             TFButton(saveButtonTitle, icon: "checkmark", variant: .secondary,
                      isEnabled: canSave && !isSaving && !isTogglingEnabled) {
                 Task { await save() }
