@@ -274,6 +274,7 @@ struct RootView: View {
         // Канал команд телефону (`device_op`): телефон отвечает на команды
         // сервера, пока приложение живо.
         Task { await DeviceOpsChannel.shared.start() }
+        LiveActivityService.attachForeground(realtimeClient)
         LiveActivityService.restore(api: APIClient())
 
         Task {

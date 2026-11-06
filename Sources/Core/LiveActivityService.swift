@@ -1,5 +1,6 @@
 // LiveActivityService.swift
-// Dynamic Island получает изменения по отдельному WebSocket.
+// Dynamic Island получает изменения по сокету: пока приложение на экране —
+// по общему сокету приложения, в фоне — по своему (общий в фоне закрыт).
 // Геолокационный keep-alive остаётся, пока есть активные островки;
 // ActivityKit сообщает об их завершении/закрытии, и тогда фон освобождается.
 // REST нужен при запуске, восстановлении связи и уведомлении об изменении,
@@ -7,6 +8,7 @@
 
 import ActivityKit
 import Foundation
+import UIKit
 
 @available(iOS 16.2, *)
 @MainActor
@@ -95,7 +97,72 @@ enum LiveActivityService {
     private static var refreshTasks: [String: Task<Void, Never>] = [:]
     private static var refreshIDs: [String: UUID] = [:]
     private static var dirtyRefreshIDs: Set<String> = []
+    /// Свой сокет островка — только для фона: общий сокет приложения в фоне
+    /// закрывается. Пока приложение на экране, островок слушает общий сокет:
+    /// раньше свой держался открытым и тогда, и телефон получал каждое
+    /// событие дважды (аудит синхронизации 06.11.2026).
     private static let realtime = RealtimeClient(allowsBackgroundConnection: true)
+    /// Общий сокет приложения. Не задан — островок живёт на своём сокете
+    /// всегда, как до 06.11.2026.
+    private static weak var foregroundClient: RealtimeClient?
+    private static var foregroundObserverID: UUID?
+    private static var transportAPI: APIClient?
+    private static var lifecycleObservers: [NSObjectProtocol] = []
+
+    /// Подключить общий сокет приложения: на экране островок слушает его.
+    static func attachForeground(_ client: RealtimeClient) {
+        foregroundClient = client
+        guard lifecycleObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        for name in [UIApplication.didEnterBackgroundNotification, UIApplication.didBecomeActiveNotification] {
+            lifecycleObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { _ in
+                Task { @MainActor in
+                    guard let api = transportAPI else { return }
+                    syncTransport(api: api, catchUp: true)
+                }
+            })
+        }
+    }
+
+    /// Событие сокета для островка — одинаково из общего и своего сокета.
+    private static func handle(_ event: RealtimeEvent, api: APIClient) {
+        switch event {
+        case .connected:
+            // Связь поднялась заново — за разрыв события могли потеряться.
+            for activity in activeActivities { refresh(taskID: activity.attributes.taskId, api: api) }
+        case .taskChanged(let id): refresh(taskID: id, api: api)
+        case .taskCreated(let task), .taskUpdated(let task), .taskState(let task), .taskCompleted(let task):
+            refresh(taskID: task.id, api: api)
+        case .taskDeleted(let id): Task { await end(taskID: id, api: api) }
+        default: break
+        }
+    }
+
+    /// Какой сокет слушать: на экране — общий, в фоне — свой.
+    /// `catchUp` — при смене сокета перечитать островки: событие, пришедшее
+    /// в момент переключения, не потеряется.
+    private static func syncTransport(api: APIClient, catchUp: Bool) {
+        transportAPI = api
+        guard !activeActivities.isEmpty else { return }
+        let inForeground = UIApplication.shared.applicationState != .background
+        if inForeground, let client = foregroundClient {
+            realtime.disconnect()
+            if foregroundObserverID == nil {
+                foregroundObserverID = client.addObserver { event in handle(event, api: api) }
+            }
+        } else {
+            detachForeground()
+            realtime.connect()
+        }
+        if catchUp {
+            for activity in activeActivities { refresh(taskID: activity.attributes.taskId, api: api) }
+        }
+    }
+
+    private static func detachForeground() {
+        if let id = foregroundObserverID { foregroundClient?.removeObserver(id) }
+        foregroundObserverID = nil
+    }
 
     static func restore(api: APIClient) {
         for activity in activeActivities { watch(activity, api: api) }
@@ -127,20 +194,9 @@ enum LiveActivityService {
                 try? await api.registerLiveActivityToken(taskId: id, token: token)
             }
         }
-        realtime.onEvent = { event in
-            switch event {
-            case .taskChanged(let id): refresh(taskID: id, api: api)
-            case .taskCreated(let task), .taskUpdated(let task), .taskState(let task), .taskCompleted(let task):
-                refresh(taskID: task.id, api: api)
-            case .taskDeleted(let id): Task { await end(taskID: id, api: api) }
-            default: break
-            }
-        }
-        realtime.onReconnected = {
-            for activity in activeActivities { refresh(taskID: activity.attributes.taskId, api: api) }
-        }
+        realtime.onEvent = { event in handle(event, api: api) }
         BackgroundKeepAlive.shared.start()
-        realtime.connect()
+        syncTransport(api: api, catchUp: false)
         refresh(taskID: id, api: api)
     }
 
@@ -189,6 +245,7 @@ enum LiveActivityService {
         guard activeActivities.isEmpty else { return }
         for id in Array(activityObservers.keys) { clearResources(taskID: id) }
         realtime.disconnect()
+        detachForeground()
         BackgroundKeepAlive.shared.stop()
     }
 
