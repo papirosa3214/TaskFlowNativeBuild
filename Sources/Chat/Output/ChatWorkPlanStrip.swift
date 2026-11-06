@@ -34,13 +34,27 @@ struct ChatWorkPlanStrip: View {
     }
 
     var body: some View {
-        ChatWorkPlanRows(plans: plans, members: members, floating: true)
+        ChatWorkPlanRows(plans: plans, members: members, floating: true,
+                         onDelete: { plan in Task { await delete(plan) } })
             .task(id: "\(chatID):\(revision)") { await load() }
             .onChange(of: event) { _, event in
                 guard let event, let updated = ChatWorkPlan.applyingEvent(event, chatID: chatID, to: plans) else { return }
                 Self.lastPlans[chatID] = updated
                 if updated != plans { plans = updated }
             }
+    }
+
+    /// Удалить чек-лист роли (владелец 06.11.2026: «по долгому нажатию
+    /// удалял»). Строка уходит сразу; не вышло — план возвращается с сервера.
+    private func delete(_ plan: ChatWorkPlan) async {
+        let remaining = plans.filter { $0.roleID != plan.roleID }
+        plans = remaining
+        Self.lastPlans[chatID] = remaining
+        do {
+            let _: APIOkResponse = try await APIClient().request(.delete, "/chats/\(chatID)/work-plans/\(plan.roleID)")
+        } catch {
+            await load()
+        }
     }
 
     private func load() async {
@@ -60,6 +74,9 @@ struct ChatWorkPlanRows: View {
     /// Висячая карточка над лентой, как пул задач в «Дне» (владелец 28.10.2026):
     /// подложка не до краёв, вокруг неё лента остаётся видна.
     var floating: Bool = false
+    /// Долгое нажатие → «Удалить чек-лист». Нет обработчика — нет пункта
+    /// (отладочная галерея кадров).
+    var onDelete: ((ChatWorkPlan) -> Void)? = nil
     @State private var expanded: Set<String> = []
 
     var body: some View {
@@ -124,6 +141,11 @@ struct ChatWorkPlanRows: View {
         .accessibilityLabel("План: \(name(plan.roleID)), выполнено \(plan.doneCount) из \(plan.items.count)")
         .accessibilityValue(isOpen ? "Раскрыто" : "Свёрнуто")
         .accessibilityIdentifier("chat.workPlan.\(plan.roleID)")
+        .contextMenu {
+            if let onDelete {
+                Button("Удалить чек-лист", systemImage: "trash", role: .destructive) { onDelete(plan) }
+            }
+        }
         .hintAnchor(HintAnchorID.chatWorkPlan)
     }
 
