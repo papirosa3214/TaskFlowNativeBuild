@@ -25,6 +25,10 @@ struct RoleMessageReveal<Content: View>: View {
     /// сообщений при прокрутке дёргало автопривязку к низу. Поэтому
     /// анимируется только новое сообщение, и только когда лента внизу.
     var animate: Bool = true
+    /// Темп: медленный — только для обычного текста; отчёты, таблицы и
+    /// виджеты — прежний быстрый (владелец 06.11.2026: «замедление нужно
+    /// только для текста, не для вывода инструментов»).
+    var pace: RoleMessageRevealPace = .prose
     @ViewBuilder let content: () -> Content
 
     @State private var fade: RoleTextFade?
@@ -62,9 +66,9 @@ struct RoleMessageReveal<Content: View>: View {
         guard animate, !text.isEmpty else { return }
         finished = true
         let length = Double(max(text.count, 1))
-        let lag = min(RoleMessageRevealTiming.maximumLag,
-                      max(RoleMessageRevealTiming.minimumLag, length / RoleMessageRevealTiming.charsPerSecond))
-        let rate = min(RoleLiveTextPacer.maxRate, max(RoleMessageRevealTiming.minimumRate, length / lag))
+        let timing = pace.timing
+        let lag = min(timing.maximumLag, max(timing.minimumLag, length / timing.charsPerSecond))
+        let rate = min(RoleLiveTextPacer.maxRate, max(timing.minimumRate, length / lag))
         // Проявление вперёд: буквы готового сообщения печатаются по порядку,
         // а не гаснут одним куском. Идущий ответ так не проявляется — там
         // хвост (см. `RoleTextFade.revealsForward`).
@@ -109,25 +113,45 @@ enum RoleMessageRevealLifecycle {
 extension View {
     /// Оборачивает только текст ответа роли — вложения и карточки идут рядом
     /// и появляются сразу.
-    func roleMessageReveal(text: String, messageID: String, animate: Bool = true) -> some View {
-        RoleMessageReveal(text: text, messageID: messageID, animate: animate) { self }
+    func roleMessageReveal(text: String, messageID: String, animate: Bool = true,
+                           pace: RoleMessageRevealPace = .prose) -> some View {
+        RoleMessageReveal(text: text, messageID: messageID, animate: animate, pace: pace) { self }
     }
 }
 
-/// Темп проявления держим вне обобщённого вида: Swift не разрешает статические
-/// хранимые свойства в generic-типах.
-private enum RoleMessageRevealTiming {
-    /// Долгую речь не растягиваем на десятки секунд: чем длиннее текст, тем
-    /// быстрее идёт проявление, но нижняя граница остаётся читаемой.
-    ///
-    /// Владелец 06.11.2026: «плавность прям усилить» — проявление примерно в
-    /// 1,7 раза медленнее прежнего (было 0,9–2,6 с при ~90 знаках в секунду).
-    static let minimumLag: TimeInterval = 1.6
-    static let maximumLag: TimeInterval = 4.5
+/// Темп проявления готового сообщения.
+enum RoleMessageRevealPace {
+    /// Обычный текст ответа — медленно и плавно.
+    case prose
+    /// Отчёт, таблица, виджет, вывод инструментов — прежний быстрый темп.
+    case structured
+
+    /// Есть ли в тексте таблица или блок ``` (код, виджет) — тогда темп быстрый.
+    static func of(markdown text: String) -> RoleMessageRevealPace {
+        text.contains("```") || text.contains("\n|") || text.hasPrefix("|") ? .structured : .prose
+    }
+
+    var timing: RoleMessageRevealTiming {
+        switch self {
+        // Владелец 06.11.2026: «плавность прям усилить» — проза примерно в
+        // 1,7 раза медленнее прежнего. Свой нижний предел 30 знаков/с: общий
+        // `RoleLiveTextPacer.minRate` (60) оставил бы короткую фразу быстрой.
+        case .prose:
+            return RoleMessageRevealTiming(minimumLag: 1.6, maximumLag: 4.5, charsPerSecond: 50, minimumRate: 30)
+        // Прежний темп (до 06.11.2026) — для всего, что не проза.
+        case .structured:
+            return RoleMessageRevealTiming(minimumLag: 0.9, maximumLag: 2.6, charsPerSecond: 90,
+                                           minimumRate: RoleLiveTextPacer.minRate)
+        }
+    }
+}
+
+/// Границы темпа: долгий текст не растягиваем на десятки секунд — чем длиннее,
+/// тем быстрее идёт проявление, но нижняя граница остаётся читаемой.
+struct RoleMessageRevealTiming {
+    let minimumLag: TimeInterval
+    let maximumLag: TimeInterval
     /// Базовый темп: сколько знаков в секунду, пока не упёрлись в границы.
-    static let charsPerSecond: Double = 50
-    /// Свой нижний предел темпа: общий `RoleLiveTextPacer.minRate` (60) —
-    /// для идущего ответа, и короткая фраза упиралась бы в него, оставаясь
-    /// такой же быстрой.
-    static let minimumRate: Double = 30
+    let charsPerSecond: Double
+    let minimumRate: Double
 }

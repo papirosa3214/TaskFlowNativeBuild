@@ -3104,7 +3104,7 @@ struct RoleChatRoomScreen: View {
             // обрывалось на середине.
             ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands)
                 .roleMessageReveal(text: json, messageID: message.id,
-                                   animate: shouldRevealMessage(message))
+                                   animate: shouldRevealMessage(message), pace: .structured)
         } else {
             RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
                 .equatable()
@@ -3112,7 +3112,8 @@ struct RoleChatRoomScreen: View {
                 // иначе проявление старых строк при прокрутке дёргает
                 // автопривязку к низу (жалоба владельца 17.10.2026).
                 .roleMessageReveal(text: message.text, messageID: message.id,
-                                   animate: shouldRevealMessage(message))
+                                   animate: shouldRevealMessage(message),
+                                   pace: .of(markdown: message.text))
         }
     }
 
