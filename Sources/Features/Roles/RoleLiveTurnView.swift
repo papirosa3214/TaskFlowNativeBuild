@@ -1006,8 +1006,6 @@ final class RoleTextRevealTimeline {
 final class RoleTextRevealHistory {
     /// Хвост идущего текста: одна история на весь растущий текст.
     private var tail = RoleTextRevealTimeline()
-    /// Хвост: своя история на каждый текст кадра (ключ — порядок отрисовки).
-    private var tailPerText: [Int: RoleTextRevealTimeline] = [:]
     /// Готовое сообщение: своя история на каждый независимый текст.
     /// Ключ — порядковый слот отрисовки в кадре (0, 1, 2…), а не длина:
     /// абзацы одной длины иначе делили один хвост и проявлялись синхронно
@@ -1032,25 +1030,12 @@ final class RoleTextRevealHistory {
                 start: Date? = nil, forward: Bool = true) {
         let base = start ?? now
         guard forward else {
-            // Хвост идущего текста: своя история у КАЖДОГО текста кадра
-            // (абзацы, куски между блоками). Одна общая история на все тексты
-            // путала их длины, и посреди строк оставались непроявленные дыры
-            // (владелец 07.11.2026, скрин).
-            if frameNow != now {
-                frameNow = now
-                frameSlot = 0
-            }
-            let slot = frameSlot
-            frameSlot += 1
-            let timeline: RoleTextRevealTimeline
-            if let existing = tailPerText[slot] {
-                timeline = existing
-            } else {
-                timeline = slot == 0 ? tail : RoleTextRevealTimeline()
-                tailPerText[slot] = timeline
-            }
-            current = timeline
-            timeline.record(count: count, now: now, rate: rate, animated: animated, start: base, forward: false)
+            // Хвост идущего текста: текст один и растёт кадрами.
+            frameNow = nil
+            frameOffset = 0
+            frameSlot = 0
+            current = tail
+            tail.record(count: count, now: now, rate: rate, animated: animated, start: base, forward: false)
             return
         }
         if self.start != base {
