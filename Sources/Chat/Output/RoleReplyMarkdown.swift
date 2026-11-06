@@ -51,12 +51,13 @@ struct RoleReplyMarkdown: View, Equatable {
                 // за ней не пересоздаётся и не мигает (владелец 07.11.2026).
                 let keys = Self.segmentKeys(segments)
                 ForEach(Array(zip(keys, segments.indices)), id: \.0) { pair in
-                    // fade только у корня ниже — не у каждого куска.
-                    segmentView(segments[pair.1], fade: nil, widgetKey: widgetKey(in: segments, at: pair.1))
+                    segmentView(segments[pair.1], fade: Self.tailFade(fade, isLast: pair.1 == segments.count - 1),
+                                widgetKey: widgetKey(in: segments, at: pair.1))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .roleReveal(fade)
+            // Готовое сообщение — одна история на всё (печать сверху вниз).
+            .roleReveal(fade?.revealsForward == true ? fade : nil)
         }
     }
 
@@ -85,9 +86,9 @@ struct RoleReplyMarkdown: View, Equatable {
     private func segmentView(_ segment: ChatRichSegment, fade: RoleTextFade?, widgetKey: String?) -> some View {
         switch segment {
         case .markdown(let part):
-            RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: nil)
+            RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: fade)
         case .document(let blocks, _):
-            documentBody(blocks)
+            documentBody(blocks, fade: fade)
         case .table(let table):
             ChatTableView(table: table, color: color)
         case .widget(let json):
@@ -139,7 +140,8 @@ struct RoleReplyMarkdown: View, Equatable {
 
     /// Блоки текста — разобранные здесь или пришедшие с сервера готовыми.
     @ViewBuilder
-    private func documentBody(_ parsed: [NoteBlock]) -> some View {
+    private func documentBody(_ parsed: [NoteBlock], fade: RoleTextFade?? = .none) -> some View {
+        let fade: RoleTextFade? = fade ?? self.fade
         let blocks = Self.numbered(parsed)
         // Один `roleReveal` на всё дерево: иначе каждый `Text` заводит свою
         // историю и абзацы одной длины проявляются синхронно (владелец
@@ -148,11 +150,18 @@ struct RoleReplyMarkdown: View, Equatable {
             // Индекс, а не id блока: парсер раздаёт новые UUID на каждый
             // разбор, а живой текст разбирается заново каждые 150 мс.
             ForEach(Array(blocks.enumerated()), id: \.offset) { index, item in
+                // Идущий ответ: проявляется только последний, растущий блок;
+                // все выше уже напечатаны. Одна история на все блоки путала
+                // их длины — от заголовков оставались первые буквы
+                // (владелец 07.11.2026, скрин «Д / И / Итог»).
                 blockView(item.block, number: item.number)
+                    .roleReveal(fade?.revealsForward == false
+                                ? Self.tailFade(fade, isLast: index == blocks.count - 1) : nil)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .roleReveal(fade)
+        // Готовое сообщение — одна история на всё дерево (печать сверху вниз).
+        .roleReveal(fade?.revealsForward == true ? fade : nil)
     }
 
     /// Сколько символов идёт после каждого блока — хвост проявляется по
@@ -484,5 +493,15 @@ extension RoleReplyMarkdown {
                 return "block-\(block)"
             }
         }
+    }
+}
+
+extension RoleReplyMarkdown {
+    /// Хвост идущего ответа — только у последнего куска; у остальных та же
+    /// модификация, но без анимации (вью не пересоздаётся, текст виден весь).
+    static func tailFade(_ fade: RoleTextFade?, isLast: Bool) -> RoleTextFade? {
+        guard var fade, !fade.revealsForward else { return fade }
+        if !isLast { fade.isAnimating = false }
+        return fade
     }
 }
