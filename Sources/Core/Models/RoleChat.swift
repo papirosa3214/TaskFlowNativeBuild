@@ -664,7 +664,10 @@ struct RoleLiveTextPacer {
     /// Запас очереди (знаков), при котором слово выпускается по буквам, а не
     /// целиком. Ниже этого запаса буквы идут по словам — так хвост не мигает
     /// недописанными словами.
-    static let partialWordBacklog: Int = 24
+    /// Выпуск по буквам выключен (владелец 07.11.2026: «плавности нет,
+    /// дёргается»): слово, начатое в конце строки, при росте переставало
+    /// влезать и прыгало на следующую строку. Слова снова идут целиком.
+    static let partialWordBacklog: Int = .max
 
     mutating func ingest(_ incoming: [RoleChatLiveItem], isFinal: Bool = false) {
         // Rich blocks bypass the prose clock, including unfinished blocks whose
@@ -1143,7 +1146,11 @@ extension RoleChatLiveTurn {
         // ней (ревью ленты п.1.3, владелец 30.10.2026).
         // Текст сохранённого снимка заменяет промежуточные версии по порядку,
         // а не добавляется рядом: иначе остаются обрывки и полный дубль.
-        let savedTexts = (message.steps?.items ?? []).compactMap { item -> String? in
+        // Ответ с конвертом: сохранённый текст хода — сырой JSON конверта.
+        // Его в пузырь не берём: пузырь допечатывает то, что пришло потоком,
+        // потом место занимает конверт (владелец 07.11.2026, скрин с JSON).
+        let structured = message.hasStructuredAnswer
+        let savedTexts = structured ? [] : (message.steps?.items ?? []).compactMap { item -> String? in
             if case .text(let text) = item { return text }; return nil
         }
         var replacedTexts = 0
@@ -1165,7 +1172,7 @@ extension RoleChatLiveTurn {
         for item in message.steps?.items ?? [] {
             switch item {
             case .text:
-                if savedTextIndex >= replacedTexts { merged.append(item) }
+                if !structured && savedTextIndex >= replacedTexts { merged.append(item) }
                 savedTextIndex += 1
             case .step(let step):
                 guard !known.contains("step:" + step.id) else { continue }
