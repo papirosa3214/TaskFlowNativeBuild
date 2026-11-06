@@ -63,8 +63,8 @@ struct RoleMessageReveal<Content: View>: View {
         finished = true
         let length = Double(max(text.count, 1))
         let lag = min(RoleMessageRevealTiming.maximumLag,
-                      max(RoleMessageRevealTiming.minimumLag, length / 90))
-        let rate = min(RoleLiveTextPacer.maxRate, max(RoleLiveTextPacer.minRate, length / lag))
+                      max(RoleMessageRevealTiming.minimumLag, length / RoleMessageRevealTiming.charsPerSecond))
+        let rate = min(RoleLiveTextPacer.maxRate, max(RoleMessageRevealTiming.minimumRate, length / lag))
         // Проявление вперёд: буквы готового сообщения печатаются по порядку,
         // а не гаснут одним куском. Идущий ответ так не проявляется — там
         // хвост (см. `RoleTextFade.revealsForward`).
@@ -119,6 +119,15 @@ extension View {
 private enum RoleMessageRevealTiming {
     /// Долгую речь не растягиваем на десятки секунд: чем длиннее текст, тем
     /// быстрее идёт проявление, но нижняя граница остаётся читаемой.
-    static let minimumLag: TimeInterval = 0.9
-    static let maximumLag: TimeInterval = 2.6
+    ///
+    /// Владелец 06.11.2026: «плавность прям усилить» — проявление примерно в
+    /// 1,7 раза медленнее прежнего (было 0,9–2,6 с при ~90 знаках в секунду).
+    static let minimumLag: TimeInterval = 1.6
+    static let maximumLag: TimeInterval = 4.5
+    /// Базовый темп: сколько знаков в секунду, пока не упёрлись в границы.
+    static let charsPerSecond: Double = 50
+    /// Свой нижний предел темпа: общий `RoleLiveTextPacer.minRate` (60) —
+    /// для идущего ответа, и короткая фраза упиралась бы в него, оставаясь
+    /// такой же быстрой.
+    static let minimumRate: Double = 30
 }
