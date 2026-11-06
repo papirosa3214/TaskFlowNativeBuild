@@ -93,7 +93,6 @@ KNOWN = {
     "Chat/Panels/ChatSessionPanel.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
     "Features/Coordination/CoordinationScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
     "Features/Inbox/AttentionScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
-    "Features/Routines/RoutineRunsScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
     "Features/Routines/RoutinesScreen.swift": "правило 3: системный Button(«Повторить») вместо TFButton — закрывает Milestone 4 (m4-buttons-and-icon-buttons)",
 }
 
