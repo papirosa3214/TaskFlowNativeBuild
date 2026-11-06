@@ -925,10 +925,11 @@ struct RoleChatRoomScreen: View {
                             // Владелец 25.09.2026: «очистить чат не надо —
                             // надо по сессиям потом полистать». История не
                             // трогается, сбрасывается только память роли.
-                            if !chat.isAssistantOnly {
-                                Button { Task { await newSession() } } label: {
-                                    Label("Новая сессия", systemImage: "arrow.triangle.2.circlepath")
-                                }
+                            // 06.11.2026: и в чате с Помощником — из панели
+                            // «Сессия» кнопку убрали 05.11, и новую сессию
+                            // начать стало негде.
+                            Button { Task { await newSession() } } label: {
+                                Label("Новая сессия", systemImage: "arrow.triangle.2.circlepath")
                             }
                             compactMenuItem
                             ShareLink(item: RoleChatTranscript(title: chat.displayTitle(excluding: session.currentUser?.id),
