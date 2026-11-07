@@ -343,7 +343,7 @@ struct RoleLiveTurnBubble: View {
     /// Ответ закрыт остановкой: подпись «Ответ получен» была бы неправдой
     /// (владелец 30.10.2026 — ход прерван его же уточнением).
     var isStopped = false
-    var pacesText = true
+    var pacesText = false
     var startsWithSnapshot = false
     @State private var seeded = false
     @State private var playbackRevision = 0
@@ -617,17 +617,10 @@ struct RoleShimmerText: View {
     }
 }
 
-/// Окошко с идущими мыслями: невысокое, прокручивается само вниз, новый
-/// текст проявляется так же плавно, как ответ. Уже накопленное при
-/// раскрытии показывается сразу.
+/// Окошко с идущими мыслями: показывает полученный текст сразу.
 struct RoleThinkingWindow: View {
     let text: String
-    @State private var driver = RoleLivePacerDriver()
-    @State private var visible = ""
-    @State private var fade = RoleTextFade()
     @State private var contentHeight: CGFloat = 0
-    @State private var playbackRevision = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let maxHeight: CGFloat = 132
 
@@ -639,13 +632,12 @@ struct RoleThinkingWindow: View {
             ScrollView {
                 // `код` и **жирное** — ярче приглушённого текста, чтобы главное
                 // сразу бросалось в глаза (владелец 14.10.2026, по образцу).
-                Text(Self.highlighted(visible))
+                Text(Self.highlighted(text))
                     .tfChatText(.thinking)
                     .italic()
                     .foregroundStyle(Color.tfSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                    .roleReveal(reduceMotion ? nil : fade)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .scrollIndicators(.hidden)
@@ -662,27 +654,6 @@ struct RoleThinkingWindow: View {
             }
         }
         .padding(.leading, 7)
-        .onAppear {
-            driver.pacer.ingest([.text(text)])
-            driver.pacer.flush()
-            publish()
-        }
-        .onChange(of: text) { _, text in
-            if !driver.isAnimating(now: .now) { driver.resetClock() }
-            driver.pacer.ingest([.text(text)])
-            publish()
-            playbackRevision += 1
-        }
-        .task(id: playbackRevision) {
-            let diagnosticID = driver.isAnimating(now: .now) ? AppDiagnostics.shared.begin(.thinking) : nil
-            defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
-            while !Task.isCancelled && driver.isAnimating(now: .now) {
-                do { try await Task.sleep(for: RoleLiveFrame.interval) } catch { return }
-                if driver.tick() { publish() }
-                let animating = driver.isAnimating(now: .now)
-                if animating != fade.isAnimating { fade.isAnimating = animating }
-            }
-        }
     }
 
     /// Кэш разметки мыслей: окно пересобирается на каждом кадре проявления
@@ -722,19 +693,6 @@ struct RoleThinkingWindow: View {
         return result
     }
 
-    private func publish() {
-        if case .text(let shown)? = driver.pacer.visibleItems.first {
-            if shown != visible {
-                visible = shown
-                AppDiagnostics.shared.increment(.updates)
-            }
-        }
-        fade = RoleTextFade(
-            rate: driver.pacer.rate,
-            lastRevealAt: driver.pacer.lastRevealAt,
-            isAnimating: driver.isAnimating(now: .now)
-        )
-    }
 }
 
 /// Законченное размышление строкой: «Размышления · 12 с», тап — шторка.

@@ -2371,18 +2371,6 @@ struct RoleChatRoomScreen: View {
     }
 
 
-    /// Проявление — только у ответа, которого не было в семени истории.
-    private func shouldRevealMessage(_ message: RoleChatMessage) -> Bool {
-        RoleChatRevealSeed.shouldReveal(
-            messageID: message.id,
-            seed: seedMessageIDs,
-            settled: historySeedSettled,
-            isLast: message.id == messages.last?.id,
-            nearBottom: chatIsNearBottom,
-            closedTurnMessageIDs: closedTurnMessageIDs
-        )
-    }
-
     /// Кнопка «Продолжить» под планом: только пока слот заблокирован.
     private func slotContinueAction(for message: RoleChatMessage) -> (@MainActor @Sendable () async throws -> Void)? {
         guard message.slotResumable == true else { return nil }
@@ -2400,12 +2388,6 @@ struct RoleChatRoomScreen: View {
         // головняк»). Текст сообщения сервер уже собрал из блоков конверта.
         RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
             .equatable()
-            // Анимируем только новое сообщение и только когда лента внизу:
-            // иначе проявление старых строк при прокрутке дёргает
-            // автопривязку к низу (жалоба владельца 17.10.2026).
-            .roleMessageReveal(text: message.text, messageID: message.id,
-                               animate: shouldRevealMessage(message),
-                               pace: .of(markdown: message.text))
     }
 
     private func copyMessage(_ message: RoleChatMessage) {
