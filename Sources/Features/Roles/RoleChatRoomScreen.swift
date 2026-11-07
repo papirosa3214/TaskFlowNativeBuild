@@ -676,6 +676,15 @@ struct RoleChatRoomScreen: View {
 
     private var composerContent: some View {
         VStack(spacing: 0) {
+            // Карточки назначений личной комнаты (владелец 08.11.2026): роль —
+            // родитель, работа по слоту идёт в общей комнате задачи, карточка
+            // ведёт именно туда. Над лентой, как «Задача чата» ниже.
+            if chat.roomKind == "personal" {
+                ChatChildAssignmentsStrip(chatID: chat.id) { roomID in
+                    openRoute?(.roleChat(id: roomID))
+                }
+                .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
+            }
             // Над лентой, а не поверх неё: подложки нет, и текст под подпись не заходит.
             if let taskID = chat.taskID {
                 TaskCardLink(taskID: taskID) {
