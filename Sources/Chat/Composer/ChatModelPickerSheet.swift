@@ -10,6 +10,7 @@ struct ChatModelPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var favorites = ChatModelFavorites()
     @State private var showsEffort = false
+    @State private var presentationDetent: PresentationDetent = .medium
 
     private var models: [RoleModelOption] {
         ChatModelCatalog.ordered(choice.options, favorites: favorites.ids)
@@ -76,7 +77,8 @@ struct ChatModelPickerSheet: View {
             .listSectionSpacing(TFSpacing.sm)
             .environment(\.defaultMinListRowHeight, 40)
             .tfScreenBackground()
-            .tfNativeHeader("Выбор модели")
+            .navigationTitle("Выбор модели")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
@@ -87,6 +89,8 @@ struct ChatModelPickerSheet: View {
             }
         }
         .environment(\.tfTypeSettingsEnabled, true)
+        .presentationDetents([.medium, .large], selection: $presentationDetent)
+        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder

@@ -42,6 +42,7 @@ struct ChatContextControl: View {
     let loadError: String?
     let onRefresh: () -> Void
     @State private var showsDetails = false
+    @State private var contextDetent: PresentationDetent = .medium
 
     var body: some View {
         contextRingButton
@@ -56,7 +57,7 @@ struct ChatContextControl: View {
     /// to type-check this expression in reasonable time», `ChatComposerControlsView.swift:60`).
     /// Вид не меняется — те же элементы, тот же порядок.
     private var contextRingButton: some View {
-        Button { showsDetails = true } label: {
+        Button { contextDetent = .medium; showsDetails = true } label: {
             ChatContextRing(fraction: snapshot?.fraction ?? 0)
                 .frame(width: 20, height: 20)
                 .frame(width: 40, height: 40)
@@ -72,7 +73,8 @@ struct ChatContextControl: View {
     /// Содержимое шторки с расшифровкой окна контекста.
     private var contextSheet: some View {
         ChatContextSheet(snapshot: snapshot, roleName: roleName, loadError: loadError, onRefresh: onRefresh)
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium, .large], selection: $contextDetent)
+            .presentationDragIndicator(.visible)
     }
 }
 
@@ -148,7 +150,8 @@ struct ChatContextSheet: View {
                 Section {
                     VStack(alignment: .leading, spacing: TFSpacing.sm) {
                         Text(snapshot?.summary ?? "Контекст пока недоступен")
-                            .tfText(.title).monospacedDigit()
+                            .tfText(.body).monospacedDigit()
+                            .foregroundStyle(Color.tfText)
                         if let snapshot, snapshot.fraction != nil {
                             ChatContextBar(snapshot: snapshot).frame(height: 12)
                         }
@@ -158,44 +161,68 @@ struct ChatContextSheet: View {
                         }
                     }
                     .padding(.vertical, TFSpacing.xs)
+                    .tfSettingsListRow()
                 }
                 if let snapshot, let breakdown = snapshot.breakdown, let window = snapshot.contextWindow, window > 0 {
-                    Section("Из чего состоит") {
+                    Section {
                         ForEach(breakdown.parts.filter { $0.tokens > 0 }) { part in
                             row(color: ChatContextPalette.color(part.id), title: part.title, tokens: part.tokens, window: window)
                         }
                         row(color: Color.tfStroke, title: "Свободно",
                             tokens: max(0, window - (snapshot.tokens ?? 0)), window: window)
+                    } header: {
+                        Text("Из чего состоит")
+                            .tfText(.title)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
                 if let snapshot {
                     Section {
-                        if let model = snapshot.model { LabeledContent("Модель", value: model) }
+                        if let model = snapshot.model { detailRow("Модель", value: model) }
                         if let provider = snapshot.provider {
-                            LabeledContent("Провайдер", value: RoleModelOption.providerNames[provider.lowercased()] ?? provider)
+                            detailRow("Провайдер", value: RoleModelOption.providerNames[provider.lowercased()] ?? provider)
                         }
                         if let measuredAt = snapshot.measuredAt {
-                            LabeledContent("Замер", value: RoleChatTime.date(measuredAt)?.formatted(date: .omitted, time: .shortened) ?? measuredAt)
+                            detailRow("Замер", value: RoleChatTime.date(measuredAt)?.formatted(date: .omitted, time: .shortened) ?? measuredAt)
                         }
                     } footer: {
                         Text(snapshot.isEstimate ? "Части — оценка по тексту; итог — по последнему ответу модели." : "Итог — по последнему ответу модели.")
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
-                if let loadError { Section { Text(loadError).foregroundStyle(Color.tfSub) } }
+                if let loadError {
+                    Section {
+                        Text(loadError)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfSub)
+                            .tfSettingsListRow()
+                    }
+                }
                 Section {
                     Button("Обновить", systemImage: "arrow.clockwise", action: onRefresh)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .frame(minHeight: 40)
+                        .buttonStyle(.plain)
+                        .tfSettingsListRow()
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .listSectionSpacing(TFSpacing.sm)
+            .environment(\.defaultMinListRowHeight, 40)
             .tfScreenBackground()
             .navigationTitle(roleName.map { "Контекст · " + $0 } ?? "Контекст")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .environment(\.tfTypeSettingsEnabled, true)
     }
 
     private func row(color: Color, title: String, tokens: Int, window: Int) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             HStack(spacing: TFSpacing.sm) {
-                Text(title)
+                Text(title).foregroundStyle(Color.tfText)
                 Spacer()
                 Text(ChatContextSnapshot.compact(tokens) + " · " + (Double(tokens) / Double(window)).formatted(.percent.precision(.fractionLength(0...1))))
                     .monospacedDigit()
@@ -207,7 +234,22 @@ struct ChatContextSheet: View {
                 .accessibilityHidden(true)
         }
         .tfText(.body)
+        .padding(.vertical, TFSpacing.xs)
+        .tfSettingsListRow()
         .accessibilityElement(children: .combine)
+    }
+
+    private func detailRow(_ title: String, value: String) -> some View {
+        HStack(spacing: TFSpacing.sm) {
+            Text(title).foregroundStyle(Color.tfText)
+            Spacer(minLength: TFSpacing.sm)
+            Text(value)
+                .foregroundStyle(Color.tfSub)
+                .multilineTextAlignment(.trailing)
+        }
+        .tfText(.body)
+        .frame(minHeight: 40)
+        .tfSettingsListRow()
     }
 }
 

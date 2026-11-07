@@ -52,15 +52,17 @@ struct ChatWorkspaceMenu<MenuLabel: View>: View {
     @Bindable var choice: ChatWorkspaceChoice
     @ViewBuilder let label: () -> MenuLabel
     @State private var isPresented = false
+    @State private var presentationDetent: PresentationDetent = .medium
 
     var body: some View {
-        Button { isPresented = true } label: { label() }
+        Button { presentationDetent = .medium; isPresented = true } label: { label() }
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat.workspace")
             .accessibilityLabel("Рабочая папка: " + choice.title)
             .tfSheet(isPresented: $isPresented) {
                 ChatWorkspaceBrowser(choice: choice)
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.medium, .large], selection: $presentationDetent)
+                    .presentationDragIndicator(.visible)
             }
     }
 }
@@ -77,35 +79,55 @@ private struct ChatWorkspaceBrowser: View {
     var body: some View {
         NavigationStack {
             List {
-                if let parent = listing?.parent {
-                    Button { open(parent) } label: {
-                        Label("Наверх", systemImage: "arrow.turn.left.up")
-                            .foregroundStyle(Color.tfText)
+                Section {
+                    if let parent = listing?.parent {
+                        Button { open(parent) } label: {
+                            folderRow("Наверх", symbol: "arrow.turn.left.up")
+                        }
+                        .buttonStyle(.plain)
+                        .tfSettingsListRow()
+                    }
+                    ForEach(listing?.entries ?? []) { entry in
+                        Button { open(entry.path) } label: {
+                            folderRow(entry.name, selected: entry.path == choice.selected)
+                        }
+                        .buttonStyle(.plain)
+                        .tfSettingsListRow()
+                        .accessibilityAddTraits(entry.path == choice.selected ? .isSelected : [])
+                    }
+                    if !isLoading, listing?.entries.isEmpty ?? true {
+                        Text(listing == nil ? "Папка недоступна" : "Внутри папок нет")
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfSub)
+                            .frame(minHeight: 40)
+                            .tfSettingsListRow()
                     }
                 }
-                ForEach(listing?.entries ?? []) { entry in
-                    Button { open(entry.path) } label: {
-                        TFListRow(
-                            icon: "folder.fill",
-                            iconStyle: .plain,
-                            title: entry.name,
-                            trailing: entry.path == choice.selected
-                                ? AnyView(Image(systemName: "checkmark").foregroundStyle(Color.tfText))
-                                : nil,
-                            horizontalPadding: 0,
-                            chevron: .shown
-                        )
-                        .contentShape(Rectangle())
+                if !path.isEmpty {
+                    Section {
+                        Button {
+                            Task { await choice.select(path); dismiss() }
+                        } label: {
+                            Text(path == choice.selected ? "Выбрана: \(path)" : "Работать в «\(path)»")
+                                .tfText(.body)
+                                .foregroundStyle(path == choice.selected ? Color.tfSub : Color.tfText)
+                                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(path == choice.selected)
+                        .tfSettingsListRow()
                     }
-                }
-                if !isLoading, listing?.entries.isEmpty ?? true {
-                    Text(listing == nil ? "Папка недоступна" : "Внутри папок нет")
-                        .foregroundStyle(Color.tfSub)
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .listSectionSpacing(TFSpacing.sm)
+            .environment(\.defaultMinListRowHeight, 40)
             .tfScreenBackground()
             .overlay { if isLoading && listing == nil { ProgressView() } }
-            .tfNativeHeader(listing?.title ?? "Проекты", displayMode: .inline)
+            .navigationTitle(listing?.title ?? "Проекты")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Закрыть", systemImage: "xmark") { dismiss() }
@@ -116,20 +138,33 @@ private struct ChatWorkspaceBrowser: View {
                     }
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                if !path.isEmpty {
-                    TFButton(path == choice.selected ? "Выбрана: \(path)" : "Работать в «\(path)»",
-                             icon: "folder", variant: .secondary, isEnabled: path != choice.selected) {
-                        Task { await choice.select(path); dismiss() }
-                    }
-                    .padding(TFSpacing.lg)
-                }
-            }
         }
+        .environment(\.tfTypeSettingsEnabled, true)
         .task {
             // Открываем там, где выбрано сейчас; нет выбора — корень проектов.
             await load(choice.selected ?? "")
         }
+    }
+
+    private func folderRow(_ title: String, selected: Bool = false, symbol: String = "checkmark") -> some View {
+        HStack(spacing: TFSpacing.sm) {
+            Image(systemName: symbol)
+                .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
+                .foregroundStyle(Color.tfText)
+                .frame(width: 18, height: 40)
+                .opacity(selected || symbol != "checkmark" ? 1 : 0)
+                .accessibilityHidden(!selected && symbol == "checkmark")
+            Text(title)
+                .tfText(.body)
+                .foregroundStyle(Color.tfText)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right") // design-system-guard: ignore — владелец 07.11: компоновка строки как у выбора модели
+                .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
+                .foregroundStyle(Color.tfSub)
+        }
+        .frame(minHeight: 40)
+        .contentShape(Rectangle())
     }
 
     private func open(_ next: String) {
