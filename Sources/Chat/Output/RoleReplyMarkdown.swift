@@ -226,7 +226,7 @@ struct RoleReplyMarkdown: View, Equatable {
         case .horizontalRule:
             Divider()
         case .table(let rows):
-            DocumentTableView(rows: rows)
+            StructuredDocumentBlocksView(blocks: [.table(rows)])
         }
     }
 
