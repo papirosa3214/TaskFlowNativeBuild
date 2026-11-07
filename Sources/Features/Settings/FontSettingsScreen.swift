@@ -9,6 +9,7 @@ struct FontSettingsScreen: View {
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
 
     var body: some View {
+        let _ = typeRevision
         ScrollView {
             VStack(alignment: .leading, spacing: TFSpacing.lg) {
                 Picker("Шрифт", selection: $context) {
@@ -78,7 +79,7 @@ struct FontSettingsScreen: View {
                     }
                 } label: {
                     HStack(spacing: TFSpacing.md) {
-                        Text("Стиль шрифта")
+                        Text("Общий стиль шрифта")
                             .tfText(.body)
                             .foregroundStyle(Color.tfText)
                         Spacer()
@@ -105,12 +106,12 @@ struct FontSettingsScreen: View {
                 if context == .app {
                     ForEach(Array(TFTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
                         if index > 0 { TFDivider(inset: TFSpacing.md) }
-                        sizeRow(title: group.title, baseSize: group.baseSize, binding: scaleBinding(for: group))
+                        sizeRow(title: group.title, groupID: group.rawValue, baseSize: group.baseSize, binding: scaleBinding(for: group))
                     }
                 } else {
                     ForEach(Array(TFChatTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
                         if index > 0 { TFDivider(inset: TFSpacing.md) }
-                        sizeRow(title: group.title, baseSize: group.baseSize, binding: scaleBinding(for: group))
+                        sizeRow(title: group.title, groupID: group.rawValue, baseSize: group.baseSize, binding: scaleBinding(for: group))
                     }
                 }
             }
@@ -119,8 +120,9 @@ struct FontSettingsScreen: View {
 
     /// Ячейки с кеглем вместо ползунка (владелец 05.11.2026): ступеней всего
     /// пять, и плавный на вид `Slider` прыгал между ними и опаздывал с цифрой.
-    private func sizeRow(title: String, baseSize: CGFloat, binding: Binding<TFTypeScale>) -> some View {
-        HStack(spacing: TFSpacing.md) {
+    private func sizeRow(title: String, groupID: String, baseSize: CGFloat, binding: Binding<TFTypeScale>) -> some View {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) {
+          HStack(spacing: TFSpacing.md) {
             Text(title)
                 .tfText(.action)
                 .foregroundStyle(Color.tfText)
@@ -133,6 +135,29 @@ struct FontSettingsScreen: View {
             }
             .pickerStyle(.segmented)
             .sensoryFeedback(.selection, trigger: binding.wrappedValue)
+          }
+          Menu {
+              Button("По общему стилю") { TFTypeFace.save(nil, for: context, group: groupID) }
+              ForEach(TFTypeFace.allCases) { face in
+                  Button { TFTypeFace.save(face, for: context, group: groupID) } label: {
+                      if face == TFTypeFace.saved(for: context, group: groupID) {
+                          Label(face.title, systemImage: "checkmark")
+                      } else { Text(face.title) }
+                  }
+              }
+          } label: {
+              HStack {
+                  Text("Стиль шрифта").tfText(.action)
+                  Spacer()
+                  Text(TFTypeFace.saved(for: context, group: groupID).title).tfText(.action)
+                  Image(systemName: "chevron.up.chevron.down")
+                      .tfTypeFont(size: TFIconSize.xs, weight: .semibold)
+              }
+              .foregroundStyle(Color.tfSub)
+              .frame(minHeight: TFHitTarget.min)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
         }
         .padding(.horizontal, TFSpacing.md)
         .frame(minHeight: TFHitTarget.min)
@@ -140,15 +165,14 @@ struct FontSettingsScreen: View {
 
     private var appSample: some View {
         let tone = selectedTone.color
-        let face = selectedFace
         return TFCard(padding: TFSpacing.md, bordered: true) {
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                previewText("ЗАДАЧА", group: .tertiary, face: face, color: tone.opacity(0.72))
-                previewText("Подготовить релиз", group: .heading, face: face, color: tone, weight: .bold)
-                previewText("Проверка перед публикацией", group: .subheading, face: face, color: tone, weight: .semibold)
-                previewText("Сверить изменённую логику и отчёт.", group: .body, face: face, color: tone)
-                previewText("Сегодня · В работе", group: .secondary, face: face, color: tone.opacity(0.72))
-                previewText("ВЛАДЕЛЕЦ · 3 ШАГА", group: .tertiary, face: face, color: tone.opacity(0.62))
+                previewText("ЗАДАЧА", group: .tertiary, color: tone.opacity(0.72))
+                previewText("Подготовить релиз", group: .heading, color: tone, weight: .bold)
+                previewText("Проверка перед публикацией", group: .subheading, color: tone, weight: .semibold)
+                previewText("Сверить изменённую логику и отчёт.", group: .body, color: tone)
+                previewText("Сегодня · В работе", group: .secondary, color: tone.opacity(0.72))
+                previewText("ВЛАДЕЛЕЦ · 3 ШАГА", group: .tertiary, color: tone.opacity(0.62))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -223,12 +247,12 @@ struct FontSettingsScreen: View {
     private func previewText(
         _ value: String,
         group: TFTypeGroup,
-        face: TFTypeFace,
         color: Color,
         weight: Font.Weight = .regular
     ) -> some View {
         Text(value)
-            .font(face.font(size: group.baseSize * TFTypeScale.saved(for: group).multiplier, weight: weight))
+            .font(TFTypeFace.saved(for: .app, group: group.rawValue)
+                .font(size: group.baseSize * TFTypeScale.saved(for: group).multiplier, weight: weight))
             .foregroundStyle(color)
     }
 
@@ -238,7 +262,7 @@ struct FontSettingsScreen: View {
         design: Font.Design = .default
     ) -> Font {
         let size = group.baseSize * TFTypeScale.saved(forChat: group).multiplier
-        if group == .mono { return .system(size: size, weight: weight, design: .monospaced) }
-        return selectedFace.font(size: size, weight: weight, design: design)
+        return TFTypeFace.saved(for: .chat, group: group.rawValue)
+            .font(size: size, weight: weight, design: group == .mono ? .monospaced : design)
     }
 }

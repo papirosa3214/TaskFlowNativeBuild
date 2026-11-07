@@ -16,6 +16,7 @@ struct TypographyPreferencesHostTests {
         try migrationFillsOnlyMissingAppGroups()
         try migrationCopiesChatToneOnlyOnce()
         try appAndChatFacesStayIndependent()
+        try groupFacesStayIndependentAndInherit()
         print("PASS typography preferences")
     }
 
@@ -59,6 +60,25 @@ struct TypographyPreferencesHostTests {
                    "chat face key resolved to the app value")
         try expect(TypographyPreferences.faceKey(for: .app) != TypographyPreferences.faceKey(for: .chat),
                    "app and chat face keys are identical")
+    }
+
+    private static func groupFacesStayIndependentAndInherit() throws {
+        let defaults = isolatedDefaults("group-faces")
+        defaults.set("onest", forKey: TypographyPreferences.faceKey(for: .app))
+        defaults.set("golos", forKey: TypographyPreferences.faceKey(for: .chat))
+        try expect(TypographyPreferences.faceRaw(for: .app, group: "heading", defaults: defaults) == "onest", "unset app group lost legacy face")
+        TypographyPreferences.saveFaceRaw("lora", for: .app, group: "heading", defaults: defaults)
+        TypographyPreferences.saveFaceRaw("mono", for: .chat, group: "body", defaults: defaults)
+        try expect(TypographyPreferences.faceRaw(for: .app, group: "heading", defaults: defaults) == "lora", "heading face not saved")
+        try expect(TypographyPreferences.faceRaw(for: .app, group: "body", defaults: defaults) == "onest", "heading change leaked into body")
+        try expect(TypographyPreferences.faceRaw(for: .chat, group: "body", defaults: defaults) == "mono", "chat body face not saved")
+        try expect(TypographyPreferences.faceRaw(for: .chat, group: "heading", defaults: defaults) == "golos", "app face leaked into chat")
+        try expect(TypographyPreferences.faceRaw(for: .chat, group: "mono", defaults: defaults) == "system", "legacy code font changed unexpectedly")
+        TypographyPreferences.saveFaceRaw("onest", for: .chat, group: "mono", defaults: defaults)
+        try expect(TypographyPreferences.faceRaw(for: .chat, group: "mono", defaults: defaults) == "onest", "code group cannot select its own face")
+        try expect(defaults.string(forKey: TypographyPreferences.faceKey(for: .app)) == "onest", "group save overwrote global face")
+        TypographyPreferences.saveFaceRaw(nil, for: .app, group: "heading", defaults: defaults)
+        try expect(TypographyPreferences.faceRaw(for: .app, group: "heading", defaults: defaults) == "onest", "inherit reset failed")
     }
 
     private static func isolatedDefaults(_ suffix: String) -> UserDefaults {

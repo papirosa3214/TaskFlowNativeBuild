@@ -25,6 +25,20 @@ enum TypographyPreferences {
         }
     }
 
+    static func faceRaw(for context: TypographyContext, group: String? = nil, defaults: UserDefaults = .standard) -> String? {
+        let key = faceKey(for: context)
+        if let group, let value = defaults.string(forKey: key + "_" + group) { return value }
+        // До индивидуальной настройки код оставался системным моноширинным.
+        if context == .chat && group == "mono" { return "system" }
+        return defaults.string(forKey: key)
+    }
+
+    static func saveFaceRaw(_ value: String?, for context: TypographyContext, group: String, defaults: UserDefaults = .standard) {
+        let key = faceKey(for: context) + "_" + group
+        if let value { defaults.set(value, forKey: key) }
+        else { defaults.removeObject(forKey: key) }
+    }
+
     static func appScaleKey(_ group: String) -> String {
         "taskflow_type_\(group)"
     }

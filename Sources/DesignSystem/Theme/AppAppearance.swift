@@ -168,8 +168,8 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
         saved(for: .app)
     }
 
-    static func saved(for context: TypographyContext) -> TFTypeFace {
-        guard let raw = UserDefaults.standard.string(forKey: TypographyPreferences.faceKey(for: context)),
+    static func saved(for context: TypographyContext, group: String? = nil) -> TFTypeFace {
+        guard let raw = TypographyPreferences.faceRaw(for: context, group: group),
               let face = TFTypeFace(rawValue: raw) else { return .system }
         return face
     }
@@ -186,6 +186,12 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
 
     static func save(_ face: TFTypeFace, for context: TypographyContext) {
         UserDefaults.standard.set(face.rawValue, forKey: TypographyPreferences.faceKey(for: context))
+        let next = UserDefaults.standard.integer(forKey: TFTypeScale.revisionKey) + 1
+        UserDefaults.standard.set(next, forKey: TFTypeScale.revisionKey)
+    }
+
+    static func save(_ face: TFTypeFace?, for context: TypographyContext, group: String) {
+        TypographyPreferences.saveFaceRaw(face?.rawValue, for: context, group: group)
         let next = UserDefaults.standard.integer(forKey: TFTypeScale.revisionKey) + 1
         UserDefaults.standard.set(next, forKey: TFTypeScale.revisionKey)
     }

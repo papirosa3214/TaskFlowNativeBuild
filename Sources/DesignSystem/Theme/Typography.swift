@@ -158,7 +158,7 @@ public struct TFSectionDisplayModifier: ViewModifier {
     // ещё с Oswald).
     /// Гарнитура заголовков: выбранная в настройках, а пока выбрана
     /// системная — прежняя PT Sans Narrow (владелец 12.10.2026).
-    private var face: TFTypeFace { typeSettingsEnabled ? TFTypeFace.saved : .system }
+    private var face: TFTypeFace { typeSettingsEnabled ? TFTypeFace.saved(for: .app, group: group.rawValue) : .system }
 
     private var name: String { "PT Sans Narrow" }
 
@@ -177,6 +177,7 @@ public struct TFSectionDisplayModifier: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
+        let _ = typeRevision
         content
             .font(face == .system
                   ? .custom(name, size: size).weight(weight)
@@ -360,8 +361,10 @@ private struct TFTextStyleModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
+        let _ = typeRevision
         content
-            .font(TFTypeFace.active(size: effectiveSize, weight: style.weight, design: style.design, enabled: typeSettingsEnabled))
+            .font((typeSettingsEnabled ? TFTypeFace.saved(for: .app, group: style.group.rawValue) : .system)
+                .font(size: effectiveSize, weight: style.weight, design: style.design))
             .tracking(style.tracking)
     }
 }
@@ -438,10 +441,8 @@ extension Font {
         scale: CGFloat = 1
     ) -> Font {
         let size = group.size * scale
-        if group == .mono {
-            return .system(size: size, weight: weight, design: .monospaced)
-        }
-        return TFTypeFace.saved(for: .chat).font(size: size, weight: weight, design: design)
+        return TFTypeFace.saved(for: .chat, group: group.rawValue)
+            .font(size: size, weight: weight, design: group == .mono ? .monospaced : design)
     }
 }
 
