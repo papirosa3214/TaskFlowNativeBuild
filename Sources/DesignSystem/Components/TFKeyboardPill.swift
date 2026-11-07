@@ -19,4 +19,14 @@ public extension View {
         if #available(iOS 26.0, *) { glassEffect(.regular, in: .capsule) }
         else { background(.thinMaterial, in: Capsule()) }
     }
+
+    /// То же системное стекло для раскрываемых панелей, без цветной заливки.
+    @ViewBuilder func voiceRoundedSurface(cornerRadius: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+        }
+    }
+
 }

@@ -82,10 +82,8 @@ struct ChatWorkPlanRows: View {
     var body: some View {
         if floating {
             if !plans.isEmpty {
-                TFCard(padding: 0, surface: .dark, radius: TFRadius.xl) {
-                    list(divided: false)
-                }
-                    .tfShadow(TFShadow.dropdown)
+                list(divided: false)
+                    .voiceRoundedSurface(cornerRadius: TFRadius.xl)
                     .padding(.horizontal, TFSpacing.lg)
                     // Небольшой зазор до поля ввода (владелец 06.11.2026).
                     .padding(.bottom, TFSpacing.xs)

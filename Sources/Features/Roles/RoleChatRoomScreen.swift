@@ -675,10 +675,15 @@ struct RoleChatRoomScreen: View {
             // Рабочий план роли — висячей карточкой поверх ленты (28.10.2026):
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent)
-                }
                 .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
+                .safeAreaInset(edge: .bottom, spacing: 0) { composerFooter }
+        }
+    }
+
+    /// Панели лежат поверх ленты; кнопка «вниз» не участвует в расчёте inset.
+    private var composerFooter: some View {
+        VStack(spacing: 0) {
+            ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent)
             discussionStatusBar
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
@@ -766,6 +771,24 @@ struct RoleChatRoomScreen: View {
                 // Панель ввода ниже на 8 pt (владелец 27.10.2026: «чуть выше
                 // требуемого»); общий компонент панели не трогаем.
                 .padding(.bottom, -8)
+            }
+
+        }
+        .overlay(alignment: .top) {
+            if !chatIsNearBottom && !isSelecting {
+                ChatScrollToBottomButton {
+                    chatFollowsBottom = true
+                    // К последней строке, а не к краю: высоту невидимых строк
+                    // ленивая лента угадывает, и прокрутка к краю уезжала за
+                    // конец — внизу оставалась пустота (владелец 07.11.2026).
+                    if let last = feedItems.last?.id {
+                        chatScrollPosition.scrollTo(id: last, anchor: .bottom)
+                    } else {
+                        chatScrollPosition.scrollTo(edge: .bottom)
+                    }
+                }
+                // Пилюля 36 pt внутри зоны 44 pt оставляет 4 pt до чек-листа.
+                .alignmentGuide(.top) { $0[.bottom] }
             }
         }
     }
@@ -1518,23 +1541,6 @@ struct RoleChatRoomScreen: View {
                 .padding(.vertical, TFSpacing.sm)
                 .background(Color.tfTile, in: Capsule())
                 .padding(.top, TFSpacing.sm)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            if !chatIsNearBottom && !isSelecting {
-                ChatScrollToBottomButton {
-                    chatFollowsBottom = true
-                    // К последней строке, а не к краю: высоту невидимых строк
-                    // ленивая лента угадывает, и прокрутка к краю уезжала за
-                    // конец — внизу оставалась пустота (владелец 07.11.2026).
-                    if let last = feedItems.last?.id {
-                        chatScrollPosition.scrollTo(id: last, anchor: .bottom)
-                    } else {
-                        chatScrollPosition.scrollTo(edge: .bottom)
-                    }
-                }
-                // Небольшой зазор до чек-листа (владелец 06.11.2026).
-                .padding(.bottom, TFSpacing.xs)
             }
         }
         .onChange(of: contentsTargetID) { _, id in

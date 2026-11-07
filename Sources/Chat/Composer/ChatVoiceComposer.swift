@@ -150,8 +150,7 @@ struct ChatVoiceComposer: View {
                     .tfTypeFont(size: 19, weight: .regular)
                     .foregroundStyle(Color.secondary)
                     .frame(width: 40, height: 40)
-                    .background(Color(uiColor: .secondarySystemBackground), in: Circle())
-                    .overlay(Circle().strokeBorder(Color(uiColor: .separator)))
+                    .voiceCircleSurface()
             } else {
                 promptIcon("slider.horizontal.3")
             }
@@ -191,13 +190,12 @@ struct ChatVoiceComposer: View {
         .padding(compact ? 0 : 8)
         .background {
             if !compact {
-                RoundedRectangle(cornerRadius: 24).fill(Color(uiColor: .secondarySystemBackground))
-                RoundedRectangle(cornerRadius: 24).strokeBorder(Color(uiColor: .separator))
+                Color.clear.voiceRoundedSurface(cornerRadius: 24)
             }
         }
         .opacity(isRecording || preview != nil ? 0 : 1)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .padding(.horizontal).padding(.top, TFSpacing.lg)
+        .padding(.horizontal)
         .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
         .modifier(workingCaption)
     }
@@ -225,8 +223,7 @@ struct ChatVoiceComposer: View {
         .frame(minHeight: compact ? Self.compactKnobSize : nil)
         .background {
             if compact {
-                RoundedRectangle(cornerRadius: 22).fill(Color(uiColor: .secondarySystemBackground))
-                RoundedRectangle(cornerRadius: 22).strokeBorder(Color(uiColor: .separator))
+                Color.clear.voiceRoundedSurface(cornerRadius: 22)
             }
         }
         .foregroundStyle(Color.secondary)
@@ -295,8 +292,7 @@ struct ChatVoiceComposer: View {
                     .tfTypeFont(size: 19, weight: .regular)
                     .foregroundStyle(Color.secondary)
                     .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
-                    .background(Color(uiColor: .secondarySystemBackground), in: Circle())
-                    .overlay(Circle().strokeBorder(Color(uiColor: .separator)))
+                    .voiceCircleSurface()
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -322,8 +318,7 @@ struct ChatVoiceComposer: View {
                 .tfTypeFont(size: 19, weight: .regular)
                 .foregroundStyle(Color.secondary)
                 .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
-                .background(Color(uiColor: .secondarySystemBackground), in: Circle())
-                .overlay(Circle().strokeBorder(Color(uiColor: .separator)))
+                .voiceCircleSurface()
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -370,9 +365,9 @@ struct ChatVoiceComposer: View {
             Button(action: onStop) {
                 Image(systemName: "stop.fill")
                     .tfTypeFont(size: 15, weight: .semibold)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .foregroundStyle(Color.primary)
                     .frame(width: knob - 4, height: knob - 4)
-                    .background(Color.primary, in: Circle())
+                    .voiceCircleSurface()
                     .frame(width: knob, height: knob)
                     .contentShape(Circle())
             }
@@ -384,9 +379,9 @@ struct ChatVoiceComposer: View {
             Button(action: onSendText) {
                 Image(systemName: "arrow.up")
                     .tfTypeFont(size: 17, weight: .semibold)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .foregroundStyle(Color.primary.opacity(canSendText ? 1 : 0.25))
                     .frame(width: knob - 4, height: knob - 4)
-                    .background(Color.primary.opacity(canSendText ? 1 : 0.25), in: Circle())
+                    .voiceCircleSurface()
                     .frame(width: knob, height: knob)
                     .contentShape(Circle())
             }
@@ -472,9 +467,9 @@ struct ChatVoiceComposer: View {
             Button(action: stopVoiceRecording) {
                 Image(systemName: "stop.fill")
                     .tfTypeFont(size: 15, weight: .semibold)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .foregroundStyle(Color.primary)
                     .frame(width: 36, height: 36)
-                    .background(Color.primary, in: Circle())
+                    .voiceCircleSurface()
                     .frame(width: 40, height: 40)
                     .contentShape(Circle())
             }
@@ -484,10 +479,9 @@ struct ChatVoiceComposer: View {
         .padding(.leading, 16).padding(.trailing, 8)
         .frame(minHeight: 56)
         .padding(.vertical, 8)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color(uiColor: .separator)))
+        .voiceRoundedSurface(cornerRadius: 24)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .padding(.horizontal).padding(.vertical, 10)
+        .padding(.horizontal).padding(.bottom, 10)
         .transition(.opacity)
     }
 
@@ -547,9 +541,9 @@ struct ChatVoiceComposer: View {
                     Button(action: sendPreview) {
                         Image(systemName: "square.and.pencil")
                             .tfTypeFont(size: 20, weight: .medium)
-                            .foregroundStyle(Color(uiColor: .systemBackground))
+                            .foregroundStyle(Color.primary)
                             .frame(width: 40, height: 40)
-                            .background(Color.primary, in: Circle())
+                            .voiceCircleSurface()
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -561,10 +555,9 @@ struct ChatVoiceComposer: View {
             .foregroundStyle(Color.primary)
         }
         .padding(14)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Color(uiColor: .separator)))
+        .voiceRoundedSurface(cornerRadius: 24)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .padding(.horizontal).padding(.vertical, 10)
+        .padding(.horizontal).padding(.bottom, 10)
         .transition(.opacity)
     }
 
