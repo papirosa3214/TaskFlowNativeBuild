@@ -1696,6 +1696,11 @@ struct RoleChatRoomScreen: View {
     private func insertIncoming(_ message: RoleChatMessage) {
         roomEventRevision += 1
         messageEventRevisions[message.id] = roomEventRevision
+        // Ответ уже был в ленте до прихода готового сообщения (перечитывание
+        // успело раньше сокета). Владелец его уже видел: доигрывать тот же
+        // текст в пузыре не нужно — иначе ответ виден трижды и висит пауза
+        // до конца доигрывания (владелец 07.11.2026).
+        let alreadyShown = messages.contains { $0.id == message.id }
         let mine = message.fromUserID == session.currentUser?.id
         var transaction = Transaction()
         transaction.disablesAnimations = true
@@ -1710,7 +1715,7 @@ struct RoleChatRoomScreen: View {
             }
             if let author = message.fromUserID, !mine {
                 if let turn = liveTurns[author], turn.isCompleted(by: message) {
-                    completeLiveTurn(turn, with: message)
+                    completeLiveTurn(turn, with: message, alreadyShown: alreadyShown)
                     liveTurns[author] = nil
                     restoredTurnIDs.remove(turn.playbackID)
                     typists[author] = nil
@@ -1720,7 +1725,7 @@ struct RoleChatRoomScreen: View {
                     // Ответ прерванного хода: ход уже доигрывает на своём
                     // месте, и сообщение занимает его строку, а не встаёт
                     // второй раз ниже (владелец 30.10.2026).
-                    completeLiveTurn(parked, with: message)
+                    completeLiveTurn(parked, with: message, alreadyShown: alreadyShown)
                 } else if message.replyToMessageID != nil {
                     typists[author] = nil
                     typistTools[author] = nil
@@ -1748,14 +1753,19 @@ struct RoleChatRoomScreen: View {
     /// Если доигрывать нечего (пустые пункты после снятия текста конверта),
     /// сообщение сразу остаётся в ленте: пустой пузырь не монтируется, и
     /// `onPlaybackComplete` иначе никогда не отпустит ответ.
-    private func completeLiveTurn(_ turn: RoleChatLiveTurn, with message: RoleChatMessage) {
+    /// `alreadyShown` — сообщение уже было в ленте до этого вызова: доигрывать
+    /// его текст в пузыре не нужно (владелец 07.11.2026).
+    private func completeLiveTurn(_ turn: RoleChatLiveTurn, with message: RoleChatMessage,
+                                  alreadyShown: Bool = false) {
         let completed = turn.completed(with: message)
         ClientLog.shared.add("chat=\(chat.id) complete turn=\(turn.playbackID) message=\(message.id) structured=\(message.hasStructuredAnswer) hold=\(RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed)) text_chars=\(completed.items.reduce(0) { if case .text(let t) = $1 { return $0 + t.count }; return $0 })")
-        rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID)
+        // Ответ уже в ленте: пузыря не будет, и строку сообщения ему не
+        // отдаём — пусть остаётся своей (владелец 07.11.2026).
+        if !alreadyShown { rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID) }
         closedTurnMessageIDs.insert(message.id)
         closedTurnItems[message.id] = turn.itemsWithoutAnswerText(for: message)
         if message.stopReason != nil { stoppedTurnIDs.insert(turn.playbackID) }
-        guard RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed) else {
+        guard !alreadyShown, RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed) else {
             completingTurns[turn.playbackID] = nil
             completedMessageIDByTurn[turn.playbackID] = nil
             endedTurnIDs.remove(turn.playbackID)
