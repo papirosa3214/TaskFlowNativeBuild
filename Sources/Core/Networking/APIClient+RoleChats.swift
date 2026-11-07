@@ -82,6 +82,18 @@ public extension APIClient {
         return response.chat
     }
 
+    /// «В архив» (владелец 08.11.2026): чат уходит из списка, история остаётся.
+    func archiveRoleChat(id: String) async throws -> RoleChat {
+        let response: RoleChatEnvelope = try await request(.post, "/chats/\(id)/archive", body: [String: String]())
+        return response.chat
+    }
+
+    /// «Удалить» насовсем: только для чата из архива, откатить нельзя.
+    @discardableResult
+    func purgeRoleChat(id: String) async throws -> APIOkResponse {
+        try await request(.post, "/chats/\(id)/purge", body: [String: String]())
+    }
+
     func createRoleChat(title: String?, memberIDs: [String], taskID: String? = nil) async throws -> RoleChat {
         let body = CreateRoleChatBody(
             title: title,

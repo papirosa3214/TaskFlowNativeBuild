@@ -34,6 +34,9 @@ struct RoleChatsScreen: View {
     @State private var errorMessage: String?
     @Environment(\.openRoute) private var openRoute
     @State private var showingCreate = false
+    /// Чат, выбранный для окончательного удаления: ждёт подтверждения,
+    /// потому что вернуть его уже будет нельзя.
+    @State private var pendingPurge: RoleChat?
     @Environment(RealtimeClient.self) private var realtime
     @State private var realtimeObserver = RealtimeObserverSlot<UUID>()
     private let api = APIClient()
@@ -198,6 +201,23 @@ struct RoleChatsScreen: View {
             Button("Повторить") { Task { await load() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
+        .confirmationDialog(
+            "Удалить чат навсегда?",
+            isPresented: Binding(
+                get: { pendingPurge != nil },
+                set: { if !$0 { pendingPurge = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                guard let chat = pendingPurge else { return }
+                pendingPurge = nil
+                Task { await purge(chat) }
+            }
+            Button("Отмена", role: .cancel) { pendingPurge = nil }
+        } message: {
+            Text("Переписка и вложения пропадут насовсем — вернуть их будет нельзя.")
+        }
     }
 
     // MARK: - Строка сессии
@@ -219,6 +239,20 @@ struct RoleChatsScreen: View {
                 let closed = chat.closedAt != nil
                 Button { Task { await setClosed(chat, closed: !closed) } } label: {
                     Label(closed ? "Вернуть сессию" : "Закрыть сессию", systemImage: closed ? "tray.and.arrow.up" : "archivebox")
+                }
+                // «В архив» и «Удалить» (владелец 08.11.2026): как в любой
+                // программе — сначала архив, потом удаление. Удалённое не
+                // возвращается, поэтому пункт есть только у чата из архива.
+                if chat.isArchived || closed {
+                    Button(role: .destructive) { pendingPurge = chat } label: {
+                        Label("Удалить", systemImage: "trash")
+                    }
+                    .accessibilityIdentifier("chats.row.purge")
+                } else {
+                    Button { Task { await moveToArchive(chat) } } label: {
+                        Label("В архив", systemImage: "archivebox.circle")
+                    }
+                    .accessibilityIdentifier("chats.row.archive")
                 }
             }
         }
@@ -261,6 +295,25 @@ struct RoleChatsScreen: View {
             // Сразу из списка, не дожидаясь сети: строка не стирается, а
             // прячется в «Показать закрытые» — как на сервере.
             if closed { try? LocalStore.shared.hideChat(id: chat.id) }
+            try await refreshList()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// «В архив»: чат уходит из общего списка, история и сообщения остаются.
+    private func moveToArchive(_ chat: RoleChat) async {
+        do {
+            _ = try await api.archiveRoleChat(id: chat.id)
+            try? LocalStore.shared.hideChat(id: chat.id)
+            try await refreshList()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// «Удалить» насовсем: сервер принимает только чат из архива. Откатить
+    /// нельзя — поэтому сначала подтверждение.
+    private func purge(_ chat: RoleChat) async {
+        do {
+            try await api.purgeRoleChat(id: chat.id)
+            try? LocalStore.shared.hideChat(id: chat.id)
             try await refreshList()
         } catch { errorMessage = error.localizedDescription }
     }

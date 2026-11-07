@@ -38,6 +38,9 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
     /// Проект сессии — для группировки списка.
     public var projectName: String? = nil
     public var closedAt: String? = nil
+    /// Убран в архив владельцем (08.11.2026): чат ушёл из списка, история
+    /// осталась. Из архива его можно вернуть или удалить насовсем.
+    public var archivedAt: String? = nil
     /// Ход роли в этой комнате (27.10.2026). Старый сервер поля не шлёт.
     public var turn: RoomTurn? = nil
     /// Занятое окно контекста сессии (05.11.2026). Старый сервер поля не шлёт.
@@ -47,6 +50,9 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
 
     /// Постоянная комната: живёт в панели «Комнаты», а не в списке сессий.
     public var isPermanentRoom: Bool { roomKind == "personal" || roomKind == "dm" || roomKind == "common" }
+
+    /// Чат убран в архив — его можно удалить насовсем.
+    public var isArchived: Bool { archivedAt != nil }
 
     enum CodingKeys: String, CodingKey {
         case id, title, kind, members
@@ -62,6 +68,7 @@ public struct RoleChat: Decodable, Identifiable, Sendable {
         case roomKind = "room_kind"
         case projectName = "project_name"
         case closedAt = "closed_at"
+        case archivedAt = "archived_at"
         case turn
         case contextUsage = "context_usage"
         case slots
