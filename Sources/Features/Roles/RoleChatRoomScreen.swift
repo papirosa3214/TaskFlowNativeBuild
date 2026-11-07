@@ -803,8 +803,9 @@ struct RoleChatRoomScreen: View {
                         chatScrollPosition.scrollTo(edge: .bottom)
                     }
                 }
-                // Пилюля 36 pt внутри зоны 44 pt оставляет 4 pt до чек-листа.
-                .alignmentGuide(.top) { $0[.bottom] }
+                // Вся зона нажатия выше footer; нижний край пилюли — с зазором 4 pt.
+                // Offset не передаёт пользовательский alignment guide в стек footer.
+                .offset(y: -TFHitTarget.min - TFSpacing.xs)
             }
         }
     }

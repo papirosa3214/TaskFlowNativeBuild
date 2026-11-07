@@ -186,14 +186,14 @@ struct ChatScrollToBottomButton: View {
     var body: some View {
         Button(action: action) {
             // Вытянутая пилюля по центру над полем ввода (владелец 20.10.2026:
-            // «в краешек пальцем лезть неудобно»). 64×36 — высота прежнего
-            // кружка, ширина 16:9 от неё; зона нажатия 72×44.
+            // «в краешек пальцем лезть неудобно»). Владелец 07.11: вдвое
+            // ниже и немного шире — 80×18; зона нажатия 88×44.
             Image(systemName: "chevron.down")
                 .tfTypeFont(size: 17, weight: .semibold)
                 .foregroundStyle(Color.tfChatText)
-                .frame(width: 64, height: 36)
+                .frame(width: 80, height: 18)
                 .voiceCapsuleSurface()
-                .frame(width: 72, height: TFHitTarget.min)
+                .frame(width: 88, height: TFHitTarget.min, alignment: .bottom)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
