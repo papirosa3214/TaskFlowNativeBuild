@@ -401,7 +401,13 @@ struct RoleLiveTurnBubble: View {
             playbackRevision += 1
         }
         .task(id: playbackRevision) {
-            guard pacesText else { return }
+            guard pacesText else {
+                if !Task.isCancelled && isComplete && !completionReported {
+                    completionReported = true
+                    onPlaybackComplete()
+                }
+                return
+            }
             let diagnosticID = driver.isAnimating(now: .now) ? AppDiagnostics.shared.begin(.reply) : nil
             defer { if let diagnosticID { AppDiagnostics.shared.end(diagnosticID) } }
             // Часы работают только до опустошения очереди и проявления хвоста.

@@ -196,11 +196,7 @@ struct RoleChatRoomScreen: View {
     }
 
     private var pacesLiveText: Bool {
-        #if DEBUG
-        !readingPreview || ProcessInfo.processInfo.environment["TASKFLOW_CHAT_PACER_PREVIEW"] == "1"
-        #else
-        true
-        #endif
+        false
     }
 
     #if DEBUG
@@ -1774,7 +1770,7 @@ struct RoleChatRoomScreen: View {
         guard !alreadyShown, RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed) else {
             completingTurns[turn.playbackID] = nil
             completedMessageIDByTurn[turn.playbackID] = nil
-            endedTurnIDs.remove(turn.playbackID)
+            endedTurnIDs.insert(turn.playbackID)
             stoppedTurnIDs.remove(turn.playbackID)
             return
         }
@@ -1885,7 +1881,7 @@ struct RoleChatRoomScreen: View {
                                onPlaybackComplete: {
                                    ClientLog.shared.add("chat=\(chat.id) playback:done turn=\(turn.playbackID)")
                                    completingTurns[turn.playbackID] = nil
-                                   endedTurnIDs.remove(turn.playbackID)
+                                   endedTurnIDs.insert(turn.playbackID)
                                    stoppedTurnIDs.remove(turn.playbackID)
                                })
         }
