@@ -1300,7 +1300,13 @@ struct RoleChatRoomScreen: View {
         // 25-26.10.2026, `docs/2026-10-25-chat-window-behaviour.md`).
         let replyExcerpts = Self.replyExcerpts(from: messages)
         return ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
+            // Обычный `VStack`, не ленивый: в окне всего 10 последних
+            // сообщений, но они длинные (22–27 тыс. pt на всё окно), и
+            // `LazyVStack` угадывал высоту невидимых. Каждый тик живой строки
+            // («Работает · N с») менял оценку, якорь низа перескакивал — лента
+            // уезжала вверх в пустоту и ездила вверх-вниз (видео владельца
+            // 07.11.2026). Без оценки высота ленты всегда настоящая.
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
                 if messages.isEmpty && hasLoadedMessages {
                     // Личный чат с ролью: вместо пустого состояния —
                     // приветствие роли и быстрые команды (владелец 29.10.2026,
