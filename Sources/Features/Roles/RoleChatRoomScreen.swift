@@ -161,6 +161,7 @@ struct RoleChatRoomScreen: View {
     @State private var composerControls = ChatComposerControlStore()
     @State private var showsComposerCommands = false
     @State private var showsSessionPanel = false
+    @State private var pendingSessionAttachment: ChatAttachmentSource?
     // SwiftUI owns the scroll position, including user interaction and resizing.
     @State private var chatScrollPosition = ScrollPosition()
     @State private var chatIsNearBottom = true
@@ -375,7 +376,7 @@ struct RoleChatRoomScreen: View {
         }
         let saved = UserDefaults.standard.string(forKey: "roleChat.mode." + chat.createdBy + "." + chat.id)
         let mode = saved.flatMap(RoleChatWorkMode.init(rawValue:)) ?? .work
-        _workMode = State(initialValue: RoleChatWorkMode.available(in: chat).contains(mode) ? mode : .work)
+        _workMode = State(initialValue: chat.hasOwnSettings ? ChatSessionWorkModePolicy.visibleSelection(mode) : (RoleChatWorkMode.available(in: chat).contains(mode) ? mode : .work))
         #if DEBUG
         if readingPreview {
             // Предпросмотр задаёт ленту сразу, без запроса к серверу.
@@ -566,6 +567,21 @@ struct RoleChatRoomScreen: View {
 
     /// Вложения из окна сессии: фото, файл, камера.
     private func handleAttachmentSource(_ source: ChatAttachmentSource) {
+        if showsSessionPanel {
+            pendingSessionAttachment = source
+            showsSessionPanel = false
+        } else {
+            presentAttachmentSource(source)
+        }
+    }
+
+    private func sessionPopoverDidDismiss() {
+        guard let source = pendingSessionAttachment else { return }
+        pendingSessionAttachment = nil
+        presentAttachmentSource(source)
+    }
+
+    private func presentAttachmentSource(_ source: ChatAttachmentSource) {
         switch source {
         case .photo: isPhotoPickerPresented = true
         case .file: isFileImporterPresented = true
@@ -752,7 +768,7 @@ struct RoleChatRoomScreen: View {
                         }
                     },
                     sessionWorkMode: $workMode,
-                    sessionAvailableWorkModes: RoleChatWorkMode.available(in: chat),
+                    sessionAvailableWorkModes: ChatSessionWorkModePolicy.allModes,
                     onShowCommands: chat.hasOwnSettings ? { showsComposerCommands = true } : nil,
                     // Собачка: роли этого чата, кроме меня. Тот же справочник,
                     // что у подсказок при наборе «@» (RoleChatsScreen
@@ -766,11 +782,11 @@ struct RoleChatRoomScreen: View {
                     isResponding: liveStore.hasTurns || !typists.isEmpty,
                     isStopping: isStopping,
                     onStop: { Task { await stopTurns() } },
-                    focus: $composerFocused
+                    focus: $composerFocused,
+                    sessionPopoverPresented: $showsSessionPanel,
+                    sessionPopoverContent: chat.hasOwnSettings ? { AnyView(sessionPanelSheet) } : nil,
+                    onSessionPopoverDismiss: sessionPopoverDidDismiss
                 )
-                // Панель ввода ниже на 8 pt (владелец 27.10.2026: «чуть выше
-                // требуемого»); общий компонент панели не трогаем.
-                .padding(.bottom, -8)
             }
 
         }
@@ -1069,7 +1085,9 @@ struct RoleChatRoomScreen: View {
             UserDefaults.standard.set(mode.rawValue, forKey: "roleChat.mode." + chat.createdBy + "." + chat.id)
         }
         .onChange(of: chat.members.map(\.id)) { _, _ in
-            if !RoleChatWorkMode.available(in: chat).contains(workMode) { workMode = .work }
+            if chat.hasOwnSettings {
+                workMode = ChatSessionWorkModePolicy.visibleSelection(workMode)
+            } else if !RoleChatWorkMode.available(in: chat).contains(workMode) { workMode = .work }
         }
         .task(id: chat.members.map(\.id)) {
             await modelChoice.load(chat: chat)
@@ -1078,13 +1096,6 @@ struct RoleChatRoomScreen: View {
         }
         .task(id: chat.members.map(\.id).joined(separator: ":") + ":" + (messages.last?.id ?? "")) {
             await composerControls.load(chat: chat)
-        }
-        // Шторка сессии — не лента: шкала «Внешний вид» снова включена
-        // (чат гасит её через `.tfChatTypography()`, без явного true здесь
-        // наследование с презентера оставляло сессию без регуляторов).
-        .tfSheet(isPresented: $showsSessionPanel) {
-            sessionPanelSheet
-                .environment(\.tfTypeSettingsEnabled, true)
         }
         .tfSheet(isPresented: $showsComposerCommands) {
             ChatCommandPicker(commands: composerControls.commands, errorText: composerControls.errorText,

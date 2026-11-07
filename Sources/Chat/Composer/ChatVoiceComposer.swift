@@ -18,31 +18,6 @@ enum ChatAttachmentSource {
     case photo, file, camera
 }
 
-/// Подпись под рамкой поля: папка у левого края, модель у правого
-/// (владелец 27.10.2026). Обе раскладки поля ввода используют её одинаково.
-private struct ChatWorkingCaptionInset: ViewModifier {
-    let folder: String?
-    let model: String?
-    let shows: Bool
-
-    func body(content: Content) -> some View {
-        content.safeAreaInset(edge: .bottom, spacing: 0) {
-            if shows, folder != nil || model != nil {
-                HStack(spacing: 8) {
-                    if let folder { Text(folder).truncationMode(.middle) }
-                    Spacer(minLength: 0)
-                    if let model { Text(model).truncationMode(.tail) }
-                }
-                .tfText(.caption)
-                .foregroundStyle(Color.tfDim)
-                .lineLimit(1)
-                .padding(.horizontal, 28)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("chat.workingCaption")
-            }
-        }
-    }
-}
 
 /// Голосовой композер: панель ввода чата.
 struct ChatVoiceComposer: View {
@@ -88,6 +63,9 @@ struct ChatVoiceComposer: View {
     var isStopping = false
     var onStop: (() -> Void)? = nil
     var focus: FocusState<Bool>.Binding? = nil
+    var sessionPopoverPresented: Binding<Bool>? = nil
+    var sessionPopoverContent: (() -> AnyView)? = nil
+    var onSessionPopoverDismiss: (() -> Void)? = nil
 
     @State private var player = VoicePlayer()
     @State private var isRecording = false
@@ -196,8 +174,6 @@ struct ChatVoiceComposer: View {
         .opacity(isRecording || preview != nil ? 0 : 1)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
         .padding(.horizontal)
-        .padding(.bottom, workingFolder == nil && workingModel == nil ? 10 : 2)
-        .modifier(workingCaption)
     }
 
     /// Само поле. Одно и то же в обоих видах панели — поэтому каретка не
@@ -239,6 +215,7 @@ struct ChatVoiceComposer: View {
                     promptIcon("slider.horizontal.3")
                 }
                 .buttonStyle(.plain)
+                .modifier(sessionPopover)
                 .accessibilityLabel("Сессия")
                 .accessibilityIdentifier("chat.session")
                 .hintAnchor(HintAnchorID.chatSession)
@@ -296,12 +273,18 @@ struct ChatVoiceComposer: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .modifier(sessionPopover)
             .accessibilityLabel("Сессия")
             .accessibilityIdentifier("chat.session")
             .hintAnchor(HintAnchorID.chatSession)
         } else {
             attachmentMenu(circle: true)
         }
+    }
+
+    private var sessionPopover: ChatSessionPopover {
+        ChatSessionPopover(isPresented: sessionPopoverPresented ?? .constant(false),
+                           panel: sessionPopoverContent, onDismiss: onSessionPopoverDismiss)
     }
 
     /// Высота круглых кнопок новой панели — по высоте самой панели ввода
@@ -392,29 +375,9 @@ struct ChatVoiceComposer: View {
         }
     }
 
-    /// Подпись под рамкой: папка слева, модель справа (владелец 27.10.2026).
-    /// Модель здесь всегда — иначе из чата пропадает, хотя выбор уехал в
-    /// сессию (владелец 03.11.2026). Папку в личном чате с сессией не
-    /// дублируем: она в окне сессии.
-    private var workingCaption: ChatWorkingCaptionInset {
-        let inSession = onOpenSession != nil
-        return ChatWorkingCaptionInset(
-            folder: inSession ? nil : workingFolder,
-            model: workingModel,
-            shows: !isRecording && preview == nil)
-    }
-
     @ViewBuilder private var promptComposer: some View {
         promptPanel
     }
-
-    /// Рабочая папка для подписи под рамкой; nil — не выбрана.
-    private var workingFolder: String? {
-        workspaceChoice?.selected.map { ($0 as NSString).lastPathComponent }
-    }
-
-    /// Модель, которой роль работает на деле; nil — не известна.
-    private var workingModel: String? { modelChoice?.effectiveTitle }
 
     /// Выбор адресата рядом со скрепкой и режимом работы.
     private var mentionButton: some View {
@@ -481,7 +444,7 @@ struct ChatVoiceComposer: View {
         .padding(.vertical, 8)
         .voiceRoundedSurface(cornerRadius: 24)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .padding(.horizontal).padding(.bottom, 10)
+        .padding(.horizontal)
         .transition(.opacity)
     }
 
@@ -557,7 +520,7 @@ struct ChatVoiceComposer: View {
         .padding(14)
         .voiceRoundedSurface(cornerRadius: 24)
         .matchedGeometryEffect(id: "voiceComposerPill", in: composerNamespace)
-        .padding(.horizontal).padding(.bottom, 10)
+        .padding(.horizontal)
         .transition(.opacity)
     }
 
@@ -781,3 +744,20 @@ struct AgentChatComposerPreview: View {
     }
 }
 #endif
+
+/// Системное всплывающее окно остаётся popover и в компактном классе iPhone.
+private struct ChatSessionPopover: ViewModifier {
+    @Binding var isPresented: Bool
+    let panel: (() -> AnyView)?
+    let onDismiss: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        content.popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+            if let panel {
+                panel()
+                    .presentationCompactAdaptation(.popover)
+                    .onDisappear { if !isPresented { onDismiss?() } }
+            }
+        }
+    }
+}

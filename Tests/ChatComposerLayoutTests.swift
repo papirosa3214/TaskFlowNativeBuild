@@ -46,10 +46,17 @@ final class ChatComposerLayoutTests: XCTestCase {
         XCTAssertTrue(ChatComposerLayoutPolicy.focusesField(.mentionInserted))
     }
 
-    func testFourWorkModesInSessionWindow() {
-        XCTAssertEqual(ChatSessionWorkModePolicy.allModes.count, 4)
+    func testHiddenResearchRestoresToWork() {
+        XCTAssertEqual(ChatSessionWorkModePolicy.visibleSelection(.deepResearch), .work)
+        XCTAssertEqual(ChatSessionWorkModePolicy.visibleSelection(.work), .work)
+        XCTAssertEqual(ChatSessionWorkModePolicy.visibleSelection(.plan), .plan)
+        XCTAssertEqual(ChatSessionWorkModePolicy.visibleSelection(.goal), .goal)
+    }
+
+    func testThreeWorkModesInSessionWindow() {
+        XCTAssertEqual(ChatSessionWorkModePolicy.allModes.count, 3)
         XCTAssertEqual(ChatSessionWorkModePolicy.allModes.map(\.title),
-                       ["Работа", "Планирование", "Цель", "Исследование"])
+                       ["Работа", "Планирование", "Цель"])
     }
 
     func testResearchModeAllowedOnlyForResearcherAndSecretary() {

@@ -84,9 +84,12 @@ public enum ChatSessionAttachment: String, CaseIterable, Identifiable, Sendable 
 
 /// Режимы работы в окне сессии.
 public enum ChatSessionWorkModePolicy {
-    /// Все четыре режима — блоками (владелец 29.10.2026: «4 блока поставить,
-    /// режима работы, как минимум»).
-    public static let allModes: [RoleChatWorkMode] = [.work, .plan, .goal, .deepResearch]
+    /// Режимы окна сессии (владелец 07.11.2026): исследование скрыто.
+    public static let allModes: [RoleChatWorkMode] = [.work, .plan, .goal]
+
+    public static func visibleSelection(_ mode: RoleChatWorkMode) -> RoleChatWorkMode {
+        allModes.contains(mode) ? mode : .work
+    }
 
     /// Глубокое исследование сервер принимает только в чате с Исследователем
     /// или с Помощником владельца (`routes/chats.ts`).
