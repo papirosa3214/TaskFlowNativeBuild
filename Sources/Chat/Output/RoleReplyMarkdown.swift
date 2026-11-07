@@ -310,7 +310,7 @@ struct RoleReplyMarkdown: View, Equatable {
 
     /// Прогоны с марками → `AttributedString`: жирный/курсив/код/зачёркнутый
     /// через `inlinePresentationIntent` (его понимает `Text`), ссылка — `link`.
-    static func attributed(_ runs: [RichRun]) -> AttributedString {
+    static func attributed(_ runs: [RichRun], chatGroup: TFChatTypeGroup? = nil) -> AttributedString {
         var result = AttributedString()
         for run in runs {
             var piece = AttributedString(run.text)
@@ -320,6 +320,11 @@ struct RoleReplyMarkdown: View, Equatable {
             if run.code { intent.insert(.code) }
             if run.strike { intent.insert(.strikethrough) }
             if !intent.isEmpty { piece.inlinePresentationIntent = intent }
+            if let chatGroup {
+                let group = TFChatTypeGroup(rawValue: TypographyPreferences.chatRunGroup(
+                    base: chatGroup.rawValue, bold: run.bold, code: run.code)) ?? chatGroup
+                piece.font = .tfChat(group, weight: run.bold ? .bold : chatGroup == .heading ? .semibold : .regular)
+            }
             if run.underline { piece.underlineStyle = .single }
             if run.highlight { piece.backgroundColor = Color.tfYellow.opacity(0.35) }
             if let href = run.linkHref, let url = URL(string: href) { piece.link = url }
@@ -348,6 +353,7 @@ extension RoleReplyMarkdown {
 /// выравнивание колонок из строки-разделителя, горизонтальная прокрутка для
 /// широких таблиц. Ячейки понимают инлайн-разметку (**жирный**, `код`, ссылки).
 struct ChatTableView: View {
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
     let table: ChatTable
     var color: Color = .tfText
 
@@ -373,6 +379,7 @@ struct ChatTableView: View {
     // Окошко (владелец 14.10.2026, по образцу): рамка стоит на месте,
     // таблица листается внутри неё в обе стороны.
     var body: some View {
+        let _ = typeRevision
         // Тёмная подложка и тёмно-красная рамка, как у виджетов; без светлой
         // полосы шапки и «зебры» — строки делят линии цвета рамки
         // (владелец 06.11.2026: «чтобы не было светло-серого»).
@@ -381,8 +388,8 @@ struct ChatTableView: View {
                 VStack(spacing: 0) {
                     HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
-                            cell(title, runs: headerRuns(column), column: column, width: columnWidths[column])
-                                .font(.subheadline.weight(.semibold))
+                            cell(title, runs: headerRuns(column), chatGroup: .heading, column: column, width: columnWidths[column])
+                                .tfChatText(.heading, weight: .semibold)
                         }
                     }
                     .overlay(alignment: .bottom) {
@@ -421,10 +428,10 @@ struct ChatTableView: View {
         return rows[row][column]
     }
 
-    private func cell(_ text: String, runs: [RichRun]?, column: Int, width: CGFloat) -> some View {
+    private func cell(_ text: String, runs: [RichRun]?, chatGroup: TFChatTypeGroup = .body, column: Int, width: CGFloat) -> some View {
         let alignment = column < table.alignments.count ? table.alignments[column] : .leading
         // Ячейка приходит с сервера уже размеченной; локального разбора нет.
-        return Text(RoleReplyMarkdown.attributed(runs ?? []))
+        return Text(RoleReplyMarkdown.attributed(runs ?? [], chatGroup: chatGroup))
             .foregroundStyle(color)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .frame(width: max(1, width - TFSpacing.md * 2), alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)

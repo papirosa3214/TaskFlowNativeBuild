@@ -59,11 +59,11 @@ struct RoleQuestionCard: View {
     private var nativeContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(question.isAnswered ? "Ответ отправлен" : "Нужен ваш выбор")
-                .font(.headline)
+                .tfChatText(.heading, weight: .semibold)
             ForEach(Array(question.questions.enumerated()), id: \.offset) { index, item in
                 VStack(alignment: .leading, spacing: 12) {
                     if let header = item.header, !header.isEmpty {
-                        Text(header).font(.subheadline)
+                        Text(header).tfChatText(.body)
                     }
                     Text(item.question)
                         .fixedSize(horizontal: false, vertical: true)
@@ -78,7 +78,7 @@ struct RoleQuestionCard: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(option.label)
                                     if let description = option.description, !description.isEmpty {
-                                        Text(description).font(.subheadline)
+                                        Text(description).tfChatText(.body)
                                     }
                                 }
                                 .multilineTextAlignment(.leading)

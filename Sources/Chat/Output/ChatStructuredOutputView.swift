@@ -447,7 +447,7 @@ struct ChatStructuredOutputView: View {
                     .tfText(.body)
                     .foregroundStyle(Color.tfRed)
                 Text(json)
-                    .font(.system(.caption, design: .monospaced))
+                    .tfChatText(.mono, scale: TFChatTypeGroup.meta.baseSize / TFChatTypeGroup.mono.baseSize)
                     .foregroundStyle(Color.tfSub)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)

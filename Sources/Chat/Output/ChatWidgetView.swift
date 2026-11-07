@@ -299,7 +299,7 @@ private struct WeatherWidget: View {
                     Text(data.string("location") ?? "Погода")
                         .tfText(.title)
                     Text(temperature(data.number("temperature")))
-                        .font(.system(size: 56, weight: .thin))  // design-system-guard: ignore — крупная цифра температуры в виджете, вне шкалы текста
+                        .tfChatText(.body, weight: .thin, scale: 56 / TFChatTypeGroup.body.baseSize)
                         .monospacedDigit()
                 }
                 Spacer()
@@ -308,7 +308,7 @@ private struct WeatherWidget: View {
                         .symbolRenderingMode(.multicolor)
                         .tfTypeFont(size: 40)
                     if let condition = data.string("condition") {
-                        Text(condition).font(.subheadline.weight(.medium))
+                        Text(condition).tfChatText(.body, weight: .medium)
                     }
                     if let high = data.number("high"), let low = data.number("low") {
                         Text("Макс. \(temperature(high)) · мин. \(temperature(low))")
@@ -323,12 +323,12 @@ private struct WeatherWidget: View {
                 HStack {
                     ForEach(Array(forecast.prefix(5).enumerated()), id: \.offset) { _, day in
                         VStack(spacing: TFSpacing.xs) {
-                            Text(day.string("day") ?? "").font(.caption.weight(.semibold))
+                            Text(day.string("day") ?? "").tfChatText(.meta, weight: .semibold)
                             Image(systemName: WeatherSymbol.name(day.string("icon") ?? "cloudy", isDay: true))
                                 .symbolRenderingMode(.multicolor)
                                 .tfText(.taskTitle)
                                 .frame(height: 26)
-                            Text(temperature(day.number("high"))).font(.caption.weight(.semibold))
+                            Text(temperature(day.number("high"))).tfChatText(.meta, weight: .semibold)
                             Text(temperature(day.number("low"))).tfText(.meta).opacity(0.75)
                         }
                         .frame(maxWidth: .infinity)
@@ -414,14 +414,14 @@ private struct MetricsWidget: View {
                             .tfText(.meta)
                             .foregroundStyle(Color.tfSub)
                         Text(item.string("value") ?? "—")
-                            .font(.title2.weight(.semibold))
+                            .tfChatText(.heading, weight: .semibold, scale: 22 / TFChatTypeGroup.heading.baseSize)
                             .monospacedDigit()
                             .foregroundStyle(Color.tfChatText)
                         if let delta = item.string("delta") {
                             let trend = item.string("trend") ?? ""
                             Label(delta, systemImage: trend == "up" ? "arrow.up.right"
                                   : trend == "down" ? "arrow.down.right" : "arrow.right")
-                                .font(.caption.weight(.medium))
+                                .tfChatText(.meta, weight: .medium)
                                 .foregroundStyle(trend == "up" ? Color.tfGreen
                                                  : trend == "down" ? Color.tfRed : Color.tfSub)
                         }

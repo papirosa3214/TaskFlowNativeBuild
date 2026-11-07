@@ -8,6 +8,21 @@ enum TypographyContext: String, CaseIterable, Identifiable {
 }
 
 enum TypographyPreferences {
+    static func chatRunGroup(base: String, bold: Bool, code: Bool) -> String {
+        if code { return "mono" }
+        if bold && base == "body" { return "emphasis" }
+        return base
+    }
+
+    /// Семантические стили общих компонентов внутри ленты читают шкалу чата.
+    static func chatGroup(forTextStyle style: String) -> String {
+        switch style {
+        case "titleLarge", "taskTitle", "title", "heatmapCount": "heading"
+        case "action", "meta", "caption", "micro": "meta"
+        default: "body"
+        }
+    }
+
     static let legacyGlobalScaleKey = "taskflow_text_scale"
     private static let migrationKey = "taskflow_typography_contexts_migrated_v1"
 

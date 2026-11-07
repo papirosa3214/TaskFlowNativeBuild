@@ -59,7 +59,7 @@ struct ChatHTMLView: View {
             Image(systemName: "sparkles.rectangle.stack")
                 .foregroundStyle(Color.tfRed)
             Text(Self.title(of: html) ?? "Интерактив")
-                .font(.subheadline.weight(.semibold))
+                .tfChatText(.heading, weight: .semibold)
                 .foregroundStyle(Color.tfChatText)
                 .lineLimit(1)
             Spacer()

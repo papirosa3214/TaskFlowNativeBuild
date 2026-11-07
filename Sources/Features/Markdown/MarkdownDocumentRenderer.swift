@@ -88,10 +88,13 @@ struct StructuredDocumentBlocksView: View {
 }
 
 struct StructuredDocumentBlockView: View {
+    @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
     let block: DocumentContentBlock
     var orderedNumber = 1
 
     var body: some View {
+        let _ = typeRevision
         switch block {
         case .paragraph(let runs):
             inline(runs, style: .body)
@@ -118,7 +121,7 @@ struct StructuredDocumentBlockView: View {
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     Text(text)
-                        .font(.system(.callout, design: .monospaced))
+                        .font(typeSettingsEnabled ? .system(.callout, design: .monospaced) : .tfChat(.mono))
                         .foregroundStyle(Color.tfText)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -136,7 +139,7 @@ struct StructuredDocumentBlockView: View {
 
     private func inline(_ runs: [RichRun], style: TFTextStyle) -> some View {
         runs.reduce(Text("")) { result, run in
-            let piece = Text(RoleReplyMarkdown.attributed([run]))
+            let piece = Text(RoleReplyMarkdown.attributed([run], chatGroup: typeSettingsEnabled ? nil : style.chatGroup))
                 .fontWeight(run.bold ? .semibold : nil)
                 .foregroundColor(run.bold ? Color.tfText : Color.tfText.opacity(0.9))
             return Text("\(result)\(piece)")
@@ -174,6 +177,8 @@ struct StructuredDocumentBlockView: View {
 /// Рисует исходные runs ячеек напрямую: повторно разбирать их как Markdown
 /// нельзя — экранированные символы и код с `|` тогда меняют значение.
 private struct DocumentTableView: View {
+    @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
     let rows: [NoteTableRow]
     private static let maxCellWidth: CGFloat = 220
 
@@ -186,6 +191,7 @@ private struct DocumentTableView: View {
     }
 
     var body: some View {
+        let _ = typeRevision
         TFCard(padding: 0, surface: .card, radius: TFRadius.lg) {
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(spacing: 0) {
@@ -216,7 +222,7 @@ private struct DocumentTableView: View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(item.cells.enumerated()), id: \.offset) { column, cell in
                 if column < columnWidths.count {
-                    Text(RoleReplyMarkdown.attributed(cell.runs))
+                    Text(RoleReplyMarkdown.attributed(cell.runs, chatGroup: typeSettingsEnabled ? nil : isHeader || cell.isHeader ? .heading : .body))
                         .tfText(.body)
                         .fontWeight(isHeader || cell.isHeader ? .semibold : nil)
                         .foregroundStyle(Color.tfText)

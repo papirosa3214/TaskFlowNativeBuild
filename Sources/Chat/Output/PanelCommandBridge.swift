@@ -96,7 +96,7 @@ struct PanelCommandConfirmation: ViewModifier {
             NavigationStack {
                 Form {
                     Section("Команда на сервере .110") {
-                        Text(bridge.pending?.command ?? "").font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                        Text(bridge.pending?.command ?? "").tfChatText(.mono).textSelection(.enabled)
                     }
                     Button("Выполнить на .110") { bridge.confirm() }
                         .accessibilityIdentifier("panel-command-confirm")

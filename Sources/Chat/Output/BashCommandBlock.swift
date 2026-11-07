@@ -12,7 +12,7 @@ struct BashCommandBlock: View {
         TFCard(padding: TFSpacing.md, surface: .dark, radius: TFRadius.md) {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             ScrollView(.horizontal) {
-                Text(command).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
+                Text(command).tfChatText(.mono).textSelection(.enabled)
             }
             if running {
                 TFLoading(.inline)
@@ -40,7 +40,7 @@ struct BashCommandBlock: View {
             NavigationStack {
                 Form {
                     Section("Команда на сервере .110") {
-                        Text(command).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                        Text(command).tfChatText(.mono).textSelection(.enabled)
                     }
                     Section {
                         Button("Выполнить на .110") {
@@ -71,7 +71,7 @@ struct BashCommandBlock: View {
     }
     private func output(_ text: String) -> some View {
         ScrollView(.horizontal) {
-            Text(text).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+            Text(text).tfChatText(.mono, scale: TFChatTypeGroup.meta.baseSize / TFChatTypeGroup.mono.baseSize).textSelection(.enabled)
         }
     }
 }

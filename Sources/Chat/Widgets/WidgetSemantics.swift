@@ -479,7 +479,7 @@ struct WidgetTextFallback: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(json)
-                    .font(.system(.caption, design: .monospaced))
+                    .tfChatText(.mono, scale: TFChatTypeGroup.meta.baseSize / TFChatTypeGroup.mono.baseSize)
                     .foregroundStyle(Color.tfDim)
             }
             .accessibilityLabel("Исходный блок виджета")

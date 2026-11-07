@@ -17,7 +17,29 @@ struct TypographyPreferencesHostTests {
         try migrationCopiesChatToneOnlyOnce()
         try appAndChatFacesStayIndependent()
         try groupFacesStayIndependentAndInherit()
+        try structuredChatStylesUseChatGroups()
+        try richChatRunsUseTheirOwnGroups()
         print("PASS typography preferences")
+    }
+
+    private static func richChatRunsUseTheirOwnGroups() throws {
+        try expect(TypographyPreferences.chatRunGroup(base: "body", bold: true, code: false) == "emphasis", "bold table text bypasses emphasis")
+        try expect(TypographyPreferences.chatRunGroup(base: "body", bold: false, code: true) == "mono", "inline table code bypasses mono")
+        try expect(TypographyPreferences.chatRunGroup(base: "body", bold: true, code: true) == "mono", "bold code must remain code")
+        try expect(TypographyPreferences.chatRunGroup(base: "heading", bold: true, code: false) == "heading", "heading must retain its group")
+        try expect(TypographyPreferences.chatRunGroup(base: "body", bold: false, code: false) == "body", "plain table text must retain body")
+    }
+
+    private static func structuredChatStylesUseChatGroups() throws {
+        for style in ["titleLarge", "taskTitle", "title", "heatmapCount"] {
+            try expect(TypographyPreferences.chatGroup(forTextStyle: style) == "heading", "heading bypasses chat settings: \(style)")
+        }
+        for style in ["input", "body", "listTitle", "row"] {
+            try expect(TypographyPreferences.chatGroup(forTextStyle: style) == "body", "body bypasses chat settings: \(style)")
+        }
+        for style in ["action", "meta", "caption", "micro"] {
+            try expect(TypographyPreferences.chatGroup(forTextStyle: style) == "meta", "metadata bypasses chat settings: \(style)")
+        }
     }
 
     private static func migrationFillsOnlyMissingAppGroups() throws {

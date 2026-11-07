@@ -220,8 +220,12 @@ public extension Text {
     }
 }
 
-public enum TFTextStyle {
+public enum TFTextStyle: String {
     case titleLarge, taskTitle, title, input, body, listTitle, row, action, meta, caption, micro, heatmapCount
+
+    var chatGroup: TFChatTypeGroup {
+        TFChatTypeGroup(rawValue: TypographyPreferences.chatGroup(forTextStyle: rawValue)) ?? .body
+    }
 
     /// Базовый кегль ступени — то, что видно на дефолтном размере текста.
     /// ЭТО ЕДИНСТВЕННОЕ МЕСТО в приложении, где заданы размеры текста:
@@ -354,8 +358,7 @@ private struct TFTextStyleModifier: ViewModifier {
         }
     }
 
-    /// Кегль с поправкой на выбранную ступень группы. В чатах множитель не
-    /// работает: их корни выключают настройку через `.tfTypeSettingsEnabled(false)`.
+    /// Кегль приложения. В чате используется независимая семантическая группа.
     private var effectiveSize: CGFloat {
         typeSettingsEnabled ? scaledSize * style.group.multiplier : scaledSize
     }
@@ -363,8 +366,11 @@ private struct TFTextStyleModifier: ViewModifier {
     func body(content: Content) -> some View {
         let _ = typeRevision
         content
-            .font((typeSettingsEnabled ? TFTypeFace.saved(for: .app, group: style.group.rawValue) : .system)
-                .font(size: effectiveSize, weight: style.weight, design: style.design))
+            .font(typeSettingsEnabled
+                ? TFTypeFace.saved(for: .app, group: style.group.rawValue)
+                    .font(size: effectiveSize, weight: style.weight, design: style.design)
+                : .tfChat(style.chatGroup, weight: style.weight, design: style.design,
+                          scale: style == .heatmapCount ? style.baseSize / style.chatGroup.baseSize : 1))
             .tracking(style.tracking)
     }
 }
@@ -450,7 +456,7 @@ extension Font {
 /// отдельную шкалу `TFChatTypeGroup` (владелец 03.11.2026).
 public extension View {
     func tfChatTypography() -> some View {
-        environment(\.tfTypeSettingsEnabled, false)
+        modifier(TFChatTypographyModifier())
     }
 
     /// Шрифт выбранной гарнитуры по размеру и начертанию.
@@ -472,9 +478,22 @@ extension View {
     func tfChatText(
         _ group: TFChatTypeGroup,
         weight: Font.Weight = .regular,
-        design: Font.Design = .default
+        design: Font.Design = .default,
+        scale: CGFloat = 1
     ) -> some View {
-        modifier(TFChatTextModifier(group: group, weight: weight, design: design))
+        modifier(TFChatTextModifier(group: group, weight: weight, design: design, scale: scale))
+    }
+}
+
+/// Даже текст без локального модификатора наследует основной шрифт чата.
+private struct TFChatTypographyModifier: ViewModifier {
+    @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
+
+    func body(content: Content) -> some View {
+        let _ = typeRevision
+        content
+            .environment(\.tfTypeSettingsEnabled, false)
+            .font(.tfChat(.body))
     }
 }
 
@@ -501,11 +520,12 @@ private struct TFChatTextModifier: ViewModifier {
     let group: TFChatTypeGroup
     let weight: Font.Weight
     let design: Font.Design
+    let scale: CGFloat
 
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
 
     func body(content: Content) -> some View {
         let _ = typeRevision
-        content.font(.tfChat(group, weight: weight, design: design))
+        content.font(.tfChat(group, weight: weight, design: design, scale: scale))
     }
 }
