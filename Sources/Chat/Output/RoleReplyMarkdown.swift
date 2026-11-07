@@ -3,7 +3,7 @@ import SwiftUI
 /// Отображает только подготовленные сервером блоки; исходный текст не разбирает.
 struct RoleReplyMarkdown: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks && lhs.prepared == rhs.prepared
+        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks && lhs.prepared == rhs.prepared && lhs.textGroup == rhs.textGroup
     }
 
     let text: String
@@ -23,6 +23,8 @@ struct RoleReplyMarkdown: View, Equatable {
     /// Куски, уже собранные из блоков сервера (живой ход: блок, обрезанный по
     /// открытой части). Есть — текст не раскладывается.
     var prepared: [ChatRichSegment]? = nil
+    /// Рассуждения используют собственную группу внутри Markdown, а не внешний font.
+    var textGroup: TFChatTypeGroup = .body
     /// Жирный читает «Подзаголовок» — без этого счётчика `.equatable()` не
     /// перерисует ответ при смене ступени в настройках.
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
@@ -86,7 +88,7 @@ struct RoleReplyMarkdown: View, Equatable {
         case .document(let blocks, _):
             documentBody(blocks, fade: fade)
         case .table(let table):
-            ChatTableView(table: table, color: color)
+            ChatTableView(table: table, color: color, textGroup: textGroup)
         case .widget(let json):
             ChatWidgetView(json: json, widgetKey: widgetKey, checklist: checklist)
         case .structuredJSON(let json):
@@ -215,7 +217,7 @@ struct RoleReplyMarkdown: View, Equatable {
             TFCard(padding: 0, surface: .dark, radius: TFRadius.md) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     Text(block.runs.map(\.text).joined())
-                        .font(.tfChat(.mono, design: .monospaced))
+                        .font(.tfChat(textGroup == .thinking ? .thinking : .mono, design: .monospaced))
                         .foregroundStyle(color)
                         .textSelection(.enabled)
                         .padding(TFSpacing.md)
@@ -226,13 +228,14 @@ struct RoleReplyMarkdown: View, Equatable {
         case .horizontalRule:
             Divider()
         case .table(let rows):
-            StructuredDocumentBlocksView(blocks: [.table(rows)])
+            StructuredDocumentBlocksView(blocks: [.table(rows)], chatGroup: textGroup == .thinking ? .thinking : nil)
         }
     }
 
     private func listRow(marker: Text, block: NoteBlock) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
             marker
+                .font(.tfChat(textGroup == .thinking ? .thinking : .body))
                 .foregroundStyle(Color.tfSub)
                 .frame(minWidth: 14, alignment: .trailing)
             inline(block)
@@ -244,7 +247,7 @@ struct RoleReplyMarkdown: View, Equatable {
     /// в заголовках нет: там жирное и так крупное, и лишний шаг вверх
     /// сбивал бы уровень (владелец 17.10.2026: жирное сливалось с текстом).
     private func inline(_ block: NoteBlock, liftBold: Bool = true, baseFont: Font? = nil) -> some View {
-        Self.readableText(Self.pieces(for: block), color: color, liftBold: liftBold, baseFont: baseFont)
+        Self.readableText(Self.pieces(for: block), color: color, liftBold: liftBold, baseFont: baseFont, textGroup: textGroup)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -252,8 +255,9 @@ struct RoleReplyMarkdown: View, Equatable {
 
     /// Кегли — из шкалы «Шрифт чата» (владелец 03.11.2026). Цвет у основного
     /// и жирного один; обычный чуть тише на 5%.
-    private static func readableText(_ pieces: [RunPiece], color: Color, liftBold: Bool = true, baseFont: Font? = nil) -> Text {
-        pieces.reduce(Text("")) { result, piece in
+    private static func readableText(_ pieces: [RunPiece], color: Color, liftBold: Bool = true, baseFont: Font? = nil, textGroup: TFChatTypeGroup = .body) -> Text {
+        let baseFont = textGroup == .thinking ? Font.tfChat(.thinking) : baseFont
+        return pieces.reduce(Text("")) { result, piece in
             var text = Text(piece.attributed)
                 .fontWeight(piece.bold ? .bold : nil)
                 .foregroundColor(color)
@@ -356,6 +360,7 @@ struct ChatTableView: View {
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
     let table: ChatTable
     var color: Color = .tfText
+    var textGroup: TFChatTypeGroup = .body
 
     /// Шире — перенос строки внутри ячейки, а не бесконечная колонка.
     private static let maxCellWidth: CGFloat = 220
@@ -431,7 +436,7 @@ struct ChatTableView: View {
     private func cell(_ text: String, runs: [RichRun]?, chatGroup: TFChatTypeGroup = .body, column: Int, width: CGFloat) -> some View {
         let alignment = column < table.alignments.count ? table.alignments[column] : .leading
         // Ячейка приходит с сервера уже размеченной; локального разбора нет.
-        return Text(RoleReplyMarkdown.attributed(runs ?? [], chatGroup: chatGroup))
+        return Text(RoleReplyMarkdown.attributed(runs ?? [], chatGroup: textGroup == .thinking ? .thinking : chatGroup))
             .foregroundStyle(color)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .frame(width: max(1, width - TFSpacing.md * 2), alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)

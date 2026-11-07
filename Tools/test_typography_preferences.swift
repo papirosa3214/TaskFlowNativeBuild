@@ -19,7 +19,16 @@ struct TypographyPreferencesHostTests {
         try groupFacesStayIndependentAndInherit()
         try structuredChatStylesUseChatGroups()
         try richChatRunsUseTheirOwnGroups()
+        try thinkingRunsStayInThinkingGroup()
         print("PASS typography preferences")
+    }
+
+    private static func thinkingRunsStayInThinkingGroup() throws {
+        for bold in [false, true] {
+            for code in [false, true] {
+                try expect(TypographyPreferences.chatRunGroup(base: "thinking", bold: bold, code: code) == "thinking", "thinking run escaped its font group")
+            }
+        }
     }
 
     private static func richChatRunsUseTheirOwnGroups() throws {

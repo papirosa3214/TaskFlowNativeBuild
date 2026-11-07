@@ -57,6 +57,7 @@ struct MarkdownDocumentRenderer: View {
 /// типографика, переносы и оформление таблиц.
 struct StructuredDocumentBlocksView: View {
     let blocks: [DocumentContentBlock]
+    var chatGroup: TFChatTypeGroup? = nil
 
     private var orderedNumbers: [Int: Int] {
         var counters: [Int: Int] = [:]
@@ -79,7 +80,7 @@ struct StructuredDocumentBlocksView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
-                StructuredDocumentBlockView(block: block, orderedNumber: orderedNumbers[index] ?? 1)
+                StructuredDocumentBlockView(block: block, orderedNumber: orderedNumbers[index] ?? 1, chatGroup: chatGroup)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,6 +93,7 @@ struct StructuredDocumentBlockView: View {
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
     let block: DocumentContentBlock
     var orderedNumber = 1
+    var chatGroup: TFChatTypeGroup? = nil
 
     var body: some View {
         let _ = typeRevision
@@ -121,7 +123,7 @@ struct StructuredDocumentBlockView: View {
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     Text(text)
-                        .font(typeSettingsEnabled ? .system(.callout, design: .monospaced) : .tfChat(.mono))
+                        .font(chatGroup.map { Font.tfChat($0) } ?? (typeSettingsEnabled ? .system(.callout, design: .monospaced) : .tfChat(.mono)))
                         .foregroundStyle(Color.tfText)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -131,7 +133,7 @@ struct StructuredDocumentBlockView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.tfCard, in: RoundedRectangle(cornerRadius: TFRadius.md))
         case .table(let rows):
-            DocumentTableView(rows: rows)
+            DocumentTableView(rows: rows, chatGroup: chatGroup)
         case .horizontalRule:
             Divider()
         }
@@ -139,7 +141,7 @@ struct StructuredDocumentBlockView: View {
 
     private func inline(_ runs: [RichRun], style: TFTextStyle) -> some View {
         runs.reduce(Text("")) { result, run in
-            let piece = Text(RoleReplyMarkdown.attributed([run], chatGroup: typeSettingsEnabled ? nil : style.chatGroup))
+            let piece = Text(RoleReplyMarkdown.attributed([run], chatGroup: chatGroup ?? (typeSettingsEnabled ? nil : style.chatGroup)))
                 .fontWeight(run.bold ? .semibold : nil)
                 .foregroundColor(run.bold ? Color.tfText : Color.tfText.opacity(0.9))
             return Text("\(result)\(piece)")
@@ -180,6 +182,7 @@ private struct DocumentTableView: View {
     @Environment(\.tfTypeSettingsEnabled) private var typeSettingsEnabled
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
     let rows: [NoteTableRow]
+    var chatGroup: TFChatTypeGroup? = nil
     private static let maxCellWidth: CGFloat = 220
 
     private var columnWidths: [CGFloat] {
@@ -222,7 +225,7 @@ private struct DocumentTableView: View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(item.cells.enumerated()), id: \.offset) { column, cell in
                 if column < columnWidths.count {
-                    Text(RoleReplyMarkdown.attributed(cell.runs, chatGroup: typeSettingsEnabled ? nil : isHeader || cell.isHeader ? .heading : .body))
+                    Text(RoleReplyMarkdown.attributed(cell.runs, chatGroup: chatGroup ?? (typeSettingsEnabled ? nil : (isHeader || cell.isHeader ? .heading : .body))))
                         .tfText(.body)
                         .fontWeight(isHeader || cell.isHeader ? .semibold : nil)
                         .foregroundStyle(Color.tfText)

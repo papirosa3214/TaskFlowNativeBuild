@@ -9,6 +9,7 @@ enum TypographyContext: String, CaseIterable, Identifiable {
 
 enum TypographyPreferences {
     static func chatRunGroup(base: String, bold: Bool, code: Bool) -> String {
+        if base == "thinking" { return base }
         if code { return "mono" }
         if bold && base == "body" { return "emphasis" }
         return base

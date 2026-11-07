@@ -631,8 +631,8 @@ struct RoleThinkingWindow: View {
                 // `код` и **жирное** — ярче приглушённого текста, чтобы главное
                 // сразу бросалось в глаза (владелец 14.10.2026, по образцу).
                 RoleReplyMarkdown(text: text, color: .tfSub,
-                                  serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: text)?.map(\.block))
-                    .tfChatText(.thinking)
+                                  serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: text)?.map(\.block),
+                                  textGroup: .thinking)
                     .italic()
                     .foregroundStyle(Color.tfSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -771,7 +771,8 @@ struct RoleLiveDetailSheet: View {
         switch detail {
         case .thinking(let thinking):
             RoleReplyMarkdown(text: thinking.text, color: .tfText,
-                              serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block))
+                              serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block),
+                              textGroup: .thinking)
                 .italic()
                 .textSelection(.enabled)
         case .step(let step):
