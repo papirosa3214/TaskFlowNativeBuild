@@ -144,7 +144,6 @@ struct RoleChatRoomScreen: View {
     /// Первый полный снимок после открытия уже вошёл в семя.
     @State private var historySeedSettled = false
     /// Пункты хода такими, какими их видел владелец к моменту закрытия.
-    @State private var closedTurnItems: [String: [RoleChatLiveItem]] = [:]
     /// Свои сообщения в пути: видны сразу, до ответа сервера.
     @State private var pendingOutgoing: [PendingOutgoing] = []
     @State private var discussionStatus: RoleChatDiscussion? = nil
@@ -1749,34 +1748,19 @@ struct RoleChatRoomScreen: View {
         }
     }
 
-    /// Готовый ответ закрывает ход: пока ход доигрывает ответ, сообщение
-    /// скрыто из ленты, а при его появлении занимает ту же строку.
-    ///
-    /// Если доигрывать нечего (пустые пункты после снятия текста конверта),
-    /// сообщение сразу остаётся в ленте: пустой пузырь не монтируется, и
-    /// `onPlaybackComplete` иначе никогда не отпустит ответ.
-    /// `alreadyShown` — сообщение уже было в ленте до этого вызова: доигрывать
-    /// его текст в пузыре не нужно (владелец 07.11.2026).
+    /// Готовый ответ сразу заменяет живой ход. История действий остаётся
+    /// на сервере и в карточке задачи, но в завершённой строке чата не нужна.
+    /// Переход не зависит от callback анимации: end может прийти раньше ответа.
     private func completeLiveTurn(_ turn: RoleChatLiveTurn, with message: RoleChatMessage,
                                   alreadyShown: Bool = false) {
-        let completed = turn.completed(with: message)
-        ClientLog.shared.add("chat=\(chat.id) complete turn=\(turn.playbackID) message=\(message.id) structured=\(message.hasStructuredAnswer) hold=\(RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed)) text_chars=\(completed.items.reduce(0) { if case .text(let t) = $1 { return $0 + t.count }; return $0 })")
         // Ответ уже в ленте: пузыря не будет, и строку сообщения ему не
         // отдаём — пусть остаётся своей (владелец 07.11.2026).
         if !alreadyShown { rowIDByMessageID[message.id] = RoleChatRowID.turn(turn.playbackID) }
         closedTurnMessageIDs.insert(message.id)
-        closedTurnItems[message.id] = turn.itemsWithoutAnswerText(for: message)
-        if message.stopReason != nil { stoppedTurnIDs.insert(turn.playbackID) }
-        guard !alreadyShown, RoleChatLiveCompletion.shouldHoldSavedMessage(for: completed) else {
-            completingTurns[turn.playbackID] = nil
-            completedMessageIDByTurn[turn.playbackID] = nil
-            endedTurnIDs.insert(turn.playbackID)
-            stoppedTurnIDs.remove(turn.playbackID)
-            return
-        }
-        completingTurns[turn.playbackID] = completed
-        completedMessageIDByTurn[turn.playbackID] = message.id
+        completingTurns[turn.playbackID] = nil
+        completedMessageIDByTurn[turn.playbackID] = nil
         endedTurnIDs.insert(turn.playbackID)
+        stoppedTurnIDs.remove(turn.playbackID)
     }
 
     /// Ход, который сменился новым и ждёт свой сохранённый ответ: по нему
@@ -1924,7 +1908,10 @@ struct RoleChatRoomScreen: View {
             showLiveTurn(turn, userID: state.userID)
         }
         guard revision == roomEventRevision else { return }
-        let turns = snapshot.turns
+        let turns = snapshot.turns.filter { turn in
+            !endedTurnIDs.contains(turn.playbackID)
+                && !(turn.triggerMessageID.map { hasAnswer(on: $0, from: turn.userID) } ?? false)
+        }
         let previous = liveTurns
         var merged: [String: RoleChatLiveTurn] = [:]
         for turn in turns {
@@ -2157,14 +2144,6 @@ struct RoleChatRoomScreen: View {
                 if !isAgentReply(message) { senderLine(message, color: Color.tfSub) }
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName,
                              excerpts: replyExcerpts)
-                if let items = closedTurnItems[message.id] {
-                    // Ровно то, что владелец видел в живом пузыре.
-                    RoleLiveItemsList(items: items, stepDetailLoader: stepDetailLoader(for: message),
-                                      showsActionPreview: true)
-                } else if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.itemsWithoutAnswerText(of: message),
-                                      stepDetailLoader: stepDetailLoader(for: message))
-                }
                 // Текст и карточка задачи — вместе, а не вместо: раньше
                 // карточка подменяла всё сообщение, и вопрос роли пропадал
                 // (владелец 14.10.2026: «приходит только виджет»).
@@ -2283,14 +2262,6 @@ struct RoleChatRoomScreen: View {
                 }
                 replyContext(messageID: message.replyToMessageID, sender: message.replyToSenderName,
                              excerpts: replyExcerpts)
-                // Ход, который привёл к ответу (27.09.2026), — как шёл вживую (01.10.2026).
-                if let items = closedTurnItems[message.id] {
-                    RoleLiveItemsList(items: items, stepDetailLoader: stepDetailLoader(for: message),
-                                      showsActionPreview: true)
-                } else if let steps = message.steps, steps.hasDetails {
-                    RoleLiveItemsList(items: steps.itemsWithoutAnswerText(of: message),
-                                      stepDetailLoader: stepDetailLoader(for: message))
-                }
                 ForEach(message.attachments?.filter { $0.isVoiceRecording } ?? []) { attachment in
                     RoleChatRemoteVoiceBubble(
                         attachment: attachment,

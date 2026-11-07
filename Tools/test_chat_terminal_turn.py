@@ -7,7 +7,7 @@ import tempfile
 source = (Path(__file__).resolve().parents[1] / 'Sources/Features/Roles/RoleChatRoomScreen.swift').read_text()
 # Execute exactly the mutations performed at playback cleanup and at the
 # already-visible completion path; stale snapshots use this same Set guard.
-paths = [source.split('guard !alreadyShown, RoleChatLiveCompletion.shouldHoldSavedMessage')[1].split('return')[0],
+paths = [source.split('private func completeLiveTurn(')[1].split('private func parkedTurn(')[0],
          source.split('onPlaybackComplete: {')[1].split('stoppedTurnIDs')[0]]
 with tempfile.TemporaryDirectory() as directory:
     main = Path(directory) / 'main.swift'
