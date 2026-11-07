@@ -161,7 +161,7 @@ struct ChatContextSheet: View {
                         }
                     }
                     .padding(.vertical, TFSpacing.xs)
-                    .tfSettingsListRow()
+                    .tfSettingsListRow(background: .clear)
                 }
                 if let snapshot, let breakdown = snapshot.breakdown, let window = snapshot.contextWindow, window > 0 {
                     Section {
@@ -196,7 +196,7 @@ struct ChatContextSheet: View {
                         Text(loadError)
                             .tfText(.body)
                             .foregroundStyle(Color.tfSub)
-                            .tfSettingsListRow()
+                            .tfSettingsListRow(background: .clear)
                     }
                 }
                 Section {
@@ -205,7 +205,7 @@ struct ChatContextSheet: View {
                         .foregroundStyle(Color.tfText)
                         .frame(minHeight: 40)
                         .buttonStyle(.plain)
-                        .tfSettingsListRow()
+                        .tfSettingsListRow(background: .clear)
                 }
             }
             .listStyle(.insetGrouped)
@@ -235,7 +235,7 @@ struct ChatContextSheet: View {
         }
         .tfText(.body)
         .padding(.vertical, TFSpacing.xs)
-        .tfSettingsListRow()
+        .tfSettingsListRow(background: .clear)
         .accessibilityElement(children: .combine)
     }
 
@@ -249,7 +249,7 @@ struct ChatContextSheet: View {
         }
         .tfText(.body)
         .frame(minHeight: 40)
-        .tfSettingsListRow()
+        .tfSettingsListRow(background: .clear)
     }
 }
 

@@ -223,7 +223,7 @@ private extension View {
     /// `selected` только для VoiceOver; окантовку строки не рисуем.
     func modelPickerRow(selected: Bool) -> some View {
         self
-            .tfSettingsListRow(selected: false)
+            .tfSettingsListRow(selected: false, background: .clear)
             .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

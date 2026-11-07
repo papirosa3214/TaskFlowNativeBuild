@@ -85,14 +85,14 @@ private struct ChatWorkspaceBrowser: View {
                             folderRow("Наверх", symbol: "arrow.turn.left.up")
                         }
                         .buttonStyle(.plain)
-                        .tfSettingsListRow()
+                        .tfSettingsListRow(background: .clear)
                     }
                     ForEach(listing?.entries ?? []) { entry in
                         Button { open(entry.path) } label: {
                             folderRow(entry.name, selected: entry.path == choice.selected)
                         }
                         .buttonStyle(.plain)
-                        .tfSettingsListRow()
+                        .tfSettingsListRow(background: .clear)
                         .accessibilityAddTraits(entry.path == choice.selected ? .isSelected : [])
                     }
                     if !isLoading, listing?.entries.isEmpty ?? true {
@@ -100,7 +100,7 @@ private struct ChatWorkspaceBrowser: View {
                             .tfText(.body)
                             .foregroundStyle(Color.tfSub)
                             .frame(minHeight: 40)
-                            .tfSettingsListRow()
+                            .tfSettingsListRow(background: .clear)
                     }
                 }
                 if !path.isEmpty {
@@ -116,7 +116,7 @@ private struct ChatWorkspaceBrowser: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(path == choice.selected)
-                        .tfSettingsListRow()
+                        .tfSettingsListRow(background: .clear)
                     }
                 }
             }

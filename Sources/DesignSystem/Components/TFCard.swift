@@ -388,7 +388,7 @@ public extension View {
     /// Строка `List`/`Form` в настройках: одна сплошная группа как карточка
     /// рутины (без щелей → без «пилюль»), `tfFieldDark` + тонкая тёмно-красная
     /// окантовка у выбранной (владелец 03.11.2026).
-    func tfSettingsListRow(selected: Bool = false) -> some View {
+    func tfSettingsListRow(selected: Bool = false, background: Color = .tfFieldDark) -> some View {
         self
             .listRowInsets(EdgeInsets(
                 top: 0, leading: TFSpacing.md,
@@ -402,7 +402,7 @@ public extension View {
             }
             .listRowBackground(
                 ZStack {
-                    Color.tfFieldDark
+                    background
                     if selected {
                         RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
                             .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
