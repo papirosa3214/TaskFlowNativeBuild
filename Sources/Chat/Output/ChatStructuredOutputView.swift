@@ -59,10 +59,6 @@ struct ChatStructuredOutputView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("chat.structured-output")
-        } else if isStreaming, let partialText = ChatStructuredJSONStreamParser.partialText(in: json) {
-            RoleReplyMarkdown(text: partialText, isStreaming: true, checklist: checklist)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityIdentifier("chat.structured-output.streaming-text")
         } else if isStreaming {
             WidgetSkeletonCard()
                 .accessibilityIdentifier("chat.structured-output.streaming-pending")

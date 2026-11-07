@@ -249,6 +249,7 @@ struct MarkdownDocumentPreviewScreen: View {
     private let noteID: String?
     @Environment(\.dismiss) private var dismiss
     @State private var markdown: String?
+    @State private var serverDocument: NoteDocument?
     @State private var isLoading: Bool
     @State private var errorMessage: String?
 
@@ -271,9 +272,11 @@ struct MarkdownDocumentPreviewScreen: View {
             TFScreenFill()
             ScrollView {
                 Group {
-                    if let markdown {
-                        MarkdownDocumentRenderer(markdown: markdown)
+                    if let serverDocument {
+                        RoleReplyMarkdown(text: markdown ?? "", prepared: [.document(serverDocument.blocks, chars: markdown?.count ?? 0)])
                             .textSelection(.enabled)
+                    } else if let markdown {
+                        Text(markdown).textSelection(.enabled)
                     } else if isLoading {
                         TFLoading(.block)
                             .frame(maxWidth: .infinity, minHeight: 160)
@@ -303,6 +306,7 @@ struct MarkdownDocumentPreviewScreen: View {
         guard let noteID else { return }
         do {
             let note = try await APIClient().note(id: noteID, format: "markdown")
+            serverDocument = try NoteDocument.fromServer(note.content)
             markdown = note.markdown ?? ""
             isLoading = false
         } catch {

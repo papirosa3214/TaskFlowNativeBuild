@@ -223,10 +223,8 @@ struct RoleLiveItemsList: View {
         Group {
             switch item {
             case .text(let text):
-                let shown = RoleTranslator.shared.display(text)
-                // Блоки сервера — пока текст не подменён переводом.
-                RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
-                                  prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
+                RoleReplyMarkdown(text: text, color: textColor, fade: fade, isStreaming: isStreaming,
+                                  prepared: ChatRichContent.liveSegments(shown: text))
             case .step(let step):
                 let hasDetail = !(step.detail ?? "").isEmpty
                 Button { openStep(step) } label: {
@@ -632,7 +630,8 @@ struct RoleThinkingWindow: View {
             ScrollView {
                 // `код` и **жирное** — ярче приглушённого текста, чтобы главное
                 // сразу бросалось в глаза (владелец 14.10.2026, по образцу).
-                Text(Self.highlighted(text))
+                RoleReplyMarkdown(text: text, color: .tfSub,
+                                  serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: text)?.map(\.block))
                     .tfChatText(.thinking)
                     .italic()
                     .foregroundStyle(Color.tfSub)
@@ -656,42 +655,6 @@ struct RoleThinkingWindow: View {
         .padding(.leading, 7)
     }
 
-    /// Кэш разметки мыслей: окно пересобирается на каждом кадре проявления
-    /// (публикация состояния — каждые 16 мс), а текст мыслей меняется раз в
-    /// ~150 мс. Без кэша тот же текст пересобирался заново 60 раз в секунду.
-    private static let highlightedCache = LastValueCache<AttributedString>()
-
-    static func highlighted(_ text: String) -> AttributedString {
-        // Кегль кода/жирного в attributed читает шкалу чата — ключ с
-        // revision, иначе кэш отдаст старый размер после настроек.
-        let key = text + "\u{1e}" + String(UserDefaults.standard.integer(forKey: TFTypeScale.revisionKey))
-        if let cached = highlightedCache.value(for: key) { return cached }
-        let result = buildHighlighted(text)
-        highlightedCache.set(result, for: key)
-        return result
-    }
-
-    private static func buildHighlighted(_ text: String) -> AttributedString {
-        var result = AttributedString()
-        for (index, line) in text.components(separatedBy: "\n").enumerated() {
-            if index > 0 { result += AttributedString("\n") }
-            for run in MarkdownParser.parseInline(line) {
-                var piece = AttributedString(run.text)
-                if run.code {
-                    piece.font = .tfChat(.mono, design: .monospaced)
-                    piece.foregroundColor = .tfText
-                } else if run.bold {
-                    piece.inlinePresentationIntent = .stronglyEmphasized
-                    piece.font = .tfChat(.emphasis, weight: .bold)
-                    piece.foregroundColor = .tfText
-                } else if run.italic {
-                    piece.inlinePresentationIntent = .emphasized
-                }
-                result += piece
-            }
-        }
-        return result
-    }
 
 }
 
@@ -807,9 +770,8 @@ struct RoleLiveDetailSheet: View {
     private var content: some View {
         switch detail {
         case .thinking(let thinking):
-            let shown = RoleTranslator.shared.display(thinking.text)
-            RoleReplyMarkdown(text: shown, color: .tfText,
-                              serverBlocks: shown == thinking.text ? ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block) : nil)
+            RoleReplyMarkdown(text: thinking.text, color: .tfText,
+                              serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block))
                 .italic()
                 .textSelection(.enabled)
         case .step(let step):

@@ -78,34 +78,27 @@ final class TaskFormViewModel {
         set {
             let parsed = MarkdownParser.parse(newValue)
             taskDescriptionBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
-            cachedDescriptionMarkdown = nil
+            cachedDescriptionMarkdown = newValue
         }
     }
 
-    /// Описание с сервера в том виде, в каком его соберёт редактор.
-    /// Разбор и сборка не точь-в-точь (экранирование `-` и `.`, таблицы),
-    /// поэтому сырое серверное описание с собранным напрямую не сравнивать:
-    /// иначе любое открытие карточки выглядит правкой — свежее описание
-    /// отбрасывается, а своё старое уходит на сервер
-    /// (LOCK-DESC-ROUNDTRIP-20261019, владелец 19.10.2026).
-    static func editorForm(_ markdown: String?) -> String? {
-        guard let markdown, !markdown.isEmpty else { return nil }
-        // Разбор и сборка описания — недешёвая операция, а результат зависит
-        // только от строки: кэшируем по самой строке.
-        if let cached = editorFormCache.value(for: markdown) { return cached }
-        let parsed = MarkdownParser.parse(markdown)
-        let encoded = MarkdownEncoder.encode(parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed)
-        let result = encoded.isEmpty ? nil : encoded
-        if let result { editorFormCache.set(result, for: markdown) }
-        return result
-    }
-
-    private static let editorFormCache = ParsedValueCache<String>(limit: 16)
-
-    /// Описание в полях совпадает с серверным — владелец его не правил.
+    /// Сравниваем исходник; при загрузке сохраняем серверную строку без перекодирования.
     func descriptionMatches(_ serverDescription: String?) -> Bool {
-        (taskDescription.isEmpty ? nil : taskDescription) == Self.editorForm(serverDescription)
+        if taskDescription == (serverDescription ?? "") { return true }
+        guard serverDescription == originalTask?.description,
+              let serverDocument = try? NoteDocument.fromServer(originalTask?.descriptionDocument) else { return false }
+        return MarkdownEncoder.encode(taskDescriptionBlocks) == MarkdownEncoder.encode(serverDocument.blocks)
     }
+
+    private func adoptTitleDocument(from task: ApiTask) throws {
+        titleBlocks = try NoteDocument.fromServer(task.titleDocument).blocks
+    }
+
+    private func adoptDescriptionDocument(from task: ApiTask) throws {
+        taskDescriptionBlocks = try NoteDocument.fromServer(task.descriptionDocument).blocks
+        cachedDescriptionMarkdown = task.description ?? ""
+    }
+
     var subtaskDrafts: [SubtaskDraft] = [] // режим create
     var subtasks: [ApiSubtask] = []        // режим edit — с сервера
     var dueDate: Date?
@@ -291,8 +284,8 @@ final class TaskFormViewModel {
             let task = try await apiClient.task(id: taskID)
             originalTask = task
             cachedJournalEntries = TaskJournalEntry.merged(comments: task.comments ?? [], events: task.events ?? [])
-            title = task.title
-            taskDescription = task.description ?? ""
+            try adoptTitleDocument(from: task)
+            try adoptDescriptionDocument(from: task)
             subtasks = task.subtasks.sorted { ($0.position ?? 0) < ($1.position ?? 0) }
             parentId = task.parentId
             childTasks = task.children ?? []
@@ -424,8 +417,8 @@ final class TaskFormViewModel {
     /// изменение — так 16.10.2026 карточку дважды возвращало в старый проект.
     /// Сравнение — то же, что в `saveEdit`, поле за полем.
     func adoptServerChanges(from old: ApiTask, to fresh: ApiTask) {
-        if title.trimmingCharacters(in: .whitespacesAndNewlines) == old.title { title = fresh.title }
-        if descriptionMatches(old.description) { taskDescription = fresh.description ?? "" }
+        if title.trimmingCharacters(in: .whitespacesAndNewlines) == old.title { try? adoptTitleDocument(from: fresh) }
+        if descriptionMatches(old.description) { try? adoptDescriptionDocument(from: fresh) }
         if dueDate.map(Self.dueDateString) == old.dueDate { dueDate = fresh.dueDateAsDate }
         let startStr = startMinutes.map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
         if startStr == old.startTime {

@@ -46,32 +46,4 @@ final class MarkdownParsePerfTests: XCTestCase {
                      text.count, perParse, perCached, perSecond / 1000))
     }
 
-    /// Кадр проявления целиком: разложение ответа на куски плюс разбор
-    /// markdown. Именно это тело ответа пересобирает 60 раз в секунду — на
-    /// каждый кадр публикации состояния проявления.
-    func testСтоимостьКадраПроявления() {
-        let text = Self.answer
-        let iterations = 200
-
-        let uncachedStart = DispatchTime.now().uptimeNanoseconds
-        for _ in 0..<iterations {
-            _ = ChatRichContent.splitUncached(text, isStreaming: true)
-            _ = MarkdownParser.parseUncached(text)
-        }
-        let uncached = Double(DispatchTime.now().uptimeNanoseconds - uncachedStart) / Double(iterations) / 1000
-
-        // Прогрев кэшей живого текста.
-        _ = ChatRichContent.split(text, isStreaming: true)
-        _ = MarkdownParser.parseIncremental(text)
-        let cachedStart = DispatchTime.now().uptimeNanoseconds
-        for _ in 0..<iterations {
-            _ = ChatRichContent.split(text, isStreaming: true)
-            _ = MarkdownParser.parseIncremental(text)
-        }
-        let cached = Double(DispatchTime.now().uptimeNanoseconds - cachedStart) / Double(iterations) / 1000
-
-        print(String(format: "КАДР ПРОЯВЛЕНИЯ (%d символов): без кэша %.3f мкс, из кэша %.3f мкс, на 60 кадрах %.3f мс/с",
-                     text.count, uncached, cached, uncached * 60 / 1000))
-        XCTAssertLessThan(cached, uncached / 2, "Кадр проявления должен брать разбор из кэша")
-    }
 }

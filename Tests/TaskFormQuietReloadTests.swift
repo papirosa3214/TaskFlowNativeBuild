@@ -7,9 +7,23 @@ import XCTest
 @MainActor
 final class TaskFormQuietReloadTests: XCTestCase {
 
+    private func prepared(_ source: ApiTask) -> ApiTask {
+        var task = source
+        func doc(_ text: String) -> JSONValue {
+            .object(["type": .string("doc"), "content": .array([
+                .object(["type": .string("paragraph"), "content": .array([
+                    .object(["type": .string("text"), "text": .string(text)])
+                ])])
+            ])])
+        }
+        task.titleDocument = doc(task.title)
+        task.descriptionDocument = doc(task.description ?? "")
+        return task
+    }
+
     func testUntouchedFieldsFollowServer() {
-        let old = TestTaskFactory.makeTask(id: "t1", title: "Виджеты", projectId: "p-server", assigneeId: nil)
-        let fresh = TestTaskFactory.makeTask(id: "t1", title: "Виджеты на маке", projectId: "p-ios", assigneeId: "role_builder")
+        let old = prepared(TestTaskFactory.makeTask(id: "t1", title: "Виджеты", projectId: "p-server", assigneeId: nil))
+        let fresh = prepared(TestTaskFactory.makeTask(id: "t1", title: "Виджеты на маке", projectId: "p-ios", assigneeId: "role_builder"))
         let viewModel = TaskFormViewModel(taskID: nil, apiClient: APIClient())
         viewModel.title = old.title
         viewModel.projectId = old.projectId
@@ -23,8 +37,8 @@ final class TaskFormQuietReloadTests: XCTestCase {
     }
 
     func testOwnerEditInProgressIsKept() {
-        let old = TestTaskFactory.makeTask(id: "t1", title: "Виджеты", projectId: "p-server")
-        let fresh = TestTaskFactory.makeTask(id: "t1", title: "Виджеты", projectId: "p-ios")
+        let old = prepared(TestTaskFactory.makeTask(id: "t1", title: "Виджеты", projectId: "p-server"))
+        let fresh = prepared(TestTaskFactory.makeTask(id: "t1", title: "Виджеты", projectId: "p-ios"))
         let viewModel = TaskFormViewModel(taskID: nil, apiClient: APIClient())
         viewModel.title = "Виджеты — пишу сейчас"
         viewModel.projectId = "p-mine"
@@ -40,8 +54,8 @@ final class TaskFormQuietReloadTests: XCTestCase {
     /// с собранным. Итог — открытая карточка считала описание своей правкой:
     /// свежее с сервера отбрасывала, а своё старое отправляла обратно.
     func testUntouchedDescriptionFollowsServer() {
-        let old = TestTaskFactory.makeTask(id: "t1", description: "Папка TaskFlow-Web-Desktop. Готово.")
-        let fresh = TestTaskFactory.makeTask(id: "t1", description: "Новое: TaskFlow-Web-Desktop. Готово.")
+        let old = prepared(TestTaskFactory.makeTask(id: "t1", description: "Папка TaskFlow-Web-Desktop. Готово."))
+        let fresh = prepared(TestTaskFactory.makeTask(id: "t1", description: "Новое: TaskFlow-Web-Desktop. Готово."))
         let viewModel = TaskFormViewModel(taskID: nil, apiClient: APIClient())
         viewModel.taskDescription = old.description ?? ""
 

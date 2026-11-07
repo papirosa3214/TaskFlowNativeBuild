@@ -189,7 +189,6 @@ final class RoleChatLiveTurnTests: XCTestCase {
         var pacer = RoleLiveTextPacer()
         pacer.ingest([.text(prefix + partial)])
         XCTAssertEqual(pacer.visibleItems, [])
-        XCTAssertEqual(ChatRichContent.split(partial), [.pending(.html)])
         pacer.advance(elapsed: 1)
         let progress = pacer.visibleCharacters[0]
         let ready = partial + "</h1>\n```"
@@ -199,7 +198,6 @@ final class RoleChatLiveTurnTests: XCTestCase {
         XCTAssertFalse(pacer.visibleItems.contains(.text(ready)))
         drain(&pacer)
         XCTAssertTrue(pacer.visibleItems.contains(.text(ready)))
-        XCTAssertEqual(ChatRichContent.split(ready), [.html("<h1>Привет</h1>")])
     }
 
     func testOrdinaryCodeStaysPacedAndUnicodeCRLFFencesRemainIntact() {

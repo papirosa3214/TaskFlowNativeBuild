@@ -170,15 +170,6 @@ final class MarkdownParseIncrementalTests: XCTestCase {
         XCTAssertLessThan(cached, full / 2, "Повторный кадр должен брать разбор из кэша")
     }
 
-    /// Разложение ответа на куски кэшируется тем же способом: без кэша текст
-    /// раскладывался заново на каждом кадре проявления.
-    func testРазложениеОтветаБерётсяИзКэша() {
-        let text = "Сводка:\n```tf-json\n{\"version\":1}"
-        let cached = ChatRichContent.split(text)
-        XCTAssertEqual(cached, ChatRichContent.splitUncached(text))
-        XCTAssertEqual(cached, ChatRichContent.split(text))
-    }
-
     /// Готовые куски текста блока кэшируются по id блока: сборка
     /// `AttributedString` стоит ~2 мкс на прогон и была самой дорогой частью
     /// кадра проявления.

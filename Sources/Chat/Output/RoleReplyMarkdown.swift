@@ -1,9 +1,6 @@
 import SwiftUI
 
-/// Ответ роли с разметкой (владелец 27.09.2026, LOCK-230): в 1:1-чате ответ
-/// идёт плоским текстом, как в окне Claude Code, и `**жирный**`, списки, код
-/// показываются по-человечески, а не звёздочками. Разбор — существующий
-/// `MarkdownParser` заметок (только чтение): второго парсера не заводим.
+/// Отображает только подготовленные сервером блоки; исходный текст не разбирает.
 struct RoleReplyMarkdown: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks && lhs.prepared == rhs.prepared
@@ -21,7 +18,7 @@ struct RoleReplyMarkdown: View, Equatable {
     /// отправка привязаны к сообщению, а не к тексту куска.
     var checklist: ChecklistSyncContext? = nil
     /// Ответ, уже разобранный сервером (26.10.2026): есть — рисуем блоки и
-    /// текст сам не раскладываем; nil — старый сервер или не чат.
+    /// текст сам не раскладываем; nil означает отсутствие подготовленных данных.
     var serverBlocks: [ChatServerBlock]? = nil
     /// Куски, уже собранные из блоков сервера (живой ход: блок, обрезанный по
     /// открытой части). Есть — текст не раскладывается.
@@ -34,13 +31,14 @@ struct RoleReplyMarkdown: View, Equatable {
         let _ = typeRevision
         let segments = prepared
             ?? serverBlocks.map { ChatRichContent.segments(fromServer: $0, key: text) }
-            ?? ChatRichContent.split(text, isStreaming: isStreaming)
+            ?? []
         if segments.count == 1, case .document(let blocks, _) = segments[0] {
             documentBody(blocks)
-        } else if segments.count == 1, case .markdown = segments[0] {
-            markdownBody(text)
         } else if segments.isEmpty {
-            markdownBody(text)
+            if !text.isEmpty {
+                Text("Не удалось получить подготовленное содержимое")
+                    .foregroundStyle(Color.tfSub)
+            }
         } else {
             // Таблицы, виджеты и артефакты (владелец 01.10.2026) — своими
             // видами; текст между ними — как раньше. Хвост идущего ответа
@@ -85,8 +83,6 @@ struct RoleReplyMarkdown: View, Equatable {
     @ViewBuilder
     private func segmentView(_ segment: ChatRichSegment, fade: RoleTextFade?, widgetKey: String?) -> some View {
         switch segment {
-        case .markdown(let part):
-            RoleReplyMarkdown(text: part, color: color, allowsCommands: allowsCommands, fade: fade)
         case .document(let blocks, _):
             documentBody(blocks, fade: fade)
         case .table(let table):
@@ -126,16 +122,6 @@ struct RoleReplyMarkdown: View, Equatable {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private func markdownBody(_ text: String) -> some View {
-        // Живой текст растёт на каждом кадре проявления: разбираем заново
-        // только последний блок, устойчивая часть — из кэша. Разбор всего
-        // текста на каждом кадре стоил 110 мкс на ответ в 388 символов.
-        documentBody(isStreaming
-            ? MarkdownParser.parseIncremental(text)
-            : MarkdownParser.parse(text))
     }
 
     /// Блоки текста — разобранные здесь или пришедшие с сервера готовыми.
@@ -239,13 +225,8 @@ struct RoleReplyMarkdown: View, Equatable {
             }
         case .horizontalRule:
             Divider()
-        case .table:
-            // Из текста таблицы парсер не собирает (только из заметок) —
-            // таблицы ответа разбирает ChatRichContent. На всякий случай
-            // показываем строки текстом.
-            Text(block.runs.map(\.text).joined())
-                .foregroundStyle(color)
-                .textSelection(.enabled)
+        case .table(let rows):
+            DocumentTableView(rows: rows)
         }
     }
 
@@ -346,32 +327,8 @@ struct RoleReplyMarkdown: View, Equatable {
 }
 
 extension RoleReplyMarkdown {
-    /// Короткая строка из текста роли для превью в строке списка: первый
-    /// абзац до первого пустого места, без служебных блоков (таблица, виджет,
-    /// JSON, HTML) — иначе превью в строке выросло бы на весь ответ.
-    ///
-    /// Разбор при этом общий: превью показывается тем же `RoleReplyMarkdown`,
-    /// просто коротким куском текста, поэтому `**жирный**`, ссылки и код
-    /// выглядят как в полном ответе, а не как сырые звёздочки.
-    static func preview(of text: String, limit: Int = 220) -> String {
-        var result = ""
-        for rawLine in text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("```") { break }          // служебный блок — не превью
-            if line.isEmpty {
-                if result.isEmpty { continue }            // пустые строки в начале
-                break                                     // конец первого абзаца
-            }
-            result += result.isEmpty ? line : " " + line
-            if result.count >= limit { break }
-        }
-        guard result.count > limit else { return result }
-        return String(result.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
-    }
-
     /// Превью из готовых блоков сервера: первый блок текста, не длиннее
-    /// `limit` символов. Ответ начинается не с текста — превью пустое, как у
-    /// `preview(of:)`. `key` — исходный текст, для кэша разбора блоков.
+    /// `limit` символов. Ответ начинается не с текста — превью пустое. `key` — исходный текст для кэша блоков.
     static func previewSegments(of blocks: [ChatServerBlock], key: String, limit: Int = 220) -> [ChatRichSegment] {
         let segments = ChatRichContent.segments(fromServer: blocks, key: key)
         guard case .document(let document, _)? = segments.first, var first = document.first else { return [] }
@@ -463,8 +420,8 @@ struct ChatTableView: View {
 
     private func cell(_ text: String, runs: [RichRun]?, column: Int, width: CGFloat) -> some View {
         let alignment = column < table.alignments.count ? table.alignments[column] : .leading
-        // Ячейка с сервера уже размечена; иначе — разбор строки на месте.
-        return Text(RoleReplyMarkdown.attributed(runs ?? MarkdownParser.parseInline(text)))
+        // Ячейка приходит с сервера уже размеченной; локального разбора нет.
+        return Text(RoleReplyMarkdown.attributed(runs ?? []))
             .foregroundStyle(color)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .frame(width: max(1, width - TFSpacing.md * 2), alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
@@ -485,7 +442,7 @@ extension RoleReplyMarkdown {
         var text = 0, block = 0
         return segments.map { segment in
             switch segment {
-            case .markdown, .document:
+            case .document:
                 defer { text += 1 }
                 return "text-\(text)"
             default:

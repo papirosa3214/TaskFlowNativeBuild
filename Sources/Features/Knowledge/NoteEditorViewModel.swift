@@ -55,17 +55,9 @@ final class NoteEditorViewModel {
         defer { isLoading = false }
         async let foldersTask = apiClient.journalFolders()
         do {
-            // Тянем с ?format=markdown: сервер ДОБАВЛЯЕТ поле `note.markdown`
-            // (см. APIClient+Notes.swift) — результат `tiptapToMarkdown.ts`.
-            // Если сервер его не вернул (старый билд / битый ответ), фолбэк
-            // на парсинг TipTap JSON из `content` — пусть старые заметки
-            // хотя бы откроются, а не упадут.
+            // Markdown нужен только как исходник редактора, чтение — из серверного документа.
             let note = try await apiClient.note(id: noteID, format: "markdown")
-            if let md = note.markdown, !md.isEmpty {
-                document = NoteDocument(blocks: MarkdownParser.parse(md))
-            } else {
-                document = NoteDocument.decode(fromJSONString: note.content?.stringValue)
-            }
+            document = try NoteDocument.fromServer(note.content)
             reading.load(note.markdown ?? MarkdownEncoder.encode(document.blocks))
             loadErrorMessage = nil
         } catch {
@@ -155,9 +147,7 @@ final class NoteEditorViewModel {
         saveTask?.cancel()
         saveTask = nil
         await saveMarkdownDraft()
-        if reading.finishEditing() {
-            document = NoteDocument(blocks: MarkdownParser.parse(reading.markdown))
-        }
+        _ = reading.finishEditing()
     }
 
     private func saveMarkdownDraft() async {
@@ -167,9 +157,10 @@ final class NoteEditorViewModel {
         saveState = .saving
         defer { isSavingMarkdown = false }
         do {
-            _ = try await apiClient.patchNote(id: noteID, fields: ["markdown": .string(snapshot)])
+            let saved = try await apiClient.patchNote(id: noteID, fields: ["markdown": .string(snapshot)])
+            let preparedDocument = try NoteDocument.fromServer(saved.content)
             reading.didSave(snapshot)
-            document = NoteDocument(blocks: MarkdownParser.parse(snapshot))
+            document = preparedDocument
             saveState = .saved
             fadeSavedStatus()
             if reading.hasChanges { scheduleSave() }

@@ -38,6 +38,25 @@ struct NoteDocument: Equatable {
 
     static let empty = NoteDocument(blocks: [NoteBlock(kind: .paragraph)])
 
+    /// Декодирование серверной структуры; исходный Markdown не принимается.
+    static func fromServer(_ value: JSONValue?) throws -> NoteDocument {
+        let object: [String: Any]
+        if case .string(let json) = value {
+            guard let decoded = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] else {
+                throw URLError(.cannotParseResponse)
+            }
+            object = decoded
+        } else if let decoded = value?.foundationValue as? [String: Any] {
+            object = decoded
+        } else {
+            throw URLError(.cannotParseResponse)
+        }
+        guard object["type"] as? String == "doc", object["content"] is [Any] else {
+            throw URLError(.cannotParseResponse)
+        }
+        return decode(fromObject: object)
+    }
+
     /// Заголовок — первый непустой текстовый блок, обрезка 200 символов.
     /// Зеркалит `deriveTitle()` в вебе: первый textblock с непустым
     /// текстом в порядке документа (спека §2 «Заголовок заметки»).

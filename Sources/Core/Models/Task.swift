@@ -47,6 +47,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     public let id: String
     public let title: String
     public let description: String?
+    public var titleDocument: JSONValue? = nil
+    public var descriptionDocument: JSONValue? = nil
+    public var descriptionRenderBlocks: JSONValue? = nil
     /// `'YYYY-MM-DD' | nil` — календарная дата, см. `DateFormats.calendarDate`.
     public let dueDate: String?
     public let projectId: String?
@@ -207,6 +210,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
+        case titleDocument = "title_document"
+        case descriptionDocument = "description_document"
+        case descriptionRenderBlocks = "description_blocks"
         case dueDate = "due_date"
         case projectId = "project_id"
         case priority
@@ -272,6 +278,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         id = try c.decode(String.self, forKey: .id)
         title = try c.decode(String.self, forKey: .title)
         description = try c.decodeIfPresent(String.self, forKey: .description)
+        titleDocument = try c.decodeIfPresent(JSONValue.self, forKey: .titleDocument)
+        descriptionDocument = try c.decodeIfPresent(JSONValue.self, forKey: .descriptionDocument)
+        descriptionRenderBlocks = try c.decodeIfPresent(JSONValue.self, forKey: .descriptionRenderBlocks)
         dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
         projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
         priority = try c.decodeIfPresent(Int.self, forKey: .priority) ?? 1
@@ -351,6 +360,9 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         try c.encode(id, forKey: .id)
         try c.encode(title, forKey: .title)
         try c.encodeIfPresent(description, forKey: .description)
+        try c.encodeIfPresent(titleDocument, forKey: .titleDocument)
+        try c.encodeIfPresent(descriptionDocument, forKey: .descriptionDocument)
+        try c.encodeIfPresent(descriptionRenderBlocks, forKey: .descriptionRenderBlocks)
         try c.encodeIfPresent(dueDate, forKey: .dueDate)
         try c.encodeIfPresent(projectId, forKey: .projectId)
         try c.encode(priority, forKey: .priority)

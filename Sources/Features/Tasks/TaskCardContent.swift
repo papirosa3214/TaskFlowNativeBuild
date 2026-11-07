@@ -667,7 +667,7 @@ struct TaskCardContent: View {
                             if viewModel.isEditing, !activeEditors.contains("title"),
                                !viewModel.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 // Тот же вид, что у описания (владелец 19.10.2026).
-                                TaskDescriptionRichPreview(text: viewModel.title)
+                                TaskDescriptionRichPreview(text: viewModel.title, prepared: [.document(viewModel.titleBlocks, chars: viewModel.title.count)])
                                     .contentShape(Rectangle())
                                     .simultaneousGesture(TapGesture().onEnded { armedEditors.insert("title") })
                                     .accessibilityIdentifier("task.arm.title")
@@ -1004,7 +1004,7 @@ struct TaskCardContent: View {
                 // Не через `CardTextEditGate`: его прозрачная кнопка поверх
                 // забирала и свайпы — таблица в описании не листалась вбок
                 // (владелец 19.10.2026). Тап ловится вместе с прокруткой.
-                TaskDescriptionRichPreview(text: viewModel.taskDescription)
+                TaskDescriptionRichPreview(text: viewModel.taskDescription, serverBlocks: ChatServerBlock.list(fromFoundation: viewModel.loadedTask?.descriptionRenderBlocks?.foundationValue))
                     .contentShape(Rectangle())
                     .simultaneousGesture(TapGesture().onEnded { armedEditors.insert("description") })
                     .accessibilityIdentifier("task.arm.description")
