@@ -187,8 +187,8 @@ struct RoleReplyMarkdown: View, Equatable {
             inline(block)
         case .heading(let level):
             // Заголовок ответа — группа «Заголовок» шкалы чата; h1 чуть крупнее h2.
-            inline(block, liftBold: false)
-                .font(.tfChat(.heading, weight: .semibold, scale: level <= 1 ? 1.15 : 1))
+            inline(block, liftBold: false,
+                   baseFont: .tfChat(.heading, weight: .semibold, scale: level <= 1 ? 1.15 : 1))
                 .padding(.top, TFSpacing.xs)
         case .bulletItem:
             listRow(marker: Text("•"), block: block)
@@ -243,8 +243,8 @@ struct RoleReplyMarkdown: View, Equatable {
     /// `liftBold` — увеличивать ли жирное на ступень. В обычном тексте да,
     /// в заголовках нет: там жирное и так крупное, и лишний шаг вверх
     /// сбивал бы уровень (владелец 17.10.2026: жирное сливалось с текстом).
-    private func inline(_ block: NoteBlock, liftBold: Bool = true) -> some View {
-        Self.readableText(Self.pieces(for: block), color: color, liftBold: liftBold)
+    private func inline(_ block: NoteBlock, liftBold: Bool = true, baseFont: Font? = nil) -> some View {
+        Self.readableText(Self.pieces(for: block), color: color, liftBold: liftBold, baseFont: baseFont)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -252,12 +252,14 @@ struct RoleReplyMarkdown: View, Equatable {
 
     /// Кегли — из шкалы «Шрифт чата» (владелец 03.11.2026). Цвет у основного
     /// и жирного один; обычный чуть тише на 5%.
-    private static func readableText(_ pieces: [RunPiece], color: Color, liftBold: Bool = true) -> Text {
+    private static func readableText(_ pieces: [RunPiece], color: Color, liftBold: Bool = true, baseFont: Font? = nil) -> Text {
         pieces.reduce(Text("")) { result, piece in
             var text = Text(piece.attributed)
                 .fontWeight(piece.bold ? .bold : nil)
                 .foregroundColor(color)
-            if piece.code {
+            if let baseFont {
+                text = text.font(piece.code ? baseFont.monospaced() : baseFont)
+            } else if piece.code {
                 text = text
                     .font(.tfChat(.mono, design: .monospaced))
                     .foregroundColor(color)
@@ -319,6 +321,7 @@ struct RoleReplyMarkdown: View, Equatable {
             if run.strike { intent.insert(.strikethrough) }
             if !intent.isEmpty { piece.inlinePresentationIntent = intent }
             if run.underline { piece.underlineStyle = .single }
+            if run.highlight { piece.backgroundColor = Color.tfYellow.opacity(0.35) }
             if let href = run.linkHref, let url = URL(string: href) { piece.link = url }
             result += piece
         }
