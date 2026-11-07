@@ -16,6 +16,14 @@ public extension APIClient {
         return try await request(.get, "/notes/\(id)", query: query)
     }
 
+    /// Чистое преобразование: не создаёт заметку и не меняет БД.
+    func markdownDocument(_ markdown: String) async throws -> JSONValue {
+        struct Response: Decodable { let doc: JSONValue }
+        let response: Response = try await request(.post, "/notes/markdown-to-doc",
+                                                   body: ["markdown": JSONValue.string(markdown)])
+        return response.doc
+    }
+
     func createNote(folderId: Int? = nil, content: JSONValue) async throws -> ApiNote {
         var body: [String: JSONValue] = ["content": content]
         if let folderId { body["folder_id"] = .number(Double(folderId)) }

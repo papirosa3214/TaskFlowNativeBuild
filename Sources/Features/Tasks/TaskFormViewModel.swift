@@ -29,16 +29,19 @@ final class TaskFormViewModel {
     /// AST-форма названия для `BlockDocumentEditor` — ровно тот же редактор
     /// и тот же приём, что уже у описания ниже (владелец 30.09.2026:
     /// «вся карточка как описание»). `title` — проекция в строку: get
-    /// кодирует блоки в markdown, set парсит входящий markdown (с сервера,
-    /// от AI-структуризатора) в блоки. Старый код, читающий `title` как
-    /// String, продолжает работать без правок.
-    var titleBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)]
+    /// кодирует блоки для сохранения, set сохраняет сырой ввод без разбора.
+    /// Форматирование импортированного Markdown приходит с сервера.
+    var titleBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)] {
+        didSet { cachedTitleMarkdown = nil }
+    }
+    private var cachedTitleMarkdown: String?
     var title: String {
         // Название без оформления — простым текстом (владелец 14.10.2026):
         // кодировщик экранирует «.», «-», «(», «[», и любое сохранение
         // карточки отправляло «веб\-приложения» вместо «веб-приложения» —
         // слэши накопились в 36 названиях.
         get {
+            if let cachedTitleMarkdown { return cachedTitleMarkdown }
             if titleBlocks.count == 1, case .paragraph = titleBlocks[0].kind,
                titleBlocks[0].runs.allSatisfy({ !$0.bold && !$0.italic && !$0.underline && !$0.strike && !$0.highlight && !$0.code && $0.linkHref == nil }) {
                 return titleBlocks[0].runs.map(\.text).joined()
@@ -46,16 +49,14 @@ final class TaskFormViewModel {
             return MarkdownEncoder.encode(titleBlocks)
         }
         set {
-            let parsed = MarkdownParser.parse(newValue)
-            titleBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+            titleBlocks = [NoteBlock(kind: .paragraph, runs: [RichRun(text: newValue)])]
+            cachedTitleMarkdown = newValue
         }
     }
     /// AST-форма описания для `BlockDocumentEditor` — того же редактора, что
     /// в заметке (LOCK-142). Строка
-    /// `taskDescription` ниже — проекция: get кодирует блоки в markdown,
-    /// set парсит входящий markdown (от сервера, от AI-структуризатора)
-    /// в блоки. Старый код, читающий `taskDescription` как String,
-    /// продолжает работать без правок.
+    /// `taskDescription` хранит исходник либо кодирует локально изменённые блоки.
+    /// Сырой ввод сохраняется без разбора; импортированную разметку готовит сервер.
     var taskDescriptionBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)] {
         // Любая запись массива (в том числе через `Binding` редактора) сбрасывает
         // кэш собранного markdown — иначе описание в карточке перестало бы
@@ -76,8 +77,7 @@ final class TaskFormViewModel {
             return encoded
         }
         set {
-            let parsed = MarkdownParser.parse(newValue)
-            taskDescriptionBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+            taskDescriptionBlocks = [NoteBlock(kind: .paragraph, runs: [RichRun(text: newValue)])]
             cachedDescriptionMarkdown = newValue
         }
     }
@@ -90,8 +90,57 @@ final class TaskFormViewModel {
         return MarkdownEncoder.encode(taskDescriptionBlocks) == MarkdownEncoder.encode(serverDocument.blocks)
     }
 
+    /// Разбор сырого ввода выполняет существующий серверный конвертер.
+    func editorBlocks(from markdown: String) async throws -> [NoteBlock] {
+        let value = try await apiClient.markdownDocument(markdown)
+        return try NoteDocument.fromServer(value).blocks
+    }
+
+    func setTitleFromMarkdown(_ text: String) async {
+        title = text
+        let snapshot = titleBlocks
+        do {
+            let blocks = try await editorBlocks(from: text)
+            guard !Task.isCancelled, titleBlocks == snapshot else { return }
+            titleBlocks = blocks
+            cachedTitleMarkdown = text
+        } catch {
+            guard !Task.isCancelled, titleBlocks == snapshot else { return }
+            saveErrorMessage = "Не удалось получить оформление. Введённый текст сохранён в поле."
+        }
+    }
+
+    func setDescriptionFromMarkdown(_ text: String) async {
+        taskDescription = text
+        let snapshot = taskDescriptionBlocks
+        do {
+            let blocks = try await editorBlocks(from: text)
+            guard !Task.isCancelled, taskDescriptionBlocks == snapshot else { return }
+            taskDescriptionBlocks = blocks
+            cachedDescriptionMarkdown = text
+        } catch {
+            guard !Task.isCancelled, taskDescriptionBlocks == snapshot else { return }
+            saveErrorMessage = "Не удалось получить оформление. Введённый текст сохранён в поле."
+        }
+    }
+
+    func setCommentFromMarkdown(_ text: String) async {
+        commentText = text
+        let snapshot = commentBlocks
+        do {
+            let blocks = try await editorBlocks(from: text)
+            guard !Task.isCancelled, commentBlocks == snapshot else { return }
+            commentBlocks = blocks
+            cachedCommentMarkdown = text
+        } catch {
+            guard !Task.isCancelled, commentBlocks == snapshot else { return }
+            saveErrorMessage = "Не удалось получить оформление. Введённый текст сохранён в поле."
+        }
+    }
+
     private func adoptTitleDocument(from task: ApiTask) throws {
         titleBlocks = try NoteDocument.fromServer(task.titleDocument).blocks
+        cachedTitleMarkdown = task.title
     }
 
     private func adoptDescriptionDocument(from task: ApiTask) throws {
@@ -168,13 +217,16 @@ final class TaskFormViewModel {
     /// Тот же приём, что у `title`/`taskDescription` выше — блочный Markdown
     /// вместо простой строки (владелец 30.09.2026: «вся карточка как
     /// описание»). `sendComment()` сбрасывает `commentText = ""` после
-    /// отправки — сеттер парсит пустую строку обратно в один пустой абзац.
-    var commentBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)]
+    /// отправки — сеттер оставляет один пустой абзац без разбора текста.
+    var commentBlocks: [NoteBlock] = [NoteBlock(kind: .paragraph)] {
+        didSet { cachedCommentMarkdown = nil }
+    }
+    private var cachedCommentMarkdown: String?
     var commentText: String {
-        get { MarkdownEncoder.encode(commentBlocks) }
+        get { cachedCommentMarkdown ?? MarkdownEncoder.encode(commentBlocks) }
         set {
-            let parsed = MarkdownParser.parse(newValue)
-            commentBlocks = parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+            commentBlocks = [NoteBlock(kind: .paragraph, runs: [RichRun(text: newValue)])]
+            cachedCommentMarkdown = newValue
         }
     }
 
@@ -358,19 +410,37 @@ final class TaskFormViewModel {
 
     private func apply(_ structured: APIClient.StructuredTask) async throws {
         let structuredTitle = structured.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !structuredTitle.isEmpty { title = structuredTitle }
-        if let description = structured.description { taskDescription = description }
+        let titleSnapshot = titleBlocks
+        let descriptionSnapshot = taskDescriptionBlocks
+        let draftSnapshot = subtaskDrafts
+        let suggestedSubtasks = structured.subtasks
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let preparedTitle: [NoteBlock]?
+        if structuredTitle.isEmpty { preparedTitle = nil }
+        else { preparedTitle = try await editorBlocks(from: structuredTitle) }
+        let preparedDescription: [NoteBlock]?
+        if let description = structured.description {
+            preparedDescription = try await editorBlocks(from: description)
+        } else { preparedDescription = nil }
+        var preparedDrafts: [SubtaskDraft] = []
+        if taskID == nil {
+            for title in suggestedSubtasks {
+                let blocks = try await editorBlocks(from: title)
+                preparedDrafts.append(SubtaskDraft(title: title, blocks: blocks))
+            }
+        }
+        guard !Task.isCancelled, titleBlocks == titleSnapshot,
+              taskDescriptionBlocks == descriptionSnapshot, subtaskDrafts == draftSnapshot else { throw CancellationError() }
+        if let preparedTitle { titleBlocks = preparedTitle; cachedTitleMarkdown = structuredTitle }
+        if let preparedDescription { taskDescriptionBlocks = preparedDescription; cachedDescriptionMarkdown = structured.description }
         if let dueDate = TaskDay.date(from: structured.dueDate) { self.dueDate = dueDate }
         if let priority = structured.priority, let value = TaskPriority(rawValue: priority) {
             self.priority = value
         }
 
-        let suggestedSubtasks = structured.subtasks
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
         if taskID == nil {
-            subtaskDrafts = suggestedSubtasks.map(SubtaskDraft.init(title:))
+            subtaskDrafts = preparedDrafts
         } else if let taskID {
             // У существующей карточки уже могут быть выполненные шаги — AI не
             // имеет права их стирать. Добавляем только новые, не дублируя

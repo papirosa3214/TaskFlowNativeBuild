@@ -1859,6 +1859,10 @@ struct TaskCardContent: View {
                 // Обычный тап раскрывает рабочие этапы. Режим правки
                 // названий остаётся в существующем редакторе подзадач.
                 if !viewModel.isEditing || activeEditors.contains("subtasks") {
+                if subtaskTitleDrafts[subtask.id] == nil, (try? NoteDocument.fromServer(subtask.titleDocument)) == nil {
+                    Text("Не удалось получить подготовленное содержимое")
+                        .foregroundStyle(Color.tfSub)
+                } else {
                 BlockDocumentEditor(
                     blocks: subtaskTitleBinding(subtask),
                     focus: subtaskFocus(for: subtask),
@@ -1869,6 +1873,7 @@ struct TaskCardContent: View {
                 .id(activeEditors.contains("subtasks"))
                 .modifier(CardTextEditGate(enabled: !viewModel.isEditing || activeEditors.contains("subtasks"), identifier: "subtask.\(subtask.id)", text: subtask.title, arm: { armedEditors.insert("subtasks") }))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 } else {
                     Button {
                         if expandedWorkPlans.contains(subtask.id) { expandedWorkPlans.remove(subtask.id) }
@@ -1917,8 +1922,7 @@ struct TaskCardContent: View {
         Binding(
             get: {
                 if let draft = subtaskTitleDrafts[subtask.id] { return draft }
-                let parsed = MarkdownParser.parse(subtask.title)
-                return parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
+                return (try? NoteDocument.fromServer(subtask.titleDocument).blocks) ?? []
             },
             set: { subtaskTitleDrafts[subtask.id] = $0 }
         )
@@ -2835,16 +2839,22 @@ struct TaskCardContent: View {
             guard let text = await dictation.stopRecordingAndTranscribe() else { return }
             switch dictationTarget {
             case .title:
-                viewModel.title = appendedDictation(text, to: viewModel.title)
+                await viewModel.setTitleFromMarkdown(appendedDictation(text, to: viewModel.title))
             case .description:
-                viewModel.taskDescription = appendedDictation(text, to: viewModel.taskDescription)
+                await viewModel.setDescriptionFromMarkdown(appendedDictation(text, to: viewModel.taskDescription))
             case .comment:
-                viewModel.commentText = appendedDictation(text, to: viewModel.commentText)
+                await viewModel.setCommentFromMarkdown(appendedDictation(text, to: viewModel.commentText))
             case .newSubtask:
                 // Недостижимо — своя диктовка теперь у BlockDocumentEditor;
                 // оставлено ради компиляции switch по DictationTarget.
                 let existingText = MarkdownEncoder.encode(newSubtaskBlocks)
-                newSubtaskBlocks = MarkdownParser.parse(appendedDictation(text, to: existingText))
+                let source = appendedDictation(text, to: existingText)
+                newSubtaskBlocks = [NoteBlock(kind: .paragraph, runs: [RichRun(text: source)])]
+                let snapshot = newSubtaskBlocks
+                do {
+                    let blocks = try await viewModel.editorBlocks(from: source)
+                    if newSubtaskBlocks == snapshot { newSubtaskBlocks = blocks }
+                } catch { viewModel.saveErrorMessage = "Не удалось получить оформление. Введённый текст сохранён в поле." }
             case .subtask(let id):
                 // Практически недостижимо: у шага теперь своя диктовка через
                 // BlockDocumentEditor/MarkdownKeyboardAccessoryBar, этот путь
@@ -2852,7 +2862,13 @@ struct TaskCardContent: View {
                 guard let subtask = viewModel.subtasks.first(where: { $0.id == id }) else { return }
                 let existingText = MarkdownEncoder.encode(subtaskTitleDrafts[id] ?? [])
                 let base = existingText.isEmpty ? subtask.title : existingText
-                subtaskTitleDrafts[id] = MarkdownParser.parse(appendedDictation(text, to: base))
+                let source = appendedDictation(text, to: base)
+                subtaskTitleDrafts[id] = [NoteBlock(kind: .paragraph, runs: [RichRun(text: source)])]
+                let snapshot = subtaskTitleDrafts[id]
+                do {
+                    let blocks = try await viewModel.editorBlocks(from: source)
+                    if subtaskTitleDrafts[id] == snapshot { subtaskTitleDrafts[id] = blocks }
+                } catch { viewModel.saveErrorMessage = "Не удалось получить оформление. Введённый текст сохранён в поле." }
             }
         case .transcribing:
             break
@@ -2898,7 +2914,7 @@ struct TaskCardContent: View {
             } else {
                 ForEach($viewModel.subtaskDrafts) { $draft in
                     BlockDocumentEditor(
-                        blocks: blocksBinding($draft.title),
+                        blocks: blocksBinding($draft),
                         focus: subtaskDraftFocus(for: draft.id),
                         placeholder: "Шаг",
                         textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub)
@@ -2910,17 +2926,14 @@ struct TaskCardContent: View {
             newSubtaskRow
     }
 
-    /// Строку `String` ↔ блоки — тот же приём, что у `title`/`taskDescription`
-    /// в `TaskFormViewModel`, только здесь оборачивает уже существующий
-    /// `Binding<String>` (черновик шага при создании задачи, ещё не на
-    /// сервере — своего вычисляемого свойства в модели у него нет).
-    private func blocksBinding(_ stringBinding: Binding<String>) -> Binding<[NoteBlock]> {
+    /// Черновик хранит блоки напрямую: при каждом кадре текст не разбирается.
+    private func blocksBinding(_ draft: Binding<SubtaskDraft>) -> Binding<[NoteBlock]> {
         Binding(
-            get: {
-                let parsed = MarkdownParser.parse(stringBinding.wrappedValue)
-                return parsed.isEmpty ? [NoteBlock(kind: .paragraph)] : parsed
-            },
-            set: { stringBinding.wrappedValue = MarkdownEncoder.encode($0) }
+            get: { draft.wrappedValue.blocks },
+            set: {
+                draft.wrappedValue.blocks = $0
+                draft.wrappedValue.title = MarkdownEncoder.encode($0)
+            }
         )
     }
 
@@ -2992,13 +3005,14 @@ struct TaskCardContent: View {
     }
 
     private func addSubtaskInline() {
+        let draftBlocks = newSubtaskBlocks
         let title = MarkdownEncoder.encode(newSubtaskBlocks).trimmingCharacters(in: .whitespacesAndNewlines)
         newSubtaskBlocks = [NoteBlock(kind: .paragraph)]
         guard !title.isEmpty else { return }
         if viewModel.isEditing {
             Task { await viewModel.addSubtask(title) }
         } else {
-            viewModel.subtaskDrafts.append(SubtaskDraft(title: title))
+            viewModel.subtaskDrafts.append(SubtaskDraft(title: title, blocks: draftBlocks))
         }
         // Фокус после добавления возвращаем в ту же строку: список шагов
         // обычно пишут подряд, а не по одному с перезаходом.

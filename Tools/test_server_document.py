@@ -39,9 +39,10 @@ def method(signature):
 encoder = (root / 'Sources/Core/Text/MarkdownParser.swift').read_text()
 encoder = encoder[encoder.index('enum MarkdownEncoder {'):]
 fixture += encoder + """
-struct ApiTask { var titleDocument: JSONValue?; var descriptionDocument: JSONValue?; var description: String? }
+struct ApiTask { var title: String = "server title"; var titleDocument: JSONValue?; var descriptionDocument: JSONValue?; var description: String? }
 struct Form {
  var titleBlocks: [NoteBlock] = []
+ var cachedTitleMarkdown: String?
  var taskDescriptionBlocks: [NoteBlock] = [] { didSet { cachedDescriptionMarkdown = nil } }
  var cachedDescriptionMarkdown: String?
  var originalTask: ApiTask?

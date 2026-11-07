@@ -9,7 +9,19 @@ import SwiftUI
 
 struct SubtaskDraft: Identifiable, Equatable {
     let id = UUID()
-    var title: String
+    var title: String {
+        didSet {
+            if title != MarkdownEncoder.encode(blocks) {
+                blocks = [NoteBlock(kind: .paragraph, runs: [RichRun(text: title)])]
+            }
+        }
+    }
+    var blocks: [NoteBlock]
+
+    init(title: String, blocks: [NoteBlock]? = nil) {
+        self.title = title
+        self.blocks = blocks ?? [NoteBlock(kind: .paragraph, runs: [RichRun(text: title)])]
+    }
 }
 
 /// `AddSubtaskRow` — spec §3.7: плейсхолдер «Добавить подзадачу...», галочка

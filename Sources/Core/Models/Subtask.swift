@@ -11,6 +11,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
     public let id: String
     public let taskId: String?
     public let title: String
+    public var titleDocument: JSONValue? = nil
     public let done: Bool
     public let position: Int?
     public let agentState: AgentState?
@@ -42,6 +43,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         case id
         case taskId = "task_id"
         case title, done, position
+        case titleDocument = "title_document"
         case agentState = "agent_state"
         case agentId = "agent_id"
         case agentHeartbeatAt = "agent_heartbeat_at"
@@ -60,6 +62,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         id = try c.decode(String.self, forKey: .id)
         taskId = try c.decodeIfPresent(String.self, forKey: .taskId)
         title = try c.decode(String.self, forKey: .title)
+        titleDocument = try c.decodeIfPresent(JSONValue.self, forKey: .titleDocument)
         done = try c.decodeIntBool(forKey: .done)
         position = try c.decodeIfPresent(Int.self, forKey: .position)
         agentState = try c.decodeIfPresent(AgentState.self, forKey: .agentState)
@@ -96,6 +99,7 @@ public struct ApiSubtask: Codable, Identifiable, Sendable, Hashable {
         try c.encode(id, forKey: .id)
         try c.encodeIfPresent(taskId, forKey: .taskId)
         try c.encode(title, forKey: .title)
+        try c.encodeIfPresent(titleDocument, forKey: .titleDocument)
         try c.encode(done ? 1 : 0, forKey: .done)
         try c.encodeIfPresent(position, forKey: .position)
         try c.encodeIfPresent(agentState, forKey: .agentState)

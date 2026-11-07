@@ -7,6 +7,12 @@ final class TaskStructureTests: XCTestCase {
     func testStructureAppliesServerFieldsToNewTask() async throws {
         TaskStructureURLProtocol.handler = { request in
             XCTAssertEqual(request.httpMethod, "POST")
+            if request.url?.path == "/api/notes/markdown-to-doc" {
+                let body = try JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: String]
+                let markdown = try XCTUnwrap(body?["markdown"])
+                let doc: [String: Any] = ["type": "doc", "content": [["type": "paragraph", "content": [["type": "text", "text": markdown]]]]]
+                return (200, try JSONSerialization.data(withJSONObject: ["doc": doc]))
+            }
             XCTAssertEqual(request.url?.path, "/api/ai/structure-task")
             return (200, Data(#"{"title":"Купить продукты","description":"Купить хлеб и молоко","subtasks":["Купить хлеб","Купить молоко"],"dueDate":"2026-09-12","priority":2}"#.utf8))
         }
