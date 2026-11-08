@@ -146,10 +146,10 @@ enum HintScenarios {
     static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders]
 
     static let allTasks = HintScenario(
-        id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
+        id: "projects-all-tasks", title: "Задачи и статусы", start: "entry",
         steps: [
-            "entry": HintStep(anchor: HintAnchorID.projectsAllTasks, title: "Откройте все задачи",
-                text: "Плитка «Все задачи» рядом с архивом открывает общий список, включая задачи без проекта.", next: "filter"),
+            "entry": HintStep(anchor: HintAnchorID.projectsAllTasks, title: "Откройте задачи",
+                text: "Плитка «Задачи» рядом с архивом открывает общий список, включая задачи без проекта.", next: "filter"),
             "filter": HintStep(anchor: HintAnchorID.allTasksFilter, title: "Выберите статус",
                 text: "В меню выберите один статус: «В работе», «На проверке», «Заблокированы» или «Ожидающие запуска». Для обычного просмотра выберите «Не выполненные» или «Все, включая выполненные».", next: nil)
         ])

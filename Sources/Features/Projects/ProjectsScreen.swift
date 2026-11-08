@@ -270,7 +270,7 @@ struct ProjectsScreen: View {
     private var taskSectionsRow: some View {
         HStack(spacing: TFSpacing.sm) {
             sectionTile(
-                route: .allTasks, title: "Все задачи",
+                route: .allTasks, title: "Задачи",
                 count: allTasksCount, icon: "tray.full", tint: .tfBlue,
                 identifier: "projects.tile.allTasks"
             )

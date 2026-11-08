@@ -123,10 +123,10 @@ struct ProjectTasksScreen: View {
         projectID != nil && !projectStore.isLoading && projectStore.errorMessage == nil && project == nil
     }
 
-    /// Заголовок шапки. «Все задачи» — режим обхода проектов, там названия
+    /// Заголовок шапки. «Задачи» — режим обхода проектов, там названия
     /// проекта нет по определению.
     private var screenTitle: String {
-        if showsAllProjects { return "Все задачи" }
+        if showsAllProjects { return "Задачи" }
         return project?.name ?? "Проект"
     }
 
