@@ -12,6 +12,7 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isSubmitting = false
+    @State private var showPairing = false
 
     var body: some View {
         // Урок 2026-09-25 (чёрные треугольники в углах системной клавиатуры,
@@ -21,6 +22,13 @@ struct LoginView: View {
         ZStack {
             Color.tfBackground.ignoresSafeArea()
             loginForm
+        }
+        // Восстановление доступа без пароля: код привязки с сервера меняется
+        // на токен устройства. Появилось 08.11.2026 вместе с выключением
+        // домашнего входа без пароля — иначе после потери токена оставался
+        // только ручной ввод пароля.
+        .tfSheet(isPresented: $showPairing) {
+            DevicePairingSheet().presentationDetents([.large])
         }
     }
 
@@ -65,6 +73,17 @@ struct LoginView: View {
                     isSubmitting = false
                 }
             }
+
+            Button {
+                showPairing = true
+            } label: {
+                Label("Привязать этот iPhone по QR", systemImage: "qrcode.viewfinder")
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfSub)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("login-device-pairing")
+            .hintAnchor(HintAnchorID.devicePairing)
 
             Spacer()
             Spacer()

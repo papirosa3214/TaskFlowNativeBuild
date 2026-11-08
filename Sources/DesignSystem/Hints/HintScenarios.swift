@@ -71,6 +71,8 @@ enum HintAnchorID {
     static let chatComposerStyle = "settings.chat-composer-style"
     /// Стартовый экран личного чата с ролью (29.10.2026).
     static let chatRoleStart = "chat.role-start"
+    /// Кнопка «Привязать этот iPhone по QR» на экране входа.
+    static let devicePairing = "login.device-pairing"
 }
 
 enum HintScenarios {
@@ -145,7 +147,18 @@ enum HintScenarios {
                 text: "Сверху — время, прогресс, расход и пауза. Во вкладке «Ход» видно, что делает каждая роль, и ей можно написать. «Миссия» — модели, работы, контракт и журнал, «Карта» — все этапы."),
         ])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards]
+    /// Привязка телефона по QR (08.11.2026): домашний вход без пароля
+    /// выключен, и потерянный токен устройства возвращается кодом с сервера.
+    /// Подсказка стоит на кнопке экрана входа — там она и нужна: внутри
+    /// приложения человек уже вошёл, а «Настройки → Сервер» повторяют тот же
+    /// путь.
+    static let devicePairing = HintScenario(
+        id: "device-pairing", title: "Привязка по QR", start: "code",
+        steps: ["code": HintStep(anchor: HintAnchorID.devicePairing,
+            title: "Вход без пароля",
+            text: "Если приложение просит войти, а пароль набирать не хочется: на сервере выполните npx tsx scripts/pairing-code.ts в папке server — он напечатает QR-код. Нажмите здесь и наведите камеру. Код одноразовый и живёт 5 минут; после привязки телефон входит своим ключом. Внутри приложения та же кнопка есть в «Настройках → Сервер».", next: nil)])
+
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards, devicePairing]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Задачи и статусы", start: "entry",

@@ -102,6 +102,41 @@ public final class SessionStore {
         }
     }
 
+    /// Вход по QR-коду привязки — `taskflow://pair?…` с сервера.
+    ///
+    /// Нужен ровно в одном случае: токен устройства пропал (переустановка
+    /// приложения, выход, ответ 401 и очистка связки ключей), а домашний вход
+    /// без пароля выключен по требованию владельца — `/auth/lan` отвечает
+    /// 404, и вместо тихого входа приложение показывает форму с паролем.
+    /// Код выписывает сервер (`npx tsx scripts/pairing-code.ts` или
+    /// «Настройки → Параметры»), он одноразовый и живёт 5 минут.
+    @discardableResult
+    public func pairDevice(code rawCode: String) async -> Bool {
+        errorMessage = nil
+        guard let code = PairingLink.normalizedCode(rawCode) else {
+            // Сообщение объясняет формат, а не просто «ошибка»: человек мог
+            // скопировать ссылку не целиком или вставить чужой текст.
+            errorMessage = "Код привязки — 32 hex-символа из QR. Скопируйте код или ссылку целиком."
+            return false
+        }
+        do {
+            let token = try await apiClient.pairDevice(
+                code: code,
+                installId: DevicePairing.installId(),
+                deviceName: PairingLink.deviceName
+            )
+            KeychainService.shared.token = token
+            // Сервер в обмене отдаёт только `{id, name, role}` — полного
+            // пользователя для интерфейса там нет, поэтому читаем его тем же
+            // `GET /auth/me`, что и при обычном старте.
+            currentUser = try await apiClient.me()
+            return true
+        } catch {
+            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            return false
+        }
+    }
+
     public func logout() {
         KeychainService.shared.token = nil
         currentUser = nil

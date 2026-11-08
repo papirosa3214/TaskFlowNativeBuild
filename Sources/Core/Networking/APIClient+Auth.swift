@@ -30,6 +30,27 @@ public extension APIClient {
         try await request(.post, "/auth/lan", body: [String: String]())
     }
 
+    /// Привязка телефона по QR: `POST /api/pairing/exchange` меняет
+    /// одноразовый код привязки (живёт 5 минут, в базе лежит только sha256)
+    /// на долгоживущий токен устройства.
+    ///
+    /// Аутентификация здесь не нужна — код и есть вход. Поэтому этот путь и
+    /// работает, когда токена в связке ключей нет: после выключения домашнего
+    /// входа без пароля (08.11.2026) другого способа вернуть сессию без
+    /// пароля не осталось. Все отказы сервер отдаёт одинаково
+    /// (`400 invalid_code`), чтобы по ответу нельзя было перебирать коды.
+    func pairDevice(code: String, installId: String, deviceName: String) async throws -> String {
+        struct Response: Decodable { let token: String }
+        let response: Response = try await request(.post, "/pairing/exchange", body: [
+            "code": code,
+            "install_id": installId,
+            "target": "device",
+            "name": deviceName,
+            "os": "ios",
+        ] as [String: String])
+        return response.token
+    }
+
     /// **Закрыта по умолчанию** — 403, если в базе уже есть хоть один
     /// пользователь и не выставлен `TASKFLOW_ALLOW_REGISTRATION=1` (spec §2.1).
     func register(name: String, email: String, password: String) async throws -> AuthResponse {

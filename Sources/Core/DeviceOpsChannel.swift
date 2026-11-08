@@ -144,8 +144,10 @@ enum DevicePairing {
     }
 
     /// Устойчивый ключ установки: тот же телефон при перепривязке не должен
-    /// плодить себе второе устройство.
-    private static func installId() -> String {
+    /// плодить себе второе устройство. Тот же ключ присылает вход по QR-коду
+    /// (`SessionStore.pairDevice`) — иначе одна и та же установка заводила бы
+    /// себе две записи в реестре устройств.
+    static func installId() -> String {
         if let existing = UserDefaults.standard.string(forKey: installIdKey), !existing.isEmpty {
             return existing
         }

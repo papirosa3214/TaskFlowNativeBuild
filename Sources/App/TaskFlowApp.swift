@@ -119,6 +119,13 @@ struct TaskFlowApp: App {
     }
 }
 
+/// Код привязки, пришедший ссылкой `taskflow://pair?…`: `.tfSheet(item:)`
+/// требует `Identifiable`, а строка кода — это просто строка.
+private struct PairingRequest: Identifiable {
+    let id = UUID()
+    let code: String
+}
+
 /// Корневая развилка: пока идёт проверка сохранённого токена — заставка;
 /// дальше либо `LoginView` (spec §2.1: беспарольный LAN-вход нативу не
 /// подходит, только email/пароль), либо `RootShellView` (таббар + маршруты).
@@ -135,6 +142,10 @@ struct RootView: View {
     @Environment(LabelStore.self) private var labelStore
     @Environment(NotificationStore.self) private var notificationStore
     @Environment(RealtimeClient.self) private var realtimeClient
+    /// Ссылка привязки `taskflow://pair?…`, открытая камерой системы или
+    /// приложением камеры. Шторка живёт над развилкой «вход/оболочка»,
+    /// поэтому работает и на экране входа, и внутри приложения.
+    @State private var pairingRequest: PairingRequest?
 
     var body: some View {
         ZStack {
@@ -156,6 +167,13 @@ struct RootView: View {
             // Окно режима подсказок поверх листов и шапок (LOCK-HINTS-ONBOARDING).
             HintOverlayWindow.install()
             await session.bootstrap()
+        }
+        .onOpenURL { url in
+            guard let code = PairingLink.code(in: url) else { return }
+            pairingRequest = PairingRequest(code: code.code)
+        }
+        .tfSheet(item: $pairingRequest) { request in
+            DevicePairingSheet(prefilledCode: request.code).presentationDetents([.large])
         }
         .onChange(of: session.isAuthenticated, initial: true) { _, isAuthenticated in
             if isAuthenticated {

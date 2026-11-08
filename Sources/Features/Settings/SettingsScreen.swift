@@ -19,6 +19,8 @@ struct SettingsScreen: View {
     @AppStorage("settings.user.expanded") private var userSettingsExpanded = true
     @AppStorage("settings.ai.expanded") private var aiExpanded = true
     @AppStorage("settings.server.expanded") private var serverExpanded = true
+    /// Привязка этого телефона по QR-коду (владелец, «Сервер»).
+    @State private var showDevicePairing = false
     /// Панель ввода в чатах: родная или новая (владелец 29.10.2026).
     @AppStorage(ChatComposerStyle.storageKey) private var composerStyleRaw = ChatComposerStyle.defaultStyle.rawValue
     /// Тумблер «Новая панель ввода» — как у нижней панели: включена новая,
@@ -46,6 +48,9 @@ struct SettingsScreen: View {
         // Своя шапка уже несёт заголовок и кнопку «назад» — системный навбар
         // поверх неё давал ВТОРУЮ стрелку и лишнюю полосу.
         // Нативная сворачивающаяся шапка по официальным гайдам SwiftUI.
+        .tfSheet(isPresented: $showDevicePairing) {
+            DevicePairingSheet().presentationDetents([.large])
+        }
         .tfNativeHeader("Настройки")
         .tfScreenBackground()
         .environment(viewModel)
@@ -213,6 +218,20 @@ struct SettingsScreen: View {
                 TFDivider(inset: rowDividerInset)
                 navRow(icon: "key", title: "Секреты", route: .secrets)
                     .accessibilityIdentifier("settings-server-secrets")
+                TFDivider(inset: rowDividerInset)
+                // 08.11.2026: домашний вход без пароля выключен, и если токен
+                // на телефоне пропал — сессию возвращает код привязки с
+                // сервера, а не пароль. Строка открывает ту же шторку, что и
+                // экран входа.
+                TFListRow(
+                    icon: "qrcode.viewfinder",
+                    iconStyle: .plain,
+                    title: "Привязать этот iPhone",
+                    titleStyle: .body,
+                    verticalPadding: TFSpacing.xs,
+                    action: { showDevicePairing = true }
+                )
+                .accessibilityIdentifier("settings-device-pairing")
                 TFDivider(inset: rowDividerInset)
                 SystemControlSection()
                 TFDivider(inset: rowDividerInset)
