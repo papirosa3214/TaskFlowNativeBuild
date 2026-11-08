@@ -53,6 +53,10 @@ final class RoleTranslator {
     @ObservationIgnored private var wake: AsyncStream<Void>.Continuation?
     @ObservationIgnored private var englishCache: [String: Bool] = [:]
     @ObservationIgnored private var failedAt: [String: Date] = [:]
+    /// Идёт ли сейчас запрос в сеанс. `TranslationSession` нельзя спрашивать
+    /// дважды одновременно (владелец 08.11.2026: приложение вылетало по
+    /// нажатию «Перевести» — старый цикл ещё ждал ответа, новый уже просил).
+    @ObservationIgnored private var working = false
     /// Нарезка текстов, которую уже считали: `display` зовётся на каждой
     /// перерисовке.
     @ObservationIgnored private var splitCache: [String: [String]] = [:]
@@ -60,12 +64,20 @@ final class RoleTranslator {
     init() {}
 
     /// Что система говорит о паре английский → русский.
-    func checkLanguages() async {
+    func checkLanguages() async -> Bool {
         switch await LanguageAvailability().status(from: Self.english, to: Self.russian) {
-        case .installed: status = "языки скачаны"
-        case .supported: status = "языки: не скачаны — Настройки → Переводчик"
-        case .unsupported: status = "языки: пара не поддерживается"
-        @unknown default: status = "языки: неизвестный ответ"
+        case .installed:
+            status = "языки скачаны"
+            return true
+        case .supported:
+            status = "языки: не скачаны — Настройки → Переводчик"
+            return false
+        case .unsupported:
+            status = "языки: пара не поддерживается"
+            return false
+        @unknown default:
+            status = "языки: неизвестный ответ"
+            return false
         }
     }
 
@@ -117,6 +129,12 @@ final class RoleTranslator {
     /// Живой сеанс: переводит очередь, пока приложение не закроют. Задачу
     /// сеанса запускает `RoleTranslationHost` в корне.
     func work(with session: TranslationSession) async {
+        // Второй цикл поверх первого — это два одновременных запроса в один
+        // сеанс, на котором системный переводчик и падал. Чужой цикл уже
+        // разбирает очередь: он и подхватит новые куски.
+        guard !working else { return }
+        working = true
+        defer { working = false }
         while !Task.isCancelled {
             if queue.isEmpty {
                 await waitForWork()
@@ -199,20 +217,28 @@ struct RoleTranslationHost: ViewModifier {
             .translationTask(configuration) { session in
                 await translator.work(with: session)
             }
-            .task(id: translator.isOn) { start() }
+            .task(id: translator.isOn) {
+                // Включили перевод после отказа — проверяем языки заново.
+                if translator.isOn { languagesChecked = false }
+                start()
+            }
             .onChange(of: translator.pendingCount) { _, count in
                 if count > 0 { start() }
             }
     }
 
     /// Сеанс поднимаем один раз — первым требованием перевода или включением
-    /// перевода. Дальше он живёт сам и очередь подхватывает.
+    /// перевода, и только когда языки уже скачаны. Иначе система показывает
+    /// своё окно загрузки, а поверх открытой шторки размышлений это роняло
+    /// приложение (владелец 08.11.2026: нажал «Перевести» — вылет).
     private func start() {
-        guard translator.isOn, configuration == nil else { return }
-        configuration = .init(source: RoleTranslator.english, target: RoleTranslator.russian)
-        guard !languagesChecked else { return }
+        guard translator.isOn, configuration == nil, !languagesChecked else { return }
         languagesChecked = true
-        Task { await translator.checkLanguages() }
+        Task {
+            let ready = await translator.checkLanguages()
+            guard ready, configuration == nil else { return }
+            configuration = .init(source: RoleTranslator.english, target: RoleTranslator.russian)
+        }
     }
 }
 
