@@ -30,7 +30,9 @@ struct RoleChatsScreen: View {
     @State private var railShowsAll = false
     /// Что выбрано на панели: роль или групповые чаты (владелец 05.11.2026).
     /// По умолчанию — Помощник, с которым идёт основная работа.
-    @AppStorage("chats.selectedScope") private var selectedScopeRaw = "u-secretary"
+    @State private var selectedScopeRaw = ChatHomeScopeKey
+    /// Раскладка корня раздела: список всех комнат, а не сразу чья-то роль.
+    private static let ChatHomeScopeKey = "all"
     private var selectedScope: RoleSessionScope { RoleSessionScope(stored: selectedScopeRaw) }
     @AppStorage("chats.showClosed") private var showsClosed = false
     @State private var listRequestVersion = 0
@@ -85,6 +87,7 @@ struct RoleChatsScreen: View {
     }
     private var headerTitle: String {
         guard isOwner else { return "Чаты" }
+        if selectedScopeRaw == Self.ChatHomeScopeKey { return "Чат" }
         switch selectedScope {
         case .groups: return "Групповые чаты"
         case .role(let id): return rooms?.role(id)?.name ?? "Чаты"
@@ -95,7 +98,9 @@ struct RoleChatsScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                if isLoading && chats.isEmpty {
+                if isHome {
+                    chatsHome
+                } else if isLoading && chats.isEmpty {
                     TFLoading(.block)
                 } else if visibleRows.isEmpty && selectedRoleDMs.isEmpty {
                     Text("Пока нет сессий.")
@@ -148,7 +153,17 @@ struct RoleChatsScreen: View {
         .tfNativeHeader(headerTitle)
         .tint(Color.tfText)
         .toolbar {
-            if isOwner {
+            if isOwner, !isHome {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { selectHome() } label: {
+                        Label("Чаты", systemImage: "chevron.left")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .accessibilityLabel("Все чаты")
+                    .accessibilityIdentifier("chats.backHome")
+                }
+            }
+            if isOwner, !isHome {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { startNewSession() } label: { Image(systemName: "plus") }
                         .accessibilityLabel("Новая сессия")
@@ -225,6 +240,59 @@ struct RoleChatsScreen: View {
         } message: {
             Text("Переписка и вложения пропадут насовсем — вернуть их будет нельзя.")
         }
+    }
+
+    /// Корень раздела: все комнаты списком, чтобы было видно, что выбираешь
+    /// (владелец 08.11.2026: «раздел чата сразу на какой-то роли — странно»).
+    private var isHome: Bool { selectedScopeRaw == Self.ChatHomeScopeKey }
+
+    @ViewBuilder
+    private var chatsHome: some View {
+        let roles = rooms?.roles.filter { $0.personalChatID != nil } ?? []
+        let secretary = roles.first { $0.id == "u-secretary" }
+        let others = roles.filter { $0.id != "u-secretary" }
+        if let secretary {
+            homeHeader("Помощник владельца")
+            homeRoleRow(secretary)
+        }
+        if !others.isEmpty {
+            homeHeader("Роли")
+            ForEach(Array(others.enumerated()), id: \.element.id) { index, role in
+                homeRoleRow(role)
+                if index < others.count - 1 { rowDivider }
+            }
+        }
+        homeHeader("Групповые чаты")
+        groupsCatalog
+    }
+
+    private func homeHeader(_ title: String) -> some View {
+        Text(title)
+            .tfText(.meta)
+            .foregroundStyle(Color.tfDim)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+            .padding(.top, TFSpacing.lg)
+            .padding(.bottom, TFSpacing.xs)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Строка комнаты в корне: имя, последняя реплика и время — как в списке
+    /// чатов, тап открывает сессии этой роли.
+    private func homeRoleRow(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
+        Button { select(.role(role.id)) } label: {
+            ChatListRow(title: role.name,
+                        preview: dmPreview(role.lastMessage),
+                        time: ChatListTime.label(role.lastMessage?.createdAt),
+                        unread: 0, turn: role.personalTurn)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("chats.home.\(role.id)")
+    }
+
+    private func selectHome() {
+        selectedScopeRaw = Self.ChatHomeScopeKey
+        withAnimation(TFMotion.standard) { isRoomsOpen = false }
     }
 
     // MARK: - Строка сессии
