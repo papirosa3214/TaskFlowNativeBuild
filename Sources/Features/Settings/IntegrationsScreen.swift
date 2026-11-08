@@ -294,6 +294,7 @@ struct IntegrationsScreen: View {
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
+    @State private var isFinanceOpen = false
     @State private var externalApps = ExternalAppAccessStore.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var isGoogleTasksOpen = false // веб-дефолт: этот аккордеон открыт сразу
@@ -336,6 +337,19 @@ struct IntegrationsScreen: View {
                             }
                             IntegrationAccordionCard(icon: "envelope", title: "Gmail", subtitle: externalApps.gmailDetail, badge: externalApps.gmailStatus, badgeColor: externalApps.accounts.contains(where: \.connected) ? .tfTeal : .tfSub, isExpanded: $isGmailOpen, identifier: "integrations.gmail") {
                                 GmailIntegrationCard()
+                            }
+                            TFDivider(inset: dividerInset)
+                            IntegrationAccordionCard(
+                                icon: "chart.line.uptrend.xyaxis", title: "Wealthfolio",
+                                subtitle: externalApps.financeDetail,
+                                badge: externalApps.financeStatus,
+                                badgeColor: externalApps.financeConnected ? .tfTeal : .tfSub,
+                                isExpanded: $isFinanceOpen, identifier: "integrations.wealthfolio"
+                            ) {
+                                ExternalAppAccessDetails(app: "wealthfolio")
+                                TFButton(externalApps.loading ? "Проверка…" : "Обновить доступность", icon: "arrow.clockwise", variant: .secondary, isEnabled: !externalApps.loading) {
+                                    Task { await externalApps.refresh() }
+                                }
                             }
                             ForEach(composio.connections.filter { !["gmail", "linear"].contains($0.slug) }) { service in
                                 TFDivider(inset: dividerInset)

@@ -12,6 +12,10 @@ final class ExternalAppAccessStore {
     var thingsStatus = "Не проверено"
     var thingsDetail = "Обнови доступность подключения."
     var thingsReadable = false
+    var financeStatus = "Не проверено"
+    var financeDetail = "Обнови доступность подключения."
+    var financeConnected = false
+    private var financeToolCount = 0
     var loading = false
     var catalogError: String?
     private var tools: [RoleToolDetail] = []
@@ -29,7 +33,11 @@ final class ExternalAppAccessStore {
         return accounts.isEmpty ? "Добавь адрес в «Интеграциях»." : accounts.map(\.title).joined(separator: " · ")
     }
     func capabilities(for app: String) -> [RoleToolDetail] {
-        tools.filter { app == "gmail" ? $0.name.hasPrefix("taskflow_mail_") : $0.name == "taskflow_things3" }
+        switch app {
+        case "gmail": return tools.filter { $0.name.hasPrefix("taskflow_mail_") }
+        case "wealthfolio": return tools.filter { $0.name.hasPrefix("wealthfolio_") }
+        default: return tools.filter { $0.name == "taskflow_things3" }
+        }
     }
 
     func reloadMail() async {
@@ -57,7 +65,29 @@ final class ExternalAppAccessStore {
             catalogError = "Не удалось загрузить возможности Помощника владельца."
         }
         await checkThings()
+        await checkWealthfolio()
         await mail
+    }
+
+    /// Финансовый трекер на .110: сервер отвечает — карточка это подтверждает,
+    /// нет ответа — говорит прямо, без «Проверка…» навсегда.
+    private func checkWealthfolio() async {
+        financeConnected = false
+        do {
+            let probe: WealthfolioAccessProbe = try await api.request(.get, "/integrations/wealthfolio")
+            financeConnected = probe.connected
+            financeToolCount = probe.toolCount ?? 0
+            if probe.connected {
+                financeStatus = "Подключён"
+                financeDetail = "Сервер .110 отвечает · действий: \(financeToolCount)"
+            } else {
+                financeStatus = "Нет ответа"
+                financeDetail = probe.error.map { "Сервер .110 не ответил: \($0)" } ?? "Сервер .110 не ответил."
+            }
+        } catch {
+            financeStatus = "Не удалось проверить"
+            financeDetail = "Проверка финансового трекера завершилась ошибкой. Повтори обновление."
+        }
     }
 
     private func checkThings() async {
@@ -104,6 +134,10 @@ struct ExternalAppAccessDetails: View {
             }
             if app == "things" {
                 Text(store.thingsDetail).tfText(.action).foregroundStyle(Color.tfSub)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if app == "wealthfolio" {
+                Text(store.financeDetail).tfText(.action).foregroundStyle(Color.tfSub)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text("Возможности Помощника владельца").tfText(.body).foregroundStyle(Color.tfText)

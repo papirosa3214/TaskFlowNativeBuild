@@ -18,3 +18,13 @@ struct ThingsAccessProbe: Decodable {
         return true
     }
 }
+
+/// Ответ `/api/integrations/wealthfolio`: отвечает ли финансовый трекер на .110
+/// и сколько действий он даёт Помощнику владельца. Адрес и токен сервер наружу
+/// отдаёт только для диагностики — в интерфейсе он не нужен.
+struct WealthfolioAccessProbe: Decodable {
+    let connected: Bool
+    let url: String?
+    let toolCount: Int?
+    let error: String?
+}
