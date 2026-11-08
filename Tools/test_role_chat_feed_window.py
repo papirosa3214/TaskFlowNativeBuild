@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Окно ленты чата: когда дорисовывать старые сообщения — XCTest на macOS,
+без симулятора.
+
+Дозагрузка при прокрутке вверх (владелец 08.11.2026) — см.
+`Tests/RoleChatFeedWindowTests.swift` и
+`Sources/Features/Roles/RoleChatFeedWindow.swift`.
+"""
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+root = Path(__file__).resolve().parents[1]
+source = root / 'Sources/Features/Roles/RoleChatFeedWindow.swift'
+tests = root / 'Tests/RoleChatFeedWindowTests.swift'
+
+if not source.exists():
+    # RED: файла ещё нет — тест обязан упасть.
+    print('RED: RoleChatFeedWindow.swift отсутствует')
+    sys.exit(1)
+
+with tempfile.TemporaryDirectory(prefix='role-chat-feed-window-') as tmp:
+    main = Path(tmp) / 'main.swift'
+    binary = Path(tmp) / 'tests'
+    main.write_text(
+        tests.read_text()
+        + '\nlet suite = RoleChatFeedWindowTests.defaultTestSuite\n'
+        + 'suite.run()\n'
+        + 'exit(suite.testRun!.hasSucceeded ? 0 : 1)\n'
+    )
+    developer = Path(subprocess.check_output(['xcode-select', '-p'], text=True).strip())
+    frameworks = developer / 'Platforms/MacOSX.platform/Developer/Library/Frameworks'
+    libraries = developer / 'Platforms/MacOSX.platform/Developer/usr/lib'
+    subprocess.run([
+        'swiftc',
+        '-F', str(frameworks),
+        '-I', str(libraries),
+        '-L', str(libraries),
+        '-Xlinker', '-rpath', '-Xlinker', str(frameworks),
+        '-Xlinker', '-rpath', '-Xlinker', str(libraries),
+        str(source), str(main), '-o', str(binary),
+    ], check=True)
+    sys.exit(subprocess.run([str(binary)]).returncode)

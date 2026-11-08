@@ -1377,20 +1377,6 @@ struct RoleChatRoomScreen: View {
                 // Один элемент ленты — одна вью: полоса даты и строка лежат в
                 // общем контейнере, иначе LazyVStack ошибается в оценке высот
                 // и лента дёргается при прокрутке вверх (27.10.2026).
-                if self.visibleMessages.count > feedWindow {
-                    // Долистал до верха окна — дорисовать ещё 10 и остаться
-                    // на том же сообщении.
-                    Color.clear.frame(height: 1)
-                        .onAppear {
-                            // Только когда владелец сам листает вверх: при
-                            // открытии короткого чата полоска видна сразу, и
-                            // прокрутка к старому сообщению увозила ленту от низа.
-                            guard chatScrollPhase != .idle else { return }
-                            let keep = orderedFeed.first?.id
-                            feedWindow += RoleChatFeedWindow.step
-                            if let keep { chatScrollPosition.scrollTo(id: keep, anchor: .top) }
-                        }
-                }
                 ForEach(orderedFeed) { item in
                     VStack(alignment: .leading, spacing: TFSpacing.md) {
                         if let title = dayDividers[item.id] {
@@ -1509,6 +1495,30 @@ struct RoleChatRoomScreen: View {
         }
         .onScrollPhaseChange { _, phase in
             chatScrollPhase = phase
+        }
+        // Дорисовка старых сообщений вверх (владелец 08.11.2026: «нет у этого
+        // дозагруза, они просто как бы удалились»). Раньше её запускал
+        // `onAppear` однопиксельной полоски вверху ленты, но лента с 07.11 —
+        // обычный `VStack`: все строки монтируются сразу, полоска «появлялась»
+        // один раз при открытии (фаза `.idle`, guard её отбрасывал) и больше
+        // никогда. Поэтому смотрим на геометрию: она меняется на каждый сдвиг.
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            // Верх содержимого близко к видимой области.
+            geometry.contentOffset.y + geometry.contentInsets.top <= 300
+        } action: { _, nearTop in
+            guard nearTop else { return }
+            // Дорисовываем только под рукой владельца: при открытии короткого
+            // чата верх виден сразу, и автодорисовка увозила ленту от низа
+            // (07.11.2026).
+            let scrolling = chatScrollPhase == .tracking || chatScrollPhase == .interacting
+                || chatScrollPhase == .decelerating
+            let hidden = visibleMessages.count - feedWindow
+            guard RoleChatFeedWindow.shouldGrow(hidden: hidden, nearTop: nearTop, scrolling: scrolling)
+            else { return }
+            // Дорисовали — остаёмся на том же сообщении, лента не прыгает.
+            let keep = feedItems.first?.id
+            feedWindow = RoleChatFeedWindow.grown(window: feedWindow)
+            if let keep { chatScrollPosition.scrollTo(id: keep, anchor: .top) }
         }
         .onScrollGeometryChange(for: [Int].self) { g in
             [Int(g.contentSize.height), Int(g.visibleRect.maxY), Int(g.contentOffset.y), Int(g.containerSize.height)]
@@ -2986,9 +2996,4 @@ struct RoleChatRoomScreen: View {
             uploadedVoiceIDs.removeValue(forKey: id)
         } catch { errorMessage = error.localizedDescription }
     }
-}
-
-/// Окно ленты: сколько последних сообщений рисуется и шаг подгрузки.
-enum RoleChatFeedWindow {
-    static let step = 10
 }
