@@ -37,6 +37,9 @@ struct RoleChatsScreen: View {
     /// Чат, выбранный для окончательного удаления: ждёт подтверждения,
     /// потому что вернуть его уже будет нельзя.
     @State private var pendingPurge: RoleChat?
+    /// Свёрнутые папки проектов в каталоге «Групповые чаты»: свернул — комнаты
+    /// задач этого проекта убраны, развернул — снова видны.
+    @State private var openProjects: Set<String> = []
     @Environment(RealtimeClient.self) private var realtime
     @State private var realtimeObserver = RealtimeObserverSlot<UUID>()
     private let api = APIClient()
@@ -48,16 +51,28 @@ struct RoleChatsScreen: View {
         guard isOwner else {
             return chats.filter { !$0.isPermanentRoom }.map { (RoleSessionRow(id: $0.id, lines: []), $0) }
         }
-        let ownerID = session.currentUser?.id
-        let candidates = chats.map {
-            RoleSessionCandidate(id: $0.id, kind: $0.kind, roomKind: $0.roomKind, parentChatID: $0.parentChatID,
-                                 projectID: $0.projectID, otherMemberIDs: $0.others(excluding: ownerID).map(\.id),
-                                 lastActivity: $0.lastMessage?.createdAt, branchOfChatID: $0.branchOfChatID)
-        }
         let byID = Dictionary(chats.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return RoleSessionList.rows(candidates, scope: selectedScope).compactMap { row in
             byID[row.id].map { (row, $0) }
         }
+    }
+
+    /// Что список знает о каждом чате для раскладки по спискам.
+    private var candidates: [RoleSessionCandidate] {
+        let ownerID = session.currentUser?.id
+        return chats.map {
+            RoleSessionCandidate(id: $0.id, kind: $0.kind, roomKind: $0.roomKind, parentChatID: $0.parentChatID,
+                                 projectID: $0.projectID, otherMemberIDs: $0.others(excluding: ownerID).map(\.id),
+                                 lastActivity: $0.lastMessage?.createdAt, branchOfChatID: $0.branchOfChatID,
+                                 folder: $0.projectName)
+        }
+    }
+
+    /// Каталог «Групповые чаты» папками проектов (спецификация 08.11.2026, §3):
+    /// проект — папка комнат его задач, а не чат; комнаты без проекта лежат вне
+    /// папок.
+    private var groupSections: [RoleSessionGroup] {
+        RoleSessionList.groups(candidates, scope: .groups)
     }
     /// Переписка выбранной роли с коллегами: открывается только на чтение.
     private var selectedRoleDMs: [ChatRoomsSnapshot.DirectRoom] {
@@ -85,6 +100,8 @@ struct RoleChatsScreen: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, TFSpacing.screenHorizontal)
                         .padding(.top, TFSpacing.xl)
+                } else if selectedScope == .groups {
+                    groupsCatalog
                 } else {
                     let rows = visibleRows
                     ForEach(Array(rows.enumerated()), id: \.element.row.id) { index, item in
@@ -222,6 +239,61 @@ struct RoleChatsScreen: View {
 
     // MARK: - Строка сессии
 
+    /// Папки проектов и комнаты внутри них. Папка одной строкой, комнаты —
+    /// теми же строками списка, что и везде.
+    @ViewBuilder
+    private var groupsCatalog: some View {
+        let byID = Dictionary(chats.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let sections = groupSections
+        ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
+            if let title = section.title {
+                folderRow(title: title, isOpen: openProjects.contains(title), count: section.ids.count,
+                          isFirst: index == 0)
+                rowDivider
+            }
+            let isOpen = section.title.map { openProjects.contains($0) } ?? true
+            if isOpen {
+                let rooms = section.ids.compactMap { byID[$0] }
+                ForEach(Array(rooms.enumerated()), id: \.element.id) { position, chat in
+                    sessionLink(chat, isBranch: false)
+                    if position < rooms.count - 1 { rowDivider }
+                }
+            }
+            if index < sections.count - 1, sections[index + 1].title != nil, !isOpen { rowDivider }
+        }
+    }
+
+    /// Строка папки проекта: название проекта и число комнат в нём.
+    @ViewBuilder
+    private func folderRow(title: String, isOpen: Bool, count: Int, isFirst: Bool) -> some View {
+        let row = Button {
+            withAnimation(TFMotion.standard) {
+                if isOpen { openProjects.remove(title) } else { openProjects.insert(title) }
+            }
+        } label: {
+            TFListRow(
+                icon: "folder",
+                iconStyle: .plain,
+                title: title,
+                subtitle: RoleSessionList.roomsCount(count),
+                trailing: isOpen
+                    ? AnyView(Image(systemName: "chevron.down").tfTypeFont(size: 13).foregroundStyle(Color.tfDim))
+                    : nil,
+                chevron: isOpen ? .hidden : .shown,
+                verticalPadding: TFSpacing.sm
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("chats.folder.\(title)")
+        .accessibilityValue(isOpen ? "Развёрнута" : "Свёрнута")
+        // Подсказка вешается на первую папку: одна точка на весь каталог.
+        if isFirst {
+            row.hintAnchor(HintAnchorID.chatsProjectFolders)
+        } else {
+            row
+        }
+    }
+
     /// Разделитель отбит до начала текста: строка читается как строка списка.
     private var rowDivider: some View {
         TFDivider(inset: TFSpacing.screenHorizontal)
@@ -329,8 +401,10 @@ struct RoleChatsScreen: View {
             taskTitle: chat.taskTitle,
             turn: chat.turn,
             contextLabel: selectedScope == .groups ? nil : chat.contextUsage?.label,
-            // У чата проекта название и так совпадает с проектом.
-            projectName: chat.projectName == chat.title ? nil : chat.projectName
+            // В каталоге проект уже назван папкой, в строке он был бы повтором.
+            projectName: selectedScope == .groups
+                ? nil
+                : (chat.projectName == chat.title ? nil : chat.projectName)
         )
     }
 

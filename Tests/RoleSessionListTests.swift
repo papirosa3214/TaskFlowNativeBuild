@@ -3,9 +3,10 @@ import XCTest
 
 final class RoleSessionListTests: XCTestCase {
     private func item(_ id: String, others: [String], kind: String = "direct", room: String? = nil,
-                      parent: String? = nil, project: String? = nil, last: String? = nil, branchOf: String? = nil) -> RoleSessionCandidate {
+                      parent: String? = nil, project: String? = nil, last: String? = nil, branchOf: String? = nil,
+                      folder: String? = nil) -> RoleSessionCandidate {
         RoleSessionCandidate(id: id, kind: kind, roomKind: room, parentChatID: parent, projectID: project,
-                             otherMemberIDs: others, lastActivity: last, branchOfChatID: branchOf)
+                             otherMemberIDs: others, lastActivity: last, branchOfChatID: branchOf, folder: folder)
     }
 
     func testRoleShowsOnlyItsOwnPrivateSessions() {
@@ -89,10 +90,35 @@ final class RoleSessionListTests: XCTestCase {
         XCTAssertEqual(RoleSessionList.rows(list, scope: .role("a")).first?.lines, [])
     }
 
-    func testProjectGroupResolvesFromGroupAndTopic() {
-        XCTAssertEqual(RoleSessionList.projectGroupID(chatID: "g", parentChatID: nil, projectID: "p"), "g")
-        XCTAssertEqual(RoleSessionList.projectGroupID(chatID: "t", parentChatID: "g", projectID: "p"), "g")
-        XCTAssertNil(RoleSessionList.projectGroupID(chatID: "s", parentChatID: nil, projectID: nil))
+    /// Каталог «Групповые чаты» раскладывает комнаты по папкам проектов
+    /// (спецификация 08.11.2026, §3): проект — папка, а не чат. Комнаты без
+    /// проекта лежат вне папок; порядок папок — по свежести комнат внутри.
+    func testCatalogFoldsRoomsIntoProjectFolders() {
+        let list = [
+            item("a1", others: ["x", "y"], kind: "group", room: "task", last: "2026-11-06 01:00:00", folder: "Альфа"),
+            item("b1", others: ["x", "y"], kind: "group", room: "task", last: "2026-11-05 01:00:00", folder: "Бета"),
+            item("free", others: ["x", "y"], kind: "group", room: "task", last: "2026-11-04 01:00:00"),
+            item("a2", others: ["x", "y"], kind: "group", room: "task", last: "2026-11-03 01:00:00", folder: "Альфа"),
+            item("mine", others: ["x"], last: "2026-11-09 01:00:00"),
+        ]
+        let sections = RoleSessionList.groups(list, scope: .groups)
+        XCTAssertEqual(sections.map(\.title), ["Альфа", "Бета", nil])
+        XCTAssertEqual(sections.map(\.ids), [["a1", "a2"], ["b1"], ["free"]])
+    }
+
+    func testEmptyFolderNameCountsAsNoProject() {
+        let list = [item("room", others: ["x", "y"], kind: "group", last: "2026-11-06 01:00:00", folder: "")]
+        XCTAssertEqual(RoleSessionList.groups(list, scope: .groups).map(\.title), [nil])
+    }
+
+    func testRoomsCountIsWordedInRussian() {
+        XCTAssertEqual(RoleSessionList.roomsCount(1), "1 комната")
+        XCTAssertEqual(RoleSessionList.roomsCount(2), "2 комнаты")
+        XCTAssertEqual(RoleSessionList.roomsCount(4), "4 комнаты")
+        XCTAssertEqual(RoleSessionList.roomsCount(5), "5 комнат")
+        XCTAssertEqual(RoleSessionList.roomsCount(11), "11 комнат")
+        XCTAssertEqual(RoleSessionList.roomsCount(21), "21 комната")
+        XCTAssertEqual(RoleSessionList.roomsCount(0), "0 комнат")
     }
 
     func testOnlyNumberedSlotsOfTheRoleBecomeMentions() throws {

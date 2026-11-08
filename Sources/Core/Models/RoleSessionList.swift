@@ -69,9 +69,14 @@ public struct RoleSessionCandidate: Sendable {
     public let otherMemberIDs: [String]
     public let lastActivity: String?
     public let branchOfChatID: String?
+    /// Папка проекта в каталоге «Групповые чаты»: имя проекта задачи (владелец
+    /// 08.11.2026 — проект больше не чат, а папка комнат его задач). Пусто или
+    /// `nil` — комната лежит вне папок.
+    public let folder: String?
 
     public init(id: String, kind: String, roomKind: String?, parentChatID: String?, projectID: String?,
-                otherMemberIDs: [String], lastActivity: String?, branchOfChatID: String? = nil) {
+                otherMemberIDs: [String], lastActivity: String?, branchOfChatID: String? = nil,
+                folder: String? = nil) {
         self.id = id
         self.kind = kind
         self.roomKind = roomKind
@@ -80,6 +85,7 @@ public struct RoleSessionCandidate: Sendable {
         self.otherMemberIDs = otherMemberIDs
         self.lastActivity = lastActivity
         self.branchOfChatID = branchOfChatID
+        self.folder = folder
     }
 }
 
@@ -100,6 +106,18 @@ public struct RoleSessionRow: Equatable, Sendable {
     public let id: String
     /// Пусто — сессия верхнего уровня.
     public let lines: [Line]
+}
+
+/// Папка каталога «Групповые чаты»: проект владельца или комнаты вне папок.
+public struct RoleSessionGroup: Equatable, Sendable {
+    /// Имя проекта; `nil` — комнаты без проекта.
+    public let title: String?
+    public let ids: [String]
+
+    public init(title: String?, ids: [String]) {
+        self.title = title
+        self.ids = ids
+    }
 }
 
 /// Сессии выбранного пункта панели: плоско, свежие сверху, ветки — деревом под
@@ -134,11 +152,36 @@ public enum RoleSessionList {
         return result
     }
 
-    /// Группа проекта, к которой относится чат: сам чат проекта или родитель
-    /// топика. `nil` — чат вне проекта, полоски топиков у него нет.
-    public static func projectGroupID(chatID: String, parentChatID: String?, projectID: String?) -> String? {
-        if let parentChatID { return parentChatID }
-        return projectID == nil ? nil : chatID
+    /// Каталог «Групповые чаты» папками проектов (§3 спецификации 08.11.2026):
+    /// сначала папки и комнаты по свежести, порядок папки — по её самой свежей
+    /// комнате; комнаты без проекта идут своей группой с `title == nil`.
+    public static func groups(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope) -> [RoleSessionGroup] {
+        var order: [String?] = []
+        var buckets: [String: [String]] = [:]
+        for chat in sorted(candidates.filter { belongs($0, to: scope) }) {
+            let title = (chat.folder?.isEmpty == false) ? chat.folder : nil
+            let key = title ?? ""
+            if buckets[key] == nil { order.append(title) }
+            buckets[key, default: []].append(chat.id)
+        }
+        return order.map { RoleSessionGroup(title: $0, ids: buckets[$0 ?? ""] ?? []) }
+    }
+
+    /// «1 комната», «2 комнаты», «5 комнат» — подпись папки в каталоге.
+    public static func roomsCount(_ count: Int) -> String {
+        let tail = count % 100
+        let last = count % 10
+        let word: String
+        if tail >= 11 && tail <= 14 {
+            word = "комнат"
+        } else {
+            switch last {
+            case 1: word = "комната"
+            case 2, 3, 4: word = "комнаты"
+            default: word = "комнат"
+            }
+        }
+        return "\(count) \(word)"
     }
 
     /// Время с сервера — строка «ГГГГ-ММ-ДД ЧЧ:ММ:СС»: порядок строк совпадает

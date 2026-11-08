@@ -50,12 +50,6 @@ public extension APIClient {
     func continueSlot(chatID: String, messageID: String) async throws {
         let _: APIOkResponse = try await request(.post, "/chats/\(chatID)/messages/\(messageID)/continue-slot")
     }
-    func chatTopics(chatID: String, includeClosed: Bool = false) async throws -> [RoleChat] {
-        let query = includeClosed ? [URLQueryItem(name: "include_closed", value: "1")] : []
-        let response: RoleChatsEnvelope = try await request(.get, "/chats/\(chatID)/topics", query: query)
-        return response.chats
-    }
-
     func roleChats(includeClosed: Bool = false) async throws -> [RoleChat] {
         let query = includeClosed ? [URLQueryItem(name: "include_closed", value: "1")] : []
         let response: RoleChatsEnvelope = try await request(.get, "/chats", query: query)

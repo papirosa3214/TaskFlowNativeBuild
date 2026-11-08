@@ -351,11 +351,7 @@ struct RoleChatRoomScreen: View {
     }
     #endif
 
-    /// Топики проекта над полем ввода (05.11.2026); вне проекта полоски нет.
-    private let topicStrip: AnyView?
-
-    init(chat: RoleChat, topicStrip: AnyView? = nil) {
-        self.topicStrip = topicStrip
+    init(chat: RoleChat) {
         _chat = State(initialValue: chat)
         // Лента — это локальная база (05.11.2026): своей копии в памяти у
         // экрана больше нет, иначе пришедшее, пока чат был закрыт, на экран
@@ -733,7 +729,6 @@ struct RoleChatRoomScreen: View {
                 }
                 .padding(.horizontal, TFSpacing.lg)
             }
-            if let topicStrip { topicStrip }
         }
         .chatComposerBar {
             if isSelecting {

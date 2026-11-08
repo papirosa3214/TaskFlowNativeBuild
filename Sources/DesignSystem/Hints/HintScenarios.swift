@@ -9,6 +9,7 @@ enum HintAnchorID {
     static let projectsAllTasks = "projects.all-tasks"
     static let allTasksFilter = "all-tasks.filter"
     static let chatSession = "chat.session"
+    static let chatsProjectFolders = "chats.project-folders"
     static let routineInstructions = "routine.instructions"
     static let routinePlanTemplate = "routine.planTemplate"
     static let routineHistory = "routine.history"
@@ -142,7 +143,7 @@ enum HintScenarios {
                 text: "Сверху — время, прогресс, расход и пауза. Во вкладке «Ход» видно, что делает каждая роль, и ей можно написать. «Миссия» — модели, работы, контракт и журнал, «Карта» — все этапы."),
         ])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Все задачи и статусы", start: "entry",
@@ -337,6 +338,20 @@ enum HintScenarios {
                 anchor: HintAnchorID.chatDeliveryBadge,
                 title: "Сохранено — ещё не передано",
                 text: "Под своим сообщением в чате с ролями виден признак доставки. «Сохранено» — сообщение лежит в ленте, «В очереди» — ждёт своей передачи, «Передано исполнителю» — роль взяла его в работу, «Не передано» — прежний ход отменён. Проверь актуальный план и уточнения перед повтором поручения.",
+                next: nil),
+        ])
+
+    /// Проект в каталоге «Групповые чаты» — папка комнат его задач, а не чат
+    /// (спецификация 08.11.2026, §3).
+    static let chatsProjectFolders = HintScenario(
+        id: "chats-project-folders",
+        title: "Проекты в групповых чатах",
+        start: "folder",
+        steps: [
+            "folder": HintStep(
+                anchor: HintAnchorID.chatsProjectFolders,
+                title: "Проект — это папка",
+                text: "В «Групповых чатах» проекты собраны папками: нажмите папку — раскроются комнаты задач этого проекта, ещё раз — свернутся. Своего чата у проекта нет. Комнаты задач без проекта лежат ниже, без папки.",
                 next: nil),
         ])
 

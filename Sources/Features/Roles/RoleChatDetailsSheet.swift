@@ -81,6 +81,11 @@ struct RoleChatDetailsSheet: View {
                 Section {
                     ForEach(chat.members) { member in
                         memberRow(member)
+                        // Слоты — отдельные участники исполнения (спецификация
+                        // 08.11.2026, §6): подписи те же, что в выборе `@`.
+                        ForEach(RoleChatSlot.numbered(for: member.id, in: chat.slots), id: \.subtaskID) { slot in
+                            slotRow(slot)
+                        }
                     }
                 } header: {
                     Text("Участники")
@@ -205,6 +210,22 @@ struct RoleChatDetailsSheet: View {
                 }
             }
         }
+    }
+
+    /// Строка слота под своей ролью: «Разработчик 1», «Разработчик 2». Одна
+    /// учётная запись роли может вести несколько этапов сразу, и по подписи
+    /// видно, к какому из них адресована реплика.
+    private func slotRow(_ slot: RoleChatSlot) -> some View {
+        HStack(spacing: TFSpacing.md) {
+            Image(systemName: "square.stack.3d.up")
+                .tfTypeFont(size: TFIconSize.sm)
+                .foregroundStyle(Color.tfDim)
+            Text(slot.label)
+                .foregroundStyle(Color.tfSub)
+            Spacer(minLength: TFSpacing.sm)
+        }
+        .padding(.leading, TFSpacing.xl)
+        .accessibilityIdentifier("chat.slot." + slot.subtaskID)
     }
 
     private func memberContent(_ member: RoleChatMember) -> some View {

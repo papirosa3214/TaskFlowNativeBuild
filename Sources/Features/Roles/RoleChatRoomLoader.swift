@@ -26,11 +26,10 @@ struct RoleChatRoomLoader: View {
     var body: some View {
         Group {
             if let chat {
-                if let groupID = RoleSessionList.projectGroupID(chatID: chat.id, parentChatID: chat.parentChatID, projectID: chat.projectID) {
-                    ProjectChatScreen(groupID: groupID, opened: chat)
-                } else {
-                    RoleChatRoomScreen(chat: chat)
-                }
+                // Комната открывается обычным разговором: у комнаты задачи
+                // внутренних топиков нет, а проектного чата не существует
+                // (спецификация 08.11.2026, §3).
+                RoleChatRoomScreen(chat: chat)
             } else if failed {
                 TFEmptyState(
                     icon: "bubble.left",

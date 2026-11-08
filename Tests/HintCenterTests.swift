@@ -103,6 +103,16 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains(scenario.id))
     }
 
+    /// Проект в «Групповых чатах» — папка комнат его задач (08.11.2026, §3).
+    func testProjectFoldersHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chats-project-folders" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatsProjectFolders)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     func testRoleSessionHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "role-session" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])
