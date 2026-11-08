@@ -99,6 +99,16 @@ final class LocalStore: @unchecked Sendable {
         }
     }
 
+    /// Вернуть чат из архива в кеше: обратная операция к `hideChat`.
+    func showChat(id: String) throws {
+        try queue.write { db in
+            try db.execute(
+                sql: "UPDATE chat SET archived_at = NULL, closed_at = NULL WHERE id = ?",
+                arguments: [id]
+            )
+        }
+    }
+
     /// Спрятать всё, чего не было в полном ответе сервера.
     ///
     /// Зовётся ТОЛЬКО когда пришло тело, а не 304: тогда список — ровно то,

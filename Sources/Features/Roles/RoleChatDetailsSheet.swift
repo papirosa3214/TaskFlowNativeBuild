@@ -132,7 +132,11 @@ struct RoleChatDetailsSheet: View {
                 if isCreator || isOwner {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            if isCreator {
+                            // Личная комната роли — только двое: владелец и роль
+                            // (владелец 08.11.2026: «на то они и личные, что там не
+                            // должно быть больше двух участников»). Приглашение
+                            // остаётся в обычных чатах и в групповом каталоге.
+                            if isCreator && chat.roomKind != "personal" {
                                 Menu {
                                     if isLoadingRoles {
                                         Text("Загрузка ролей…")

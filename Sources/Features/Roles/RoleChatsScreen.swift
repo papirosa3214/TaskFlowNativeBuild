@@ -134,6 +134,7 @@ struct RoleChatsScreen: View {
                         }
                     }
                 }
+                archiveEntry
             }
             .padding(.bottom, TFSpacing.xl)
         }
@@ -226,7 +227,7 @@ struct RoleChatsScreen: View {
             ),
             titleVisibility: .visible
         ) {
-            Button("Удалить", role: .destructive) {
+            Button("Удалить навсегда", role: .destructive) {
                 guard let chat = pendingPurge else { return }
                 pendingPurge = nil
                 Task { await purge(chat) }
@@ -299,6 +300,28 @@ struct RoleChatsScreen: View {
         TFDivider(inset: TFSpacing.screenHorizontal)
     }
 
+    /// «Архив» строкой внизу списка — как в GPT: убранные сессии не мешают
+    /// работе, но и не теряются.
+    private var archiveEntry: some View {
+        Group {
+            rowDivider
+            NavigationLink(value: AppRoute.chatArchive) {
+                TFListRow(
+                    icon: "archivebox",
+                    iconStyle: .plain,
+                    title: "Архив",
+                    subtitle: "Убранные чаты: можно вернуть или удалить",
+                    titleStyle: .body,
+                    verticalPadding: TFSpacing.xs,
+                    chevron: .shown
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("chats.archive")
+        }
+        .padding(.top, TFSpacing.md)
+    }
+
     private func sessionLink(_ chat: RoleChat, isBranch: Bool) -> some View {
         NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
             chatRow(chat, isBranch: isBranch)
@@ -306,26 +329,18 @@ struct RoleChatsScreen: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            // Постоянные комнаты не закрываются: сервер это отклоняет.
+            // Владелец 08.11.2026: «как в GPT — заархивировать чат либо
+            // удалить насовсем, и понятно, максимально». Никаких «закрыть
+            // сессию»: архив и есть уборка, а вернуть можно из архива.
             if isOwner && !chat.isPermanentRoom {
-                let closed = chat.closedAt != nil
-                Button { Task { await setClosed(chat, closed: !closed) } } label: {
-                    Label(closed ? "Вернуть сессию" : "Закрыть сессию", systemImage: closed ? "tray.and.arrow.up" : "archivebox")
+                Button { Task { await moveToArchive(chat) } } label: {
+                    Label("Заархивировать чат", systemImage: "archivebox")
                 }
-                // «В архив» и «Удалить» (владелец 08.11.2026): как в любой
-                // программе — сначала архив, потом удаление. Удалённое не
-                // возвращается, поэтому пункт есть только у чата из архива.
-                if chat.isArchived || closed {
-                    Button(role: .destructive) { pendingPurge = chat } label: {
-                        Label("Удалить", systemImage: "trash")
-                    }
-                    .accessibilityIdentifier("chats.row.purge")
-                } else {
-                    Button { Task { await moveToArchive(chat) } } label: {
-                        Label("В архив", systemImage: "archivebox.circle")
-                    }
-                    .accessibilityIdentifier("chats.row.archive")
+                .accessibilityIdentifier("chats.row.archive")
+                Button(role: .destructive) { pendingPurge = chat } label: {
+                    Label("Удалить навсегда", systemImage: "trash")
                 }
+                .accessibilityIdentifier("chats.row.purge")
             }
         }
     }
@@ -361,17 +376,8 @@ struct RoleChatsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private func setClosed(_ chat: RoleChat, closed: Bool) async {
-        do {
-            _ = try await api.closeRoleChat(id: chat.id, closed: closed)
-            // Сразу из списка, не дожидаясь сети: строка не стирается, а
-            // прячется в «Показать закрытые» — как на сервере.
-            if closed { try? LocalStore.shared.hideChat(id: chat.id) }
-            try await refreshList()
-        } catch { errorMessage = error.localizedDescription }
-    }
-
-    /// «В архив»: чат уходит из общего списка, история и сообщения остаются.
+    /// «Заархивировать чат»: уходит из списка в «Архив», история остаётся и её
+    /// можно вернуть.
     private func moveToArchive(_ chat: RoleChat) async {
         do {
             _ = try await api.archiveRoleChat(id: chat.id)
@@ -380,8 +386,8 @@ struct RoleChatsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    /// «Удалить» насовсем: сервер принимает только чат из архива. Откатить
-    /// нельзя — поэтому сначала подтверждение.
+    /// «Удалить насовсем»: работает и без архива (как в GPT), вернуть нельзя —
+    /// поэтому сначала подтверждение.
     private func purge(_ chat: RoleChat) async {
         do {
             try await api.purgeRoleChat(id: chat.id)

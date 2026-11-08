@@ -82,7 +82,13 @@ public extension APIClient {
         return response.chat
     }
 
-    /// «Удалить» насовсем: только для чата из архива, откатить нельзя.
+    /// Вернуть из архива: `POST /chats/{id}/unarchive`.
+    func unarchiveRoleChat(id: String) async throws -> RoleChat {
+        let response: RoleChatEnvelope = try await request(.post, "/chats/\(id)/unarchive", body: [String: String]())
+        return response.chat
+    }
+
+    /// «Удалить насовсем»: откатить нельзя, подтверждение — на клиенте.
     @discardableResult
     func purgeRoleChat(id: String) async throws -> APIOkResponse {
         try await request(.post, "/chats/\(id)/purge", body: [String: String]())
