@@ -291,6 +291,11 @@ struct IntegrationsScreen: View {
     @State private var isLinearOpen = false
     @State private var isGmailOpen = false
     @State private var composio = ComposioIntegrationsViewModel()
+
+    /// Сервисы, которые живут в Composio: владелец подключал их там же, и второй
+    /// двери с «Подключено» здесь быть не должно (08.11.2026). Остальные
+    /// подключения остаются — у них есть настройки, которых в Composio нет.
+    private static let composioOwnedSlugs: Set<String> = ["gmail", "linear", "todoist", "github"]
     @State private var isAppleCalOpen = false
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
@@ -351,7 +356,7 @@ struct IntegrationsScreen: View {
                                     Task { await externalApps.refresh() }
                                 }
                             }
-                            ForEach(composio.connections.filter { !["gmail", "linear"].contains($0.slug) }) { service in
+                            ForEach(composio.connections.filter { !Self.composioOwnedSlugs.contains($0.slug.lowercased()) }) { service in
                                 TFDivider(inset: dividerInset)
                                 NavigationLink {
                                     ComposioServiceScreen(model: composio, toolkit: ComposioToolkit(slug: service.slug, name: service.name ?? service.slug, logo: service.logo, description: service.description, connected: true, noAuth: false))

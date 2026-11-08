@@ -41,9 +41,6 @@ struct NotificationsScreen: View {
     @State private var dayCounts: (total: Int, alarms: Int)?
     @State private var systemStateError: String?
     @State private var isLoadingSystemState = false
-    @State private var showFeed = false
-    /// Лента, открытая из «С тревогой», — только сводки с разбором.
-    @State private var feedAlarmsOnly = false
     @State private var incidentFilter: IncidentFilter?
 
     /// Какие поломки показать по тапу на счётчик (владелец 14.10.2026:
@@ -91,29 +88,15 @@ struct NotificationsScreen: View {
         // Владелец 12.10.2026: «это уже не уведомление, а состояние системы».
         // Первый экран — сводка за сегодня, поток уведомлений — внутри.
         .tfNativeHeader("Состояние системы")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // Обновление — оттягиванием вниз, как везде; отдельной кнопки нет.
-                Menu {
-                    Button {
-                        showFeed = true
-                    } label: {
-                        Label("Карточки работ", systemImage: "tray.full")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .accessibilityLabel("Ещё")
-                .accessibilityIdentifier("system-state.menu")
-            }
-        }
+        // Карточек работ здесь больше нет: владелец 08.11.2026 — это обычные
+        // задачи, их место в «Все задачи» под подзаголовком «Карточки работ»,
+        // «а искать их в каких-то других отделах» не надо.
         .tfSheet(item: $resolutionSheetItem) { item in
             ServiceTicketResolutionSheet(item: item, taskId: resolutionSheetTaskId ?? "", onSubmitted: {
                 resolutionSheetItem = nil; resolutionSheetTaskId = nil
             })
         }
         .taskCardNavigation(route: $route)
-        .navigationDestination(isPresented: $showFeed) { feedPage }
         .navigationDestination(item: $incidentFilter) { incidentsPage($0) }
         .task { await loadSystemState(); await loadServiceTickets() }
         // Карточка починки ушла в архив — поломка закрыта. Сводку и ленту
@@ -218,32 +201,6 @@ struct NotificationsScreen: View {
         case .blocked: .tfOrange
         case .idle: .tfRed
         }
-    }
-
-    // Склад: всё, что сыпется, как есть — сводки сервисов и лента сервера.
-    private var feedPage: some View {
-        let linked = summaryItems.filter { $0.taskID != nil }
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
-                TFErrorBanner(openTaskError, variant: .inline)
-                if linked.isEmpty {
-                    Text("Карточек работ пока нет").tfText(.body).foregroundStyle(Color.tfSub)
-                }
-                ForEach(linked) { item in
-                    Button {
-                        guard let taskId = item.taskID else { return }
-                        Task { await openTaskFromTicket(taskId) }
-                    } label: {
-                        TFCard { SystemSummaryInformationRow(item: item) }
-                    }
-                    .buttonStyle(TFTapRowStyle())
-                }
-            }
-            .padding(TFSpacing.screenHorizontal)
-        }
-        .tfScreenBackground()
-        .tfNativeHeader("Карточки работ")
-        .refreshable { await loadSystemState(); await loadServiceTickets() }
     }
 
     private var allRead: Bool { notificationStore.notifications.allSatisfy(\.read) }

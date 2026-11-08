@@ -155,8 +155,21 @@ struct ProjectTasksScreen: View {
                         .padding(.horizontal, TFSpacing.xs)
                     } else {
                         Group {
-                            ForEach(tasks.indices, id: \.self) { rowIndex in
-                                rowWithIndex(rowIndex)
+                            ForEach(ordinaryTasks, id: \.id) { task in
+                                treeRow(task, depth: 0)
+                            }
+                            // Карточки работ — задачи, заведённые системой под
+                            // инцидент. Раньше они жили в «Состоянии системы»
+                            // отдельной дверью; владелец 08.11.2026: искать работу
+                            // в другом отделе он не должен, хватит подзаголовка.
+                            if !workCardTasks.isEmpty {
+                                TFSectionHeader("Карточки работ")
+                                    .padding(.horizontal, TFSpacing.md)
+                                    .padding(.top, TFSpacing.sm)
+                                    .accessibilityIdentifier("tasks.workCards.header")
+                                ForEach(workCardTasks, id: \.id) { task in
+                                    treeRow(task, depth: 0)
+                                }
                             }
                         }
                     }
@@ -248,13 +261,17 @@ struct ProjectTasksScreen: View {
         .taskCreateFlow(isPresented: $showNewTask)
     }
 
-    private func rowWithIndex(_ rowIndex: Int) -> some View {
-        if rowIndex < 0 || rowIndex >= tasks.count {
-            logger.error("rowWithIndex out of bounds: index=\(rowIndex) count=\(tasks.count)")
-            return AnyView(EmptyView())
-        }
-        return treeRow(tasks[rowIndex], depth: 0)
+    /// Обычные задачи и карточки работ (задачи под инцидент) одним списком,
+    /// но разными группами. Разделённые группы есть только в общем списке:
+    /// внутри проекта порядок прежний, без подзаголовков.
+    private var splitTasks: (ordinary: [ApiTask], work: [ApiTask]) {
+        guard showsAllProjects else { return (tasks, []) }
+        return TaskWorkCards.split(tasks, incidentKey: { $0.incidentKey })
     }
+
+    private var ordinaryTasks: [ApiTask] { splitTasks.ordinary }
+
+    private var workCardTasks: [ApiTask] { splitTasks.work }
 
     /// Прямые потомки задачи; незакрытые впереди, порядок внутри групп стабильный.
     private func children(of task: ApiTask) -> [ApiTask] {

@@ -82,6 +82,10 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
     /// Есть только в живой БД, НЕ создаётся системой миграций (spec §12 п.6) —
     /// на свежесозданной с нуля базе может отсутствовать вовсе.
     public let parentId: String?
+    /// Ключ инцидента, под который система завела карточку починки.
+    /// Пусто — обычная задача. По нему «Все задачи» уводит такие карточки в
+    /// подзаголовок «Карточки работ» (владелец 08.11.2026).
+    public let incidentKey: String?
     /// Готовность к самозахвату (миграция 026, карточки d598de9f/dc669154/04426aeb).
     /// Поднимает только владелец трекера; пока false — claim отклоняется.
     public let readyForPickup: Bool
@@ -233,6 +237,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         case durationMin = "duration_min"
         case pinned
         case parentId = "parent_id"
+        case incidentKey = "incident_key"
         case readyForPickup = "ready_for_pickup"
         case readySetAt = "ready_set_at"
         case readySetBy = "ready_set_by"
@@ -301,6 +306,7 @@ public struct ApiTask: Codable, Identifiable, Sendable, Hashable {
         durationMin = try c.decodeIfPresent(Int.self, forKey: .durationMin)
         pinned = try c.decodeIntBool(forKey: .pinned)
         parentId = try c.decodeIfPresent(String.self, forKey: .parentId)
+        incidentKey = try c.decodeIfPresent(String.self, forKey: .incidentKey)
         // Сервер отдаёт `ready_for_pickup` как INTEGER (0/1) — не Boolean,
         // чтобы поле дефолтом было 0 в существующих строках после миграции.
         // Используем тот же приём `decodeIntBool`, что и `pinned` выше.
