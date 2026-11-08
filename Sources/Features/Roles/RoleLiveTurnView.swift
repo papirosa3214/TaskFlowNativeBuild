@@ -214,7 +214,7 @@ struct RoleLiveItemsList: View {
         .tfSheet(item: $detail) { detail in
             RoleLiveDetailSheet(detail: detail)
         }
-        .modifier(RoleTranslationHost(texts: finishedTexts))
+        .roleTranslationRequests(finishedTexts)
     }
 
     @ViewBuilder
@@ -223,8 +223,12 @@ struct RoleLiveItemsList: View {
         Group {
             switch item {
             case .text(let text):
-                RoleReplyMarkdown(text: text, color: textColor, fade: fade, isStreaming: isStreaming,
-                                  prepared: ChatRichContent.liveSegments(shown: text))
+                // Показ перевода (владелец 20.10.2026, вернули 08.11.2026:
+                // рефакторинг 07.11 выкинул `display`, и кнопка переключала
+                // только флаг). Готовые куски — переводом, остальное — как есть.
+                let shown = RoleTranslator.shared.display(text)
+                RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
+                                  prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
             case .step(let step):
                 let hasDetail = !(step.detail ?? "").isEmpty
                 Button { openStep(step) } label: {
@@ -770,11 +774,18 @@ struct RoleLiveDetailSheet: View {
     private var content: some View {
         switch detail {
         case .thinking(let thinking):
-            RoleReplyMarkdown(text: thinking.text, color: .tfText,
-                              serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block),
+            // Перевод здесь тоже: шторка — то место, где размышления читают.
+            // Своего сеанса у шторки нет (20.10.2026: сеанс в шторке ронял
+            // приложение), куски уходят в общий сеанс приложения.
+            let shown = RoleTranslator.shared.display(thinking.text)
+            RoleReplyMarkdown(text: shown, color: .tfText,
+                              serverBlocks: shown == thinking.text
+                                  ? ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block)
+                                  : nil,
                               textGroup: .thinking)
                 .italic()
                 .textSelection(.enabled)
+                .roleTranslationRequests([thinking.text])
         case .step(let step):
             VStack(alignment: .leading, spacing: TFSpacing.md) {
                 if let detail = step.detail, !detail.isEmpty {

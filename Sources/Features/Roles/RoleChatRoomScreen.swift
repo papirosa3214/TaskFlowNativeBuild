@@ -2409,8 +2409,18 @@ struct RoleChatRoomScreen: View {
         // два способа рисовать один ответ давали скачок высоты при подмене
         // (владелец 07.11.2026: «в пизду эти отчёты, если из-за них весь
         // головняк»). Текст сообщения сервер уже собрал из блоков конверта.
-        RoleReplyMarkdown(text: message.text, allowsCommands: allowsCommands, checklist: checklist, serverBlocks: message.blocks)
+        //
+        // Перевод (владелец 08.11.2026): просим его для каждой реплики, как
+        // только она появилась на экране, и показываем готовые переводы. Блоки
+        // и чек-лист относятся к оригиналу — при переводе их не подмешиваем,
+        // иначе половина ответа осталась бы английской.
+        let shown = RoleTranslator.shared.display(message.text)
+        let original = shown == message.text
+        RoleReplyMarkdown(text: shown, allowsCommands: allowsCommands,
+                          checklist: original ? checklist : nil,
+                          serverBlocks: original ? message.blocks : nil)
             .equatable()
+            .roleTranslationRequests([message.text])
     }
 
     private func copyMessage(_ message: RoleChatMessage) {
