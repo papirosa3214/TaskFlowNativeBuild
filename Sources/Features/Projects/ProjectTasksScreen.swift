@@ -167,6 +167,7 @@ struct ProjectTasksScreen: View {
                                     .padding(.horizontal, TFSpacing.md)
                                     .padding(.top, TFSpacing.sm)
                                     .accessibilityIdentifier("tasks.workCards.header")
+                                    .hintAnchor(HintAnchorID.tasksWorkCards)
                                 ForEach(workCardTasks, id: \.id) { task in
                                     treeRow(task, depth: 0)
                                 }

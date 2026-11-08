@@ -1,44 +1,32 @@
 import SwiftUI
 
-/// Настройки → «Подсказки» (владелец 16.10.2026): включить пошаговые
-/// подсказки и пройти любой сценарий заново. Строки — те же `TFListRow` и
-/// `TFToggle`, что у соседних настроек.
+/// Настройки → строка «Подсказки»: одна дверь на собственный экран обучения.
+/// Список сценариев переехал в `HintsScreen` (владелец 08.11.2026: «сделай это
+/// именно как отдельную страницу, как и все остальные», а не раскрытой
+/// портянкой внутри настроек).
 struct HintsSettingsSection: View {
-    let dividerInset: CGFloat
     @State private var center = HintCenter.shared
 
     var body: some View {
-        TFListRow(
-            icon: "lightbulb", iconStyle: .plain, title: "Подсказки",
-            trailing: AnyView(
-                TFToggle(isOn: $center.isEnabled)
-                    .accessibilityLabel("Подсказки")
-                    .accessibilityIdentifier("settings.hints")
-            ),
-            titleStyle: .body,
-            verticalPadding: TFSpacing.xs
-        )
-        if center.isEnabled {
-            ForEach(center.scenarios) { scenario in
-                TFDivider(inset: dividerInset)
-                Button {
-                    center.restart(scenario.id)
-                } label: {
-                    TFListRow(
-                        icon: center.completed.contains(scenario.id) ? "checkmark.circle" : "circle",
-                        iconStyle: .plain, title: scenario.title,
-                        trailing: AnyView(
-                            Text(center.completed.contains(scenario.id) ? "Пройти заново" : "Пройти")
-                                .tfText(.meta)
-                                .foregroundStyle(Color.tfText)
-                        ),
-                        titleStyle: .body,
-                        verticalPadding: TFSpacing.xs
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings.hints.\(scenario.id)")
-            }
+        NavigationLink(value: AppRoute.hints) {
+            TFListRow(
+                icon: "lightbulb", iconStyle: .plain, title: "Подсказки",
+                subtitle: center.isEnabled ? "Обучение по экранам" : "Выключены",
+                trailing: AnyView(
+                    Text(progress)
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                ),
+                titleStyle: .body,
+                verticalPadding: TFSpacing.xs,
+                chevron: .shown
+            )
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.hints")
+    }
+
+    private var progress: String {
+        "\(center.completed.count)/\(center.scenarios.count)"
     }
 }

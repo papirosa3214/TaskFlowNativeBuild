@@ -91,6 +91,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         MissionControlScreen(taskID: taskID)
     case .settings:
         SettingsScreen()
+    case .hints:
+        HintsScreen()
     case .integrations:
         IntegrationsScreen()
     case .fontSettings:

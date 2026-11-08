@@ -10,6 +10,8 @@ enum HintAnchorID {
     static let allTasksFilter = "all-tasks.filter"
     static let chatSession = "chat.session"
     static let chatsProjectFolders = "chats.project-folders"
+    /// Подзаголовок «Карточки работ» в общем списке задач.
+    static let tasksWorkCards = "tasks.work-cards"
     static let routineInstructions = "routine.instructions"
     static let routinePlanTemplate = "routine.planTemplate"
     static let routineHistory = "routine.history"
@@ -143,7 +145,7 @@ enum HintScenarios {
                 text: "Сверху — время, прогресс, расход и пауза. Во вкладке «Ход» видно, что делает каждая роль, и ей можно написать. «Миссия» — модели, работы, контракт и журнал, «Карта» — все этапы."),
         ])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Задачи и статусы", start: "entry",
@@ -352,6 +354,20 @@ enum HintScenarios {
                 anchor: HintAnchorID.chatsProjectFolders,
                 title: "Проект — это папка",
                 text: "В «Групповых чатах» проекты собраны папками: нажмите папку — раскроются комнаты задач этого проекта, ещё раз — свернутся. Своего чата у проекта нет. Комнаты задач без проекта лежат ниже, без папки.",
+                next: nil),
+        ])
+
+    /// Карточки работ — задачи под инцидент — живут в общем списке, а не
+    /// отдельной дверью в «Состоянии системы» (владелец 08.11.2026).
+    static let tasksWorkCards = HintScenario(
+        id: "tasks-work-cards",
+        title: "Карточки работ",
+        start: "group",
+        steps: [
+            "group": HintStep(
+                anchor: HintAnchorID.tasksWorkCards,
+                title: "Починка — это тоже задачи",
+                text: "Подзаголовок «Карточки работ» собирает задачи, которые система завела под поломку: диагностика, «Устранение», сторожа. Это обычные задачи в «Все задачи» — раскрываются и открываются как любые другие. Отдельного списка в «Состоянии системы» больше нет.",
                 next: nil),
         ])
 

@@ -130,7 +130,7 @@ struct SettingsScreen: View {
             navRow(icon: "textformat", title: "Шрифт", route: .fontSettings)
                 .accessibilityIdentifier("settings-font")
             TFDivider(inset: rowDividerInset)
-            HintsSettingsSection(dividerInset: rowDividerInset)
+            HintsSettingsSection()
             if viewModel.isBiometryAvailable {
                 TFDivider(inset: rowDividerInset)
                 toggleRow(icon: viewModel.biometryKind == .faceID ? "faceid" : "touchid", title: viewModel.biometryLabel, isOn: $viewModel.isBiometryEnabled)

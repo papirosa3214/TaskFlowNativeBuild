@@ -30,7 +30,8 @@
 - `Sources/Features/Projects/ProjectTasksScreen.swift` — в общем списке задачи
   идут как раньше, ниже `TFSectionHeader("Карточки работ")` и строки группы.
   Внутри проекта и в дереве потомков порядок не трогается (там `incident_key`
-  не участвует). Мёртвый `rowWithIndex` удалён.
+  не участвует). Мёртвый `rowWithIndex` удалён. На заголовке — якорь подсказки
+  `HintAnchorID.tasksWorkCards`.
 - `Sources/Features/ServiceNotifications/NotificationsScreen.swift` — пункт меню
   «Карточки работ», состояние `showFeed`, переход и сам экран `feedPage` убраны.
 
@@ -43,10 +44,23 @@
 должно). Остальные подключения остаются: у них есть настройки, которых в
 Composio нет.
 
+## Подсказка
+
+Правило «новая функция — новая подсказка» (владелец 16.10.2026): на
+подзаголовок повешен якорь `HintAnchorID.tasksWorkCards`, в
+`HintScenarios.swift` — сценарий `tasks-work-cards` (заголовок «Карточки работ»,
+шаг «Починка — это тоже задачи»: откуда берутся такие карточки и что отдельного
+списка в «Состоянии системы» больше нет). Тест хода сценария —
+`testWorkCardsHintCompletes`.
+
 ## Проверка
 
 - `python3 Tools/test_task_work_cards.py` — 4 проверки, RED до модели
   (`missing …/TaskWorkCards.swift`), после — 4/4.
+- `python3 Tools/test_hints.py` — новый хостовый прогон сценариев без симулятора:
+  `testWorkCardsHintCompletes` и `testProjectFoldersHintCompletes` проходят;
+  3 падения (`testDisabledModeNeverStarts`, `testMissionControlHintWalksCardButtonToScreen`)
+  есть и на HEAD — проверено откатом правок, к этой работе не относятся.
 - `python3 Tools/test_task_tree_visibility.py` — 4/4 (соседняя правка корней).
 - `python3 Tools/design-system-guard.py --diff HEAD` — чисто.
 - `./install-iphone.sh` — сборка Release под iPhone Air, установка и запуск.

@@ -58,6 +58,9 @@ public enum AppRoute: Hashable {
     /// Открывается из «Координации» задачи.
     case missionControl(taskID: String)
     case settings
+    /// «Настройки → Подсказки»: отдельная страница обучения, как и остальные
+    /// настройки, а не развёрнутая портянка внутри «Настроек» (08.11.2026).
+    case hints
     case integrations
     case fontSettings
     case voiceModels
