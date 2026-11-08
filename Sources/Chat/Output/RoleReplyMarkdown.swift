@@ -364,63 +364,115 @@ struct ChatTableView: View {
 
     /// Шире — перенос строки внутри ячейки, а не бесконечная колонка.
     private static let maxCellWidth: CGFloat = 220
+    /// Ниже — колонка с тикером всё равно читается (как в заметке).
+    private static let minCellWidth: CGFloat = 44
+    private static let paddingH = TFSpacing.sm
+    private static let paddingV = TFSpacing.xs
 
     /// Выше — таблица листается внутри своего окошка, а не растягивает ленту.
     private static let maxHeight: CGFloat = 360
-    @State private var contentHeight: CGFloat = 0
+    @State private var bodyHeight: CGFloat = 0
 
-    /// Одинаковая ширина ячейки во всех строках столбца. Длинное содержимое
-    /// ограничивается сверху, чтобы переносить текст, а не раздувать таблицу.
+    /// Ширина колонки — по самой длинной строке её ячеек плюс поля, как в
+    /// таблице заметки (владелец 08.11.2026: «запускай таблицы как в блокнотах»).
+    /// Ширину окна не подгоняем: таблица может быть шире экрана и листается.
     private var columnWidths: [CGFloat] {
-        table.header.indices.map { column in
-            let widest = ([table.header] + table.rows)
-                .compactMap { $0.indices.contains(column) ? $0[column] : nil }
-                .map(\.count)
-                .max() ?? 0
-            return min(max(88, CGFloat(widest) * 10 + TFSpacing.md * 2), Self.maxCellWidth)
+        let font = UIFont.systemFont(ofSize: 15)
+        let headerFont = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        return table.header.indices.map { column in
+            var widest: CGFloat = 0
+            let cells = ([table.header] + table.rows).compactMap { row in
+                row.indices.contains(column) ? row[column] : nil
+            }
+            for (index, text) in cells.enumerated() {
+                let useFont = index == 0 ? headerFont : font
+                let measured = text
+                    .components(separatedBy: "\n")
+                    .reduce(CGFloat.zero) { max($0, ($1 as NSString).size(withAttributes: [.font: useFont]).width) }
+                widest = max(widest, ceil(measured))
+            }
+            return min(max(Self.minCellWidth, widest + Self.paddingH * 2 + 2), Self.maxCellWidth)
         }
     }
 
-    // Окошко (владелец 14.10.2026, по образцу): рамка стоит на месте,
-    // таблица листается внутри неё в обе стороны.
+    // Окошко (владелец 14.10.2026): корпоративная тёмная подложка и рамка, как
+    // у виджетов. Шапка закреплена (владелец 08.11.2026: «таблица должна ехать
+    // по рельсам»): по горизонтали едет вся таблица вместе с шапкой, а
+    // вертикально листаются только строки — шапка стоит на месте.
     var body: some View {
         let _ = typeRevision
-        // Тёмная подложка и тёмно-красная рамка, как у виджетов; без светлой
-        // полосы шапки и «зебры» — строки делят линии цвета рамки
-        // (владелец 06.11.2026: «чтобы не было светло-серого»).
         TFCard(padding: 0, surface: .dark, radius: TFRadius.lg) {
-            ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                VStack(spacing: 0) {
-                    HStack(alignment: .top, spacing: 0) {
-                        ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
-                            cell(title, runs: headerRuns(column), chatGroup: .heading, column: column, width: columnWidths[column])
-                                .tfChatText(.heading, weight: .semibold)
-                        }
-                    }
-                    .overlay(alignment: .bottom) {
-                        Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
-                    }
-
-                    ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
-                        HStack(alignment: .top, spacing: 0) {
-                            ForEach(Array(row.enumerated()), id: \.offset) { column, value in
-                                if column < columnWidths.count {
-                                    cell(value, runs: rowRuns(rowIndex, column), column: column, width: columnWidths[column])
-                                        .tfText(.body)
-                                }
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    headerRow
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
+                                bodyRow(row, rowIndex: rowIndex)
                             }
                         }
-                        .overlay(alignment: .bottom) {
-                            Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
-                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
                     }
+                    .scrollBounceBehavior(.basedOnSize, axes: [.vertical])
+                    .frame(height: bodyHeight > 0 ? min(bodyHeight, Self.maxHeight) : nil)
                 }
                 .fixedSize(horizontal: false, vertical: true)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                // Сетка как в заметке (владелец 08.11.2026: «таблица плавающая,
+                // нет вертикальных линий»): вертикали и контур рисуются поверх
+                // всей таблицы, чтобы линия была ровной на любой высоте строк.
+                .overlay(alignment: .topLeading) { columnDividers }
+                .overlay {
+                    RoundedRectangle(cornerRadius: TFRadius.sm)
+                        .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: TFRadius.sm))
             }
-            .scrollBounceBehavior(.basedOnSize, axes: [.horizontal, .vertical])
-            .frame(height: contentHeight > 0 ? min(contentHeight, Self.maxHeight) : nil)
+            .scrollBounceBehavior(.basedOnSize, axes: [.horizontal])
         }
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
+                cell(title, runs: headerRuns(column), isHeader: true, column: column, width: columnWidths[column])
+            }
+        }
+        .frame(minHeight: TFHitTarget.min, alignment: .top)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
+        }
+    }
+
+    private func bodyRow(_ row: [String], rowIndex: Int) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(Array(row.enumerated()), id: \.offset) { column, value in
+                if column < columnWidths.count {
+                    cell(value, runs: rowRuns(rowIndex, column), column: column, width: columnWidths[column])
+                }
+            }
+        }
+        .frame(minHeight: TFHitTarget.min, alignment: .top)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
+        }
+    }
+
+    /// Вертикальные разделители между колонками. Ширины те же, что у ячеек,
+    /// поэтому линии совпадают с границами столбцов на любой высоте строк.
+    private var columnDividers: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(columnWidths.enumerated()), id: \.offset) { index, width in
+                Color.clear
+                    .frame(width: width)
+                    .overlay(alignment: .trailing) {
+                        if index < columnWidths.count - 1 {
+                            Rectangle().fill(Color.tfFieldBorder).frame(width: TFBorder.width)
+                        }
+                    }
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private func headerRuns(_ column: Int) -> [RichRun]? {
@@ -433,18 +485,26 @@ struct ChatTableView: View {
         return rows[row][column]
     }
 
-    private func cell(_ text: String, runs: [RichRun]?, chatGroup: TFChatTypeGroup = .body, column: Int, width: CGFloat) -> some View {
+    private func cell(_ text: String, runs: [RichRun]?, chatGroup: TFChatTypeGroup = .body, isHeader: Bool = false, column: Int, width: CGFloat) -> some View {
         let alignment = column < table.alignments.count ? table.alignments[column] : .leading
         // Ячейка приходит с сервера уже размеченной; локального разбора нет.
-        return Text(RoleReplyMarkdown.attributed(runs ?? [], chatGroup: textGroup == .thinking ? .thinking : chatGroup))
+        let attributed = RoleReplyMarkdown.attributed(runs ?? [RichRun(text: text)], chatGroup: textGroup == .thinking ? .thinking : chatGroup)
+        let content = Text(attributed)
             .foregroundStyle(color)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
-            .frame(width: max(1, width - TFSpacing.md * 2), alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, TFSpacing.md)
-            .padding(.vertical, TFSpacing.sm)
-            .frame(width: width,
-                   alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
+        return Group {
+            if isHeader {
+                content.tfChatText(.heading, weight: .semibold)
+            } else {
+                content.tfText(.body)
+            }
+        }
+        .frame(width: max(1, width - Self.paddingH * 2), alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, Self.paddingH)
+        .padding(.vertical, Self.paddingV)
+        .frame(width: width, alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
+        .frame(minHeight: TFHitTarget.min, alignment: .topLeading)
     }
 
 
