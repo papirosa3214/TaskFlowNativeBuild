@@ -447,8 +447,6 @@ struct RoleChatsScreen: View {
         withAnimation(TFMotion.standard) { isRoomsOpen = false }
     }
 
-    }
-
     // MARK: - Строка сессии
 
     /// Папки проектов и комнаты внутри них. Папка одной строкой, комнаты —
