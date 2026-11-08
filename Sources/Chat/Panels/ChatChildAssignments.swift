@@ -17,7 +17,7 @@ struct ChatChildAssignment: Decodable, Identifiable, Sendable {
     let roleKey: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, status, title
+        case id, status
         case talkChatID = "talk_chat_id"
         case taskID = "task_id"
         case taskTitle = "task_title"
@@ -85,8 +85,8 @@ struct ChatChildAssignmentsStrip: View {
                             title: item.roomTitle,
                             subtitle: item.subtitle,
                             trailing: nil,
-                            action: { onOpen(item.talkChatID) },
-                            chevron: .shown
+                            chevron: .shown,
+                            action: { onOpen(item.talkChatID) }
                         )
                         .accessibilityIdentifier("chat.assignment." + item.id)
                     }

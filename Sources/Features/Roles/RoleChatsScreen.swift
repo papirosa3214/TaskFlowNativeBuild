@@ -279,8 +279,8 @@ struct RoleChatsScreen: View {
                 trailing: isOpen
                     ? AnyView(Image(systemName: "chevron.down").tfTypeFont(size: 13).foregroundStyle(Color.tfDim))
                     : nil,
-                chevron: isOpen ? .hidden : .shown,
-                verticalPadding: TFSpacing.sm
+                verticalPadding: TFSpacing.sm,
+                chevron: isOpen ? .hidden : .shown
             )
         }
         .buttonStyle(.plain)
