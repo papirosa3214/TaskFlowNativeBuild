@@ -337,6 +337,21 @@ struct IntegrationsScreen: View {
                             .accessibilityIdentifier("integrations.webhooks")
                             .hintAnchor(HintAnchorID.webhooksEntry)
                             TFDivider(inset: dividerInset)
+                            NavigationLink(value: AppRoute.taskflowMemory) {
+                                TFListRow(
+                                    icon: "memorychip",
+                                    iconStyle: .plain,
+                                    title: "Память TaskFlow",
+                                    subtitle: "Кто обращается и что лежит",
+                                    titleStyle: .body,
+                                    verticalPadding: TFSpacing.xs,
+                                    chevron: .shown
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("integrations.taskflowMemory")
+                            .hintAnchor(HintAnchorID.taskflowMemoryEntry)
+                            TFDivider(inset: dividerInset)
                             IntegrationAccordionCard(icon: "arrow.down.doc", asset: "IntegrationLinear", title: "Linear", subtitle: "Выбор задач и перенос структуры", badge: nil, isExpanded: $isLinearOpen, identifier: "integrations.linear") {
                                 LinearImportScreen(embedded: true)
                             }

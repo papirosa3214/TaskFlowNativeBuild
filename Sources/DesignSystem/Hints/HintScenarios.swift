@@ -58,6 +58,8 @@ enum HintAnchorID {
     /// Выбор «своя подзадача / по плану» у шага черновика.
     static let planWorkChoice = "plan.work-choice"
     static let webhooksEntry = "integrations.webhooks"
+    /// Строка «Память TaskFlow» в «Интеграциях» (08.11.2026).
+    static let taskflowMemoryEntry = "integrations.taskflowMemory"
     static let webhooksAdd = "webhooks.add"
     static let webhookURL = "webhooks.url"
     static let webhookEvents = "webhooks.events"
@@ -158,7 +160,7 @@ enum HintScenarios {
             title: "Вход без пароля",
             text: "Если приложение просит войти, а пароль набирать не хочется: на сервере выполните npx tsx scripts/pairing-code.ts в папке server — он напечатает QR-код. Нажмите здесь и наведите камеру. Код одноразовый и живёт 5 минут; после привязки телефон входит своим ключом. Внутри приложения та же кнопка есть в «Настройках → Сервер».", next: nil)])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards, devicePairing]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards, taskflowMemory, devicePairing]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Задачи и статусы", start: "entry",
@@ -381,6 +383,19 @@ enum HintScenarios {
                 anchor: HintAnchorID.tasksWorkCards,
                 title: "Починка — это тоже задачи",
                 text: "Подзаголовок «Карточки работ» собирает задачи, которые система завела под поломку: диагностика, «Устранение», сторожа. Это обычные задачи в «Все задачи» — раскрываются и открываются как любые другие. Отдельного списка в «Состоянии системы» больше нет.",
+                next: nil),
+        ])
+
+    /// Память TaskFlow — интеграция в «Интеграциях»: кто обращается и что лежит.
+    static let taskflowMemory = HintScenario(
+        id: "settings-taskflow-memory",
+        title: "Память TaskFlow",
+        start: "entry",
+        steps: [
+            "entry": HintStep(
+                anchor: HintAnchorID.taskflowMemoryEntry,
+                title: "Что помнит команда",
+                text: "Память одна на всё приложение: в неё пишут роли, из неё читают. Здесь видно, кто обращался и сколько записей держит. Вверху экрана — поле поиска: напишите слово, и покажется всё, что лежит в памяти по этой теме, с названием банка.",
                 next: nil),
         ])
 

@@ -87,6 +87,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         RoleRunJobsScreen()
     case .memory:
         MemoryScreen()
+    case .taskflowMemory:
+        TaskflowMemoryScreen()
     case .missionControl(let taskID):
         MissionControlScreen(taskID: taskID)
     case .settings:

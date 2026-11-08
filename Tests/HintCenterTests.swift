@@ -122,6 +122,17 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains(scenario.id))
     }
 
+    /// Память как интеграция (08.11.2026): подсказка ведёт к строке в
+    /// «Интеграциях», а не к экрану «Память ролей».
+    func testTaskflowMemoryHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "settings-taskflow-memory" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.taskflowMemoryEntry)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     func testRoleSessionHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "role-session" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])
