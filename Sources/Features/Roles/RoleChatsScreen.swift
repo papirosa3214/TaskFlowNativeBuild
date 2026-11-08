@@ -36,6 +36,8 @@ struct RoleChatsScreen: View {
     private var selectedScope: RoleSessionScope { RoleSessionScope(stored: selectedScopeRaw) }
     @AppStorage("chats.showClosed") private var showsClosed = false
     @State private var listRequestVersion = 0
+    /// Экран уже показывался: следующий `onAppear` — возврат из комнаты.
+    @State private var hasAppeared = false
     @State private var isLoading = true
     @State private var errorMessage: String?
     @Environment(\.openRoute) private var openRoute
@@ -159,6 +161,11 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .tfScreenBackground()
+        // Свайп слева направо — назад в «Чаты». Внутри роли экран не в стеке
+        // (тот же корень с другим состоянием), поэтому системного свайпа нет
+        // (владелец 08.11.2026: «проведя слева направо, я должен перейти уже в
+        // раздел „Просто чаты“»).
+        .simultaneousGesture(backSwipe)
         // Бывшая панель участников чата — теперь в корне раздела и
         // показывает комнаты (владелец 21.10.2026).
         .overlay(alignment: .trailing) { if isOwner { roomsRail } }
@@ -220,6 +227,20 @@ struct RoleChatsScreen: View {
         }
         .task { await load() }
         .refreshable { await load() }
+        // Внутри раздела нижней панели нет — только на главных экранах
+        // (владелец 08.11.2026).
+        .onChange(of: selectedScopeRaw, initial: true) { _, raw in
+            ChatSectionState.shared.setNested(raw != Self.ChatHomeScopeKey)
+        }
+        .onDisappear { ChatSectionState.shared.setNested(false) }
+        // Возврат из комнаты: бейдж непрочитанных считается на сервере от
+        // отметки прочтения, а отпечаток списка от неё не зависит — с 304
+        // локальная база вернула бы старый счётчик (владелец 08.11.2026:
+        // «семёрка продолжает висеть»). Поэтому возврат — полное чтение.
+        .onAppear {
+            guard hasAppeared else { hasAppeared = true; return }
+            Task { try? await refreshList(forceFull: true) }
+        }
         // Живое обновление (владелец 22.09.2026: «чтобы не выходить и не
         // заходить заново»): пока список открыт, слушаем общий сокет и на новое
         // сообщение тихо перечитываем превью и непрочитанные.
@@ -391,6 +412,20 @@ struct RoleChatsScreen: View {
     private func selectHome() {
         selectedScopeRaw = Self.ChatHomeScopeKey
         withAnimation(TFMotion.standard) { isRoomsOpen = false }
+    }
+
+    /// Свайп от левой кромки: порог по горизонтали и запрет на вертикальный
+    /// жест — иначе он спорил бы с прокруткой и панелью комнат справа.
+    private var backSwipe: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                guard !isHome,
+                      value.startLocation.x < 48,
+                      value.translation.width > 70,
+                      abs(value.translation.height) < 90
+                else { return }
+                selectHome()
+            }
     }
 
     // MARK: - Строка сессии

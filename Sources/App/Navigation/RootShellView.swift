@@ -112,7 +112,11 @@ struct RootShellView: View {
         if isPillTabBarEnabled {
             TFPillTabBar(items: tabItems, selectedIndex: selectedIndexBinding,
                          isCreateMenuOpen: isCreateMenuOpen,
-                         isTabBarVisible: quickAddDraft == nil && (paths[selectedTab]?.isEmpty ?? true),
+                         // Панель — только на главных экранах: внутри раздела «Чат»
+                         // (роль, групповые чаты) её нет (владелец 08.11.2026).
+                         isTabBarVisible: quickAddDraft == nil
+                             && (paths[selectedTab]?.isEmpty ?? true)
+                             && !(selectedTab == .chat && ChatSectionState.shared.isNested),
                          showsCreateButton: isQuickCreateEnabled,
                          onSelect: handleTabSelection,
                          onCreateTap: { openQuickAddTask() }) { index in
