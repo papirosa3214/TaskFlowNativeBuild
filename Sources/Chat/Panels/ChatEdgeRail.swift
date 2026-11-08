@@ -14,6 +14,14 @@ struct ChatEdgeRail<Content: View>: View {
     let openLabel: String
     let closedLabel: String
     let identifier: String
+    /// Ширина раскрытой панели. По умолчанию — одна колонка аватарок;
+    /// панель комнат считает её по числу столбцов (владелец 08.11.2026).
+    var openWidth: CGFloat = ChatEdgeRailMetrics.openWidth
+    /// Высота раскрытой панели; `nil` — на всю свободную высоту, как было.
+    var openHeight: CGFloat?
+    /// Высота закрытой вкладки: короткий хлястик по центру, а не полоса во
+    /// весь экран (владелец 08.11.2026: «внизу она мешается»).
+    var restingHeight: CGFloat?
     @ViewBuilder let content: () -> Content
 
     /// Живой сдвиг пальца по горизонтали (вправо — плюс), пока идёт жест.
@@ -22,10 +30,10 @@ struct ChatEdgeRail<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var width: CGFloat {
-        let raw = (isOpen ? ChatEdgeRailMetrics.openWidth : ChatEdgeRailMetrics.restingWidth) - drag
-        if raw > ChatEdgeRailMetrics.openWidth {
+        let raw = (isOpen ? openWidth : ChatEdgeRailMetrics.restingWidth) - drag
+        if raw > openWidth {
             // Дальше аватарки не идёт, но и не упирается: мягкое сопротивление.
-            return ChatEdgeRailMetrics.openWidth + ChatEdgeRailMetrics.rubberband(raw - ChatEdgeRailMetrics.openWidth, dimension: ChatEdgeRailMetrics.openWidth)
+            return openWidth + ChatEdgeRailMetrics.rubberband(raw - openWidth, dimension: openWidth)
         }
         return max(ChatEdgeRailMetrics.restingWidth, raw)
     }
@@ -33,11 +41,19 @@ struct ChatEdgeRail<Content: View>: View {
     /// чтобы занять расширившуюся вкладку с прежними полями. 0 в покое;
     /// возврат пружиной — вместе с шириной.
     private var stretch: CGFloat {
-        let overshoot = max(0, width - ChatEdgeRailMetrics.openWidth)
+        let overshoot = max(0, width - openWidth)
         return overshoot / ChatEdgeRailMetrics.avatar.rawValue
     }
     private var reveal: CGFloat {
-        min(1, (width - ChatEdgeRailMetrics.restingWidth) / ChatEdgeRailMetrics.travel)
+        min(1, (width - ChatEdgeRailMetrics.restingWidth) / max(1, openWidth - ChatEdgeRailMetrics.restingWidth))
+    }
+
+    /// Высота едет вместе с шириной: закрытая вкладка — короткий хлястик,
+    /// раскрытая — по числу комнат в панели.
+    private var height: CGFloat? {
+        guard let openHeight else { return nil }
+        let rest = restingHeight ?? openHeight
+        return rest + (openHeight - rest) * reveal
     }
 
     var body: some View {
@@ -53,12 +69,13 @@ struct ChatEdgeRail<Content: View>: View {
                 content()
                     .environment(\.chatEdgeRailStretch, stretch)
                     // Шире упора — содержимое по центру расширившейся вкладки.
-                    .frame(width: max(ChatEdgeRailMetrics.openWidth, width))
+                    .frame(width: max(openWidth, width))
                     .opacity(reveal)
                     .allowsHitTesting(isOpen && !isDragging)
             }
             .clipShape(Rectangle().inset(by: -TaskFamilyEdgeTabs.shadowRadius * 2))
             .frame(width: width)
+            .frame(height: height)
             .frame(maxHeight: .infinity)
             // Полоса для пальца шире видимого края, чтобы край ловился;
             // у открытой — запас слева, чтобы смахнуть и не уйти «назад».
@@ -87,9 +104,9 @@ struct ChatEdgeRail<Content: View>: View {
         if abs(vx) > ChatEdgeRailMetrics.flickVelocity {
             open = vx < 0
         } else {
-            let base = isOpen ? ChatEdgeRailMetrics.openWidth : ChatEdgeRailMetrics.restingWidth
+            let base = isOpen ? openWidth : ChatEdgeRailMetrics.restingWidth
             let projected = base - dx - ChatEdgeRailMetrics.project(vx)
-            let reach = (projected - ChatEdgeRailMetrics.restingWidth) / ChatEdgeRailMetrics.travel
+            let reach = (projected - ChatEdgeRailMetrics.restingWidth) / max(1, openWidth - ChatEdgeRailMetrics.restingWidth)
             open = isOpen ? reach > 0.75 : reach > 0.3
         }
         settle(open: open, velocity: vx)
@@ -99,7 +116,7 @@ struct ChatEdgeRail<Content: View>: View {
     /// Доезд пружиной с текущего места и со скоростью пальца — без шва
     /// между жестом и анимацией. Отскок — только после броска.
     private func settle(open: Bool, velocity vx: CGFloat) {
-        let distance = (open ? ChatEdgeRailMetrics.openWidth : ChatEdgeRailMetrics.restingWidth) - width
+        let distance = (open ? openWidth : ChatEdgeRailMetrics.restingWidth) - width
         // Ширина растёт, когда палец идёт влево, — отсюда минус.
         let relative = abs(distance) > 0.5 ? -vx / distance : 0
         let spring: Animation = .interpolatingSpring(
@@ -123,6 +140,8 @@ extension EnvironmentValues {
 enum ChatEdgeRailMetrics {
     /// Ширина открытой вкладки — 44 pt и по `TFSpacing.sm` с боков; не меняется.
     static let openWidth: CGFloat = TFAvatar.Size.xl.rawValue + TFSpacing.sm * 2
+    /// Закрытая вкладка панели комнат — короткий хлястик по центру высоты.
+    static let collapsedHeight: CGFloat = TFAvatar.Size.rail.rawValue + TFSpacing.sm * 2
     /// Аватар комнаты — во всю ширину вкладки минус по `TFSpacing.xs` с краёв
     /// (владелец 21.10.2026: «увеличить по максимуму, отступы большие»).
     static let avatar: TFAvatar.Size = .rail

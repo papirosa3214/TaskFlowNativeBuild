@@ -24,6 +24,10 @@ struct RoleChatsScreen: View {
     /// списком — теперь он в панели вместе с остальными ролями.
     @State private var rooms: ChatRoomsSnapshot?
     @AppStorage("chats.roomsRail.open") private var isRoomsOpen = false
+    /// Избранные комнаты панели — через запятую (владелец 08.11.2026).
+    @AppStorage("chats.roomsRail.favorites") private var railFavoritesRaw = ""
+    /// Панель раскрыта целиком, а не только избранное.
+    @State private var railShowsAll = false
     /// Что выбрано на панели: роль или групповые чаты (владелец 05.11.2026).
     /// По умолчанию — Помощник, с которым идёт основная работа.
     @AppStorage("chats.selectedScope") private var selectedScopeRaw = "u-secretary"
@@ -140,23 +144,7 @@ struct RoleChatsScreen: View {
         .tfScreenBackground()
         // Бывшая панель участников чата — теперь в корне раздела и
         // показывает комнаты (владелец 21.10.2026).
-        .overlay(alignment: .trailing) {
-            if isOwner {
-                ChatEdgeRail(isOpen: $isRoomsOpen, openLabel: "Комнаты", closedLabel: "Показать комнаты", identifier: "chats.roomsRail") {
-                    ChatRoomsPanel(snapshot: rooms,
-                                   onOpenRole: { select(.role($0.id)) },
-                                   onOpenGroups: { select(.groups) },
-                                   onOpenSearch: {
-                                       withAnimation(TFMotion.standard) { isRoomsOpen = false }
-                                       openRoute?(.chatSearch)
-                                   },
-                                   onOpenArchive: {
-                                       withAnimation(TFMotion.standard) { isRoomsOpen = false }
-                                       openRoute?(.chatArchive)
-                                   })
-                }
-            }
-        }
+        .overlay(alignment: .trailing) { if isOwner { roomsRail } }
         .tfNativeHeader(headerTitle)
         .tint(Color.tfText)
         .toolbar {
@@ -219,19 +207,13 @@ struct RoleChatsScreen: View {
             Task { await reloadSilently() }
         }
         .onChange(of: showsClosed) { Task { await load() } }
-        .alert("Не удалось загрузить чаты", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
+        .alert("Не удалось загрузить чаты", isPresented: errorPresented) {
             Button("Повторить") { Task { await load() } }
             Button("Закрыть", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
         .confirmationDialog(
             "Удалить чат навсегда?",
-            isPresented: Binding(
-                get: { pendingPurge != nil },
-                set: { if !$0 { pendingPurge = nil } }
-            ),
+            isPresented: purgePresented,
             titleVisibility: .visible
         ) {
             Button("Удалить навсегда", role: .destructive) {
@@ -340,6 +322,69 @@ struct RoleChatsScreen: View {
     }
 
     /// Роль выбрана — вкладка уходит за край и не закрывает список сессий.
+    /// Комнаты, которые панель показывает прямо сейчас.
+    private var railRoomIDs: [String] {
+        ChatRoomsRail.visibleIDs(rooms, favorites: railFavorites, showsAll: railShowsAll)
+    }
+    private var railHasToggle: Bool {
+        ChatRoomsRail.hasHidden(rooms, favorites: railFavorites, showsAll: railShowsAll)
+    }
+    private var railColumns: Int {
+        ChatRoomsRail.columns(count: railRoomIDs.count, showsAll: railShowsAll)
+    }
+
+    private var roomsRail: some View {
+        ChatEdgeRail(isOpen: $isRoomsOpen, openLabel: "Комнаты", closedLabel: "Показать комнаты", identifier: "chats.roomsRail",
+                     openWidth: railWidth,
+                     openHeight: railHeight,
+                     restingHeight: ChatEdgeRailMetrics.collapsedHeight) {
+            ChatRoomsPanel(snapshot: rooms,
+                           favorites: railFavorites,
+                           showsAll: railShowsAll,
+                           columns: railColumns,
+                           onToggleFavorite: { toggleRailFavorite($0) },
+                           onToggleAll: {
+                               withAnimation(TFMotion.standard) { railShowsAll.toggle() }
+                           },
+                           onOpenRole: { select(.role($0.id)) },
+                           onOpenGroups: { select(.groups) },
+                           onOpenSearch: {
+                               withAnimation(TFMotion.standard) { isRoomsOpen = false }
+                               openRoute?(.chatSearch)
+                           },
+                           onOpenArchive: {
+                               withAnimation(TFMotion.standard) { isRoomsOpen = false }
+                               openRoute?(.chatArchive)
+                           })
+        }
+    }
+
+    private var errorPresented: Binding<Bool> {
+        Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+    }
+    private var purgePresented: Binding<Bool> {
+        Binding(get: { pendingPurge != nil }, set: { if !$0 { pendingPurge = nil } })
+    }
+    private var railWidth: CGFloat { ChatRoomsRail.width(columns: railColumns) }
+    private var railHeight: CGFloat {
+        ChatRoomsRail.height(items: railRoomIDs.count, columns: railColumns, hasToggle: railHasToggle)
+    }
+    private var railFavorites: Set<String> {
+        Set(railFavoritesRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
+    }
+
+    /// Долгое нажатие: комната уходит в избранное или возвращается к остальным.
+    private func toggleRailFavorite(_ id: String) {
+        var favorites = railFavorites
+        if favorites.contains(id) {
+            favorites.remove(id)
+        } else {
+            favorites.insert(id)
+        }
+        railFavoritesRaw = favorites.sorted().joined(separator: ",")
+        if favorites.isEmpty { railShowsAll = false }
+    }
+
     private func select(_ scope: RoleSessionScope) {
         selectedScopeRaw = scope.stored
         withAnimation(TFMotion.standard) { isRoomsOpen = false }

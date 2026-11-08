@@ -8,55 +8,119 @@ import SwiftUI
 /// концах. Зелёная точка — роль прямо сейчас делает ход.
 struct ChatRoomsPanel: View {
     let snapshot: ChatRoomsSnapshot?
+    /// Избранные комнаты: только они видны, пока панель не раскрыта целиком
+    /// (владелец 08.11.2026: «зажать иконку — и она точно здесь появляется,
+    /// а остальные скрытые, пока не раскрою»).
+    let favorites: Set<String>
+    /// Раскрыт весь список, а не только избранное.
+    let showsAll: Bool
+    /// Сколько столбцов аватарок: 1 или 2 — зависит от числа комнат.
+    let columns: Int
+    let onToggleFavorite: (String) -> Void
+    let onToggleAll: () -> Void
     let onOpenRole: (ChatRoomsSnapshot.RoleRoom) -> Void
     let onOpenGroups: () -> Void
     /// Поиск по всем чатам сразу (владелец 08.11.2026: «а поиск бы обязательно
     /// ещё бы сделал»).
     let onOpenSearch: () -> Void
-    /// Один архив на всех ролей — иконкой внизу панели, за разделителем
-    /// (владелец 08.11.2026).
+    /// Один архив на всех ролей — рядом с поиском сверху панели
+    /// (владелец 08.11.2026: «в одну строку под разделительной линией»).
     let onOpenArchive: () -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
     /// Вкладку тянут за упор — аватарки растягиваются вместе с ней.
     @Environment(\.chatEdgeRailStretch) private var stretch
     private var avatarSide: CGFloat { (ChatEdgeRailMetrics.avatar.rawValue * scalePercent / 100).rounded() }
+    private var visibleIDs: [String] { ChatRoomsRail.visibleIDs(snapshot, favorites: favorites, showsAll: showsAll) }
+    private var gridColumns: [GridItem] {
+        Array(repeating: GridItem(.fixed(avatarSide), spacing: ChatRoomsRail.gap), count: max(1, columns))
+    }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TFSpacing.md) {
+        VStack(spacing: ChatRoomsRail.gap) {
+            header
+            if let snapshot {
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVGrid(columns: gridColumns, spacing: ChatRoomsRail.gap) {
+                        ForEach(visibleIDs, id: \.self) { id in
+                            if id == ChatRoomsRail.groupsID {
+                                groupsButton
+                            } else if let role = snapshot.roles.first(where: { $0.id == id }) {
+                                roleButton(role)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, ChatRoomsRail.padding)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                if ChatRoomsRail.hasHidden(snapshot, favorites: favorites, showsAll: showsAll) {
+                    allToggle
+                }
+            } else {
+                TFLoading(.block)
+                    .padding(.vertical, ChatRoomsRail.padding)
+            }
+        }
+        .padding(.vertical, ChatRoomsRail.padding)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Два значка в одну строку и разделитель под ними (владелец 08.11.2026).
+    private var header: some View {
+        VStack(spacing: ChatRoomsRail.gap) {
+            HStack(spacing: ChatRoomsRail.gap) {
                 TFIconButton("magnifyingglass", label: "Поиск по чатам", size: TFIconSize.md) {
                     onOpenSearch()
                 }
                 .accessibilityIdentifier("chats.rooms.search")
-                if let snapshot {
-                    ForEach(snapshot.roles) { role in
-                        Button { onOpenRole(role) } label: { roleAvatar(role).scaleEffect(1 + stretch) }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(label(for: role, in: snapshot))
-                            .accessibilityIdentifier("chats.rooms.\(role.id)")
-                    }
-                    Button(action: onOpenGroups) {
-                        TFGroupAvatar(identity: "chats.groups", size: ChatEdgeRailMetrics.avatar)
-                            .scaleEffect(1 + stretch)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Групповые чаты")
-                    .accessibilityIdentifier("chats.rooms.groups")
-                    TFDivider()
-                        .padding(.horizontal, TFSpacing.sm)
-                        .padding(.vertical, TFSpacing.xs)
-                    TFIconButton("archivebox", label: "Архив чатов", size: TFIconSize.md) {
-                        onOpenArchive()
-                    }
-                    .accessibilityIdentifier("chats.rooms.archive")
-                } else {
-                    TFLoading(.block)
+                TFIconButton("archivebox", label: "Архив чатов", size: TFIconSize.md) {
+                    onOpenArchive()
                 }
+                .accessibilityIdentifier("chats.rooms.archive")
             }
-            .padding(.vertical, TFSpacing.md)
-            .frame(maxWidth: .infinity)
+            .disabled(snapshot == nil)
+            TFDivider()
+                .padding(.horizontal, ChatRoomsRail.padding)
         }
+    }
+
+    private func roleButton(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
+        Button { onOpenRole(role) } label: { roleAvatar(role).scaleEffect(1 + stretch) }
+            .buttonStyle(.plain)
+            .accessibilityLabel(snapshot.map { label(for: role, in: $0) } ?? role.name)
+            .accessibilityIdentifier("chats.rooms.\(role.id)")
+            .accessibilityAddTraits(favorites.contains(role.id) ? [.isSelected] : [])
+            .onLongPressGesture(minimumDuration: ChatRoomsRail.longPress) {
+                onToggleFavorite(role.id)
+            }
+    }
+
+    private var groupsButton: some View {
+        Button(action: onOpenGroups) {
+            TFGroupAvatar(identity: ChatRoomsRail.groupsID, size: ChatEdgeRailMetrics.avatar)
+                .scaleEffect(1 + stretch)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Групповые чаты")
+        .accessibilityIdentifier("chats.rooms.groups")
+        .onLongPressGesture(minimumDuration: ChatRoomsRail.longPress) {
+            onToggleFavorite(ChatRoomsRail.groupsID)
+        }
+    }
+
+    /// Полоска внизу: тап раскрывает все комнаты, второй — прячет лишние.
+    private var allToggle: some View {
+        Button(action: onToggleAll) {
+            Capsule()
+                .fill(Color.tfSub.opacity(0.45))
+                .frame(width: 26, height: 3)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TFSpacing.xs)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(showsAll ? "Только избранные" : "Все комнаты")
+        .accessibilityIdentifier("chats.rooms.allToggle")
     }
 
     private func roleAvatar(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
@@ -115,5 +179,59 @@ enum RoomLinkPalette {
         // Swift Hasher засевается заново в каждом процессе — нужен свой хэш.
         let hash = pair.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
         return colors[Int(hash % UInt64(colors.count))]
+    }
+}
+
+/// Геометрия панели комнат: сколько комнат видно, в сколько столбцов и каких
+/// размеров вкладка (владелец 08.11.2026: «по высоте в зависимости от
+/// количества персонажей… хотя бы в две строки»).
+enum ChatRoomsRail {
+    static let groupsID = "chats.groups"
+    static let gap: CGFloat = TFSpacing.xs
+    static let padding: CGFloat = TFSpacing.sm
+    /// Долгое нажатие на аватарку — комната уходит в избранное или обратно.
+    static let longPress: Double = 0.45
+    /// Полоса поиска и архива: значок кнопки плюс поля.
+    static let headerHeight: CGFloat = 44
+    static let dividerHeight: CGFloat = 1
+    static let toggleHeight: CGFloat = 16
+    static let maxHeight: CGFloat = 520
+
+    static func allIDs(_ snapshot: ChatRoomsSnapshot?) -> [String] {
+        guard let snapshot else { return [] }
+        return snapshot.roles.map(\.id) + [groupsID]
+    }
+
+    /// Избранное первым, остальное — в порядке панели.
+    static func visibleIDs(_ snapshot: ChatRoomsSnapshot?, favorites: Set<String>, showsAll: Bool) -> [String] {
+        let all = allIDs(snapshot)
+        // Пока ничего не выбрано, прятать нечего: показываем всех.
+        guard !favorites.isEmpty, !showsAll else { return all }
+        return all.filter { favorites.contains($0) }
+    }
+
+    static func hasHidden(_ snapshot: ChatRoomsSnapshot?, favorites: Set<String>, showsAll: Bool) -> Bool {
+        !favorites.isEmpty && !showsAll && allIDs(snapshot).contains { !favorites.contains($0) }
+    }
+
+    /// Два столбца — только когда комнат много и они раскрыты все.
+    static func columns(count: Int, showsAll: Bool) -> Int {
+        showsAll && count > 4 ? 2 : 1
+    }
+
+    static func width(columns: Int) -> CGFloat {
+        let side = ChatEdgeRailMetrics.avatar.rawValue
+        let count = CGFloat(max(1, columns))
+        return side * count + gap * (count - 1) + padding * 2
+    }
+
+    static func height(items: Int, columns: Int, hasToggle: Bool) -> CGFloat {
+        let side = ChatEdgeRailMetrics.avatar.rawValue
+        let count = CGFloat(max(1, columns))
+        let rows = max(1, ceil(CGFloat(max(1, items)) / count))
+        var height = padding * 2 + headerHeight + dividerHeight
+        height += gap + rows * side + (rows - 1) * gap
+        if hasToggle { height += toggleHeight }
+        return min(height, maxHeight)
     }
 }
