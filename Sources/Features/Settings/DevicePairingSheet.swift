@@ -205,25 +205,41 @@ private struct QRScannerView: UIViewRepresentable {
                 onUnavailable?("Камера недоступна на этом устройстве — введите код вручную.")
                 return
             }
+            session.beginConfiguration()
             session.addInput(input)
 
             let output = AVCaptureMetadataOutput()
-            guard session.canAddOutput(output),
-                  output.availableMetadataObjectTypes.contains(.qr)
-            else {
-                onUnavailable?("Камера не умеет читать QR — введите код вручную.")
+            guard session.canAddOutput(output) else {
+                session.commitConfiguration()
+                onUnavailable?("Камера недоступна на этом устройстве — введите код вручную.")
                 return
             }
             session.addOutput(output)
             output.setMetadataObjectsDelegate(self, queue: .main)
-            output.metadataObjectTypes = [.qr]
+            session.commitConfiguration()
 
             let preview = AVCaptureVideoPreviewLayer(session: session)
             preview.videoGravity = .resizeAspectFill
             preview.frame = bounds
             layer.addSublayer(preview)
 
-            queue.async { self.session.startRunning() }
+            queue.async {
+                self.session.startRunning()
+                // `availableMetadataObjectTypes` заполняется только у работающей
+                // сессии: до старта список пуст. Проверка «умеет ли камера QR» до
+                // запуска всегда врала — 08.11.2026 живой iPhone получал ответ
+                // «Камера не умеет читать QR — введите код вручную», хотя камера
+                // QR читает. Поэтому спрашиваем после старта, и только тогда
+                // включаем коды, чтобы не уронить сессию неподдерживаемым типом.
+                guard output.availableMetadataObjectTypes.contains(.qr) else {
+                    self.session.stopRunning()
+                    DispatchQueue.main.async {
+                        self.onUnavailable?("Камера не умеет читать QR — введите код вручную.")
+                    }
+                    return
+                }
+                output.metadataObjectTypes = [.qr]
+            }
         }
 
         func stop() {
