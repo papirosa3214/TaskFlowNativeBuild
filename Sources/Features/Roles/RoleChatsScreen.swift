@@ -16,7 +16,30 @@ import QuickLook
 /// (надиктовка → карточка), но в списке он выглядит как обычный собеседник.
 /// Владелец 21.09.2026: «сделай его просто как отдельный вид участника», без
 /// подписей-подсказок.
+/// Крупный заголовок только на корне раздела «Чат» (iOS 26+): под ним
+/// системное поле поиска прячется и выезжает лишь при оттягивании. На более
+/// старой системе остаётся как было — API там нет.
+extension View {
+    @ViewBuilder
+    func tfChatsLargeTitle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.toolbarTitleDisplayMode(.inlineLarge)
+        } else {
+            self
+        }
+    }
+}
+
 struct RoleChatsScreen: View {
+    /// Экран, открытый переходом: у него системный возврат и своя область
+    /// (роль или групповые чаты), корень раздела внутри него не живёт.
+    private let openedScope: RoleSessionScope?
+
+    init(openedScope: RoleSessionScope? = nil) {
+        self.openedScope = openedScope
+        _selectedScopeRaw = State(initialValue: openedScope?.stored ?? Self.ChatHomeScopeKey)
+    }
+
     @Environment(SessionStore.self) private var session
     @State private var chats: [RoleChat] = []
     /// Панель «Комнаты» (владелец 21.10.2026): Общая, личные комнаты ролей и
@@ -41,6 +64,7 @@ struct RoleChatsScreen: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @Environment(\.openRoute) private var openRoute
+    @Environment(\.dismiss) private var dismiss
     @State private var showingCreate = false
     /// Чат, выбранный для окончательного удаления: ждёт подтверждения,
     /// потому что вернуть его уже будет нельзя.
@@ -161,18 +185,19 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .tfScreenBackground()
-        // Свайп слева направо — назад в «Чаты». Внутри роли экран не в стеке
-        // (тот же корень с другим состоянием), поэтому системного свайпа нет
-        // (владелец 08.11.2026: «проведя слева направо, я должен перейти уже в
-        // раздел „Просто чаты“»).
-        .simultaneousGesture(backSwipe)
         // Бывшая панель участников чата — теперь в корне раздела и
         // показывает комнаты (владелец 21.10.2026).
         .overlay(alignment: .trailing) { if isOwner { roomsRail } }
         .tfNativeHeader(headerTitle)
+        // Поле поиска — штатное (`searchable`) и рисует его Apple. Но оно не
+        // должно висеть всегда: выезжает только при оттягивании сверху вниз,
+        // при обычной прокрутке не появляется (владелец 08.11.2026).
+        // Скрывается оно только под КРУПНЫМ заголовком: у inline-шапки
+        // системе некуда его спрятать, поэтому она показывает его сразу.
+        .tfChatsLargeTitle()
         .tint(Color.tfText)
         .toolbar {
-            if isOwner, !isHome {
+            if isOwner, !isHome, openedScope == nil {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { selectHome() } label: {
                         Label("Чаты", systemImage: "chevron.left")
@@ -228,7 +253,7 @@ struct RoleChatsScreen: View {
         .task { await load() }
         .refreshable { await load() }
         // Внутри раздела нижней панели нет — только на главных экранах
-        // (владелец 08.11.2026).
+        // (владелец 08.11.2026). Групповые чаты ещё живут состоянием.
         .onChange(of: selectedScopeRaw, initial: true) { _, raw in
             ChatSectionState.shared.setNested(raw != Self.ChatHomeScopeKey)
         }
@@ -399,7 +424,10 @@ struct RoleChatsScreen: View {
         let rooms = RoleSessionList.roomsCount(mine.count)
         let preview = dmPreview(role.lastMessage)
         let line = preview.isEmpty ? rooms : "\(rooms) · \(preview)"
-        return Button { select(.role(role.id)) } label: {
+        // Переход, а не переключение состояния: нижняя панель прячется сама,
+        // а свайп слева направо работает системный — шаг назад, как везде в
+        // приложении (владелец 08.11.2026).
+        return NavigationLink(value: AppRoute.chatRole(id: role.id)) {
             ChatListRow(title: role.name,
                         preview: line,
                         time: ChatListTime.label(role.lastMessage?.createdAt),
@@ -410,22 +438,15 @@ struct RoleChatsScreen: View {
     }
 
     private func selectHome() {
+        // Экран открыт переходом — «назад» один: системный возврат.
+        if openedScope != nil {
+            dismiss()
+            return
+        }
         selectedScopeRaw = Self.ChatHomeScopeKey
         withAnimation(TFMotion.standard) { isRoomsOpen = false }
     }
 
-    /// Свайп от левой кромки: порог по горизонтали и запрет на вертикальный
-    /// жест — иначе он спорил бы с прокруткой и панелью комнат справа.
-    private var backSwipe: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .onEnded { value in
-                guard !isHome,
-                      value.startLocation.x < 48,
-                      value.translation.width > 70,
-                      abs(value.translation.height) < 90
-                else { return }
-                selectHome()
-            }
     }
 
     // MARK: - Строка сессии
@@ -559,8 +580,8 @@ struct RoleChatsScreen: View {
                            onToggleAll: {
                                withAnimation(TFMotion.standard) { railShowsAll.toggle() }
                            },
-                           onOpenRole: { select(.role($0.id)) },
-                           onOpenGroups: { select(.groups) },
+                           onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
+                           onOpenGroups: { openRoute?(.chatGroups) },
                            )
         }
     }

@@ -133,6 +133,10 @@ private func routeContent(_ route: AppRoute) -> some View {
         ChatArchiveScreen()
     case .chatSearch:
         ChatSearchScreen()
+    case .chatRole(let id):
+        RoleChatsScreen(openedScope: .role(id)).tfChatTypography()
+    case .chatGroups:
+        RoleChatsScreen(openedScope: .groups).tfChatTypography()
     case .roleChat(let id):
         // Комната грузится по идентификатору: маршрут несёт только id, а
         // состав и последнее сообщение берутся запросом (LOCK-195).
