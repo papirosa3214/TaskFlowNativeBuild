@@ -20,12 +20,6 @@ struct ChatRoomsPanel: View {
     let onToggleAll: () -> Void
     let onOpenRole: (ChatRoomsSnapshot.RoleRoom) -> Void
     let onOpenGroups: () -> Void
-    /// Поиск по всем чатам сразу (владелец 08.11.2026: «а поиск бы обязательно
-    /// ещё бы сделал»).
-    let onOpenSearch: () -> Void
-    /// Один архив на всех ролей — рядом с поиском сверху панели
-    /// (владелец 08.11.2026: «в одну строку под разделительной линией»).
-    let onOpenArchive: () -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
     /// Вкладку тянут за упор — аватарки растягиваются вместе с ней.
@@ -38,7 +32,6 @@ struct ChatRoomsPanel: View {
 
     var body: some View {
         VStack(spacing: ChatRoomsRail.gap) {
-            header
             if let snapshot {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVGrid(columns: gridColumns, spacing: ChatRoomsRail.gap) {
@@ -63,25 +56,6 @@ struct ChatRoomsPanel: View {
         }
         .padding(.vertical, ChatRoomsRail.padding)
         .frame(maxWidth: .infinity)
-    }
-
-    /// Два значка в одну строку и разделитель под ними (владелец 08.11.2026).
-    private var header: some View {
-        VStack(spacing: ChatRoomsRail.gap) {
-            HStack(spacing: ChatRoomsRail.gap) {
-                TFIconButton("magnifyingglass", label: "Поиск по чатам", size: TFIconSize.md) {
-                    onOpenSearch()
-                }
-                .accessibilityIdentifier("chats.rooms.search")
-                TFIconButton("archivebox", label: "Архив чатов", size: TFIconSize.md) {
-                    onOpenArchive()
-                }
-                .accessibilityIdentifier("chats.rooms.archive")
-            }
-            .disabled(snapshot == nil)
-            TFDivider()
-                .padding(.horizontal, ChatRoomsRail.padding)
-        }
     }
 
     private func roleButton(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
@@ -191,9 +165,6 @@ enum ChatRoomsRail {
     static let padding: CGFloat = TFSpacing.sm
     /// Долгое нажатие на аватарку — комната уходит в избранное или обратно.
     static let longPress: Double = 0.45
-    /// Полоса поиска и архива: значок кнопки плюс поля.
-    static let headerHeight: CGFloat = 44
-    static let dividerHeight: CGFloat = 1
     static let toggleHeight: CGFloat = 16
     static let maxHeight: CGFloat = 520
 
@@ -229,7 +200,7 @@ enum ChatRoomsRail {
         let side = ChatEdgeRailMetrics.avatar.rawValue
         let count = CGFloat(max(1, columns))
         let rows = max(1, ceil(CGFloat(max(1, items)) / count))
-        var height = padding * 2 + headerHeight + dividerHeight
+        var height = padding * 2
         height += gap + rows * side + (rows - 1) * gap
         if hasToggle { height += toggleHeight }
         return min(height, maxHeight)

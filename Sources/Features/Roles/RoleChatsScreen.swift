@@ -46,6 +46,16 @@ struct RoleChatsScreen: View {
     /// Свёрнутые папки проектов в каталоге «Групповые чаты»: свернул — комнаты
     /// задач этого проекта убраны, развернул — снова видны.
     @State private var openProjects: Set<String> = []
+    /// Поиск в шапке раздела: поле живёт в навбаре и прячется при прокрутке
+    /// (владелец 08.11.2026: «наверху в самом будет просто поиск»).
+    @State private var query = ""
+    @State private var hits: [ChatSearchHit] = []
+    @State private var isSearching = false
+    /// Чат, у которого меняют название.
+    @State private var renameTarget: RoleChat?
+    @State private var renameText = ""
+    /// Закреплённые чаты — через запятую (владелец 08.11.2026).
+    @AppStorage("chats.pinned") private var pinnedRaw = ""
     @Environment(RealtimeClient.self) private var realtime
     @State private var realtimeObserver = RealtimeObserverSlot<UUID>()
     private let api = APIClient()
@@ -98,7 +108,9 @@ struct RoleChatsScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                if isHome {
+                if isSearchMode {
+                    searchResults
+                } else if isHome {
                     chatsHome
                 } else if isLoading && chats.isEmpty {
                     TFLoading(.block)
@@ -172,10 +184,13 @@ struct RoleChatsScreen: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button { showsClosed.toggle() } label: {
-                        Label("Показать закрытые", systemImage: showsClosed ? "checkmark" : "archivebox")
+                    Button {
+                        withAnimation(TFMotion.standard) { isRoomsOpen = false }
+                        openRoute?(.chatArchive)
+                    } label: {
+                        Label("Архивные", systemImage: "archivebox")
                     }
-                        .accessibilityIdentifier("chats.menu.closed")
+                    .accessibilityIdentifier("chats.menu.archive")
                     if let candidates = rooms?.externalCandidates, !candidates.isEmpty {
                         // Внешние агенты — без постоянной комнаты, пока владелец
                         // сам её не заведёт (21.10.2026).
@@ -195,6 +210,13 @@ struct RoleChatsScreen: View {
             CreateRoleChatScreen {
                 Task { await load() }
             }
+        }
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Поиск по чатам")
+        .task(id: query) { await runSearch() }
+        .alert("Название чата", isPresented: renamePresented) {
+            TextField("Название", text: $renameText)
+            Button("Сохранить") { Task { await applyRename() } }
+            Button("Отмена", role: .cancel) { renameTarget = nil }
         }
         .task { await load() }
         .refreshable { await load() }
@@ -242,12 +264,60 @@ struct RoleChatsScreen: View {
         }
     }
 
+    /// Поле поиска: пока введено что-то, вместо секций — выдача по всем чатам.
+    private var isSearchMode: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    private var renamePresented: Binding<Bool> {
+        Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })
+    }
+
+    private var pinnedIDs: Set<String> {
+        Set(pinnedRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
+    }
+
+    private func togglePin(_ chat: RoleChat) {
+        var ids = pinnedIDs
+        if ids.contains(chat.id) { ids.remove(chat.id) } else { ids.insert(chat.id) }
+        pinnedRaw = ids.sorted().joined(separator: ",")
+    }
+
+    private func runSearch() async {
+        let text = query.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { hits = []; return }
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        guard !Task.isCancelled else { return }
+        isSearching = true
+        defer { isSearching = false }
+        hits = (try? await api.chatSearch(query: text)) ?? []
+    }
+
+    private func applyRename() async {
+        guard let chat = renameTarget else { return }
+        let title = renameText.trimmingCharacters(in: .whitespaces)
+        renameTarget = nil
+        do {
+            _ = try await api.renameRoleChat(id: chat.id, title: title)
+            try await refreshList()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     /// Корень раздела: все комнаты списком, чтобы было видно, что выбираешь
     /// (владелец 08.11.2026: «раздел чата сразу на какой-то роли — странно»).
     private var isHome: Bool { selectedScopeRaw == Self.ChatHomeScopeKey }
 
     @ViewBuilder
     private var chatsHome: some View {
+        let pinned = chats.filter { pinnedIDs.contains($0.id) }
+        if !pinned.isEmpty {
+            TFSectionHeader("Закреплённые")
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.top, TFSpacing.lg)
+                .padding(.bottom, TFSpacing.xs)
+            ForEach(Array(pinned.enumerated()), id: \.element.id) { index, chat in
+                sessionLink(chat, isBranch: false)
+                if index < pinned.count - 1 { rowDivider }
+            }
+        }
         let roles = rooms?.roles.filter { $0.personalChatID != nil } ?? []
         let secretary = roles.first { $0.id == "u-secretary" }
         let others = roles.filter { $0.id != "u-secretary" }
@@ -266,25 +336,53 @@ struct RoleChatsScreen: View {
         groupsCatalog
     }
 
+    /// Заголовок подраздела — из дизайн-системы, а не своё начертание:
+    /// размер и кегль приходят из токенов и регулируются настройками
+    /// (владелец 08.11.2026).
     private func homeHeader(_ title: String) -> some View {
-        Text(title)
-            .tfText(.meta)
-            .foregroundStyle(Color.tfDim)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        TFSectionHeader(title)
             .padding(.horizontal, TFSpacing.screenHorizontal)
             .padding(.top, TFSpacing.lg)
             .padding(.bottom, TFSpacing.xs)
-            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Выдача поиска по всем чатам: название, откуда нашлось и кусок текста.
+    @ViewBuilder
+    private var searchResults: some View {
+        if hits.isEmpty {
+            Text(isSearching ? "Ищу…" : "Ничего не нашлось.")
+                .tfText(.action)
+                .foregroundStyle(Color.tfDim)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.top, TFSpacing.xl)
+        } else {
+            ForEach(Array(hits.enumerated()), id: \.element.id) { index, hit in
+                NavigationLink(value: AppRoute.roleChat(id: hit.chatID)) {
+                    ChatListRow(title: hit.title,
+                                preview: hit.subtitle ?? "",
+                                time: nil, unread: 0, turn: nil)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chats.hit.\(hit.chatID)")
+                if index < hits.count - 1 { rowDivider }
+            }
+        }
     }
 
     /// Строка комнаты в корне: имя, последняя реплика и время — как в списке
     /// чатов, тап открывает сессии этой роли.
     private func homeRoleRow(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
-        Button { select(.role(role.id)) } label: {
+        let mine = chats.filter { $0.others(excluding: session.currentUser?.id).contains { $0.id == role.id } }
+        let unread = mine.reduce(0) { $0 + $1.unread }
+        let rooms = RoleSessionList.roomsCount(mine.count)
+        let preview = dmPreview(role.lastMessage)
+        let line = preview.isEmpty ? rooms : "\(rooms) · \(preview)"
+        return Button { select(.role(role.id)) } label: {
             ChatListRow(title: role.name,
-                        preview: dmPreview(role.lastMessage),
+                        preview: line,
                         time: ChatListTime.label(role.lastMessage?.createdAt),
-                        unread: 0, turn: role.personalTurn)
+                        unread: unread, turn: role.personalTurn)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("chats.home.\(role.id)")
@@ -368,7 +466,19 @@ struct RoleChatsScreen: View {
             // удалить насовсем, и понятно, максимально». Никаких «закрыть
             // сессию»: архив и есть уборка, а вернуть можно из архива.
             // Сам архив — иконкой в боковой панели, один на все роли.
+            Button { togglePin(chat) } label: {
+                Label(pinnedIDs.contains(chat.id) ? "Открепить" : "Закрепить",
+                      systemImage: pinnedIDs.contains(chat.id) ? "pin.slash" : "pin")
+            }
+            .accessibilityIdentifier("chats.row.pin")
             if isOwner && !chat.isPermanentRoom {
+                Button {
+                    renameText = chat.title ?? ""
+                    renameTarget = chat
+                } label: {
+                    Label("Переименовать", systemImage: "pencil")
+                }
+                .accessibilityIdentifier("chats.row.rename")
                 Button { Task { await moveToArchive(chat) } } label: {
                     Label("Архивировать чат", systemImage: "archivebox")
                 }
@@ -416,14 +526,7 @@ struct RoleChatsScreen: View {
                            },
                            onOpenRole: { select(.role($0.id)) },
                            onOpenGroups: { select(.groups) },
-                           onOpenSearch: {
-                               withAnimation(TFMotion.standard) { isRoomsOpen = false }
-                               openRoute?(.chatSearch)
-                           },
-                           onOpenArchive: {
-                               withAnimation(TFMotion.standard) { isRoomsOpen = false }
-                               openRoute?(.chatArchive)
-                           })
+                           )
         }
     }
 

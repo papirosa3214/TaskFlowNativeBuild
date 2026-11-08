@@ -1488,6 +1488,7 @@ struct RoleChatRoomScreen: View {
         // Признак меняется только от его прокрутки, а не от роста ответа:
         // иначе привязка мигала и низ дёргался (владелец 30.10.2026).
         .defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)
+        .swipeBackEnabled()
         .tfScreenBackground()
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
