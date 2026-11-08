@@ -248,8 +248,14 @@ struct ProjectsScreen: View {
     /// число. Сам ряд остался кнопкой в тот же маршрут и по-прежнему живёт
     /// внутри `DirectorySwipeRow` (правка/удаление свайпом).
     /// Общее число открытых задач независимо от проекта.
+    ///
+    /// Считается по всему живому набору (с дочерними), а не только по корням:
+    /// иначе задача с закрытым родителем не попадала ни в число, ни в список
+    /// (владелец 08.11.2026).
     private var allTasksCount: Int {
-        taskStore.tasks.filter { $0.parentId == nil && $0.status == .active }.count
+        let live = TaskVisibility.liveTasks(taskStore.agentWorkTasks)
+        let roots = TaskTreeVisibility.visibleRootIDs(live.map { ($0.id, $0.parentId) })
+        return live.filter { roots.contains($0.id) && $0.status == .active }.count
     }
 
     private var archiveCount: Int { taskStore.archivedTasks.count + projectStore.archivedProjects.count }

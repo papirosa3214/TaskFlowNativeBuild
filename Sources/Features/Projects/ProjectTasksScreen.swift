@@ -74,6 +74,10 @@ struct ProjectTasksScreen: View {
     /// гарантированно стабилен, а спека и веб-код требуют стабильность).
     private var tasks: [ApiTask] {
         let source = relationshipTasks.isEmpty ? taskStore.tasks : relationshipTasks
+        // Корни дерева: задача без родителя — и задача, чьего родителя нет в
+        // этом наборе. Иначе её негде раскрыть и она пропадает из списка
+        // целиком (владелец 08.11.2026: «я вижу только четыре задачи»).
+        let rootIDs = TaskTreeVisibility.visibleRootIDs(source.map { ($0.id, $0.parentId) })
         // Общий список включает задачи с проектом и без него.
         let inScope: (ApiTask) -> Bool = { showsAllProjects || $0.projectId == projectID }
         if isStatusFilter {
@@ -88,7 +92,7 @@ struct ProjectTasksScreen: View {
             func hit(_ t: ApiTask) -> Bool {
                 filter.matches(t) || (byParent[t.id] ?? []).contains(where: hit)
             }
-            let scoped = source.filter { inScope($0) && $0.parentId == nil && hit($0) }
+            let scoped = source.filter { inScope($0) && rootIDs.contains($0.id) && hit($0) }
             return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
         }
         // Закрытая карточка уходит из списка целиком, даже если у неё остались
@@ -110,7 +114,7 @@ struct ProjectTasksScreen: View {
         }
 
         let scoped = source.filter { task in
-            inScope(task) && task.parentId == nil && openTreeIDs.contains(task.id)
+            inScope(task) && rootIDs.contains(task.id) && openTreeIDs.contains(task.id)
         }
         return scoped.filter { $0.pinned } + scoped.filter { !$0.pinned }
     }
