@@ -372,11 +372,18 @@ struct ChatTableView: View {
     /// Выше — таблица листается внутри своего окошка, а не растягивает ленту.
     private static let maxHeight: CGFloat = 360
     @State private var bodyHeight: CGFloat = 0
+    /// Ширины считаются один раз на таблицу, а не на каждый кадр: измерение
+    /// текста через NSString.size — дорогое, и на прокрутке оно давало лаги.
+    @State private var cachedWidths: [CGFloat] = []
 
     /// Ширина колонки — по самой длинной строке её ячеек плюс поля, как в
     /// таблице заметки (владелец 08.11.2026: «запускай таблицы как в блокнотах»).
     /// Ширину окна не подгоняем: таблица может быть шире экрана и листается.
     private var columnWidths: [CGFloat] {
+        cachedWidths.isEmpty ? measuredWidths() : cachedWidths
+    }
+
+    private func measuredWidths() -> [CGFloat] {
         let font = UIFont.systemFont(ofSize: 15)
         let headerFont = UIFont.systemFont(ofSize: 15, weight: .semibold)
         return table.header.indices.map { column in
@@ -430,6 +437,9 @@ struct ChatTableView: View {
             }
             .scrollBounceBehavior(.basedOnSize, axes: [.horizontal])
         }
+        // Ширины считаем один раз на таблицу вне поиска кадра — иначе на
+        // каждом проходе пересчёт давал заметные лаги при прокрутке.
+        .task(id: table) { cachedWidths = measuredWidths() }
     }
 
     private var headerRow: some View {
@@ -439,6 +449,9 @@ struct ChatTableView: View {
             }
         }
         .frame(minHeight: TFHitTarget.min, alignment: .top)
+        // Шапка видна как шапка (владелец 08.11.2026): тёмно-серая подложка
+        // только у шапки; строки без фона и лежат прямо на карточке.
+        .background(Color.tfCard2) // design-system-guard: ignore — подложка только под шапкой, TFCard неприменим
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
         }
