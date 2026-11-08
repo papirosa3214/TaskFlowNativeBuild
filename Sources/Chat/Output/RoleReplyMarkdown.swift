@@ -372,20 +372,37 @@ struct ChatTableView: View {
     /// Выше — таблица листается внутри своего окошка, а не растягивает ленту.
     private static let maxHeight: CGFloat = 360
     @State private var bodyHeight: CGFloat = 0
-    /// Ширины считаются один раз на таблицу, а не на каждый кадр: измерение
-    /// текста через NSString.size — дорогое, и на прокрутке оно давало лаги.
-    @State private var cachedWidths: [CGFloat] = []
+    /// Ширины колонок — по содержимому и кеглю, один раз на всю жизнь таблицы.
+    /// Измерение текста через NSString.size дорогое, а `LazyVStack` пересоздаёт
+    /// вьюху на каждой прокрутке, поэтому кэш общий, а не `@State` (владелец
+    /// 08.11.2026: «тонкий клиент, телефон не должен считать на кадр»).
+    private static let widthCache = ParsedValueCache<[CGFloat]>(limit: 128)
+    /// Кегль ячейки — из той же шкалы, что и `.tfText(.body)` (15, растёт от
+    /// «Настройки → Шрифт»). Зашитое 15 разъехалось бы с нарисованным текстом.
+    @ScaledMetric(relativeTo: .subheadline) private var bodySize: CGFloat = 15
 
-    /// Ширина колонки — по самой длинной строке её ячеек плюс поля, как в
-    /// таблице заметки (владелец 08.11.2026: «запускай таблицы как в блокнотах»).
-    /// Ширину окна не подгоняем: таблица может быть шире экрана и листается.
-    private var columnWidths: [CGFloat] {
-        cachedWidths.isEmpty ? measuredWidths() : cachedWidths
+    /// Ширины колонок для этой таблицы: из кэша или один раз мерятся здесь.
+    /// Кегль входит в ключ — при смене «Настройки → Шрифт» таблица меряется заново.
+    private func widths() -> [CGFloat] {
+        let key = Self.cacheKey(table, size: bodySize)
+        if let cached = Self.widthCache.value(for: key) { return cached }
+        let measured = measuredWidths()
+        Self.widthCache.set(measured, for: key)
+        return measured
+    }
+
+    /// Ключ кэша — содержимое таблицы и кегль, без хеширования всего текста:
+    /// строки склеиваются разделителями, которые в ячейках не встречаются.
+    private static func cacheKey(_ table: ChatTable, size: CGFloat) -> String {
+        var key = String(Int(size.rounded())) + "\u{1F}"
+        key += table.header.joined(separator: "\u{1E}")
+        for row in table.rows { key += "\u{1D}" + row.joined(separator: "\u{1E}") }
+        return key
     }
 
     private func measuredWidths() -> [CGFloat] {
-        let font = UIFont.systemFont(ofSize: 15)
-        let headerFont = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        let font = UIFont.systemFont(ofSize: bodySize)
+        let headerFont = UIFont.systemFont(ofSize: bodySize, weight: .semibold)
         return table.header.indices.map { column in
             var widest: CGFloat = 0
             let cells = ([table.header] + table.rows).compactMap { row in
@@ -408,14 +425,17 @@ struct ChatTableView: View {
     // вертикально листаются только строки — шапка стоит на месте.
     var body: some View {
         let _ = typeRevision
-        TFCard(padding: 0, surface: .dark, radius: TFRadius.lg) {
+        // Ширины берутся один раз за проход и раздаются всем строкам: считать
+        // их внутри каждой ячейки — это повторный проход по всей таблице.
+        let widths = widths()
+        return TFCard(padding: 0, surface: .dark, radius: TFRadius.lg) {
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    headerRow
+                    headerRow(widths)
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
-                                bodyRow(row, rowIndex: rowIndex)
+                                bodyRow(row, rowIndex: rowIndex, isLast: rowIndex == table.rows.count - 1, widths: widths)
                             }
                         }
                         .fixedSize(horizontal: false, vertical: true)
@@ -428,7 +448,7 @@ struct ChatTableView: View {
                 // Сетка как в заметке (владелец 08.11.2026: «таблица плавающая,
                 // нет вертикальных линий»): вертикали и контур рисуются поверх
                 // всей таблицы, чтобы линия была ровной на любой высоте строк.
-                .overlay(alignment: .topLeading) { columnDividers }
+                .overlay(alignment: .topLeading) { columnDividers(widths) }
                 .overlay {
                     RoundedRectangle(cornerRadius: TFRadius.sm)
                         .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
@@ -437,49 +457,51 @@ struct ChatTableView: View {
             }
             .scrollBounceBehavior(.basedOnSize, axes: [.horizontal])
         }
-        // Ширины считаем один раз на таблицу вне поиска кадра — иначе на
-        // каждом проходе пересчёт давал заметные лаги при прокрутке.
-        .task(id: table) { cachedWidths = measuredWidths() }
     }
 
-    private var headerRow: some View {
+    private func headerRow(_ widths: [CGFloat]) -> some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(table.header.enumerated()), id: \.offset) { column, title in
-                cell(title, runs: headerRuns(column), isHeader: true, column: column, width: columnWidths[column])
+                cell(title, runs: headerRuns(column), isHeader: true, column: column, width: widths[column])
             }
         }
         .frame(minHeight: TFHitTarget.min, alignment: .top)
-        // Шапка видна как шапка (владелец 08.11.2026): тёмно-серая подложка
-        // только у шапки; строки без фона и лежат прямо на карточке.
-        .background(Color.tfCard2) // design-system-guard: ignore — подложка только под шапкой, TFCard неприменим
+        // Шапка видна как шапка (владелец 08.11.2026: «тёмное, в наших цветах»):
+        // тёмно-красная подложка-оттенок того же tfFieldBorder, а не серый.
+        .background(Color.tfFieldBorder.opacity(0.45)) // design-system-guard: ignore — подложка только под шапкой, TFCard неприменим
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
         }
     }
 
-    private func bodyRow(_ row: [String], rowIndex: Int) -> some View {
+    private func bodyRow(_ row: [String], rowIndex: Int, isLast: Bool, widths: [CGFloat]) -> some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(row.enumerated()), id: \.offset) { column, value in
-                if column < columnWidths.count {
-                    cell(value, runs: rowRuns(rowIndex, column), column: column, width: columnWidths[column])
+                if column < widths.count {
+                    cell(value, runs: rowRuns(rowIndex, column), column: column, width: widths[column])
                 }
             }
         }
         .frame(minHeight: TFHitTarget.min, alignment: .top)
+        // У последней строки своей нижней линии нет (владелец 08.11.2026):
+        // контур таблицы и так замыкает её снизу, а своя линия читалась как
+        // пустая строка с ячейками.
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
+            if !isLast {
+                Rectangle().fill(Color.tfFieldBorder).frame(height: TFBorder.width)
+            }
         }
     }
 
     /// Вертикальные разделители между колонками. Ширины те же, что у ячеек,
     /// поэтому линии совпадают с границами столбцов на любой высоте строк.
-    private var columnDividers: some View {
+    private func columnDividers(_ widths: [CGFloat]) -> some View {
         HStack(spacing: 0) {
-            ForEach(Array(columnWidths.enumerated()), id: \.offset) { index, width in
+            ForEach(Array(widths.enumerated()), id: \.offset) { index, width in
                 Color.clear
                     .frame(width: width)
                     .overlay(alignment: .trailing) {
-                        if index < columnWidths.count - 1 {
+                        if index < widths.count - 1 {
                             Rectangle().fill(Color.tfFieldBorder).frame(width: TFBorder.width)
                         }
                     }
