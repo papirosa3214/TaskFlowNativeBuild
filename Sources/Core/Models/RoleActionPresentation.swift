@@ -24,7 +24,8 @@ struct RoleActionPresentation: Equatable {
         let tool = normalized(raw)
         if tool.hasPrefix("taskflow_") {
             if tool.contains("kb_search") { return Self(title: "База знаний", symbol: "books.vertical") }
-            if tool.contains("recall") || tool.contains("remember") { return Self(title: "Память", symbol: "brain") }
+            if tool.contains("recall") { return Self(title: "Поиск в памяти Mnemosyne", symbol: "brain") }
+            if tool.contains("remember") { return Self(title: "Память", symbol: "brain") }
             if tool.contains("doc_") || tool.hasSuffix("_docs") { return Self(title: "Документация", symbol: "doc.text") }
             if tool.contains("subtask_done") || tool.contains("taskflow_state") { return Self(title: "Сдача результата", symbol: "checkmark.circle") }
             if tool.contains("comment") { return Self(title: "Комментарий", symbol: "text.bubble") }
