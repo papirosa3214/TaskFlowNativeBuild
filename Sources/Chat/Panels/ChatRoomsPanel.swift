@@ -10,6 +10,12 @@ struct ChatRoomsPanel: View {
     let snapshot: ChatRoomsSnapshot?
     let onOpenRole: (ChatRoomsSnapshot.RoleRoom) -> Void
     let onOpenGroups: () -> Void
+    /// Поиск по всем чатам сразу (владелец 08.11.2026: «а поиск бы обязательно
+    /// ещё бы сделал»).
+    let onOpenSearch: () -> Void
+    /// Один архив на всех ролей — иконкой внизу панели, за разделителем
+    /// (владелец 08.11.2026).
+    let onOpenArchive: () -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var scalePercent: CGFloat = 100
     /// Вкладку тянут за упор — аватарки растягиваются вместе с ней.
@@ -19,6 +25,10 @@ struct ChatRoomsPanel: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: TFSpacing.md) {
+                TFIconButton("magnifyingglass", label: "Поиск по чатам", size: TFIconSize.md) {
+                    onOpenSearch()
+                }
+                .accessibilityIdentifier("chats.rooms.search")
                 if let snapshot {
                     ForEach(snapshot.roles) { role in
                         Button { onOpenRole(role) } label: { roleAvatar(role).scaleEffect(1 + stretch) }
@@ -33,6 +43,13 @@ struct ChatRoomsPanel: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Групповые чаты")
                     .accessibilityIdentifier("chats.rooms.groups")
+                    TFDivider()
+                        .padding(.horizontal, TFSpacing.sm)
+                        .padding(.vertical, TFSpacing.xs)
+                    TFIconButton("archivebox", label: "Архив чатов", size: TFIconSize.md) {
+                        onOpenArchive()
+                    }
+                    .accessibilityIdentifier("chats.rooms.archive")
                 } else {
                     TFLoading(.block)
                 }

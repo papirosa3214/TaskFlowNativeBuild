@@ -134,7 +134,6 @@ struct RoleChatsScreen: View {
                         }
                     }
                 }
-                archiveEntry
             }
             .padding(.bottom, TFSpacing.xl)
         }
@@ -146,7 +145,15 @@ struct RoleChatsScreen: View {
                 ChatEdgeRail(isOpen: $isRoomsOpen, openLabel: "Комнаты", closedLabel: "Показать комнаты", identifier: "chats.roomsRail") {
                     ChatRoomsPanel(snapshot: rooms,
                                    onOpenRole: { select(.role($0.id)) },
-                                   onOpenGroups: { select(.groups) })
+                                   onOpenGroups: { select(.groups) },
+                                   onOpenSearch: {
+                                       withAnimation(TFMotion.standard) { isRoomsOpen = false }
+                                       openRoute?(.chatSearch)
+                                   },
+                                   onOpenArchive: {
+                                       withAnimation(TFMotion.standard) { isRoomsOpen = false }
+                                       openRoute?(.chatArchive)
+                                   })
                 }
             }
         }
@@ -300,28 +307,6 @@ struct RoleChatsScreen: View {
         TFDivider(inset: TFSpacing.screenHorizontal)
     }
 
-    /// «Архив» строкой внизу списка — как в GPT: убранные сессии не мешают
-    /// работе, но и не теряются.
-    private var archiveEntry: some View {
-        Group {
-            rowDivider
-            NavigationLink(value: AppRoute.chatArchive) {
-                TFListRow(
-                    icon: "archivebox",
-                    iconStyle: .plain,
-                    title: "Архив",
-                    subtitle: "Убранные чаты: можно вернуть или удалить",
-                    titleStyle: .body,
-                    verticalPadding: TFSpacing.xs,
-                    chevron: .shown
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("chats.archive")
-        }
-        .padding(.top, TFSpacing.md)
-    }
-
     private func sessionLink(_ chat: RoleChat, isBranch: Bool) -> some View {
         NavigationLink(value: AppRoute.roleChat(id: chat.id)) {
             chatRow(chat, isBranch: isBranch)
@@ -329,12 +314,13 @@ struct RoleChatsScreen: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            // Владелец 08.11.2026: «как в GPT — заархивировать чат либо
+            // Владелец 08.11.2026: «как в GPT — архивировать чат либо
             // удалить насовсем, и понятно, максимально». Никаких «закрыть
             // сессию»: архив и есть уборка, а вернуть можно из архива.
+            // Сам архив — иконкой в боковой панели, один на все роли.
             if isOwner && !chat.isPermanentRoom {
                 Button { Task { await moveToArchive(chat) } } label: {
-                    Label("Заархивировать чат", systemImage: "archivebox")
+                    Label("Архивировать чат", systemImage: "archivebox")
                 }
                 .accessibilityIdentifier("chats.row.archive")
                 Button(role: .destructive) { pendingPurge = chat } label: {
@@ -376,7 +362,7 @@ struct RoleChatsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    /// «Заархивировать чат»: уходит из списка в «Архив», история остаётся и её
+    /// «Архивировать чат»: уходит из списка в «Архив», история остаётся и её
     /// можно вернуть.
     private func moveToArchive(_ chat: RoleChat) async {
         do {

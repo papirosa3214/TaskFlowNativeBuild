@@ -131,6 +131,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         AgentProfileScreen(roleID: id)
     case .chatArchive:
         ChatArchiveScreen()
+    case .chatSearch:
+        ChatSearchScreen()
     case .roleChat(let id):
         // Комната грузится по идентификатору: маршрут несёт только id, а
         // состав и последнее сообщение берутся запросом (LOCK-195).

@@ -82,6 +82,16 @@ public extension APIClient {
         return response.chat
     }
 
+    /// Поиск по всем чатам: название, участник, текст переписки.
+    func chatSearch(query: String, limit: Int = 30) async throws -> [ChatSearchHit] {
+        let items = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        let response: ChatSearchEnvelope = try await request(.get, "/chats/search", query: items)
+        return response.results
+    }
+
     /// Вернуть из архива: `POST /chats/{id}/unarchive`.
     func unarchiveRoleChat(id: String) async throws -> RoleChat {
         let response: RoleChatEnvelope = try await request(.post, "/chats/\(id)/unarchive", body: [String: String]())
