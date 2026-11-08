@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# QR-код привязки iPhone для TaskFlow (08.11.2026).
+#
+# Выписывает на сервере (.110) одноразовый код привязки и рисует QR прямо
+# в этом терминале. Дальше: на телефоне «Войти по QR-коду» → навести камеру.
+#
+# Код живёт 5 минут и срабатывает один раз; новый вызов гасит прежний код.
+# Адрес сервера в QR дома не используется (приложение ходит по встроенному),
+# переменная TASKFLOW_PAIR_HOST нужна только внешнему доступу.
+#
+# Использование:  pair-iphone            — QR в терминале
+#                 pair-iphone --no-qr    — только код и ссылка
+set -euo pipefail
+
+NODE_BIN="/home/maksim/.nvm/versions/node/v22.23.1/bin"
+SERVER_DIR="~/Проекты/New-Todoist/server"
+PAIR_HOST="${TASKFLOW_PAIR_HOST:-192.168.1.110:3001}"
+ARGS="${1:-}"
+
+if [ ! -x "$(command -v ssh)" ]; then
+    echo "нет ssh" >&2
+    exit 1
+fi
+
+ssh maksim "export PATH=$NODE_BIN:\$PATH; cd $SERVER_DIR && TASKFLOW_PAIR_HOST='$PAIR_HOST' npx tsx scripts/pairing-code.ts $ARGS"

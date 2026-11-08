@@ -45,6 +45,32 @@ struct LoginView: View {
                     .foregroundStyle(Color.tfSub)
             }
 
+            // Главный путь на этом телефоне — привязка по QR: код с сервера
+            // меняется на долгоживущий ключ устройства, пароль владельца не
+            // нужен. Пароль остаётся ниже — для входа с чужого устройства.
+            // Владелец 08.11.2026: «при входе сразу же — либо по QR-коду,
+            // либо по логину и паролю».
+            VStack(spacing: TFSpacing.sm) {
+                TFButton("Войти по QR-коду", icon: "qrcode.viewfinder", variant: .primary) {
+                    showPairing = true
+                }
+                .accessibilityIdentifier("login-device-pairing")
+                .hintAnchor(HintAnchorID.devicePairing)
+                Text("QR-код выдаёт сервер: в его папке server выполните npx tsx scripts/pairing-code.ts.")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .multilineTextAlignment(.center)
+            }
+
+            HStack(spacing: TFSpacing.sm) {
+                Rectangle().fill(Color.tfStroke).frame(height: 1)
+                Text("или логин и пароль")
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfDim)
+                    .fixedSize()
+                Rectangle().fill(Color.tfStroke).frame(height: 1)
+            }
+
             VStack(spacing: TFSpacing.md) {
                 // Логин, а не почта: сервер с 01.09.2026 принимает и имя
                 // учётки, и короткое имя из почты (просьба Максима — «можно
@@ -73,17 +99,6 @@ struct LoginView: View {
                     isSubmitting = false
                 }
             }
-
-            Button {
-                showPairing = true
-            } label: {
-                Label("Привязать этот iPhone по QR", systemImage: "qrcode.viewfinder")
-                    .tfText(.body)
-                    .foregroundStyle(Color.tfSub)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("login-device-pairing")
-            .hintAnchor(HintAnchorID.devicePairing)
 
             Spacer()
             Spacer()
