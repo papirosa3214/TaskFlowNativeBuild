@@ -116,7 +116,7 @@ struct AppIconPickerSheet: View {
                             .overlay(
                                 RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
                                     .strokeBorder(
-                                        option == selection ? Color.tfRed : Color.tfStroke,
+                                        Color.tfStroke,
                                         lineWidth: option == selection ? 2 : TFBorder.width
                                     )
                             )

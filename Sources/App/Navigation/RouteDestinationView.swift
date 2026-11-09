@@ -94,43 +94,43 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .missionControl(let taskID):
         MissionControlScreen(taskID: taskID)
     case .settings:
-        SettingsScreen()
+        SettingsScreen().tfSuppressRedOutline()
     case .hints:
-        HintsScreen()
+        HintsScreen().tfSuppressRedOutline()
     case .integrations:
-        IntegrationsScreen()
+        IntegrationsScreen().tfSuppressRedOutline()
     case .fontSettings:
-        FontSettingsScreen()
+        FontSettingsScreen().tfSuppressRedOutline()
     case .voiceModels:
-        VoiceModelsScreen()
+        VoiceModelsScreen().tfSuppressRedOutline()
     case .secretaryVoicePicker:
-        SecretaryVoicePickerScreen()
+        SecretaryVoicePickerScreen().tfSuppressRedOutline()
     case .jevSettings:
-        JevSettingsScreen()
+        JevSettingsScreen().tfSuppressRedOutline()
     case .memoryObserverSettings:
-        MemoryObserverSettingsScreen()
+        MemoryObserverSettingsScreen().tfSuppressRedOutline()
     case .contextSources:
-        ContextSourcesScreen()
+        ContextSourcesScreen().tfSuppressRedOutline()
     case .runtimeProviders:
-        RuntimeProvidersScreen()
+        RuntimeProvidersScreen().tfSuppressRedOutline()
     case .providerDetail(let providerID):
-        ProviderDetailScreen(providerID: providerID)
+        ProviderDetailScreen(providerID: providerID).tfSuppressRedOutline()
     case .serverSettings:
-        ServerSettingsScreen()
+        ServerSettingsScreen().tfSuppressRedOutline()
     case .secrets:
-        SecretsScreen()
+        SecretsScreen().tfSuppressRedOutline()
     case .diagnostics:
-        AppDiagnosticsScreen()
+        AppDiagnosticsScreen().tfSuppressRedOutline()
     case .roleLoad:
         RoleLoadScreen()
     case .escalationSettings:
-        EscalationSettingsScreen()
+        EscalationSettingsScreen().tfSuppressRedOutline()
     case .runtimeStatus:
-        RuntimeStatusScreen()
+        RuntimeStatusScreen().tfSuppressRedOutline()
     case .serviceAccounts:
-        ServiceAccountsScreen()
+        ServiceAccountsScreen().tfSuppressRedOutline()
     case .remoteMachines:
-        RemoteMachinesScreen()
+        RemoteMachinesScreen().tfSuppressRedOutline()
     case .agentProfile(let id):
         AgentProfileScreen(roleID: id)
     case .chatArchive:

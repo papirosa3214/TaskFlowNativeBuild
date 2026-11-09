@@ -20,6 +20,7 @@ public struct TFButton: View {
     let variant: TFButtonVariant
     let isEnabled: Bool
     let action: () -> Void
+    @Environment(\.tfSuppressRedOutline) private var suppressRedOutline
 
     public init(
         _ title: String,
@@ -53,8 +54,10 @@ public struct TFButton: View {
             .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
             .background(Color.tfRed.opacity(0.18), in: RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
-                    .strokeBorder(Color.tfButtonEdge, lineWidth: TFBorder.width)
+                if !suppressRedOutline {
+                    RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
+                        .strokeBorder(Color.tfButtonEdge, lineWidth: TFBorder.width)
+                }
             }
             .contentShape(RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous))
         }

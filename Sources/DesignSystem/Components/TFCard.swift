@@ -74,19 +74,78 @@ public struct TFCard<Content: View>: View {
     }
 }
 
+/// В настройках красная кромка снята (владелец 10.11.2026): подложка и
+/// отступы карточки остаются, рисуется только обводка.
+struct TFSuppressRedOutlineKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var tfSuppressRedOutline: Bool {
+        get { self[TFSuppressRedOutlineKey.self] }
+        set { self[TFSuppressRedOutlineKey.self] = newValue }
+    }
+}
+
+extension View {
+    func tfSuppressRedOutline() -> some View {
+        environment(\.tfSuppressRedOutline, true)
+    }
+}
+
 /// Рамка рутины: 1px тёмно-красная, не полупрозрачная белая.
 private struct TFCardBorder: ViewModifier {
     let radius: CGFloat?
     let enabled: Bool
+    @Environment(\.tfSuppressRedOutline) private var suppressRedOutline
 
     func body(content: Content) -> some View {
-        if enabled, let radius {
+        if enabled, let radius, !suppressRedOutline {
             content.overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
             )
         } else {
             content
+        }
+    }
+}
+
+/// Плитка выбора. В настройках красная кромка выбранной не рисуется.
+private struct TFSelectTileModifier: ViewModifier {
+    let selected: Bool
+    let radius: CGFloat
+    @Environment(\.tfSuppressRedOutline) private var suppressRedOutline
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Color.tfFieldDark)
+            )
+            .overlay {
+                if selected && !suppressRedOutline {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
+                }
+            }
+    }
+}
+
+/// Подложка строки настроек. Красная кромка выбранной снимается тем же флагом.
+private struct TFSettingsListRowBackground: View {
+    let selected: Bool
+    let fill: Color
+    @Environment(\.tfSuppressRedOutline) private var suppressRedOutline
+
+    var body: some View {
+        ZStack {
+            fill
+            if selected && !suppressRedOutline {
+                RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
+                    .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
+                    .padding(1)
+            }
         }
     }
 }
@@ -372,22 +431,13 @@ public extension View {
     /// Цвет иконки/текста задаёт вызывающий: выбранная → `tfText`, иначе
     /// `tfDim` (владелец 03.11.2026).
     func tfSelectTile(selected: Bool, radius: CGFloat = TFRadius.md) -> some View {
-        self
-            .background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(Color.tfFieldDark)
-            )
-            .overlay {
-                if selected {
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
-                }
-            }
+        modifier(TFSelectTileModifier(selected: selected, radius: radius))
     }
 
     /// Строка `List`/`Form` в настройках: одна сплошная группа как карточка
     /// рутины (без щелей → без «пилюль»), `tfFieldDark` + тонкая тёмно-красная
-    /// окантовка у выбранной (владелец 03.11.2026).
+    /// окантовка у выбранной (владелец 03.11.2026). В настройках флаг
+    /// `tfSuppressRedOutline` эту окантовку не рисует.
     func tfSettingsListRow(selected: Bool = false, background: Color = .tfFieldDark) -> some View {
         self
             .listRowInsets(EdgeInsets(
@@ -400,16 +450,7 @@ public extension View {
             .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
                 dimensions.width - TFSpacing.md
             }
-            .listRowBackground(
-                ZStack {
-                    background
-                    if selected {
-                        RoundedRectangle(cornerRadius: TFRadius.md, style: .continuous)
-                            .strokeBorder(Color.tfFieldBorder, lineWidth: TFBorder.width)
-                            .padding(1)
-                    }
-                }
-            )
+            .listRowBackground(TFSettingsListRowBackground(selected: selected, fill: background))
     }
 
     /// Список настроек поверх чёрного фона экрана, без серой системной подложки.
