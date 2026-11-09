@@ -162,28 +162,19 @@ struct RoleChatRoomScreen: View {
     @State private var showsComposerCommands = false
     @State private var showsSessionPanel = false
     @State private var pendingSessionAttachment: ChatAttachmentSource?
-    // SwiftUI owns the scroll position, including user interaction and resizing.
-    @State private var chatScrollPosition = ScrollPosition()
+    /// Команды ленты. Лентой владеет таблица (`ChatFeedVirtualList`): экран
+    /// только просит её подвинуться, а не ведёт смещение сам.
+    @State private var feedScroll = ChatFeedScrollHandle()
     @State private var chatIsNearBottom = true
-    /// До какого момента писать геометрию ленты в журнал телефона (после
-    /// отправки; владелец 07.11.2026: «после отправки всё улетает вверх»).
-    @State private var scrollLogUntil: Date = .distantPast
-    /// Лента держится за низ, пока владелец сам не отлистал вверх. Отдельный
-    /// признак, а не «не листал ИЛИ у низа»: пока роль пишет, высота растёт
-    /// каждый кадр, и лента на миг оказывается «не у низа» — привязка то
-    /// снималась, то возвращалась, и низ дёргался вверх-вниз (владелец
-    /// 30.10.2026). Меняет его только рука владельца.
-    @State private var chatFollowsBottom = true
-    /// Фаза прокрутки: по ней отличаем руку владельца от роста ответа.
-    @State private var chatScrollPhase: ScrollPhase = .idle
+    /// Лента идёт в движении от руки владельца. По этому признаку дорисовываются
+    /// старые сообщения: при открытии короткого чата верх виден сразу, и
+    /// автодорисовка увозила ленту от низа (07.11.2026).
+    @State private var chatIsScrolling = false
     /// Коалесцер в ссылочной коробке, а не в `@State`: запись в `@State`
     /// обесценивает вью, поэтому раньше КАЖДОЕ событие сокета — в том числе
     /// из другого чата — пересобирало всю ленту, проекцию и выдержки (ревью
     /// потока событий п.B1). Коробка меняет состояние молча.
     @State private var eventBatch = ChatEventBatchBox()
-    #if DEBUG
-    @State private var chatScrollTrace = ChatScrollTrace()
-    #endif
     @FocusState private var composerFocused: Bool
     private let api = APIClient()
 
@@ -797,15 +788,7 @@ struct RoleChatRoomScreen: View {
         .overlay(alignment: .top) {
             if !chatIsNearBottom && !isSelecting {
                 ChatScrollToBottomButton {
-                    chatFollowsBottom = true
-                    // К последней строке, а не к краю: высоту невидимых строк
-                    // ленивая лента угадывает, и прокрутка к краю уезжала за
-                    // конец — внизу оставалась пустота (владелец 07.11.2026).
-                    if let last = feedItems.last?.id {
-                        chatScrollPosition.scrollTo(id: last, anchor: .bottom)
-                    } else {
-                        chatScrollPosition.scrollTo(edge: .bottom)
-                    }
+                    feedScroll.scrollToBottom()
                 }
                 // Вся зона нажатия выше footer; нижний край пилюли — с зазором 4 pt.
                 // Offset не передаёт пользовательский alignment guide в стек footer.
@@ -1325,6 +1308,16 @@ struct RoleChatRoomScreen: View {
         }
     }
 
+    /// Лента чата на нативной коллекции.
+    ///
+    /// Владелец 10.11.2026: «давай все же сделаем уже по полной… поведение ленты
+    /// прям нравится, ноль тупняка, в отличие от моего чата». Раньше лента была
+    /// `ScrollView` с обычным `VStack`: все строки окна монтировались сразу,
+    /// вместе со всеми сегментами ответов (22–27 тыс. pt на окно), а высоту
+    /// подсказывал сам SwiftUI. Теперь строки живут только в видимой части,
+    /// высота каждой измерена по содержимому, а ячейки переиспользуются —
+    /// `ChatFeedVirtualList` (`Sources/Chat/Feed/ChatFeedVirtualList.swift`).
+    /// Правила прокрутки — `ChatFeedScrollPolicy`, проверяются тестом на хосте.
     private var messageScroll: some View {
         let orderedFeed = feedItems
         let dayDividers = dayDividerTitles(orderedFeed)
@@ -1333,254 +1326,215 @@ struct RoleChatRoomScreen: View {
         // квадратичный поиск на каждое обновление живым ходом (разбор
         // 25-26.10.2026, `docs/2026-10-25-chat-window-behaviour.md`).
         let replyExcerpts = Self.replyExcerpts(from: messages)
-        return ScrollView {
-            // Обычный `VStack`, не ленивый: в окне всего 10 последних
-            // сообщений, но они длинные (22–27 тыс. pt на всё окно), и
-            // `LazyVStack` угадывал высоту невидимых. Каждый тик живой строки
-            // («Работает · N с») менял оценку, якорь низа перескакивал — лента
-            // уезжала вверх в пустоту и ездила вверх-вниз (видео владельца
-            // 07.11.2026). Без оценки высота ленты всегда настоящая.
+        let feedByID = Dictionary(orderedFeed.map { ($0.id, $0) },
+                                  uniquingKeysWith: { first, _ in first })
+        // Идентификатор строки голосового — строкой: у `VoiceMessage` он UUID.
+        let voicesByID = Dictionary(pendingVoices.map { (Self.voiceRowID($0), $0) },
+                                    uniquingKeysWith: { first, _ in first })
+        let typing = !visibleTypists.isEmpty
+        // Строка ленты — идентификатор и версия содержимого: пересобираются
+        // только строки, у которых версия сменилась.
+        var rows: [ChatFeedVirtualRow] = []
+        if messages.isEmpty || (orderedFeed.isEmpty && pendingVoices.isEmpty) {
+            rows.append(ChatFeedVirtualRow(id: Self.emptyRowID, version: roomEventRevision))
+        }
+        rows += orderedFeed.map { item in
+            ChatFeedVirtualRow(id: item.id, version: rowVersion(item))
+        }
+        rows += pendingVoices.map { item in
+            ChatFeedVirtualRow(id: Self.voiceRowID(item), version: rowVersion(pendingVoice: item))
+        }
+        if typing {
+            rows.append(ChatFeedVirtualRow(id: Self.typingRowID,
+                                           version: roomEventRevision &+ visibleTypists.count))
+        }
+        return ChatFeedVirtualList(rows: rows,
+                                   contentKey: chat.id,
+                                   handle: feedScroll,
+                                   onNearBottomChange: { chatIsNearBottom = $0 },
+                                   onScrollingChange: { chatIsScrolling = $0 },
+                                   onNearTop: { growFeedWindow() },
+                                   row: { id in
+                                       feedRow(id: id, feedByID: feedByID, voicesByID: voicesByID,
+                                               dayDividers: dayDividers,
+                                               replyExcerpts: replyExcerpts)
+                                   })
+            .tfScreenBackground()
+            .accessibilityIdentifier("chat.feed")
+            .overlay(alignment: .top) {
+                if let compactingRoleName {
+                    HStack(spacing: TFSpacing.sm) {
+                        TFLoading(.inline)
+                        Text("Сжимаю сессию «\(compactingRoleName)»…")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfChatText)
+                    }
+                    .padding(.horizontal, TFSpacing.md)
+                    .padding(.vertical, TFSpacing.sm)
+                    .background(Color.tfTile, in: Capsule())
+                    .padding(.top, TFSpacing.sm)
+                }
+            }
+            .onChange(of: contentsTargetID) { _, id in
+                guard let id else { return }
+                // Переход по оглавлению к старому сообщению: окно раскрываем до
+                // него — иначе строки в ленте ещё нет и прокручивать некуда.
+                if let index = visibleMessages.firstIndex(where: { $0.id == id }) {
+                    feedWindow = max(feedWindow, visibleMessages.count - index)
+                }
+                let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
+                Task { @MainActor in
+                    // Окно дорисовывается в этом же проходе; одну короткую
+                    // паузу даём, чтобы строка успела стать ячейкой.
+                    try? await Task.sleep(for: .milliseconds(60))
+                    feedScroll.scroll(to: feedID, anchor: .top, animated: false)
+                }
+                contentsTargetID = nil
+            }
+    }
+
+    /// Идентификаторы служебных строк ленты (не сообщения сервера).
+    private static let typingRowID = "typing-line"
+    private static let emptyRowID = "feed-empty"
+
+    /// Версия строки истории: событие по этому сообщению (сокет, отправка,
+    /// остановка) и режим выбора. Всё остальное строку не пересобирает.
+    private func rowVersion(_ item: FeedItem) -> Int {
+        var version = roomEventRevision
+        if let message = item.message {
+            version = messageEventRevisions[message.id] ?? 0
+        }
+        version = version &* 4
+        if isSelecting { version += 1 }
+        return version
+    }
+
+    private static func voiceRowID(_ message: VoiceMessage) -> String {
+        "voice-" + message.id.uuidString
+    }
+
+    private func rowVersion(pendingVoice message: VoiceMessage) -> Int {
+        var version = roomEventRevision &* 4
+        if sendingVoiceIDs.contains(message.id) { version += 2 }
+        if message.transcript == .pending { version += 1 }
+        return version
+    }
+
+    /// Одна строка ленты по её идентификатору.
+    @ViewBuilder
+    private func feedRow(id: String, feedByID: [String: FeedItem],
+                         voicesByID: [String: VoiceMessage],
+                         dayDividers: [String: String],
+                         replyExcerpts: [String: String]) -> some View {
+        if id == Self.emptyRowID {
+            emptyFeedRow
+        } else if id == Self.typingRowID {
+            typingFeedRow
+        } else if let voice = voicesByID[id] {
+            pendingVoiceRow(voice)
+        } else if let item = feedByID[id] {
             VStack(alignment: .leading, spacing: TFSpacing.md) {
-                if messages.isEmpty && hasLoadedMessages {
-                    // Личный чат с ролью: вместо пустого состояния —
-                    // приветствие роли и быстрые команды (владелец 29.10.2026,
-                    // макет `mockups/role-chat-start/`).
-                    if let starterMember {
-                        RoleChatStartView(member: starterMember,
-                                          starter: starterWithOverrides(for: starterMember),
-                                          roleSummary: roleSummary(for: starterMember),
-                                          onCommand: { prompt in
-                            draft = prompt
-                            composerFocused = true
-                          },
-                                          onEditCommand: { index in
-                                            editedQuickActionIndex = index
-                                          },
-                                          isEditingCommands: isEditingQuickActions,
-                                          onToggleEditing: {
-                                            isEditingQuickActions.toggle()
-                                          })
-                        .hintAnchor(HintAnchorID.chatRoleStart)
+                if let title = dayDividers[item.id] {
+                    ChatFeedDivider(title: title)
+                }
+                if let slot = item.liveSlot {
+                    // Текст хода читает строка хода, а не экран: порция ответа
+                    // перерисовывает только её. Доигрывающий ход — в ТОЙ ЖЕ
+                    // ветке, иначе очередь печати терялась и ответ выпадал
+                    // целиком (владелец 06.11.2026).
+                    RoleChatLiveSlotView(store: liveStore, slot: slot,
+                                         completing: item.completingTurn) { turn in
+                        liveTurnRow(turn, replyExcerpts: replyExcerpts)
+                    }
+                } else if let pending = item.pending {
+                    outgoingRow(pendingMessage(pending), pending: pending,
+                                replyExcerpts: replyExcerpts)
+                } else if let message = item.message {
+                    if isOutgoingRow(item) {
+                        outgoingRow(message, pending: nil, replyExcerpts: replyExcerpts)
                     } else {
-                        TFEmptyState(
-                            icon: "bubble.left",
-                            text: "Пока нет сообщений",
-                            description: "Напишите первое сообщение."
-                        )
-                    }
-                } else if messages.isEmpty {
-                    TFLoading(.block)
-                        .accessibilityLabel("Загрузка сообщений")
-                }
-                // Перед первым сообщением нового дня — полоса с датой
-                // («когда заканчивается день», владелец 03.10.2026).
-                // Один элемент ленты — одна вью: полоса даты и строка лежат в
-                // общем контейнере, иначе LazyVStack ошибается в оценке высот
-                // и лента дёргается при прокрутке вверх (27.10.2026).
-                ForEach(orderedFeed) { item in
-                    VStack(alignment: .leading, spacing: TFSpacing.md) {
-                        if let title = dayDividers[item.id] {
-                            ChatFeedDivider(title: title)
-                        }
-                        if let slot = item.liveSlot {
-                            // Текст хода читает строка хода, а не экран:
-                            // порция ответа перерисовывает только её.
-                            // Доигрывающий ход — в ТОЙ ЖЕ ветке: отдельная
-                            // ветка давала SwiftUI новую вью, очередь печати
-                            // терялась, и пришедший ответ выпадал целиком
-                            // (владелец 06.11.2026: «всё сразу ляпнулось»).
-                            RoleChatLiveSlotView(store: liveStore, slot: slot,
-                                                 completing: item.completingTurn) { turn in
-                                liveTurnRow(turn, replyExcerpts: replyExcerpts)
-                            }
-                        } else if let pending = item.pending {
-                            outgoingRow(pendingMessage(pending), pending: pending,
-                                        replyExcerpts: replyExcerpts)
-                        } else if let message = item.message {
-                            if isOutgoingRow(item) {
-                                outgoingRow(message, pending: nil, replyExcerpts: replyExcerpts)
-                            } else {
-                                messageRow(message, replyExcerpts: replyExcerpts)
-                            }
-                        }
-                    }
-                    .id(item.id)
-                }
-                // Владелец 26.09.2026: плашки быстрых ответов должны
-                // крепиться к сообщению роли, а не болтаться отдельным
-                // оверлеем над полем ввода — переехали в саму ленту,
-                // сразу под последним сообщением, и скроллятся вместе с
-                // перепиской.
-                //
-                // 26.10.2026: плашка рисуется у СВОЕГО сообщения (в
-                // `flatReplyRow`), а не отдельной строкой в конце ленты:
-                // раньше проверка «последнее видимое сообщение» гасила
-                // варианты, когда следом лежало служебное сообщение, —
-                // вопрос стоял, а кнопок не было.
-                ForEach(pendingVoices) { message in
-                    VStack(alignment: .trailing, spacing: 4) {
-                        // Ещё не отправленное голосовое: имя и иконка
-                        // берутся из текущей сессии — сообщения с
-                        // сервера для него пока нет.
-                        VoiceMessageBubble(
-                            message: message,
-                            player: player,
-                            style: RoleChatVoiceStyle.own,
-                            header: AnyView(ownSenderLine)
-                        )
-                        if sendingVoiceIDs.contains(message.id) { TFLoading(.inline) }
-                        else if message.transcript != .pending {
-                            Button("Повторить отправку") { Task { await sendVoice(message.id) } }
-                                .tfText(.meta)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .id(message.id)
-                }
-                if !visibleTypists.isEmpty {
-                    if chat.kind != "group", let onlyUserID = visibleTypists.keys.first,
-                       let tool = typingTool(onlyUserID) {
-                        RoleStepLine(name: visibleTypists[onlyUserID] ?? "Роль", tool: tool)
-                            .id("typing-line")
-                    } else {
-                        RoleChatTypingLine(names: visibleTypists.values.sorted())
-                            .id("typing-line")
+                        messageRow(message, replyExcerpts: replyExcerpts)
                     }
                 }
             }
-            // Боковые отступы — внутри ленты, а не полями прокрутки: кнопка
-            // «вниз» (`scrollTo(edge: .bottom)`) сдвигала ленту и по
-            // горизонтали в ноль, мимо поля, — текст прилипал к левому краю
-            // (владелец 07.11.2026, скрин).
-            .padding(.horizontal, TFSpacing.lg)
-            .scrollTargetLayout()
-            // Никакой анимации на контейнер ленты: `animation(_:value:)` на
-            // `LazyVStack` применяется ко ВСЕМУ поддереву, включая вставку
-            // живой строки и рост её высоты. Строка «печатает…» исчезает ровно
-            // в том апдейте, где появляется пузырь, пружина не успевает доехать
-            // до следующей дельты (150 мс) и перецеливается — лента шатается
-            // вверх-вниз (владелец 30.10.2026, ревью ленты п.1.1).
         }
-        .contentMargins(.vertical, TFSpacing.lg, for: .scrollContent)
-        // Якорь у привязки позиции не задан: «быть у низа» держит один
-        // `defaultScrollAnchor`, а не два механизма сразу. Два спорили между
-        // собой на каждом кадре роста ответа — лента ездила вниз-вверх
-        // (владелец 30.10.2026).
-        .scrollPosition($chatScrollPosition)
-        .scrollDismissesKeyboard(.interactively)
-        .defaultScrollAnchor(.bottom, for: .initialOffset)
-        .defaultScrollAnchor(.bottom, for: .alignment)
-        // Лента держится за низ, пока владелец сам не отлистал вверх.
-        // Признак меняется только от его прокрутки, а не от роста ответа:
-        // иначе привязка мигала и низ дёргался (владелец 30.10.2026).
-        .defaultScrollAnchor(chatFollowsBottom ? .bottom : nil, for: .sizeChanges)
-        .swipeBackEnabled()
-        .tfScreenBackground()
-        .contentShape(Rectangle())
-        .onTapGesture { composerFocused = false }
-        .accessibilityIdentifier("chat.feed")
-        .tfSoftBottomScrollEdge()
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentSize.height - geometry.visibleRect.maxY <= 80
-        } action: { _, nearBottom in
-            // Observation only: this does not issue any scroll commands.
-            chatIsNearBottom = nearBottom
-            // Привязку к низу меняет только рука владельца. Рост ответа тоже
-            // сдвигает геометрию, но «на миг не у низа» — не повод отпустить
-            // низ (владелец 30.10.2026).
-            if chatScrollPhase == .tracking || chatScrollPhase == .interacting
-                || chatScrollPhase == .decelerating {
-                chatFollowsBottom = nearBottom
+    }
+
+    @ViewBuilder
+    private var emptyFeedRow: some View {
+        if hasLoadedMessages {
+            // Личный чат с ролью: вместо пустого состояния — приветствие роли и
+            // быстрые команды (владелец 29.10.2026, макет
+            // `mockups/role-chat-start/`).
+            if let starterMember {
+                RoleChatStartView(member: starterMember,
+                                  starter: starterWithOverrides(for: starterMember),
+                                  roleSummary: roleSummary(for: starterMember),
+                                  onCommand: { prompt in
+                    draft = prompt
+                    composerFocused = true
+                },
+                                  onEditCommand: { index in
+                    editedQuickActionIndex = index
+                },
+                                  isEditingCommands: isEditingQuickActions,
+                                  onToggleEditing: {
+                    isEditingQuickActions.toggle()
+                })
+                .hintAnchor(HintAnchorID.chatRoleStart)
+            } else {
+                TFEmptyState(
+                    icon: "bubble.left",
+                    text: "Пока нет сообщений",
+                    description: "Напишите первое сообщение."
+                )
+            }
+        } else {
+            TFLoading(.block)
+                .accessibilityLabel("Загрузка сообщений")
+        }
+    }
+
+    @ViewBuilder
+    private var typingFeedRow: some View {
+        if chat.kind != "group", let onlyUserID = visibleTypists.keys.first,
+           let tool = typingTool(onlyUserID) {
+            RoleStepLine(name: visibleTypists[onlyUserID] ?? "Роль", tool: tool)
+        } else {
+            RoleChatTypingLine(names: visibleTypists.values.sorted())
+        }
+    }
+
+    /// Ещё не отправленное голосовое: имя и иконка берутся из текущей сессии —
+    /// сообщения с сервера для него пока нет.
+    @ViewBuilder
+    private func pendingVoiceRow(_ message: VoiceMessage) -> some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            VoiceMessageBubble(
+                message: message,
+                player: player,
+                style: RoleChatVoiceStyle.own,
+                header: AnyView(ownSenderLine)
+            )
+            if sendingVoiceIDs.contains(message.id) {
+                TFLoading(.inline)
+            } else if message.transcript != .pending {
+                Button("Повторить отправку") { Task { await sendVoice(message.id) } }
+                    .tfText(.meta)
             }
         }
-        .onScrollPhaseChange { _, phase in
-            chatScrollPhase = phase
-        }
-        // Дорисовка старых сообщений вверх (владелец 08.11.2026: «нет у этого
-        // дозагруза, они просто как бы удалились»). Раньше её запускал
-        // `onAppear` однопиксельной полоски вверху ленты, но лента с 07.11 —
-        // обычный `VStack`: все строки монтируются сразу, полоска «появлялась»
-        // один раз при открытии (фаза `.idle`, guard её отбрасывал) и больше
-        // никогда. Поэтому смотрим на геометрию: она меняется на каждый сдвиг.
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            // Верх содержимого близко к видимой области.
-            geometry.contentOffset.y + geometry.contentInsets.top <= 300
-        } action: { _, nearTop in
-            guard nearTop else { return }
-            // Дорисовываем только под рукой владельца: при открытии короткого
-            // чата верх виден сразу, и автодорисовка увозила ленту от низа
-            // (07.11.2026).
-            let scrolling = chatScrollPhase == .tracking || chatScrollPhase == .interacting
-                || chatScrollPhase == .decelerating
-            let hidden = visibleMessages.count - feedWindow
-            guard RoleChatFeedWindow.shouldGrow(hidden: hidden, nearTop: nearTop, scrolling: scrolling)
-            else { return }
-            // Дорисовали — остаёмся на том же сообщении, лента не прыгает.
-            let keep = feedItems.first?.id
-            feedWindow = RoleChatFeedWindow.grown(window: feedWindow)
-            if let keep { chatScrollPosition.scrollTo(id: keep, anchor: .top) }
-        }
-        .onScrollGeometryChange(for: [Int].self) { g in
-            [Int(g.contentSize.height), Int(g.visibleRect.maxY), Int(g.contentOffset.y), Int(g.containerSize.height)]
-        } action: { _, v in
-            guard Date() < scrollLogUntil else { return }
-            ClientLog.shared.add("scroll content=\(v[0]) visible_max=\(v[1]) below=\(v[0] - v[1]) offset=\(v[2]) viewport=\(v[3]) phase=\(chatScrollPhase) follows=\(chatFollowsBottom) rows=\(feedItems.count)")
-        }
-        #if DEBUG
-        .onScrollGeometryChange(for: ChatScrollGeometry.self) { geometry in
-            ChatScrollGeometry(offsetY: Double(geometry.contentOffset.y),
-                               contentHeight: Double(geometry.contentSize.height),
-                               viewportHeight: Double(geometry.containerSize.height),
-                               visibleMaxY: Double(geometry.visibleRect.maxY),
-                               offsetX: Double(geometry.contentOffset.x),
-                               contentWidth: Double(geometry.contentSize.width),
-                               viewportWidth: Double(geometry.containerSize.width))
-        } action: { _, geometry in
-            chatScrollTrace.record(geometry, rowIDs: orderedFeed.map(\.id),
-                liveTurnCount: visibleLiveRows.count, nearBottom: chatIsNearBottom,
-                positionedByUser: chatScrollPosition.isPositionedByUser)
-        }
-        .onDisappear { chatScrollTrace.flush() }
-        // Контекст замеров: фаза прокрутки (сдвиг в idle — не жест),
-        // клавиатура и фокус поля ввода (владелец 27.10.2026).
-        .onScrollPhaseChange { _, phase in
-            chatScrollTrace.update({ $0.phase = String(describing: phase) }, event: "phase")
-        }
-        .onChange(of: composerFocused) { _, focused in
-            chatScrollTrace.update({ $0.composerFocused = focused }, event: "focus")
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
-            let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect) ?? .zero
-            let screen = note.object as? UIScreen
-            let height = screen.map { max(0, $0.bounds.maxY - frame.minY) } ?? frame.height
-            chatScrollTrace.update({ $0.keyboardHeight = Double(height) }, event: "keyboard")
-        }
-        #endif
-        .overlay(alignment: .top) {
-            if let compactingRoleName {
-                HStack(spacing: TFSpacing.sm) {
-                    TFLoading(.inline)
-                    Text("Сжимаю сессию «\(compactingRoleName)»…")
-                        .tfText(.meta)
-                        .foregroundStyle(Color.tfChatText)
-                }
-                .padding(.horizontal, TFSpacing.md)
-                .padding(.vertical, TFSpacing.sm)
-                .background(Color.tfTile, in: Capsule())
-                .padding(.top, TFSpacing.sm)
-            }
-        }
-        .onChange(of: contentsTargetID) { _, id in
-            guard let id else { return }
-            // Переход по оглавлению к старому сообщению: окно раскрываем до него.
-            if let index = visibleMessages.firstIndex(where: { $0.id == id }) {
-                feedWindow = max(feedWindow, visibleMessages.count - index)
-            }
-            let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
-            chatScrollPosition.scrollTo(id: feedID, anchor: .top)
-            chatFollowsBottom = false
-            contentsTargetID = nil
-        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    /// Дорисовать старые сообщения. Решение — `RoleChatFeedWindow` (08.11.2026):
+    /// только под рукой владельца и только когда над окном есть скрытые.
+    private func growFeedWindow() {
+        let hidden = visibleMessages.count - feedWindow
+        guard RoleChatFeedWindow.shouldGrow(hidden: hidden, nearTop: true,
+                                            scrolling: chatIsScrolling) else { return }
+        // Старые строки появляются НАД видимой частью: коллекция сама
+        // компенсирует смещение, лента не прыгает.
+        feedWindow = RoleChatFeedWindow.grown(window: feedWindow)
     }
 
     /// Живой ход виден и в группе: у каждого ответа своя подпись роли.
@@ -2809,17 +2763,10 @@ struct RoleChatRoomScreen: View {
                                       attachments: pendingAttachments, mode: workMode, executionMode: chat.composerExecutionMode)
         draft = ""
         pendingAttachments = []
-        // Вставка пузыря — без анимации и без отдельной команды прокрутки:
-        // низ держит `defaultScrollAnchor`, и он же доводит ленту после того,
-        // как строка встала. Раньше здесь одной транзакцией включалось
-        // удержание низа И вызывался `scrollTo(edge: .bottom)` по геометрии ДО
-        // вставки строки: два механизма тянули offset в разные точки, и лента
-        // дёргалась в начале каждого ответа (ревью ленты п.1.2).
-        #if DEBUG
-        chatScrollTrace.event("send")
-        #endif
-        chatFollowsBottom = true
-        scrollLogUntil = Date().addingTimeInterval(6)
+        // Отправил — лента идёт к низу: своё сообщение должно попасть в кадр.
+        // Низ держит сама таблица ленты (`followsBottom`), отдельного механизма
+        // прокрутки рядом нет: два механизма спорили за offset (30.10.2026).
+        feedScroll.scrollToBottom()
         ClientLog.shared.add("chat=\(chat.id) send")
         pendingOutgoing.append(pending)
         await deliver(pending.id)
