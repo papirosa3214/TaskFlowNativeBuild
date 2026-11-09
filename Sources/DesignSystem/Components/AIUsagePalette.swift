@@ -26,17 +26,27 @@ enum AIUsagePalette {
         return colors[index % colors.count]
     }
 
-    /// Двухбуквенная метка провайдера, если логотипа нет или он не подошёл.
+    /// Ассет с официальным знаком провайдера. `nil` — логотипа нет, рисуем
+    /// инициалы: у неизвестного провайдера пустое место хуже букв.
+    static func providerAsset(_ provider: String) -> String? {
+        switch provider.lowercased() {
+        case "anthropic", "claude": return "ProviderAnthropic"
+        case "openai", "openai-codex": return "ProviderOpenAI"
+        case "google", "google-ai", "googlegemini", "gemini": return "ProviderGoogleGemini"
+        case "deepseek", "opencode-go": return "ProviderDeepSeek"
+        case "minimax": return "ProviderMiniMax"
+        case "ollama": return "ProviderOllama"
+        case "opencode": return "ProviderOpenCode"
+        case "xai", "x-ai": return "ProviderXAI"
+        default: return nil
+        }
+    }
+
+    /// Двухбуквенная метка — только когда логотипа нет.
     static func providerInitials(_ provider: String) -> String {
         switch provider.lowercased() {
-        case "anthropic": return "An"
-        case "openai": return "OA"
-        case "google", "google-ai": return "G"
-        case "deepseek": return "DS"
-        case "minimax": return "MM"
-        case "opencode": return "OC"
-        case "ollama": return "OL"
-        case "local": return "∅"
+        case "omniroute": return "OR"
+        case "local": return "LOC"
         default: return String(provider.prefix(2)).uppercased()
         }
     }
@@ -58,18 +68,27 @@ enum AIUsagePalette {
 }
 
 /// Маленький круглый значок провайдера рядом с названием модели.
-/// Логотипа в бандле нет — рисуем инициалы в цвете провайдера: пустое место
-/// рядом с моделью было бы хуже, чем буквы.
+/// Приоритет: официальный логотип из бандла → инициалы в цвете провайдера.
 struct AIUsageProviderBadge: View {
     let provider: String
     var size: CGFloat = 16
 
     var body: some View {
-        Text(AIUsagePalette.providerInitials(provider))
-            .font(.system(size: size * 0.5, weight: .bold)) // design-system-guard: ignore — значок, не текст экрана
-            .foregroundStyle(Color.tfPaper)
-            .frame(width: size, height: size)
-            .background(AIUsagePalette.providerColor(provider), in: Circle())
-            .accessibilityLabel(provider)
+        if let asset = AIUsagePalette.providerAsset(provider) {
+            Image(asset)
+                .resizable()
+                .scaledToFit()
+                .padding(size * 0.18)
+                .frame(width: size, height: size)
+                .background(Color.tfPaper, in: Circle())
+                .accessibilityLabel(provider)
+        } else {
+            Text(AIUsagePalette.providerInitials(provider))
+                .font(.system(size: size * 0.42, weight: .bold)) // design-system-guard: ignore — значок, не текст экрана
+                .foregroundStyle(Color.tfPaper)
+                .frame(width: size, height: size)
+                .background(AIUsagePalette.providerColor(provider), in: Circle())
+                .accessibilityLabel(provider)
+        }
     }
 }
