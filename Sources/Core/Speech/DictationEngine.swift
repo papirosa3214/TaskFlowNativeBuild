@@ -77,8 +77,46 @@ public final class DictationEngine {
         }
     }
 
+    /// Где распознаём запись (просьба владельца 09.11.2026: «прокинуть этот
+    /// виспер мне на телефон… галочку поставь локальный, либо сервера виспер
+    /// использовать чтобы я попробовал протестил»). Телефон — Parakeet на ANE,
+    /// офлайн и без сети. Сервер — whisper large-v3-turbo на видеокарте `.110`
+    /// через `POST /api/audio/transcribe`: аудио уходит на сервер, текст
+    /// возвращается готовым (тонкий клиент, ни разбора, ни нормализации тут).
+    public enum Source: String, CaseIterable, Identifiable, Sendable {
+        case onDevice
+        case server
+
+        public var id: String { rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .onDevice: "Телефон"
+            case .server: "Сервер"
+            }
+        }
+
+        public var note: String {
+            switch self {
+            case .onDevice: "Parakeet, работает офлайн"
+            case .server: "whisper на видеокарте .110, нужна сеть"
+            }
+        }
+
+        /// Развёрнутое описание для развёрнутой строки настроек.
+        public var detail: String {
+            switch self {
+            case .onDevice:
+                "Распознаёт Parakeet TDT v3 на телефоне. Интернет не нужен, аудио с устройства не уходит."
+            case .server:
+                "Аудио уходит на сервер TaskFlow и распознаётся whisper large-v3-turbo на видеокарте `.110`. Нужна связь с сервером; задержка зависит от сети."
+            }
+        }
+    }
+
     private static let selectedModelKey = "dictation.selectedModel"
     private static let enabledKey = "dictation.isEnabled"
+    private static let sourceKey = "dictation.source"
 
     /// Выбранная модель переживает перезапуск: выбор владельца не должен
     /// сбрасываться к v3 при каждом входе в настройки.
@@ -86,6 +124,9 @@ public final class DictationEngine {
     /// Диктовка на устройстве вкл/выкл. Выключена — микрофон не пишет вовсе,
     /// приложение не трогает модель (и не докачивает её втихую).
     public private(set) var isEnabled: Bool
+    /// Источник распознавания переживает перезапуск — выбор владельца не
+    /// должен сбрасываться к телефону при каждом входе в настройки.
+    public private(set) var source: Source
 
     public private(set) var modelState: ModelState = .unknown
     public private(set) var recordingState: RecordingState = .idle
@@ -113,6 +154,8 @@ public final class DictationEngine {
         let raw = UserDefaults.standard.string(forKey: Self.selectedModelKey) ?? ""
         selectedModel = ModelChoice(rawValue: raw) ?? .v3
         isEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
+        let storedSource = UserDefaults.standard.string(forKey: Self.sourceKey) ?? ""
+        source = Source(rawValue: storedSource) ?? .onDevice
         refreshModelState()
     }
 
@@ -132,6 +175,16 @@ public final class DictationEngine {
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: Self.enabledKey)
         if !enabled { cancelRecording() }
+    }
+
+    /// Переключение источника распознавания. Запись, начатая на одном
+    /// источнике, не переносится на другой: смена во время записи её отменяет.
+    public func selectSource(_ newSource: Source) {
+        guard newSource != source else { return }
+        cancelRecording()
+        source = newSource
+        UserDefaults.standard.set(newSource.rawValue, forKey: Self.sourceKey)
+        showFeedback("Распознавание: \(newSource.displayName.lowercased())")
     }
 
     /// Замена модели: сохраняем выбор, снимаем старые веса из памяти (они не
@@ -234,7 +287,9 @@ public final class DictationEngine {
             recordingState = .failed("Нет доступа к микрофону — разрешите в Настройках iOS")
             return
         }
-        if asrManager == nil {
+        // Серверный источник модель в телефоне не трогает: ни качает, ни греет.
+        // Иначе первая же серверная диктовка тянула бы веса Parakeet впустую.
+        if source == .onDevice, asrManager == nil {
             await downloadModelIfNeeded()
             guard asrManager != nil else { return }
         }
@@ -266,7 +321,20 @@ public final class DictationEngine {
         guard recordingState == .recording else { return nil }
         let buffer = recorder.stop()
         currentLevel = 0
-        guard let buffer, buffer.frameLength > 0, let asrManager, decoderState != nil else {
+        guard let buffer, buffer.frameLength > 0 else {
+            recordingState = .idle
+            return nil
+        }
+        if source == .server {
+            recordingState = .transcribing
+            defer { recordingState = .idle }
+            let text = await transcribeOnServer(buffer)
+            if let text {
+                DictationLog.addEntry(engine: "server", raw: text, normalized: text)
+            }
+            return text
+        }
+        guard let asrManager, decoderState != nil else {
             recordingState = .idle
             return nil
         }
@@ -277,11 +345,85 @@ public final class DictationEngine {
             let result = try await asrManager.transcribe(buffer, decoderState: &state, language: .russian)
             decoderState = state
             let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            DictationLog.addEntry(engine: "parakeet", raw: text, normalized: text)
+            return text
+        } catch {
+            recordingState = .failed(Self.message(error))
+            return nil
+        }
+    }
+
+    // MARK: - Распознавание на сервере
+
+    private struct ServerTranscript: Decodable { let text: String }
+
+    /// Запись уходит на сервер сырыми байтами WAV и возвращается текстом.
+    /// Разбора текста и нормализации здесь нет намеренно: по правилу тонкого
+    /// клиента это делает сервер (см. `server/src/routes/transcribe.ts`).
+    private func transcribeOnServer(_ buffer: AVAudioPCMBuffer) async -> String? {
+        guard let wav = Self.wavData(from: buffer) else {
+            recordingState = .failed("Не удалось подготовить запись")
+            return nil
+        }
+        do {
+            let response: ServerTranscript = try await APIClient().uploadRaw(
+                path: "/audio/transcribe",
+                query: [],
+                data: wav,
+                mime: "audio/wav"
+            )
+            let text = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : text
         } catch {
             recordingState = .failed(Self.message(error))
             return nil
         }
+    }
+
+    /// PCM из буфера записи в контейнер WAV (16 бит, моно): серверный ASR
+    /// принимает сырые байты и разбирает их ffmpeg — без контейнера он не
+    /// поймёт, что это за звук. Частота не пересчитывается: 48 кГц с микрофона
+    /// ffmpeg приводит к 16 кГц сам, дублировать ресемплинг здесь незачем.
+    static func wavData(from buffer: AVAudioPCMBuffer) -> Data? {
+        guard let channels = buffer.floatChannelData else { return nil }
+        let frames = Int(buffer.frameLength)
+        guard frames > 0 else { return nil }
+        let sampleRate = UInt32(buffer.format.sampleRate)
+        let sampleCount = frames
+        let byteCount = sampleCount * 2
+
+        var data = Data(capacity: 44 + byteCount)
+        func append(_ value: UInt32) {
+            var little = value.littleEndian
+            withUnsafeBytes(of: &little) { data.append(contentsOf: $0) }
+        }
+        func append(_ value: UInt16) {
+            var little = value.littleEndian
+            withUnsafeBytes(of: &little) { data.append(contentsOf: $0) }
+        }
+        data.append(contentsOf: Array("RIFF".utf8))
+        append(UInt32(36 + byteCount))
+        data.append(contentsOf: Array("WAVE".utf8))
+        data.append(contentsOf: Array("fmt ".utf8))
+        append(UInt32(16))            // размер блока fmt
+        append(UInt16(1))             // PCM
+        append(UInt16(1))             // моно
+        append(sampleRate)
+        append(sampleRate * 2)        // байт в секунду
+        append(UInt16(2))             // байт на кадр
+        append(UInt16(16))            // бит на сэмпл
+        data.append(contentsOf: Array("data".utf8))
+        append(UInt32(byteCount))
+
+        let samples = channels[0]
+        var pcm = [Int16](repeating: 0, count: sampleCount)
+        for index in 0..<sampleCount {
+            let clamped = max(-1, min(1, samples[index]))
+            pcm[index] = Int16((clamped * 32767).rounded())
+        }
+        pcm.withUnsafeBytes { data.append(contentsOf: $0) }
+        return data
     }
 
     public func cancelRecording() {

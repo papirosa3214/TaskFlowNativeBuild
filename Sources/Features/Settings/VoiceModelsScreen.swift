@@ -189,6 +189,32 @@ struct VoiceModelsScreen: View {
                     if expandedRow == .speech {
                         speechDescription
                     }
+
+                    // Где распознаём запись (просьба владельца 09.11.2026):
+                    // телефон или серверный whisper на `.110`. Тап по строке
+                    // открывает системное меню с галочкой — отдельного
+                    // тумблера не заводим, как и у замены модели выше.
+                    TFDivider(inset: 0)
+                    Menu {
+                        ForEach(DictationEngine.Source.allCases) { source in
+                            Button {
+                                dictation.selectSource(source)
+                            } label: {
+                                if source == dictation.source {
+                                    Label(source.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text("\(source.displayName) — \(source.note)")
+                                }
+                            }
+                        }
+                    } label: {
+                        VoiceModelRow(
+                            icon: "waveform",
+                            title: "Где распознавать",
+                            subtitle: dictation.source.detail,
+                            value: dictation.source.displayName
+                        )
+                    }
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
