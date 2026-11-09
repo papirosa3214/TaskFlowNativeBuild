@@ -46,7 +46,9 @@ final class RoleActionPresentationTests: XCTestCase {
     }
     func testKnowledgeAndTrackerRemainDistinct() {
         XCTAssertEqual(RoleActionPresentation.forTool("taskflow_kb_search").title, "База знаний")
-        XCTAssertEqual(RoleActionPresentation.forTool("taskflow_recall").title, "Память")
+        XCTAssertEqual(RoleActionPresentation.forTool("taskflow_recall").title, "Поиск в памяти Mnemosyne")
+        XCTAssertEqual(RoleActionPresentation.forTool("mcp__taskflow__recall").title, "Поиск в памяти Mnemosyne")
+        XCTAssertEqual(RoleActionPresentation.forTool("taskflow_remember").title, "Память")
         XCTAssertEqual(RoleActionPresentation.forTool("taskflow_doc_read").title, "Документация")
         XCTAssertEqual(RoleActionPresentation.forTool("taskflow_taskflow_agents").title, "Трекер")
     }
