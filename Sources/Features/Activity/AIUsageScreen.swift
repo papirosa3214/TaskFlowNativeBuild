@@ -35,6 +35,7 @@ struct AIUsageScreen: View {
                     } else {
                         modelsSection(usage)
                     JevUsageSection(window: jevWindow)
+                    OpenCodeUsageSection(window: window)
                     }
                     Text("Учтены сохранённые ответы моделей ролям TaskFlow. Это не расход всего аккаунта провайдера. Стоимость — тарифная оценка SDK, а не списание с подписки; баланс и стоимость подписки здесь не учитываются.")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
