@@ -35,7 +35,7 @@ public struct KnowledgeAskSheet: View {
                         Task { await viewModel.ask() }
                     } label: {
                         if viewModel.isAsking {
-                            ProgressView()
+                            TFLoading(.inline)
                         } else {
                             Text("Спросить")
                         }

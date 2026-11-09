@@ -97,7 +97,7 @@ public struct KnowledgeDatasetScreen: View {
         ) { result in
             Task { await handleFile(result) }
         }
-        .sheet(isPresented: $isAskOpen) {
+        .tfSheet(isPresented: $isAskOpen) {
             KnowledgeAskSheet(datasets: [dataset], preselecting: dataset.id)
         }
         .confirmationDialog(

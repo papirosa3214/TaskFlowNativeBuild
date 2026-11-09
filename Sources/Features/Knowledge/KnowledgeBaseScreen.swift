@@ -47,13 +47,13 @@ public struct KnowledgeBaseScreen: View {
         .tfNativeHeader("База знаний", displayMode: .large)
         .task { await viewModel.load() }
         .toolbar { toolbarContent }
-        .sheet(isPresented: $isAskOpen) {
+        .tfSheet(isPresented: $isAskOpen) {
             KnowledgeAskSheet(
                 datasets: viewModel.datasets.filter(\.isEnabled),
                 preselecting: nil
             )
         }
-        .sheet(item: $sectionEditor) { state in
+        .tfSheet(item: $sectionEditor) { state in
             KnowledgeSectionEditorSheet(state: state) { title in
                 guard let title else { return }
                 if let section = state.section {
@@ -63,7 +63,7 @@ public struct KnowledgeBaseScreen: View {
                 }
             }
         }
-        .sheet(item: $rolesEditor) { dataset in
+        .tfSheet(item: $rolesEditor) { dataset in
             KnowledgeRolesSheet(
                 dataset: dataset,
                 roles: viewModel.roles
@@ -263,7 +263,8 @@ public struct KnowledgeBaseScreen: View {
             Menu {
                 Button("Спросить базу") { isAskOpen = true }
                 Button("Новый раздел") { sectionEditor = SectionEditorState(section: nil, title: "") }
-                Toggle("Показать исключённые", isOn: $showDisabled)
+                TFToggle(isOn: $showDisabled)
+                    .accessibilityLabel("Показать исключённые")
                 Divider()
                 NavigationLink("Заметки TaskFlow") {
                     routeDestination(.notes)
