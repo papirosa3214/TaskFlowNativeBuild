@@ -49,12 +49,12 @@ public extension APIClient {
     func uploadAgentAvatar(id: String, data: Data, mime: String, variant: String? = nil) async throws -> AvatarUploadResponse {
         var query: [URLQueryItem] = []
         if let variant { query.append(URLQueryItem(name: "variant", value: variant)) }
-        return try await uploadRaw(path: "/avatars/\(id)", query: query, data: data, mime: mime)
+        return try await uploadRaw(path: "/users/\(id)/avatar", query: query, data: data, mime: mime)
     }
 
     func deleteAgentAvatar(id: String, variant: String? = nil) async throws {
         var query: [URLQueryItem] = []
         if let variant { query.append(URLQueryItem(name: "variant", value: variant)) }
-        let _: APIOkResponse = try await request(.delete, "/avatars/\(id)", query: query)
+        let _: APIOkResponse = try await request(.delete, "/users/\(id)/avatar", query: query)
     }
 }

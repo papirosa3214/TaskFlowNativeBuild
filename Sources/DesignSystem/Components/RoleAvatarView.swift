@@ -19,6 +19,17 @@ struct RoleAvatarView: View {
         return TFAvatar.fullURL(path)
     }
 
+    /// Своё фото, выбранное в редакторе портрета и лежащее в файлах телефона
+    /// (`AvatarCrop`). Раньше его видел только сам редактор: отсюда рисовался
+    /// вшитый портрет, и владелец видел «в настройках сохранилось, а нигде не
+    /// отображается» (09.11.2026). Локальное фото главнее и серверного, и
+    /// вшитого — его выбирали последним.
+    private var localPhoto: URL? {
+        guard let role, let name = AvatarCrop.value(for: role).photo else { return nil }
+        let url = AvatarCrop.photoURL(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     /// Своё фото, поставленное владельцем из приложения. Отличаем его от
     /// авто-иконки внешнего агента по имени файла: авто-иконки сервер
     /// называет `agent-<рантайм>-<хэш>.svg`, а загруженное фото — уникальным
@@ -32,7 +43,16 @@ struct RoleAvatarView: View {
 
     var body: some View {
         Group {
-            if let ownerPhotoURL {
+            if localPhoto != nil, let role {
+                // Кадрирование, форму и масштаб применяет сам портрет — поэтому
+                // рисуем через него, а не голой картинкой.
+                TFRolePortrait(
+                    role: role,
+                    imageAsset: RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) ?? "",
+                    loopName: nil,
+                    side: size
+                )
+            } else if let ownerPhotoURL {
                 // Своё фото владельца — главнее всего остального.
                 AnimatedImage(url: ownerPhotoURL, placeholder: { Circle().fill(tint) })
                     .resizable()
