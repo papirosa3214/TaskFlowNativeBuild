@@ -1,0 +1,24 @@
+[
+ {
+  "shape": "app screen",
+  "theme": "rim",
+  "scope": "app",
+  "axes": "dark/grotesk-sans/warm",
+  "hero": "n/a",
+  "nav": "chat|cards + settings",
+  "signature": "collaboration graph with UTC lease",
+  "imagery": "product built",
+  "photos": [],
+  "entry": "desktop shell vision",
+  "fingerprint": "taskflow-desktop-rim",
+  "sections": [
+   "chat",
+   "cards",
+   "settings"
+  ],
+  "waived": [],
+  "prompt": "TaskFlow desktop three screens",
+  "date": "2026-11-03",
+  "mode": "build"
+ }
+]

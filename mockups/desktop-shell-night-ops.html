@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TaskFlow Desk — Night Ops</title>
+<meta name="description" content="Desktop shell vision: talk as home, conveyor floor, equipment bay. Broadcast-desk composition." />
+<link rel="stylesheet" href="fonts/fonts.css" />
+<style>
+:root {
+  --chassis: #07080a;
+  --recess: #0e1014;
+  --panel: #14171c;
+  --panel-2: #1a1e25;
+  --lip: rgba(255,255,255,0.055);
+  --lip-strong: rgba(255,255,255,0.10);
+  --shade: rgba(0,0,0,0.55);
+  --ink: #e8e2d6;
+  --ink-soft: #b7b0a3;
+  --mute: #6f6a60;
+  --amber: #f0a020;
+  --amber-ink: #1a1004;
+  --amber-glow: rgba(240,160,32,0.22);
+  --mint: #6ed8a0;
+  --steel: #8aa4b8;
+  --danger: #e45a3c;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:transparent;color:var(--ink);font-family:var(--serif);overflow-x:clip}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+.desk{
+  max-width:1420px;margin:0 auto;min-height:900px;
+  display:grid;grid-template-rows:auto auto 1fr;
+  background:
+    radial-gradient(1200px 500px at 70% -10%, rgba(240,160,32,0.05), transparent 55%),
+    linear-gradient(180deg, #0b0c0f, var(--chassis));
+  border:1px solid var(--lip-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 30px 90px rgba(0,0,0,.6);
+  position:relative;
+  overflow:clip;
+}
+.desk::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.035;z-index:5;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* —— titlebar: thin chassis lip —— */
+.titlebar{
+  display:grid;grid-template-columns:minmax(160px,1fr) auto minmax(160px,1fr);
+  align-items:center;gap:18px;padding:8px 14px 8px 16px;
+  background:linear-gradient(180deg, #161920, var(--recess));
+  border-bottom:1px solid var(--lip);
+  position:relative;z-index:2;
+}
+.brand{
+  display:flex;align-items:baseline;gap:10px;
+  font-family:var(--display);font-weight:700;font-size:18px;
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.brand .mark{
+  width:9px;height:9px;background:var(--amber);
+  box-shadow:0 0 0 3px var(--amber-glow); flex:none;
+}
+.brand .sub{
+  font-family:var(--mono);font-size:10px;font-weight:400;
+  letter-spacing:.02em;text-transform:none;color:var(--mute);
+}
+
+.spaces{
+  display:flex;gap:0;border:1px solid var(--lip-strong);background:var(--chassis);
+}
+.space{
+  padding:8px 18px;font-family:var(--display);font-size:15px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--mute);
+  border-right:1px solid var(--lip);
+}
+.space:last-child{border-right:0}
+.space.on{color:var(--ink);background:var(--panel-2);box-shadow:inset 0 -2px 0 var(--amber)}
+.space:hover{color:var(--ink-soft)}
+
+.right{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+.kbd{
+  font-family:var(--mono);font-size:10px;color:var(--mute);
+  border:1px solid var(--lip);padding:5px 8px;background:var(--chassis);
+}
+.bay-btn{
+  font-family:var(--display);font-size:14px;font-weight:600;
+  letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-soft);padding:8px 12px;border:1px solid var(--lip);
+  background:var(--panel);
+}
+.bay-btn:hover{border-color:var(--lip-strong);color:var(--ink)}
+.bay-btn.on{color:var(--amber-ink);background:var(--amber);border-color:var(--amber)}
+
+/* —— annunciator: physical lamp bank —— */
+.ann{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  background:var(--recess);
+  border-bottom:1px solid var(--lip);
+  position:relative;z-index:2;
+  box-shadow:inset 0 8px 18px rgba(0,0,0,.35);
+}
+.lamp{
+  padding:12px 14px 14px;border-right:1px solid var(--lip);
+  display:grid;gap:3px;min-width:0;
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%);
+}
+.lamp:last-child{border-right:0}
+.lamp .w{
+  font-family:var(--display);font-size:11px;font-weight:600;
+  letter-spacing:.18em;color:var(--mute);
+}
+.lamp .s{
+  font-family:var(--display);font-size:22px;font-weight:700;
+  letter-spacing:.04em;line-height:1;display:inline-flex;align-items:center;gap:8px;
+}
+.lamp .s::before{
+  content:"";width:8px;height:8px;background:currentColor;
+  box-shadow:0 0 10px currentColor;opacity:.95;
+}
+.lamp.go .s{color:var(--mint)}
+.lamp.live .s{color:var(--amber)}
+.lamp.cool .s{color:var(--steel)}
+.lamp.hold .s{color:var(--amber)}
+.lamp.idle .s{color:var(--mute)}
+.lamp.idle .s::before{box-shadow:none;opacity:.45}
+.lamp .d{
+  font-family:var(--mono);font-size:10px;color:var(--mute);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;
+}
+
+.stage{min-height:0;position:relative;z-index:1}
+.view{display:none;min-height:780px}
+.view.on{display:grid}
+
+/* ========== TALK — Operate ========== */
+#talk{grid-template-columns:188px minmax(0,1fr) 268px}
+
+.pane{
+  background:var(--panel);min-width:0;
+  border-right:1px solid var(--lip);
+  box-shadow:inset 1px 0 0 rgba(255,255,255,0.02);
+}
+.pane:last-child{border-right:0}
+
+.ph{
+  padding:10px 12px;
+  font-family:var(--display);font-size:12px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--mute);
+  border-bottom:1px solid var(--lip);background:var(--recess);
+}
+
+.room{
+  width:100%;text-align:left;padding:12px;
+  border-bottom:1px solid var(--lip);
+  display:grid;gap:4px;
+}
+.room:hover{background:var(--panel-2)}
+.room.on{background:var(--panel-2)}
+.room.on b{color:var(--amber)}
+.room b{
+  font-family:var(--display);font-size:15px;font-weight:600;
+  letter-spacing:.02em;line-height:1.15;
+}
+.room span{font-family:var(--serif);font-size:12px;color:var(--mute);line-height:1.35}
+.room time{font-family:var(--mono);font-size:10px;color:var(--mute)}
+
+.talk-main{
+  display:grid;grid-template-rows:auto 1fr auto auto;
+  background:
+    linear-gradient(180deg, rgba(232,226,214,0.015), transparent 120px),
+    var(--chassis);
+  border-right:1px solid var(--lip);
+}
+
+.talk-bar{
+  display:flex;justify-content:space-between;align-items:end;
+  padding:16px 28px 14px;border-bottom:1px solid var(--lip);
+  background:linear-gradient(180deg, var(--panel), var(--recess));
+}
+.talk-bar h1{
+  margin:0;font-family:var(--display);font-size:28px;font-weight:700;
+  letter-spacing:.02em;text-transform:uppercase;line-height:1;
+}
+.talk-bar .meta{font-family:var(--mono);font-size:11px;color:var(--mute);padding-bottom:3px}
+
+.thread{
+  padding:28px 36px;display:flex;flex-direction:column;gap:22px;overflow:auto;
+}
+.bubble{max-width:52ch}
+.me{
+  align-self:flex-end;
+  background:var(--panel-2);border:1px solid var(--lip-strong);
+  padding:14px 16px;font-size:15.5px;line-height:1.55;color:var(--ink);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.them{align-self:flex-start}
+.them .who{
+  font-family:var(--display);font-size:12px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:6px;
+}
+.them .body{font-size:16px;line-height:1.6;color:var(--ink-soft);text-wrap:pretty}
+.stamp{margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--mute)}
+
+/* STEER — the memorable hardware strip */
+.steer{
+  margin:0;border-top:1px solid color-mix(in oklab, var(--amber) 45%, transparent);
+  border-bottom:1px solid color-mix(in oklab, var(--amber) 25%, transparent);
+  background:
+    linear-gradient(90deg, var(--amber-glow), transparent 28%),
+    linear-gradient(180deg, #1a140c, #120e09);
+  padding:12px 16px 12px 18px;
+  display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;
+  position:relative;
+}
+.steer::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--amber);
+  box-shadow:0 0 12px var(--amber);
+}
+.steer .tag{
+  font-family:var(--display);font-size:18px;font-weight:700;
+  letter-spacing:.16em;color:var(--amber);
+  display:flex;align-items:center;gap:8px;
+}
+.steer .tag::before{
+  content:"";width:10px;height:10px;background:var(--amber);border-radius:50%;
+  animation:pulse 1.6s var(--ease) infinite;
+  box-shadow:0 0 12px var(--amber);
+}
+@keyframes pulse{
+  0%,100%{opacity:1} 50%{opacity:.35}
+}
+.steer p{
+  margin:0;font-family:var(--serif);font-size:14px;color:var(--ink-soft);line-height:1.4;
+}
+.steer .actions{display:flex;gap:8px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;min-height:36px;
+  padding:0 14px;border:1px solid var(--lip-strong);
+  font-family:var(--display);font-size:13px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+  background:var(--panel);
+}
+.btn:hover{background:var(--panel-2);border-color:rgba(255,255,255,0.18)}
+.btn.live{background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+.btn.live:hover{filter:brightness(1.05)}
+.btn.ghost{background:transparent;color:var(--ink-soft)}
+
+.composer{
+  margin:0;border-top:1px solid var(--lip);
+  background:var(--panel);padding:14px 16px 16px;
+  display:grid;gap:10px;
+}
+.composer .field{
+  min-height:52px;color:var(--mute);font-size:15px;padding:8px 4px;
+  border-bottom:1px solid var(--lip);
+}
+.composer-row{display:flex;justify-content:space-between;align-items:center}
+.hint{font-family:var(--mono);font-size:10px;color:var(--mute)}
+
+.side-card{padding:14px 14px 16px;border-bottom:1px solid var(--lip)}
+.side-card h3{
+  margin:0 0 8px;font-family:var(--display);font-size:13px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--mute);
+}
+.side-card p{margin:0;font-size:13.5px;color:var(--ink-soft);line-height:1.45}
+
+.checkin{
+  margin-top:4px;padding:12px;
+  background:linear-gradient(180deg, #1c170f, var(--panel-2));
+  border:1px solid color-mix(in oklab, var(--amber) 28%, var(--lip));
+}
+.checkin b{
+  display:block;font-family:var(--display);font-size:14px;font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--amber);margin-bottom:6px;
+}
+.checkin span{font-size:13.5px;color:var(--ink-soft);line-height:1.4;display:block}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{
+  font-family:var(--display);font-size:12px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;padding:7px 10px;border:1px solid var(--lip-strong);
+  color:var(--ink-soft);background:var(--chassis);
+}
+.chip:hover{border-color:var(--amber);color:var(--amber)}
+
+/* ========== FLOOR — Monitor / Operate ========== */
+#floor{grid-template-columns:236px minmax(0,1fr) 280px}
+
+.card{
+  width:100%;text-align:left;padding:12px 14px;border-bottom:1px solid var(--lip);
+}
+.card:hover,.card.on{background:var(--panel-2)}
+.card .t{
+  font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:.02em;
+}
+.card.on .t{color:var(--amber)}
+.card .m{font-size:12px;color:var(--mute);margin-top:3px;font-family:var(--serif)}
+.ids{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--mute)}
+.badge{
+  border:1px solid var(--lip);padding:2px 6px;
+  font-family:var(--display);font-size:11px;font-weight:600;letter-spacing:.08em;
+}
+.badge.run{color:var(--amber);border-color:color-mix(in oklab,var(--amber) 45%, transparent)}
+.badge.wait{color:var(--steel);border-color:color-mix(in oklab,var(--steel) 40%, transparent)}
+
+.board{display:grid;grid-template-rows:auto auto auto 1fr;background:var(--chassis)}
+.board-h{
+  padding:18px 22px 16px;border-bottom:1px solid var(--lip);
+  background:linear-gradient(180deg, var(--panel), var(--recess));
+}
+.board-h h2{
+  margin:0;font-family:var(--display);font-size:26px;font-weight:700;
+  letter-spacing:.03em;text-transform:uppercase;line-height:1.05;
+}
+.board-h p{margin:8px 0 0;font-size:14px;color:var(--mute);max-width:62ch;line-height:1.45}
+.meta-row{
+  margin-top:12px;display:flex;gap:18px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:11px;color:var(--mute);
+}
+.meta-row em{font-style:normal;color:var(--ink-soft)}
+
+/* role stations — unequal weight: RUN owns the floor */
+.stations{
+  display:grid;grid-template-columns:0.85fr 0.85fr 1.45fr 0.95fr 0.9fr;
+  gap:1px;background:var(--lip);border-bottom:1px solid var(--lip);
+}
+.station{background:var(--panel);padding:14px 12px;min-height:104px;position:relative}
+.station .role{
+  font-family:var(--display);font-size:14px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.station .st{
+  margin-top:8px;font-family:var(--display);font-size:20px;font-weight:700;letter-spacing:.04em;
+}
+.station .job{margin-top:4px;font-size:12px;color:var(--mute);line-height:1.3;font-family:var(--serif)}
+.station.run{
+  background:
+    linear-gradient(180deg, rgba(240,160,32,0.12), transparent 70%),
+    var(--panel-2);
+}
+.station.run .st{color:var(--amber)}
+.station.run::after{
+  content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--amber);
+  box-shadow:0 0 10px var(--amber);
+}
+.station.done .st{color:var(--mint)}
+.station.wait .st{color:var(--mute)}
+
+.track-wrap{
+  padding:18px 22px;border-bottom:1px solid var(--lip);background:var(--recess);
+}
+.glabel{
+  font-family:var(--display);font-size:12px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:14px;
+}
+.track{display:flex;align-items:center;gap:0;overflow:auto;padding-bottom:4px}
+.node{width:88px;text-align:center;flex:none}
+.disk{
+  width:42px;height:42px;margin:0 auto;
+  border:1px solid var(--lip-strong);background:var(--panel);
+  display:grid;place-items:center;
+  font-family:var(--display);font-size:12px;font-weight:700;
+  letter-spacing:.04em;color:var(--mute);
+}
+.node.run .disk{
+  border-color:var(--amber);color:var(--amber);
+  background:color-mix(in oklab,var(--amber) 14%, var(--panel));
+  box-shadow:0 0 16px var(--amber-glow);
+}
+.node.done .disk{border-color:color-mix(in oklab,var(--mint) 50%, transparent);color:var(--mint)}
+.nl{margin-top:7px;font-family:var(--mono);font-size:10px;color:var(--mute);line-height:1.25}
+.edge{
+  width:28px;height:2px;margin-bottom:26px;flex:none;
+  background:linear-gradient(90deg, var(--lip-strong), color-mix(in oklab, var(--mint) 35%, var(--lip)));
+}
+.node.run + .edge, .edge:has(+ .node.run){
+  background:linear-gradient(90deg, var(--amber), color-mix(in oklab, var(--amber) 30%, var(--lip)));
+}
+
+.mission{
+  padding:16px 22px;display:grid;grid-template-columns:1.2fr .8fr;gap:14px;align-content:start;
+}
+.well{
+  background:var(--panel);border:1px solid var(--lip);padding:14px 14px 12px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
+}
+.well h3{
+  margin:0 0 10px;font-family:var(--display);font-size:12px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--mute);
+}
+.pulse-line{
+  display:flex;gap:20px;align-items:baseline;margin-bottom:8px;
+  padding-bottom:10px;border-bottom:1px solid var(--lip);
+}
+.pulse-line b{
+  font-family:var(--display);font-size:28px;font-weight:700;letter-spacing:.02em;line-height:1;
+}
+.pulse-line span{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.stream .line{
+  display:grid;grid-template-columns:52px 1fr;gap:10px;
+  padding:7px 0;border-top:1px solid var(--lip);font-size:12.5px;color:var(--ink-soft);
+}
+.stream .line:first-child{border-top:0}
+.stream time{font-family:var(--mono);font-size:10px;color:var(--mute);padding-top:2px}
+.stack{display:grid;gap:6px;margin-top:12px}
+
+.insp .block{padding:14px;border-bottom:1px solid var(--lip)}
+.insp h3{
+  margin:0 0 10px;font-family:var(--display);font-size:14px;font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.screw{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:8px 0;border-top:1px solid var(--lip);font-size:13px;
+}
+.screw:first-of-type{border-top:0;padding-top:0}
+.knob{
+  font-family:var(--mono);font-size:11px;color:var(--amber);
+  border:1px solid var(--lip);padding:4px 8px;background:var(--chassis);
+}
+.tog{
+  width:34px;height:18px;background:var(--chassis);border:1px solid var(--lip);position:relative;
+}
+.tog.on{background:color-mix(in oklab,var(--amber) 28%, var(--chassis));border-color:var(--amber)}
+.tog::after{
+  content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;background:var(--ink);
+}
+.tog.on::after{left:18px;background:var(--amber)}
+.insp p{margin:0;font-size:13px;color:var(--mute);line-height:1.4}
+
+/* ========== BAY — Configure ========== */
+#bay{grid-template-columns:220px 1fr}
+.bay-nav button{
+  width:100%;text-align:left;padding:12px 14px;border-bottom:1px solid var(--lip);
+  font-family:var(--display);font-size:14px;font-weight:600;
+  letter-spacing:.03em;color:var(--mute);
+}
+.bay-nav button.on,.bay-nav button:hover{background:var(--panel-2);color:var(--ink)}
+.bay-nav button.on{color:var(--amber)}
+.bay-main{padding:28px 32px;background:var(--chassis);overflow:auto}
+.bay-main h2{
+  margin:0 0 8px;font-family:var(--display);font-size:32px;font-weight:700;
+  letter-spacing:.03em;text-transform:uppercase;line-height:1;
+}
+.bay-main .lede{margin:0 0 22px;color:var(--mute);font-size:15px;max-width:58ch;line-height:1.5}
+.group{border:1px solid var(--lip);background:var(--panel);margin-bottom:12px}
+.gh{
+  padding:10px 14px;border-bottom:1px solid var(--lip);
+  font-family:var(--display);font-size:12px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--mute);
+  background:var(--recess);
+}
+.row{
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:13px 14px;border-top:1px solid var(--lip);font-size:14px;
+}
+.row:first-of-type{border-top:0}
+.row .desc{display:block;font-size:11px;color:var(--mute);margin-top:3px;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="desk">
+  <header class="titlebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      TaskFlow Desk
+      <span class="sub">night ops</span>
+    </div>
+    <div class="spaces" role="tablist" aria-label="Пространства">
+      <button class="space on" role="tab" id="t-talk" aria-selected="true" aria-controls="talk">Разговор</button>
+      <button class="space" role="tab" id="t-floor" aria-selected="false" aria-controls="floor">Цех</button>
+    </div>
+    <div class="right">
+      <span class="kbd">⌘K</span>
+      <button class="bay-btn" role="tab" id="t-bay" aria-selected="false" aria-controls="bay">Отсек ручек</button>
+    </div>
+  </header>
+
+  <div class="ann" aria-label="Аннунциатор">
+    <div class="lamp live"><span class="w">LIVE</span><span class="s">RUN</span><div class="d">1 слот · builder</div></div>
+    <div class="lamp go"><span class="w">QUEUE</span><span class="s">3/3</span><div class="d">полосы заняты</div></div>
+    <div class="lamp idle"><span class="w">STALL</span><span class="s">CLEAR</span><div class="d">порог 10 мин</div></div>
+    <div class="lamp hold"><span class="w">INTAKE</span><span class="s">AUTO</span><div class="d">режим Система</div></div>
+    <div class="lamp cool"><span class="w">VOICE</span><span class="s">IDLE</span><div class="d">мост помощника</div></div>
+    <div class="lamp go"><span class="w">HOST</span><span class="s">.110</span><div class="d">16:48:02 UTC</div></div>
+  </div>
+
+  <div class="stage">
+    <section class="view on" id="talk" role="tabpanel" aria-labelledby="t-talk">
+      <aside class="pane">
+        <div class="ph">Комнаты</div>
+        <button class="room on"><b>Помощник владельца</b><span>Довожу смысл, хожу по ролям сам</span><time>16:47 UTC</time></button>
+        <button class="room"><b>Оркестратор</b><span>Не дом — адрес через рупор</span><time>15:02 UTC</time></button>
+        <button class="room"><b>Разработчик</b><span>Личный чат · по приглашению</span><time>14:47 UTC</time></button>
+        <button class="room"><b>Тема плана</b><span>Служебные события графа</span><time>14:12 UTC</time></button>
+      </aside>
+
+      <main class="talk-main">
+        <div class="talk-bar">
+          <h1>Помощник владельца</h1>
+          <div class="meta">chat-secretary · steerable</div>
+        </div>
+        <div class="thread">
+          <div class="bubble me">Хочу десктоп, где разговор остаётся домом, а цех и ручки не превращают всё в командный пункт.</div>
+          <div class="bubble them">
+            <div class="who">Помощник</div>
+            <div class="body">Тогда не три вкладки приложения, а два пространства и один отсек. Пока цех крутится, рупор снизу: можно шепнуть оркестратору, не уходя из чата.</div>
+            <div class="stamp">16:46:18 UTC</div>
+          </div>
+          <div class="bubble them">
+            <div class="who">Помощник</div>
+            <div class="body">Аннунциатор сверху словами, не цветными точками. Цех — пол ролей и граф сразу. Ручки живут отдельно и крутят и разговор, и конвейер.</div>
+            <div class="stamp">16:46:51 UTC</div>
+          </div>
+        </div>
+
+        <div class="steer" aria-label="Рупор в цех">
+          <div class="tag">STEER</div>
+          <p>Разработчик в run с 16:21 UTC · lease 3m 40s. Можно остаться здесь и подтолкнуть оркестратора.</p>
+          <div class="actions">
+            <button class="btn live" type="button">Шепнуть оркестратору</button>
+            <button class="btn ghost" type="button">Открыть цех</button>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="field">Напиши помощнику…</div>
+          <div class="composer-row">
+            <span class="hint">Голос · диктовка · ⌘K куда угодно</span>
+            <button class="btn live" type="button">Отправить</button>
+          </div>
+        </div>
+      </main>
+
+      <aside class="pane">
+        <div class="ph">Рядом</div>
+        <div class="side-card">
+          <h3>За кадром</h3>
+          <p>Я уже сверился с оркестратором. Тема плана принимает служебные события. Тебе не нужно бегать по комнатам.</p>
+        </div>
+        <div class="side-card">
+          <h3>Check-in роли</h3>
+          <div class="checkin">
+            <b>Разработчик спрашивает</b>
+            <span>Ветка отстала от main на 12 коммитов. Мержить сейчас или сначала добить экран Чата?</span>
+            <div class="quick">
+              <button class="chip" type="button">Мержить</button>
+              <button class="chip" type="button">Сначала чат</button>
+              <button class="chip" type="button">Спросить оркестратора</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="view" id="floor" role="tabpanel" aria-labelledby="t-floor" hidden>
+      <aside class="pane">
+        <div class="ph">Конвейер</div>
+        <button class="card on">
+          <div class="t">Десктопная оболочка TaskFlow</div>
+          <div class="m">ветка · план команды</div>
+          <div class="ids"><span class="badge run">RUN</span><span>c19c9460</span></div>
+        </button>
+        <button class="card">
+          <div class="t">Стабилизация слотов</div>
+          <div class="m">критик в хвосте</div>
+          <div class="ids"><span class="badge wait">HOLD</span></div>
+        </button>
+        <button class="card">
+          <div class="t">Личное: фильтры</div>
+          <div class="m">без агентов</div>
+          <div class="ids"><span class="badge">DRAFT</span></div>
+        </button>
+      </aside>
+
+      <main class="board pane">
+        <div class="board-h">
+          <h2>Десктопная оболочка</h2>
+          <p>Кто стоит у станка и что открыто по рёбрам — не стена метрик.</p>
+          <div class="meta-row">
+            <span>plan <em>approved</em></span>
+            <span>active <em>builder_fix</em></span>
+            <span>started <em>15:12:08 UTC</em></span>
+          </div>
+        </div>
+
+        <div class="stations" aria-label="Пол ролей">
+          <div class="station done"><div class="role">Архитектор</div><div class="st">DONE</div><div class="job">черновик принят</div></div>
+          <div class="station done"><div class="role">Исследователь</div><div class="st">DONE</div><div class="job">артефакт ready</div></div>
+          <div class="station run"><div class="role">Разработчик</div><div class="st">RUN</div><div class="job">lease 3m 40s</div></div>
+          <div class="station wait"><div class="role">QA</div><div class="st">HOLD</div><div class="job">ждёт ребро</div></div>
+          <div class="station wait"><div class="role">Критик</div><div class="st">STBY</div><div class="job">хвост плана</div></div>
+        </div>
+
+        <div class="track-wrap">
+          <div class="glabel">Граф совместной работы</div>
+          <div class="track">
+            <div class="node done"><div class="disk">Арх</div><div class="nl">14:58 UTC</div></div><div class="edge"></div>
+            <div class="node done"><div class="disk">Иссл</div><div class="nl">15:58 UTC</div></div><div class="edge"></div>
+            <div class="node run"><div class="disk">Разр</div><div class="nl">run now</div></div><div class="edge"></div>
+            <div class="node wait"><div class="disk">QA</div><div class="nl">edge</div></div><div class="edge"></div>
+            <div class="node wait"><div class="disk">Крит</div><div class="nl">tail</div></div>
+          </div>
+        </div>
+
+        <div class="mission">
+          <div class="well">
+            <h3>Mission Control</h3>
+            <div class="pulse-line">
+              <b>1 run</b>
+              <span>5 узлов · 0 stall</span>
+            </div>
+            <div class="stream">
+              <div class="line"><time>16:33</time><div>stream · Разработчик в теме плана</div></div>
+              <div class="line"><time>16:21</time><div>lease · builder_fix cycle 1</div></div>
+              <div class="line"><time>15:12</time><div>оркестратор утвердил snapshot</div></div>
+            </div>
+            <div class="stack">
+              <button class="btn live" type="button">Написать оркестратору</button>
+              <button class="btn" type="button">Переписка по задаче</button>
+            </div>
+          </div>
+          <div class="well">
+            <h3>Контракт</h3>
+            <div class="stream">
+              <div class="line"><time>pass</time><div>Формулировка принята</div></div>
+              <div class="line"><time>open</time><div>Сборка desktop shell</div></div>
+              <div class="line"><time>open</time><div>Регрессии QA</div></div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <aside class="pane insp">
+        <div class="ph">Винтики станка</div>
+        <div class="block">
+          <h3>Разработчик · builder_fix</h3>
+          <div class="screw"><span>Модель</span><span class="knob">claude</span></div>
+          <div class="screw"><span>Автопродолжение</span><div class="tog on" role="presentation"></div></div>
+          <div class="screw"><span>Снимок слота</span><div class="tog on" role="presentation"></div></div>
+          <div class="screw"><span>Аренда</span><span class="knob">3m 40s</span></div>
+          <div class="stack">
+            <button class="btn" type="button">Окно исполнителя</button>
+            <button class="btn" type="button">Перезапуск слота</button>
+          </div>
+        </div>
+        <div class="block">
+          <h3>Расширить конвейер</h3>
+          <p>Дочерняя, врезка шага, rework, после критика. Это цех, не отсек ручек.</p>
+          <div class="stack">
+            <button class="btn" type="button">Добавить дочернюю</button>
+            <button class="btn" type="button">Врезать шаг</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="view" id="bay" role="tabpanel" aria-labelledby="t-bay" hidden>
+      <aside class="pane bay-nav">
+        <div class="ph">Отсек ручек</div>
+        <button class="on" type="button">Система и приём</button>
+        <button type="button">Модели и failover</button>
+        <button type="button">Чат и голос</button>
+        <button type="button">Миссии и сторожа</button>
+        <button type="button">Сервер · реестр</button>
+        <button type="button">Интеграции</button>
+      </aside>
+      <main class="bay-main">
+        <h2>Система и приём</h2>
+        <p class="lede">Не процессы. Ручки, которые одновременно крутят разговор и цех: как задачи входят, сколько полос живёт, когда слот считается зависшим.</p>
+        <div class="group">
+          <div class="gh">Приём</div>
+          <div class="row"><div>Режим «Система»<span class="desc">automatic intake</span></div><div class="tog on" role="presentation"></div></div>
+          <div class="row"><div>Автокритик в хвосте<span class="desc">иначе только узлом плана</span></div><div class="tog" role="presentation"></div></div>
+        </div>
+        <div class="group">
+          <div class="gh">Пределы цеха</div>
+          <div class="row"><div>Полосы одиночного запуска</div><span class="knob">3</span></div>
+          <div class="row"><div>Тишина до stall</div><span class="knob">10 min</span></div>
+          <div class="row"><div>Круги доработки</div><span class="knob">2</span></div>
+          <div class="row"><div>Максимум узлов плана</div><span class="knob">16</span></div>
+        </div>
+      </main>
+    </section>
+  </div>
+</div>
+<script>
+const map=[['t-talk','talk'],['t-floor','floor'],['t-bay','bay']];
+function show(id){
+  map.forEach(([b,v])=>{
+    const on=v===id;
+    const btn=document.getElementById(b);
+    btn.setAttribute('aria-selected',on?'true':'false');
+    if(b==='t-bay') btn.classList.toggle('on',on);
+    else btn.classList.toggle('on',on);
+    const el=document.getElementById(v);
+    el.classList.toggle('on',on); el.hidden=!on;
+  });
+}
+map.forEach(([b,v])=>document.getElementById(b).addEventListener('click',()=>show(v)));
+</script>
+</body>
+</html>

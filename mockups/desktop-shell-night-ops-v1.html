@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TaskFlow Desk — Night Ops vision</title>
+<meta name="description" content="Inspired vision: talk-home with steer strip, conveyor floor with word-lamps, equipment bay for knobs." />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --void: #070809;
+  --face: #101214;
+  --face-2: #16191d;
+  --face-3: #1c2127;
+  --line: rgba(255,255,255,0.07);
+  --line-2: rgba(255,255,255,0.04);
+  --ink: #e6e4df;
+  --ink-2: #b9b6ae;
+  --dim: #7d7a73;
+  --live: #ff6a3d;
+  --live-ink: #1a0b06;
+  --cool: #7ec8ff;
+  --hold: #e6b84d;
+  --go: #7dcf8a;
+  --font: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --r: 10px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:transparent;color:var(--ink);font-family:var(--font);overflow-x:clip}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.desk{
+  max-width:1400px;margin:0 auto;background:var(--void);
+  border:1px solid var(--line);border-radius:14px;overflow:clip;
+  min-height:880px;display:grid;grid-template-rows:auto auto 1fr;
+  box-shadow:0 24px 80px rgba(0,0,0,.55);
+}
+
+/* titlebar */
+.titlebar{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  gap:16px;padding:10px 14px;background:var(--face);border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:13px;letter-spacing:-.02em}
+.brand i{width:8px;height:8px;border-radius:2px;background:var(--live);display:block;font-style:normal}
+.spaces{display:flex;gap:4px;padding:3px;background:var(--void);border:1px solid var(--line);border-radius:999px}
+.space{padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;color:var(--dim)}
+.space.on{background:var(--face-3);color:var(--ink)}
+.right{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+.kbd{
+  font-family:var(--mono);font-size:11px;color:var(--dim);
+  border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--face-2);
+}
+.bay-btn{font-size:12px;font-weight:500;color:var(--ink-2);padding:7px 10px;border-radius:8px;border:1px solid transparent}
+.bay-btn.on{border-color:var(--line);background:var(--face-2);color:var(--ink)}
+
+/* annunciator — word lamps, not soft pills */
+.ann{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  background:linear-gradient(180deg, #0c0e11, var(--face));
+  border-bottom:1px solid var(--line);
+}
+.lamp{
+  padding:10px 12px;border-right:1px solid var(--line-2);
+  display:grid;gap:4px;min-width:0;
+}
+.lamp:last-child{border-right:0}
+.lamp .w{
+  font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.08em;
+  color:var(--dim);
+}
+.lamp .s{
+  font-family:var(--mono);font-size:12px;font-weight:500;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.lamp .s::before{
+  content:"";width:7px;height:7px;border-radius:1px;background:currentColor;opacity:.9;
+}
+.lamp.go .s{color:var(--go)}
+.lamp.live .s{color:var(--live)}
+.lamp.cool .s{color:var(--cool)}
+.lamp.hold .s{color:var(--hold)}
+.lamp.idle .s{color:var(--dim)}
+.lamp .d{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.stage{min-height:0}
+.view{display:none;min-height:760px}
+.view.on{display:grid}
+
+/* TALK */
+#talk{grid-template-columns:248px minmax(0,1fr) 300px}
+.pane{border-right:1px solid var(--line);background:var(--face);min-width:0}
+.pane:last-child{border-right:0}
+.ph{
+  padding:10px 14px;border-bottom:1px solid var(--line);
+  font-size:11px;font-weight:500;color:var(--dim);background:var(--face-2);
+}
+.room{
+  width:100%;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line-2);
+  display:grid;gap:3px;
+}
+.room:hover{background:var(--face-2)}
+.room.on{background:var(--face-2);box-shadow:inset 2px 0 0 var(--live)}
+.room b{font-size:13px;font-weight:560}
+.room span{font-size:11px;color:var(--dim);line-height:1.35}
+.room time{font-family:var(--mono);font-size:10px;color:var(--dim)}
+
+.talk-main{display:grid;grid-template-rows:auto 1fr auto auto;background:var(--void)}
+.talk-bar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 18px;border-bottom:1px solid var(--line);background:var(--face);
+}
+.talk-bar h1{margin:0;font-size:16px;font-weight:600;letter-spacing:-.02em}
+.talk-bar .meta{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.thread{padding:22px 28px;display:flex;flex-direction:column;gap:16px;overflow:auto}
+.bubble{max-width:58ch;line-height:1.5;font-size:14px}
+.me{align-self:flex-end;background:var(--face-2);border:1px solid var(--line);border-radius:12px 12px 4px 12px;padding:11px 13px}
+.them{align-self:flex-start}
+.them .who{font-size:11px;font-weight:560;color:var(--live);margin-bottom:5px}
+.them .body{color:var(--ink-2)}
+.stamp{margin-top:7px;font-family:var(--mono);font-size:10px;color:var(--dim)}
+
+/* THE INVENTION: steer strip — whisper to conveyor without leaving talk */
+.steer{
+  margin:0 16px;border:1px solid color-mix(in oklab, var(--live) 35%, var(--line));
+  background:color-mix(in oklab, var(--live) 8%, var(--face));
+  border-radius:var(--r);padding:10px 12px;
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
+}
+.steer .tag{
+  font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.06em;color:var(--live);
+}
+.steer p{margin:0;font-size:12px;color:var(--ink-2);line-height:1.35}
+.steer .actions{display:flex;gap:6px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;min-height:34px;
+  padding:0 12px;border-radius:8px;border:1px solid var(--line);font-size:12px;font-weight:500;
+  background:var(--face-2);
+}
+.btn:hover{background:var(--face-3)}
+.btn.live{background:var(--live);border-color:var(--live);color:var(--live-ink)}
+.btn.ghost{background:transparent}
+
+.composer{
+  margin:12px 16px 16px;border:1px solid var(--line);border-radius:12px;background:var(--face);
+  padding:12px;display:grid;gap:10px;
+}
+.composer .field{min-height:56px;color:var(--dim);font-size:13px;padding:4px}
+.composer-row{display:flex;justify-content:space-between;align-items:center}
+.hint{font-size:11px;color:var(--dim)}
+
+.side-card{padding:14px;border-bottom:1px solid var(--line-2)}
+.side-card h3{margin:0 0 6px;font-size:12px;font-weight:560}
+.side-card p{margin:0;font-size:12px;color:var(--dim);line-height:1.4}
+.checkin{
+  margin-top:10px;padding:10px;border-radius:8px;
+  background:color-mix(in oklab, var(--hold) 10%, var(--face-2));
+  border:1px solid color-mix(in oklab, var(--hold) 30%, var(--line));
+}
+.checkin b{display:block;font-size:12px;color:var(--hold);margin-bottom:4px}
+.checkin span{font-size:12px;color:var(--ink-2);line-height:1.35}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font-size:11px;padding:5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
+
+/* FLOOR / conveyor */
+#floor{grid-template-columns:260px minmax(0,1fr) 292px}
+.card{
+  width:100%;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line-2);
+}
+.card:hover,.card.on{background:var(--face-2)}
+.card.on{box-shadow:inset 2px 0 0 var(--cool)}
+.card .t{font-size:13px;font-weight:560}
+.card .m{font-size:11px;color:var(--dim);margin-top:3px}
+.ids{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.badge{border:1px solid var(--line);padding:2px 6px;border-radius:4px}
+.badge.run{color:var(--live);border-color:color-mix(in oklab,var(--live) 40%, var(--line))}
+.badge.wait{color:var(--hold);border-color:color-mix(in oklab,var(--hold) 40%, var(--line))}
+
+.board{display:grid;grid-template-rows:auto auto auto 1fr;background:var(--void)}
+.board-h{padding:14px 18px;border-bottom:1px solid var(--line);background:var(--face)}
+.board-h h2{margin:0;font-size:18px;letter-spacing:-.02em}
+.board-h p{margin:6px 0 0;font-size:13px;color:var(--dim);max-width:70ch}
+.meta{margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.meta em{font-style:normal;color:var(--ink-2)}
+
+/* role floor grid — invention from Team-X Floor */
+.floor-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:1px;
+  background:var(--line);border-bottom:1px solid var(--line);
+}
+.cell{background:var(--face);padding:12px;min-height:88px}
+.cell .role{font-size:12px;font-weight:560}
+.cell .st{margin-top:6px;font-family:var(--mono);font-size:10px;letter-spacing:.04em}
+.cell.run{background:color-mix(in oklab, var(--live) 7%, var(--face))}
+.cell.run .st{color:var(--live)}
+.cell.done .st{color:var(--go)}
+.cell.wait .st{color:var(--hold)}
+.cell .job{margin-top:4px;font-size:11px;color:var(--dim);line-height:1.3}
+
+.graph-wrap{padding:16px 18px;border-bottom:1px solid var(--line);background:var(--face-2)}
+.glabel{font-size:11px;color:var(--dim);margin-bottom:12px;font-weight:500}
+.graph{display:flex;align-items:center;gap:0;overflow:auto}
+.node{width:96px;text-align:center}
+.disk{
+  width:44px;height:44px;margin:0 auto;border-radius:8px;
+  border:1px solid var(--line);background:var(--face);display:grid;place-items:center;
+  font-size:10px;font-weight:600;color:var(--dim);
+}
+.node.run .disk{border-color:var(--live);color:var(--live);background:color-mix(in oklab,var(--live) 12%, var(--face))}
+.node.done .disk{border-color:color-mix(in oklab,var(--go) 40%, var(--line));color:var(--go)}
+.nl{margin-top:6px;font-size:11px;color:var(--dim);line-height:1.25}
+.edge{width:20px;height:1px;background:var(--line);margin-bottom:28px}
+
+.mission{padding:16px 18px;display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+.well{background:var(--face);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.well h3{margin:0 0 10px;font-size:12px;font-weight:560;color:var(--dim)}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.nums div{padding:8px 0}
+.nums b{display:block;font-family:var(--mono);font-size:20px;letter-spacing:-.03em}
+.nums span{font-size:11px;color:var(--dim)}
+.stream{margin-top:8px}
+.stream .line{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:7px 0;border-top:1px solid var(--line-2);font-size:11px}
+.stream time{font-family:var(--mono);color:var(--dim)}
+
+.insp .block{padding:14px;border-bottom:1px solid var(--line)}
+.insp h3{margin:0 0 10px;font-size:13px;font-weight:560}
+.screw{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line-2);font-size:12px}
+.screw:first-of-type{border-top:0;padding-top:0}
+.knob{font-family:var(--mono);font-size:11px;color:var(--cool);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+.tog{width:34px;height:20px;border-radius:999px;background:var(--face-3);border:1px solid var(--line);position:relative}
+.tog.on{background:color-mix(in oklab,var(--live) 35%, var(--face-3));border-color:var(--live)}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ink)}
+.tog.on::after{left:16px;background:var(--live)}
+.stack{display:grid;gap:6px;margin-top:10px}
+
+/* BAY / settings */
+#bay{grid-template-columns:240px 1fr}
+.bay-nav button{width:100%;text-align:left;padding:11px 14px;border-bottom:1px solid var(--line-2);font-size:13px;color:var(--dim)}
+.bay-nav button.on,.bay-nav button:hover{background:var(--face-2);color:var(--ink)}
+.bay-nav button.on{box-shadow:inset 2px 0 0 var(--cool)}
+.bay-main{padding:22px 26px;background:var(--void);overflow:auto}
+.bay-main h2{margin:0 0 6px;font-size:20px;letter-spacing:-.02em}
+.bay-main .lede{margin:0 0 18px;color:var(--dim);font-size:13px;max-width:62ch}
+.group{border:1px solid var(--line);border-radius:var(--r);background:var(--face);margin-bottom:12px;overflow:clip}
+.gh{padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;font-weight:560}
+.row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 14px;border-top:1px solid var(--line-2);font-size:13px}
+.row:first-of-type{border-top:0}
+.row .desc{display:block;font-size:11px;color:var(--dim);margin-top:3px;font-family:var(--mono)}
+.idea{
+  margin-top:18px;padding:14px;border-radius:var(--r);
+  border:1px dashed color-mix(in oklab, var(--cool) 35%, var(--line));
+  background:color-mix(in oklab, var(--cool) 6%, var(--face));
+  font-size:13px;color:var(--ink-2);line-height:1.45;max-width:68ch;
+}
+.idea b{color:var(--cool)}
+</style>
+</head>
+<body>
+<div class="desk">
+  <header class="titlebar">
+    <div class="brand"><i></i>TaskFlow Desk</div>
+    <div class="spaces" role="tablist" aria-label="Пространства">
+      <button class="space on" role="tab" id="t-talk" aria-selected="true" aria-controls="talk">Разговор</button>
+      <button class="space" role="tab" id="t-floor" aria-selected="false" aria-controls="floor">Цех</button>
+    </div>
+    <div class="right">
+      <span class="kbd">⌘K прыжок</span>
+      <button class="bay-btn" role="tab" id="t-bay" aria-selected="false" aria-controls="bay">Отсек ручек</button>
+    </div>
+  </header>
+
+  <div class="ann" aria-label="Аннунциатор">
+    <div class="lamp live"><span class="w">LIVE</span><span class="s">RUN</span><div class="d">1 слот · builder</div></div>
+    <div class="lamp go"><span class="w">QUEUE</span><span class="s">3/3</span><div class="d">полосы заняты</div></div>
+    <div class="lamp idle"><span class="w">STALL</span><span class="s">CLEAR</span><div class="d">порог 10 мин</div></div>
+    <div class="lamp hold"><span class="w">INTAKE</span><span class="s">AUTO</span><div class="d">режим Система</div></div>
+    <div class="lamp cool"><span class="w">VOICE</span><span class="s">IDLE</span><div class="d">мост помощника</div></div>
+    <div class="lamp go"><span class="w">HOST</span><span class="s">.110</span><div class="d">16:48:02 UTC</div></div>
+  </div>
+
+  <div class="stage">
+    <!-- TALK -->
+    <section class="view on" id="talk" role="tabpanel" aria-labelledby="t-talk">
+      <aside class="pane">
+        <div class="ph">Комнаты</div>
+        <button class="room on"><b>Помощник владельца</b><span>Довожу смысл, хожу по ролям сам</span><time>16:47 UTC</time></button>
+        <button class="room"><b>Оркестратор</b><span>Не дом, а адрес через рупор</span><time>15:02 UTC</time></button>
+        <button class="room"><b>Разработчик</b><span>Личный чат · по приглашению</span><time>14:47 UTC</time></button>
+        <button class="room"><b>Тема плана</b><span>Служебные события графа</span><time>14:12 UTC</time></button>
+      </aside>
+
+      <main class="talk-main pane">
+        <div class="talk-bar">
+          <h1>Помощник владельца</h1>
+          <div class="meta">chat-secretary · steerable</div>
+        </div>
+        <div class="thread">
+          <div class="bubble me">Хочу десктоп, где разговор остаётся домом, а цех и ручки не превращают всё в командный пункт.</div>
+          <div class="bubble them">
+            <div class="who">Помощник</div>
+            <div class="body">Тогда не три «вкладки приложения», а два пространства и один отсек. Разговор, Цех, Отсек ручек. Пока цех крутится, я держу рупор снизу: можно шепнуть оркестратору, не уходя из чата.</div>
+            <div class="stamp">16:46:18 UTC</div>
+          </div>
+          <div class="bubble them">
+            <div class="who">Помощник</div>
+            <div class="body">Аннунциатор сверху, как на пульте: LIVE / QUEUE / STALL словами, не цветными точками. Цех показывает пол ролей и граф сразу. Ручки живут отдельно и крутят и чат, и конвейер.</div>
+            <div class="stamp">16:46:51 UTC</div>
+          </div>
+        </div>
+
+        <div class="steer" aria-label="Рупор в цех">
+          <div class="tag">STEER</div>
+          <p>Разработчик в run с 16:21 UTC · lease 3m 40s. Можно остаться здесь и подтолкнуть оркестратора.</p>
+          <div class="actions">
+            <button class="btn live" type="button">Шепнуть оркестратору</button>
+            <button class="btn ghost" type="button">Открыть цех</button>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="field">Напиши помощнику…</div>
+          <div class="composer-row">
+            <span class="hint">Голос · диктовка в черновик · ⌘K куда угодно</span>
+            <button class="btn live" type="button">Отправить</button>
+          </div>
+        </div>
+      </main>
+
+      <aside class="pane">
+        <div class="ph">Рядом</div>
+        <div class="side-card">
+          <h3>За кадром</h3>
+          <p>Я уже сверился с оркестратором. Тема плана принимает служебные события. Тебе не нужно бегать по комнатам.</p>
+        </div>
+        <div class="side-card">
+          <h3>Check-in роли</h3>
+          <div class="checkin">
+            <b>Разработчик спрашивает</b>
+            <span>Ветка отстала от main на 12 коммитов. Мержить сейчас или сначала добить экран Чата?</span>
+            <div class="quick">
+              <button class="chip" type="button">Мержить</button>
+              <button class="chip" type="button">Сначала чат</button>
+              <button class="chip" type="button">Спросить оркестратора</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- FLOOR -->
+    <section class="view" id="floor" role="tabpanel" aria-labelledby="t-floor" hidden>
+      <aside class="pane">
+        <div class="ph">Конвейер</div>
+        <button class="card on">
+          <div class="t">Десктопная оболочка TaskFlow</div>
+          <div class="m">ветка · план команды</div>
+          <div class="ids"><span class="badge run">RUN</span><span>c19c9460</span></div>
+        </button>
+        <button class="card">
+          <div class="t">Стабилизация слотов</div>
+          <div class="m">критик в хвосте</div>
+          <div class="ids"><span class="badge wait">HOLD</span></div>
+        </button>
+        <button class="card">
+          <div class="t">Личное: фильтры</div>
+          <div class="m">без агентов</div>
+          <div class="ids"><span class="badge">DRAFT</span></div>
+        </button>
+      </aside>
+
+      <main class="board pane">
+        <div class="board-h">
+          <h2>Десктопная оболочка TaskFlow</h2>
+          <p>Цех: сверху пол ролей, ниже граф. Не дашборд метрик, а кто стоит у станка и что открыто по рёбрам.</p>
+          <div class="meta">
+            <span>plan <em>approved</em></span>
+            <span>active <em>builder_fix</em></span>
+            <span>started <em>15:12:08 UTC</em></span>
+          </div>
+        </div>
+
+        <div class="floor-grid" aria-label="Пол ролей">
+          <div class="cell done"><div class="role">Архитектор</div><div class="st">DONE</div><div class="job">черновик принят</div></div>
+          <div class="cell done"><div class="role">Исследователь</div><div class="st">DONE</div><div class="job">артефакт ready</div></div>
+          <div class="cell run"><div class="role">Разработчик</div><div class="st">RUN</div><div class="job">lease 3m 40s</div></div>
+          <div class="cell wait"><div class="role">QA</div><div class="st">HOLD</div><div class="job">ждёт ребро</div></div>
+          <div class="cell wait"><div class="role">Критик</div><div class="st">STBY</div><div class="job">хвост плана</div></div>
+        </div>
+
+        <div class="graph-wrap">
+          <div class="glabel">Граф совместной работы</div>
+          <div class="graph">
+            <div class="node done"><div class="disk">Арх</div><div class="nl">14:58 UTC</div></div><div class="edge"></div>
+            <div class="node done"><div class="disk">Иссл</div><div class="nl">15:58 UTC</div></div><div class="edge"></div>
+            <div class="node run"><div class="disk">Разр</div><div class="nl">run now</div></div><div class="edge"></div>
+            <div class="node wait"><div class="disk">QA</div><div class="nl">edge</div></div><div class="edge"></div>
+            <div class="node wait"><div class="disk">Крит</div><div class="nl">tail</div></div>
+          </div>
+        </div>
+
+        <div class="mission">
+          <div class="well">
+            <h3>Mission Control</h3>
+            <div class="nums">
+              <div><b>5</b><span>узлов</span></div>
+              <div><b>1</b><span>run</span></div>
+              <div><b>0</b><span>stall</span></div>
+            </div>
+            <div class="stream">
+              <div class="line"><time>16:33</time><div>stream · Разработчик в теме плана</div></div>
+              <div class="line"><time>16:21</time><div>admission · builder_fix cycle 1</div></div>
+              <div class="line"><time>15:12</time><div>оркестратор утвердил snapshot</div></div>
+            </div>
+            <div class="stack" style="margin-top:12px">
+              <button class="btn live" type="button">Написать оркестратору</button>
+              <button class="btn" type="button">Переписка по задаче</button>
+            </div>
+          </div>
+          <div class="well">
+            <h3>Покрытие контракта</h3>
+            <div class="stream">
+              <div class="line"><time>pass</time><div>Формулировка принята</div></div>
+              <div class="line"><time>open</time><div>Сборка desktop shell</div></div>
+              <div class="line"><time>open</time><div>Регрессии QA</div></div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <aside class="pane insp">
+        <div class="ph">Винтики станка</div>
+        <div class="block">
+          <h3>Разработчик · builder_fix</h3>
+          <div class="screw"><span>Модель</span><span class="knob">claude</span></div>
+          <div class="screw"><span>Автопродолжение</span><div class="tog on"></div></div>
+          <div class="screw"><span>Снимок слота</span><div class="tog on"></div></div>
+          <div class="screw"><span>Аренда</span><span class="knob">3m 40s</span></div>
+          <div class="stack">
+            <button class="btn" type="button">Окно исполнителя</button>
+            <button class="btn" type="button">Перезапуск слота</button>
+          </div>
+        </div>
+        <div class="block">
+          <h3>Расширить конвейер</h3>
+          <p style="margin:0;font-size:12px;color:var(--dim);line-height:1.4">Дочерняя, врезка шага, rework, после критика. Это цех, не отсек ручек.</p>
+          <div class="stack">
+            <button class="btn" type="button">Добавить дочернюю</button>
+            <button class="btn" type="button">Врезать шаг</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- BAY -->
+    <section class="view" id="bay" role="tabpanel" aria-labelledby="t-bay" hidden>
+      <aside class="pane bay-nav">
+        <div class="ph">Отсек ручек</div>
+        <button class="on" type="button">Система и приём</button>
+        <button type="button">Модели и failover</button>
+        <button type="button">Чат и голос</button>
+        <button type="button">Миссии и сторожа</button>
+        <button type="button">Сервер · реестр</button>
+        <button type="button">Интеграции</button>
+      </aside>
+      <main class="bay-main pane">
+        <h2>Система и приём</h2>
+        <p class="lede">Не процессы. Ручки, которые одновременно крутят разговор и цех: как задачи входят, сколько полос живёт, когда слот считается зависшим.</p>
+        <div class="group">
+          <div class="gh">Приём</div>
+          <div class="row"><div>Режим «Система»<span class="desc">automatic intake</span></div><div class="tog on"></div></div>
+          <div class="row"><div>Автокритик в хвосте<span class="desc">иначе только узлом плана</span></div><div class="tog"></div></div>
+        </div>
+        <div class="group">
+          <div class="gh">Пределы цеха</div>
+          <div class="row"><div>Полосы одиночного запуска</div><span class="knob">3</span></div>
+          <div class="row"><div>Тишина до stall</div><span class="knob">10 min</span></div>
+          <div class="row"><div>Круги доработки</div><span class="knob">2</span></div>
+          <div class="row"><div>Максимум узлов плана</div><span class="knob">16</span></div>
+        </div>
+        <div class="idea">
+          <b>Идея с витрин:</b> аннунциатор как у broadcast-пульта (Team-X), рупор STEER из Hearth, пол ролей вместо очередной KPI-стены, ⌘K как у Linear/Raycast. Дом остаётся разговором, цех не притворяется чатом.
+        </div>
+      </main>
+    </section>
+  </div>
+</div>
+<script>
+const map=[['t-talk','talk'],['t-floor','floor'],['t-bay','bay']];
+function show(id){
+  map.forEach(([b,v])=>{
+    const on=v===id;
+    document.getElementById(b).setAttribute('aria-selected',on?'true':'false');
+    document.getElementById(b).classList.toggle('on',on && b!=='t-bay');
+    if(b==='t-bay') document.getElementById(b).classList.toggle('on',on);
+    const el=document.getElementById(v);
+    el.classList.toggle('on',on); el.hidden=!on;
+  });
+}
+map.forEach(([b,v])=>document.getElementById(b).addEventListener('click',()=>show(v)));
+</script>
+</body>
+</html>
