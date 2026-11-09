@@ -13,6 +13,7 @@ public struct KnowledgeDatasetScreen: View {
     @State private var isPickingFile = false
     @State private var isAskOpen = false
     @State private var pendingDeletion: ApiKnowledgeDocument?
+    @State private var query = ""
 
     public init(dataset: ApiKnowledgeDataset) {
         self.dataset = dataset
@@ -34,6 +35,8 @@ public struct KnowledgeDatasetScreen: View {
 
                     if viewModel.isLoading && viewModel.documents.isEmpty {
                         TFLoading(.block).frame(maxWidth: .infinity)
+                    } else if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        searchResults
                     } else if viewModel.documents.isEmpty {
                         TFEmptyState(
                             icon: "doc.badge.plus",
@@ -57,6 +60,14 @@ public struct KnowledgeDatasetScreen: View {
             .refreshable { await viewModel.load() }
         }
         .tfNativeHeader(dataset.name, displayMode: .inline)
+        .searchable(
+            text: $query,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Поиск по этому датасету"
+        )
+        .onChange(of: query) { _, value in
+            Task { await viewModel.search(value) }
+        }
         .task { await viewModel.load() }
         .task(id: viewModel.inProgress.count) {
             // Пока есть документы в работе — спрашиваем сервер, пока они не
@@ -72,22 +83,19 @@ public struct KnowledgeDatasetScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    isPickingFile = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Добавить документ")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
                     isAskOpen = true
                 } label: {
                     Image(systemName: "text.magnifyingglass")
                 }
                 .accessibilityLabel("Спросить по этому датасету")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("Добавить документ") { isPickingFile = true }
-                    Button("Переразобрать все") {
-                        Task { await viewModel.reparse(viewModel.documents) }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityLabel("Действия датасета")
             }
         }
         .fileImporter(
@@ -119,6 +127,46 @@ public struct KnowledgeDatasetScreen: View {
         }
     }
 
+    /// Результаты поиска внутри датасета: тот же вид строк, что на экране
+    /// базы знаний.
+    private var searchResults: some View {
+        let found = viewModel.results(for: query)
+        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            if viewModel.isSearching && found.isEmpty {
+                TFLoading(.inline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, TFSpacing.lg)
+            } else if found.isEmpty {
+                Text("В этом датасете ничего не нашлось.")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.top, TFSpacing.sm)
+            } else {
+                TFSectionHeader("Найдено: \(found.count)")
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                TFCard(padding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(found.enumerated()), id: \.element.id) { index, chunk in
+                            TFListRow(
+                                icon: "text.quote",
+                                iconStyle: .plain,
+                                title: chunk.title?.isEmpty == false
+                                    ? chunk.title! : chunk.documentName,
+                                subtitle: chunk.text.trimmingCharacters(in: .whitespacesAndNewlines),
+                                subtitleStyle: .caption,
+                                verticalPadding: TFSpacing.sm,
+                                chevron: .hidden
+                            )
+                            if index < found.count - 1 { TFDivider() }
+                        }
+                    }
+                }
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+            }
+        }
+    }
+
     private var documentsCard: some View {
         TFCard(padding: 0) {
             VStack(spacing: 0) {
@@ -136,42 +184,45 @@ public struct KnowledgeDatasetScreen: View {
         return TFListRow(
             icon: document.indexed ? "doc.text" : "clock.arrow.circlepath",
             iconStyle: .plain,
-            title: document.title ?? document.name,
+            title: displayTitle(document),
             subtitle: subtitle(for: document, status: status),
             trailing: AnyView(
                     Menu {
-                        Button("Переразобрать") { Task { await viewModel.reparse([document]) } }
+                        Button("Разобрать заново") { Task { await viewModel.reparse([document]) } }
                         Button("Удалить", role: .destructive) { pendingDeletion = document }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .tfTypeFont(size: 15)
-                            .foregroundStyle(Color.tfSub)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
                     }
                 ),
+            verticalPadding: TFSpacing.xs,
             chevron: .hidden
         )
         .contextMenu {
-            Button("Переразобрать") { Task { await viewModel.reparse([document]) } }
+            Button("Разобрать заново") { Task { await viewModel.reparse([document]) } }
             Button("Удалить", role: .destructive) { pendingDeletion = document }
         }
     }
 
-    private func subtitle(for document: ApiKnowledgeDocument, status: KnowledgeDocumentStatus?) -> String {
+    /// Имя документа в индексе: у заметок TaskFlow это `taskflow-<uuid>.md`, у
+    /// остальных — их собственный файл. Заголовок заметки важнее, но пустая
+    /// строка вместо заголовка не должна оставлять строку без названия.
+    private func displayTitle(_ document: ApiKnowledgeDocument) -> String {
+        if let title = document.title, !title.isEmpty { return title }
+        let name = document.name
+        return name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+    }
+
+    /// Подпись только когда она что-то значит: «в поиске» — это норма, о ней
+    /// молчим (владелец: «зачем ты мне это говоришь»).
+    private func subtitle(for document: ApiKnowledgeDocument, status: KnowledgeDocumentStatus?) -> String? {
         if let status {
             if status.isFailed {
                 return status.message.map { "Разбор сорвался: \($0)" } ?? "Разбор сорвался"
             }
-            if !status.isIndexed {
-                return "Разбирается — в поиске пока нет"
-            }
+            if status.isIndexed { return nil }
+            return "Разбирается — в поиске пока нет"
         }
-        if document.indexed {
-            if let chunks = document.chunkCount { return "В поиске · \(chunks) фрагм." }
-            return "В поиске"
-        }
-        return "Разбирается — в поиске пока нет"
+        return document.indexed ? nil : "Разбирается — в поиске пока нет"
     }
 
     private func handleFile(_ result: Result<[URL], Error>) async {

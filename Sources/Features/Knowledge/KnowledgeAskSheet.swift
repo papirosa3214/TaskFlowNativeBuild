@@ -8,9 +8,11 @@ public struct KnowledgeAskSheet: View {
     @State private var viewModel: KnowledgeAskViewModel
     @FocusState private var isQuestionFocused: Bool
 
-    public init(datasets: [ApiKnowledgeDataset], preselecting: String?) {
+    public init(datasets: [ApiKnowledgeDataset], preselecting: String?, initialQuestion: String = "") {
         _viewModel = State(
-            initialValue: KnowledgeAskViewModel(datasets: datasets, preselecting: preselecting)
+            initialValue: KnowledgeAskViewModel(
+                datasets: datasets, preselecting: preselecting, question: initialQuestion
+            )
         )
     }
 
@@ -61,6 +63,9 @@ public struct KnowledgeAskSheet: View {
                         Text(dataset.name)
                             .tfText(.action)
                             .foregroundStyle(isSelected ? Color.tfRed : Color.tfText)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: 240, alignment: .leading)
                             .padding(.horizontal, TFSpacing.md)
                             .padding(.vertical, TFSpacing.xs)
                             .overlay(

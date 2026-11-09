@@ -10,12 +10,13 @@ import SwiftUI
 /// всем экраном.
 public struct KnowledgeBaseScreen: View {
     @State private var viewModel = KnowledgeBaseViewModel()
-    @State private var isAskOpen = false
     @State private var sectionEditor: SectionEditorState?
     @State private var rolesEditor: ApiKnowledgeDataset?
     @State private var pendingDeletion: ApiKnowledgeDataset?
     @State private var pendingSectionDeletion: KnowledgeSection?
-    @State private var showDisabled = false
+    @State private var query = ""
+    @State private var isAskOpen = false
+    @State private var askQuestion = ""
 
     public init() {}
 
@@ -26,31 +27,38 @@ public struct KnowledgeBaseScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.xl) {
                     TFErrorBanner(viewModel.errorMessage, variant: .block)
 
-                    askRow
-                        .padding(.horizontal, TFSpacing.screenHorizontal)
-
                     if viewModel.isLoading && viewModel.datasets.isEmpty {
                         TFLoading(.block).frame(maxWidth: .infinity)
+                    } else if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        searchResults
                     } else {
                         ForEach(viewModel.shelves) { shelf in
                             shelfView(shelf)
                         }
-                        if showDisabled {
+                        if !viewModel.disabledDatasets.isEmpty {
                             disabledShelf
-                        }
-                    }
+                        }                    }
                 }
-                .padding(.vertical, TFSpacing.lg)
+                .padding(.vertical, TFSpacing.md)
             }
             .refreshable { await viewModel.load() }
         }
         .tfNativeHeader("База знаний", displayMode: .large)
+        .searchable(
+            text: $query,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Поиск по базе знаний"
+        )
+        .onChange(of: query) { _, value in
+            Task { await viewModel.search(value) }
+        }
         .task { await viewModel.load() }
         .toolbar { toolbarContent }
         .tfSheet(isPresented: $isAskOpen) {
             KnowledgeAskSheet(
                 datasets: viewModel.datasets.filter(\.isEnabled),
-                preselecting: nil
+                preselecting: nil,
+                initialQuestion: askQuestion
             )
         }
         .tfSheet(item: $sectionEditor) { state in
@@ -96,28 +104,72 @@ public struct KnowledgeBaseScreen: View {
             ),
             titleVisibility: .visible
         ) {
-            Button("Исключить из TaskFlow", role: .destructive) {
+            Button("Исключить из поиска", role: .destructive) {
                 if let dataset = pendingDeletion {
                     pendingDeletion = nil
                     Task { await viewModel.setEnabled(dataset, false) }
                 }
             }
         } message: {
-            Text("Датасет пропадёт из поиска и станет недоступен ролям. Документы в RAGFlow останутся.")
+            Text("Датасет пропадёт из поиска — и вашего, и ролей. Документы в RAGFlow останутся.")
         }
     }
 
     // ── Строки экрана ──────────────────────────────────────────────────────
 
-    private var askRow: some View {
-        TFCard(padding: 0) {
-            TFListRow(
-                icon: "text.magnifyingglass",
-                iconStyle: .plain,
-                title: "Спросить базу",
-                subtitle: "Ответ по выбранным датасетам со ссылками на источники"
-            ) { isAskOpen = true }
-            .hintAnchor(HintAnchorID.knowledgeAsk)
+    /// Найденные фрагменты: карточка сверху — «спросить по этому запросу»,
+    /// ниже сами куски с названием документа. Действий с куском нет:
+    /// открывать из индекса нечего, оригинал живёт в своём приложении.
+    private var searchResults: some View {
+        let found = viewModel.results(for: query)
+        let ask = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFCard(padding: 0) {
+                TFListRow(
+                    icon: "text.magnifyingglass",
+                    iconStyle: .plain,
+                    title: "Спросить базу",
+                    subtitle: "Ответ по этому запросу со ссылками на источники",
+                    verticalPadding: TFSpacing.sm
+                ) {
+                    askQuestion = ask
+                    isAskOpen = true
+                }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+
+            if viewModel.isSearching && found.isEmpty {
+                TFLoading(.inline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, TFSpacing.lg)
+            } else if found.isEmpty {
+                Text("Ничего не нашлось. Попробуйте другие слова — поиск смысловой, а не по точному совпадению.")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                    .padding(.top, TFSpacing.sm)
+            } else {
+                TFSectionHeader("Найдено: \(found.count)")
+                    .padding(.horizontal, TFSpacing.screenHorizontal)
+                TFCard(padding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(found.enumerated()), id: \.element.id) { index, chunk in
+                            TFListRow(
+                                icon: "text.quote",
+                                iconStyle: .plain,
+                                title: chunk.title?.isEmpty == false
+                                    ? chunk.title! : chunk.documentName,
+                                subtitle: chunk.text.trimmingCharacters(in: .whitespacesAndNewlines),
+                                subtitleStyle: .caption,
+                                verticalPadding: TFSpacing.sm,
+                                chevron: .hidden
+                            )
+                            if index < found.count - 1 { TFDivider() }
+                        }
+                    }
+                }
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+            }
         }
     }
 
@@ -136,12 +188,9 @@ public struct KnowledgeBaseScreen: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .tfTypeFont(size: 15)
-                            .foregroundStyle(Color.tfSub)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Раздел \(shelf.title)")
+                    .padding(.trailing, TFSpacing.xs)
                 }
             }
             .padding(.horizontal, TFSpacing.screenHorizontal)
@@ -182,12 +231,9 @@ public struct KnowledgeBaseScreen: View {
                             datasetMenu(dataset)
                         } label: {
                             Image(systemName: "ellipsis")
-                                .tfTypeFont(size: 15)
-                                .foregroundStyle(Color.tfSub)
-                                .frame(width: 32, height: 32)
-                                .contentShape(Rectangle())
                         }
                     ),
+                verticalPadding: TFSpacing.xs,
                 chevron: .shown
             )
         }
@@ -199,16 +245,16 @@ public struct KnowledgeBaseScreen: View {
         var parts: [String] = []
         if let documents = dataset.documentCount { parts.append("\(documents) док.") }
         if let chunks = dataset.chunkCount { parts.append("\(chunks) фрагм.") }
-        parts.append(dataset.roleTitles.isEmpty ? "только владелец" : dataset.roleTitles.joined(separator: ", "))
+        if !dataset.roleTitles.isEmpty { parts.append(dataset.roleTitles.joined(separator: ", ")) }
         return parts.joined(separator: " · ")
     }
 
     @ViewBuilder
     private func datasetMenu(_ dataset: ApiKnowledgeDataset) -> some View {
         if dataset.isEnabled {
-            Button("Исключить из TaskFlow", role: .destructive) { pendingDeletion = dataset }
+            Button("Исключить из поиска", role: .destructive) { pendingDeletion = dataset }
         } else {
-            Button("Вернуть в TaskFlow") { Task { await viewModel.setEnabled(dataset, true) } }
+            Button("Вернуть в поиск") { Task { await viewModel.setEnabled(dataset, true) } }
         }
 
         Menu("Раздел") {
@@ -223,31 +269,23 @@ public struct KnowledgeBaseScreen: View {
 
     private var disabledShelf: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFSectionHeader("Исключённые")
+            TFSectionHeader("Исключены из поиска")
                 .padding(.horizontal, TFSpacing.screenHorizontal)
             TFCard(padding: 0) {
-                if viewModel.disabledDatasets.isEmpty {
-                    Text("Исключённых датасетов нет.")
-                        .tfText(.action)
-                        .foregroundStyle(Color.tfSub)
-                        .padding(TFSpacing.lg)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(viewModel.disabledDatasets.enumerated()), id: \.element.id) { index, dataset in
-                            HStack(spacing: TFSpacing.md) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(dataset.name).tfText(.body).foregroundStyle(Color.tfText)
-                                    Text("Для TaskFlow выключен")
-                                        .tfText(.action).foregroundStyle(Color.tfSub)
-                                }
-                                Spacer()
+                VStack(spacing: 0) {
+                    ForEach(Array(viewModel.disabledDatasets.enumerated()), id: \.element.id) { index, dataset in
+                        TFListRow(
+                            icon: dataset.isTaskflowOwned ? "doc.text" : "externaldrive",
+                            iconStyle: .plain,
+                            title: dataset.name,
+                            subtitle: "Исключён из поиска",
+                            trailing: AnyView(
                                 Button("Вернуть") { Task { await viewModel.setEnabled(dataset, true) } }
-                                    .tfText(.action)
-                                    .foregroundStyle(Color.tfRed)
-                            }
-                            .padding(TFSpacing.lg)
-                            if index < viewModel.disabledDatasets.count - 1 { TFDivider() }
-                        }
+                            ),
+                            verticalPadding: TFSpacing.xs,
+                            chevron: .hidden
+                        )
+                        if index < viewModel.disabledDatasets.count - 1 { TFDivider() }
                     }
                 }
             }
@@ -261,18 +299,25 @@ public struct KnowledgeBaseScreen: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
-                Button("Спросить базу") { isAskOpen = true }
                 Button("Новый раздел") { sectionEditor = SectionEditorState(section: nil, title: "") }
-                TFToggle(isOn: $showDisabled)
-                    .accessibilityLabel("Показать исключённые")
                 Divider()
                 NavigationLink("Заметки TaskFlow") {
                     routeDestination(.notes)
                 }
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Image(systemName: "ellipsis")
             }
             .accessibilityLabel("Действия базы знаний")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                askQuestion = query
+                isAskOpen = true
+            } label: {
+                Image(systemName: "text.magnifyingglass")
+            }
+            .accessibilityLabel("Спросить базу")
+            .hintAnchor(HintAnchorID.knowledgeAsk)
         }
         ToolbarItem(placement: .topBarTrailing) {
             NavigationLink {

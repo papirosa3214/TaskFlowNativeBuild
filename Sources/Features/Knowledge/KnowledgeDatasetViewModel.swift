@@ -20,6 +20,12 @@ public final class KnowledgeDatasetViewModel {
     public private(set) var errorMessage: String?
     public var uploadMessage: String?
 
+    /// Поиск внутри датасета: владелец проваливается сюда именно чтобы
+    /// искать не везде, а по этой теме.
+    public private(set) var searchResults: [ApiKnowledgeChunk] = []
+    public private(set) var isSearching = false
+    private var searchedQuery = ""
+
     public init(datasetId: String) {
         self.datasetId = datasetId
     }
@@ -32,6 +38,25 @@ public final class KnowledgeDatasetViewModel {
 
     public func status(for document: ApiKnowledgeDocument) -> KnowledgeDocumentStatus? {
         statuses[document.ragflowId]
+    }
+
+    public func search(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            searchedQuery = trimmed
+            searchResults = []
+            return
+        }
+        isSearching = true
+        defer { isSearching = false }
+        searchedQuery = trimmed
+        searchResults = (try? await api.knowledgeSearch(
+            query: trimmed, topK: 20, datasetIds: [datasetId]
+        )) ?? []
+    }
+
+    public func results(for text: String) -> [ApiKnowledgeChunk] {
+        text.trimmingCharacters(in: .whitespacesAndNewlines) == searchedQuery ? searchResults : []
     }
 
     public func load() async {

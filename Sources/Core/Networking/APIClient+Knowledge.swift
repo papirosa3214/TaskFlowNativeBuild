@@ -89,15 +89,21 @@ public extension APIClient {
         )
     }
 
-    func knowledgeSearch(query: String, topK: Int = 8) async throws -> [ApiKnowledgeChunk] {
+    /// `datasetIds` пустой — сервер ищет по всем включённым датасетам
+    /// (владелец: «обычное окно ввода поисковое, стандартное… если хочу не
+    /// везде искать, проваливаюсь в конкретный датасет»).
+    func knowledgeSearch(
+        query: String, topK: Int = 8, datasetIds: [String] = []
+    ) async throws -> [ApiKnowledgeChunk] {
         struct Response: Decodable { let results: [ApiKnowledgeChunk] }
-        let response: Response = try await request(
-            .get, "/knowledge/search",
-            query: [
-                URLQueryItem(name: "q", value: query),
-                URLQueryItem(name: "top_k", value: String(topK)),
-            ]
-        )
+        var items = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "top_k", value: String(topK)),
+        ]
+        if !datasetIds.isEmpty {
+            items.append(URLQueryItem(name: "dataset_id", value: datasetIds.joined(separator: ",")))
+        }
+        let response: Response = try await request(.get, "/knowledge/search", query: items)
         return response.results
     }
 

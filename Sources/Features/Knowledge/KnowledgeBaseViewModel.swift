@@ -21,6 +21,13 @@ public final class KnowledgeBaseViewModel {
     public private(set) var isSaving = false
     public private(set) var errorMessage: String?
 
+    /// Поиск по базе: пустой запрос — полки, непустой — найденные фрагменты.
+    public private(set) var searchResults: [ApiKnowledgeChunk] = []
+    public private(set) var isSearching = false
+    /// Запрос, по которому пришли `searchResults`: пока он не совпал с тем,
+    /// что в поле ввода, результаты не показываем (гонка дебаунса).
+    private var searchedQuery = ""
+
     public init() {}
 
     /// Полки для экрана: разделы владельца в его порядке, «Без раздела» в
@@ -42,6 +49,35 @@ public final class KnowledgeBaseViewModel {
     /// просьбе («Показать исключённые»): по умолчанию их для базы знаний нет.
     public var disabledDatasets: [ApiKnowledgeDataset] {
         datasets.filter { !$0.isEnabled }
+    }
+
+    /// Поиск по базе с верхнего экрана: область — включённые датасеты (их
+    /// выбирает сервер, когда `dataset_id` не передан). Короткий ввод не
+    /// отправляем: retrieval на односложные запросы отдаёт случайные куски.
+    public func search(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            searchedQuery = trimmed
+            searchResults = []
+            return
+        }
+        isSearching = true
+        defer { isSearching = false }
+        do {
+            let found = try await api.knowledgeSearch(query: trimmed, topK: 20)
+            searchedQuery = trimmed
+            searchResults = found
+            errorMessage = nil
+        } catch {
+            searchedQuery = trimmed
+            searchResults = []
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Результаты отдаём только для того запроса, который сейчас в поле.
+    public func results(for text: String) -> [ApiKnowledgeChunk] {
+        text.trimmingCharacters(in: .whitespacesAndNewlines) == searchedQuery ? searchResults : []
     }
 
     public func load() async {

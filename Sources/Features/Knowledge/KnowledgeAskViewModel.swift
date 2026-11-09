@@ -20,8 +20,9 @@ public final class KnowledgeAskViewModel {
     public private(set) var isAsking = false
     public private(set) var errorMessage: String?
 
-    public init(datasets: [ApiKnowledgeDataset], preselecting: String? = nil) {
+    public init(datasets: [ApiKnowledgeDataset], preselecting: String? = nil, question: String = "") {
         self.datasets = datasets
+        self.question = question
         if let preselecting, datasets.contains(where: { $0.id == preselecting }) {
             self.selectedDatasetIds = [preselecting]
         } else if datasets.count == 1, let only = datasets.first {
