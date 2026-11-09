@@ -22,8 +22,24 @@ struct NoteListItem: Decodable, Identifiable, Hashable {
     /// Состояние заметки в индексе базы знаний с 09.11.2026: `indexed`,
     /// `queued`, `indexing`, `error`. Приходит в списке и в карточке — сто
     /// запросов на сто заметок ради значка не делаем.
-    let indexState: String? = nil
-    let indexError: String? = nil
+    let indexState: String?
+    let indexError: String?
+
+    /// Значения по умолчанию нужны локальным вызовам (кэш, перенос между
+    /// папками, тесты): сервер присылает оба поля в списке, и декодер
+    /// заполняет их сам — объявленный `= nil` у `let` не дал бы этого сделать.
+    init(id: String, title: String, folderId: Int?, preview: String,
+         createdAt: String?, updatedAt: String?,
+         indexState: String? = nil, indexError: String? = nil) {
+        self.id = id
+        self.title = title
+        self.folderId = folderId
+        self.preview = preview
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.indexState = indexState
+        self.indexError = indexError
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, title, preview
