@@ -9,14 +9,6 @@ struct AIUsageScreen: View {
     /// Выбранный на графике день (`2026-10-23`); `nil` — весь период.
     @State private var pickedLabel: String?
     @State private var modelsExpanded = false
-    /// Вид графика: столбики по дням или прогноз темпа (владелец 09.11.2026 —
-    /// «одна иконочка с краешком графика, нажимаешь — вид меняется»).
-    @State private var chartMode: ChartMode = .bars
-    /// Разрез графика: по моделям или по провайдерам — это фильтр, а не вид.
-    @State private var breakdown: Breakdown = .model
-
-    enum ChartMode { case bars, forecast }
-    enum Breakdown { case model, provider }
 
     private var selectedDay: String? {
         guard let pickedLabel, let usage else { return nil }
@@ -43,6 +35,7 @@ struct AIUsageScreen: View {
                     } else {
                         modelsSection(usage)
                     JevUsageSection(window: jevWindow)
+                    OpenCodeUsageSection(window: window)
                     }
                     Text("Учтены сохранённые ответы моделей ролям TaskFlow. Это не расход всего аккаунта провайдера. Стоимость — тарифная оценка SDK, а не списание с подписки; баланс и стоимость подписки здесь не учитываются.")
                         .tfText(.caption).foregroundStyle(Color.tfSub)
@@ -72,58 +65,14 @@ struct AIUsageScreen: View {
     /// График — наверху: вопрос «сколько и когда», цифры — ниже. Столбик дня
     /// делится по моделям оттенками красного, тап по столбику выбирает день.
     private func chartSection(_ usage: AIUsage) -> some View {
-        // Тело — два выражения (график и подпись прогноза), поэтому общий
-        // `VStack`: без него `some View` не выводится и сборка падает. Отступ
-        // малый (`.xs`): подпись прогноза идёт вплотную к графику, а не через
-        // `lg`, как между крупными секциями экрана.
-        VStack(spacing: TFSpacing.xs) {
-            chartWithHeader(usage)
-            if chartMode == .forecast {
-                Text(forecastText(usage))
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfSub)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-        }
-    }
-
-    private func chartWithHeader(_ usage: AIUsage) -> some View {
         VStack(spacing: TFSpacing.sm) {
-            HStack(spacing: TFSpacing.sm) {
-                Spacer(minLength: 0)
-                Text("Токены по дням")
-                    .tfText(.row)
-                    .foregroundStyle(Color.tfText)
-                Spacer(minLength: 0)
-                Menu {
-                    // Вид графика — обычные пункты нативного меню с иконками:
-                    // своя кнопка поверх графика ломала его и не нажималась.
-                    Picker("Вид", selection: $chartMode) {
-                        Label("Столбики", systemImage: "chart.bar.fill").tag(ChartMode.bars)
-                        Label("Прогноз", systemImage: "chart.xyaxis.line").tag(ChartMode.forecast)
-                    }
-                    .pickerStyle(.inline)
-                    Divider()
-                    Picker("Разрез", selection: $breakdown) {
-                        Text("По моделям").tag(Breakdown.model)
-                        Text("По провайдерам").tag(Breakdown.provider)
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 17)) // design-system-guard: ignore — иконка меню, не текст
-                        .foregroundStyle(Color.tfSub)
-                }
-                .accessibilityIdentifier("ai-usage.breakdown")
-                .accessibilityLabel("Вид и разрез графика")
-            }
+            Text("Токены по дням")
+                .tfText(.row)
+                .foregroundStyle(Color.tfText)
+                .frame(maxWidth: .infinity, alignment: .center)
             if usage.hasModelBreakdown {
-                if chartMode == .bars {
-                    stackedChart(usage)
-                    legend(usage)
-                } else {
-                    forecastChart(usage)
-                }
+                stackedChart(usage)
+                legend(usage)
             } else {
                 Chart(usage.daily) { day in
                     BarMark(x: .value("День", dayLabel(day.day)),
@@ -138,70 +87,15 @@ struct AIUsageScreen: View {
         .accessibilityIdentifier("ai-usage.chart")
     }
 
-    /// Прогнозная точка графика: день и сколько токенов ожидается по текущему
-    /// темпу. Отдельный тип нужен, чтобы Chart нарисовал линию прогноза,
-    /// а не пустую ось (раньше «прогноз» был только текстом под графиком).
-    private struct ForecastPoint: Identifiable {
-        var id: String { day }
-        let day: String
-        let tokens: Int
-    }
-
-    /// Прогноз: линия среднего темпа по дням окна. Значение берётся из
-    /// серверного `forecast.tokensPerDay` — своих вычислений на телефоне нет.
-    private func forecastPoints(_ usage: AIUsage) -> [ForecastPoint] {
-        let perDay = usage.forecast.tokensPerDay
-        guard perDay > 0 else { return [] }
-        return usage.daily.map { ForecastPoint(day: dayLabel($0.day), tokens: perDay) }
-    }
-
-    /// График прогноза: факт по дням столбиками и линия темпа поверх.
-    private func forecastChart(_ usage: AIUsage) -> some View {
-        let points = forecastPoints(usage)
-        return Chart {
-            ForEach(usage.daily) { day in
-                BarMark(x: .value("День", dayLabel(day.day)),
-                        y: .value("Токены", tokensInAxisUnit(day.totalTokens, for: usage)))
-                    .foregroundStyle(Color.tfSub.opacity(0.35))
-            }
-            ForEach(points) { point in
-                LineMark(x: .value("День", point.day),
-                         y: .value("Темп", tokensInAxisUnit(point.tokens, for: usage)))
-                    .foregroundStyle(Color.tfRed)
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: usage.daily.map { dayLabel($0.day) }) { value in
-                AxisGridLine()
-                AxisValueLabel(orientation: verticalAxis ? .verticalReversed : .horizontal) {
-                    if let label = value.as(String.self) { Text(label).tfText(.caption) }
-                }
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .trailing) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let tick = value.as(Double.self) { Text(axisTick(tick)).tfText(.caption) }
-                }
-            }
-        }
-        .chartYAxisLabel(axisUnitName(for: usage), position: .leading)
-        .chartXAxisLabel("Дни")
-        .frame(height: 170)
-        .accessibilityIdentifier("ai-usage.forecast-chart")
-    }
-
     private func stackedChart(_ usage: AIUsage) -> some View {
-        Chart(chartRows(usage)) { row in
+        Chart(usage.chartSegments) { row in
             BarMark(x: .value("День", dayLabel(row.day)),
                     y: .value("Токены", tokensInAxisUnit(row.totalTokens, for: usage)))
-            .foregroundStyle(by: .value("Строка", row.key))
+            .foregroundStyle(by: .value("Модель", row.model))
             .opacity(selectedDay == nil || selectedDay == row.day ? 1 : 0.35)
         }
-        .chartForegroundStyleScale(domain: chartKeys(usage),
-                                   range: chartKeys(usage).map { color(for: $0, in: usage) })
+        .chartForegroundStyleScale(domain: usage.modelOrder,
+                                   range: usage.modelOrder.map(shade))
         .chartLegend(.hidden)
         .chartXAxis {
             // За 30 дней даты не помещаются в строку: Swift Charts их прятал,
@@ -230,26 +124,6 @@ struct AIUsageScreen: View {
         .chartXAxisLabel("Дни")
         .chartXSelection(value: $pickedLabel)
         .frame(height: 170)
-    }
-
-    /// Строки графика: день и ключ разреза (модель или провайдер).
-    private struct ChartRow: Identifiable {
-        var id: String { day + ":" + key }
-        let day: String
-        let key: String
-        let totalTokens: Int
-    }
-
-    private func chartRows(_ usage: AIUsage) -> [ChartRow] {
-        let keys = chartKeys(usage)
-        func rank(_ key: String) -> Int { keys.firstIndex(of: key) ?? keys.count }
-        if breakdown == .provider {
-            return usage.dailyByProvider
-                .map { ChartRow(day: $0.day, key: $0.provider, totalTokens: $0.totalTokens) }
-                .sorted { $0.day == $1.day ? rank($0.key) < rank($1.key) : $0.day < $1.day }
-        }
-        return usage.chartSegments
-            .map { ChartRow(day: $0.day, key: $0.model, totalTokens: $0.totalTokens) }
     }
 
     /// Окно для расхода JEV: у него нет «сегодня», есть сутки.
@@ -296,11 +170,8 @@ struct AIUsageScreen: View {
             ForEach(legendModels(usage), id: \.self) { model in
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(color(for: model, in: usage))
+                        .fill(shade(model))
                         .frame(width: 8, height: 8)
-                    if let provider = provider(of: model, in: usage) {
-                        AIUsageProviderBadge(provider: provider, size: 14)
-                    }
                     Text(model)
                         .tfText(.caption)
                         .foregroundStyle(Color.tfSub)
@@ -316,29 +187,10 @@ struct AIUsageScreen: View {
         .accessibilityIdentifier("ai-usage.legend")
     }
 
-    /// Какой провайдер у модели — для значка рядом с названием.
-    private func provider(of model: String, in usage: AIUsage) -> String? {
-        usage.dailyByModel.first { $0.model == model }?.provider
-            ?? usage.models.first { $0.model == model }?.provider
-    }
-
-    /// Строка прогноза под графиком. Лимита провайдера у нас нет, поэтому
-    /// дату «хватит до …» не пишем — только темп и ожидание на 30 дней.
-    private func forecastText(_ usage: AIUsage) -> String {
-        guard chartMode == .forecast else { return "" }
-        guard usage.forecast.enoughData else { return "Мало данных для прогноза: нужен расход хотя бы в двух днях." }
-        return "При таком темпе: ≈ \(AIUsageFormat.tokens(usage.forecast.tokensPerDay)) в сутки, "
-            + "≈ \(AIUsageFormat.tokens(usage.forecast.tokensNext30Days)) за 30 дней."
-    }
-
     /// В легенде — только модели, которые реально съели токены, и не больше
     /// шести: остальные всё равно видны под «Подробнее по моделям».
     private func legendModels(_ usage: AIUsage) -> [String] {
-        let keys = chartKeys(usage)
-        let spent = breakdown == .provider
-            ? Set(usage.providers.filter { $0.totalTokens > 0 }.map(\.provider))
-            : Set(usage.models.filter { $0.totalTokens > 0 }.map(\.model))
-        return Array(keys.filter { spent.contains($0) }.prefix(6))
+        Array(usage.modelOrder.filter { tokens(of: $0, in: usage) > 0 }.prefix(6))
     }
 
     // MARK: - Цифры (первая категория, отделены линиями)
@@ -397,10 +249,7 @@ struct AIUsageScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     ForEach(models) { model in
                         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                            HStack(spacing: TFSpacing.xs) {
-                                AIUsageProviderBadge(provider: model.provider, size: 16)
-                                Text(model.model).tfText(.row).foregroundStyle(Color.tfText)
-                            }
+                            Text(model.model).tfText(.row).foregroundStyle(Color.tfText)
                             Text("\(model.provider) · \(AIUsageFormat.tokens(model.totalTokens)) токенов · \(model.calls) вызовов")
                                 .tfText(.caption).foregroundStyle(Color.tfSub)
                             if let cost = model.estimatedCostUsd {
@@ -438,23 +287,15 @@ struct AIUsageScreen: View {
         return "\(parts[2]).\(parts[1])"
     }
 
-    private func tokens(of key: String, in usage: AIUsage) -> Int {
-        if breakdown == .provider {
-            return usage.dailyByProvider.filter { $0.provider == key }.reduce(0) { $0 + $1.totalTokens }
-        }
-        return usage.dailyByModel.filter { $0.model == key }.reduce(0) { $0 + $1.totalTokens }
+    private func tokens(of model: String, in usage: AIUsage) -> Int {
+        usage.dailyByModel.filter { $0.model == model }.reduce(0) { $0 + $1.totalTokens }
     }
 
-    /// Ключи строк графика в текущем разрезе: модели или провайдеры.
-    private func chartKeys(_ usage: AIUsage) -> [String] {
-        breakdown == .provider ? usage.providers.map(\.provider) : usage.modelOrder
-    }
-
-    /// Цвет строки графика: свой на каждую модель (или провайдера), из палитры
-    /// дизайн-системы. Градация красного тут не годится — владелец 09.11.2026:
-    /// «тут абсолютно разные модели, их надо считывать гораздо четче».
-    private func color(for key: String, in usage: AIUsage) -> Color {
-        AIUsagePalette.color(for: key, order: chartKeys(usage))
+    /// Оттенки красного по рангу модели: больше расход — насыщеннее.
+    private func shade(_ model: String) -> Color {
+        let opacities: [Double] = [1, 0.72, 0.52, 0.36, 0.24, 0.15]
+        let rank = usage?.shadeIndex(for: model) ?? opacities.count
+        return Color.tfRed.opacity(rank < opacities.count ? opacities[rank] : 0.1)
     }
 
     @MainActor private func load() async {

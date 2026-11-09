@@ -9,11 +9,6 @@ struct AIUsage: Decodable, Sendable {
     /// Сервер отдаёт его отдельным полем `dailyByModel`; старый ответ без
     /// поля декодируется пустым списком, и экран остаётся с общими столбиками.
     let dailyByModel: [AIUsageDayModel]
-    /// Разрез по провайдерам — второй режим фильтра (владелец 09.11.2026).
-    let providers: [AIUsageProvider]
-    let dailyByProvider: [AIUsageDayProvider]
-    /// Прогноз по реальному темпу: средний расход в сутки за окно.
-    let forecast: AIUsageForecast
     /// Устойчивый порядок моделей: сначала самые дорогие по токенам за период.
     /// Считается ОДИН РАЗ при разборе ответа: раньше это свойство пересобирало
     /// словарь и сортировало его на каждый вызов `shadeIndex` — то есть на каждую
@@ -21,22 +16,17 @@ struct AIUsage: Decodable, Sendable {
     let modelOrder: [String]
 
     init(trackingSince: String?, totals: AIUsageTotals, models: [AIUsageModel],
-         daily: [AIUsageDay], dailyByModel: [AIUsageDayModel],
-         providers: [AIUsageProvider] = [], dailyByProvider: [AIUsageDayProvider] = [],
-         forecast: AIUsageForecast = AIUsageForecast()) {
+         daily: [AIUsageDay], dailyByModel: [AIUsageDayModel]) {
         self.trackingSince = trackingSince
         self.totals = totals
         self.models = models
         self.daily = daily
         self.dailyByModel = dailyByModel
-        self.providers = providers
-        self.dailyByProvider = dailyByProvider
-        self.forecast = forecast
         self.modelOrder = Self.order(for: dailyByModel)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case trackingSince, totals, models, daily, dailyByModel, providers, dailyByProvider, forecast
+        case trackingSince, totals, models, daily, dailyByModel
     }
 
     init(from decoder: Decoder) throws {
@@ -46,9 +36,6 @@ struct AIUsage: Decodable, Sendable {
         models = try c.decodeIfPresent([AIUsageModel].self, forKey: .models) ?? []
         daily = try c.decodeIfPresent([AIUsageDay].self, forKey: .daily) ?? []
         dailyByModel = try c.decodeIfPresent([AIUsageDayModel].self, forKey: .dailyByModel) ?? []
-        providers = try c.decodeIfPresent([AIUsageProvider].self, forKey: .providers) ?? []
-        dailyByProvider = try c.decodeIfPresent([AIUsageDayProvider].self, forKey: .dailyByProvider) ?? []
-        forecast = try c.decodeIfPresent(AIUsageForecast.self, forKey: .forecast) ?? AIUsageForecast()
         modelOrder = Self.order(for: dailyByModel)
     }
 
@@ -190,50 +177,5 @@ struct AIUsageDayModel: Decodable, Identifiable, Sendable {
             if lhs.day != rhs.day { return lhs.day < rhs.day }
             return rank(lhs.model) < rank(rhs.model)
         }
-    }
-}
-
-
-/// Разрез по провайдеру за период (второй режим фильтра).
-struct AIUsageProvider: Decodable, Sendable, Identifiable {
-    var id: String { provider }
-    let provider: String
-    let calls: Int
-    let inputTokens: Int
-    let outputTokens: Int
-    let cacheReadTokens: Int
-    let cacheWriteTokens: Int
-    let totalTokens: Int
-    let estimatedCostUsd: Double?
-    let unpricedCalls: Int
-}
-
-/// Одна строка разреза «день × провайдер».
-struct AIUsageDayProvider: Decodable, Sendable, Identifiable {
-    var id: String { day + ":" + provider }
-    let day: String
-    let provider: String
-    let calls: Int
-    let inputTokens: Int
-    let outputTokens: Int
-    let cacheReadTokens: Int
-    let cacheWriteTokens: Int
-    let totalTokens: Int
-    let estimatedCostUsd: Double?
-    let unpricedCalls: Int
-}
-
-/// Прогноз по реальному темпу: лимитов провайдера у нас нет, поэтому дату
-/// «хватит до …» не считаем — только средний темп и ожидание на 30 дней.
-struct AIUsageForecast: Decodable, Sendable {
-    let tokensPerDay: Int
-    let tokensNext30Days: Int
-    /// Меньше двух дней с расходом — прогноз не строим.
-    let enoughData: Bool
-
-    init(tokensPerDay: Int = 0, tokensNext30Days: Int = 0, enoughData: Bool = false) {
-        self.tokensPerDay = tokensPerDay
-        self.tokensNext30Days = tokensNext30Days
-        self.enoughData = enoughData
     }
 }
