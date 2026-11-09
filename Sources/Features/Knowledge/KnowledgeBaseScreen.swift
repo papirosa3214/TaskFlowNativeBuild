@@ -157,10 +157,19 @@ public struct KnowledgeBaseScreen: View {
                             TFListRow(
                                 icon: "text.quote",
                                 iconStyle: .plain,
-                                title: chunk.title?.isEmpty == false
-                                    ? chunk.title! : chunk.documentName,
-                                subtitle: chunk.text.trimmingCharacters(in: .whitespacesAndNewlines),
-                                subtitleStyle: .caption,
+                                content: AnyView(
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(chunk.title?.isEmpty == false
+                                             ? chunk.title! : chunk.documentName)
+                                            .tfText(.body)
+                                            .foregroundStyle(Color.tfText)
+                                            .lineLimit(1)
+                                        Text(chunk.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                                            .tfText(.caption)
+                                            .foregroundStyle(Color.tfSub)
+                                            .lineLimit(3)
+                                    }
+                                ),
                                 verticalPadding: TFSpacing.sm,
                                 chevron: .hidden
                             )
