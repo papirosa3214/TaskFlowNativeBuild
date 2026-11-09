@@ -22,8 +22,8 @@ struct NoteListItem: Decodable, Identifiable, Hashable {
     /// Состояние заметки в индексе базы знаний с 09.11.2026: `indexed`,
     /// `queued`, `indexing`, `error`. Приходит в списке и в карточке — сто
     /// запросов на сто заметок ради значка не делаем.
-    let indexState: String?
-    let indexError: String?
+    let indexState: String? = nil
+    let indexError: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, title, preview

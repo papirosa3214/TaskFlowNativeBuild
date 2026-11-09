@@ -72,6 +72,9 @@ struct AIUsageScreen: View {
     /// График — наверху: вопрос «сколько и когда», цифры — ниже. Столбик дня
     /// делится по моделям оттенками красного, тап по столбику выбирает день.
     private func chartSection(_ usage: AIUsage) -> some View {
+        // Тело — два выражения (график и подпись прогноза), поэтому общий
+        // `VStack`: без него `some View` не выводится и сборка падает.
+        VStack(spacing: TFSpacing.xs) {
         VStack(spacing: TFSpacing.sm) {
             HStack(spacing: TFSpacing.sm) {
                 Spacer(minLength: 0)
@@ -125,6 +128,7 @@ struct AIUsageScreen: View {
                 .tfText(.caption)
                 .foregroundStyle(Color.tfSub)
                 .frame(maxWidth: .infinity, alignment: .center)
+        }
         }
     }
 
