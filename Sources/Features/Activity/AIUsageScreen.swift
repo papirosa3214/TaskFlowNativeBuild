@@ -73,8 +73,21 @@ struct AIUsageScreen: View {
     /// делится по моделям оттенками красного, тап по столбику выбирает день.
     private func chartSection(_ usage: AIUsage) -> some View {
         // Тело — два выражения (график и подпись прогноза), поэтому общий
-        // `VStack`: без него `some View` не выводится и сборка падает.
+        // `VStack`: без него `some View` не выводится и сборка падает. Отступ
+        // малый (`.xs`): подпись прогноза идёт вплотную к графику, а не через
+        // `lg`, как между крупными секциями экрана.
         VStack(spacing: TFSpacing.xs) {
+            chartWithHeader(usage)
+            if chartMode == .forecast {
+                Text(forecastText(usage))
+                    .tfText(.caption)
+                    .foregroundStyle(Color.tfSub)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+    }
+
+    private func chartWithHeader(_ usage: AIUsage) -> some View {
         VStack(spacing: TFSpacing.sm) {
             HStack(spacing: TFSpacing.sm) {
                 Spacer(minLength: 0)
@@ -123,13 +136,6 @@ struct AIUsageScreen: View {
             }
         }
         .accessibilityIdentifier("ai-usage.chart")
-        if chartMode == .forecast {
-            Text(forecastText(usage))
-                .tfText(.caption)
-                .foregroundStyle(Color.tfSub)
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
-        }
     }
 
     private func stackedChart(_ usage: AIUsage) -> some View {
