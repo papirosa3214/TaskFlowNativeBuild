@@ -328,7 +328,10 @@ struct AIUsageScreen: View {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     ForEach(models) { model in
                         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                            Text(model.model).tfText(.row).foregroundStyle(Color.tfText)
+                            HStack(spacing: TFSpacing.xs) {
+                                AIUsageProviderBadge(provider: model.provider, size: 16)
+                                Text(model.model).tfText(.row).foregroundStyle(Color.tfText)
+                            }
                             Text("\(model.provider) · \(AIUsageFormat.tokens(model.totalTokens)) токенов · \(model.calls) вызовов")
                                 .tfText(.caption).foregroundStyle(Color.tfSub)
                             if let cost = model.estimatedCostUsd {
