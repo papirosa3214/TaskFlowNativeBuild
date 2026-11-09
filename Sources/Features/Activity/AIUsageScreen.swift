@@ -96,34 +96,34 @@ struct AIUsageScreen: View {
                     .foregroundStyle(Color.tfText)
                 Spacer(minLength: 0)
                 Menu {
+                    // Вид графика — обычные пункты нативного меню с иконками:
+                    // своя кнопка поверх графика ломала его и не нажималась.
+                    Picker("Вид", selection: $chartMode) {
+                        Label("Столбики", systemImage: "chart.bar.fill").tag(ChartMode.bars)
+                        Label("Прогноз", systemImage: "chart.xyaxis.line").tag(ChartMode.forecast)
+                    }
+                    .pickerStyle(.inline)
+                    Divider()
                     Picker("Разрез", selection: $breakdown) {
                         Text("По моделям").tag(Breakdown.model)
                         Text("По провайдерам").tag(Breakdown.provider)
                     }
+                    .pickerStyle(.inline)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 17)) // design-system-guard: ignore — иконка меню, не текст
                         .foregroundStyle(Color.tfSub)
                 }
                 .accessibilityIdentifier("ai-usage.breakdown")
-                .accessibilityLabel("Разрез графика")
+                .accessibilityLabel("Вид и разрез графика")
             }
             if usage.hasModelBreakdown {
-                ZStack(alignment: .topTrailing) {
+                if chartMode == .bars {
                     stackedChart(usage)
-                    Button {
-                        chartMode = chartMode == .bars ? .forecast : .bars
-                    } label: {
-                        Image(systemName: chartMode == .bars ? "chart.bar.fill" : "chart.xyaxis.line")
-                            .font(.system(size: 15)) // design-system-guard: ignore — иконка переключателя
-                            .foregroundStyle(Color.tfSub)
-                            .frame(width: 32, height: 28)
-                            .background(Color.tfTile, in: RoundedRectangle(cornerRadius: TFRadius.sm))
-                    }
-                    .accessibilityIdentifier("ai-usage.chart-mode")
-                    .accessibilityLabel(chartMode == .bars ? "Показать прогноз" : "Показать столбики")
+                    legend(usage)
+                } else {
+                    forecastChart(usage)
                 }
-                legend(usage)
             } else {
                 Chart(usage.daily) { day in
                     BarMark(x: .value("День", dayLabel(day.day)),
@@ -136,6 +136,61 @@ struct AIUsageScreen: View {
             }
         }
         .accessibilityIdentifier("ai-usage.chart")
+    }
+
+    /// Прогнозная точка графика: день и сколько токенов ожидается по текущему
+    /// темпу. Отдельный тип нужен, чтобы Chart нарисовал линию прогноза,
+    /// а не пустую ось (раньше «прогноз» был только текстом под графиком).
+    private struct ForecastPoint: Identifiable {
+        var id: String { day }
+        let day: String
+        let tokens: Int
+    }
+
+    /// Прогноз: линия среднего темпа по дням окна. Значение берётся из
+    /// серверного `forecast.tokensPerDay` — своих вычислений на телефоне нет.
+    private func forecastPoints(_ usage: AIUsage) -> [ForecastPoint] {
+        let perDay = usage.forecast.tokensPerDay
+        guard perDay > 0 else { return [] }
+        return usage.daily.map { ForecastPoint(day: dayLabel($0.day), tokens: perDay) }
+    }
+
+    /// График прогноза: факт по дням столбиками и линия темпа поверх.
+    private func forecastChart(_ usage: AIUsage) -> some View {
+        let points = forecastPoints(usage)
+        return Chart {
+            ForEach(usage.daily) { day in
+                BarMark(x: .value("День", dayLabel(day.day)),
+                        y: .value("Токены", tokensInAxisUnit(day.totalTokens, for: usage)))
+                    .foregroundStyle(Color.tfSub.opacity(0.35))
+            }
+            ForEach(points) { point in
+                LineMark(x: .value("День", point.day),
+                         y: .value("Темп", tokensInAxisUnit(point.tokens, for: usage)))
+                    .foregroundStyle(Color.tfRed)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: usage.daily.map { dayLabel($0.day) }) { value in
+                AxisGridLine()
+                AxisValueLabel(orientation: verticalAxis ? .verticalReversed : .horizontal) {
+                    if let label = value.as(String.self) { Text(label).tfText(.caption) }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .trailing) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let tick = value.as(Double.self) { Text(axisTick(tick)).tfText(.caption) }
+                }
+            }
+        }
+        .chartYAxisLabel(axisUnitName(for: usage), position: .leading)
+        .chartXAxisLabel("Дни")
+        .frame(height: 170)
+        .accessibilityIdentifier("ai-usage.forecast-chart")
     }
 
     private func stackedChart(_ usage: AIUsage) -> some View {
