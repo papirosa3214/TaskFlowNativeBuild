@@ -24,11 +24,66 @@ enum ChatLinkPresentation {
         case thread
     }
 
+    /// Цвет ярлычка: ключ палитры (значения — из макета
+    /// `envelope-badges-preview.html`, владелец 10.11.2026).
+    enum Tint: String, Equatable {
+        case python, swift, typescript, javascript, json, markdown, sql, bash
+        case html, css, go, other, pdf, image, video, web, docs, note, file
+    }
+
+    /// Ярлычок типа файла: короткая подпись на своей подложке (`TS`, `PY`, `PDF`).
+    struct Badge: Equatable {
+        let text: String
+        let tint: Tint
+    }
+
     struct Presentation: Equatable {
         let kind: Kind
         /// Подпись: то, что видно вместо длинного адреса.
         let label: String
         let icon: Icon
+        /// Ярлычок типа — у пути к файлу; у внешней ссылки и темы его нет.
+        var badge: Badge? = nil
+    }
+
+    /// Ярлычки по расширению файла — те же, что в макете.
+    static let badgesByExtension: [String: Badge] = [
+        "py": Badge(text: "PY", tint: .python),
+        "swift": Badge(text: "SW", tint: .swift),
+        "ts": Badge(text: "TS", tint: .typescript),
+        "tsx": Badge(text: "TS", tint: .typescript),
+        "js": Badge(text: "JS", tint: .javascript),
+        "jsx": Badge(text: "JS", tint: .javascript),
+        "json": Badge(text: "JSON", tint: .json),
+        "md": Badge(text: "MD", tint: .markdown),
+        "markdown": Badge(text: "MD", tint: .markdown),
+        "sql": Badge(text: "SQL", tint: .sql),
+        "sh": Badge(text: "SH", tint: .bash),
+        "zsh": Badge(text: "SH", tint: .bash),
+        "bash": Badge(text: "SH", tint: .bash),
+        "html": Badge(text: "HTML", tint: .html),
+        "css": Badge(text: "CSS", tint: .css),
+        "scss": Badge(text: "CSS", tint: .css),
+        "go": Badge(text: "GO", tint: .go),
+        "pdf": Badge(text: "PDF", tint: .pdf),
+        "png": Badge(text: "IMG", tint: .image),
+        "jpg": Badge(text: "IMG", tint: .image),
+        "jpeg": Badge(text: "IMG", tint: .image),
+        "gif": Badge(text: "IMG", tint: .image),
+        "webp": Badge(text: "IMG", tint: .image),
+        "heic": Badge(text: "IMG", tint: .image),
+        "mp4": Badge(text: "MP4", tint: .video),
+        "mov": Badge(text: "MP4", tint: .video),
+        "m4v": Badge(text: "MP4", tint: .video),
+    ]
+
+    /// Ярлычок по расширению: известные — из таблицы, остальные — первые четыре
+    /// знака расшифровки (`yaml` → `YAML`, `txt` → `TXT`).
+    static func badge(forExtension ext: String) -> Badge? {
+        let key = ext.lowercased()
+        guard !key.isEmpty, key.count <= 8, key.allSatisfy({ $0.isLetter || $0.isNumber }) else { return nil }
+        if let known = badgesByExtension[key] { return known }
+        return Badge(text: String(key.uppercased().prefix(4)), tint: .file)
     }
 
     /// Хосты, у которых в каталоге ассетов лежит своя иконка.
@@ -116,8 +171,9 @@ enum ChatLinkPresentation {
         guard looksLikeFilePath(cleaned) else { return nil }
         let name = (cleaned as NSString).lastPathComponent
         let label = line.map { name + ":" + String($0) } ?? name
+        let ext = (name as NSString).pathExtension
         return Presentation(kind: .file(path: cleaned, line: line), label: label,
-                            icon: .symbol("doc.text"))
+                            icon: .symbol("doc.text"), badge: badge(forExtension: ext))
     }
 
     /// Отделить `:строка` (или `:строка:колонка`) от пути.
@@ -130,10 +186,15 @@ enum ChatLinkPresentation {
         return (parts.dropLast().joined(separator: ":"), number)
     }
 
-    /// Похоже ли на путь к файлу, а не на слово.
+    /// Похоже ли на путь к файлу, а не на слово. Без каталога файлом считается
+    /// только имя с известным расширением (`roleContractV1.ts`), иначе любое
+    /// слово с точкой стало бы «файлом».
     static func looksLikeFilePath(_ path: String) -> Bool {
-        guard path.contains("/") else { return false }
         let last = (path as NSString).lastPathComponent
+        if !path.contains("/") {
+            let ext = (last as NSString).pathExtension.lowercased()
+            return badgesByExtension[ext] != nil
+        }
         guard let dot = last.lastIndex(of: "."), dot != last.startIndex else {
             return path.hasSuffix("/")
         }

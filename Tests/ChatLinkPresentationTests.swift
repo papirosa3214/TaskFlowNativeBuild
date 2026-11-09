@@ -96,6 +96,43 @@ final class ChatLinkPresentationTests: XCTestCase {
         XCTAssertNil(present("   "))
     }
 
+    @objc func testSwiftFileGetsSoftwareBadge() {
+        let link = present("Sources/App/App.swift:12")
+        XCTAssertEqual(link?.badge, ChatLinkPresentation.Badge(text: "SW", tint: .swift))
+    }
+
+    @objc func testPythonFileGetsItsBadge() {
+        XCTAssertEqual(present("server/tools/run.py")?.badge,
+                       ChatLinkPresentation.Badge(text: "PY", tint: .python))
+    }
+
+    @objc func testTypeScriptAndJsonAndMarkdown() {
+        XCTAssertEqual(present("src/lib/roleContractV1.ts")?.badge,
+                       ChatLinkPresentation.Badge(text: "TS", tint: .typescript))
+        XCTAssertEqual(present("package.json")?.badge,
+                       ChatLinkPresentation.Badge(text: "JSON", tint: .json))
+        XCTAssertEqual(present("docs/AGENT-CYCLE.md")?.badge,
+                       ChatLinkPresentation.Badge(text: "MD", tint: .markdown))
+    }
+
+    @objc func testDocumentsAndMediaGetTheirOwnBadges() {
+        XCTAssertEqual(present("/tmp/отчёт-42.pdf")?.badge,
+                       ChatLinkPresentation.Badge(text: "PDF", tint: .pdf))
+        XCTAssertEqual(present("~/Desktop/screen-2026-11-10.png")?.badge,
+                       ChatLinkPresentation.Badge(text: "IMG", tint: .image))
+        XCTAssertEqual(present("~/Screen/demo.mp4")?.badge,
+                       ChatLinkPresentation.Badge(text: "MP4", tint: .video))
+    }
+
+    @objc func testUnknownExtensionKeepsItsLetters() {
+        XCTAssertEqual(present("config/settings.yaml")?.badge,
+                       ChatLinkPresentation.Badge(text: "YAML", tint: .file))
+    }
+
+    @objc func testExternalLinkHasNoBadge() {
+        XCTAssertNil(present("https://github.com/o/r")?.badge)
+    }
+
     @objc func testMailtoIsNotShownAsLink() {
         XCTAssertNil(present("mailto:max@example.com"))
     }
