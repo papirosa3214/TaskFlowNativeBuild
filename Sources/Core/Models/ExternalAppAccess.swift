@@ -28,3 +28,13 @@ struct WealthfolioAccessProbe: Decodable {
     let toolCount: Int?
     let error: String?
 }
+
+/// Ответ `/api/integrations/changedetection`: отвечает ли MCP слежения за
+/// страницами на .110 и сколько действий он даёт ролям. Адрес нужен только
+/// диагностике — в интерфейсе не показывается.
+struct ChangedetectionAccessProbe: Decodable {
+    let connected: Bool
+    let url: String?
+    let toolCount: Int?
+    let error: String?
+}

@@ -300,6 +300,7 @@ struct IntegrationsScreen: View {
     @State private var isAppleRemOpen = false
     @State private var isThingsOpen = false
     @State private var isFinanceOpen = false
+    @State private var isPagesOpen = false
     @State private var externalApps = ExternalAppAccessStore.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var isGoogleTasksOpen = false // веб-дефолт: этот аккордеон открыт сразу
@@ -367,6 +368,19 @@ struct IntegrationsScreen: View {
                                 isExpanded: $isFinanceOpen, identifier: "integrations.wealthfolio"
                             ) {
                                 ExternalAppAccessDetails(app: "wealthfolio")
+                                TFButton(externalApps.loading ? "Проверка…" : "Обновить доступность", icon: "arrow.clockwise", variant: .secondary, isEnabled: !externalApps.loading) {
+                                    Task { await externalApps.refresh() }
+                                }
+                            }
+                            TFDivider(inset: dividerInset)
+                            IntegrationAccordionCard(
+                                icon: "rectangle.on.rectangle", title: "Changedetection",
+                                subtitle: externalApps.pagesDetail,
+                                badge: externalApps.pagesStatus,
+                                badgeColor: externalApps.pagesConnected ? .tfTeal : .tfSub,
+                                isExpanded: $isPagesOpen, identifier: "integrations.changedetection"
+                            ) {
+                                ExternalAppAccessDetails(app: "changedetection")
                                 TFButton(externalApps.loading ? "Проверка…" : "Обновить доступность", icon: "arrow.clockwise", variant: .secondary, isEnabled: !externalApps.loading) {
                                     Task { await externalApps.refresh() }
                                 }

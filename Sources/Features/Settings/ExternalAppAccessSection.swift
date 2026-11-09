@@ -16,6 +16,10 @@ final class ExternalAppAccessStore {
     var financeDetail = "Обнови доступность подключения."
     var financeConnected = false
     private var financeToolCount = 0
+    var pagesStatus = "Не проверено"
+    var pagesDetail = "Обнови доступность подключения."
+    var pagesConnected = false
+    private var pagesToolCount = 0
     var loading = false
     var catalogError: String?
     private var tools: [RoleToolDetail] = []
@@ -36,6 +40,7 @@ final class ExternalAppAccessStore {
         switch app {
         case "gmail": return tools.filter { $0.name.hasPrefix("taskflow_mail_") }
         case "wealthfolio": return tools.filter { $0.name.hasPrefix("wealthfolio_") }
+        case "changedetection": return tools.filter { $0.name.hasPrefix("changedetection_") }
         default: return tools.filter { $0.name == "taskflow_things3" }
         }
     }
@@ -66,6 +71,7 @@ final class ExternalAppAccessStore {
         }
         await checkThings()
         await checkWealthfolio()
+        await checkChangedetection()
         await mail
     }
 
@@ -87,6 +93,27 @@ final class ExternalAppAccessStore {
         } catch {
             financeStatus = "Не удалось проверить"
             financeDetail = "Проверка финансового трекера завершилась ошибкой. Повтори обновление."
+        }
+    }
+
+    /// Слежение за страницами на .110: сервер отвечает — карточка это
+    /// подтверждает, нет ответа — говорит прямо, без «Проверка…» навсегда.
+    private func checkChangedetection() async {
+        pagesConnected = false
+        do {
+            let probe: ChangedetectionAccessProbe = try await api.request(.get, "/integrations/changedetection")
+            pagesConnected = probe.connected
+            pagesToolCount = probe.toolCount ?? 0
+            if probe.connected {
+                pagesStatus = "Подключён"
+                pagesDetail = "Сервер .110 отвечает · действий: \(pagesToolCount)"
+            } else {
+                pagesStatus = "Нет ответа"
+                pagesDetail = probe.error.map { "Сервер .110 не ответил: \($0)" } ?? "Сервер .110 не ответил."
+            }
+        } catch {
+            pagesStatus = "Не удалось проверить"
+            pagesDetail = "Проверка слежения за страницами завершилась ошибкой. Повтори обновление."
         }
     }
 
@@ -140,7 +167,11 @@ struct ExternalAppAccessDetails: View {
                 Text(store.financeDetail).tfText(.action).foregroundStyle(Color.tfSub)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("Возможности Помощника владельца").tfText(.body).foregroundStyle(Color.tfText)
+            if app == "changedetection" {
+                Text(store.pagesDetail).tfText(.action).foregroundStyle(Color.tfSub)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(app == "changedetection" ? "Возможности всех ролей" : "Возможности Помощника владельца").tfText(.body).foregroundStyle(Color.tfText)
             if let error = store.catalogError {
                 Text(error).tfText(.action).foregroundStyle(Color.tfSub)
             } else if store.capabilities(for: app).isEmpty {
@@ -152,8 +183,9 @@ struct ExternalAppAccessDetails: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Link("Документация \(app == "gmail" ? "Gmail" : "Things 3")", destination: URL(string: app == "gmail"
-                ? "https://support.google.com/mail/" : "https://culturedcode.com/things/support/articles/2803573/")!)
+            Link("Документация \(app == "gmail" ? "Gmail" : app == "changedetection" ? "changedetection.io" : "Things 3")", destination: URL(string: app == "gmail"
+                ? "https://support.google.com/mail/" : app == "changedetection"
+                ? "https://changedetection.io/MCP" : "https://culturedcode.com/things/support/articles/2803573/")!)
                 .tfText(.action)
         }
     }
