@@ -65,7 +65,7 @@ final class ChatLinkPresentationTests: XCTestCase {
         let link = present("Sources/Chat/Feed/ChatFeedVirtualList.swift:42")
         XCTAssertEqual(link?.label, "ChatFeedVirtualList.swift:42")
         XCTAssertEqual(link?.kind, .file(path: "Sources/Chat/Feed/ChatFeedVirtualList.swift", line: 42))
-        XCTAssertEqual(link?.icon, .symbol("doc.text"))
+        XCTAssertEqual(link?.icon, .asset("file-swift"))
     }
 
     @objc func testFileWithLineAndColumnKeepsLine() {
@@ -96,41 +96,44 @@ final class ChatLinkPresentationTests: XCTestCase {
         XCTAssertNil(present("   "))
     }
 
-    @objc func testSwiftFileGetsSoftwareBadge() {
+    @objc func testSwiftFileGetsSwiftIcon() {
         let link = present("Sources/App/App.swift:12")
-        XCTAssertEqual(link?.badge, ChatLinkPresentation.Badge(text: "SW", tint: .swift))
+        XCTAssertEqual(link?.icon, .asset("file-swift"))
+        XCTAssertEqual(link?.tint, .swift)
+        XCTAssertEqual(link?.label, "App.swift:12")
     }
 
-    @objc func testPythonFileGetsItsBadge() {
-        XCTAssertEqual(present("server/tools/run.py")?.badge,
-                       ChatLinkPresentation.Badge(text: "PY", tint: .python))
+    @objc func testPythonFileGetsPythonIcon() {
+        let link = present("server/tools/run.py")
+        XCTAssertEqual(link?.icon, .asset("file-python"))
+        XCTAssertEqual(link?.tint, .python)
     }
 
-    @objc func testTypeScriptAndJsonAndMarkdown() {
-        XCTAssertEqual(present("src/lib/roleContractV1.ts")?.badge,
-                       ChatLinkPresentation.Badge(text: "TS", tint: .typescript))
-        XCTAssertEqual(present("package.json")?.badge,
-                       ChatLinkPresentation.Badge(text: "JSON", tint: .json))
-        XCTAssertEqual(present("docs/AGENT-CYCLE.md")?.badge,
-                       ChatLinkPresentation.Badge(text: "MD", tint: .markdown))
+    @objc func testTypeScriptJsonMarkdown() {
+        XCTAssertEqual(present("src/lib/roleContractV1.ts")?.icon, .asset("file-typescript"))
+        XCTAssertEqual(present("package.json")?.icon, .asset("file-npm"))
+        XCTAssertEqual(present("docs/AGENT-CYCLE.md")?.icon, .asset("file-markdown"))
     }
 
-    @objc func testDocumentsAndMediaGetTheirOwnBadges() {
-        XCTAssertEqual(present("/tmp/отчёт-42.pdf")?.badge,
-                       ChatLinkPresentation.Badge(text: "PDF", tint: .pdf))
-        XCTAssertEqual(present("~/Desktop/screen-2026-11-10.png")?.badge,
-                       ChatLinkPresentation.Badge(text: "IMG", tint: .image))
-        XCTAssertEqual(present("~/Screen/demo.mp4")?.badge,
-                       ChatLinkPresentation.Badge(text: "MP4", tint: .video))
+    @objc func testDocumentsAndMediaGetTheirIcons() {
+        XCTAssertEqual(present("/tmp/отчёт-42.pdf")?.icon, .asset("file-default"))
+        XCTAssertEqual(present("~/Desktop/screen-2026-11-10.png")?.icon, .asset("file-image"))
+        XCTAssertEqual(present("~/Screen/demo.mp4")?.icon, .asset("file-video"))
+        XCTAssertEqual(present("config/settings.yaml")?.icon, .asset("file-yml"))
     }
 
-    @objc func testUnknownExtensionKeepsItsLetters() {
-        XCTAssertEqual(present("config/settings.yaml")?.badge,
-                       ChatLinkPresentation.Badge(text: "YAML", tint: .file))
+    @objc func testKnownBasenameWinsOverExtension() {
+        // package.json — иконка npm, а не общий JSON.
+        XCTAssertEqual(present("package.json")?.icon, .asset("file-npm"))
+        XCTAssertEqual(present("Dockerfile")?.icon, .asset("file-docker"))
     }
 
-    @objc func testExternalLinkHasNoBadge() {
-        XCTAssertNil(present("https://github.com/o/r")?.badge)
+    @objc func testUnknownExtensionFallsBackToDefault() {
+        XCTAssertEqual(present("config/settings.qwerty")?.icon, .asset("file-default"))
+    }
+
+    @objc func testExternalLinkHasNoTint() {
+        XCTAssertNil(present("https://github.com/o/r")?.tint)
     }
 
     @objc func testMailtoIsNotShownAsLink() {

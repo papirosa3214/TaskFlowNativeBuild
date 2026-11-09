@@ -2,12 +2,11 @@ import Foundation
 
 /// Ссылка в ответе роли: как её показать.
 ///
-/// Владелец 10.11.2026: «вид нужен и визуал отображения всяких ссылок».
-/// В T3 Code ссылка не голый синий текст: у внешнего хоста своя иконка, у
-/// файла — иконка и короткое имя со строкой, у темы TaskFlow — свой значок
-/// (`apps/mobile/src/lib/markdownLinks.ts`, `native/useEnrichedLinkVariants.ts`).
-/// Правила вынесены из вью в чистую функцию: их проверяет целевой тест
-/// (`Tools/test_chat_link_presentation.py`), а не глаза на телефоне.
+/// Владелец 10.11.2026: «а можно прям как вот тут отражаются — было бы идеально».
+/// В T3 Code ссылка на файл рисуется иконкой языка (питон, свифт, TS, PDF…), а
+/// подпись окрашена цветом языка (`apps/mobile/src/lib/markdownLinks.ts`,
+/// иконки — набор pierre). Правила вынесены из вью в чистую функцию: их
+/// проверяет целевой тест (`Tools/test_chat_link_presentation.py`).
 enum ChatLinkPresentation {
     /// Откуда иконка: файл в каталоге ассетов или системный символ.
     enum Icon: Equatable {
@@ -24,17 +23,10 @@ enum ChatLinkPresentation {
         case thread
     }
 
-    /// Цвет ярлычка: ключ палитры (значения — из макета
-    /// `envelope-badges-preview.html`, владелец 10.11.2026).
+    /// Цвет подписи: ключ палитры (`ChatBadgePalette`).
     enum Tint: String, Equatable {
         case python, swift, typescript, javascript, json, markdown, sql, bash
         case html, css, go, other, pdf, image, video, web, docs, note, file
-    }
-
-    /// Ярлычок типа файла: короткая подпись на своей подложке (`TS`, `PY`, `PDF`).
-    struct Badge: Equatable {
-        let text: String
-        let tint: Tint
     }
 
     struct Presentation: Equatable {
@@ -42,48 +34,98 @@ enum ChatLinkPresentation {
         /// Подпись: то, что видно вместо длинного адреса.
         let label: String
         let icon: Icon
-        /// Ярлычок типа — у пути к файлу; у внешней ссылки и темы его нет.
-        var badge: Badge? = nil
+        /// Цвет подписи — у файла по языку, у остальных ссылок нет.
+        var tint: Tint? = nil
     }
 
-    /// Ярлычки по расширению файла — те же, что в макете.
-    static let badgesByExtension: [String: Badge] = [
-        "py": Badge(text: "PY", tint: .python),
-        "swift": Badge(text: "SW", tint: .swift),
-        "ts": Badge(text: "TS", tint: .typescript),
-        "tsx": Badge(text: "TS", tint: .typescript),
-        "js": Badge(text: "JS", tint: .javascript),
-        "jsx": Badge(text: "JS", tint: .javascript),
-        "json": Badge(text: "JSON", tint: .json),
-        "md": Badge(text: "MD", tint: .markdown),
-        "markdown": Badge(text: "MD", tint: .markdown),
-        "sql": Badge(text: "SQL", tint: .sql),
-        "sh": Badge(text: "SH", tint: .bash),
-        "zsh": Badge(text: "SH", tint: .bash),
-        "bash": Badge(text: "SH", tint: .bash),
-        "html": Badge(text: "HTML", tint: .html),
-        "css": Badge(text: "CSS", tint: .css),
-        "scss": Badge(text: "CSS", tint: .css),
-        "go": Badge(text: "GO", tint: .go),
-        "pdf": Badge(text: "PDF", tint: .pdf),
-        "png": Badge(text: "IMG", tint: .image),
-        "jpg": Badge(text: "IMG", tint: .image),
-        "jpeg": Badge(text: "IMG", tint: .image),
-        "gif": Badge(text: "IMG", tint: .image),
-        "webp": Badge(text: "IMG", tint: .image),
-        "heic": Badge(text: "IMG", tint: .image),
-        "mp4": Badge(text: "MP4", tint: .video),
-        "mov": Badge(text: "MP4", tint: .video),
-        "m4v": Badge(text: "MP4", tint: .video),
+    /// Иконка по расширению — таблица T3 Code (`markdownLinks.ts`, MIT),
+    /// иконки — набор pierre из того же репозитория.
+    static let iconByExtension: [String: String] = [
+        "7z": "zip", "astro": "astro", "avif": "image", "bash": "bash", "bmp": "image",
+        "bz2": "zip", "c": "c", "cc": "cpp", "cpp": "cpp", "css": "css", "csv": "table",
+        "cts": "typescript", "cxx": "cpp", "db": "database", "eot": "font", "erb": "ruby",
+        "fish": "bash", "gif": "image", "go": "go", "gql": "graphql", "graphql": "graphql",
+        "gz": "zip", "h": "c", "hh": "cpp", "hpp": "cpp", "htm": "html", "html": "html",
+        "hxx": "cpp", "ico": "image", "icns": "image", "ini": "text", "inl": "cpp",
+        "jar": "zip", "jpeg": "image", "jpg": "image", "js": "javascript", "json": "json",
+        "jsonc": "json", "jsx": "react", "less": "css", "m4v": "video", "md": "markdown",
+        "mdx": "markdown", "mjs": "javascript", "mov": "video", "mp4": "video",
+        "mts": "typescript", "png": "image", "py": "python", "pyi": "python",
+        "pyw": "python", "pyx": "python", "rake": "ruby", "rar": "zip", "rb": "ruby",
+        "rs": "rust", "sass": "sass", "scss": "sass", "sh": "bash", "sql": "database",
+        "sqlite": "database", "sqlite3": "database", "svelte": "svelte", "svg": "svg",
+        "swift": "swift", "tar": "zip", "tf": "terraform", "tfstate": "terraform",
+        "tfvars": "terraform", "tgz": "zip", "ts": "typescript", "tsv": "table",
+        "tsx": "react", "txt": "text", "webm": "video", "webp": "image", "woff": "font",
+        "woff2": "font", "vue": "vue", "wasm": "wasm", "yaml": "yml", "yml": "yml",
+        "zig": "zig", "zip": "zip", "zsh": "bash",
     ]
 
-    /// Ярлычок по расширению: известные — из таблицы, остальные — первые четыре
-    /// знака расшифровки (`yaml` → `YAML`, `txt` → `TXT`).
-    static func badge(forExtension ext: String) -> Badge? {
-        let key = ext.lowercased()
-        guard !key.isEmpty, key.count <= 8, key.allSatisfy({ $0.isLetter || $0.isNumber }) else { return nil }
-        if let known = badgesByExtension[key] { return known }
-        return Badge(text: String(key.uppercased().prefix(4)), tint: .file)
+    /// Иконка по полному имени файла (приоритетнее расширения).
+    static let iconByBasename: [String: String] = [
+        "agents.md": "agents",
+        "claude.md": "claude",
+        "dockerfile": "docker",
+        "compose.yaml": "docker",
+        "compose.yml": "docker",
+        "docker-compose.yaml": "docker",
+        "docker-compose.yml": "docker",
+        "gemfile": "ruby",
+        "package.json": "npm",
+        "pnpm-lock.yaml": "pnpm",
+        "pnpm-workspace.yaml": "pnpm",
+        "bun.lock": "bun",
+        "bun.lockb": "bun",
+        "bunfig.toml": "bun",
+        "readme.md": "markdown",
+        "tsconfig.json": "typescript",
+        "vite.config.ts": "vite",
+        "vite.config.js": "vite",
+        "webpack.config.js": "webpack",
+        "tailwind.config.ts": "tailwind",
+        "next.config.js": "nextjs",
+        "next.config.ts": "nextjs",
+        "biome.json": "biome",
+        ".gitignore": "git",
+        ".gitattributes": "git",
+        ".gitmodules": "git",
+        ".zshrc": "bash",
+        ".bashrc": "bash",
+        ".bash_profile": "bash",
+        "rakefile": "ruby",
+    ]
+
+    /// Цвет подписи по иконке: подпись окрашена цветом языка, как в T3.
+    static func tint(forIcon icon: String) -> Tint {
+        switch icon {
+        case "python": return .python
+        case "swift": return .swift
+        case "typescript": return .typescript
+        case "react", "vue", "svelte", "nextjs", "astro": return .typescript
+        case "javascript": return .javascript
+        case "json": return .json
+        case "markdown": return .markdown
+        case "database": return .sql
+        case "bash": return .bash
+        case "html": return .html
+        case "css", "sass", "tailwind": return .css
+        case "go": return .go
+        case "image", "svg": return .image
+        case "video": return .video
+        default: return .file
+        }
+    }
+
+    /// Иконка файла по его имени.
+    static func iconName(forFile name: String) -> String {
+        let base = name.lowercased()
+        if let exact = iconByBasename[base] { return exact }
+        let parts = base.split(separator: ".")
+        guard parts.count >= 2 else { return "default" }
+        for index in 1..<parts.count {
+            if let icon = iconByExtension[parts[index...].joined(separator: ".")] { return icon }
+        }
+        return "default"
     }
 
     /// Хосты, у которых в каталоге ассетов лежит своя иконка.
@@ -131,7 +173,6 @@ enum ChatLinkPresentation {
         guard !trimmed.isEmpty, trimmed != href, trimmed.count <= 60 else { return false }
         guard !trimmed.lowercased().hasPrefix("http://"),
               !trimmed.lowercased().hasPrefix("https://") else { return false }
-        // Путь к файлу в подписи — тоже осмысленно, его оставляем.
         return true
     }
 
@@ -163,17 +204,16 @@ enum ChatLinkPresentation {
         var path = href
         if let url = URL(string: href), url.scheme?.lowercased() == "file" {
             path = url.path
-        } else if let scheme = URL(string: href)?.scheme {
-            // Прочие схемы — не файл.
-            if scheme.count > 1 { return nil }
+        } else if let scheme = URL(string: href)?.scheme, scheme.count > 1 {
+            return nil
         }
         let (cleaned, line) = splitLine(path)
         guard looksLikeFilePath(cleaned) else { return nil }
         let name = (cleaned as NSString).lastPathComponent
         let label = line.map { name + ":" + String($0) } ?? name
-        let ext = (name as NSString).pathExtension
+        let icon = iconName(forFile: name)
         return Presentation(kind: .file(path: cleaned, line: line), label: label,
-                            icon: .symbol("doc.text"), badge: badge(forExtension: ext))
+                            icon: .asset("file-" + icon), tint: tint(forIcon: icon))
     }
 
     /// Отделить `:строка` (или `:строка:колонка`) от пути.
@@ -187,18 +227,19 @@ enum ChatLinkPresentation {
     }
 
     /// Похоже ли на путь к файлу, а не на слово. Без каталога файлом считается
-    /// только имя с известным расширением (`roleContractV1.ts`), иначе любое
-    /// слово с точкой стало бы «файлом».
+    /// только имя с известным расширением или известное имя (`Dockerfile`,
+    /// `package.json`), иначе любое слово с точкой стало бы «файлом».
     static func looksLikeFilePath(_ path: String) -> Bool {
         let last = (path as NSString).lastPathComponent
         if !path.contains("/") {
+            if iconByBasename[last.lowercased()] != nil { return true }
             let ext = (last as NSString).pathExtension.lowercased()
-            return badgesByExtension[ext] != nil
+            return iconByExtension[ext] != nil
         }
         guard let dot = last.lastIndex(of: "."), dot != last.startIndex else {
-            return path.hasSuffix("/")
+            return path.hasSuffix("/") || iconByBasename[last.lowercased()] != nil
         }
-        let ext = last[last.index(after: dot)...]
-        return ext.count >= 1 && ext.count <= 6 && ext.allSatisfy { $0.isLetter || $0.isNumber }
+        let ext = last[last.index(after: dot)...].lowercased()
+        return ext.count >= 1 && ext.count <= 8 && ext.allSatisfy { $0.isLetter || $0.isNumber }
     }
 }

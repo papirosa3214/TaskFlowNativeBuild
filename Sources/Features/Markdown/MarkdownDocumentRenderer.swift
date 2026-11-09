@@ -147,9 +147,7 @@ struct StructuredDocumentBlockView: View {
                 .foregroundColor(run.bold ? Color.tfText : Color.tfText.opacity(0.9))
             if let href = run.linkHref,
                let link = ChatLinkPresentation.presentation(href: href, text: run.text) {
-                let mark = link.badge.map { RoleReplyMarkdown.badgeText($0) }
-                    ?? RoleReplyMarkdown.iconText(link.icon)
-                piece = mark + Text(" ") + piece
+                piece = RoleReplyMarkdown.iconText(link.icon) + Text(" ") + piece
             }
             return Text("\(result)\(piece)")
         }

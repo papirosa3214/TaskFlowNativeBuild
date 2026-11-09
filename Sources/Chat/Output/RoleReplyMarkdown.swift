@@ -278,24 +278,10 @@ struct RoleReplyMarkdown: View, Equatable {
                 }
             }
             if let link = piece.link {
-                // У пути к файлу — ярлычок типа, у остальных ссылок — иконка.
-                let mark = link.badge.map { Self.badgeText($0) } ?? Self.iconText(link.icon)
-                text = mark + Text(" ") + text
+                text = Self.iconText(link.icon) + Text(" ") + text
             }
             return Text("\(result)\(text)")
         }
-    }
-
-    /// Ярлычок типа файла инлайном: короткая подпись на подложке своего цвета
-    /// (`TS`, `PY`, `PDF`) — как в макете `envelope-badges-preview.html`.
-    static func badgeText(_ badge: ChatLinkPresentation.Badge) -> Text {
-        // Тонкие пробелы внутри прогона: подложка накрывает и их, поэтому
-        // ярлычок не липнет к соседним буквам (скругления в тексте нет).
-        var piece = AttributedString("\u{2009}" + badge.text + "\u{2009}")
-        piece.font = .tfChat(.mono, design: .monospaced)
-        piece.foregroundColor = ChatBadgePalette.color(badge.tint)
-        piece.backgroundColor = ChatBadgePalette.background(badge.tint)
-        return Text(piece)
     }
 
     /// Иконка ссылки инлайном в абзаце: `Text(Image(...))` — единственный
@@ -370,6 +356,9 @@ struct RoleReplyMarkdown: View, Equatable {
             if run.underline { piece.underlineStyle = .single }
             if run.highlight { piece.backgroundColor = Color.tfYellow.opacity(0.35) }
             if let href = run.linkHref, let url = URL(string: href) { piece.link = url }
+            // Подпись файла окрашена цветом языка, как в T3: иконка впереди,
+            // имя — своим цветом (владелец 10.11.2026).
+            if let tint = link?.tint { piece.foregroundColor = ChatBadgePalette.color(tint) }
             result += piece
         }
         return result
