@@ -62,6 +62,12 @@ enum HintAnchorID {
     static let changedetectionEntry = "integrations.changedetection"
     /// Строка «Память TaskFlow» в «Интеграциях» (08.11.2026).
     static let taskflowMemoryEntry = "integrations.taskflowMemory"
+    /// Полки датасетов на экране «База знаний» (09.11.2026).
+    static let knowledgeShelves = "knowledge.shelves"
+    /// Полка «Без раздела» — сюда попадают датасеты, которым раздел не выбран.
+    static let knowledgeUnsorted = "knowledge.unsorted"
+    /// Строка «Спросить базу» над полками.
+    static let knowledgeAsk = "knowledge.ask"
     static let webhooksAdd = "webhooks.add"
     static let webhookURL = "webhooks.url"
     static let webhookEvents = "webhooks.events"
@@ -476,6 +482,23 @@ enum HintScenarios {
                 anchor: HintAnchorID.taskSubtasks,
                 title: "Роли на шагах",
                 text: "У каждого шага — своя роль и состояние: ждёт, в работе, готово. Если шаг долго не двигается — напиши оркестратору в чат карточки: он видит, что с шагом, и умеет его перезапустить.",
+                next: nil),
+        ])
+
+    /// «База знаний» как шлюз к RAGFlow (09.11.2026): владелец просил видеть
+    /// датасеты, раскладывать их по разделам и спрашивать базу.
+    static let knowledgeBase = HintScenario(
+        id: "knowledge-base", title: "База знаний", start: "shelves",
+        steps: [
+            "shelves": HintStep(
+                anchor: HintAnchorID.knowledgeShelves,
+                title: "Полки датасетов",
+                text: "Здесь лежат датасеты RAGFlow, разложенные по разделам: «Документация», «Код», «Исследования» — как захочешь. Нажми на датасет, чтобы увидеть его документы и загрузить новый файл. Долгое нажатие на строку — включить или исключить датасет, перенести в раздел, выдать доступ ролям.",
+                next: "ask"),
+            "ask": HintStep(
+                anchor: HintAnchorID.knowledgeAsk,
+                title: "Спросить базу",
+                text: "Выбери датасеты чипсами и напиши вопрос: ответ формулирует сервер, а под ним — фрагменты, на которые он опирался. Без выбранного датасета вопрос не отправится: общий поиск подмешал бы чужие темы. Заметки TaskFlow открываются значком книги в шапке.",
                 next: nil),
         ])
 }

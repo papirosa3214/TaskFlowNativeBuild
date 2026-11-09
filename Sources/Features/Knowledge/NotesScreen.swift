@@ -391,6 +391,15 @@ public struct NotesScreen: View {
                         .foregroundStyle(Color.tfSub)
                         .lineLimit(1)
                 }
+                // Заметка могла не попасть в смысловой поиск — человек должен
+                // это видеть там, где список, а не искать в другом месте
+                // (сервер отдаёт состояние в самом списке с 09.11.2026).
+                if note.index.needsAttention {
+                    Text(note.index.label)
+                        .tfText(.caption)
+                        .foregroundStyle(Color.tfDim)
+                        .lineLimit(1)
+                }
                 Text("Обновлено \(updatedDateText(for: note))")
                     .tfText(.caption)
                     .foregroundStyle(Color.tfDim)

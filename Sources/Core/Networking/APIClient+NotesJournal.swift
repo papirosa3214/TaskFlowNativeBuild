@@ -19,13 +19,23 @@ struct NoteListItem: Decodable, Identifiable, Hashable {
     let preview: String
     let createdAt: String?
     let updatedAt: String?
+    /// Состояние заметки в индексе базы знаний с 09.11.2026: `indexed`,
+    /// `queued`, `indexing`, `error`. Приходит в списке и в карточке — сто
+    /// запросов на сто заметок ради значка не делаем.
+    let indexState: String?
+    let indexError: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, preview
         case folderId = "folder_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case indexState = "index_state"
+        case indexError = "index_error"
     }
+
+    /// Значок «в поиске / в очереди / не попала» — правило в `NoteIndexState`.
+    var index: NoteIndexState { NoteIndexState(server: indexState) }
 }
 
 private struct NoteListResponse: Decodable {

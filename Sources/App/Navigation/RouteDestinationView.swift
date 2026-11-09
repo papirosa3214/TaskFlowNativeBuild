@@ -68,7 +68,9 @@ private func routeContent(_ route: AppRoute) -> some View {
     case .projectCreate:
         ProjectsScreen(opensCreateForm: true)
     case .knowledge:
-        NotesScreen()
+        // С 09.11.2026 «База знаний» — полки датасетов RAGFlow, а дневник
+        // заметок открывается оттуда (.notes/.noteCreate/.noteFolder).
+        KnowledgeBaseScreen()
     case .projectTasks(let projectID):
         ProjectTasksScreen(projectID: projectID)
     case .taskArchive:
