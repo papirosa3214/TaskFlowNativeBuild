@@ -279,7 +279,11 @@ struct AIUsageScreen: View {
     /// В легенде — только модели, которые реально съели токены, и не больше
     /// шести: остальные всё равно видны под «Подробнее по моделям».
     private func legendModels(_ usage: AIUsage) -> [String] {
-        Array(usage.modelOrder.filter { tokens(of: $0, in: usage) > 0 }.prefix(6))
+        let keys = chartKeys(usage)
+        let spent = breakdown == .provider
+            ? Set(usage.providers.filter { $0.totalTokens > 0 }.map(\.provider))
+            : Set(usage.models.filter { $0.totalTokens > 0 }.map(\.model))
+        return Array(keys.filter { spent.contains($0) }.prefix(6))
     }
 
     // MARK: - Цифры (первая категория, отделены линиями)
@@ -379,8 +383,11 @@ struct AIUsageScreen: View {
         return "\(parts[2]).\(parts[1])"
     }
 
-    private func tokens(of model: String, in usage: AIUsage) -> Int {
-        usage.dailyByModel.filter { $0.model == model }.reduce(0) { $0 + $1.totalTokens }
+    private func tokens(of key: String, in usage: AIUsage) -> Int {
+        if breakdown == .provider {
+            return usage.dailyByProvider.filter { $0.provider == key }.reduce(0) { $0 + $1.totalTokens }
+        }
+        return usage.dailyByModel.filter { $0.model == key }.reduce(0) { $0 + $1.totalTokens }
     }
 
     /// Ключи строк графика в текущем разрезе: модели или провайдеры.
@@ -392,7 +399,7 @@ struct AIUsageScreen: View {
     /// дизайн-системы. Градация красного тут не годится — владелец 09.11.2026:
     /// «тут абсолютно разные модели, их надо считывать гораздо четче».
     private func color(for key: String, in usage: AIUsage) -> Color {
-        AIUsagePalette.color(for: key, order: usage.modelOrder)
+        AIUsagePalette.color(for: key, order: chartKeys(usage))
     }
 
     @MainActor private func load() async {
