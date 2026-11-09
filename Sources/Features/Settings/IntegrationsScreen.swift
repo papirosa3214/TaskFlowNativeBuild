@@ -385,6 +385,7 @@ struct IntegrationsScreen: View {
                                     Task { await externalApps.refresh() }
                                 }
                             }
+                            .hintAnchor(HintAnchorID.changedetectionEntry)
                             ForEach(composio.connections.filter { !Self.composioOwnedSlugs.contains($0.slug.lowercased()) }) { service in
                                 TFDivider(inset: dividerInset)
                                 NavigationLink {

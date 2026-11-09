@@ -331,6 +331,19 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains("external-apps"))
     }
 
+    /// 09.11.2026: карточка «Changedetection» в «Интеграциях». Подсказка
+    /// обязана сказать главное — действия получают все роли, а не только
+    /// Помощник, иначе разница с Gmail и финансами останется незамеченной.
+    func testChangedetectionHintCompletesAndMentionsAllRoles() {
+        let center = HintCenter(defaults: defaults, scenarios: [HintScenarios.changedetection])
+        center.isEnabled = true
+        center.report(anchor: HintAnchorID.changedetectionEntry, frame: frame)
+        XCTAssertEqual(center.active?.step, "entry")
+        XCTAssertTrue(center.currentStep?.text.contains("все роли") ?? false)
+        center.next()
+        XCTAssertTrue(center.completed.contains("changedetection"))
+    }
+
     private func makeCenter() -> HintCenter { HintCenter(defaults: defaults, scenarios: [HintScenarios.taskPlan]) }
 
     func testSystemSummaryHintCompletes() {

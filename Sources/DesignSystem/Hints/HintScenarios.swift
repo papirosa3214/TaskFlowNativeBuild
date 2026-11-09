@@ -58,6 +58,8 @@ enum HintAnchorID {
     /// Выбор «своя подзадача / по плану» у шага черновика.
     static let planWorkChoice = "plan.work-choice"
     static let webhooksEntry = "integrations.webhooks"
+    /// Карточка «Changedetection» в «Интеграциях» (09.11.2026).
+    static let changedetectionEntry = "integrations.changedetection"
     /// Строка «Память TaskFlow» в «Интеграциях» (08.11.2026).
     static let taskflowMemoryEntry = "integrations.taskflowMemory"
     static let webhooksAdd = "webhooks.add"
@@ -160,7 +162,7 @@ enum HintScenarios {
             title: "Вход без пароля",
             text: "Если приложение просит войти, а пароль набирать не хочется: на сервере выполните npx tsx scripts/pairing-code.ts в папке server — он напечатает QR-код. Нажмите здесь и наведите камеру. Код одноразовый и живёт 5 минут; после привязки телефон входит своим ключом. Внутри приложения та же кнопка есть в «Настройках → Сервер».", next: nil)])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards, taskflowMemory, devicePairing]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, changedetection, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards, taskflowMemory, devicePairing]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Задачи и статусы", start: "entry",
@@ -253,8 +255,16 @@ enum HintScenarios {
                 documentationResource: "2026-10-18-role-external-apps")
         ])
 
-    static let webhooks = HintScenario(
-        id: "webhooks", title: "Вебхуки: отправка событий TaskFlow", start: "entry",
+    /// 09.11.2026: слежение за страницами на .110 — новая карточка в
+    /// «Интеграциях». Подсказка объясняет, что это и что доступно всем ролям.
+    static let changedetection = HintScenario(
+        id: "changedetection", title: "Слежение за страницами", start: "entry",
+        steps: [
+            "entry": HintStep(anchor: HintAnchorID.changedetectionEntry, title: "Что изменилось на странице",
+                text: "Changedetection следит за страницами и хранит историю изменений. Открой карточку: внутри состояние подключения, число доступных действий и кнопка «Обновить доступность». Эти действия получают все роли, а не только Помощник владельца: можно спросить, что изменилось на странице за месяц, когда поднялась цена или что писал конкурент. Сами страницы добавляются на сервисе по адресу .110:5000.")
+        ])
+
+    static let webhooks = HintScenario(        id: "webhooks", title: "Вебхуки: отправка событий TaskFlow", start: "entry",
         steps: [
             "entry": HintStep(anchor: HintAnchorID.webhooksEntry, title: "Что такое вебхук",
                 text: "Вебхук отправляет выбранные события TaskFlow по HTTP(S) на совместимый внешний сервис-приёмник. Например, так другой сервис может получить результат этапа. Это исходящая отправка: сам TaskFlow не создаёт адрес приёмника. Codex для этого не требуется. Нажми строку, чтобы открыть список и настройки.", next: "add", advancesOnTap: true,
