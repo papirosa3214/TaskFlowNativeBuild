@@ -12,6 +12,7 @@ public struct KnowledgeDatasetScreen: View {
     @State private var viewModel: KnowledgeDatasetViewModel
     @State private var isPickingFile = false
     @State private var isAskOpen = false
+    @State private var askQuestion = ""
     @State private var pendingDeletion: ApiKnowledgeDocument?
     @State private var query = ""
 
@@ -24,7 +25,7 @@ public struct KnowledgeDatasetScreen: View {
         ZStack {
             TFScreenFill()
             ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.xl) {
+                VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     TFErrorBanner(viewModel.errorMessage, variant: .block)
                     if let uploadMessage = viewModel.uploadMessage {
                         Text(uploadMessage)
@@ -65,8 +66,15 @@ public struct KnowledgeDatasetScreen: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: "Поиск по этому датасету"
         )
-        .onChange(of: query) { _, value in
-            Task { await viewModel.search(value) }
+        .task(id: query) {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                await viewModel.search("")
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            await viewModel.search(trimmed)
         }
         .task { await viewModel.load() }
         .task(id: viewModel.inProgress.count) {
@@ -89,14 +97,6 @@ public struct KnowledgeDatasetScreen: View {
                 }
                 .accessibilityLabel("Добавить документ")
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isAskOpen = true
-                } label: {
-                    Image(systemName: "text.magnifyingglass")
-                }
-                .accessibilityLabel("Спросить по этому датасету")
-            }
         }
         .fileImporter(
             isPresented: $isPickingFile,
@@ -106,7 +106,9 @@ public struct KnowledgeDatasetScreen: View {
             Task { await handleFile(result) }
         }
         .tfSheet(isPresented: $isAskOpen) {
-            KnowledgeAskSheet(datasets: [dataset], preselecting: dataset.id)
+            KnowledgeAskSheet(
+                datasets: [dataset], preselecting: dataset.id, initialQuestion: askQuestion
+            )
         }
         .confirmationDialog(
             "Удалить «\(pendingDeletion?.name ?? "")»?",
@@ -132,6 +134,21 @@ public struct KnowledgeDatasetScreen: View {
     private var searchResults: some View {
         let found = viewModel.results(for: query)
         return VStack(alignment: .leading, spacing: TFSpacing.sm) {
+            TFCard(padding: 0) {
+                TFListRow(
+                    icon: "text.magnifyingglass",
+                    iconStyle: .plain,
+                    title: "Спросить по этому датасету",
+                    subtitle: "Ответ по запросу и куски документов этого датасета",
+                    verticalPadding: TFSpacing.sm,
+                    chevron: .hidden
+                ) {
+                    askQuestion = query
+                    isAskOpen = true
+                }
+            }
+            .padding(.horizontal, TFSpacing.screenHorizontal)
+
             if viewModel.isSearching && found.isEmpty {
                 TFLoading(.inline)
                     .frame(maxWidth: .infinity)

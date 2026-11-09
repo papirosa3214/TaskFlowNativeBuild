@@ -25,9 +25,15 @@ public final class KnowledgeDatasetViewModel {
     public private(set) var searchResults: [ApiKnowledgeChunk] = []
     public private(set) var isSearching = false
     private var searchedQuery = ""
+    /// Номер последнего запроса: ответ на старый запрос не должен затирать
+    /// результаты нового.
+    private var searchToken = 0
 
     public init(datasetId: String) {
         self.datasetId = datasetId
+        // Прошлый ответ — сразу, свежий приходит следом (владелец, 10.11.2026:
+        // «почему каждый раз что-то грузится»).
+        documents = api.cachedKnowledgeDatasetDocuments(datasetId: datasetId) ?? []
     }
 
     /// Что ещё не в поиске: разбирается или сорвалось. По этому набору экран
@@ -42,17 +48,31 @@ public final class KnowledgeDatasetViewModel {
 
     public func search(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchToken += 1
+        let token = searchToken
         guard trimmed.count >= 2 else {
             searchedQuery = trimmed
             searchResults = []
+            isSearching = false
             return
         }
         isSearching = true
-        defer { isSearching = false }
-        searchedQuery = trimmed
-        searchResults = (try? await api.knowledgeSearch(
-            query: trimmed, topK: 20, datasetIds: [datasetId]
-        )) ?? []
+        do {
+            let found = try await api.knowledgeSearch(
+                query: trimmed, topK: 20, datasetIds: [datasetId]
+            )
+            guard token == searchToken else { return }
+            searchedQuery = trimmed
+            searchResults = found
+            errorMessage = nil
+        } catch {
+            guard token == searchToken else { return }
+            // Ошибка сервера — это ошибка, а не «ничего не нашлось».
+            searchedQuery = trimmed
+            searchResults = []
+            errorMessage = error.localizedDescription
+        }
+        if token == searchToken { isSearching = false }
     }
 
     public func results(for text: String) -> [ApiKnowledgeChunk] {

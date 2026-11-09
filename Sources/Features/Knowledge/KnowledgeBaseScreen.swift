@@ -24,7 +24,7 @@ public struct KnowledgeBaseScreen: View {
         ZStack {
             TFScreenFill()
             ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.xl) {
+                VStack(alignment: .leading, spacing: TFSpacing.lg) {
                     TFErrorBanner(viewModel.errorMessage, variant: .block)
 
                     if viewModel.isLoading && viewModel.datasets.isEmpty {
@@ -49,8 +49,17 @@ public struct KnowledgeBaseScreen: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: "Поиск по базе знаний"
         )
-        .onChange(of: query) { _, value in
-            Task { await viewModel.search(value) }
+        .task(id: query) {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                await viewModel.search("")
+                return
+            }
+            // Пауза на ввод: без неё каждый символ — отдельный retrieval по
+            // всей базе (владелец, 10.11.2026: «долго грузится»).
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            await viewModel.search(trimmed)
         }
         .task { await viewModel.load() }
         .toolbar { toolbarContent }
@@ -184,26 +193,27 @@ public struct KnowledgeBaseScreen: View {
 
     private func shelfView(_ shelf: KnowledgeShelf) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            HStack {
-                TFSectionHeader(shelf.title)
-                Spacer()
-                if let section = viewModel.sections.first(where: { $0.id == shelf.sectionId }) {
-                    Menu {
-                        Button("Переименовать") {
-                            sectionEditor = SectionEditorState(section: section, title: section.title)
+            if shelf.sectionId != nil {
+                HStack {
+                    TFSectionHeader(shelf.title)
+                    Spacer()
+                    if let section = viewModel.sections.first(where: { $0.id == shelf.sectionId }) {
+                        Menu {
+                            Button("Переименовать") {
+                                sectionEditor = SectionEditorState(section: section, title: section.title)
+                            }
+                            Button("Удалить раздел", role: .destructive) {
+                                pendingSectionDeletion = section
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
                         }
-                        Button("Удалить раздел", role: .destructive) {
-                            pendingSectionDeletion = section
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
+                        .accessibilityLabel("Раздел \(shelf.title)")
+                        .padding(.trailing, TFSpacing.xs)
                     }
-                    .accessibilityLabel("Раздел \(shelf.title)")
-                    .padding(.trailing, TFSpacing.xs)
                 }
+                .padding(.horizontal, TFSpacing.screenHorizontal)
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-
             let datasets = viewModel.datasets(on: shelf)
             TFCard(padding: 0) {
                 if datasets.isEmpty {
@@ -243,7 +253,7 @@ public struct KnowledgeBaseScreen: View {
                         }
                     ),
                 verticalPadding: TFSpacing.xs,
-                chevron: .shown
+                chevron: .hidden
             )
         }
         .buttonStyle(.plain)
@@ -317,16 +327,6 @@ public struct KnowledgeBaseScreen: View {
                 Image(systemName: "ellipsis")
             }
             .accessibilityLabel("Действия базы знаний")
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                askQuestion = query
-                isAskOpen = true
-            } label: {
-                Image(systemName: "text.magnifyingglass")
-            }
-            .accessibilityLabel("Спросить базу")
-            .hintAnchor(HintAnchorID.knowledgeAsk)
         }
         ToolbarItem(placement: .topBarTrailing) {
             NavigationLink {

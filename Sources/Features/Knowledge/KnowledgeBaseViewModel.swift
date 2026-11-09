@@ -16,7 +16,6 @@ public final class KnowledgeBaseViewModel {
     public private(set) var datasets: [ApiKnowledgeDataset] = []
     public private(set) var sections: [KnowledgeSection] = []
     public private(set) var roles: [KnowledgeRole] = []
-    public var includeDisabled = false
     public private(set) var isLoading = false
     public private(set) var isSaving = false
     public private(set) var errorMessage: String?
@@ -27,8 +26,18 @@ public final class KnowledgeBaseViewModel {
     /// Запрос, по которому пришли `searchResults`: пока он не совпал с тем,
     /// что в поле ввода, результаты не показываем (гонка дебаунса).
     private var searchedQuery = ""
+    /// Номер последнего запроса поиска. Ответ на старый запрос не должен
+    /// перебивать результаты нового — владелец видел «ничего не нашлось» там,
+    /// где куски были.
+    private var searchToken = 0
 
-    public init() {}
+    /// Снимок прошлого ответа вместо пустого экрана: владелец (10.11.2026):
+    /// «Почему каждый божий раз что-то грузится?… не может сохраниться снимок
+    /// того, сколько документов здесь находится». Свежий ответ приходит следом.
+    public init() {
+        datasets = api.cachedKnowledgeDatasets() ?? []
+        sections = api.cachedKnowledgeSections() ?? []
+    }
 
     /// Полки для экрана: разделы владельца в его порядке, «Без раздела» в
     /// конце. Исключённые датасеты в полки не попадают.
@@ -45,8 +54,8 @@ public final class KnowledgeBaseViewModel {
         shelf.datasetIds.compactMap { id in datasets.first { $0.id == id } }
     }
 
-    /// Датасеты, которые владелец исключил — показываются только по его
-    /// просьбе («Показать исключённые»): по умолчанию их для базы знаний нет.
+    /// Датасеты, которые владелец исключил из поиска — показываются отдельной
+    /// полкой внизу экрана со статусом «Исключён из поиска».
     public var disabledDatasets: [ApiKnowledgeDataset] {
         datasets.filter { !$0.isEnabled }
     }
@@ -56,23 +65,28 @@ public final class KnowledgeBaseViewModel {
     /// отправляем: retrieval на односложные запросы отдаёт случайные куски.
     public func search(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchToken += 1
+        let token = searchToken
         guard trimmed.count >= 2 else {
             searchedQuery = trimmed
             searchResults = []
+            isSearching = false
             return
         }
         isSearching = true
-        defer { isSearching = false }
         do {
             let found = try await api.knowledgeSearch(query: trimmed, topK: 20)
+            guard token == searchToken else { return }
             searchedQuery = trimmed
             searchResults = found
             errorMessage = nil
         } catch {
+            guard token == searchToken else { return }
             searchedQuery = trimmed
             searchResults = []
             errorMessage = error.localizedDescription
         }
+        if token == searchToken { isSearching = false }
     }
 
     /// Результаты отдаём только для того запроса, который сейчас в поле.

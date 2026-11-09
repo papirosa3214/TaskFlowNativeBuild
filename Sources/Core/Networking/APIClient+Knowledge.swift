@@ -18,6 +18,38 @@ public extension APIClient {
         return response.datasets
     }
 
+    // ── Прошлый ответ для первого кадра ────────────────────────────────────
+    // Владелец (10.11.2026): «Почему так долго грузится?… не может
+    // сохраниться снимок того, сколько документов здесь находится». Поэтому
+    // экран сначала рисует прошлый ответ из `ResponseCache`, а свежий
+    // приходит следом и обновляет счётчики.
+
+    func cachedKnowledgeDatasets(includeDisabled: Bool = true) -> [ApiKnowledgeDataset]? {
+        struct Response: Decodable { let datasets: [ApiKnowledgeDataset] }
+        return cached(
+            Response.self, "/knowledge/datasets",
+            query: includeDisabled ? [URLQueryItem(name: "include_disabled", value: "1")] : []
+        )?.datasets
+    }
+
+    func cachedKnowledgeSections() -> [KnowledgeSection]? {
+        struct Response: Decodable { let sections: [KnowledgeSection] }
+        return cached(Response.self, "/knowledge/sections")?.sections
+    }
+
+    func cachedKnowledgeDatasetDocuments(
+        datasetId: String, page: Int = 1, pageSize: Int = 50
+    ) -> [ApiKnowledgeDocument]? {
+        struct Response: Decodable { let documents: [ApiKnowledgeDocument] }
+        return cached(
+            Response.self, "/knowledge/datasets/\(datasetId)/documents",
+            query: [
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "page_size", value: String(pageSize)),
+            ]
+        )?.documents
+    }
+
     // ── Управление датасетами и разделами (владелец 09.11.2026) ────────────
     // Решения принимает сервер: `enabled`, раздел и доступы ролей живут в его
     // реестре, телефон только передаёт выбор.
