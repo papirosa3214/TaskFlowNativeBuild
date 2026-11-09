@@ -277,7 +277,19 @@ struct RoleReplyMarkdown: View, Equatable {
                     text = text.foregroundColor(color.opacity(0.94))
                 }
             }
+            if let link = piece.link {
+                text = Self.iconText(link.icon) + Text(" ") + text
+            }
             return Text("\(result)\(text)")
+        }
+    }
+
+    /// Иконка ссылки инлайном в абзаце: `Text(Image(...))` — единственный
+    /// способ положить картинку внутрь текста в SwiftUI без UIKit-текста.
+    static func iconText(_ icon: ChatLinkPresentation.Icon) -> Text {
+        switch icon {
+        case .asset(let name): return Text(Image(name))
+        case .symbol(let name): return Text(Image(systemName: name))
         }
     }
 
@@ -286,6 +298,9 @@ struct RoleReplyMarkdown: View, Equatable {
         let attributed: AttributedString
         let bold: Bool
         let code: Bool
+        /// Ссылка: иконка хоста и короткая подпись (владелец 10.11.2026 —
+        /// «визуал отображения всяких ссылок»).
+        var link: ChatLinkPresentation.Presentation? = nil
     }
 
     /// Кэш готовых кусков текста по блоку.
@@ -305,8 +320,11 @@ struct RoleReplyMarkdown: View, Equatable {
     static func pieces(for block: NoteBlock) -> [RunPiece] {
         let key = block.id.uuidString
         if let cached = runPieces.value(for: key) { return cached }
-        let built = block.runs.map {
-            RunPiece(attributed: attributed([$0]), bold: $0.bold, code: $0.code)
+        let built = block.runs.map { run in
+            RunPiece(attributed: attributed([run]), bold: run.bold, code: run.code,
+                     link: run.linkHref.flatMap {
+                         ChatLinkPresentation.presentation(href: $0, text: run.text)
+                     })
         }
         runPieces.set(built, for: key)
         return built
@@ -317,7 +335,13 @@ struct RoleReplyMarkdown: View, Equatable {
     static func attributed(_ runs: [RichRun], chatGroup: TFChatTypeGroup? = nil) -> AttributedString {
         var result = AttributedString()
         for run in runs {
-            var piece = AttributedString(run.text)
+            // Подпись ссылки — короткая (`owner/repo#12`, `File.swift:23`):
+            // длинный адрес посреди ответа читать нельзя, а в T3 Code его и
+            // не показывают (владелец 10.11.2026).
+            let link = run.linkHref.flatMap {
+                ChatLinkPresentation.presentation(href: $0, text: run.text)
+            }
+            var piece = AttributedString(link?.label ?? run.text)
             var intent: InlinePresentationIntent = []
             if run.bold { intent.insert(.stronglyEmphasized) }
             if run.italic { intent.insert(.emphasized) }

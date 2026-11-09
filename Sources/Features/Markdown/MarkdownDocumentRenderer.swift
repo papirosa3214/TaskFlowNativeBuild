@@ -141,9 +141,14 @@ struct StructuredDocumentBlockView: View {
 
     private func inline(_ runs: [RichRun], style: TFTextStyle) -> some View {
         runs.reduce(Text("")) { result, run in
-            let piece = Text(RoleReplyMarkdown.attributed([run], chatGroup: chatGroup ?? (typeSettingsEnabled ? nil : style.chatGroup)))
+            // Ссылка — с иконкой хоста перед подписью (владелец 10.11.2026).
+            var piece = Text(RoleReplyMarkdown.attributed([run], chatGroup: chatGroup ?? (typeSettingsEnabled ? nil : style.chatGroup)))
                 .fontWeight(run.bold ? .semibold : nil)
                 .foregroundColor(run.bold ? Color.tfText : Color.tfText.opacity(0.9))
+            if let href = run.linkHref,
+               let link = ChatLinkPresentation.presentation(href: href, text: run.text) {
+                piece = RoleReplyMarkdown.iconText(link.icon) + Text(" ") + piece
+            }
             return Text("\(result)\(piece)")
         }
             .tfText(style)
