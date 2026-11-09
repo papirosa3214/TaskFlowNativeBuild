@@ -12,8 +12,15 @@ import PhotosUI
 struct AvatarCropEditor: View {
     let role: String
     let roleTitle: String
-    /// Вшитый портрет роли — когда своё фото не выбрано.
-    let imageAsset: String
+    /// Вшитый портрет роли — когда своё фото не выбрано. `nil` — у роли нет
+    /// вшитой картинки (так у внешних агентов: Claude Code, Codex, Gemini,
+    /// Гермес, OpenCode): тогда своё фото — основной путь, а без фото рисуются
+    /// инициалы.
+    let imageAsset: String?
+    /// Учётка роли на сервере. Есть — выбранное фото сразу уходит на сервер
+    /// (`POST /api/users/:id/avatar`), и его видят все экраны, включая чаты
+    /// и карточки. `nil` — фото останется только на телефоне.
+    var accountID: String?
 
     @Environment(\.dismiss) private var dismiss
     @State private var scale: Double = 1
@@ -22,6 +29,11 @@ struct AvatarCropEditor: View {
     @State private var shape: AvatarCrop.Shape = .circle
     @State private var pickerItem: PhotosPickerItem?
     @State private var isResetting = false
+    /// Идёт отправка фото на сервер — кнопки на это время заблокированы,
+    /// иначе второе нажатие затрёт первое без предупреждения.
+    @State private var isUploading = false
+    /// Ошибка сервера — говорим словами, а не молчим.
+    @State private var errorText: String?
 
     private let circle: CGFloat = 300
 
@@ -66,8 +78,15 @@ struct AvatarCropEditor: View {
                             .font(.caption.monospacedDigit())
                             .frame(width: 46, alignment: .trailing)
                     }
-                    Text("Тяните картинку мышью или пальцем, щипок меняет размер.")
+                    Text(imageAsset == nil
+                         ? "У этой роли нет вшитого портрета — выберите своё фото."
+                         : "Тяните картинку пальцем, щипок меняет размер.")
                         .tfText(.meta).foregroundStyle(Color.tfSub)
+                    if let errorText {
+                        Text(errorText)
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfRed)
+                    }
                 }
                 .padding(.horizontal, TFSpacing.screenHorizontal)
 
@@ -80,19 +99,22 @@ struct AvatarCropEditor: View {
                     Button {
                         // Сброс — это состояние редактора, а не кнопка-пустышка:
                         // возвращаем исходный портрет, масштаб 1, центр и круг.
+                        // Своё фото убираем и с сервера — иначе стереть его
+                        // из приложения было бы нечем.
                         scale = 1
                         offset = .zero
                         photo = nil
                         shape = .circle
+                        Task { await removeFromServer() }
                     } label: {
                         Label("Сбросить", systemImage: "arrow.counterclockwise")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(scale == 1 && offset == .zero && photo == nil && shape == .circle)
+                    .disabled(isUploading || (scale == 1 && offset == .zero && photo == nil && shape == .circle))
 
                     Spacer()
 
-                    Button("Готово") {
+                    Button(isUploading ? "Сохраняю…" : "Готово") {
                         AvatarCrop.save(
                             AvatarCrop.Value(scale: scale, dx: offset.width, dy: offset.height,
                                              photo: photo, shape: shape),
@@ -101,6 +123,7 @@ struct AvatarCropEditor: View {
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(isUploading)
                 }
                 .padding(.horizontal, TFSpacing.screenHorizontal)
 
@@ -114,7 +137,6 @@ struct AvatarCropEditor: View {
                     Button("Отмена") { dismiss() }
                 }
             }
-            .onAppear { load() }
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
                 Task {
@@ -125,9 +147,13 @@ struct AvatarCropEditor: View {
                             scale = 1
                             offset = .zero
                         }
+                        // Своё фото — на сервер, чтобы его видели все экраны
+                        // (чаты, карточки, граф плана), а не только этот телефон.
+                        await uploadToServer(data)
                     }
                 }
             }
+            .onAppear { load() }
         }
     }
 
@@ -138,13 +164,58 @@ struct AvatarCropEditor: View {
                 .aspectRatio(contentMode: .fill)
                 .scaleEffect(scale)
                 .offset(offset)
-        } else {
+        } else if let imageAsset {
             Image(imageAsset)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .scaleEffect(scale)
                 .offset(offset)
+        } else {
+            // Роль без вшитого портрета и без фото — рисуем инициалы, а не
+            // пустой чёрный кружок.
+            Circle()
+                .fill(roleAccentColor(role))
+                .overlay {
+                    Text(String(roleTitle.prefix(1)))
+                        .font(.system(size: 96, weight: .semibold)) // design-system-guard: ignore — превью 300 pt, не текст экрана
+                        .foregroundStyle(Color.tfPaper)
+                }
         }
+    }
+
+    /// Отправить выбранное фото на сервер и подсказать справочнику аватарок
+    /// новый адрес. Без учётки — молча остаёмся с локальным фото.
+    private func uploadToServer(_ data: Data) async {
+        guard let accountID, !accountID.isEmpty else { return }
+        await MainActor.run { isUploading = true; errorText = nil }
+        defer { Task { @MainActor in isUploading = false } }
+        let jpeg = AvatarCrop.jpeg(from: data) ?? data
+        do {
+            let saved = try await APIClient().uploadAgentAvatar(id: accountID, data: jpeg, mime: "image/jpeg")
+            await MainActor.run {
+                AvatarDirectory.shared.set(path: saved.avatarUrl, forUserID: accountID)
+            }
+        } catch {
+            await MainActor.run {
+                errorText = "Фото осталось на телефоне: сервер не принял его (\(error.localizedDescription))."
+            }
+        }
+    }
+
+    /// Убрать фото с сервера: роль возвращается к вшитому портрету или
+    /// инициалам на всех экранах, а не только на этом телефоне.
+    private func removeFromServer() async {
+        guard let accountID, !accountID.isEmpty else { return }
+        await MainActor.run { isUploading = true; errorText = nil }
+        do {
+            try await APIClient().deleteAgentAvatar(id: accountID)
+            await MainActor.run { AvatarDirectory.shared.remove(forUserID: accountID) }
+        } catch {
+            await MainActor.run {
+                errorText = "Фото с сервера удалить не удалось (\(error.localizedDescription))."
+            }
+        }
+        await MainActor.run { isUploading = false }
     }
 
     private func load() {

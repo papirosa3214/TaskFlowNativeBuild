@@ -17,4 +17,20 @@ public final class AvatarDirectory {
         for a in agents { if let u = a.avatarUrl, !u.isEmpty { map[a.id] = u } }
         urls = map
     }
+
+    /// Положить адрес только что загруженной картинки в справочник.
+    /// Нужно сразу после смены фото роли: `load()` вызывается при запуске,
+    /// и без этого свежее фото не увидят чаты и карточки до перезапуска.
+    public func set(path: String, forUserID userID: String) {
+        var next = urls
+        next[userID] = path
+        urls = next
+    }
+
+    /// Убрать адрес картинки из справочника (фото удалили).
+    public func remove(forUserID userID: String) {
+        var next = urls
+        next.removeValue(forKey: userID)
+        urls = next
+    }
 }

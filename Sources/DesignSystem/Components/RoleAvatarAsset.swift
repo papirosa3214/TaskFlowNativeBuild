@@ -110,6 +110,14 @@ enum RoleAvatarAsset {
         "infra_engineer",
     ]
 
+    /// Есть ли у роли вшитый портрет хоть в одном комплекте. Нужно списку
+    /// «Внешний вид»: роль без портрета (внешние агенты — Claude Code, Codex,
+    /// Gemini, Гермес, OpenCode) туда тоже входит, но лишь ради своего фото.
+    static func hasBundledPortrait(_ role: String) -> Bool {
+        guard suffix(for: role) != nil else { return false }
+        return TeamAvatarAppearance.allCases.contains { imageName(for: role, appearance: $0) != nil }
+    }
+
     /// Имя ролика в бандле (без `.mp4`) для роли, `nil` — анимации нет.
     ///
     /// У комплекта «Иллюстрация» свои ролики `RoleLoop*` — сняты 10.10.2026 с

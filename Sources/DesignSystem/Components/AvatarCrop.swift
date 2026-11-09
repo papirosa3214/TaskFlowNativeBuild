@@ -66,6 +66,21 @@ enum AvatarCrop {
 
     static func photoURL(_ name: String) -> URL { photosDir.appendingPathComponent(name) }
 
+    /// Роли, которые приложение знает по имени — даже если сервер не ответил
+    /// (нет сети, старый сервер). Нужен как запасной список: «Внешний вид»
+    /// показывает вшитые портреты, а не пустой экран.
+    static let knownRoles: [String] = [
+        "researcher", "analyst", "builder", "architect", "code_orchestrator",
+        "secretary", "critic_verifier", "qa", "designer", "infra_engineer",
+    ]
+
+    /// Выбранное фото пережать в JPEG: сервер принимает не любой формат
+    /// (`mimeAllowed` в `routes/avatars.ts`), а из «Фото» приходит HEIC.
+    static func jpeg(from data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        return image.jpegData(compressionQuality: 0.9)
+    }
+
     /// Человеческое название роли — для списка в редакторе.
     static func roleTitle(_ role: String) -> String {
         switch role {

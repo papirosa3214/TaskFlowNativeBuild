@@ -12,15 +12,44 @@ struct TeamAppearanceSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showRoles = false
     @State private var editingRole: String?
-    private let roles = ["researcher", "analyst", "builder", "architect", "code_orchestrator", "secretary", "critic_verifier", "qa", "designer", "infra_engineer"]
+    /// Роли команды с сервера: ключ → название. Раньше список был зашит
+    /// константой из десяти внутренних ролей, и внешних агентов (Claude Code,
+    /// Codex, Gemini, Гермес, OpenCode) в «Внешнем виде» не было вовсе
+    /// (владелец 09.11.2026: «хотел бы и внешних тоже кастомизировать»).
+    @State private var profiles: [RoleProfile] = []
 
     private var showsSecretaryVariants: Bool { selected == TeamAvatarAppearance.noir.rawValue }
 
-    /// Роли, у которых в этом комплекте есть портрет. У «Инженера .110» он
+    /// Название роли для строки и заголовка редактора: из профиля команды,
+    /// а не из ручного словаря — иначе у внешнего агента в заголовке был бы
+    /// голый ключ `claude_code`.
+    private func title(of role: String) -> String {
+        profiles.first { $0.role == role }?.title ?? AvatarCrop.roleTitle(role)
+    }
+
+    /// Все роли команды: и внутренние, и внешние агенты. Порядок — как в
+    /// «Команде» (сервер отдаёт его по position).
+    private var allRoleKeys: [String] {
+        profiles.isEmpty
+            ? AvatarCrop.knownRoles
+            : profiles.map(\.role).filter { !$0.isEmpty }
+    }
+
+    /// Роли, у которых в этом комплекте есть вшитый портрет. У «Инженера .110» он
     /// нарисован только для «Иллюстрации», поэтому в «Плакате» и «Гравюре» его
     /// в сетке нет — там роль остаётся инициалами, как у владельца.
     private func rolesWithPortrait(in appearance: TeamAvatarAppearance) -> [String] {
-        roles.filter { RoleAvatarAsset.imageName(for: $0, appearance: appearance) != nil }
+        allRoleKeys.filter { RoleAvatarAsset.imageName(for: $0, appearance: appearance) != nil }
+    }
+
+    /// Роли, которым владелец может поставить своё фото: все, у кого есть
+    /// учётка на сервере (иначе фото некуда положить), включая внешних.
+    private var rolesWithPhotoEntry: [String] {
+        allRoleKeys.filter { role in
+            RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current) != nil
+                || profiles.first { $0.role == role }?.accountID != nil
+                || RoleAvatarAsset.hasBundledPortrait(role)
+        }
     }
 
     var body: some View {
@@ -148,23 +177,31 @@ struct TeamAppearanceSheet: View {
             .navigationTitle("Внешний вид")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+            .task {
+                // Список ролей — тот же, что на экране «Команда»: владелец
+                // ставит своё фото любой роли, включая внешних агентов.
+                profiles = (try? await APIClient().roles(all: true)) ?? []
+            }
             .navigationDestination(isPresented: $showRoles) {
                 List {
-                    ForEach(rolesWithPortrait(in: TeamAvatarAppearance(rawValue: selected) ?? .current), id: \.self) { role in
+                    ForEach(rolesWithPhotoEntry, id: \.self) { role in
+                        let appearance = TeamAvatarAppearance(rawValue: selected) ?? .current
+                        let asset = RoleAvatarAsset.imageName(for: role, appearance: appearance)
                         Button {
                             editingRole = role
                         } label: {
                             TFListRow(
-                                leading: RoleAvatarAsset.imageName(
-                                    for: role,
-                                    appearance: TeamAvatarAppearance(rawValue: selected) ?? .current
-                                ).map { AnyView(
-                                    TFRolePortrait(role: role, imageAsset: $0, loopName: nil, side: 44)
-                                ) },
-                                title: AvatarCrop.roleTitle(role),
+                                leading: AnyView(RoleAvatarView(
+                                    initials: String(title(of: role).prefix(1)),
+                                    tint: roleAccentColor(role),
+                                    size: 44,
+                                    role: role
+                                )),
+                                title: title(of: role),
                                 horizontalPadding: 0,
                                 chevron: .shown
                             )
+                            .accessibilityValue(asset == nil ? "своё фото" : "вшитый портрет")
                         }
                         .accessibilityIdentifier("team-avatar-crop-role-" + role)
                     }
@@ -179,8 +216,9 @@ struct TeamAppearanceSheet: View {
             )) { box in
                 let role = box.id
                 AvatarCropEditor(role: role,
-                                 roleTitle: AvatarCrop.roleTitle(role),
-                                 imageAsset: RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current) ?? "")
+                                 roleTitle: title(of: role),
+                                 imageAsset: RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current),
+                                 accountID: profiles.first { $0.role == role }?.accountID)
             }
         }
     }

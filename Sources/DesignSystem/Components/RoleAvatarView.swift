@@ -19,9 +19,25 @@ struct RoleAvatarView: View {
         return TFAvatar.fullURL(path)
     }
 
+    /// Своё фото, поставленное владельцем из приложения. Отличаем его от
+    /// авто-иконки внешнего агента по имени файла: авто-иконки сервер
+    /// называет `agent-<рантайм>-<хэш>.svg`, а загруженное фото — уникальным
+    /// id. Своё фото главнее вшитого портрета — иначе настройка была бы
+    /// пустышкой (владелец 09.11.2026).
+    private var ownerPhotoURL: URL? {
+        guard let role, let path = AvatarDirectory.shared.urls["role_" + role],
+              !path.hasSuffix(".svg") else { return nil }
+        return TFAvatar.fullURL(path)
+    }
+
     var body: some View {
         Group {
-            if let asset = RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
+            if let ownerPhotoURL {
+                // Своё фото владельца — главнее всего остального.
+                AnimatedImage(url: ownerPhotoURL, placeholder: { Circle().fill(tint) })
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let asset = RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current) {
                 let appearance = TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current
                 let loop = avatarsAnimated ? RoleAvatarAsset.loopName(for: role, appearance: appearance) : nil
                 TFRolePortrait(role: role, imageAsset: asset, loopName: loop, side: size)
