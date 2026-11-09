@@ -21,28 +21,32 @@ public struct KnowledgeBaseScreen: View {
     public init() {}
 
     public var body: some View {
-        ZStack {
-            TFScreenFill()
-            ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.lg) {
+        List {
+            if viewModel.errorMessage != nil {
+                Section {
                     TFErrorBanner(viewModel.errorMessage, variant: .block)
-
-                    if viewModel.isLoading && viewModel.datasets.isEmpty {
-                        TFLoading(.block).frame(maxWidth: .infinity)
-                    } else if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        searchResults
-                    } else {
-                        ForEach(viewModel.shelves) { shelf in
-                            shelfView(shelf)
-                        }
-                        if !viewModel.disabledDatasets.isEmpty {
-                            disabledShelf
-                        }                    }
+                        .knowledgeRow()
                 }
-                .padding(.vertical, TFSpacing.md)
             }
-            .refreshable { await viewModel.load() }
+
+            if viewModel.isLoading && viewModel.datasets.isEmpty {
+                Section { TFLoading(.block).frame(maxWidth: .infinity).knowledgeRow() }
+            } else if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                searchResults
+            } else {
+                ForEach(viewModel.shelves) { shelf in
+                    shelfView(shelf)
+                }
+                if !viewModel.disabledDatasets.isEmpty {
+                    disabledShelf
+                }
+            }
         }
+        .listStyle(.plain)
+        .listSectionSpacing(TFSpacing.xs)
+        .tfScreenBackground(Color.tfCard)
+        .tint(Color.tfText)
+        .refreshable { await viewModel.load() }
         .tfNativeHeader("База знаний", displayMode: .large)
         .searchable(
             text: $query,
@@ -129,135 +133,145 @@ public struct KnowledgeBaseScreen: View {
     /// Найденные фрагменты: карточка сверху — «спросить по этому запросу»,
     /// ниже сами куски с названием документа. Действий с куском нет:
     /// открывать из индекса нечего, оригинал живёт в своём приложении.
+    @ViewBuilder
     private var searchResults: some View {
         let found = viewModel.results(for: query)
         let ask = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFCard(padding: 0) {
-                TFListRow(
-                    icon: "text.magnifyingglass",
-                    iconStyle: .plain,
-                    title: "Спросить базу",
-                    subtitle: "Ответ по этому запросу со ссылками на источники",
-                    verticalPadding: TFSpacing.sm
-                ) {
-                    askQuestion = ask
-                    isAskOpen = true
-                }
+        Section {
+            KnowledgeRimButton(title: "Спросить базу", systemImage: "text.magnifyingglass") {
+                askQuestion = ask
+                isAskOpen = true
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-
+            .knowledgeRow()
+            .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.sm))
             if viewModel.isSearching && found.isEmpty {
-                TFLoading(.inline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, TFSpacing.lg)
+                TFLoading(.inline).frame(maxWidth: .infinity).knowledgeRow()
             } else if found.isEmpty {
                 Text("Ничего не нашлось. Попробуйте другие слова — поиск смысловой, а не по точному совпадению.")
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
-                    .padding(.top, TFSpacing.sm)
+                    .knowledgeRow()
             } else {
-                TFSectionHeader("Найдено: \(found.count)")
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
-                TFCard(padding: 0) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(found.enumerated()), id: \.element.id) { index, chunk in
-                            TFListRow(
-                                icon: "text.quote",
-                                iconStyle: .plain,
-                                content: AnyView(
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(chunk.title?.isEmpty == false
-                                             ? chunk.title! : chunk.documentName)
-                                            .tfText(.body)
-                                            .foregroundStyle(Color.tfText)
-                                            .lineLimit(1)
-                                        Text(chunk.text.trimmingCharacters(in: .whitespacesAndNewlines))
-                                            .tfText(.caption)
-                                            .foregroundStyle(Color.tfSub)
-                                            .lineLimit(3)
-                                    }
-                                ),
-                                verticalPadding: TFSpacing.sm,
-                                chevron: .hidden
-                            )
-                            if index < found.count - 1 { TFDivider() }
+                ForEach(found) { chunk in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label {
+                            Text(chunk.title?.isEmpty == false ? chunk.title! : chunk.documentName)
+                                .tfText(.body)
+                                .foregroundStyle(Color.tfText)
+                                .lineLimit(1)
+                        } icon: {
+                            Image(systemName: "text.quote")
+                                .foregroundStyle(Color.tfSub)
                         }
+                        Text(chunk.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(3)
                     }
+                    .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.sm, bottom: TFSpacing.sm, trailing: TFSpacing.sm))
+                    .knowledgeRow()
                 }
-                .padding(.horizontal, TFSpacing.screenHorizontal)
+            }
+        } header: {
+            if !found.isEmpty {
+                Text("Найдено: \(found.count)")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
             }
         }
     }
 
     private func shelfView(_ shelf: KnowledgeShelf) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            if shelf.sectionId != nil {
-                HStack {
-                    TFSectionHeader(shelf.title)
-                    Spacer()
-                    if let section = viewModel.sections.first(where: { $0.id == shelf.sectionId }) {
-                        Menu {
-                            Button("Переименовать") {
-                                sectionEditor = SectionEditorState(section: section, title: section.title)
-                            }
-                            Button("Удалить раздел", role: .destructive) {
-                                pendingSectionDeletion = section
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                        }
-                        .accessibilityLabel("Раздел \(shelf.title)")
-                        .padding(.trailing, TFSpacing.xs)
-                    }
-                }
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-            }
-            let datasets = viewModel.datasets(on: shelf)
-            TFCard(padding: 0) {
-                if datasets.isEmpty {
+        let datasets = viewModel.datasets(on: shelf)
+        return Section {
+            if datasets.isEmpty {
+                if shelf.sectionId == nil {
                     Text("Раздел пуст — перенесите сюда датасет.")
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
-                        .padding(TFSpacing.lg)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .knowledgeRow()
+                        .hintAnchor(HintAnchorID.knowledgeUnsorted)
                 } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(datasets.enumerated()), id: \.element.id) { index, dataset in
-                            datasetRow(dataset)
-                            if index < datasets.count - 1 { TFDivider() }
-                        }
+                    Text("Раздел пуст — перенесите сюда датасет.")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .knowledgeRow()
+                }
+            } else {
+                ForEach(Array(datasets.enumerated()), id: \.element.id) { index, dataset in
+                    if shelf.sectionId == nil && index == 0 {
+                        datasetRow(dataset)
+                            .hintAnchor(HintAnchorID.knowledgeUnsorted)
+                    } else {
+                        datasetRow(dataset)
                     }
                 }
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
+        } header: {
+            if shelf.sectionId != nil {
+                HStack(spacing: TFSpacing.sm) {
+                    Text(shelf.title)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                    Spacer(minLength: 0)
+                    if let section = viewModel.sections.first(where: { $0.id == shelf.sectionId }) {
+                        Menu {
+                            Button("Переименовать", systemImage: "pencil") {
+                                sectionEditor = SectionEditorState(section: section, title: section.title)
+                            }
+                            Button("Удалить раздел", systemImage: "trash", role: .destructive) {
+                                pendingSectionDeletion = section
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundStyle(Color.tfText)
+                        }
+                        .accessibilityLabel("Раздел \(shelf.title)")
+                    }
+                }
+                .hintAnchor(HintAnchorID.knowledgeShelves)
+            }
         }
-        .hintAnchor(shelf.sectionId == nil ? HintAnchorID.knowledgeUnsorted : HintAnchorID.knowledgeShelves)
     }
 
     private func datasetRow(_ dataset: ApiKnowledgeDataset) -> some View {
-        NavigationLink {
-            KnowledgeDatasetScreen(dataset: dataset)
-        } label: {
-            TFListRow(
-                icon: dataset.isTaskflowOwned ? "doc.text" : "externaldrive",
-                iconStyle: .plain,
-                title: dataset.name,
-                subtitle: subtitle(for: dataset),
-                trailing: AnyView(
-                        Menu {
-                            datasetMenu(dataset)
-                        } label: {
-                            Image(systemName: "ellipsis")
-                        }
-                    ),
-                verticalPadding: TFSpacing.xs,
-                chevron: .hidden
-            )
+        HStack(spacing: TFSpacing.xs) {
+            NavigationLink {
+                KnowledgeDatasetScreen(dataset: dataset)
+            } label: {
+                datasetLabel(dataset, subtitle: subtitle(for: dataset))
+            }
+            Menu {
+                datasetMenu(dataset)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(Color.tfText)
+            }
+            .accessibilityLabel("Действия датасета \(dataset.name)")
         }
-        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.xs))
+        .knowledgeRow()
         .contextMenu { datasetMenu(dataset) }
+    }
+
+    private func datasetLabel(_ dataset: ApiKnowledgeDataset, subtitle: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(dataset.name)
+                    .tfText(.body)
+                    .foregroundStyle(Color.tfText)
+                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .lineLimit(1)
+                }
+            }
+        } icon: {
+            Image(systemName: dataset.isTaskflowOwned ? "doc.text" : "externaldrive")
+                .foregroundStyle(Color.tfSub)
+        }
     }
 
     private func subtitle(for dataset: ApiKnowledgeDataset) -> String {
@@ -287,28 +301,21 @@ public struct KnowledgeBaseScreen: View {
     }
 
     private var disabledShelf: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFSectionHeader("Исключены из поиска")
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-            TFCard(padding: 0) {
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.disabledDatasets.enumerated()), id: \.element.id) { index, dataset in
-                        TFListRow(
-                            icon: dataset.isTaskflowOwned ? "doc.text" : "externaldrive",
-                            iconStyle: .plain,
-                            title: dataset.name,
-                            subtitle: "Исключён из поиска",
-                            trailing: AnyView(
-                                Button("Вернуть") { Task { await viewModel.setEnabled(dataset, true) } }
-                            ),
-                            verticalPadding: TFSpacing.xs,
-                            chevron: .hidden
-                        )
-                        if index < viewModel.disabledDatasets.count - 1 { TFDivider() }
+        Section {
+            ForEach(viewModel.disabledDatasets) { dataset in
+                HStack(spacing: TFSpacing.sm) {
+                    datasetLabel(dataset, subtitle: "Исключён из поиска")
+                    KnowledgeRimButton(title: "Вернуть") {
+                        Task { await viewModel.setEnabled(dataset, true) }
                     }
                 }
+                .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.sm))
+                .knowledgeRow()
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
+        } header: {
+            Text("Исключены из поиска")
+                .tfText(.action)
+                .foregroundStyle(Color.tfSub)
         }
     }
 
@@ -318,13 +325,19 @@ public struct KnowledgeBaseScreen: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
-                Button("Новый раздел") { sectionEditor = SectionEditorState(section: nil, title: "") }
+                Button("Новый раздел", systemImage: "folder.badge.plus") {
+                    sectionEditor = SectionEditorState(section: nil, title: "")
+                }
                 Divider()
-                NavigationLink("Заметки TaskFlow") {
+                NavigationLink {
                     routeDestination(.notes)
+                } label: {
+                    Label("Заметки TaskFlow", systemImage: "book.closed")
+                        .foregroundStyle(Color.tfText)
                 }
             } label: {
-                Image(systemName: "ellipsis")
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(Color.tfText)
             }
             .accessibilityLabel("Действия базы знаний")
         }
@@ -332,7 +345,8 @@ public struct KnowledgeBaseScreen: View {
             NavigationLink {
                 routeDestination(.notes)
             } label: {
-                Image(systemName: "book")
+                Image(systemName: "book.closed")
+                    .foregroundStyle(Color.tfText)
             }
             .accessibilityLabel("Заметки TaskFlow")
         }
@@ -445,5 +459,51 @@ private struct KnowledgeRolesSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// Прозрачная кнопка с кромкой. На iOS 26 это системное стекло, раньше —
+/// та же подпись без заливки и с тонкой светлой кромкой. Иконка системная.
+struct KnowledgeRimButton: View {
+    let title: String
+    var systemImage: String?
+    let action: () -> Void
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            Button(action: action) { label }
+                .buttonStyle(.glass)
+        } else {
+            Button(action: action) {
+                label
+                    .padding(.horizontal, TFSpacing.md)
+                    .padding(.vertical, TFSpacing.xs)
+            }
+            .buttonStyle(.plain)
+            .overlay {
+                RoundedRectangle(cornerRadius: TFRadius.lg, style: .continuous)
+                    .strokeBorder(Color.tfStroke, lineWidth: TFBorder.width)
+            }
+        }
+    }
+
+    private var label: some View {
+        Group {
+            if let systemImage {
+                Label(title, systemImage: systemImage)
+            } else {
+                Text(title)
+            }
+        }
+        .tfText(.action)
+        .foregroundStyle(Color.tfText)
+    }
+}
+
+extension View {
+    /// Строка на общем тёмно-сером поле: системная подложка списка её не перекрывает.
+    func knowledgeRow() -> some View {
+        listRowBackground(Color.clear)
+            .listRowSeparatorTint(Color.tfStroke)
     }
 }

@@ -22,44 +22,57 @@ public struct KnowledgeDatasetScreen: View {
     }
 
     public var body: some View {
-        ZStack {
-            TFScreenFill()
-            ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.lg) {
-                    TFErrorBanner(viewModel.errorMessage, variant: .block)
-                    if let uploadMessage = viewModel.uploadMessage {
-                        Text(uploadMessage)
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
-                            .padding(.horizontal, TFSpacing.screenHorizontal)
-                    }
-
-                    if viewModel.isLoading && viewModel.documents.isEmpty {
-                        TFLoading(.block).frame(maxWidth: .infinity)
-                    } else if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        searchResults
-                    } else if viewModel.documents.isEmpty {
-                        TFEmptyState(
-                            icon: "doc.badge.plus",
-                            text: "Документов нет\nФайл, положенный сюда, сервер разобьёт на фрагменты и добавит в поиск.",
-                            actionTitle: "Добавить документ"
-                        ) { isPickingFile = true }
-                        .padding(.top, TFSpacing.xl)
-                    } else {
-                        documentsCard
-                    }
-
-                    if !dataset.roleTitles.isEmpty {
-                        Text("Доступ ролям: \(dataset.roleTitles.joined(separator: ", "))")
-                            .tfText(.action)
-                            .foregroundStyle(Color.tfSub)
-                            .padding(.horizontal, TFSpacing.screenHorizontal)
-                    }
-                }
-                .padding(.vertical, TFSpacing.lg)
+        List {
+            if viewModel.errorMessage != nil {
+                Section { TFErrorBanner(viewModel.errorMessage, variant: .block).knowledgeRow() }
             }
-            .refreshable { await viewModel.load() }
+            if let uploadMessage = viewModel.uploadMessage {
+                Section {
+                    Text(uploadMessage)
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .knowledgeRow()
+                }
+            }
+
+            if viewModel.isLoading && viewModel.documents.isEmpty {
+                Section { TFLoading(.block).frame(maxWidth: .infinity).knowledgeRow() }
+            } else if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                searchResults
+            } else if viewModel.documents.isEmpty {
+                Section {
+                    VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                        Label("Документов нет", systemImage: "doc.badge.plus")
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfText)
+                        Text("Файл, положенный сюда, сервер разобьёт на фрагменты и добавит в поиск.")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                        KnowledgeRimButton(title: "Добавить документ", systemImage: "plus") {
+                            isPickingFile = true
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.sm, bottom: TFSpacing.sm, trailing: TFSpacing.sm))
+                    .knowledgeRow()
+                }
+            } else {
+                documentsCard
+            }
+
+            if !dataset.roleTitles.isEmpty {
+                Section {
+                    Text("Доступ ролям: \(dataset.roleTitles.joined(separator: ", "))")
+                        .tfText(.action)
+                        .foregroundStyle(Color.tfSub)
+                        .knowledgeRow()
+                }
+            }
         }
+        .listStyle(.plain)
+        .listSectionSpacing(TFSpacing.xs)
+        .tfScreenBackground(Color.tfCard)
+        .tint(Color.tfText)
+        .refreshable { await viewModel.load() }
         .tfNativeHeader(dataset.name, displayMode: .inline)
         .searchable(
             text: $query,
@@ -94,6 +107,7 @@ public struct KnowledgeDatasetScreen: View {
                     isPickingFile = true
                 } label: {
                     Image(systemName: "plus")
+                        .foregroundStyle(Color.tfText)
                 }
                 .accessibilityLabel("Добавить документ")
             }
@@ -131,101 +145,103 @@ public struct KnowledgeDatasetScreen: View {
 
     /// Результаты поиска внутри датасета: тот же вид строк, что на экране
     /// базы знаний.
+    @ViewBuilder
     private var searchResults: some View {
         let found = viewModel.results(for: query)
-        return VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            TFCard(padding: 0) {
-                TFListRow(
-                    icon: "text.magnifyingglass",
-                    iconStyle: .plain,
-                    title: "Спросить по этому датасету",
-                    subtitle: "Ответ по запросу и куски документов этого датасета",
-                    verticalPadding: TFSpacing.sm,
-                    chevron: .hidden
-                ) {
-                    askQuestion = query
-                    isAskOpen = true
-                }
+        Section {
+            KnowledgeRimButton(title: "Спросить по этому датасету", systemImage: "text.magnifyingglass") {
+                askQuestion = query
+                isAskOpen = true
             }
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-
+            .knowledgeRow()
+            .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.sm))
             if viewModel.isSearching && found.isEmpty {
-                TFLoading(.inline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, TFSpacing.lg)
+                TFLoading(.inline).frame(maxWidth: .infinity).knowledgeRow()
             } else if found.isEmpty {
                 Text("В этом датасете ничего не нашлось.")
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
-                    .padding(.top, TFSpacing.sm)
+                    .knowledgeRow()
             } else {
-                TFSectionHeader("Найдено: \(found.count)")
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
-                TFCard(padding: 0) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(found.enumerated()), id: \.element.id) { index, chunk in
-                            TFListRow(
-                                icon: "text.quote",
-                                iconStyle: .plain,
-                                content: AnyView(
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(chunk.title?.isEmpty == false
-                                             ? chunk.title! : chunk.documentName)
-                                            .tfText(.body)
-                                            .foregroundStyle(Color.tfText)
-                                            .lineLimit(1)
-                                        Text(chunk.text.trimmingCharacters(in: .whitespacesAndNewlines))
-                                            .tfText(.caption)
-                                            .foregroundStyle(Color.tfSub)
-                                            .lineLimit(3)
-                                    }
-                                ),
-                                verticalPadding: TFSpacing.sm,
-                                chevron: .hidden
-                            )
-                            if index < found.count - 1 { TFDivider() }
+                ForEach(found) { chunk in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label {
+                            Text(chunk.title?.isEmpty == false ? chunk.title! : chunk.documentName)
+                                .tfText(.body)
+                                .foregroundStyle(Color.tfText)
+                                .lineLimit(1)
+                        } icon: {
+                            Image(systemName: "text.quote")
+                                .foregroundStyle(Color.tfSub)
                         }
+                        Text(chunk.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                            .tfText(.caption)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(3)
                     }
+                    .listRowInsets(EdgeInsets(top: TFSpacing.sm, leading: TFSpacing.sm, bottom: TFSpacing.sm, trailing: TFSpacing.sm))
+                    .knowledgeRow()
                 }
-                .padding(.horizontal, TFSpacing.screenHorizontal)
+            }
+        } header: {
+            if !found.isEmpty {
+                Text("Найдено: \(found.count)")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfSub)
             }
         }
     }
 
     private var documentsCard: some View {
-        TFCard(padding: 0) {
-            VStack(spacing: 0) {
-                ForEach(Array(viewModel.documents.enumerated()), id: \.element.id) { index, document in
-                    documentRow(document)
-                    if index < viewModel.documents.count - 1 { TFDivider() }
-                }
+        Section {
+            ForEach(viewModel.documents) { document in
+                documentRow(document)
             }
         }
-        .padding(.horizontal, TFSpacing.screenHorizontal)
     }
 
     private func documentRow(_ document: ApiKnowledgeDocument) -> some View {
         let status = viewModel.status(for: document)
-        return TFListRow(
-            icon: document.indexed ? "doc.text" : "clock.arrow.circlepath",
-            iconStyle: .plain,
-            title: displayTitle(document),
-            subtitle: subtitle(for: document, status: status),
-            trailing: AnyView(
-                    Menu {
-                        Button("Разобрать заново") { Task { await viewModel.reparse([document]) } }
-                        Button("Удалить", role: .destructive) { pendingDeletion = document }
-                    } label: {
-                        Image(systemName: "ellipsis")
+        return HStack(spacing: TFSpacing.xs) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(displayTitle(document))
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .lineLimit(1)
+                    if let subtitle = subtitle(for: document, status: status) {
+                        Text(subtitle)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                            .lineLimit(2)
                     }
-                ),
-            verticalPadding: TFSpacing.xs,
-            chevron: .hidden
-        )
+                }
+            } icon: {
+                Image(systemName: document.indexed ? "doc.text" : "clock.arrow.circlepath")
+                    .foregroundStyle(Color.tfSub)
+            }
+            Menu {
+                Button("Разобрать заново", systemImage: "arrow.clockwise") {
+                    Task { await viewModel.reparse([document]) }
+                }
+                Button("Удалить", systemImage: "trash", role: .destructive) {
+                    pendingDeletion = document
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(Color.tfText)
+            }
+            .accessibilityLabel("Действия документа \(displayTitle(document))")
+        }
+        .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.xs))
+        .knowledgeRow()
         .contextMenu {
-            Button("Разобрать заново") { Task { await viewModel.reparse([document]) } }
-            Button("Удалить", role: .destructive) { pendingDeletion = document }
+            Button("Разобрать заново", systemImage: "arrow.clockwise") {
+                Task { await viewModel.reparse([document]) }
+            }
+            Button("Удалить", systemImage: "trash", role: .destructive) {
+                pendingDeletion = document
+            }
         }
     }
 

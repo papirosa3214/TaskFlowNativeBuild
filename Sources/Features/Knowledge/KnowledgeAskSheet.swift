@@ -18,17 +18,20 @@ public struct KnowledgeAskSheet: View {
 
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TFSpacing.lg) {
-                    datasetChips
-                    questionField
-                    TFErrorBanner(viewModel.errorMessage, variant: .block)
-                    if let answer = viewModel.answer {
-                        answerBlock(answer)
-                    }
+            List {
+                Section { datasetChips }
+                Section { questionField }
+                if viewModel.errorMessage != nil {
+                    Section { TFErrorBanner(viewModel.errorMessage, variant: .block) }
                 }
-                .padding(TFSpacing.lg)
+                if let answer = viewModel.answer {
+                    answerSections(answer)
+                }
             }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(TFSpacing.sm)
+            .tfScreenBackground()
+            .tint(Color.tfText)
             .navigationTitle("Спросить базу")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -40,6 +43,7 @@ public struct KnowledgeAskSheet: View {
                             TFLoading(.inline)
                         } else {
                             Text("Спросить")
+                                .foregroundStyle(Color.tfText)
                         }
                     }
                     .disabled(!viewModel.canAsk)
@@ -57,26 +61,12 @@ public struct KnowledgeAskSheet: View {
             FlowLayout(spacing: TFSpacing.sm) {
                 ForEach(viewModel.datasets) { dataset in
                     let isSelected = viewModel.selectedDatasetIds.contains(dataset.id)
-                    Button {
+                    KnowledgeRimButton(
+                        title: dataset.name,
+                        systemImage: isSelected ? "checkmark.circle.fill" : "circle"
+                    ) {
                         viewModel.toggle(dataset)
-                    } label: {
-                        Text(dataset.name)
-                            .tfText(.action)
-                            .foregroundStyle(isSelected ? Color.tfRed : Color.tfText)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: 240, alignment: .leading)
-                            .padding(.horizontal, TFSpacing.md)
-                            .padding(.vertical, TFSpacing.xs)
-                            .overlay(
-                                Capsule().strokeBorder(
-                                    isSelected ? Color.tfRed : Color.tfDim,
-                                    lineWidth: 1
-                                )
-                            )
-                            .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                 }
             }
@@ -98,46 +88,49 @@ public struct KnowledgeAskSheet: View {
     }
 
     @ViewBuilder
-    private func answerBlock(_ answer: KnowledgeAnswer) -> some View {
-        VStack(alignment: .leading, spacing: TFSpacing.md) {
-            if let text = answer.answer, !text.isEmpty {
-                TFCard {
-                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                        Text(text)
-                            .tfText(.body)
-                            .foregroundStyle(Color.tfText)
-                        if let model = answer.model {
-                            Text(model)
-                                .tfText(.action)
-                                .foregroundStyle(Color.tfSub)
-                        }
+    private func answerSections(_ answer: KnowledgeAnswer) -> some View {
+        if let text = answer.answer, !text.isEmpty {
+            Section {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text(text)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                    if let model = answer.model {
+                        Text(model)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
                     }
                 }
-            } else if let hint = answer.hint {
+            }
+        } else if let hint = answer.hint {
+            Section {
                 Text(hint).tfText(.action).foregroundStyle(Color.tfSub)
             }
+        }
 
-            if answer.chunks.isEmpty {
+        if answer.chunks.isEmpty {
+            Section {
                 Text("В выбранных датасетах ничего не нашлось.")
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
-            } else {
+            }
+        } else {
+            Section {
+                ForEach(Array(answer.chunks.enumerated()), id: \.element.id) { index, chunk in
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Text("\(index + 1). \(chunk.title ?? chunk.documentName)")
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfSub)
+                        Text(chunk.text)
+                            .tfText(.body)
+                            .foregroundStyle(Color.tfText)
+                            .lineLimit(8)
+                    }
+                }
+            } header: {
                 Text("Источники")
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
-                ForEach(Array(answer.chunks.enumerated()), id: \.element.id) { index, chunk in
-                    TFCard {
-                        VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                            Text("\(index + 1). \(chunk.title ?? chunk.documentName)")
-                                .tfText(.action)
-                                .foregroundStyle(Color.tfSub)
-                            Text(chunk.text)
-                                .tfText(.body)
-                                .foregroundStyle(Color.tfText)
-                                .lineLimit(8)
-                        }
-                    }
-                }
             }
         }
     }
