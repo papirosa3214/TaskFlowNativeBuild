@@ -47,6 +47,9 @@ final class ChatFeedTableView: UITableView {
     var followsBottom = true
 
     private var isAdjustingOffset = false
+    /// Ширина, под которой собраны видимые строки: при смене (поворот,
+    /// появление/уход панели) строки пересобираются.
+    private var rowWidth: CGFloat = 0
 
     func scrollToBottom(animated: Bool) {
         layoutIfNeeded()
@@ -81,9 +84,23 @@ final class ChatFeedTableView: UITableView {
         }
     }
 
+    /// Ширина содержимого строки: полная ширина ленты минус боковые отступы.
+    var contentRowWidth: CGFloat {
+        max(0, bounds.width - contentInset.left - contentInset.right)
+    }
+
     override func layoutSubviews() {
         let before = contentSize.height
+        let widthBefore = rowWidth
         super.layoutSubviews()
+        // Строку с широким содержимым (таблица, код) нельзя выпускать за
+        // ширину ленты: она растягивала таблицу, появлялась горизонтальная
+        // прокрутка (владелец 10.11.2026).
+        let widthNow = contentRowWidth
+        if abs(widthNow - widthBefore) > 0.5 {
+            rowWidth = widthNow
+            reloadData()
+        }
         // Рост содержимого (печатается ответ, поднялась клавиатура) не должен
         // уводить хвост из кадра, пока лента идёт за низом.
         guard followsBottom, !isAdjustingOffset, !isTracking, !isDragging, !isDecelerating,
@@ -134,8 +151,10 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
     init(rows: [ChatFeedVirtualRow],
          contentKey: String,
          handle: ChatFeedScrollHandle,
-         contentInsets: UIEdgeInsets = UIEdgeInsets(top: TFSpacing.lg, left: TFSpacing.lg,
-                                                    bottom: TFSpacing.lg, right: TFSpacing.lg),
+         // Верх и низ добирает безопасная область (шапка и панель ввода):
+         // свои отступы — только боковые и небольшой зазор.
+         contentInsets: UIEdgeInsets = UIEdgeInsets(top: TFSpacing.sm, left: TFSpacing.lg,
+                                                    bottom: TFSpacing.sm, right: TFSpacing.lg),
          rowSpacing: CGFloat = TFSpacing.md,
          onNearBottomChange: @escaping (Bool) -> Void = { _ in },
          onScrollingChange: @escaping (Bool) -> Void = { _ in },
@@ -160,17 +179,22 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         table.delegate = context.coordinator
         table.separatorStyle = .none
         table.backgroundColor = .clear
-        // Отступы лента задаёт сама (`contentInsets`), системные не нужны:
-        // SwiftUI уже отдал рамку под шапкой и панелью ввода.
-        table.contentInsetAdjustmentBehavior = .never
+        // Безопасную область считает сама таблица: только так содержимое уходит
+        // под шапку и панель ввода, и работает штатное затухание Apple у
+        // кромок (владелец 10.11.2026: «сплошняком идёт низ и верх экрана без
+        // режима затухания эпл»).
+        table.contentInsetAdjustmentBehavior = .automatic
+        table.alwaysBounceHorizontal = false
+        table.showsHorizontalScrollIndicator = false
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 260
         table.keyboardDismissMode = .interactive
         table.showsVerticalScrollIndicator = false
         table.register(ChatFeedHostingCell.self, forCellReuseIdentifier: chatFeedRowReuseID)
         if #available(iOS 26.0, *) {
-            // То же мягкое затухание у нижней кромки, что было у `ScrollView`
-            // (`tfSoftBottomScrollEdge`, владелец 27.10.2026).
+            // Мягкое затухание у обеих кромок, как у прежнего `ScrollView`
+            // (`tfSoftTopScrollEdge` / `tfSoftBottomScrollEdge`, 27.10.2026).
+            table.topEdgeEffect.style = .soft
             table.bottomEdgeEffect.style = .soft
         }
         context.coordinator.attach(table)
@@ -250,8 +274,11 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
             let id = applied[indexPath.row].id
             let row = parent.row
             let spacing = parent.rowSpacing
+            let width = max(0, tableView.bounds.width - tableView.contentInset.left
+                                - tableView.contentInset.right)
             cell.contentConfiguration = UIHostingConfiguration {
                 row(id)
+                    .frame(width: width, alignment: .leading)
                     .padding(.bottom, spacing)
             }
             .margins(.all, 0)
