@@ -75,32 +75,6 @@ enum RoleLiveStepKind {
     }
 }
 
-enum RoleLiveFormat {
-    /// «1 шаг / 3 шага / 7 шагов».
-    static func steps(_ count: Int) -> String {
-        let mod100 = count % 100
-        let word: String
-        if mod100 >= 11 && mod100 <= 14 {
-            word = "шагов"
-        } else {
-            switch count % 10 {
-            case 1: word = "шаг"
-            case 2, 3, 4: word = "шага"
-            default: word = "шагов"
-            }
-        }
-        return "\(count) \(word)"
-    }
-
-    /// «42 с», «3 мин 5 с», «12 мин».
-    static func duration(seconds: Int) -> String {
-        let s = max(0, seconds)
-        if s < 60 { return "\(s) с" }
-        let minutes = s / 60
-        let rest = s % 60
-        return rest == 0 ? "\(minutes) мин" : "\(minutes) мин \(rest) с"
-    }
-}
 
 /// Строка шага: значок, действие, подпись (путь, команда, запрос).
 struct RoleLiveStepRow: View {
@@ -380,12 +354,12 @@ struct RoleLiveTurnBubble: View {
                     .tfChatText(.meta)
                     .foregroundStyle(Color.tfDim)
             } else {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(footer(now: context.date))
-                        .tfChatText(.meta)
-                        .foregroundStyle(Color.tfDim)
-                }
-                .hintAnchor(HintAnchorID.roleActions)
+                // Тикающая подпись пишется прямо в UILabel: `TimelineView`
+                // пересобирал поддерево каждый тик и дёргал ленту
+                // (владелец 10.11.2026).
+                ChatTickingText(format: { footer(now: $0) }, isLive: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .hintAnchor(HintAnchorID.roleActions)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -477,14 +451,10 @@ struct RoleLiveTurnBubble: View {
     }
 
     private func footer(now: Date) -> String {
-        let steps = turn.items.filter(\.isStep).count
-        let state = isComplete ? (isStopped ? "Остановлено" : "Ответ получен") : "Работает"
-        var parts = [state]
-        if let start = turn.startDate {
-            parts.append(RoleLiveFormat.duration(seconds: Int(now.timeIntervalSince(start))))
-        }
-        if steps > 0 { parts.append(RoleLiveFormat.steps(steps)) }
-        return parts.joined(separator: " · ")
+        RoleWorkFooter.text(state: isComplete ? (isStopped ? "Остановлено" : "Ответ получен") : "Работает",
+                            startedAt: turn.startDate,
+                            steps: turn.items.filter(\.isStep).count,
+                            now: now)
     }
 }
 

@@ -2429,6 +2429,15 @@ struct RoleChatRoomScreen: View {
             if let interruption = message.interruption {
                 ChatInterruptionBadge(interruption: interruption, isPartial: message.partial == true)
             }
+            // Свёрнутая работа хода (владелец 10.11.2026: «как в T3 — работа
+            // свёрнута полосой»). Тот же список шагов, что у живого хода:
+            // группировка, раскрытие и шторка шага уже в `RoleLiveItemsList`.
+            if let steps = message.steps,
+               RoleWorkFooter.shouldShowWork(hasDetails: steps.hasDetails, isSelecting: isSelecting) {
+                RoleLiveItemsList(items: steps.itemsWithoutAnswerText(of: message),
+                                  isStreaming: false,
+                                  stepDetailLoader: stepDetailLoader(for: message))
+            }
             if let usage = message.steps?.usage { RoleTurnUsageRow(usage: usage) }
             if let changes = message.steps?.codeChanges {
                 TurnCodeChangesRow(changes: changes) { text in
