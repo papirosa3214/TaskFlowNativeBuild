@@ -192,12 +192,12 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         table.showsVerticalScrollIndicator = false
         table.register(ChatFeedHostingCell.self, forCellReuseIdentifier: chatFeedRowReuseID)
         if #available(iOS 26.0, *) {
-            // Обе кромки — штатное затухание Apple, своё у экрана чата не
-            // рисуется: сверху шапка, снизу панель ввода. Раньше нижнее было
-            // выключено ради «полностью прозрачного низа», теперь владелец
-            // 10.11.2026 просит нативное стекло с двух сторон.
+            // Сверху — штатное затухание Apple под шапкой. Снизу его нет:
+            // вместе с blur-переходом `safeAreaBar` оно давало глухую полосу
+            // под панелью ввода, и лента уходила под неё
+            // (владелец 10.11.2026: «глухая чёрная заглушка, этот фон надо убрать»).
             table.topEdgeEffect.style = .soft
-            table.bottomEdgeEffect.style = .soft
+            table.bottomEdgeEffect.isHidden = true
         }
         context.coordinator.attach(table)
         handle.list = table

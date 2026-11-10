@@ -679,6 +679,11 @@ struct RoleChatRoomScreen: View {
             // Рабочий план роли — висячей карточкой поверх ленты (28.10.2026):
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
+                // Системный blur-переход под панелью ввода (`safeAreaBar`)
+                // рисует глухую полосу, и лента уходит под неё (владелец
+                // 10.11.2026: «глухая чёрная заглушка, этот фон надо убрать»).
+                // Панель остаётся, фон уходит.
+                .hideComposerScrollEdgeEffect()
                 .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
                 // Панель ввода — штатная нижняя панель (`safeAreaBar`): стекло
                 // и затухание у нижней кромки рисует система. `safeAreaInset`
