@@ -16,18 +16,40 @@ import QuickLook
 /// (надиктовка → карточка), но в списке он выглядит как обычный собеседник.
 /// Владелец 21.09.2026: «сделай его просто как отдельный вид участника», без
 /// подписей-подсказок.
-/// Ряд комнат на iOS 26 — подпись шапки: под заголовком и над штатным поиском.
-/// Крупный заголовок сюда не ставим. С ним шапка накрывает чёрной плашкой
-/// и строку поиска, и раскрытый ряд. Затухание списка начинается от поиска.
+/// На iOS 26 аватарки — системный подзаголовок. Большой ряд стоит слева
+/// (`largeSubtitle`), при прокрутке система сама уводит его в маленький
+/// по центру (`subtitle`). Оба пункта висят всегда: прятать один и
+/// показывать другой нельзя, иначе перехода нет. Затухание списка — от поиска.
 extension View {
-    /// Ниже iOS 26 ряда-подписи нет: ряд вешается над списком. На 26 он в
-    /// подписи шапки, над штатным поиском, и затухание списка идёт от поиска.
+    /// Ниже iOS 26 слота подзаголовка нет: ряд вешается над списком.
     @ViewBuilder
     func chatsTopChrome<Chrome: View>(@ViewBuilder content: () -> Chrome) -> some View {
         if #available(iOS 26.0, *) {
             self
         } else {
             self.safeAreaInset(edge: .top, spacing: 0, content: content)
+        }
+    }
+
+    /// Крупный заголовок, который при прокрутке становится маленьким по центру.
+    /// Без этого подзаголовок не схлопывается.
+    @ViewBuilder
+    func tfChatsCollapsingHeader() -> some View {
+        if #available(iOS 26.0, *) {
+            self.toolbarTitleDisplayMode(.large)
+        } else {
+            self
+        }
+    }
+
+    /// Жест раскрытия нужен только ниже iOS 26. На 26 прокрутка сама
+    /// схлопывает подзаголовок, и перехватывать её нельзя.
+    @ViewBuilder
+    func chatsRoomsReveal(_ pan: RoomsRevealPan) -> some View {
+        if #available(iOS 26.0, *) {
+            self
+        } else {
+            self.gesture(pan)
         }
     }
 }
@@ -152,10 +174,12 @@ struct RoleChatsScreen: View {
     var body: some View {
         chatScroll
             .tfNativeHeader(headerTitle)
+            .tfChatsCollapsingHeader()
             .tint(Color.tfText)
             .toolbar {
+                roomsCollapsingTitle
                 roomsHeaderPileItem
-                roomsSubtitleItem
+                roomsLargeSubtitleItem
                 if isOwner, !isHome, openedScope == nil {
                     ToolbarItem(placement: .topBarLeading) {
                         Button { selectHome() } label: {
@@ -330,10 +354,10 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .tfScreenBackground()
-        // На iOS 26 ряд сидит в подписи шапки, над штатным поиском.
+        // На iOS 26 ряд — большой подзаголовок, система сама схлопывает его.
         // Ниже 26 этого слота нет — ряд над списком, поиск всё равно штатный.
-        .chatsTopChrome { roomsStrip }
-        .gesture(roomsRevealPan)
+        .chatsTopChrome { roomsStrip(reveal: stripReveal) }
+        .chatsRoomsReveal(roomsRevealPan)
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             geo.contentOffset.y + geo.contentInsets.top
         } action: { _, y in
@@ -591,12 +615,12 @@ struct RoleChatsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private var roomsStrip: some View {
+    private func roomsStrip(reveal: CGFloat) -> some View {
         ChatRoomsTopStrip(
             snapshot: rooms,
             favorites: railFavorites,
             showsAll: railShowsAll,
-            reveal: stripReveal,
+            reveal: reveal,
             onToggleFavorite: { toggleRailFavorite($0) },
             onToggleAll: { withAnimation(TFMotion.standard) { railShowsAll.toggle() } },
             onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
@@ -610,26 +634,53 @@ struct RoleChatsScreen: View {
         )
     }
 
-    /// Под заголовком и над штатным поиском. В слот крупного заголовка ряд
-    /// не кладём: тот уезжает под чёрную плашку шапки и утаскивает за собой
-    /// строку поиска. Пока ряд спрятан, подписи нет — пустой полосы не остаётся.
+    /// Крупный «ЧАТ» слева. При прокрутке система уводит его в маленький
+    /// заголовок по центру — тот, что уже стоит в `.principal`.
     @ToolbarContentBuilder
-    private var roomsSubtitleItem: some ToolbarContent {
-        if #available(iOS 26.0, *), isOwner, stripReveal > 0 {
-            ToolbarItem(placement: .subtitle) {
-                roomsStrip
+    private var roomsCollapsingTitle: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .largeTitle) {
+                TFNavBarTitleFont.title(
+                    headerTitle,
+                    multiplier: TFTypeGroup.heading.multiplier,
+                    face: TFTypeFace.saved
+                )
+            }
+            .chatsBareToolbarItem()
+        }
+    }
+
+    /// Большой подзаголовок: ряд аватарок слева. Пункт не снимаем, когда ряд
+    /// схлопнут — система сама переводит его в маленький подзаголовок.
+    @ToolbarContentBuilder
+    private var roomsLargeSubtitleItem: some ToolbarContent {
+        if #available(iOS 26.0, *), isOwner {
+            ToolbarItem(placement: .largeSubtitle) {
+                roomsStrip(reveal: 1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .chatsBareToolbarItem()
         }
     }
 
-    /// Стопка в шапке, пока ряд не вытянут. На вложенном списке слева уже
-    /// стоит «назад», туда стопка не встаёт.
+    /// Маленький подзаголовок по центру. На iOS 26 это свёрнутые аватарки.
+    /// Ниже 26 слота нет — стопка стоит слева в шапке и гаснет своим жестом.
     @ToolbarContentBuilder
     private var roomsHeaderPileItem: some ToolbarContent {
-        if isOwner, isHome, !(isRoomsOpen && stripDrag == 0),
-           ChatRoomsRail.visibleIDs(rooms, favorites: railFavorites, showsAll: railShowsAll).isEmpty == false {
+        let idsEmpty = ChatRoomsRail.visibleIDs(rooms, favorites: railFavorites, showsAll: railShowsAll).isEmpty
+        if #available(iOS 26.0, *), isOwner, isHome, !idsEmpty {
+            ToolbarItem(placement: .subtitle) {
+                ChatRoomsHeaderPile(
+                    snapshot: rooms,
+                    favorites: railFavorites,
+                    showsAll: railShowsAll,
+                    reveal: 0,
+                    onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
+                    onOpenGroups: { openRoute?(.chatGroups) }
+                )
+            }
+            .chatsBareToolbarItem()
+        } else if isOwner, isHome, !(isRoomsOpen && stripDrag == 0), !idsEmpty {
             ToolbarItem(placement: .topBarLeading) {
                 ChatRoomsHeaderPile(
                     snapshot: rooms,
@@ -640,7 +691,6 @@ struct RoleChatsScreen: View {
                     onOpenGroups: { openRoute?(.chatGroups) }
                 )
             }
-            .chatsBareToolbarItem()
         }
     }
 
