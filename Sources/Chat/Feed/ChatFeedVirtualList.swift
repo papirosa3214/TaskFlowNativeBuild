@@ -193,10 +193,12 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         table.showsVerticalScrollIndicator = false
         table.register(ChatFeedHostingCell.self, forCellReuseIdentifier: chatFeedRowReuseID)
         if #available(iOS 26.0, *) {
-            // Мягкое затухание у обеих кромок, как у прежнего `ScrollView`
-            // (`tfSoftTopScrollEdge` / `tfSoftBottomScrollEdge`, 27.10.2026).
+            // Затухание: сверху мягкое, снизу его нет вовсе — под панелью
+            // ввода подложка должна быть полностью прозрачной (владелец
+            // 10.11.2026). Верх добирает своя шторка на экране чата, потому
+            // что системный эффект на этой таблице не рисуется.
             table.topEdgeEffect.style = .soft
-            table.bottomEdgeEffect.style = .soft
+            table.bottomEdgeEffect.isHidden = true
         }
         context.coordinator.attach(table)
         handle.list = table

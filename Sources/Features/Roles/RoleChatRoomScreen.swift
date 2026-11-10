@@ -63,7 +63,6 @@ struct RoleChatRoomScreen: View {
     @State private var isContentsPresented = false
     @State private var branchChat: RoleChat?
     /// Панель субагентов чата открыта (владелец 28.10.2026).
-    @State private var isSubagentsOpen = false
     @Environment(\.openRoute) private var openRoute
     @State private var isBranchPresented = false
     @State private var isBranching = false
@@ -419,16 +418,9 @@ struct RoleChatRoomScreen: View {
             TFScreenFill()
             composerRoom
         }
-        // Роли, которых позвали субагентами, — та же выезжающая панель, что
-        // у комнат; портрет открывает комнату субагента (владелец 28.10.2026).
-        .overlay(alignment: .trailing) {
-            let subagents = SubagentRailItem.items(messages: messages, members: chat.members, chatID: chat.id)
-            if !subagents.isEmpty {
-                ChatEdgeRail(isOpen: $isSubagentsOpen, openLabel: "Субагенты", closedLabel: "Показать субагентов", identifier: "chat.subagentsRail") {
-                    SubagentRailPanel(items: subagents) { openRoute?(.roleChat(id: $0.id)) }
-                }
-            }
-        }
+        // Выезжающая панель субагентов убрана (владелец 10.11.2026:
+        // «боковушку пока удалить»). Кого позвали — видно в ленте и в
+        // «Собеседниках» параметров чата.
         .quickLookPreview($previewAttachmentURL)
         .task(id: chat.id + ":" + (chat.taskID ?? "") + ":" + String(workPlanRevision) + ":" + String(refreshRevision)) {
             await loadDiscussionStatus()
@@ -688,8 +680,24 @@ struct RoleChatRoomScreen: View {
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
                 .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
+                // Подложка под композером (iOS 26 `safeAreaBar` рисует её сама)
+                // выключена: владелец 10.11.2026 — «внизу максимально полностью
+                // прозрачная подложка».
+                .hideComposerScrollEdgeEffect()
                 .safeAreaInset(edge: .bottom, spacing: 0) { composerFooter }
         }
+    }
+
+    /// Прозрачное затухание верхней кромки ленты: цвет фона растворяется
+    /// вниз, текст под шапкой не обрезается ножом (владелец 10.11.2026).
+    /// Своё, а не системный `scrollEdgeEffect`: в этой ленте на UITableView
+    /// системный эффект не рисуется, а шторка работает всегда.
+    private var chatTopFade: some View {
+        LinearGradient(colors: [Color.tfBackground, Color.tfBackground.opacity(0)],
+                       startPoint: .top, endPoint: .bottom)
+            .frame(height: 28)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     /// Панели лежат поверх ленты; кнопка «вниз» не участвует в расчёте inset.
@@ -1364,6 +1372,8 @@ struct RoleChatRoomScreen: View {
                                                replyExcerpts: replyExcerpts)
                                    })
             .tfScreenBackground()
+            // Верхняя кромка: лента уходит под шапку и растворяется в ней.
+            .overlay(alignment: .top) { chatTopFade }
             .accessibilityIdentifier("chat.feed")
             .overlay(alignment: .top) {
                 if let compactingRoleName {
