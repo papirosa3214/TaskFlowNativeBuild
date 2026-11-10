@@ -16,11 +16,12 @@ import QuickLook
 /// (надиктовка → карточка), но в списке он выглядит как обычный собеседник.
 /// Владелец 21.09.2026: «сделай его просто как отдельный вид участника», без
 /// подписей-подсказок.
-/// Крупный заголовок на iOS 26 — слот ряда комнат над штатным поиском.
-/// Затухание списка начинается от строки поиска.
+/// Ряд комнат на iOS 26 — подпись шапки: под заголовком и над штатным поиском.
+/// Крупный заголовок сюда не ставим. С ним шапка накрывает чёрной плашкой
+/// и строку поиска, и раскрытый ряд. Затухание списка начинается от поиска.
 extension View {
-    /// Ниже iOS 26 ряд комнат вешается над списком. На 26 он в крупном
-    /// заголовке, над штатным поиском, и затухание списка идёт от поиска.
+    /// Ниже iOS 26 ряда-подписи нет: ряд вешается над списком. На 26 он в
+    /// подписи шапки, над штатным поиском, и затухание списка идёт от поиска.
     @ViewBuilder
     func chatsTopChrome<Chrome: View>(@ViewBuilder content: () -> Chrome) -> some View {
         if #available(iOS 26.0, *) {
@@ -38,17 +39,6 @@ private extension ToolbarContent {
     func chatsBareToolbarItem() -> some ToolbarContent {
         if #available(iOS 26.0, *) {
             self.sharedBackgroundVisibility(.hidden)
-        } else {
-            self
-        }
-    }
-}
-
-extension View {
-    @ViewBuilder
-    func tfChatsLargeTitle() -> some View {
-        if #available(iOS 26.0, *) {
-            self.toolbarTitleDisplayMode(.inlineLarge)
         } else {
             self
         }
@@ -101,8 +91,7 @@ struct RoleChatsScreen: View {
     /// Свёрнутые папки проектов в каталоге «Групповые чаты»: свернул — комнаты
     /// задач этого проекта убраны, развернул — снова видны.
     @State private var openProjects: Set<String> = []
-    /// Поиск в шапке раздела: поле живёт в навбаре и прячется при прокрутке
-    /// (владелец 08.11.2026: «наверху в самом будет просто поиск»).
+    /// Штатный поиск под рядом комнат. Всегда на экране, под шапку не заезжает.
     @State private var query = ""
     @State private var hits: [ChatSearchHit] = []
     @State private var isSearching = false
@@ -163,11 +152,10 @@ struct RoleChatsScreen: View {
     var body: some View {
         chatScroll
             .tfNativeHeader(headerTitle)
-            .tfChatsLargeTitle()
             .tint(Color.tfText)
             .toolbar {
                 roomsHeaderPileItem
-                roomsLargeTitleItem
+                roomsSubtitleItem
                 if isOwner, !isHome, openedScope == nil {
                     ToolbarItem(placement: .topBarLeading) {
                         Button { selectHome() } label: {
@@ -342,7 +330,7 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .tfScreenBackground()
-        // На iOS 26 ряд сидит в крупном заголовке, над штатным поиском.
+        // На iOS 26 ряд сидит в подписи шапки, над штатным поиском.
         // Ниже 26 этого слота нет — ряд над списком, поиск всё равно штатный.
         .chatsTopChrome { roomsStrip }
         .gesture(roomsRevealPan)
@@ -622,11 +610,13 @@ struct RoleChatsScreen: View {
         )
     }
 
-    /// Над штатным поиском. Затухание списка начинается от строки поиска.
+    /// Под заголовком и над штатным поиском. В слот крупного заголовка ряд
+    /// не кладём: тот уезжает под чёрную плашку шапки и утаскивает за собой
+    /// строку поиска. Пока ряд спрятан, подписи нет — пустой полосы не остаётся.
     @ToolbarContentBuilder
-    private var roomsLargeTitleItem: some ToolbarContent {
-        if #available(iOS 26.0, *), isOwner {
-            ToolbarItem(placement: .largeTitle) {
+    private var roomsSubtitleItem: some ToolbarContent {
+        if #available(iOS 26.0, *), isOwner, stripReveal > 0 {
+            ToolbarItem(placement: .subtitle) {
                 roomsStrip
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
