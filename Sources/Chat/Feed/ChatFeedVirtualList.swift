@@ -193,12 +193,12 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         table.showsVerticalScrollIndicator = false
         table.register(ChatFeedHostingCell.self, forCellReuseIdentifier: chatFeedRowReuseID)
         if #available(iOS 26.0, *) {
-            // Затухание: сверху мягкое, снизу его нет вовсе — под панелью
-            // ввода подложка должна быть полностью прозрачной (владелец
-            // 10.11.2026). Верх добирает своя шторка на экране чата, потому
-            // что системный эффект на этой таблице не рисуется.
+            // Обе кромки — штатное затухание Apple, своё у экрана чата не
+            // рисуется: сверху шапка, снизу панель ввода. Раньше нижнее было
+            // выключено ради «полностью прозрачного низа», теперь владелец
+            // 10.11.2026 просит нативное стекло с двух сторон.
             table.topEdgeEffect.style = .soft
-            table.bottomEdgeEffect.isHidden = true
+            table.bottomEdgeEffect.style = .soft
         }
         context.coordinator.attach(table)
         handle.list = table

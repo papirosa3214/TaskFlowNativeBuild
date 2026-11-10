@@ -680,64 +680,16 @@ struct RoleChatRoomScreen: View {
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
                 .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
-                // Подложка под композером (iOS 26 `safeAreaBar` рисует её сама)
-                // выключена: владелец 10.11.2026 — «внизу максимально полностью
-                // прозрачная подложка».
-                .hideComposerScrollEdgeEffect()
+                // Панель ввода — штатная нижняя панель iOS 26 (`safeAreaBar`):
+                // стекло под ней рисует система. Свою маску с материалом
+                // убрали, системное затухание не выключаем (владелец
+                // 10.11.2026: «убрать наши подложки и материалы — просто
+                // нативное стекло снизу и сверху»).
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     composerFooter
-                        // Матовое стекло под панелью, как в эталоне (владелец
-                        // 10.11.2026, кадр): сквозь панель вода видно уезжающий
-                        // текст, сверху у стекла мягкий край — маска гасит
-                        // материал по градиенту, а не режет по линии.
-                        .background {
-                            Rectangle()
-                                .fill(.ultraThinMaterial)
-                                .mask {
-                                    LinearGradient(stops: [
-                                        .init(color: .clear, location: 0),
-                                        .init(color: .black, location: 0.22),
-                                        .init(color: .black, location: 1)
-                                    ], startPoint: .top, endPoint: .bottom)
-                                }
-                                .ignoresSafeArea(edges: .bottom)
-                        }
                 }
         }
     }
-
-    /// Прозрачное затухание верхней кромки ленты: цвет фона растворяется
-    /// вниз, текст под шапкой не обрезается ножом (владелец 10.11.2026).
-    /// Своё, а не системный `scrollEdgeEffect`: в этой ленте на UITableView
-    /// системный эффект не рисуется, а шторка работает всегда.
-    private var chatTopFade: some View {
-        LinearGradient(stops: [
-            .init(color: Color.tfBackground, location: 0),
-            .init(color: Color.tfBackground.opacity(0.85), location: 0.45),
-            .init(color: Color.tfBackground.opacity(0), location: 1)
-        ], startPoint: .top, endPoint: .bottom)
-            .frame(height: Self.edgeFadeHeight)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    /// Такая же расплывчатость снизу: текст уходит под панель ввода постепенно,
-    /// а не обрезается по её краю (владелец 10.11.2026: «внизу совсем нет
-    /// никакой расплывчатости»).
-    private var chatBottomFade: some View {
-        LinearGradient(stops: [
-            .init(color: Color.tfBackground.opacity(0), location: 0),
-            .init(color: Color.tfBackground.opacity(0.85), location: 0.55),
-            .init(color: Color.tfBackground, location: 1)
-        ], startPoint: .top, endPoint: .bottom)
-            .frame(height: Self.edgeFadeHeight)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    /// Высота шторок у кромок ленты. Прежние 28 pt читались как резкая
-    /// подрезка — владелец просил расплывчатость заметнее.
-    private static let edgeFadeHeight: CGFloat = 44
 
     /// Панели лежат поверх ленты; кнопка «вниз» не участвует в расчёте inset.
     private var composerFooter: some View {
@@ -1395,56 +1347,60 @@ struct RoleChatRoomScreen: View {
             rows.append(ChatFeedVirtualRow(id: Self.typingRowID,
                                            version: roomEventRevision &+ visibleTypists.count))
         }
-        return ChatFeedVirtualList(rows: rows,
-                                   contentKey: chat.id,
-                                   handle: feedScroll,
-                                   estimatedHeight: { id in
-                                       Self.estimatedRowHeight(id: id, feedByID: feedByID,
-                                                               voicesByID: voicesByID)
-                                   },
-                                   onNearBottomChange: { chatIsNearBottom = $0 },
-                                   onScrollingChange: { chatIsScrolling = $0 },
-                                   onNearTop: { growFeedWindow() },
-                                   row: { id in
-                                       feedRow(id: id, feedByID: feedByID, voicesByID: voicesByID,
-                                               dayDividers: dayDividers,
-                                               replyExcerpts: replyExcerpts)
-                                   })
-            .tfScreenBackground()
-            // Верхняя кромка: лента уходит под шапку и растворяется в ней.
-            .overlay(alignment: .top) { chatTopFade }
-            .overlay(alignment: .bottom) { chatBottomFade }
-            .accessibilityIdentifier("chat.feed")
-            .overlay(alignment: .top) {
-                if let compactingRoleName {
-                    HStack(spacing: TFSpacing.sm) {
-                        TFLoading(.inline)
-                        Text("Сжимаю сессию «\(compactingRoleName)»…")
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfChatText)
-                    }
-                    .padding(.horizontal, TFSpacing.md)
-                    .padding(.vertical, TFSpacing.sm)
-                    .background(Color.tfTile, in: Capsule())
-                    .padding(.top, TFSpacing.sm)
+        return ZStack(alignment: .top) {
+            ChatFeedVirtualList(rows: rows,
+                               contentKey: chat.id,
+                               handle: feedScroll,
+                               estimatedHeight: { id in
+                                   Self.estimatedRowHeight(id: id, feedByID: feedByID,
+                                                           voicesByID: voicesByID)
+                               },
+                               onNearBottomChange: { chatIsNearBottom = $0 },
+                               onScrollingChange: { chatIsScrolling = $0 },
+                               onNearTop: { growFeedWindow() },
+                               row: { id in
+                                   feedRow(id: id, feedByID: feedByID, voicesByID: voicesByID,
+                                           dayDividers: dayDividers,
+                                           replyExcerpts: replyExcerpts)
+                               })
+                .tfScreenBackground()
+                .accessibilityIdentifier("chat.feed")
+                // Лента идёт под шапку вплотную: только так система рисует у
+                // верхней кромки своё штатное затухание. Своей шторки на
+                // экране чата больше нет (владелец 10.11.2026).
+                .ignoresSafeArea(edges: .top)
+
+            // Карточка сжатия сессии — в безопасной области, поверх ленты:
+            // сама лента уже вышла под шапку.
+            if let compactingRoleName {
+                HStack(spacing: TFSpacing.sm) {
+                    TFLoading(.inline)
+                    Text("Сжимаю сессию «\(compactingRoleName)»…")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfChatText)
                 }
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.vertical, TFSpacing.sm)
+                .background(Color.tfTile, in: Capsule())
+                .padding(.top, TFSpacing.sm)
             }
-            .onChange(of: contentsTargetID) { _, id in
-                guard let id else { return }
-                // Переход по оглавлению к старому сообщению: окно раскрываем до
-                // него — иначе строки в ленте ещё нет и прокручивать некуда.
-                if let index = visibleMessages.firstIndex(where: { $0.id == id }) {
-                    feedWindow = max(feedWindow, visibleMessages.count - index)
-                }
-                let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
-                Task { @MainActor in
-                    // Окно дорисовывается в этом же проходе; одну короткую
-                    // паузу даём, чтобы строка успела стать ячейкой.
-                    try? await Task.sleep(for: .milliseconds(60))
-                    feedScroll.scroll(to: feedID, anchor: .top, animated: false)
-                }
-                contentsTargetID = nil
+        }
+        .onChange(of: contentsTargetID) { _, id in
+            guard let id else { return }
+            // Переход по оглавлению к старому сообщению: окно раскрываем до
+            // него — иначе строки в ленте ещё нет и прокручивать некуда.
+            if let index = visibleMessages.firstIndex(where: { $0.id == id }) {
+                feedWindow = max(feedWindow, visibleMessages.count - index)
             }
+            let feedID = feedItems.first { $0.message?.id == id }?.id ?? id
+            Task { @MainActor in
+                // Окно дорисовывается в этом же проходе; одну короткую
+                // паузу даём, чтобы строка успела стать ячейкой.
+                try? await Task.sleep(for: .milliseconds(60))
+                feedScroll.scroll(to: feedID, anchor: .top, animated: false)
+            }
+            contentsTargetID = nil
+        }
     }
 
     /// Оценка высоты строки до измерения: ~38 знаков в строке, строка ~21 pt.
