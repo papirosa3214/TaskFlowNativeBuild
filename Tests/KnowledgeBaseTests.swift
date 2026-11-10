@@ -77,4 +77,135 @@ final class KnowledgeBaseTests: XCTestCase {
         XCTAssertEqual(NoteIndexState(server: "что-то новое"), .unknown)
         XCTAssertEqual(NoteIndexState(server: "что-то новое").label, "В поиске")
     }
+
+    // ── Поиск: совпадение запроса с результатом ────────────────────────────
+
+    private func chunk(_ text: String, document: String = "taskflow-1.md") -> ApiKnowledgeChunk {
+        ApiKnowledgeChunk(
+            text: text,
+            score: 0.5,
+            documentName: document,
+            title: nil,
+            project: nil,
+            docId: nil
+        )
+    }
+
+    private func status(_ run: String, message: String? = nil) -> KnowledgeDocumentStatus {
+        KnowledgeDocumentStatus(
+            id: "doc-1",
+            name: "taskflow-1.md",
+            run: run,
+            progress: nil,
+            message: message,
+            chunkCount: nil
+        )
+    }
+
+    func testResultsBelongToTheQueryInTheField() {
+        // Владелец видел «ничего не нашлось» там, где куски были: ответ
+        // показываем только для того запроса, что сейчас в поле (дебаунс).
+        var search = KnowledgeSearch()
+        guard case let .ready(token, query) = search.begin("полки") else {
+            return XCTFail("запрос из четырёх букв должен уйти на сервер")
+        }
+        XCTAssertEqual(query, "полки")
+        XCTAssertTrue(search.accept(token: token, query: query, results: [chunk("полки датасетов")]))
+
+        XCTAssertEqual(search.results(for: "полки").count, 1)
+        XCTAssertEqual(search.results(for: "пол").count, 0, "в поле другой запрос — старые куски не показываем")
+        XCTAssertEqual(search.results(for: "  полки\n").count, 1, "пробелы вокруг запроса ничего не значат")
+    }
+
+    func testStaleAnswerDoesNotOverrideNewestSearch() {
+        var search = KnowledgeSearch()
+        guard case let .ready(oldToken, oldQuery) = search.begin("датасеты") else {
+            return XCTFail("старый запрос должен иметь номер")
+        }
+        guard case let .ready(newToken, newQuery) = search.begin("датасеты RAGFlow") else {
+            return XCTFail("новый запрос должен иметь номер")
+        }
+        XCTAssertNotEqual(oldToken, newToken)
+        XCTAssertTrue(search.accept(token: newToken, query: newQuery, results: [chunk("свежий кусок")]))
+
+        // Ответ на старый запрос пришёл позже — он не перебивает новый.
+        XCTAssertFalse(search.accept(token: oldToken, query: oldQuery, results: [chunk("старый кусок")]))
+        XCTAssertEqual(search.results(for: "датасеты RAGFlow").map(\.text), ["свежий кусок"])
+        XCTAssertEqual(search.results(for: "датасеты").count, 0)
+        XCTAssertFalse(search.isCurrent(oldToken))
+        XCTAssertTrue(search.isCurrent(newToken))
+    }
+
+    func testFailedNewestSearchLeavesNoOldChunks() {
+        // Ошибка сервера — это ошибка, а не «ничего не нашлось», но старые
+        // куски под новым запросом оставаться не должны.
+        var search = KnowledgeSearch()
+        guard case let .ready(token, query) = search.begin("полки") else {
+            return XCTFail("запрос должен уйти на сервер")
+        }
+        _ = search.accept(token: token, query: query, results: [chunk("полки датасетов")])
+
+        guard case let .ready(newToken, newQuery) = search.begin("полки разделов") else {
+            return XCTFail("новый запрос должен уйти на сервер")
+        }
+        XCTAssertTrue(search.accept(token: newToken, query: newQuery, results: []))
+        XCTAssertEqual(search.results(for: "полки разделов").count, 0)
+        XCTAssertEqual(search.results(for: "полки").count, 0, "старый ответ под новым запросом не живёт")
+    }
+
+    func testSingleLetterQueryClearsResultsAndInvalidatesPendingAnswer() {
+        // Retrieval на односложный запрос отдаёт случайные куски — такой
+        // запрос не отправляем и ждать его ответ уже некому.
+        var search = KnowledgeSearch()
+        guard case let .ready(token, query) = search.begin("база") else {
+            return XCTFail("запрос должен уйти на сервер")
+        }
+        _ = search.accept(token: token, query: query, results: [chunk("база знаний")])
+
+        guard case .tooShort = search.begin(" б ") else {
+            return XCTFail("одна буква — не запрос")
+        }
+        XCTAssertFalse(search.isCurrent(token), "ответ на прежний запрос устарел")
+        XCTAssertEqual(search.results(for: "база").count, 0)
+        XCTAssertEqual(search.results(for: "б").count, 0)
+    }
+
+    // ── Название документа и подпись статуса ───────────────────────────────
+
+    func testDocumentNamePrefersNoteTitleAndDropsMarkdownSuffix() {
+        // В индексе заметка зовётся `taskflow-<uuid>.md`: человеку это имя
+        // ничего не говорит, но строка без названия остаться не должна.
+        XCTAssertEqual(
+            KnowledgeDocumentDisplay.title("Вторник 1", name: "taskflow-7f3a.md"), "Вторник 1"
+        )
+        XCTAssertEqual(KnowledgeDocumentDisplay.title("", name: "taskflow-7f3a.md"), "taskflow-7f3a")
+        XCTAssertEqual(KnowledgeDocumentDisplay.title(nil, name: "README.md"), "README")
+        XCTAssertEqual(KnowledgeDocumentDisplay.title(nil, name: "spec.pdf"), "spec.pdf")
+    }
+
+    func testStatusSubtitleSpeaksOnlyAboutWorkAndFailures() {
+        // «В поиске» — норма, о ней молчим (владелец: «зачем ты мне это
+        // говоришь»); говорим только про разбор и срыв.
+        XCTAssertNil(KnowledgeDocumentDisplay.subtitle(indexed: true, status: nil))
+        XCTAssertNil(
+            KnowledgeDocumentDisplay.subtitle(indexed: false, status: status("DONE")),
+            "статус пришёл раньше списка — документ уже в поиске"
+        )
+        XCTAssertEqual(
+            KnowledgeDocumentDisplay.subtitle(indexed: false, status: nil),
+            "Разбирается — в поиске пока нет"
+        )
+        XCTAssertEqual(
+            KnowledgeDocumentDisplay.subtitle(indexed: false, status: status("RUNNING")),
+            "Разбирается — в поиске пока нет"
+        )
+        XCTAssertEqual(
+            KnowledgeDocumentDisplay.subtitle(indexed: false, status: status("FAIL", message: "пустой файл")),
+            "Разбор сорвался: пустой файл"
+        )
+        XCTAssertEqual(
+            KnowledgeDocumentDisplay.subtitle(indexed: false, status: status("FAIL")),
+            "Разбор сорвался"
+        )
+    }
 }

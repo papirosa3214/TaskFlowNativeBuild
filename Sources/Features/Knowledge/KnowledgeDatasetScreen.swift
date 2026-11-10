@@ -111,6 +111,18 @@ public struct KnowledgeDatasetScreen: View {
                 }
                 .accessibilityLabel("Добавить документ")
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Переразобрать всё", systemImage: "arrow.clockwise") {
+                        Task { await viewModel.reparse(viewModel.documents) }
+                    }
+                    .disabled(viewModel.documents.isEmpty)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(Color.tfText)
+                }
+                .accessibilityLabel("Действия датасета")
+            }
         }
         .fileImporter(
             isPresented: $isPickingFile,
@@ -234,25 +246,16 @@ public struct KnowledgeDatasetScreen: View {
     }
 
     /// Имя документа в индексе: у заметок TaskFlow это `taskflow-<uuid>.md`, у
-    /// остальных — их собственный файл. Заголовок заметки важнее, но пустая
-    /// строка вместо заголовка не должна оставлять строку без названия.
+    /// остальных — их собственный файл. Правило (заголовок важнее, расширение
+    /// отбрасываем) живёт в модели и под тестом.
     private func displayTitle(_ document: ApiKnowledgeDocument) -> String {
-        if let title = document.title, !title.isEmpty { return title }
-        let name = document.name
-        return name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+        KnowledgeDocumentDisplay.title(document.title, name: document.name)
     }
 
     /// Подпись только когда она что-то значит: «в поиске» — это норма, о ней
     /// молчим (владелец: «зачем ты мне это говоришь»).
     private func subtitle(for document: ApiKnowledgeDocument, status: KnowledgeDocumentStatus?) -> String? {
-        if let status {
-            if status.isFailed {
-                return status.message.map { "Разбор сорвался: \($0)" } ?? "Разбор сорвался"
-            }
-            if status.isIndexed { return nil }
-            return "Разбирается — в поиске пока нет"
-        }
-        return document.indexed ? nil : "Разбирается — в поиске пока нет"
+        KnowledgeDocumentDisplay.subtitle(indexed: document.indexed, status: status)
     }
 
     private func handleFile(_ result: Result<[URL], Error>) async {

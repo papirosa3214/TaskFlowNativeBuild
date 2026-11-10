@@ -22,12 +22,10 @@ public final class KnowledgeDatasetViewModel {
 
     /// Поиск внутри датасета: владелец проваливается сюда именно чтобы
     /// искать не везде, а по этой теме.
-    public private(set) var searchResults: [ApiKnowledgeChunk] = []
     public private(set) var isSearching = false
-    private var searchedQuery = ""
-    /// Номер последнего запроса: ответ на старый запрос не должен затирать
-    /// результаты нового.
-    private var searchToken = 0
+    /// Какой запрос сейчас в поле и чей ответ актуален — правило живёт в
+    /// модели (`KnowledgeSearch`) и проверяется тестом.
+    private var searchState = KnowledgeSearch()
 
     public init(datasetId: String) {
         self.datasetId = datasetId
@@ -47,26 +45,18 @@ public final class KnowledgeDatasetViewModel {
     }
 
     public func search(_ text: String) async {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        searchToken += 1
-        let token = searchToken
-        guard trimmed.count >= 2 else {
-            searchedQuery = trimmed
-            searchResults = []
+        guard case let .ready(token, query) = searchState.begin(text) else {
             isSearching = false
             return
         }
         isSearching = true
         do {
             let found = try await api.knowledgeSearch(
-                query: trimmed, topK: 20, datasetIds: [datasetId]
+                query: query, topK: 20, datasetIds: [datasetId]
             )
-            guard token == searchToken else { return }
-            searchedQuery = trimmed
-            searchResults = found
+            guard searchState.accept(token: token, query: query, results: found) else { return }
             errorMessage = nil
         } catch {
-            guard token == searchToken else { return }
             // Отмена — не ошибка: `.task(id: query)` гасит предыдущий поиск,
             // когда в поле появился новый символ.
             guard !Task.isCancelled, !(error is CancellationError) else {
@@ -74,15 +64,14 @@ public final class KnowledgeDatasetViewModel {
                 return
             }
             // Ошибка сервера — это ошибка, а не «ничего не нашлось».
-            searchedQuery = trimmed
-            searchResults = []
+            guard searchState.accept(token: token, query: query, results: []) else { return }
             errorMessage = error.localizedDescription
         }
-        if token == searchToken { isSearching = false }
+        if searchState.isCurrent(token) { isSearching = false }
     }
 
     public func results(for text: String) -> [ApiKnowledgeChunk] {
-        text.trimmingCharacters(in: .whitespacesAndNewlines) == searchedQuery ? searchResults : []
+        searchState.results(for: text)
     }
 
     public func load() async {

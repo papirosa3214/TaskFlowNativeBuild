@@ -25,15 +25,10 @@ public final class KnowledgeBaseViewModel {
     public private(set) var embedState = "unknown"
 
     /// Поиск по базе: пустой запрос — полки, непустой — найденные фрагменты.
-    public private(set) var searchResults: [ApiKnowledgeChunk] = []
     public private(set) var isSearching = false
-    /// Запрос, по которому пришли `searchResults`: пока он не совпал с тем,
-    /// что в поле ввода, результаты не показываем (гонка дебаунса).
-    private var searchedQuery = ""
-    /// Номер последнего запроса поиска. Ответ на старый запрос не должен
-    /// перебивать результаты нового — владелец видел «ничего не нашлось» там,
-    /// где куски были.
-    private var searchToken = 0
+    /// Какой запрос сейчас в поле и чей ответ актуален — правило, а не
+    /// оформление, поэтому живёт в модели (`KnowledgeSearch`) и под тестом.
+    private var searchState = KnowledgeSearch()
 
     /// Снимок прошлого ответа вместо пустого экрана: владелец (10.11.2026):
     /// «Почему каждый божий раз что-то грузится?… не может сохраниться снимок
@@ -68,41 +63,31 @@ public final class KnowledgeBaseViewModel {
     /// выбирает сервер, когда `dataset_id` не передан). Короткий ввод не
     /// отправляем: retrieval на односложные запросы отдаёт случайные куски.
     public func search(_ text: String) async {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        searchToken += 1
-        let token = searchToken
-        guard trimmed.count >= 2 else {
-            searchedQuery = trimmed
-            searchResults = []
+        guard case let .ready(token, query) = searchState.begin(text) else {
             isSearching = false
             return
         }
         isSearching = true
         do {
-            let found = try await api.knowledgeSearch(query: trimmed, topK: 20)
-            guard token == searchToken else { return }
-            searchedQuery = trimmed
-            searchResults = found
+            let found = try await api.knowledgeSearch(query: query, topK: 20)
+            guard searchState.accept(token: token, query: query, results: found) else { return }
             errorMessage = nil
         } catch {
-            guard token == searchToken else { return }
             // Отмена — не ошибка. `.task(id: query)` гасит предыдущий поиск,
-            // когда в поле появился новый символ; без этой проверки на каждый
-            // такой символ на миг вспыхивал бы баннер «cancelled».
+            // когда в поле появился новый символ.
             guard !Task.isCancelled, !(error is CancellationError) else {
                 isSearching = false
                 return
             }
-            searchedQuery = trimmed
-            searchResults = []
+            guard searchState.accept(token: token, query: query, results: []) else { return }
             errorMessage = error.localizedDescription
         }
-        if token == searchToken { isSearching = false }
+        if searchState.isCurrent(token) { isSearching = false }
     }
 
     /// Результаты отдаём только для того запроса, который сейчас в поле.
     public func results(for text: String) -> [ApiKnowledgeChunk] {
-        text.trimmingCharacters(in: .whitespacesAndNewlines) == searchedQuery ? searchResults : []
+        searchState.results(for: text)
     }
 
     public func load() async {

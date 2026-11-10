@@ -284,3 +284,99 @@ public enum NoteIndexState: String, Sendable, Hashable {
         }
     }
 }
+
+/// Гейт поиска по базе: чей ответ сейчас актуален.
+///
+/// Два правила, которые легко потерять в экране и которые поэтому живут
+/// здесь, под проверкой (`Tests/KnowledgeBaseTests.swift`):
+///
+/// 1. куски показываются только для того запроса, что сейчас в поле, — иначе
+///    после дебаунса на миг видно чужие куски (владелец: «ничего не нашлось»
+///    там, где куски были);
+/// 2. ответ на старый запрос не перебивает результаты нового — сеть отвечает
+///    в произвольном порядке.
+public struct KnowledgeSearch: Sendable {
+    public enum Attempt: Sendable, Equatable {
+        /// Запрос стоит отправлять на сервер: `token` нужен, чтобы принять
+        /// только его ответ.
+        case ready(token: Int, query: String)
+        /// Меньше двух знаков — retrieval отвечает случайными кусками,
+        /// запрос не отправляем.
+        case tooShort
+    }
+
+    private struct Answer: Sendable {
+        let query: String
+        let results: [ApiKnowledgeChunk]
+    }
+
+    private var latestToken = 0
+    private var answer: Answer?
+
+    public init() {}
+
+    /// Новый ввод в поле поиска. Любой ввод (в том числе односложный)
+    /// делает прежние ответы устаревшими.
+    public mutating func begin(_ text: String) -> Attempt {
+        let trimmed = Self.normalized(text)
+        latestToken += 1
+        guard trimmed.count >= 2 else {
+            answer = Answer(query: trimmed, results: [])
+            return .tooShort
+        }
+        return .ready(token: latestToken, query: trimmed)
+    }
+
+    /// Ответ на `token` ещё нужен экрану.
+    public func isCurrent(_ token: Int) -> Bool { token == latestToken }
+
+    /// Принять ответ. Устаревший (на прежний запрос) не принимается и не
+    /// затирает свежий — возвращает `false`.
+    @discardableResult
+    public mutating func accept(
+        token: Int,
+        query: String,
+        results: [ApiKnowledgeChunk]
+    ) -> Bool {
+        guard isCurrent(token) else { return false }
+        answer = Answer(query: Self.normalized(query), results: results)
+        return true
+    }
+
+    /// Куски для текста, который сейчас в поле. Другой запрос — пусто.
+    public func results(for text: String) -> [ApiKnowledgeChunk] {
+        guard let answer, answer.query == Self.normalized(text) else { return [] }
+        return answer.results
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// Что человек видит в строке документа датасета: название и подпись статуса.
+///
+/// В индексе заметка TaskFlow зовётся `taskflow-<uuid>.md` — это не название,
+/// а имя файла; но и строка без названия остаться не должна.
+public enum KnowledgeDocumentDisplay {
+    /// Заголовок заметки важнее имени файла; пустой заголовок — не причина
+    /// показывать пустую строку.
+    public static func title(_ title: String?, name: String) -> String {
+        if let title, !title.isEmpty { return title }
+        return name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+    }
+
+    /// Подпись только когда она что-то значит: «в поиске» — норма, о ней
+    /// молчим (владелец: «зачем ты мне это говоришь»). Разбор и срыв — о них
+    /// говорим.
+    public static func subtitle(indexed: Bool, status: KnowledgeDocumentStatus?) -> String? {
+        if let status {
+            if status.isFailed {
+                return status.message.map { "Разбор сорвался: \($0)" } ?? "Разбор сорвался"
+            }
+            if status.isIndexed { return nil }
+            return "Разбирается — в поиске пока нет"
+        }
+        return indexed ? nil : "Разбирается — в поиске пока нет"
+    }
+}
