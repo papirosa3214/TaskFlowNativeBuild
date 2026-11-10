@@ -169,6 +169,9 @@ struct RoleChatRoomScreen: View {
     /// старые сообщения: при открытии короткого чата верх виден сразу, и
     /// автодорисовка увозила ленту от низа (07.11.2026).
     @State private var chatIsScrolling = false
+    /// Высота панели ввода: лента оставляет её снизу свободной, чтобы
+    /// текст не заходил под панель (владелец 10.11.2026).
+    @State private var composerHeight: CGFloat = 0
     /// Коалесцер в ссылочной коробке, а не в `@State`: запись в `@State`
     /// обесценивает вью, поэтому раньше КАЖДОЕ событие сокета — в том числе
     /// из другого чата — пересобирало всю ленту, проекцию и выдержки (ревью
@@ -695,6 +698,9 @@ struct RoleChatRoomScreen: View {
                 // 10.11.2026: «низ как был обрезанный в чёрном фоне»).
                 .chatComposerBar {
                     composerFooter
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            if abs(composerHeight - height) > 0.5 { composerHeight = height }
+                        }
                 }
         }
     }
@@ -1350,6 +1356,7 @@ struct RoleChatRoomScreen: View {
             ChatFeedVirtualList(rows: rows,
                                contentKey: chat.id,
                                handle: feedScroll,
+                               bottomInsetExtra: composerHeight,
                                estimatedHeight: { id in
                                    Self.estimatedRowHeight(id: id, feedByID: feedByID,
                                                            voicesByID: voicesByID)

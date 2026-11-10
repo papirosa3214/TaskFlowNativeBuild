@@ -130,6 +130,8 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
     var contentKey: String
     var handle: ChatFeedScrollHandle
     var contentInsets: UIEdgeInsets
+    /// Высота панели ввода: текст остаётся над ней, а не уходит под неё.
+    var bottomInsetExtra: CGFloat = 0
     var horizontalPadding: CGFloat
     var rowSpacing: CGFloat
     /// Оценка высоты строки до её измерения. У ленты длинные строки (тысячи
@@ -149,6 +151,7 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
          // правое поле выходили разными (владелец 10.11.2026).
          contentInsets: UIEdgeInsets = UIEdgeInsets(top: TFSpacing.sm, left: 0,
                                                     bottom: TFSpacing.sm, right: 0),
+         bottomInsetExtra: CGFloat = 0,
          horizontalPadding: CGFloat = TFSpacing.lg,
          rowSpacing: CGFloat = TFSpacing.md,
          estimatedHeight: @escaping (String) -> CGFloat = { _ in 600 },
@@ -160,6 +163,7 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         self.contentKey = contentKey
         self.handle = handle
         self.contentInsets = contentInsets
+        self.bottomInsetExtra = bottomInsetExtra
         self.horizontalPadding = horizontalPadding
         self.rowSpacing = rowSpacing
         self.estimatedHeight = estimatedHeight
@@ -206,7 +210,9 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
     func updateUIView(_ table: ChatFeedTableView, context: Context) {
         context.coordinator.parent = self
         handle.list = table
-        if table.contentInset != contentInsets { table.contentInset = contentInsets }
+        var insets = contentInsets
+        insets.bottom += max(0, bottomInsetExtra)
+        if table.contentInset != insets { table.contentInset = insets }
         if abs(table.rowWidth - table.bounds.width) > 0.5 {
             // Поворот, панель, другая ширина окна: строки собираются заново
             // под новую ширину — но только здесь, не во время раскладки.
