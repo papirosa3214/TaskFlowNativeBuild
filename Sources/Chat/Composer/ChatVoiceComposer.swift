@@ -656,14 +656,17 @@ struct ChatVoiceComposer: View {
 extension View {
     @ViewBuilder func chatComposerBar<BarContent: View>(@ViewBuilder content: () -> BarContent) -> some View {
         if #available(iOS 26.0, *) {
-            // `safeAreaBar` ставит панель над home indicator. Без фона
-            // в эту зону проступает глухой фон окна (владелец 10.11.2026:
-            // работать с safe area, не выключать затухание ленты).
+            // `safeAreaBar` ставит панель над home indicator. Фон зоны — стекло,
+            // а не цвет окна: глухая заливка `tfBackground` прятала текст,
+            // который уходит под панель ввода (владелец 10.11.2026: «надо, чтобы
+            // текст проходил через окно ввода, а не под чёрную подложку»).
+            // Нижний scroll edge эффект выключен отдельно
+            // (`hideComposerScrollEdgeEffect`), поэтому двойного размытия нет.
             safeAreaBar(edge: .bottom) {
                 content()
                     .background {
                         Rectangle()
-                            .fill(Color.tfBackground)
+                            .fill(.ultraThinMaterial)
                             .ignoresSafeArea(edges: .bottom)
                     }
             }
