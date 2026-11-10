@@ -156,6 +156,20 @@ enum RoomLinkPalette {
     }
 }
 
+/// Ряд комнат стоит у верхней кромки. Без этого iOS 26 растворяет его кружки.
+private struct RoomsStripScrollEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .scrollEdgeEffectHidden(true, for: .top)
+                .scrollEdgeEffectHidden(true, for: .bottom)
+                .scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            content
+        }
+    }
+}
+
 /// Верхний ряд комнат на экране «Чаты». В покое ряда нет: кружки живут
 /// стопкой в шапке (`ChatRoomsHeaderPile`). Потяг вниз вываливает их сюда
 /// в линию с именами. Жест — `RoomsRevealPan` на списке.
@@ -216,8 +230,14 @@ struct ChatRoomsTopStrip: View {
                 }
                 .padding(.horizontal, TFSpacing.md)
                 .padding(.top, ChatRoomsTopMetrics.topPad)
+                .frame(height: fullHeight, alignment: .top)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            // Кромка iOS 26 гасит содержимое прокрутки у верха экрана. Ряд
+            // как раз там: подложка остаётся, кружки становятся прозрачными.
+            // Маленькая стопка в шапке — не прокрутка, поэтому её было видно.
+            .contentMargins(0, for: .scrollContent)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .modifier(RoomsStripScrollEdge())
         }
     }
 
