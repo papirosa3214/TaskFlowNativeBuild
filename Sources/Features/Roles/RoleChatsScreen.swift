@@ -19,6 +19,19 @@ import QuickLook
 /// Крупный заголовок только на корне раздела «Чат» (iOS 26+): под ним
 /// системное поле поиска прячется и выезжает лишь при оттягивании. На более
 /// старой системе остаётся как было — API там нет.
+private extension ToolbarContent {
+    /// На iOS 26 система кладёт под пункт шапки стеклянную капсулу.
+    /// Стопке кружков она не нужна: они лежат прямо на шапке.
+    @ToolbarContentBuilder
+    func chatsBareToolbarItem() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            self.sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
+    }
+}
+
 extension View {
     @ViewBuilder
     func tfChatsLargeTitle() -> some View {
@@ -146,6 +159,7 @@ struct RoleChatsScreen: View {
             .tfChatsLargeTitle()
             .tint(Color.tfText)
             .toolbar {
+                roomsHeaderPileItem
                 if isOwner, !isHome, openedScope == nil {
                     ToolbarItem(placement: .topBarLeading) {
                         Button { selectHome() } label: {
@@ -320,8 +334,8 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .tfScreenBackground()
-        // Комнаты — ряд сверху, а не боковая вкладка. В покое видны макушки,
-        // короткий потяг вниз выдвигает кружки с именами.
+        // Комнаты в покое сидят стопкой в шапке. Потяг вниз вываливает их
+        // в ряд под шапкой.
         .safeAreaInset(edge: .top, spacing: 0) {
             if isOwner {
                 ChatRoomsTopStrip(
@@ -600,7 +614,27 @@ struct RoleChatsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    /// 0 — макушки, 1 — ряд с именами. Потяг прибавляется к защёлкнутому положению.
+    /// Стопка в шапке, пока ряд не вытянут. На вложенном списке слева уже
+    /// стоит «назад», туда стопка не встаёт.
+    @ToolbarContentBuilder
+    private var roomsHeaderPileItem: some ToolbarContent {
+        if isOwner, isHome, !(isRoomsOpen && stripDrag == 0),
+           ChatRoomsRail.visibleIDs(rooms, favorites: railFavorites, showsAll: railShowsAll).isEmpty == false {
+            ToolbarItem(placement: .topBarLeading) {
+                ChatRoomsHeaderPile(
+                    snapshot: rooms,
+                    favorites: railFavorites,
+                    showsAll: railShowsAll,
+                    reveal: stripReveal,
+                    onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
+                    onOpenGroups: { openRoute?(.chatGroups) }
+                )
+            }
+            .chatsBareToolbarItem()
+        }
+    }
+
+    /// 0 — стопка в шапке, 1 — ряд с именами. Потяг прибавляется к защёлкнутому положению.
     private var stripReveal: CGFloat {
         let base: CGFloat = isRoomsOpen ? 1 : 0
         return min(1, max(0, base + stripDrag / ChatRoomsTopMetrics.travel))

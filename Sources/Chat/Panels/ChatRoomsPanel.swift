@@ -156,14 +156,14 @@ enum RoomLinkPalette {
     }
 }
 
-/// Верхний ряд комнат на экране «Чаты»: в покое из-под шапки выглядывают
-/// только макушки кружков, потяг вниз раскрывает аватарки и имена.
-/// Жест — `RoomsRevealPan` на списке.
+/// Верхний ряд комнат на экране «Чаты». В покое ряда нет: кружки живут
+/// стопкой в шапке (`ChatRoomsHeaderPile`). Потяг вниз вываливает их сюда
+/// в линию с именами. Жест — `RoomsRevealPan` на списке.
 struct ChatRoomsTopStrip: View {
     let snapshot: ChatRoomsSnapshot?
     let favorites: Set<String>
     let showsAll: Bool
-    /// 0 — макушки, 1 — кружок и имя.
+    /// 0 — ряд спрятан в шапку, 1 — кружок и имя.
     var reveal: CGFloat
     let onToggleFavorite: (String) -> Void
     let onToggleAll: () -> Void
@@ -176,9 +176,7 @@ struct ChatRoomsTopStrip: View {
     private var revealClamped: CGFloat { min(1, max(0, reveal)) }
     private var avatarSide: CGFloat { (ChatRoomsTopMetrics.avatar * scalePercent / 100).rounded() }
     private var fullHeight: CGFloat { ChatRoomsTopMetrics.topPad + avatarSide + 2 + ChatRoomsTopMetrics.nameHeight }
-    private var shownHeight: CGFloat {
-        ChatRoomsTopMetrics.peek + (fullHeight - ChatRoomsTopMetrics.peek) * revealClamped
-    }
+    private var shownHeight: CGFloat { fullHeight * revealClamped }
     private var visibleIDs: [String] {
         ChatRoomsRail.visibleIDs(snapshot, favorites: favorites, showsAll: showsAll)
     }
@@ -188,6 +186,7 @@ struct ChatRoomsTopStrip: View {
             .frame(height: fullHeight, alignment: .top)
             .frame(height: shownHeight, alignment: .top)
             .clipped()
+            .allowsHitTesting(revealClamped > 0.2)
             .tfScreenBackground()
             .accessibilityElement(children: revealClamped > 0.55 ? .contain : .ignore)
             .accessibilityLabel(revealClamped > 0.55 ? "Комнаты" : "Показать комнаты")
@@ -305,13 +304,63 @@ struct ChatRoomsTopStrip: View {
     }
 }
 
+/// Свёрнутые комнаты в шапке: три кружка внахалёст, как в Telegram,
+/// пока ряд не вытянут вниз.
+struct ChatRoomsHeaderPile: View {
+    let snapshot: ChatRoomsSnapshot?
+    let favorites: Set<String>
+    let showsAll: Bool
+    /// 0 — стопка на месте, 1 — она уже выпала в ряд и здесь не видна.
+    var reveal: CGFloat
+    let onOpenRole: (ChatRoomsSnapshot.RoleRoom) -> Void
+    let onOpenGroups: () -> Void
+
+    private var revealClamped: CGFloat { min(1, max(0, reveal)) }
+    private var ids: [String] {
+        Array(ChatRoomsRail.visibleIDs(snapshot, favorites: favorites, showsAll: showsAll).prefix(3))
+    }
+
+    var body: some View {
+        HStack(spacing: -10) {
+            ForEach(Array(ids.enumerated()), id: \.element) { index, id in
+                pileItem(id)
+                    .zIndex(Double(ids.count - index))
+            }
+        }
+        .opacity(1 - revealClamped)
+        .allowsHitTesting(revealClamped < 0.45)
+        .accessibilityElement(children: revealClamped < 0.45 ? .contain : .ignore)
+        .accessibilityIdentifier("chats.rooms.header")
+    }
+
+    @ViewBuilder
+    private func pileItem(_ id: String) -> some View {
+        if id == ChatRoomsRail.groupsID {
+            Button(action: onOpenGroups) {
+                TFGroupAvatar(identity: ChatRoomsRail.groupsID, size: .md)
+                    .overlay(Circle().strokeBorder(Color.tfBackground, lineWidth: 2))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Групповые чаты")
+        } else if let role = snapshot?.roles.first(where: { $0.id == id }) {
+            Button { onOpenRole(role) } label: {
+                RoleMemberAvatar(member: role.member, size: .md)
+                    .environment(\.tfAvatarLiveTurn, role.working)
+                    .overlay(Circle().strokeBorder(Color.tfBackground, lineWidth: 2))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(role.name)
+        }
+    }
+}
+
 enum ChatRoomsTopMetrics {
     static let avatar: CGFloat = ChatEdgeRailMetrics.avatar.rawValue
     static let nameHeight: CGFloat = 16
     static let topPad: CGFloat = 6
-    static let peek: CGFloat = 18
     static var full: CGFloat { topPad + avatar + 2 + nameHeight }
-    static var travel: CGFloat { full - peek }
+    /// Весь путь — из шапки в ряд. В покое под шапкой ничего не торчит.
+    static var travel: CGFloat { full }
 }
 
 /// Потяг списка вниз раскрывает верхний ряд, потяг вверх у верхнего края
