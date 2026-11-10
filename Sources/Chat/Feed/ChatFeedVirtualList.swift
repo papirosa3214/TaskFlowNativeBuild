@@ -47,6 +47,9 @@ final class ChatFeedTableView: UITableView {
     var followsBottom = true
 
     private var isAdjustingOffset = false
+    /// Высота окна ленты на прошлой раскладке: по её смене отличаем подъём
+    /// клавиатуры и поворот от роста содержимого.
+    private var lastBoundsHeight: CGFloat = 0
 
     func scrollToBottom(animated: Bool) {
         layoutIfNeeded()
@@ -88,13 +91,16 @@ final class ChatFeedTableView: UITableView {
     var rowWidth: CGFloat = 0
 
     override func layoutSubviews() {
+        let heightBefore = lastBoundsHeight
         super.layoutSubviews()
-        // Рост содержимого лента больше НЕ догоняет сама. Раньше здесь каждый
-        // кадр печати доводил смещение к низу: пока ответ растёт, всё, что выше
-        // (в том числе последнее сообщение владельца), ползло вверх рывками по
-        // мере измерения высоты строки (владелец 10.11.2026: «скачет последнее
-        // моё сообщение при живом ходе»). Теперь низ держится только вставкой
-        // новых строк, а растущий ответ растёт вниз, ничего не сдвигая.
+        lastBoundsHeight = bounds.height
+        // Клавиатура и поворот меняют высоту окна — не содержимого. Если лента
+        // шла за низом, последнее сообщение поднимается вместе с клавиатурой
+        // (владелец 10.11.2026: «текст остаётся внизу, а не поднимается»).
+        if heightBefore > 0, abs(bounds.height - heightBefore) > 0.5,
+           followsBottom, !isAdjustingOffset, !isTracking, !isDragging, !isDecelerating {
+            scrollToBottom(animated: false)
+        }
     }
 }
 

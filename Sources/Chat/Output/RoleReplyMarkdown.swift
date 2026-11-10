@@ -280,7 +280,9 @@ struct RoleReplyMarkdown: View, Equatable {
             if let link = piece.link {
                 // Иконка не отрывается от слова: неразрывный пробел (U+00A0)
                 // запрещает перенос между ними (владелец 10.11.2026).
-                text = Self.iconText(link.icon, group: Self.pieceLinkGroup(piece, textGroup: textGroup))
+                text = Self.iconText(link.icon,
+                                     group: Self.pieceLinkGroup(piece, textGroup: textGroup),
+                                     color: color)
                     + Text("\u{00A0}") + text
             }
             return Text("\(result)\(text)")
@@ -293,15 +295,16 @@ struct RoleReplyMarkdown: View, Equatable {
     /// 16-пиксельная картинка садилась низом на базовую линию и торчала выше
     /// строчных букв (владелец 10.11.2026: «иконочки чуть выше текста»).
     /// `baselineOffset` опускает её на оптический центр строки.
-    static func iconText(_ icon: ChatLinkPresentation.Icon, group: TFChatTypeGroup = .body) -> Text {
-        let text: Text
-        switch icon {
-        case .asset(let name): text = Text(Image(name))
-        case .symbol(let name): text = Text(Image(systemName: name))
-        }
-        return text
-            .font(.tfChat(group))
-            .baselineOffset(-(group.size * 0.15))
+    static func iconText(_ icon: ChatLinkPresentation.Icon,
+                         group: TFChatTypeGroup = .body,
+                         color: Color = .tfText) -> Text {
+        // Картинка собирается под кегль слова: высота канвы — как у строки,
+        // сама иконка — с заглавную букву, низом ровно на базовой линии.
+        // `baselineOffset` больше не нужен: раньше им подгоняли натуральный
+        // размер ассета, и иконка то торчала, то проваливалась
+        // (владелец 10.11.2026: «сделай, чтобы на одной линии»).
+        Text(Image(uiImage: ChatInlineIcon.image(icon, pointSize: group.size,
+                                                 color: UIColor(color))))
     }
 
     /// Группа шкалы, в которой нарисовано слово: у кода — моно, у заголовка —
