@@ -186,6 +186,8 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         table.contentInsetAdjustmentBehavior = .automatic
         table.alwaysBounceHorizontal = false
         table.showsHorizontalScrollIndicator = false
+        // Лента вертикальная: диагональный жест не должен уводить её вбок.
+        table.isDirectionalLockEnabled = true
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 260
         table.keyboardDismissMode = .interactive
@@ -286,6 +288,14 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            // Горизонтального движения у ленты нет совсем: широкое содержимое
+            // строки (таблица, код) и отскок жеста всё равно возвращаются в
+            // ноль — иначе лента «ёрзает влево-вправо» (владелец 10.11.2026).
+            if abs(scrollView.contentOffset.x) > 0.5 {
+                var offset = scrollView.contentOffset
+                offset.x = 0
+                scrollView.setContentOffset(offset, animated: false)
+            }
             let position = ChatFeedScrollPolicy.position(contentHeight: scrollView.contentSize.height,
                                                          offset: scrollView.contentOffset.y,
                                                          viewport: scrollView.bounds.height,
