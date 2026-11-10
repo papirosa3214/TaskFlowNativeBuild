@@ -356,18 +356,17 @@ struct ChatStructuredOutputView: View {
         switch ChatMaterialDestination.resolve(material.ref, kind: material.kind) {
         case .note(let id):
             NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
-                Label(material.title, systemImage: "doc.text")
-                    .tfText(.body)
+                ChatFileLabel(title: material.title, systemImage: "doc.text")
                     .foregroundStyle(Color.tfBlue)
             }
             .accessibilityIdentifier("chat.material.note.\(id)")
         case .task(let id):
             TaskCardLink(taskID: id) {
-                Label(material.title, systemImage: "checklist").tfText(.body)
+                ChatFileLabel(title: material.title, systemImage: "checklist")
             }
         case .web(let url):
             Link(destination: url) {
-                Label(material.title, systemImage: "arrow.up.right.square")
+                ChatFileLabel(title: material.title, systemImage: "arrow.up.right.square", role: .link)
                     .tfText(.body)
                     .foregroundStyle(Color.tfBlue)
             }
@@ -394,20 +393,18 @@ struct ChatStructuredOutputView: View {
         switch ChatMaterialDestination.resolve(block.url ?? "") {
         case .note(let id):
             NavigationLink(value: AppRoute.noteEditor(noteID: id)) {
-                Label(title, systemImage: "doc.text")
-                    .tfText(.body)
+                ChatFileLabel(title: title, systemImage: "doc.text")
                     .foregroundStyle(Color.tfBlue)
             }
             .accessibilityIdentifier("chat.link.note.\(id)")
         case .task(let id):
             TaskCardLink(taskID: id) {
-                Label(title, systemImage: "checklist").tfText(.body)
+                ChatFileLabel(title: title, systemImage: "checklist")
             }
             .accessibilityIdentifier("chat.link.task.\(id)")
         case .web(let url):
             Link(destination: url) {
-                Label(title, systemImage: "arrow.up.right.square")
-                    .tfText(.body)
+                ChatFileLabel(title: title, systemImage: "arrow.up.right.square", role: .link)
                     .foregroundStyle(Color.tfBlue)
             }
             .accessibilityIdentifier("chat.link.web")
@@ -710,4 +707,34 @@ private struct StructuredOutputError: Decodable {
     }
 
     private enum CodingKeys: String, CodingKey { case code, message, retryable }
+}
+
+/// Ярлык файла или ссылки: иконка и название — одна неразрывная строка.
+///
+/// Владелец 10.11.2026: «иконочка, да, с названием… они разделяли, что
+/// иконка осталась на одной строчке, а это вниз спустилось. Такого быть не
+/// должно». У `Label` иконка живёт отдельно от текста, и при длинном имени
+/// текст уезжал под неё. Здесь иконка и первое слово всегда на одной линии:
+/// иконка — в `HStack` с выравниванием по первой строке, имя — одна строка
+/// с обрезкой по середине (так видно и начало, и расширение).
+struct ChatFileLabel: View {
+    let title: String
+    let systemImage: String
+    /// Ссылка чуть мельче материала — но линия та же.
+    var role: Role = .material
+
+    enum Role { case material, link }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TFSpacing.xs) {
+            Image(systemName: systemImage)
+                .tfText(role == .link ? .caption : .body)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+            Text(title)
+                .tfText(role == .link ? .caption : .body)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .accessibilityElement(children: .combine)
+    }
 }
