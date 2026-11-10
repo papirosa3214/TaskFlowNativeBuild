@@ -16,6 +16,17 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Ставить можно только из основной папки. У каждой рабочей копии роли
+# (.worktrees/<id>) свой экземпляр этого скрипта и своя ветка — запуск
+# оттуда ставил на телефон чужую сборку (владелец 10.11.2026: «или вы все
+# со своих копий ставите мне приложение»).
+case "$(pwd -P)" in
+  */.worktrees/*)
+    echo "Это рабочая копия роли ($(pwd -P)). Сборка на телефон — только из ~/Проекты/TaskFlowNativeBuild."
+    exit 1
+    ;;
+esac
+
 # Служба на Маке запускает скрипт без PATH пользователя — xcodegen лежит в
 # homebrew, и без этого сборка падает «xcodegen: command not found».
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
@@ -43,7 +54,22 @@ if [ "$(git branch --show-current)" != "main" ]; then
   git switch main || { echo "Не могу перейти на main: в папке незакоммиченные правки агента. Сборка остановлена."; exit 1; }
 fi
 git pull --ff-only github main || { echo "main на маке разошёлся с GitHub — нужен агент. Сборка остановлена."; exit 1; }
+# Что именно собирается — одной строкой, чтобы «каждый раз разное поведение»
+# не приходилось угадывать (владелец 10.11.2026). Сборка идёт из РАБОЧЕГО дерева,
+# а не из GitHub: локальные неопубликованные коммиты и правки вне коммита
+# попадают в приложение.
+SHA="$(git rev-parse --short HEAD)"
 git log -1 --format='Версия: %h %s'
+AHEAD="$(git rev-list --count github/main..HEAD 2>/dev/null || echo 0)"
+if [ "$AHEAD" != "0" ]; then
+  printf '\033[33m! В дереве %s коммит(ов) сверх зеркала: в GitHub их ещё нет.\033[0m\n' "$AHEAD"
+fi
+DIRTY="$(git status --porcelain -- Sources Resources project.yml 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$DIRTY" != "0" ]; then
+  printf '\033[33m! Правок вне коммита в коде: %s. Сборка НЕ равна коммиту %s:\033[0m\n' "$DIRTY" "$SHA"
+  git status --porcelain -- Sources Resources project.yml | head -8 | sed 's/^/    /'
+fi
+printf 'Источник кода: зеркало github (%s). Приложение ставится из этого дерева.\n' "$(git log -1 --format=%h github/main)" 
 
 шаг "Пересобираю проект из project.yml"
 xcodegen generate
