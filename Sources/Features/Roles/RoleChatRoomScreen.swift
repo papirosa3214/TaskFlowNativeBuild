@@ -1351,6 +1351,10 @@ struct RoleChatRoomScreen: View {
         return ChatFeedVirtualList(rows: rows,
                                    contentKey: chat.id,
                                    handle: feedScroll,
+                                   estimatedHeight: { id in
+                                       Self.estimatedRowHeight(id: id, feedByID: feedByID,
+                                                               voicesByID: voicesByID)
+                                   },
                                    onNearBottomChange: { chatIsNearBottom = $0 },
                                    onScrollingChange: { chatIsScrolling = $0 },
                                    onNearTop: { growFeedWindow() },
@@ -1391,6 +1395,21 @@ struct RoleChatRoomScreen: View {
                 }
                 contentsTargetID = nil
             }
+    }
+
+    /// Оценка высоты строки до измерения: ~38 знаков в строке, строка ~21 pt.
+    /// Без неё UIKit держит смещение по грубой оценке и поправляет его на ходу
+    /// — прокрутка выглядит «липкой» (владелец 10.11.2026).
+    private static func estimatedRowHeight(id: String, feedByID: [String: FeedItem],
+                                   voicesByID: [String: VoiceMessage]) -> CGFloat {
+        if id == typingRowID { return 40 }
+        if voicesByID[id] != nil { return 90 }
+        guard let item = feedByID[id] else { return 240 }
+        if item.liveSlot != nil { return 320 }
+        let text = item.message?.text ?? ""
+        guard !text.isEmpty else { return 120 }
+        let lines = CGFloat(text.count) / 38
+        return min(6000, 120 + lines * 21)
     }
 
     /// Идентификаторы служебных строк ленты (не сообщения сервера).

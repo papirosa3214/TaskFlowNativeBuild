@@ -47,9 +47,6 @@ final class ChatFeedTableView: UITableView {
     var followsBottom = true
 
     private var isAdjustingOffset = false
-    /// Ширина, под которой собраны видимые строки: при смене (поворот,
-    /// появление/уход панели) строки пересобираются.
-    private var rowWidth: CGFloat = 0
 
     func scrollToBottom(animated: Bool) {
         layoutIfNeeded()
@@ -84,23 +81,15 @@ final class ChatFeedTableView: UITableView {
         }
     }
 
-    /// Ширина содержимого строки: полная ширина ленты минус боковые отступы.
-    var contentRowWidth: CGFloat {
-        max(0, bounds.width - contentInset.left - contentInset.right)
-    }
+    /// Ширина, под которой собраны видимые строки. Пересборка идёт из
+    /// `updateUIView`, а не из `layoutSubviews`: `reloadData` внутри раскладки
+    /// запускал раскладку заново, и прокрутка становилась «липкой»
+    /// (владелец 10.11.2026).
+    var rowWidth: CGFloat = 0
 
     override func layoutSubviews() {
         let before = contentSize.height
-        let widthBefore = rowWidth
         super.layoutSubviews()
-        // Строку с широким содержимым (таблица, код) нельзя выпускать за
-        // ширину ленты: она растягивала таблицу, появлялась горизонтальная
-        // прокрутка (владелец 10.11.2026).
-        let widthNow = contentRowWidth
-        if abs(widthNow - widthBefore) > 0.5 {
-            rowWidth = widthNow
-            reloadData()
-        }
         // Рост содержимого (печатается ответ, поднялась клавиатура) не должен
         // уводить хвост из кадра, пока лента идёт за низом.
         guard followsBottom, !isAdjustingOffset, !isTracking, !isDragging, !isDecelerating,
@@ -142,7 +131,12 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
     var contentKey: String
     var handle: ChatFeedScrollHandle
     var contentInsets: UIEdgeInsets
+    var horizontalPadding: CGFloat
     var rowSpacing: CGFloat
+    /// Оценка высоты строки до её измерения. У ленты длинные строки (тысячи
+    /// пунктов), и грубая оценка в 260 pt заставляла UIKit постоянно
+    /// поправлять смещение — прокрутка «липла» (владелец 10.11.2026).
+    var estimatedHeight: (String) -> CGFloat
     var onNearBottomChange: (Bool) -> Void
     var onScrollingChange: (Bool) -> Void
     var onNearTop: () -> Void
@@ -151,11 +145,14 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
     init(rows: [ChatFeedVirtualRow],
          contentKey: String,
          handle: ChatFeedScrollHandle,
-         // Верх и низ добирает безопасная область (шапка и панель ввода):
-         // свои отступы — только боковые и небольшой зазор.
-         contentInsets: UIEdgeInsets = UIEdgeInsets(top: TFSpacing.sm, left: TFSpacing.lg,
-                                                    bottom: TFSpacing.sm, right: TFSpacing.lg),
+         // Верх и низ добирает безопасная область (шапка и панель ввода);
+         // боковые поля — у самой строки (`horizontalPadding`), иначе левое и
+         // правое поле выходили разными (владелец 10.11.2026).
+         contentInsets: UIEdgeInsets = UIEdgeInsets(top: TFSpacing.sm, left: 0,
+                                                    bottom: TFSpacing.sm, right: 0),
+         horizontalPadding: CGFloat = TFSpacing.lg,
          rowSpacing: CGFloat = TFSpacing.md,
+         estimatedHeight: @escaping (String) -> CGFloat = { _ in 600 },
          onNearBottomChange: @escaping (Bool) -> Void = { _ in },
          onScrollingChange: @escaping (Bool) -> Void = { _ in },
          onNearTop: @escaping () -> Void = {},
@@ -164,7 +161,9 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         self.contentKey = contentKey
         self.handle = handle
         self.contentInsets = contentInsets
+        self.horizontalPadding = horizontalPadding
         self.rowSpacing = rowSpacing
+        self.estimatedHeight = estimatedHeight
         self.onNearBottomChange = onNearBottomChange
         self.onScrollingChange = onScrollingChange
         self.onNearTop = onNearTop
@@ -189,7 +188,7 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         // Лента вертикальная: диагональный жест не должен уводить её вбок.
         table.isDirectionalLockEnabled = true
         table.rowHeight = UITableView.automaticDimension
-        table.estimatedRowHeight = 260
+        table.estimatedRowHeight = 600
         table.keyboardDismissMode = .interactive
         table.showsVerticalScrollIndicator = false
         table.register(ChatFeedHostingCell.self, forCellReuseIdentifier: chatFeedRowReuseID)
@@ -208,6 +207,12 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         context.coordinator.parent = self
         handle.list = table
         if table.contentInset != contentInsets { table.contentInset = contentInsets }
+        if abs(table.rowWidth - table.bounds.width) > 0.5 {
+            // Поворот, панель, другая ширина окна: строки собираются заново
+            // под новую ширину — но только здесь, не во время раскладки.
+            table.rowWidth = table.bounds.width
+            context.coordinator.forceReload(in: table)
+        }
         context.coordinator.apply(rows: rows, contentKey: contentKey, to: table)
     }
 
@@ -266,6 +271,17 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
             }
         }
 
+        func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
+            guard indexPath.row < applied.count else { return 600 }
+            return max(80, parent.estimatedHeight(applied[indexPath.row].id))
+        }
+
+        func forceReload(in table: ChatFeedTableView) {
+            applied = []
+            appliedKey = ""
+            table.reloadData()
+        }
+
         func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
             applied.count
         }
@@ -276,11 +292,12 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
             let id = applied[indexPath.row].id
             let row = parent.row
             let spacing = parent.rowSpacing
-            let width = max(0, tableView.bounds.width - tableView.contentInset.left
-                                - tableView.contentInset.right)
+            let side = parent.horizontalPadding
+            let width = max(0, tableView.bounds.width - side * 2)
             cell.contentConfiguration = UIHostingConfiguration {
                 row(id)
                     .frame(width: width, alignment: .leading)
+                    .padding(.horizontal, side)
                     .padding(.bottom, spacing)
             }
             .margins(.all, 0)
