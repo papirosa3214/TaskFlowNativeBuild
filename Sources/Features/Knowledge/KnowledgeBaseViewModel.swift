@@ -19,6 +19,10 @@ public final class KnowledgeBaseViewModel {
     public private(set) var isLoading = false
     public private(set) var isSaving = false
     public private(set) var errorMessage: String?
+    /// Подпись и состояние эмбеддингов: ready / busy / down. Сбой этой
+    /// проверки не гасит список датасетов.
+    public private(set) var embedLabel = "Эмбеддинги"
+    public private(set) var embedState = "unknown"
 
     /// Поиск по базе: пустой запрос — полки, непустой — найденные фрагменты.
     public private(set) var searchResults: [ApiKnowledgeChunk] = []
@@ -108,6 +112,20 @@ public final class KnowledgeBaseViewModel {
             errorMessage = error.localizedDescription
         }
         await loadRoles()
+        await loadEmbed()
+    }
+
+    /// Отдельный запрос: база документов может открыться, даже если
+    /// статус модели не пришёл.
+    private func loadEmbed() async {
+        do {
+            let status = try await api.embedReadiness()
+            if embedLabel != status.label { embedLabel = status.label }
+            if embedState != status.state { embedState = status.state }
+        } catch {
+            if embedLabel != "Эмбеддинги не отвечают" { embedLabel = "Эмбеддинги не отвечают" }
+            if embedState != "down" { embedState = "down" }
+        }
     }
 
     /// Роли нужны только для окна доступов; их отсутствие не должно гасить

@@ -22,6 +22,11 @@ public struct KnowledgeBaseScreen: View {
 
     public var body: some View {
         List {
+            Section {
+                KnowledgeEmbedStatusRow(label: viewModel.embedLabel, state: viewModel.embedState)
+                    .knowledgeRow()
+                    .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.sm))
+            }
             if viewModel.errorMessage != nil {
                 Section {
                     TFErrorBanner(viewModel.errorMessage, variant: .block)
@@ -214,22 +219,19 @@ public struct KnowledgeBaseScreen: View {
                         .tfText(.action)
                         .foregroundStyle(Color.tfSub)
                     Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+                .hintAnchor(HintAnchorID.knowledgeShelves)
+                .contextMenu {
                     if let section = viewModel.sections.first(where: { $0.id == shelf.sectionId }) {
-                        Menu {
-                            Button("Переименовать", systemImage: "pencil") {
-                                sectionEditor = SectionEditorState(section: section, title: section.title)
-                            }
-                            Button("Удалить раздел", systemImage: "trash", role: .destructive) {
-                                pendingSectionDeletion = section
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .foregroundStyle(Color.tfText)
+                        Button("Переименовать", systemImage: "pencil") {
+                            sectionEditor = SectionEditorState(section: section, title: section.title)
                         }
-                        .accessibilityLabel("Раздел \(shelf.title)")
+                        Button("Удалить раздел", systemImage: "trash", role: .destructive) {
+                            pendingSectionDeletion = section
+                        }
                     }
                 }
-                .hintAnchor(HintAnchorID.knowledgeShelves)
             }
         }
     }
@@ -316,32 +318,38 @@ public struct KnowledgeBaseScreen: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button("Новый раздел", systemImage: "folder.badge.plus") {
-                    sectionEditor = SectionEditorState(section: nil, title: "")
-                }
-                Divider()
-                NavigationLink {
-                    routeDestination(.notes)
-                } label: {
-                    Label("Заметки TaskFlow", systemImage: "book.closed")
-                        .foregroundStyle(Color.tfText)
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .foregroundStyle(Color.tfText)
+            Button("Новый раздел", systemImage: "folder.badge.plus") {
+                sectionEditor = SectionEditorState(section: nil, title: "")
             }
-            .accessibilityLabel("Действия базы знаний")
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            NavigationLink {
-                routeDestination(.notes)
-            } label: {
-                Image(systemName: "book.closed")
-                    .foregroundStyle(Color.tfText)
-            }
-            .accessibilityLabel("Заметки TaskFlow")
+    }
+}
+
+/// Готовность модели эмбеддингов: можно ли прямо сейчас спрашивать базу.
+private struct KnowledgeEmbedStatusRow: View {
+    let label: String
+    let state: String
+
+    private var color: Color {
+        switch state {
+        case "ready": Color.tfGreen
+        case "busy": Color.tfOrange
+        default: Color.tfSub
         }
+    }
+
+    var body: some View {
+        HStack(spacing: TFSpacing.sm) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+            Text(label)
+                .tfText(.action)
+                .foregroundStyle(Color.tfText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

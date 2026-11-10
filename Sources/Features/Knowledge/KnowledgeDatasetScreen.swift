@@ -220,20 +220,8 @@ public struct KnowledgeDatasetScreen: View {
                 Image(systemName: document.indexed ? "doc.text" : "clock.arrow.circlepath")
                     .foregroundStyle(Color.tfSub)
             }
-            Menu {
-                Button("Разобрать заново", systemImage: "arrow.clockwise") {
-                    Task { await viewModel.reparse([document]) }
-                }
-                Button("Удалить", systemImage: "trash", role: .destructive) {
-                    pendingDeletion = document
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .foregroundStyle(Color.tfText)
-            }
-            .accessibilityLabel("Действия документа \(displayTitle(document))")
         }
-        .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.xs))
+        .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.sm))
         .knowledgeRow()
         .contextMenu {
             Button("Разобрать заново", systemImage: "arrow.clockwise") {

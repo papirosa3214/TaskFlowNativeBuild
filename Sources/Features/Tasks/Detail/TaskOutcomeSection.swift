@@ -86,10 +86,12 @@ struct TaskOutcomeContent: View {
                 } label: {
                     Label("Предпросмотр", systemImage: "doc.text.magnifyingglass")
                 }
-                Button {
-                    Task { await pushToKnowledge(document) }
-                } label: {
-                    Label("В базу знаний", systemImage: "books.vertical")
+                if document.kind != "report" {
+                    Button {
+                        Task { await pushToKnowledge(document) }
+                    } label: {
+                        Label("В базу знаний", systemImage: "books.vertical")
+                    }
                 }
                 ShareLink(
                     item: NoteMarkdownExport(id: document.id, title: document.title),

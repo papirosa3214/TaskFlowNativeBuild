@@ -18,6 +18,16 @@ public extension APIClient {
         return response.datasets
     }
 
+    public struct EmbedReadiness: Decodable, Sendable {
+        public let state: String
+        public let label: String
+        public let loaded: Bool
+    }
+
+    public func embedReadiness() async throws -> EmbedReadiness {
+        try await request(.get, "/knowledge/embed-status")
+    }
+
     // ── Прошлый ответ для первого кадра ────────────────────────────────────
     // Владелец (10.11.2026): «Почему так долго грузится?… не может
     // сохраниться снимок того, сколько документов здесь находится». Поэтому
