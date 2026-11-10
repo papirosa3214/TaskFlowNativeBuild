@@ -278,7 +278,10 @@ struct RoleReplyMarkdown: View, Equatable {
                 }
             }
             if let link = piece.link {
-                text = Self.iconText(link.icon) + Text(" ") + text
+                // Иконка не отрывается от слова: неразрывный пробел (U+00A0)
+                // запрещает перенос между ними (владелец 10.11.2026).
+                text = Self.iconText(link.icon, group: Self.pieceLinkGroup(piece, textGroup: textGroup))
+                    + Text("\u{00A0}") + text
             }
             return Text("\(result)\(text)")
         }
@@ -286,11 +289,28 @@ struct RoleReplyMarkdown: View, Equatable {
 
     /// Иконка ссылки инлайном в абзаце: `Text(Image(...))` — единственный
     /// способ положить картинку внутрь текста в SwiftUI без UIKit-текста.
-    static func iconText(_ icon: ChatLinkPresentation.Icon) -> Text {
+    /// Кегль иконки — от кегля слова, а не натуральный размер картинки:
+    /// 16-пиксельная картинка садилась низом на базовую линию и торчала выше
+    /// строчных букв (владелец 10.11.2026: «иконочки чуть выше текста»).
+    /// `baselineOffset` опускает её на оптический центр строки.
+    static func iconText(_ icon: ChatLinkPresentation.Icon, group: TFChatTypeGroup = .body) -> Text {
+        let text: Text
         switch icon {
-        case .asset(let name): return Text(Image(name))
-        case .symbol(let name): return Text(Image(systemName: name))
+        case .asset(let name): text = Text(Image(name))
+        case .symbol(let name): text = Text(Image(systemName: name))
         }
+        return text
+            .font(.tfChat(group))
+            .baselineOffset(-(group.size * 0.15))
+    }
+
+    /// Группа шкалы, в которой нарисовано слово: у кода — моно, у заголовка —
+    /// заголовок, у жирного — жирное, иначе кегль абзаца.
+    private static func pieceLinkGroup(_ piece: RunPiece, textGroup: TFChatTypeGroup) -> TFChatTypeGroup {
+        if piece.code { return .mono }
+        if textGroup == .heading || textGroup == .thinking { return textGroup }
+        if piece.bold { return .emphasis }
+        return textGroup
     }
 
     /// Готовый кусок текста: разметка прогона и признаки начертания.
