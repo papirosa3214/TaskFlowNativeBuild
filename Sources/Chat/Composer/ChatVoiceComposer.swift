@@ -656,19 +656,12 @@ struct ChatVoiceComposer: View {
 extension View {
     @ViewBuilder func chatComposerBar<BarContent: View>(@ViewBuilder content: () -> BarContent) -> some View {
         if #available(iOS 26.0, *) {
-            // `safeAreaBar` ставит панель над home indicator. Фон зоны — цвет
-            // приложения, как весь экран: материал давал серую полосу снизу на
-            // чёрном фоне (владелец 10.11.2026: «наверху сделано, внизу ебёт
-            // мозги — снизу серым, а всё приложение чёрное»). Текст под панель
-            // не заходит: лента знает высоту панели (`bottomInsetExtra`).
-            safeAreaBar(edge: .bottom) {
-                content()
-                    .background {
-                        Rectangle()
-                            .fill(Color.tfBackground)
-                            .ignoresSafeArea(edges: .bottom)
-                    }
-            }
+            // Без своей заливки. Сплошной tfBackground прячет текст под чёрной
+            // подложкой, материал даёт серую полосу. Затухание рисует система,
+            // как у шапки сверху, и лента уходит под панель (владелец
+            // 10.11.2026). Высоту панели в inset ленты не пишем: safe area
+            // считает таблица, иначе поле ввода отстаёт от прокрутки.
+            safeAreaBar(edge: .bottom, content: content)
         } else {
             safeAreaInset(edge: .bottom, content: content)
         }
