@@ -147,6 +147,7 @@ public final class RealtimeClient {
     private var reconnectAttempt = 0
     private var reconnectTask: Task<Void, Never>?
     private var patchCount = 0
+    private var rawChatMessages = 0
     @ObservationIgnored private var authorizationRecoveryTask: Task<Void, Never>?
     private let allowsBackgroundConnection: Bool
     @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
@@ -238,7 +239,7 @@ public final class RealtimeClient {
         // Живой ход до телефона не доходит (10.11.2026): сервер пишет
         // `sent=1`, клиент не пишет ни одного `live:start`. Без причины
         // разрыва это не разобрать — пишем её в журнал клиента.
-        ClientLog.shared.add("ws:open attempt=\(reconnectAttempt)")
+        ClientLog.shared.add("ws:open attempt=\(reconnectAttempt) token=\(KeychainService.shared.token == KeychainService.shared.deviceToken ? "device" : "session")")
         lastTrafficAt = Date()
         listen(on: newTask)
     }
@@ -299,6 +300,11 @@ public final class RealtimeClient {
 
     private func handle(message: URLSessionWebSocketTask.Message, task socketTask: URLSessionWebSocketTask) {
         guard case .string(let text) = message, let data = text.data(using: .utf8) else { return }
+        // Самый дешёвый факт приёма, без разбора: дошли ли чатовые байты.
+        if text.contains("\"chats:") {
+            rawChatMessages += 1
+            if rawChatMessages <= 3 { ClientLog.shared.add("rx:chat-raw#\(rawChatMessages) len=\(text.count)") }
+        }
         // В фоне этот сокет держится только ради карточки Live Activity, а она
         // живёт на событиях `task:*`. Живой ход чата и задачи в фоне не видит
         // никто, а весит он больше всего: телефон разбирал весь выросший текст
