@@ -686,9 +686,22 @@ struct RoleChatRoomScreen: View {
                 .hideComposerScrollEdgeEffect()
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     composerFooter
-                        // Под самой панелью — фон экрана, а не чёрная полоса
-                        // окна (владелец 10.11.2026: «все и осталось чёрное»).
-                        .background(Color.tfBackground.ignoresSafeArea(edges: .bottom))
+                        // Матовое стекло под панелью, как в эталоне (владелец
+                        // 10.11.2026, кадр): сквозь панель вода видно уезжающий
+                        // текст, сверху у стекла мягкий край — маска гасит
+                        // материал по градиенту, а не режет по линии.
+                        .background {
+                            Rectangle()
+                                .fill(.ultraThinMaterial)
+                                .mask {
+                                    LinearGradient(stops: [
+                                        .init(color: .clear, location: 0),
+                                        .init(color: .black, location: 0.22),
+                                        .init(color: .black, location: 1)
+                                    ], startPoint: .top, endPoint: .bottom)
+                                }
+                                .ignoresSafeArea(edges: .bottom)
+                        }
                 }
         }
     }
