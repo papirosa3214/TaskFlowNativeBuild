@@ -16,9 +16,22 @@ import QuickLook
 /// (надиктовка → карточка), но в списке он выглядит как обычный собеседник.
 /// Владелец 21.09.2026: «сделай его просто как отдельный вид участника», без
 /// подписей-подсказок.
-/// Крупный заголовок только на корне раздела «Чат» (iOS 26+): под ним
-/// системное поле поиска прячется и выезжает лишь при оттягивании. На более
-/// старой системе остаётся как было — API там нет.
+/// Крупный заголовок только на корне раздела «Чат» (iOS 26+). Поиск стоит
+/// под рядом комнат, не в шапке.
+extension View {
+    /// Планка над списком. На iOS 26 это `safeAreaBar`: содержимое не попадает
+    /// в затухание кромки прокрутки, из-за которого ряд комнат был невидим,
+    /// хотя место и нажатия оставались. Раньше — обычный `safeAreaInset`.
+    @ViewBuilder
+    func chatsTopChrome<Chrome: View>(@ViewBuilder content: () -> Chrome) -> some View {
+        if #available(iOS 26.0, *) {
+            self.safeAreaBar(edge: .top, spacing: 0, content: content)
+        } else {
+            self.safeAreaInset(edge: .top, spacing: 0, content: content)
+        }
+    }
+}
+
 private extension ToolbarContent {
     /// На iOS 26 система кладёт под пункт шапки стеклянную капсулу.
     /// Стопке кружков она не нужна: они лежат прямо на шапке.
@@ -151,11 +164,6 @@ struct RoleChatsScreen: View {
     var body: some View {
         chatScroll
             .tfNativeHeader(headerTitle)
-            // Поле поиска — штатное (`searchable`) и рисует его Apple. Но оно не
-            // должно висеть всегда: выезжает только при оттягивании сверху вниз,
-            // при обычной прокрутке не появляется (владелец 08.11.2026).
-            // Скрывается оно только под КРУПНЫМ заголовком: у inline-шапки
-            // системе некуда его спрятать, поэтому она показывает его сразу.
             .tfChatsLargeTitle()
             .tint(Color.tfText)
             .toolbar {
@@ -206,7 +214,6 @@ struct RoleChatsScreen: View {
                     Task { await load() }
                 }
             }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Поиск по чатам")
             .task(id: query) { await runSearch() }
             .alert("Название чата", isPresented: renamePresented) {
                 TextField("Название", text: $renameText)
@@ -335,27 +342,8 @@ struct RoleChatsScreen: View {
         }
         .tfScreenBackground()
         // Комнаты в покое сидят стопкой в шапке. Потяг вниз вываливает их
-        // в ряд под шапкой.
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if isOwner {
-                ChatRoomsTopStrip(
-                    snapshot: rooms,
-                    favorites: railFavorites,
-                    showsAll: railShowsAll,
-                    reveal: stripReveal,
-                    onToggleFavorite: { toggleRailFavorite($0) },
-                    onToggleAll: { withAnimation(TFMotion.standard) { railShowsAll.toggle() } },
-                    onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
-                    onOpenGroups: { openRoute?(.chatGroups) },
-                    onToggleReveal: {
-                        withAnimation(.interpolatingSpring(duration: 0.34, bounce: 0)) {
-                            isRoomsOpen.toggle()
-                            stripDrag = 0
-                        }
-                    }
-                )
-            }
-        }
+        // в ряд над полем поиска.
+        .chatsTopChrome { roomsAndSearchChrome }
         .gesture(roomsRevealPan)
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             geo.contentOffset.y + geo.contentInsets.top
@@ -612,6 +600,38 @@ struct RoleChatsScreen: View {
             try await refreshList()
             openRoute?(.roleChat(id: room.id))
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Ряд комнат, под ним поиск. Поиск больше не в шапке: шапочный ящик
+    /// садился выше ряда и ряд попадал в затухание кромки.
+    private var roomsAndSearchChrome: some View {
+        VStack(spacing: 0) {
+            if isOwner {
+                ChatRoomsTopStrip(
+                    snapshot: rooms,
+                    favorites: railFavorites,
+                    showsAll: railShowsAll,
+                    reveal: stripReveal,
+                    onToggleFavorite: { toggleRailFavorite($0) },
+                    onToggleAll: { withAnimation(TFMotion.standard) { railShowsAll.toggle() } },
+                    onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
+                    onOpenGroups: { openRoute?(.chatGroups) },
+                    onToggleReveal: {
+                        withAnimation(.interpolatingSpring(duration: 0.34, bounce: 0)) {
+                            isRoomsOpen.toggle()
+                            stripDrag = 0
+                        }
+                    }
+                )
+            }
+            TFTextField("Поиск по чатам", text: $query, icon: "magnifyingglass", surface: .card)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(.horizontal, TFSpacing.md)
+                .padding(.top, TFSpacing.xs)
+                .padding(.bottom, TFSpacing.sm)
+        }
+        .tfScreenBackground()
     }
 
     /// Стопка в шапке, пока ряд не вытянут. На вложенном списке слева уже
