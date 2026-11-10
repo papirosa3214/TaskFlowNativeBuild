@@ -684,7 +684,12 @@ struct RoleChatRoomScreen: View {
                 // выключена: владелец 10.11.2026 — «внизу максимально полностью
                 // прозрачная подложка».
                 .hideComposerScrollEdgeEffect()
-                .safeAreaInset(edge: .bottom, spacing: 0) { composerFooter }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    composerFooter
+                        // Под самой панелью — фон экрана, а не чёрная полоса
+                        // окна (владелец 10.11.2026: «все и осталось чёрное»).
+                        .background(Color.tfBackground.ignoresSafeArea(edges: .bottom))
+                }
         }
     }
 
@@ -693,12 +698,33 @@ struct RoleChatRoomScreen: View {
     /// Своё, а не системный `scrollEdgeEffect`: в этой ленте на UITableView
     /// системный эффект не рисуется, а шторка работает всегда.
     private var chatTopFade: some View {
-        LinearGradient(colors: [Color.tfBackground, Color.tfBackground.opacity(0)],
-                       startPoint: .top, endPoint: .bottom)
-            .frame(height: 28)
+        LinearGradient(stops: [
+            .init(color: Color.tfBackground, location: 0),
+            .init(color: Color.tfBackground.opacity(0.85), location: 0.45),
+            .init(color: Color.tfBackground.opacity(0), location: 1)
+        ], startPoint: .top, endPoint: .bottom)
+            .frame(height: Self.edgeFadeHeight)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
+
+    /// Такая же расплывчатость снизу: текст уходит под панель ввода постепенно,
+    /// а не обрезается по её краю (владелец 10.11.2026: «внизу совсем нет
+    /// никакой расплывчатости»).
+    private var chatBottomFade: some View {
+        LinearGradient(stops: [
+            .init(color: Color.tfBackground.opacity(0), location: 0),
+            .init(color: Color.tfBackground.opacity(0.85), location: 0.55),
+            .init(color: Color.tfBackground, location: 1)
+        ], startPoint: .top, endPoint: .bottom)
+            .frame(height: Self.edgeFadeHeight)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// Высота шторок у кромок ленты. Прежние 28 pt читались как резкая
+    /// подрезка — владелец просил расплывчатость заметнее.
+    private static let edgeFadeHeight: CGFloat = 44
 
     /// Панели лежат поверх ленты; кнопка «вниз» не участвует в расчёте inset.
     private var composerFooter: some View {
@@ -1374,6 +1400,7 @@ struct RoleChatRoomScreen: View {
             .tfScreenBackground()
             // Верхняя кромка: лента уходит под шапку и растворяется в ней.
             .overlay(alignment: .top) { chatTopFade }
+            .overlay(alignment: .bottom) { chatBottomFade }
             .accessibilityIdentifier("chat.feed")
             .overlay(alignment: .top) {
                 if let compactingRoleName {
