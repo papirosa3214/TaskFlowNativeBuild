@@ -201,7 +201,6 @@ struct ChatRoomsTopStrip: View {
             .frame(height: shownHeight, alignment: .top)
             .clipped()
             .allowsHitTesting(revealClamped > 0.2)
-            .tfScreenBackground()
             .accessibilityElement(children: revealClamped > 0.55 ? .contain : .ignore)
             .accessibilityLabel(revealClamped > 0.55 ? "Комнаты" : "Показать комнаты")
             .accessibilityAction { onToggleReveal() }
