@@ -104,7 +104,12 @@ struct RoleMemberAvatar: View {
     var body: some View {
         let initials = member.initials ?? String(member.name.prefix(1))
         let tint = Color(hex: member.avatarColor ?? TFHexDefault.unassigned)
-        if let path = member.avatarURL,
+        // Внешний агент: серверная картинка — чужой краб, не портрет. Пока
+        // владелец не поставил своё фото, рисуем инициалы. Своё фото читает
+        // `TFAvatar` из `AvatarCrop`, серверный адрес сюда не подмешиваем.
+        if RoleAvatarAsset.isExternalChatRole(roleKey: member.roleKey, userID: member.id) {
+            TFAvatar(size: size, initials: initials, tint: tint, userID: member.id)
+        } else if let path = member.avatarURL,
            let url = URL(string: APIClient.baseURL.absoluteString + path) {
             AsyncImage(url: url) { phase in
                 if case .success(let image) = phase {

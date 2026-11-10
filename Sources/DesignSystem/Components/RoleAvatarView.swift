@@ -13,6 +13,13 @@ struct RoleAvatarView: View {
     /// ассета под них нет, рисовать заглушку из чужих рук неуместно.
     var role: String? = nil
 
+    /// Внешний агент без своего фото: серверная картинка — чужая авто-иконка
+    /// (краб Claude). Пока владелец не выбрал фото, остаются инициалы.
+    private var hidesServerIcon: Bool {
+        guard let role, localPhoto == nil else { return false }
+        return RoleAvatarAsset.isExternalChatRole(roleKey: role, userID: "role_" + role)
+    }
+
     /// Картинка роли с сервера — тот же справочник, что у остальных экранов.
     private var serverURL: URL? {
         guard let role, let path = AvatarDirectory.shared.urls["role_" + role] else { return nil }
@@ -52,7 +59,7 @@ struct RoleAvatarView: View {
                     loopName: nil,
                     side: size
                 )
-            } else if let ownerPhotoURL {
+            } else if let ownerPhotoURL, !hidesServerIcon {
                 // Своё фото владельца — главнее всего остального.
                 AnimatedImage(url: ownerPhotoURL, placeholder: { Circle().fill(tint) })
                     .resizable()
@@ -61,7 +68,7 @@ struct RoleAvatarView: View {
                 let appearance = TeamAvatarAppearance(rawValue: avatarAppearance) ?? .current
                 let loop = avatarsAnimated ? RoleAvatarAsset.loopName(for: role, appearance: appearance) : nil
                 TFRolePortrait(role: role, imageAsset: asset, loopName: loop, side: size)
-            } else if let serverURL {
+            } else if let serverURL, !hidesServerIcon {
                 AnimatedImage(url: serverURL, placeholder: { Circle().fill(tint) })
                     .resizable()
                     .aspectRatio(contentMode: .fill)

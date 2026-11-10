@@ -157,4 +157,22 @@ enum RoleAvatarAsset {
         guard userID.hasPrefix("role_") else { return nil }
         return String(userID.dropFirst("role_".count))
     }
+
+    /// Внешний агент в списке чатов: роль без вшитого портрета.
+    ///
+    /// Внутренние (исследователь, разработчик, оркестратор и остальные из
+    /// комплекта) остаются под «Роли». Секретарь — под «Помощник владельца».
+    /// Человек без ключа роли внешним не считается. Claude Code, Codex,
+    /// Gemini, Гермес, OpenCode портрета не имеют — они и есть этот раздел.
+    static func isExternalChatRole(roleKey: String?, userID: String?) -> Bool {
+        if userID == "u-secretary" { return false }
+        let key: String?
+        if let roleKey, !roleKey.isEmpty {
+            key = roleKey
+        } else {
+            key = role(forUserID: userID)
+        }
+        guard let key, key != "secretary" else { return false }
+        return !hasBundledPortrait(key)
+    }
 }

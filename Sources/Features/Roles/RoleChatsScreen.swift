@@ -346,11 +346,20 @@ struct RoleChatsScreen: View {
             homeHeader("Помощник владельца")
             homeRoleRow(secretary)
         }
-        if !others.isEmpty {
+        let internalRoles = others.filter { !RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
+        let externalRoles = others.filter { RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
+        if !internalRoles.isEmpty {
             homeHeader("Роли")
-            ForEach(Array(others.enumerated()), id: \.element.id) { index, role in
+            ForEach(Array(internalRoles.enumerated()), id: \.element.id) { index, role in
                 homeRoleRow(role)
-                if index < others.count - 1 { rowDivider(afterAvatar: true) }
+                if index < internalRoles.count - 1 { rowDivider(afterAvatar: true) }
+            }
+        }
+        if !externalRoles.isEmpty {
+            homeHeader("Внешние агенты")
+            ForEach(Array(externalRoles.enumerated()), id: \.element.id) { index, role in
+                homeRoleRow(role)
+                if index < externalRoles.count - 1 { rowDivider(afterAvatar: true) }
             }
         }
         homeHeader("Групповые чаты")

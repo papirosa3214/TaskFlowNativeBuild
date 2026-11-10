@@ -151,6 +151,21 @@ public struct TFAvatar: View {
     /// Роль по `userID` — по ней `TFRolePortrait` берёт кадрирование из редактора.
     private var roleKey: String? { RoleAvatarAsset.role(forUserID: userID) }
 
+    /// Своё фото владельца для роли без вшитого портрета. Файл лежит локально,
+    /// его ставит «Настроить портреты».
+    private var ownedPhotoRole: String? {
+        guard let roleKey else { return nil }
+        guard let name = AvatarCrop.value(for: roleKey).photo, !name.isEmpty else { return nil }
+        guard FileManager.default.fileExists(atPath: AvatarCrop.photoURL(name).path) else { return nil }
+        return roleKey
+    }
+
+    /// Внешний агент без своего фото: серверная картинка — чужой краб.
+    /// Инициалы, пока владелец не поставит фото в «Настроить портреты».
+    private var blocksForeignPortrait: Bool {
+        ownedPhotoRole == nil && RoleAvatarAsset.isExternalChatRole(roleKey: roleKey, userID: userID)
+    }
+
     private var roleLoop: String? {
         guard avatarsAnimated || liveTurn else { return nil }
         return RoleAvatarAsset.loopName(forUserID: userID, appearance: roleAppearance)
@@ -172,7 +187,9 @@ public struct TFAvatar: View {
                 TFTeamAvatarStack(ids: teamIDs, urls: teamURLs, side: side, front: teamFront)
             } else if let asset = roleAsset {
                 TFRolePortrait(role: roleKey, imageAsset: asset, loopName: roleLoop, side: side)
-            } else if let urlPath = resolvedURLPath, let url = TFAvatar.fullURL(urlPath) {
+            } else if let role = ownedPhotoRole {
+                TFRolePortrait(role: role, imageAsset: "", loopName: nil, side: side)
+            } else if !blocksForeignPortrait, let urlPath = resolvedURLPath, let url = TFAvatar.fullURL(urlPath) {
                 if portrait || self.urlPath == nil {
                     AnimatedImage(url: url, placeholder: { placeholderCircle })
                         .resizable()
@@ -187,7 +204,7 @@ public struct TFAvatar: View {
                         .background(Color.tfCard2)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 }
-            } else if let image {
+            } else if !blocksForeignPortrait, let image {
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fit) // object-fit: contain

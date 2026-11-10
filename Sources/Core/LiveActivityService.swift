@@ -333,7 +333,9 @@ enum LiveActivityService {
         }
         guard let name = name?.lowercased() else { return nil }
         if name.contains("оркестратор") || name.contains("orchestrator") { return "orchestrator" }
-        for known in ["claude", "hermes", "deepseek", "antigravity", "maksim"] where name.contains(known) {
+        // «claude» намеренно нет: ассет avatar-claude — краб, его в островок
+        // не кладём. Нет своего файла — рисуется буква.
+        for known in ["hermes", "deepseek", "antigravity", "maksim"] where name.contains(known) {
             return known
         }
         if name.contains("максим") { return "maksim" }

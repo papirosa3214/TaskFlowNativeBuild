@@ -42,12 +42,13 @@ struct TeamAppearanceSheet: View {
         allRoleKeys.filter { RoleAvatarAsset.imageName(for: $0, appearance: appearance) != nil }
     }
 
-    /// Роли, которым владелец может поставить своё фото: все, у кого есть
-    /// учётка на сервере (иначе фото некуда положить), включая внешних.
+    /// Роли, которым владелец может поставить своё фото. Когда команда
+    /// загрузилась — все, включая внешних без вшитого портрета: фото ляжет
+    /// на телефон сразу, а на сервер уйдёт, если у роли есть учётка.
     private var rolesWithPhotoEntry: [String] {
-        allRoleKeys.filter { role in
+        if !profiles.isEmpty { return allRoleKeys }
+        return allRoleKeys.filter { role in
             RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current) != nil
-                || profiles.first { $0.role == role }?.accountID != nil
                 || RoleAvatarAsset.hasBundledPortrait(role)
         }
     }
