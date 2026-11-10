@@ -88,20 +88,13 @@ final class ChatFeedTableView: UITableView {
     var rowWidth: CGFloat = 0
 
     override func layoutSubviews() {
-        let before = contentSize.height
         super.layoutSubviews()
-        // Рост содержимого (печатается ответ, поднялась клавиатура) не должен
-        // уводить хвост из кадра, пока лента идёт за низом.
-        guard followsBottom, !isAdjustingOffset, !isTracking, !isDragging, !isDecelerating,
-              abs(contentSize.height - before) > 0.5 else { return }
-        let target = ChatFeedScrollPolicy.bottomOffset(contentHeight: contentSize.height,
-                                                       viewport: bounds.height,
-                                                       insetTop: contentInset.top,
-                                                       insetBottom: contentInset.bottom)
-        guard abs(contentOffset.y - target) > 0.5 else { return }
-        isAdjustingOffset = true
-        setContentOffset(CGPoint(x: 0, y: target), animated: false)
-        isAdjustingOffset = false
+        // Рост содержимого лента больше НЕ догоняет сама. Раньше здесь каждый
+        // кадр печати доводил смещение к низу: пока ответ растёт, всё, что выше
+        // (в том числе последнее сообщение владельца), ползло вверх рывками по
+        // мере измерения высоты строки (владелец 10.11.2026: «скачет последнее
+        // моё сообщение при живом ходе»). Теперь низ держится только вставкой
+        // новых строк, а растущий ответ растёт вниз, ничего не сдвигая.
     }
 }
 

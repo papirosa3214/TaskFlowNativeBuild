@@ -25,6 +25,16 @@ enum RoleWorkFooter {
         return parts.joined(separator: " · ")
     }
 
+    /// «7 шагов · думал 1 мин» — что написать на полосе работы.
+    static func summary(stepCount: Int, thinkingSeconds: Int) -> String {
+        var parts: [String] = []
+        if stepCount > 0 { parts.append(RoleLiveFormat.steps(stepCount)) }
+        if thinkingSeconds >= 1 {
+            parts.append("думал " + RoleLiveFormat.duration(seconds: thinkingSeconds))
+        }
+        return parts.joined(separator: " · ")
+    }
+
     /// Показывать ли свёрнутую работу у готового сообщения: должны быть шаги
     /// или размышления, и не режим выбора.
     static func shouldShowWork(hasDetails: Bool, isSelecting: Bool) -> Bool {

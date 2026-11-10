@@ -40,6 +40,25 @@ final class RoleWorkFooterTests: XCTestCase {
         XCTAssertEqual(text, "Работает · " + RoleLiveFormat.duration(seconds: 0))
     }
 
+    @objc func testSummaryCountsSteps() {
+        XCTAssertEqual(RoleWorkFooter.summary(stepCount: 7, thinkingSeconds: 0),
+                       RoleLiveFormat.steps(7))
+        XCTAssertEqual(RoleWorkFooter.summary(stepCount: 1, thinkingSeconds: 0), "1 шаг")
+    }
+
+    @objc func testSummaryAddsThinking() {
+        let text = RoleWorkFooter.summary(stepCount: 3, thinkingSeconds: 60)
+        XCTAssertEqual(text, "3 шага · думал " + RoleLiveFormat.duration(seconds: 60))
+    }
+
+    @objc func testSummaryWithoutThinking() {
+        XCTAssertFalse(RoleWorkFooter.summary(stepCount: 2, thinkingSeconds: 0).contains("думал"))
+    }
+
+    @objc func testSummaryIsEmptyWhenNothingToShow() {
+        XCTAssertEqual(RoleWorkFooter.summary(stepCount: 0, thinkingSeconds: 0), "")
+    }
+
     @objc func testWorkShownOnlyWithDetailsAndOutsideSelection() {
         XCTAssertTrue(RoleWorkFooter.shouldShowWork(hasDetails: true, isSelecting: false))
         XCTAssertFalse(RoleWorkFooter.shouldShowWork(hasDetails: false, isSelecting: false))

@@ -160,12 +160,16 @@ struct RoleLiveItemsList: View {
     /// приходит ответ. Лента привязана к низу, и любое изменение высоты
     /// двигает её — вот откуда «шатается вверх-вниз» (владелец 25.10.2026).
     var showsActionPreview = false
+    /// Показать строки подряд, без полосы «Действия»: так работа выглядит
+    /// внутри своей шторки, где сворачивать уже нечего (владелец 10.11.2026).
+    var ungrouped = false
     @State private var detail: RoleLiveDetail?
     @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     var body: some View {
         let visible = detailLevel.visible(items)
-        let segments = RoleLiveSegment.split(visible, grouping: detailLevel == .standard,
+        let segments = RoleLiveSegment.split(visible,
+                                             grouping: !ungrouped && detailLevel == .standard,
                                              groupsSingleAction: showsActionPreview)
         // Идентичность куска — по содержимому (см. `RoleLiveSegment.identities`):
         // по номеру строки пересоздавались от прихода текста в середину хода.

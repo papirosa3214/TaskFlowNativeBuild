@@ -2434,9 +2434,9 @@ struct RoleChatRoomScreen: View {
             // группировка, раскрытие и шторка шага уже в `RoleLiveItemsList`.
             if let steps = message.steps,
                RoleWorkFooter.shouldShowWork(hasDetails: steps.hasDetails, isSelecting: isSelecting) {
-                RoleLiveItemsList(items: steps.itemsWithoutAnswerText(of: message),
-                                  isStreaming: false,
-                                  stepDetailLoader: stepDetailLoader(for: message))
+                // Работа открывается окном, а не растягивает строку ленты
+                // (владелец 10.11.2026).
+                RoleWorkBar(message: message, stepDetailLoader: stepDetailLoader(for: message))
             }
             if let usage = message.steps?.usage { RoleTurnUsageRow(usage: usage) }
             if let changes = message.steps?.codeChanges {
