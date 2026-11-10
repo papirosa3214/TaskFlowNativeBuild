@@ -192,12 +192,11 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         table.showsVerticalScrollIndicator = false
         table.register(ChatFeedHostingCell.self, forCellReuseIdentifier: chatFeedRowReuseID)
         if #available(iOS 26.0, *) {
-            // Сверху — штатное затухание Apple под шапкой. Снизу его нет:
-            // вместе с blur-переходом `safeAreaBar` оно давало глухую полосу
-            // под панелью ввода, и лента уходила под неё
-            // (владелец 10.11.2026: «глухая чёрная заглушка, этот фон надо убрать»).
+            // Обе кромки — штатное затухание Apple. Глухая полоса ниже
+            // панели — не это: это зона safe area под композером (владелец
+            // 10.11.2026: «убираешь затухание, а надо ниже — safe area»).
             table.topEdgeEffect.style = .soft
-            table.bottomEdgeEffect.isHidden = true
+            table.bottomEdgeEffect.style = .soft
         }
         context.coordinator.attach(table)
         handle.list = table

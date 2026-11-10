@@ -679,11 +679,14 @@ struct RoleChatRoomScreen: View {
             // Рабочий план роли — висячей карточкой поверх ленты (28.10.2026):
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
-                // Системный blur-переход под панелью ввода (`safeAreaBar`)
-                // рисует глухую полосу, и лента уходит под неё (владелец
-                // 10.11.2026: «глухая чёрная заглушка, этот фон надо убрать»).
-                // Панель остаётся, фон уходит.
-                .hideComposerScrollEdgeEffect()
+                .overlay(alignment: .bottom) {
+                    if !chatIsNearBottom && !isSelecting {
+                        ChatScrollToBottomButton {
+                            feedScroll.scrollToBottom()
+                        }
+                        .padding(.bottom, TFSpacing.xs)
+                    }
+                }
                 .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
                 // Панель ввода — штатная нижняя панель (`safeAreaBar`): стекло
                 // и затухание у нижней кромки рисует система. `safeAreaInset`
@@ -784,16 +787,6 @@ struct RoleChatRoomScreen: View {
                     sessionPopoverContent: chat.hasOwnSettings ? { AnyView(sessionPanelSheet) } : nil,
                     onSessionPopoverDismiss: sessionPopoverDidDismiss
                 )
-            }
-        }
-        .overlay(alignment: .top) {
-            if !chatIsNearBottom && !isSelecting {
-                ChatScrollToBottomButton {
-                    feedScroll.scrollToBottom()
-                }
-                // Вся зона нажатия выше footer; нижний край пилюли — с зазором 4 pt.
-                // Offset не передаёт пользовательский alignment guide в стек footer.
-                .offset(y: -TFHitTarget.min - TFSpacing.xs)
             }
         }
     }

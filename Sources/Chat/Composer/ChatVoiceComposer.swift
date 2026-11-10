@@ -349,9 +349,8 @@ struct ChatVoiceComposer: View {
                 Image(systemName: "stop.fill")
                     .tfTypeFont(size: 15, weight: .semibold)
                     .foregroundStyle(Color.primary)
-                    .frame(width: knob - 4, height: knob - 4)
-                    .voiceCircleSurface()
                     .frame(width: knob, height: knob)
+                    .voiceCircleSurface()
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -363,9 +362,8 @@ struct ChatVoiceComposer: View {
                 Image(systemName: "arrow.up")
                     .tfTypeFont(size: 17, weight: .semibold)
                     .foregroundStyle(Color.primary.opacity(canSendText ? 1 : 0.25))
-                    .frame(width: knob - 4, height: knob - 4)
-                    .voiceCircleSurface()
                     .frame(width: knob, height: knob)
+                    .voiceCircleSurface()
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -658,7 +656,17 @@ struct ChatVoiceComposer: View {
 extension View {
     @ViewBuilder func chatComposerBar<BarContent: View>(@ViewBuilder content: () -> BarContent) -> some View {
         if #available(iOS 26.0, *) {
-            safeAreaBar(edge: .bottom, content: content)
+            // `safeAreaBar` ставит панель над home indicator. Без фона
+            // в эту зону проступает глухой фон окна (владелец 10.11.2026:
+            // работать с safe area, не выключать затухание ленты).
+            safeAreaBar(edge: .bottom) {
+                content()
+                    .background {
+                        Rectangle()
+                            .fill(.thinMaterial)
+                            .ignoresSafeArea(edges: .bottom)
+                    }
+            }
         } else {
             safeAreaInset(edge: .bottom, content: content)
         }
