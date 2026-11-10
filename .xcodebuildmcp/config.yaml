@@ -7,4 +7,7 @@ sessionDefaults:
   projectPath: /Users/max/Проекты/TaskFlowNativeBuild/TaskFlow.xcodeproj
   scheme: TaskFlow
   simulatorId: 9FF78D89-EE84-4914-AA56-D0A72D1AF43A
-  derivedDataPath: /Users/max/Проекты/TaskFlowNativeBuild/build_sim
+# derivedDataPath не задавать. Отдельный build_sim — вторая полная сборка
+# рядом с уже открытым Xcode и вторым SWBBuildService. Сборка агента идёт
+# в DerivedData Xcode. xcode-ide в enabledWorkflows нет: демон не должен
+# поднимать mcpbridge и DeviceHub.
