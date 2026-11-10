@@ -146,6 +146,7 @@ public final class RealtimeClient {
     private var isStopping = true
     private var reconnectAttempt = 0
     private var reconnectTask: Task<Void, Never>?
+    private var patchCount = 0
     @ObservationIgnored private var authorizationRecoveryTask: Task<Void, Never>?
     private let allowsBackgroundConnection: Bool
     @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
@@ -307,12 +308,24 @@ public final class RealtimeClient {
            let type = RealtimeEvent.typeName(of: data), RealtimeEvent.isBackgroundIrrelevant(type) {
             return
         }
-        guard let event = RealtimeEvent.parse(data) else { return }
+        guard let event = RealtimeEvent.parse(data) else {
+            // Разбор не удался — событие есть, но в типы не легло: без этой
+            // строки такая потеря невидима (в журнале сервера оно «отправлено»).
+            if let type = RealtimeEvent.typeName(of: data), type.contains("chat") {
+                ClientLog.shared.add("rx-fail:\(type)")
+            }
+            return
+        }
         // Ход роли по сокету не доходил до экрана (10.11.2026): сервер писал
         // `sent=1`, а в журнале клиента не было ни одного `live:start`.
-        // Поэтому пишем сами факты приёма: дошли ли чатовые события вообще.
-        if let type = RealtimeEvent.typeName(of: data), type.contains("chat") {
+        // Пишем сами факты приёма: дошли ли чатовые события вообще.
+        if let type = RealtimeEvent.typeName(of: data), !type.hasSuffix(":patch") {
             ClientLog.shared.add("rx:\(type)")
+        } else if RealtimeEvent.typeName(of: data) != nil {
+            patchCount += 1
+            if patchCount <= 3 || patchCount % 50 == 0 {
+                ClientLog.shared.add("rx:patch#\(patchCount)")
+            }
         }
         if case .serverError(let message) = event,
            message == "unauthorized" || message == "device_revoked" {
