@@ -308,6 +308,12 @@ public final class RealtimeClient {
             return
         }
         guard let event = RealtimeEvent.parse(data) else { return }
+        // Ход роли по сокету не доходил до экрана (10.11.2026): сервер писал
+        // `sent=1`, а в журнале клиента не было ни одного `live:start`.
+        // Поэтому пишем сами факты приёма: дошли ли чатовые события вообще.
+        if let type = RealtimeEvent.typeName(of: data), type.contains("chat") {
+            ClientLog.shared.add("rx:\(type)")
+        }
         if case .serverError(let message) = event,
            message == "unauthorized" || message == "device_revoked" {
             recoverAuthorization(revoked: message == "device_revoked")

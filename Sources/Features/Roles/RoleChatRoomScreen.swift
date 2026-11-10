@@ -990,7 +990,10 @@ struct RoleChatRoomScreen: View {
         composerNavigation
         .task { await connectRealtime() }
         .task { await followLocalStore() }
-        .onDisappear { realtimeObserver.clear(remove: realtime.removeObserver) }
+        .onDisappear {
+            ClientLog.shared.add("chat=\(chat.id) obs:clear")
+            realtimeObserver.clear(remove: realtime.removeObserver)
+        }
         .onChange(of: realtime.connectionRevision) {
             guard realtimeObserver.isActive else { return }
             // За время разрыва сигнал «закончил» мог потеряться.
@@ -1178,6 +1181,7 @@ struct RoleChatRoomScreen: View {
                 }
             }
         }, remove: realtime.removeObserver)
+        ClientLog.shared.add("chat=\(chat.id) obs:add active=\(realtimeObserver.isActive) connected=\(realtime.isConnected)")
         // Чат открыт посреди ответа роли — подтягиваем, что уже сделано.
         await loadLiveTurns()
     }
