@@ -1,1 +1,26 @@
-{"images":[{"filename":"cursor-origin.png","idiom":"universal"}],"info":{"author":"xcode","version":1},"properties":{"template-rendering-intent":"template"}}
+{
+  "images": [
+    {
+      "filename": "cursor-origin.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "cursor-origin@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "cursor-origin@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "template"
+  }
+}

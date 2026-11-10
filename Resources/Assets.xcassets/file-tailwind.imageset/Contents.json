@@ -1,1 +1,26 @@
-{"images":[{"filename":"tailwind.png","idiom":"universal"}],"info":{"author":"xcode","version":1},"properties":{"template-rendering-intent":"original"}}
+{
+  "images": [
+    {
+      "filename": "tailwind.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "tailwind@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "tailwind@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "original"
+  }
+}

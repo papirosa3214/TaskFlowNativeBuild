@@ -1,1 +1,26 @@
-{"images":[{"filename":"terraform.png","idiom":"universal"}],"info":{"author":"xcode","version":1},"properties":{"template-rendering-intent":"original"}}
+{
+  "images": [
+    {
+      "filename": "terraform.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "terraform@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "terraform@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "original"
+  }
+}
