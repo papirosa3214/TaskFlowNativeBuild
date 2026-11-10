@@ -663,7 +663,7 @@ extension View {
                 content()
                     .background {
                         Rectangle()
-                            .fill(.thinMaterial)
+                            .fill(Color.tfBackground)
                             .ignoresSafeArea(edges: .bottom)
                     }
             }
