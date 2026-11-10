@@ -680,12 +680,12 @@ struct RoleChatRoomScreen: View {
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
                 .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
-                // Панель ввода — штатная нижняя панель iOS 26 (`safeAreaBar`):
-                // стекло под ней рисует система. Свою маску с материалом
-                // убрали, системное затухание не выключаем (владелец
-                // 10.11.2026: «убрать наши подложки и материалы — просто
-                // нативное стекло снизу и сверху»).
-                .safeAreaInset(edge: .bottom, spacing: 0) {
+                // Панель ввода — штатная нижняя панель (`safeAreaBar`): стекло
+                // и затухание у нижней кромки рисует система. `safeAreaInset`
+                // не годится: он обрезает ленту по верхнему краю панели, и
+                // снизу виден резкий край на глухом фоне (владелец
+                // 10.11.2026: «низ как был обрезанный в чёрном фоне»).
+                .chatComposerBar {
                     composerFooter
                 }
         }
@@ -719,8 +719,6 @@ struct RoleChatRoomScreen: View {
                 }
                 .padding(.horizontal, TFSpacing.lg)
             }
-        }
-        .chatComposerBar {
             if isSelecting {
                 selectionBar
             } else if isReadOnlyDirectRoom {
@@ -782,7 +780,6 @@ struct RoleChatRoomScreen: View {
                     onSessionPopoverDismiss: sessionPopoverDidDismiss
                 )
             }
-
         }
         .overlay(alignment: .top) {
             if !chatIsNearBottom && !isSelecting {

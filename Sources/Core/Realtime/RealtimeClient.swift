@@ -234,6 +234,10 @@ public final class RealtimeClient {
         diagnosticSocketID = AppDiagnostics.shared.begin(.socket)
         task = newTask
         newTask.resume()
+        // Живой ход до телефона не доходит (10.11.2026): сервер пишет
+        // `sent=1`, клиент не пишет ни одного `live:start`. Без причины
+        // разрыва это не разобрать — пишем её в журнал клиента.
+        ClientLog.shared.add("ws:open attempt=\(reconnectAttempt)")
         lastTrafficAt = Date()
         listen(on: newTask)
     }
@@ -252,13 +256,14 @@ public final class RealtimeClient {
         task socketTask: URLSessionWebSocketTask
     ) {
         switch result {
-        case .failure:
+        case .failure(let error):
             // Тот же гвард, что в success-ветке: watchdog при "зависшем" сокете
             // сам обнуляет `task` и запускает переподключение ДО того, как
             // старый `receive` вернёт failure — без проверки это второй,
             // лишний `handleDisconnect`/reconnect поверх уже открытого нового
             // сокета (дублирующиеся события, двойной onReconnected).
             guard task === socketTask else { return }
+            ClientLog.shared.add("ws:fail attempt=\(reconnectAttempt) \(error.localizedDescription)")
             handleDisconnect()
         case .success(let message):
             guard task === socketTask else { return }
@@ -279,6 +284,7 @@ public final class RealtimeClient {
         // запускал onReconnected и сбрасывал backoff каждые 1,6 секунды.
         guard case .connected = event else { return }
         if !isConnected {
+            ClientLog.shared.add("ws:live ok attempt=\(reconnectAttempt)")
             isConnected = true
             if hasConnectedBefore {
                 // За разрыв дельты могли потеряться — прогоны на старые снимки.
@@ -354,6 +360,7 @@ public final class RealtimeClient {
                 self.connect()
             } catch {
                 guard !Task.isCancelled, let self else { return }
+                ClientLog.shared.add("ws:auth-fail \(error.localizedDescription)")
                 self.authorizationRecoveryTask = nil
                 self.rejectAuthorization()
             }
