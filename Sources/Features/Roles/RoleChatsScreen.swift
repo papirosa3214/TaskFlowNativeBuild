@@ -47,6 +47,10 @@ struct RoleChatsScreen: View {
     /// списком — теперь он в панели вместе с остальными ролями.
     @State private var rooms: ChatRoomsSnapshot?
     @AppStorage("chats.roomsRail.open") private var isRoomsOpen = false
+    /// Живой сдвиг потяга, пока палец на списке. Положительный — вниз.
+    @State private var stripDrag: CGFloat = 0
+    /// Список у верхнего края: только отсюда ряд выезжает и заезжает.
+    @State private var listAtTop = true
     /// Избранные комнаты панели — через запятую (владелец 08.11.2026).
     @AppStorage("chats.roomsRail.favorites") private var railFavoritesRaw = ""
     /// Панель раскрыта целиком, а не только избранное.
@@ -132,6 +136,137 @@ struct RoleChatsScreen: View {
     private var isOwner: Bool { session.currentUser?.role == .owner }
 
     var body: some View {
+        chatScroll
+            .tfNativeHeader(headerTitle)
+            // Поле поиска — штатное (`searchable`) и рисует его Apple. Но оно не
+            // должно висеть всегда: выезжает только при оттягивании сверху вниз,
+            // при обычной прокрутке не появляется (владелец 08.11.2026).
+            // Скрывается оно только под КРУПНЫМ заголовком: у inline-шапки
+            // системе некуда его спрятать, поэтому она показывает его сразу.
+            .tfChatsLargeTitle()
+            .tint(Color.tfText)
+            .toolbar {
+                if isOwner, !isHome, openedScope == nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { selectHome() } label: {
+                            Label("Чаты", systemImage: "chevron.left")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .accessibilityLabel("Все чаты")
+                        .accessibilityIdentifier("chats.backHome")
+                    }
+                }
+                if isOwner, !isHome {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { startNewSession() } label: { Image(systemName: "plus") }
+                            .accessibilityLabel("Новая сессия")
+                            .accessibilityIdentifier("chats.newSession")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            withAnimation(TFMotion.standard) { isRoomsOpen = false }
+                            openRoute?(.chatArchive)
+                        } label: {
+                            Label("Архивные", systemImage: "archivebox")
+                        }
+                        .accessibilityIdentifier("chats.menu.archive")
+                        if let candidates = rooms?.externalCandidates, !candidates.isEmpty {
+                            // Внешние агенты — без постоянной комнаты, пока владелец
+                            // сам её не заведёт (21.10.2026).
+                            Menu {
+                                ForEach(candidates) { agent in
+                                    Button(agent.name) { Task { await openExternalRoom(agent) } }
+                                }
+                            } label: { Label("Комната внешнего агента", systemImage: "person.crop.circle.badge.plus") }
+                            .accessibilityIdentifier("chats.menu.externalRoom")
+                        }
+                    } label: { Image(systemName: "ellipsis") }
+                        .accessibilityLabel("Меню чатов")
+                        .accessibilityIdentifier("chats.menu")
+                }
+            }
+            .tfSheet(isPresented: $showingCreate) {
+                CreateRoleChatScreen {
+                    Task { await load() }
+                }
+            }
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Поиск по чатам")
+            .task(id: query) { await runSearch() }
+            .alert("Название чата", isPresented: renamePresented) {
+                TextField("Название", text: $renameText)
+                Button("Сохранить") { Task { await applyRename() } }
+                Button("Отмена", role: .cancel) { renameTarget = nil }
+            }
+            .task { await load() }
+            .refreshable { await load() }
+            // Внутри раздела нижней панели нет — только на главных экранах
+            // (владелец 08.11.2026). Групповые чаты ещё живут состоянием.
+            .onChange(of: selectedScopeRaw, initial: true) { _, raw in
+                ChatSectionState.shared.setNested(raw != Self.ChatHomeScopeKey)
+            }
+            .onDisappear { ChatSectionState.shared.setNested(false) }
+            // Возврат из комнаты: бейдж непрочитанных считается на сервере от
+            // отметки прочтения, а отпечаток списка от неё не зависит — с 304
+            // локальная база вернула бы старый счётчик (владелец 08.11.2026:
+            // «семёрка продолжает висеть»). Поэтому возврат — полное чтение.
+            .onAppear {
+                #if DEBUG
+                // Отладочный вход в чаты открывает ряд: кнопки комнат остаются
+                // доступны проверкам, которые ищут их по идентификатору.
+                if !hasAppeared, ProcessInfo.processInfo.environment["TASKFLOW_DEBUG_ROUTE"] == "chat" {
+                    isRoomsOpen = true
+                }
+                #endif
+                guard hasAppeared else { hasAppeared = true; return }
+                Task { try? await refreshList(forceFull: true) }
+            }
+            // Живое обновление (владелец 22.09.2026: «чтобы не выходить и не
+            // заходить заново»): пока список открыт, слушаем общий сокет и на новое
+            // сообщение тихо перечитываем превью и непрочитанные.
+            .task {
+                guard !Task.isCancelled else { return }
+                realtimeObserver.replace(add: {
+                    realtime.addObserver { event in
+                        switch event {
+                        case .roleChatMessage:
+                            Task { await reloadSilently() }
+                        case .chatNew:
+                            Task { await reloadSilently() }
+                        default:
+                            break
+                        }
+                    }
+                }, remove: realtime.removeObserver)
+            }
+            .onDisappear { realtimeObserver.clear(remove: realtime.removeObserver) }
+            .onChange(of: realtime.connectionRevision) {
+                guard realtimeObserver.isActive else { return }
+                Task { await reloadSilently() }
+            }
+            .onChange(of: showsClosed) { Task { await load() } }
+            .alert("Не удалось загрузить чаты", isPresented: errorPresented) {
+                Button("Повторить") { Task { await load() } }
+                Button("Закрыть", role: .cancel) { errorMessage = nil }
+            } message: { Text(errorMessage ?? "") }
+            .confirmationDialog(
+                "Удалить чат навсегда?",
+                isPresented: purgePresented,
+                titleVisibility: .visible
+            ) {
+                Button("Удалить навсегда", role: .destructive) {
+                    guard let chat = pendingPurge else { return }
+                    pendingPurge = nil
+                    Task { await purge(chat) }
+                }
+                Button("Отмена", role: .cancel) { pendingPurge = nil }
+            } message: {
+                Text("Переписка и вложения пропадут насовсем — вернуть их будет нельзя.")
+            }
+    }
+
+    private var chatScroll: some View {
         ScrollView {
             VStack(spacing: 0) {
                 if isSearchMode {
@@ -185,128 +320,40 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .tfScreenBackground()
-        // Бывшая панель участников чата — теперь в корне раздела и
-        // показывает комнаты (владелец 21.10.2026).
-        .overlay(alignment: .trailing) { if isOwner { roomsRail } }
-        .tfNativeHeader(headerTitle)
-        // Поле поиска — штатное (`searchable`) и рисует его Apple. Но оно не
-        // должно висеть всегда: выезжает только при оттягивании сверху вниз,
-        // при обычной прокрутке не появляется (владелец 08.11.2026).
-        // Скрывается оно только под КРУПНЫМ заголовком: у inline-шапки
-        // системе некуда его спрятать, поэтому она показывает его сразу.
-        .tfChatsLargeTitle()
-        .tint(Color.tfText)
-        .toolbar {
-            if isOwner, !isHome, openedScope == nil {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { selectHome() } label: {
-                        Label("Чаты", systemImage: "chevron.left")
-                            .labelStyle(.titleAndIcon)
+        // Комнаты — ряд сверху, а не боковая вкладка. В покое видны макушки,
+        // короткий потяг вниз выдвигает кружки с именами.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if isOwner {
+                ChatRoomsTopStrip(
+                    snapshot: rooms,
+                    favorites: railFavorites,
+                    showsAll: railShowsAll,
+                    reveal: stripReveal,
+                    onToggleFavorite: { toggleRailFavorite($0) },
+                    onToggleAll: { withAnimation(TFMotion.standard) { railShowsAll.toggle() } },
+                    onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
+                    onOpenGroups: { openRoute?(.chatGroups) },
+                    onToggleReveal: {
+                        withAnimation(.interpolatingSpring(duration: 0.34, bounce: 0)) {
+                            isRoomsOpen.toggle()
+                            stripDrag = 0
+                        }
                     }
-                    .accessibilityLabel("Все чаты")
-                    .accessibilityIdentifier("chats.backHome")
+                )
+            }
+        }
+        .gesture(roomsRevealPan)
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentOffset.y + geo.contentInsets.top
+        } action: { _, y in
+            listAtTop = y <= 2
+            // Уехал в список — ряд задвигается. Порог больше погрешности
+            // от собственной высоты ряда, иначе он закроется сразу.
+            if y > 48, isRoomsOpen, stripDrag == 0 {
+                withAnimation(.interpolatingSpring(duration: 0.3, bounce: 0)) {
+                    isRoomsOpen = false
                 }
             }
-            if isOwner, !isHome {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { startNewSession() } label: { Image(systemName: "plus") }
-                        .accessibilityLabel("Новая сессия")
-                        .accessibilityIdentifier("chats.newSession")
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        withAnimation(TFMotion.standard) { isRoomsOpen = false }
-                        openRoute?(.chatArchive)
-                    } label: {
-                        Label("Архивные", systemImage: "archivebox")
-                    }
-                    .accessibilityIdentifier("chats.menu.archive")
-                    if let candidates = rooms?.externalCandidates, !candidates.isEmpty {
-                        // Внешние агенты — без постоянной комнаты, пока владелец
-                        // сам её не заведёт (21.10.2026).
-                        Menu {
-                            ForEach(candidates) { agent in
-                                Button(agent.name) { Task { await openExternalRoom(agent) } }
-                            }
-                        } label: { Label("Комната внешнего агента", systemImage: "person.crop.circle.badge.plus") }
-                        .accessibilityIdentifier("chats.menu.externalRoom")
-                    }
-                } label: { Image(systemName: "ellipsis") }
-                    .accessibilityLabel("Меню чатов")
-                    .accessibilityIdentifier("chats.menu")
-            }
-        }
-        .tfSheet(isPresented: $showingCreate) {
-            CreateRoleChatScreen {
-                Task { await load() }
-            }
-        }
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Поиск по чатам")
-        .task(id: query) { await runSearch() }
-        .alert("Название чата", isPresented: renamePresented) {
-            TextField("Название", text: $renameText)
-            Button("Сохранить") { Task { await applyRename() } }
-            Button("Отмена", role: .cancel) { renameTarget = nil }
-        }
-        .task { await load() }
-        .refreshable { await load() }
-        // Внутри раздела нижней панели нет — только на главных экранах
-        // (владелец 08.11.2026). Групповые чаты ещё живут состоянием.
-        .onChange(of: selectedScopeRaw, initial: true) { _, raw in
-            ChatSectionState.shared.setNested(raw != Self.ChatHomeScopeKey)
-        }
-        .onDisappear { ChatSectionState.shared.setNested(false) }
-        // Возврат из комнаты: бейдж непрочитанных считается на сервере от
-        // отметки прочтения, а отпечаток списка от неё не зависит — с 304
-        // локальная база вернула бы старый счётчик (владелец 08.11.2026:
-        // «семёрка продолжает висеть»). Поэтому возврат — полное чтение.
-        .onAppear {
-            guard hasAppeared else { hasAppeared = true; return }
-            Task { try? await refreshList(forceFull: true) }
-        }
-        // Живое обновление (владелец 22.09.2026: «чтобы не выходить и не
-        // заходить заново»): пока список открыт, слушаем общий сокет и на новое
-        // сообщение тихо перечитываем превью и непрочитанные.
-        .task {
-            guard !Task.isCancelled else { return }
-            realtimeObserver.replace(add: {
-                realtime.addObserver { event in
-                    switch event {
-                    case .roleChatMessage:
-                        Task { await reloadSilently() }
-                    case .chatNew:
-                        Task { await reloadSilently() }
-                    default:
-                        break
-                    }
-                }
-            }, remove: realtime.removeObserver)
-        }
-        .onDisappear { realtimeObserver.clear(remove: realtime.removeObserver) }
-        .onChange(of: realtime.connectionRevision) {
-            guard realtimeObserver.isActive else { return }
-            Task { await reloadSilently() }
-        }
-        .onChange(of: showsClosed) { Task { await load() } }
-        .alert("Не удалось загрузить чаты", isPresented: errorPresented) {
-            Button("Повторить") { Task { await load() } }
-            Button("Закрыть", role: .cancel) { errorMessage = nil }
-        } message: { Text(errorMessage ?? "") }
-        .confirmationDialog(
-            "Удалить чат навсегда?",
-            isPresented: purgePresented,
-            titleVisibility: .visible
-        ) {
-            Button("Удалить навсегда", role: .destructive) {
-                guard let chat = pendingPurge else { return }
-                pendingPurge = nil
-                Task { await purge(chat) }
-            }
-            Button("Отмена", role: .cancel) { pendingPurge = nil }
-        } message: {
-            Text("Переписка и вложения пропадут насовсем — вернуть их будет нельзя.")
         }
     }
 
@@ -519,7 +566,7 @@ struct RoleChatsScreen: View {
             // Владелец 08.11.2026: «как в GPT — архивировать чат либо
             // удалить насовсем, и понятно, максимально». Никаких «закрыть
             // сессию»: архив и есть уборка, а вернуть можно из архива.
-            // Сам архив — иконкой в боковой панели, один на все роли.
+            // Сам архив — пунктом меню, один на все роли.
             Button { togglePin(chat) } label: {
                 Label(pinnedIDs.contains(chat.id) ? "Открепить" : "Закрепить",
                       systemImage: pinnedIDs.contains(chat.id) ? "pin.slash" : "pin")
@@ -553,35 +600,23 @@ struct RoleChatsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    /// Роль выбрана — вкладка уходит за край и не закрывает список сессий.
-    /// Комнаты, которые панель показывает прямо сейчас.
-    private var railRoomIDs: [String] {
-        ChatRoomsRail.visibleIDs(rooms, favorites: railFavorites, showsAll: railShowsAll)
-    }
-    private var railHasToggle: Bool {
-        ChatRoomsRail.hasHidden(rooms, favorites: railFavorites, showsAll: railShowsAll)
-    }
-    private var railColumns: Int {
-        ChatRoomsRail.columns(count: railRoomIDs.count, showsAll: railShowsAll)
+    /// 0 — макушки, 1 — ряд с именами. Потяг прибавляется к защёлкнутому положению.
+    private var stripReveal: CGFloat {
+        let base: CGFloat = isRoomsOpen ? 1 : 0
+        return min(1, max(0, base + stripDrag / ChatRoomsTopMetrics.travel))
     }
 
-    private var roomsRail: some View {
-        ChatEdgeRail(isOpen: $isRoomsOpen, openLabel: "Комнаты", closedLabel: "Показать комнаты", identifier: "chats.roomsRail",
-                     openWidth: railWidth,
-                     openHeight: railHeight,
-                     restingHeight: ChatEdgeRailMetrics.collapsedHeight) {
-            ChatRoomsPanel(snapshot: rooms,
-                           favorites: railFavorites,
-                           showsAll: railShowsAll,
-                           columns: railColumns,
-                           onToggleFavorite: { toggleRailFavorite($0) },
-                           onToggleAll: {
-                               withAnimation(TFMotion.standard) { railShowsAll.toggle() }
-                           },
-                           onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
-                           onOpenGroups: { openRoute?(.chatGroups) },
-                           )
-        }
+    private var roomsRevealPan: RoomsRevealPan {
+        RoomsRevealPan(enabled: isOwner, atTop: listAtTop, isOpen: isRoomsOpen, onChange: { dy in
+            stripDrag = dy
+        }, onEnd: { dy, vy in
+            let base: CGFloat = isRoomsOpen ? 1 : 0
+            let projected = base + (dy + vy * 0.12) / ChatRoomsTopMetrics.travel
+            withAnimation(.interpolatingSpring(duration: 0.34, bounce: abs(vy) > 280 ? 0.12 : 0)) {
+                isRoomsOpen = projected > 0.42
+                stripDrag = 0
+            }
+        })
     }
 
     private var errorPresented: Binding<Bool> {
@@ -589,10 +624,6 @@ struct RoleChatsScreen: View {
     }
     private var purgePresented: Binding<Bool> {
         Binding(get: { pendingPurge != nil }, set: { if !$0 { pendingPurge = nil } })
-    }
-    private var railWidth: CGFloat { ChatRoomsRail.width(columns: railColumns) }
-    private var railHeight: CGFloat {
-        ChatRoomsRail.height(items: railRoomIDs.count, columns: railColumns, hasToggle: railHasToggle)
     }
     private var railFavorites: Set<String> {
         Set(railFavoritesRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
