@@ -86,6 +86,13 @@ public final class KnowledgeBaseViewModel {
             errorMessage = nil
         } catch {
             guard token == searchToken else { return }
+            // Отмена — не ошибка. `.task(id: query)` гасит предыдущий поиск,
+            // когда в поле появился новый символ; без этой проверки на каждый
+            // такой символ на миг вспыхивал бы баннер «cancelled».
+            guard !Task.isCancelled, !(error is CancellationError) else {
+                isSearching = false
+                return
+            }
             searchedQuery = trimmed
             searchResults = []
             errorMessage = error.localizedDescription

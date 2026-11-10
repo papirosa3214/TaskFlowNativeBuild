@@ -67,6 +67,12 @@ public final class KnowledgeDatasetViewModel {
             errorMessage = nil
         } catch {
             guard token == searchToken else { return }
+            // Отмена — не ошибка: `.task(id: query)` гасит предыдущий поиск,
+            // когда в поле появился новый символ.
+            guard !Task.isCancelled, !(error is CancellationError) else {
+                isSearching = false
+                return
+            }
             // Ошибка сервера — это ошибка, а не «ничего не нашлось».
             searchedQuery = trimmed
             searchResults = []
