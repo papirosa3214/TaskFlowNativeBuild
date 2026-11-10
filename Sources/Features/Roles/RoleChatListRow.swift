@@ -22,6 +22,9 @@ struct ChatListRow: View {
     var projectName: String? = nil
     /// Участник слева. Нет участника — строка без кружка.
     var member: RoleChatMember? = nil
+    /// Кружок рисует соседняя кнопка. Строка отдаёт только текст,
+    /// без левого отступа: его занимает кружок.
+    var omitsAvatar = false
 
     /// Строка под превью: здесь видно, что роль работает.
     private var metaLine: String? {
@@ -33,7 +36,7 @@ struct ChatListRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: TFSpacing.xs) {
-            if let member {
+            if let member, !omitsAvatar {
                 RoleMemberAvatar(member: member)
                     .environment(\.tfAvatarLiveTurn, turn?.running == true)
                     .accessibilityHidden(true)
@@ -73,7 +76,8 @@ struct ChatListRow: View {
                 if unread > 0 { badge }
             }
         }
-        .padding(.horizontal, TFSpacing.screenHorizontal)
+        .padding(.leading, omitsAvatar ? 0 : TFSpacing.screenHorizontal)
+        .padding(.trailing, TFSpacing.screenHorizontal)
         .padding(.vertical, TFSpacing.xs)
         .contentShape(Rectangle())
         // Строка целиком — одна единица для VoiceOver: без этого он читает

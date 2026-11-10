@@ -240,6 +240,17 @@ final class HintCenterTests: XCTestCase {
         }
     }
 
+    func testExternalAgentAvatarHintCompletes() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chats-external-agent-avatar" })
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.isEnabled = true
+        center.report(anchor: "chats.external-agent-avatar", frame: frame)
+        XCTAssertEqual(center.active?.step, "avatar")
+        XCTAssertTrue(center.currentStep?.text.contains("кружок") == true)
+        center.next()
+        XCTAssertTrue(center.completed.contains("chats-external-agent-avatar"))
+    }
+
     func testOwnMessageCopyHintCompletes() throws {
         let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-own-message-copy" })
         let center = HintCenter(defaults: defaults, scenarios: [scenario])

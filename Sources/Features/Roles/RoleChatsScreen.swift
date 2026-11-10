@@ -61,6 +61,12 @@ struct RoleChatsScreen: View {
     /// Чат, у которого меняют название.
     @State private var renameTarget: RoleChat?
     @State private var renameText = ""
+    /// Внешний агент, которому с телефона ставят своё фото. Кружок в списке,
+    /// не путь через «Команду».
+    @State private var avatarRoleID: String?
+    /// Смена фото должна перерисовать кружок: кадрирование лежит в
+    /// UserDefaults и само экран не обновляет.
+    @State private var avatarEpoch = 0
     /// Закреплённые чаты — через запятую (владелец 08.11.2026).
     @AppStorage("chats.pinned") private var pinnedRaw = ""
     @Environment(RealtimeClient.self) private var realtime
@@ -161,6 +167,15 @@ struct RoleChatsScreen: View {
             .tfSheet(isPresented: $showingCreate) {
                 CreateRoleChatScreen {
                     Task { await load() }
+                }
+            }
+            .tfSheet(item: avatarEdit, onDismiss: { avatarEpoch += 1 }) { box in
+                if let role = rooms?.role(box.id) {
+                    let key = role.roleKey ?? RoleAvatarAsset.role(forUserID: role.id) ?? role.id
+                    AvatarCropEditor(role: key,
+                                     roleTitle: role.name,
+                                     imageAsset: RoleAvatarAsset.imageName(for: key),
+                                     accountID: role.id)
                 }
             }
             .task(id: query) { await runSearch() }
@@ -358,7 +373,7 @@ struct RoleChatsScreen: View {
         if !externalRoles.isEmpty {
             homeHeader("Внешние агенты")
             ForEach(Array(externalRoles.enumerated()), id: \.element.id) { index, role in
-                homeRoleRow(role)
+                homeRoleRow(role, photoOnAvatar: true, hintAvatar: index == 0)
                 if index < externalRoles.count - 1 { rowDivider(afterAvatar: true) }
             }
         }
@@ -404,9 +419,19 @@ struct RoleChatsScreen: View {
         }
     }
 
+    /// Кружок внешнего агента, которому открыт редактор фото.
+    private var avatarEdit: Binding<AvatarRoleBox?> {
+        Binding(
+            get: { avatarRoleID.map { AvatarRoleBox(id: $0) } },
+            set: { avatarRoleID = $0?.id }
+        )
+    }
+
     /// Строка комнаты в корне: имя, последняя реплика и время — как в списке
-    /// чатов, тап открывает сессии этой роли.
-    private func homeRoleRow(_ role: ChatRoomsSnapshot.RoleRoom) -> some View {
+    /// чатов, тап открывает сессии этой роли. У внешнего агента кружок —
+    /// отдельная кнопка: тап ставит своё фото, строка справа открывает чат.
+    @ViewBuilder
+    private func homeRoleRow(_ role: ChatRoomsSnapshot.RoleRoom, photoOnAvatar: Bool = false, hintAvatar: Bool = false) -> some View {
         let mine = chats.filter { $0.others(excluding: session.currentUser?.id).contains { $0.id == role.id } }
         let unread = mine.reduce(0) { $0 + $1.unread }
         let rooms = RoleSessionList.roomsCount(mine.count)
@@ -416,16 +441,58 @@ struct RoleChatsScreen: View {
         // а свайп слева направо работает системный — шаг назад, как везде в
         // приложении (владелец 08.11.2026).
         let running = role.working || role.personalTurn?.running == true
-        return NavigationLink(value: AppRoute.chatRole(id: role.id)) {
-            ChatListRow(title: role.name,
-                        preview: line,
-                        time: ChatListTime.label(role.lastMessage?.createdAt),
-                        unread: unread,
-                        turn: running ? RoomTurn(running: true) : role.personalTurn,
-                        member: role.member)
+        let turn = running ? RoomTurn(running: true) : role.personalTurn
+        if photoOnAvatar {
+            HStack(alignment: .center, spacing: 0) {
+                avatarPhotoButton(role, hinted: hintAvatar)
+                NavigationLink(value: AppRoute.chatRole(id: role.id)) {
+                    ChatListRow(title: role.name,
+                                preview: line,
+                                time: ChatListTime.label(role.lastMessage?.createdAt),
+                                unread: unread,
+                                turn: turn,
+                                member: nil,
+                                omitsAvatar: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chats.rooms.\(role.id)")
+            }
+        } else {
+            NavigationLink(value: AppRoute.chatRole(id: role.id)) {
+                ChatListRow(title: role.name,
+                            preview: line,
+                            time: ChatListTime.label(role.lastMessage?.createdAt),
+                            unread: unread,
+                            turn: turn,
+                            member: role.member)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("chats.rooms.\(role.id)")
+        }
+    }
+
+    /// Кружок внешнего агента. Не внутри ссылки на чат: иначе тап открывает
+    /// переписку и фото с телефона поставить нельзя.
+    private func avatarPhotoButton(_ role: ChatRoomsSnapshot.RoleRoom, hinted: Bool) -> some View {
+        let button = Button {
+            avatarRoleID = role.id
+        } label: {
+            RoleMemberAvatar(member: role.member)
+                .id("\(role.id)-\(avatarEpoch)")
+                .padding(.leading, TFSpacing.screenHorizontal)
+                .padding(.trailing, TFSpacing.xs)
+                .padding(.vertical, TFSpacing.xs)
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("chats.rooms.\(role.id)")
+        .accessibilityLabel("Поставить фото, \(role.name)")
+        .accessibilityIdentifier("chats.avatar.\(role.id)")
+        return Group {
+            if hinted {
+                button.hintAnchor(HintAnchorID.externalAgentAvatar)
+            } else {
+                button
+            }
+        }
     }
 
     private func selectHome() {
@@ -747,4 +814,9 @@ private struct SessionBranchLineShape: Shape {
         }
         return path
     }
+}
+
+/// Обёртка для шторки фото: роль в списке — строка, `sheet(item:)` ждёт Identifiable.
+private struct AvatarRoleBox: Identifiable {
+    let id: String
 }

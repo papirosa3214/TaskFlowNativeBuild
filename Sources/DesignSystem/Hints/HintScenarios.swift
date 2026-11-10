@@ -10,6 +10,8 @@ enum HintAnchorID {
     static let allTasksFilter = "all-tasks.filter"
     static let chatSession = "chat.session"
     static let chatsProjectFolders = "chats.project-folders"
+    /// Кружок внешнего агента в списке чатов: тап ставит своё фото.
+    static let externalAgentAvatar = "chats.external-agent-avatar"
     /// Подзаголовок «Карточки работ» в общем списке задач.
     static let tasksWorkCards = "tasks.work-cards"
     static let routineInstructions = "routine.instructions"
@@ -168,7 +170,7 @@ enum HintScenarios {
             title: "Вход без пароля",
             text: "Если приложение просит войти, а пароль набирать не хочется: на сервере выполните npx tsx scripts/pairing-code.ts в папке server — он напечатает QR-код. Нажмите здесь и наведите камеру. Код одноразовый и живёт 5 минут; после привязки телефон входит своим ключом. Внутри приложения та же кнопка есть в «Настройках → Сервер».", next: nil)])
 
-    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, changedetection, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards, taskflowMemory, devicePairing]
+    static let all: [HintScenario] = [voiceModes,inboxTickets,allTasks,voiceScreenShare,assistantSession,routineEditing, chatDiscussionDelivery, chatComposerControls, agentPromptSettings, taskCoordination, missionControl, chatItemBudget, chatOwnMessageCopy, unifiedPlanner, taskNumberCopy, aiUsage, roleLoadRows, roleBehavior, voiceConversation, externalApps, changedetection, webhooks, taskPlan, taskLinks, chatMembers, chatWorkPlan, chatDeliveryBadge, roleActions, chatDictation, jev, memoryObserver, systemSummary, chatCoordination, contextObservability, jevUsage, noteMarkdownEditing, chatQuestion, chatComposerStyle, chatRoleStart, roleSession, chatsProjectFolders, tasksWorkCards, taskflowMemory, devicePairing, externalAgentAvatar]
 
     static let allTasks = HintScenario(
         id: "projects-all-tasks", title: "Задачи и статусы", start: "entry",
@@ -376,6 +378,20 @@ enum HintScenarios {
 
     /// Проект в каталоге «Групповые чаты» — папка комнат его задач, а не чат
     /// (спецификация 08.11.2026, §3).
+    /// Своё фото внешнему агенту с телефона (владелец 10.11.2026): кружок
+    /// в списке чатов, не путь через «Команду».
+    static let externalAgentAvatar = HintScenario(
+        id: "chats-external-agent-avatar",
+        title: "Фото внешнего агента",
+        start: "avatar",
+        steps: [
+            "avatar": HintStep(
+                anchor: HintAnchorID.externalAgentAvatar,
+                title: "Своё фото",
+                text: "В разделе «Внешние агенты» нажмите кружок слева от имени. Выберите снимок и «Готово» — кружок в строке сменится. Нажатие на имя по-прежнему открывает чат.",
+                next: nil),
+        ])
+
     static let chatsProjectFolders = HintScenario(
         id: "chats-project-folders",
         title: "Проекты в групповых чатах",
