@@ -32,7 +32,7 @@ struct ChatListRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: TFSpacing.sm) {
+        HStack(alignment: .center, spacing: TFSpacing.xs) {
             if let member {
                 RoleMemberAvatar(member: member)
                     .environment(\.tfAvatarLiveTurn, turn?.running == true)
@@ -63,8 +63,8 @@ struct ChatListRow: View {
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: TFSpacing.sm)
-            VStack(alignment: .trailing, spacing: TFSpacing.sm) {
+            Spacer(minLength: TFSpacing.xs)
+            VStack(alignment: .trailing, spacing: TFSpacing.xs) {
                 if let time {
                     Text(time)
                         .tfText(.meta)
@@ -74,7 +74,7 @@ struct ChatListRow: View {
             }
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
-        .padding(.vertical, TFSpacing.sm)
+        .padding(.vertical, TFSpacing.xs)
         .contentShape(Rectangle())
         // Строка целиком — одна единица для VoiceOver: без этого он читает
         // аватар, имя, превью и время как четыре отдельных элемента.

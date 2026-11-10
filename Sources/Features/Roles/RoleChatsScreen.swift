@@ -333,10 +333,7 @@ struct RoleChatsScreen: View {
     private var chatsHome: some View {
         let pinned = chats.filter { pinnedIDs.contains($0.id) }
         if !pinned.isEmpty {
-            TFSectionHeader("Закреплённые")
-                .padding(.horizontal, TFSpacing.screenHorizontal)
-                .padding(.top, TFSpacing.lg)
-                .padding(.bottom, TFSpacing.xs)
+            homeHeader("Закреплённые")
             ForEach(Array(pinned.enumerated()), id: \.element.id) { index, chat in
                 sessionLink(chat, isBranch: false)
                 if index < pinned.count - 1 { rowDivider(afterAvatar: rowMember(chat) != nil) }
@@ -360,14 +357,18 @@ struct RoleChatsScreen: View {
         groupsCatalog
     }
 
-    /// Заголовок подраздела — из дизайн-системы, а не своё начертание:
-    /// размер и кегль приходят из токенов и регулируются настройками
-    /// (владелец 08.11.2026).
+    /// Подпись раздела по центру. Это подзаголовок: кегль и гарнитура —
+    /// токен «Подзаголовок» из «Настройки → Шрифт». В чате шкала приложения
+    /// выключена, поэтому для этой строки её включают обратно: иначе
+    /// `.title` уехал бы в чатовый «Заголовок».
     private func homeHeader(_ title: String) -> some View {
-        TFSectionHeader(title)
-            .padding(.horizontal, TFSpacing.screenHorizontal)
-            .padding(.top, TFSpacing.lg)
-            .padding(.bottom, TFSpacing.xs)
+        Text(title)
+            .tfText(.title)
+            .foregroundStyle(Color.tfSub)
+            .environment(\.tfTypeSettingsEnabled, true)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.top, TFSpacing.xs)
     }
 
     /// Выдача поиска по всем чатам: название, откуда нашлось и кусок текста.
@@ -486,7 +487,7 @@ struct RoleChatsScreen: View {
 
     /// Разделитель отбит до начала текста: у строки с аватаром — за кружком.
     private func rowDivider(afterAvatar: Bool = false) -> some View {
-        let extra: CGFloat = afterAvatar ? TFAvatar.Size.xl.rawValue + TFSpacing.sm : 0
+        let extra: CGFloat = afterAvatar ? TFAvatar.Size.xl.rawValue + TFSpacing.xs : 0
         return TFDivider(inset: TFSpacing.screenHorizontal + extra)
     }
 
