@@ -44,7 +44,7 @@ public struct KnowledgeBaseScreen: View {
         }
         .listStyle(.plain)
         .listSectionSpacing(TFSpacing.xs)
-        .tfScreenBackground(Color.tfCard)
+        .tfScreenBackground()
         .tint(Color.tfText)
         .refreshable { await viewModel.load() }
         .tfNativeHeader("База знаний", displayMode: .large)
@@ -235,21 +235,13 @@ public struct KnowledgeBaseScreen: View {
     }
 
     private func datasetRow(_ dataset: ApiKnowledgeDataset) -> some View {
-        HStack(spacing: TFSpacing.xs) {
-            NavigationLink {
-                KnowledgeDatasetScreen(dataset: dataset)
-            } label: {
-                datasetLabel(dataset, subtitle: subtitle(for: dataset))
-            }
-            Menu {
-                datasetMenu(dataset)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .foregroundStyle(Color.tfText)
-            }
-            .accessibilityLabel("Действия датасета \(dataset.name)")
+        NavigationLink {
+            KnowledgeDatasetScreen(dataset: dataset)
+        } label: {
+            datasetLabel(dataset, subtitle: subtitle(for: dataset))
         }
-        .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.xs))
+        .navigationLinkIndicatorVisibility(.hidden)
+        .listRowInsets(EdgeInsets(top: TFSpacing.xs, leading: TFSpacing.sm, bottom: TFSpacing.xs, trailing: TFSpacing.sm))
         .knowledgeRow()
         .contextMenu { datasetMenu(dataset) }
     }
@@ -501,7 +493,7 @@ struct KnowledgeRimButton: View {
 }
 
 extension View {
-    /// Строка на общем тёмно-сером поле: системная подложка списка её не перекрывает.
+    /// Строка без своей подложки: сквозь неё виден фон экрана.
     func knowledgeRow() -> some View {
         listRowBackground(Color.clear)
             .listRowSeparatorTint(Color.tfStroke)

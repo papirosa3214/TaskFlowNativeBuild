@@ -70,7 +70,7 @@ public struct KnowledgeDatasetScreen: View {
         }
         .listStyle(.plain)
         .listSectionSpacing(TFSpacing.xs)
-        .tfScreenBackground(Color.tfCard)
+        .tfScreenBackground()
         .tint(Color.tfText)
         .refreshable { await viewModel.load() }
         .tfNativeHeader(dataset.name, displayMode: .inline)
