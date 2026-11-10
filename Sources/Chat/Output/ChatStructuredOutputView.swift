@@ -107,6 +107,36 @@ struct ChatStructuredOutputView: View {
         case .html:
             htmlBlock(block)
         default:
+            // Незнакомый тип блока: сервер уже прислал готовую разметку
+            // (`server_html`, chatTemplates.ts). Значит новый вид появляется в
+            // приложении без пересборки — клиенту достаточно показать HTML.
+            // Нет разметки — честно говорим, что тип не поддерживается.
+            serverHtmlBlock(block)
+        }
+    }
+
+    /// Когда блок настолько велик, что нативная карточка проигрывает, рисуем
+    /// готовую серверную разметку: сервер присылает её рядом с данными
+    /// (`server_html`). Нативный рендер остаётся основным — он быстрее, даёт
+    /// выделение текста, Dynamic Type и не занимает память под WKWebView.
+    private func prefersServerHtml(_ block: StructuredOutputBlock) -> Bool {
+        guard let html = block.serverHtml, !html.isEmpty else { return false }
+        switch block.type {
+        case "table": return (block.rows?.count ?? 0) > 40
+        case "chart": return (block.points?.count ?? 0) > 60
+        default: return false
+        }
+    }
+
+    /// Разметка, собранная сервером: та же песочница `ChatHTMLView`, что и у
+    /// блока `html`. Ничего не исполняется вне ограничений клиента — стили и
+    /// разметка приходят текстом, скриптов сервер не кладёт.
+    @ViewBuilder
+    private func serverHtmlBlock(_ block: StructuredOutputBlock) -> some View {
+        if let html = block.serverHtml?.trimmingCharacters(in: .whitespacesAndNewlines), !html.isEmpty {
+            ChatHTMLView(html: html, allowsCommands: allowsCommands)
+                .accessibilityIdentifier("chat.structured-output.server-html")
+        } else {
             unsupportedBlock("Тип блока «\(block.type)» пока не поддерживается")
         }
     }
@@ -181,7 +211,9 @@ struct ChatStructuredOutputView: View {
 
     @ViewBuilder
     private func tableBlock(_ block: StructuredOutputBlock) -> some View {
-        if let columns = block.columns, !columns.isEmpty, let rows = block.rows {
+        if prefersServerHtml(block) {
+            serverHtmlBlock(block)
+        } else if let columns = block.columns, !columns.isEmpty, let rows = block.rows {
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
                 if let title = block.title, !title.isEmpty {
                     Text(title).tfText(.action).foregroundStyle(Color.tfChatText)
@@ -245,7 +277,9 @@ struct ChatStructuredOutputView: View {
         let points = (block.points ?? []).enumerated().map { index, point in
             RoleChartPoint(id: index, label: point.label, value: point.value)
         }
-        if !points.isEmpty {
+        if prefersServerHtml(block) {
+            serverHtmlBlock(block)
+        } else if !points.isEmpty {
             RoleChartBlock(title: block.title,
                            kind: block.kind,
                            unit: block.unit,
@@ -594,8 +628,15 @@ private struct StructuredOutputBlock: Decodable {
     /// Текст блока, разобранный сервером (26.10.2026); nil — старый сервер.
     let textBlocks: [ChatServerBlock]?
 
+    /// Разметка, собранная сервером (`chatTemplates.ts`): таблица, график и
+    /// схема приходят и данными, и готовым HTML. Клиент берёт HTML только там,
+    /// где нативная карточка проигрывает; поле необязательное — старые
+    /// сообщения приходят без него и рисуются как раньше.
+    let serverHtml: String?
+
     enum CodingKeys: String, CodingKey {
         case textBlocks = "text_blocks"
+        case serverHtml = "server_html"
         case type, text, level, items, ordered, title, columns, rows, code, current, total, unit, label, kind, points, sections, summary, command, url, widget, html
         case reportKind = "report_kind"
         case artifactKey = "artifact_key"
@@ -624,6 +665,7 @@ private struct StructuredOutputBlock: Decodable {
         url = try values.decodeIfPresent(String.self, forKey: .url)
         html = try values.decodeIfPresent(String.self, forKey: .html)
         textBlocks = try? values.decodeIfPresent([ChatServerBlock].self, forKey: .textBlocks)
+        serverHtml = try? values.decodeIfPresent(String.self, forKey: .serverHtml)
         widget = try values.decodeIfPresent(JSONValue.self, forKey: .widget)
         ordered = try values.decodeIfPresent(Bool.self, forKey: .ordered)
         if type == "diagram" {
