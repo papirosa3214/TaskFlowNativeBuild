@@ -16,57 +16,7 @@ import QuickLook
 /// (надиктовка → карточка), но в списке он выглядит как обычный собеседник.
 /// Владелец 21.09.2026: «сделай его просто как отдельный вид участника», без
 /// подписей-подсказок.
-/// На iOS 26 аватарки — системный подзаголовок. Большой ряд стоит слева
-/// (`largeSubtitle`), при прокрутке система сама уводит его в маленький
-/// по центру (`subtitle`). Оба пункта висят всегда: прятать один и
-/// показывать другой нельзя, иначе перехода нет. Затухание списка — от поиска.
-extension View {
-    /// Ниже iOS 26 слота подзаголовка нет: ряд вешается над списком.
-    @ViewBuilder
-    func chatsTopChrome<Chrome: View>(@ViewBuilder content: () -> Chrome) -> some View {
-        if #available(iOS 26.0, *) {
-            self
-        } else {
-            self.safeAreaInset(edge: .top, spacing: 0, content: content)
-        }
-    }
-
-    /// Крупный заголовок, который при прокрутке становится маленьким по центру.
-    /// Без этого подзаголовок не схлопывается.
-    @ViewBuilder
-    func tfChatsCollapsingHeader() -> some View {
-        if #available(iOS 26.0, *) {
-            self.toolbarTitleDisplayMode(.large)
-        } else {
-            self
-        }
-    }
-
-    /// Жест раскрытия нужен только ниже iOS 26. На 26 прокрутка сама
-    /// схлопывает подзаголовок, и перехватывать её нельзя.
-    @ViewBuilder
-    func chatsRoomsReveal(_ pan: RoomsRevealPan) -> some View {
-        if #available(iOS 26.0, *) {
-            self
-        } else {
-            self.gesture(pan)
-        }
-    }
-}
-
-private extension ToolbarContent {
-    /// На iOS 26 система кладёт под пункт шапки стеклянную капсулу.
-    /// Стопке кружков она не нужна: они лежат прямо на шапке.
-    @ToolbarContentBuilder
-    func chatsBareToolbarItem() -> some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            self.sharedBackgroundVisibility(.hidden)
-        } else {
-            self
-        }
-    }
-}
-
+/// Аватар роли стоит слева у строки её чата. Отдельного ряда сверху нет.
 struct RoleChatsScreen: View {
     /// Экран, открытый переходом: у него системный возврат и своя область
     /// (роль или групповые чаты), корень раздела внутри него не живёт.
@@ -83,15 +33,6 @@ struct RoleChatsScreen: View {
     /// их лички. Раньше личный чат с Помощником стоял отдельным блоком над
     /// списком — теперь он в панели вместе с остальными ролями.
     @State private var rooms: ChatRoomsSnapshot?
-    @AppStorage("chats.roomsRail.open") private var isRoomsOpen = false
-    /// Живой сдвиг потяга, пока палец на списке. Положительный — вниз.
-    @State private var stripDrag: CGFloat = 0
-    /// Список у верхнего края: только отсюда ряд выезжает и заезжает.
-    @State private var listAtTop = true
-    /// Избранные комнаты панели — через запятую (владелец 08.11.2026).
-    @AppStorage("chats.roomsRail.favorites") private var railFavoritesRaw = ""
-    /// Панель раскрыта целиком, а не только избранное.
-    @State private var railShowsAll = false
     /// Что выбрано на панели: роль или групповые чаты (владелец 05.11.2026).
     /// По умолчанию — Помощник, с которым идёт основная работа.
     @State private var selectedScopeRaw = ChatHomeScopeKey
@@ -113,7 +54,7 @@ struct RoleChatsScreen: View {
     /// Свёрнутые папки проектов в каталоге «Групповые чаты»: свернул — комнаты
     /// задач этого проекта убраны, развернул — снова видны.
     @State private var openProjects: Set<String> = []
-    /// Штатный поиск под рядом комнат. Всегда на экране, под шапку не заезжает.
+    /// Штатный поиск в шапке списка.
     @State private var query = ""
     @State private var hits: [ChatSearchHit] = []
     @State private var isSearching = false
@@ -174,12 +115,9 @@ struct RoleChatsScreen: View {
     var body: some View {
         chatScroll
             .tfNativeHeader(headerTitle)
-            .tfChatsCollapsingHeader()
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Поиск по чатам")
             .tint(Color.tfText)
             .toolbar {
-                roomsCollapsingTitle
-                roomsHeaderPileItem
-                roomsLargeSubtitleItem
                 if isOwner, !isHome, openedScope == nil {
                     ToolbarItem(placement: .topBarLeading) {
                         Button { selectHome() } label: {
@@ -200,7 +138,6 @@ struct RoleChatsScreen: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
-                            withAnimation(TFMotion.standard) { isRoomsOpen = false }
                             openRoute?(.chatArchive)
                         } label: {
                             Label("Архивные", systemImage: "archivebox")
@@ -221,7 +158,6 @@ struct RoleChatsScreen: View {
                         .accessibilityIdentifier("chats.menu")
                 }
             }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Поиск по чатам")
             .tfSheet(isPresented: $showingCreate) {
                 CreateRoleChatScreen {
                     Task { await load() }
@@ -246,13 +182,6 @@ struct RoleChatsScreen: View {
             // локальная база вернула бы старый счётчик (владелец 08.11.2026:
             // «семёрка продолжает висеть»). Поэтому возврат — полное чтение.
             .onAppear {
-                #if DEBUG
-                // Отладочный вход в чаты открывает ряд: кнопки комнат остаются
-                // доступны проверкам, которые ищут их по идентификатору.
-                if !hasAppeared, ProcessInfo.processInfo.environment["TASKFLOW_DEBUG_ROUTE"] == "chat" {
-                    isRoomsOpen = true
-                }
-                #endif
                 guard hasAppeared else { hasAppeared = true; return }
                 Task { try? await refreshList(forceFull: true) }
             }
@@ -327,7 +256,9 @@ struct RoleChatsScreen: View {
                         }
                         .fixedSize(horizontal: false, vertical: true)
                         // Под сессией с ветками линии не прерываем разделителем.
-                        if index < rows.count - 1, rows[index + 1].row.lines.isEmpty { rowDivider }
+                        if index < rows.count - 1, rows[index + 1].row.lines.isEmpty {
+                            rowDivider(afterAvatar: rowMember(item.chat) != nil)
+                        }
                     }
                     if !selectedRoleDMs.isEmpty {
                         Text("Переписка с коллегами")
@@ -343,7 +274,8 @@ struct RoleChatsScreen: View {
                                 ChatListRow(title: rooms?.role(dm.peerID)?.name ?? "Роль",
                                             preview: dmPreview(dm.lastMessage),
                                             time: ChatListTime.label(dm.lastMessage?.createdAt),
-                                            unread: 0, turn: dm.turn)
+                                            unread: 0, turn: dm.turn,
+                                            member: rooms?.role(dm.peerID)?.member)
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("chats.room.\(dm.chatID)")
@@ -354,22 +286,6 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .tfScreenBackground()
-        // На iOS 26 ряд — большой подзаголовок, система сама схлопывает его.
-        // Ниже 26 этого слота нет — ряд над списком, поиск всё равно штатный.
-        .chatsTopChrome { roomsStrip(reveal: stripReveal) }
-        .chatsRoomsReveal(roomsRevealPan)
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y + geo.contentInsets.top
-        } action: { _, y in
-            listAtTop = y <= 2
-            // Уехал в список — ряд задвигается. Порог больше погрешности
-            // от собственной высоты ряда, иначе он закроется сразу.
-            if y > 48, isRoomsOpen, stripDrag == 0 {
-                withAnimation(.interpolatingSpring(duration: 0.3, bounce: 0)) {
-                    isRoomsOpen = false
-                }
-            }
-        }
     }
 
     /// Поле поиска: пока введено что-то, вместо секций — выдача по всем чатам.
@@ -423,7 +339,7 @@ struct RoleChatsScreen: View {
                 .padding(.bottom, TFSpacing.xs)
             ForEach(Array(pinned.enumerated()), id: \.element.id) { index, chat in
                 sessionLink(chat, isBranch: false)
-                if index < pinned.count - 1 { rowDivider }
+                if index < pinned.count - 1 { rowDivider(afterAvatar: rowMember(chat) != nil) }
             }
         }
         let roles = rooms?.roles.filter { $0.personalChatID != nil } ?? []
@@ -437,7 +353,7 @@ struct RoleChatsScreen: View {
             homeHeader("Роли")
             ForEach(Array(others.enumerated()), id: \.element.id) { index, role in
                 homeRoleRow(role)
-                if index < others.count - 1 { rowDivider }
+                if index < others.count - 1 { rowDivider(afterAvatar: true) }
             }
         }
         homeHeader("Групповые чаты")
@@ -473,7 +389,7 @@ struct RoleChatsScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("chats.hit.\(hit.chatID)")
-                if index < hits.count - 1 { rowDivider }
+                if index < hits.count - 1 { rowDivider() }
             }
         }
     }
@@ -489,14 +405,17 @@ struct RoleChatsScreen: View {
         // Переход, а не переключение состояния: нижняя панель прячется сама,
         // а свайп слева направо работает системный — шаг назад, как везде в
         // приложении (владелец 08.11.2026).
+        let running = role.working || role.personalTurn?.running == true
         return NavigationLink(value: AppRoute.chatRole(id: role.id)) {
             ChatListRow(title: role.name,
                         preview: line,
                         time: ChatListTime.label(role.lastMessage?.createdAt),
-                        unread: unread, turn: role.personalTurn)
+                        unread: unread,
+                        turn: running ? RoomTurn(running: true) : role.personalTurn,
+                        member: role.member)
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("chats.home.\(role.id)")
+        .accessibilityIdentifier("chats.rooms.\(role.id)")
     }
 
     private func selectHome() {
@@ -506,7 +425,6 @@ struct RoleChatsScreen: View {
             return
         }
         selectedScopeRaw = Self.ChatHomeScopeKey
-        withAnimation(TFMotion.standard) { isRoomsOpen = false }
     }
 
     // MARK: - Строка сессии
@@ -521,17 +439,17 @@ struct RoleChatsScreen: View {
             if let title = section.title {
                 folderRow(title: title, isOpen: openProjects.contains(title), count: section.ids.count,
                           isFirst: index == 0)
-                rowDivider
+                rowDivider()
             }
             let isOpen = section.title.map { openProjects.contains($0) } ?? true
             if isOpen {
                 let rooms = section.ids.compactMap { byID[$0] }
                 ForEach(Array(rooms.enumerated()), id: \.element.id) { position, chat in
                     sessionLink(chat, isBranch: false)
-                    if position < rooms.count - 1 { rowDivider }
+                    if position < rooms.count - 1 { rowDivider(afterAvatar: rowMember(chat) != nil) }
                 }
             }
-            if index < sections.count - 1, sections[index + 1].title != nil, !isOpen { rowDivider }
+            if index < sections.count - 1, sections[index + 1].title != nil, !isOpen { rowDivider() }
         }
     }
 
@@ -566,9 +484,10 @@ struct RoleChatsScreen: View {
         }
     }
 
-    /// Разделитель отбит до начала текста: строка читается как строка списка.
-    private var rowDivider: some View {
-        TFDivider(inset: TFSpacing.screenHorizontal)
+    /// Разделитель отбит до начала текста: у строки с аватаром — за кружком.
+    private func rowDivider(afterAvatar: Bool = false) -> some View {
+        let extra: CGFloat = afterAvatar ? TFAvatar.Size.xl.rawValue + TFSpacing.sm : 0
+        return TFDivider(inset: TFSpacing.screenHorizontal + extra)
     }
 
     private func sessionLink(_ chat: RoleChat, isBranch: Bool) -> some View {
@@ -615,131 +534,12 @@ struct RoleChatsScreen: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private func roomsStrip(reveal: CGFloat) -> some View {
-        ChatRoomsTopStrip(
-            snapshot: rooms,
-            favorites: railFavorites,
-            showsAll: railShowsAll,
-            reveal: reveal,
-            onToggleFavorite: { toggleRailFavorite($0) },
-            onToggleAll: { withAnimation(TFMotion.standard) { railShowsAll.toggle() } },
-            onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
-            onOpenGroups: { openRoute?(.chatGroups) },
-            onToggleReveal: {
-                withAnimation(.interpolatingSpring(duration: 0.34, bounce: 0)) {
-                    isRoomsOpen.toggle()
-                    stripDrag = 0
-                }
-            }
-        )
-    }
-
-    /// Крупный «ЧАТ» слева. При прокрутке система уводит его в маленький
-    /// заголовок по центру — тот, что уже стоит в `.principal`.
-    @ToolbarContentBuilder
-    private var roomsCollapsingTitle: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .largeTitle) {
-                TFNavBarTitleFont.title(
-                    headerTitle,
-                    multiplier: TFTypeGroup.heading.multiplier,
-                    face: TFTypeFace.saved
-                )
-            }
-            .chatsBareToolbarItem()
-        }
-    }
-
-    /// Большой подзаголовок: ряд аватарок слева. Пункт не снимаем, когда ряд
-    /// схлопнут — система сама переводит его в маленький подзаголовок.
-    @ToolbarContentBuilder
-    private var roomsLargeSubtitleItem: some ToolbarContent {
-        if #available(iOS 26.0, *), isOwner {
-            ToolbarItem(placement: .largeSubtitle) {
-                roomsStrip(reveal: 1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .chatsBareToolbarItem()
-        }
-    }
-
-    /// Маленький подзаголовок по центру. На iOS 26 это свёрнутые аватарки.
-    /// Ниже 26 слота нет — стопка стоит слева в шапке и гаснет своим жестом.
-    @ToolbarContentBuilder
-    private var roomsHeaderPileItem: some ToolbarContent {
-        let idsEmpty = ChatRoomsRail.visibleIDs(rooms, favorites: railFavorites, showsAll: railShowsAll).isEmpty
-        if #available(iOS 26.0, *), isOwner, isHome, !idsEmpty {
-            ToolbarItem(placement: .subtitle) {
-                ChatRoomsHeaderPile(
-                    snapshot: rooms,
-                    favorites: railFavorites,
-                    showsAll: railShowsAll,
-                    reveal: 0,
-                    onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
-                    onOpenGroups: { openRoute?(.chatGroups) }
-                )
-            }
-            .chatsBareToolbarItem()
-        } else if isOwner, isHome, !(isRoomsOpen && stripDrag == 0), !idsEmpty {
-            ToolbarItem(placement: .topBarLeading) {
-                ChatRoomsHeaderPile(
-                    snapshot: rooms,
-                    favorites: railFavorites,
-                    showsAll: railShowsAll,
-                    reveal: stripReveal,
-                    onOpenRole: { openRoute?(.chatRole(id: $0.id)) },
-                    onOpenGroups: { openRoute?(.chatGroups) }
-                )
-            }
-        }
-    }
-
-    /// 0 — стопка в шапке, 1 — ряд с именами. Потяг прибавляется к защёлкнутому положению.
-    private var stripReveal: CGFloat {
-        let base: CGFloat = isRoomsOpen ? 1 : 0
-        return min(1, max(0, base + stripDrag / ChatRoomsTopMetrics.travel))
-    }
-
-    private var roomsRevealPan: RoomsRevealPan {
-        RoomsRevealPan(enabled: isOwner, atTop: listAtTop, isOpen: isRoomsOpen, onChange: { dy in
-            stripDrag = dy
-        }, onEnd: { dy, vy in
-            let base: CGFloat = isRoomsOpen ? 1 : 0
-            let projected = base + (dy + vy * 0.12) / ChatRoomsTopMetrics.travel
-            withAnimation(.interpolatingSpring(duration: 0.34, bounce: abs(vy) > 280 ? 0.12 : 0)) {
-                isRoomsOpen = projected > 0.42
-                stripDrag = 0
-            }
-        })
-    }
-
     private var errorPresented: Binding<Bool> {
         Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
     }
     private var purgePresented: Binding<Bool> {
         Binding(get: { pendingPurge != nil }, set: { if !$0 { pendingPurge = nil } })
     }
-    private var railFavorites: Set<String> {
-        Set(railFavoritesRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
-    }
-
-    /// Долгое нажатие: комната уходит в избранное или возвращается к остальным.
-    private func toggleRailFavorite(_ id: String) {
-        var favorites = railFavorites
-        if favorites.contains(id) {
-            favorites.remove(id)
-        } else {
-            favorites.insert(id)
-        }
-        railFavoritesRaw = favorites.sorted().joined(separator: ",")
-        if favorites.isEmpty { railShowsAll = false }
-    }
-
-    private func select(_ scope: RoleSessionScope) {
-        selectedScopeRaw = scope.stored
-        withAnimation(TFMotion.standard) { isRoomsOpen = false }
-    }
-
     private func startNewSession() {
         switch selectedScope {
         case .groups: showingCreate = true
@@ -791,8 +591,16 @@ struct RoleChatsScreen: View {
             // В каталоге проект уже назван папкой, в строке он был бы повтором.
             projectName: selectedScope == .groups
                 ? nil
-                : (chat.projectName == chat.title ? nil : chat.projectName)
+                : (chat.projectName == chat.title ? nil : chat.projectName),
+            member: rowMember(chat)
         )
+    }
+
+    /// Слева у строки — собеседник, когда он один. В группе лиц несколько,
+    /// один кружок за всех не ставится.
+    private func rowMember(_ chat: RoleChat) -> RoleChatMember? {
+        let others = chat.others(excluding: session.currentUser?.id)
+        return others.count == 1 ? others.first : nil
     }
 
     private func rowTitle(_ chat: RoleChat, isBranch: Bool) -> String {

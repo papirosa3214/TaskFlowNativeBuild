@@ -20,8 +20,10 @@ struct ChatListRow: View {
     /// Занятый контекст сессии, например «Контекст 42%».
     var contextLabel: String? = nil
     var projectName: String? = nil
+    /// Участник слева. Нет участника — строка без кружка.
+    var member: RoleChatMember? = nil
 
-    /// Строка под превью: без аватарки только здесь видно, что роль работает.
+    /// Строка под превью: здесь видно, что роль работает.
     private var metaLine: String? {
         let parts = [turn?.running == true ? "Работает" : nil, contextLabel, projectName]
             .compactMap { $0 }
@@ -30,7 +32,12 @@ struct ChatListRow: View {
     }
 
     var body: some View {
-        HStack(spacing: TFSpacing.sm) {
+        HStack(alignment: .center, spacing: TFSpacing.sm) {
+            if let member {
+                RoleMemberAvatar(member: member)
+                    .environment(\.tfAvatarLiveTurn, turn?.running == true)
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .tfText(.body)
