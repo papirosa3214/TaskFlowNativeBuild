@@ -3,6 +3,7 @@ build_sim/
 build_dev/
 build_dev_signed/
 build_device/
+build_agent/
 build_fix/
 build_spec12/
 DerivedData/
