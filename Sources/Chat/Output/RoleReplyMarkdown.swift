@@ -322,9 +322,10 @@ struct RoleReplyMarkdown: View, Equatable {
         if let cached = runPieces.value(for: key) { return cached }
         let built = block.runs.map { run in
             RunPiece(attributed: attributed([run]), bold: run.bold, code: run.code,
-                     link: run.linkHref.flatMap {
-                         ChatLinkPresentation.presentation(href: $0, text: run.text)
-                     })
+                     link: ChatLinkPresentation.presentation(href: run.text, text: run.text)
+                        ?? run.linkHref.flatMap {
+                            ChatLinkPresentation.presentation(href: $0, text: run.text)
+                        })
         }
         runPieces.set(built, for: key)
         return built
@@ -338,9 +339,13 @@ struct RoleReplyMarkdown: View, Equatable {
             // Подпись ссылки — короткая (`owner/repo#12`, `File.swift:23`):
             // длинный адрес посреди ответа читать нельзя, а в T3 Code его и
             // не показывают (владелец 10.11.2026).
-            let link = run.linkHref.flatMap {
-                ChatLinkPresentation.presentation(href: $0, text: run.text)
-            }
+            // Путь к файлу, набранный простым текстом или в обратных кавычках,
+            // тоже получает иконку языка: роль не обязана делать из него
+            // ссылку (владелец 10.11.2026 — роли не пользуются инструкцией).
+            let link = ChatLinkPresentation.presentation(href: run.text, text: run.text)
+                ?? run.linkHref.flatMap {
+                    ChatLinkPresentation.presentation(href: $0, text: run.text)
+                }
             var piece = AttributedString(link?.label ?? run.text)
             var intent: InlinePresentationIntent = []
             if run.bold { intent.insert(.stronglyEmphasized) }
