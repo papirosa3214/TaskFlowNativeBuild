@@ -148,4 +148,15 @@ final class RoleSessionListTests: XCTestCase {
     func testContextUsageWithoutWindowHasNoLabel() {
         XCTAssertNil(RoleChatContextUsage(tokens: 10, contextWindow: 0).label)
     }
+
+    /// Владелец 11.11.2026: внутри экрана конкретной роли кружок собеседника не
+    /// нужен — роль уже названа заголовком. В общем списке чатов он остаётся.
+    func testAvatarHiddenInsideRoleScope() {
+        XCTAssertFalse(RoleSessionList.showsAvatar(in: .role("u-secretary")))
+        XCTAssertFalse(RoleSessionList.showsAvatar(in: .role("role_builder")))
+    }
+
+    func testAvatarKeptInGeneralChatList() {
+        XCTAssertTrue(RoleSessionList.showsAvatar(in: .groups))
+    }
 }
