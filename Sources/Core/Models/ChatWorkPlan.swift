@@ -131,6 +131,9 @@ extension ChatWorkPlan {
             return plans.filter { $0.roleID != reset.role_id }
         }
         guard let incoming = try? JSONDecoder().decode(ChatWorkPlan.self, from: data) else { return nil }
+        // Закрытый план (сдан целиком или закрыт стопом владельца) полоску не
+        // занимает — иначе он висел бы мусором (владелец 11.11.2026).
+        guard incoming.status == .active else { return plans.filter { $0.roleID != incoming.roleID } }
         var result = plans
         if let index = result.firstIndex(where: { $0.roleID == incoming.roleID }) {
             if result[index].revision <= incoming.revision { result[index] = incoming }

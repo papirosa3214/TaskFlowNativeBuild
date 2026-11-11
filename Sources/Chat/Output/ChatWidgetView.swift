@@ -75,17 +75,18 @@ struct ChatWidgetView: View {
     private func tableWidget(_ data: WidgetData) -> some View {
         switch WidgetTableParser.parse(data.raw) {
         case .success(let table):
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                if let title = table.title {
-                    Text(title).tfText(.action).foregroundStyle(Color.tfChatText)
-                }
-                ChatTableView(table: ChatTable(
-                    header: table.columns,
-                    alignments: Array(repeating: .leading, count: table.columns.count),
-                    rows: table.rows
-                ))
-                if let note = table.truncatedNote {
-                    Text(note).tfText(.meta).foregroundStyle(Color.tfSub)
+            // Таблица-виджет — такой же блок на тёмной подложке, как остальные
+            // виджеты (владелец 11.11.2026: подложка как у пузыря сообщения).
+            WidgetCard(title: table.title) {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    ChatTableView(table: ChatTable(
+                        header: table.columns,
+                        alignments: Array(repeating: .leading, count: table.columns.count),
+                        rows: table.rows
+                    ))
+                    if let note = table.truncatedNote {
+                        Text(note).tfText(.meta).foregroundStyle(Color.tfSub)
+                    }
                 }
             }
         case .failure(let problem):
