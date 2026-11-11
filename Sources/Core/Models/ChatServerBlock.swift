@@ -76,13 +76,21 @@ public struct ChatLiveBlock: Decodable, Sendable, Equatable {
 }
 
 /// Блоки текущих живых ходов по полному тексту реплики. Заполняется при
-/// разборе снимка с сервера, читается пейсером и экраном. Хранит немного:
-/// живых реплик единицы, старые вытесняются.
+/// разборе снимка с сервера, читается пейсером и экраном. Вытесняется
+/// запись, которую дольше всех не читали (LRU): реплики активного хода
+/// читаются на каждом кадре и поэтому не уходят, даже когда длинный ход
+/// набрал много реплик (раньше 16 записей по порядку вставки — ранние реплики
+/// показывали «Не удалось получить подготовленное содержимое»).
 public final class ChatLiveBlockRegistry: @unchecked Sendable {
     public static let shared = ChatLiveBlockRegistry()
     private let lock = NSLock()
+    /// От давних к свежим: последний — самый недавно использованный.
     private var entries: [(text: String, blocks: [ChatLiveBlock])] = []
-    private let limit = 16
+    private let limit: Int
+
+    init(limit: Int = 64) {
+        self.limit = max(1, limit)
+    }
 
     public func register(_ blocks: [ChatLiveBlock], for text: String) {
         lock.lock(); defer { lock.unlock() }
@@ -93,7 +101,9 @@ public final class ChatLiveBlockRegistry: @unchecked Sendable {
 
     public func blocks(for text: String) -> [ChatLiveBlock]? {
         lock.lock(); defer { lock.unlock() }
-        return entries.last { $0.text == text }?.blocks
+        guard let index = entries.lastIndex(where: { $0.text == text }) else { return nil }
+        touch(index)
+        return entries[entries.count - 1].blocks
     }
 
     /// Блок, чей исходный кусок начинается с показанного текста (пейсер
@@ -101,10 +111,19 @@ public final class ChatLiveBlockRegistry: @unchecked Sendable {
     public func block(startingWith shown: String) -> ChatLiveBlock? {
         guard !shown.isEmpty else { return nil }
         lock.lock(); defer { lock.unlock() }
-        for entry in entries.reversed() {
-            if let match = entry.blocks.last(where: { $0.source.hasPrefix(shown) && !$0.source.isEmpty }) { return match }
+        for index in entries.indices.reversed() {
+            if let match = entries[index].blocks.last(where: { $0.source.hasPrefix(shown) && !$0.source.isEmpty }) {
+                touch(index)
+                return match
+            }
         }
         return nil
+    }
+
+    /// Запись использована — в конец, к свежим. Вызывается под замком.
+    private func touch(_ index: Int) {
+        guard index != entries.count - 1 else { return }
+        entries.append(entries.remove(at: index))
     }
 }
 

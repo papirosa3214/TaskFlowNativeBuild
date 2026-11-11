@@ -39,11 +39,16 @@ extension RoleChatLiveDeltaItem {
 
     /// Блоки сервера — в тот же реестр, что и при полном снимке, но только
     /// если они относятся к нынешнему тексту; иначе экран разбирает сам.
+    ///
+    /// Вызывается на каждую дельту для всех пунктов хода, поэтому сначала
+    /// дешёвые проверки: пункт без текущих блоков или уже зарегистрированный
+    /// (текст не менялся) не кодируется. JSON-перекодирование — только для
+    /// нового или изменившегося пункта.
     func registerCurrentBlocks() {
-        guard let blocks = currentBlocks,
+        guard ChatLiveBlockRegistry.shared.blocks(for: text) == nil,
+              let blocks = currentBlocks,
               let data = try? JSONEncoder().encode(blocks),
-              let list = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !list.isEmpty,
-              ChatLiveBlockRegistry.shared.blocks(for: text) == nil else { return }
+              let list = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !list.isEmpty else { return }
         ChatLiveBlockRegistry.shared.register(list, for: text)
     }
 }
