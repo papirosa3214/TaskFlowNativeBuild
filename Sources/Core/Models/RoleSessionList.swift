@@ -167,6 +167,17 @@ public enum RoleSessionList {
         return order.map { RoleSessionGroup(title: $0, ids: buckets[$0 ?? ""] ?? []) }
     }
 
+    /// Кружок собеседника в строке списка. Внутри экрана конкретной роли он
+    /// не нужен: роль уже названа заголовком экрана, и одинаковый кружок у
+    /// каждой сессии только шумит (владелец 11.11.2026). В общем списке чатов
+    /// аватар остаётся — там он различает роли, внешних агентов и группы.
+    public static func showsAvatar(in scope: RoleSessionScope) -> Bool {
+        switch scope {
+        case .role: return false
+        case .groups: return true
+        }
+    }
+
     /// «1 комната», «2 комнаты», «5 комнат» — подпись папки в каталоге.
     public static func roomsCount(_ count: Int) -> String {
         let tail = count % 100
