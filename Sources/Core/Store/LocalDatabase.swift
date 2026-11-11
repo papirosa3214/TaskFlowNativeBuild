@@ -9,13 +9,13 @@ import GRDB
 /// и СЫРОЙ ответ сервера (`payload_json`), и отпечатки (`sync_state`:
 /// ETag и курсоры), которые переживают перезапуск приложения.
 ///
-/// `DatabaseQueue`, а не `DatabasePool`: записей мало (upsert по id), а
-/// читать надо быстро и предсказуемо. Второй писатель в очередь не
-/// встанет — SQLite сам разрулит.
+/// `DatabasePool` (WAL): чтение ленты с главного потока не ждёт фоновую
+/// запись синхронизации (аудит плавности чата 11.11.2026; до этого был
+/// `DatabaseQueue`, и открытие чата стояло за записью сети).
 final class LocalDatabase {
     static let shared = LocalDatabase()
 
-    let queue: DatabaseQueue
+    let queue: any DatabaseWriter
 
     /// Создалась ли база: если миграция не прошла, приложение продолжает
     /// работать на сети (LocalStore вернёт пустые списки), но не падает.
@@ -36,7 +36,7 @@ final class LocalDatabase {
 
     // MARK: - Файл базы
 
-    private static func makeQueue() -> DatabaseQueue {
+    private static func makeQueue() -> any DatabaseWriter {
         let manager = FileManager.default
         let base = (try? manager.url(
             for: .applicationSupportDirectory,
@@ -47,7 +47,7 @@ final class LocalDatabase {
         let folder = base.appendingPathComponent("TaskFlow", isDirectory: true)
         try? manager.createDirectory(at: folder, withIntermediateDirectories: true)
         let path = folder.appendingPathComponent("taskflow.sqlite").path
-        if let queue = try? DatabaseQueue(path: path) { return queue }
+        if let pool = try? DatabasePool(path: path) { return pool }
         // Файловая база не открылась — работаем в памяти: список пустой, но
         // приложение живо и не падает на старте.
         // swiftlint:disable:next force_try
