@@ -195,13 +195,20 @@ public final class TaskStore {
         }
     }
 
-    public func loadArchive() async {
+    /// Архив грузится один раз за сессию и дальше только обновляется по явному
+    /// запросу (`force`): он сам по себе не меняется, а прежний код тянул весь
+    /// архив (задачи с детьми) при каждом входе в «Проекты» ради счётчика.
+    private var archiveLoaded = false
+
+    public func loadArchive(force: Bool = false) async {
+        guard force || !archiveLoaded else { return }
         isLoadingArchive = true
         archiveErrorMessage = nil
         defer { isLoadingArchive = false }
         do {
             archivedTasks = try await apiClient.tasks(includeChildren: true, archived: true)
                 .filter { $0.isArchived }
+            archiveLoaded = true
         } catch is CancellationError {
         } catch {
             archiveErrorMessage = Self.message(for: error)
@@ -219,7 +226,7 @@ public final class TaskStore {
             }
             upsert(archived)
             await load(silent: true)
-            await loadArchive()
+            await loadArchive(force: true)
             return true
         } catch {
             errorMessage = Self.message(for: error)
@@ -238,7 +245,7 @@ public final class TaskStore {
             }
             upsert(restored)
             await load(silent: true)
-            await loadArchive()
+            await loadArchive(force: true)
             return true
         } catch {
             archiveErrorMessage = Self.message(for: error)
@@ -258,7 +265,7 @@ public final class TaskStore {
         do {
             try await apiClient.permanentlyDeleteTask(id: taskId)
             archivedTasks.removeAll { $0.id == taskId }
-            await loadArchive()
+            await loadArchive(force: true)
             return true
         } catch {
             archiveErrorMessage = Self.message(for: error)

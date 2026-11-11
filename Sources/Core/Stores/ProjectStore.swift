@@ -53,9 +53,16 @@ public final class ProjectStore {
     public private(set) var archivedProjects: [ApiProject] = []
     public var archiveErrorMessage: String?
 
-    public func loadArchive() async {
+    /// См. `TaskStore.loadArchive`: один раз за сессию, дальше — только `force`.
+    private var archiveLoaded = false
+
+    public func loadArchive(force: Bool = false) async {
+        guard force || !archiveLoaded else { return }
         archiveErrorMessage = nil
-        do { archivedProjects = try await apiClient.archivedProjects() }
+        do {
+            archivedProjects = try await apiClient.archivedProjects()
+            archiveLoaded = true
+        }
         catch is CancellationError {}
         catch { archiveErrorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription }
     }
@@ -65,7 +72,7 @@ public final class ProjectStore {
         do {
             try await apiClient.restoreProject(id: projectId)
             await load()
-            await loadArchive()
+            await loadArchive(force: true)
             return true
         } catch { archiveErrorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription; return false }
     }
@@ -78,7 +85,7 @@ public final class ProjectStore {
         }
         do {
             try await apiClient.permanentlyDeleteProject(id: projectId)
-            await loadArchive()
+            await loadArchive(force: true)
             return true
         } catch { archiveErrorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription; return false }
     }
@@ -88,7 +95,7 @@ public final class ProjectStore {
         projects.removeAll { $0.id == projectId }
         do {
             try await apiClient.deleteProject(id: projectId)
-            await loadArchive()
+            await loadArchive(force: true)
         } catch {
             projects = snapshot
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
