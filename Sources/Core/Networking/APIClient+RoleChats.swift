@@ -237,11 +237,11 @@ public extension APIClient {
     /// `recipientSubtaskID` — шаг плана, которому адресовано сообщение: сервер
     /// доставляет его роли этого шага, а не всем участникам чата.
     func sendRoleChatMessage(chatID: String, text: String, attachmentIDs: [String] = [], mode: RoleChatWorkMode = .work, executionMode: ChatExecutionMode? = nil,
-                             model: String? = nil, recipientSubtaskID: String? = nil) async throws -> RoleChatMessage {
-        struct Body: Encodable { let text: String; let attachment_ids: [String]; let work_mode: RoleChatWorkMode; let execution_mode: ChatExecutionMode?; let model: String?; let recipient_subtask_id: String? }
+                             model: String? = nil, recipientSubtaskID: String? = nil, replyToMessageID: String? = nil) async throws -> RoleChatMessage {
+        struct Body: Encodable { let text: String; let attachment_ids: [String]; let work_mode: RoleChatWorkMode; let execution_mode: ChatExecutionMode?; let model: String?; let recipient_subtask_id: String?; let reply_to_message_id: String? }
         let response: RoleChatMessageEnvelope = try await request(
             .post, "/chats/\(chatID)/messages",
-            body: Body(text: text, attachment_ids: attachmentIDs, work_mode: mode, execution_mode: executionMode, model: model, recipient_subtask_id: recipientSubtaskID)
+            body: Body(text: text, attachment_ids: attachmentIDs, work_mode: mode, execution_mode: executionMode, model: model, recipient_subtask_id: recipientSubtaskID, reply_to_message_id: replyToMessageID)
         )
         return response.message
     }

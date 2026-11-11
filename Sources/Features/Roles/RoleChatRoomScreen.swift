@@ -14,6 +14,8 @@ private struct PendingOutgoing: Identifiable, Equatable {
     let attachments: [ApiChatAttachment]
     let mode: RoleChatWorkMode
     let executionMode: ChatExecutionMode
+    /// Сообщение, на которое отвечает владелец. nil — обычная реплика.
+    let replyToMessageID: String?
     var failed = false
 }
 
@@ -29,6 +31,8 @@ struct RoleChatRoomScreen: View {
     /// открытии чата мелькала пустая страница «Пока нет сообщений»).
     @State private var hasLoadedMessages = false
     @State private var draft = ""
+    /// «Ответить» из меню сообщения: следующая отправка уйдёт в ответ на него.
+    @State private var replyTarget: ChatOwnerReply.Target?
     @State private var isSending = false
     @State private var errorMessage: String?
     /// Последнее сообщение, до которого чат уже отмечен прочитанным (LOCK-206).
@@ -577,6 +581,27 @@ struct RoleChatRoomScreen: View {
                     draft = command.inserting(into: draft)
                     composerFocused = true
                 }
+            }
+            if let reply = replyTarget, !isSelecting, !isReadOnlyDirectRoom {
+                HStack(alignment: .top, spacing: TFSpacing.sm) {
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Text("В ответ на")
+                            .tfText(.meta)
+                            .foregroundStyle(Color.tfSub)
+                        Text(reply.excerpt)
+                            .tfText(.action)
+                            .foregroundStyle(Color.tfText)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                    Button { replyTarget = nil } label: {
+                        Image(systemName: "xmark")
+                            .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                    }
+                    .accessibilityLabel("Не отвечать")
+                }
+                .padding(.horizontal, TFSpacing.lg)
+                .accessibilityIdentifier("chat.replyDraft")
             }
             if !pendingAttachments.isEmpty {
                 HStack {
@@ -1732,7 +1757,7 @@ struct RoleChatRoomScreen: View {
             fromUserAvatarURL: nil,
             fromUserInitials: nil,
             kind: nil,
-            replyToMessageID: nil,
+            replyToMessageID: pending.replyToMessageID,
             replyToSenderName: nil,
             text: pending.text,
             roleEnvelope: nil,
@@ -2421,6 +2446,16 @@ struct RoleChatRoomScreen: View {
     /// приходилось проставлять дважды.
     @ViewBuilder
     private func messageContextMenu(_ message: RoleChatMessage, isMine: Bool) -> some View {
+        if let reply = ChatOwnerReply.target(id: message.id, text: message.text, isSessionMarker: message.isSessionMarker),
+           !isReadOnlyDirectRoom {
+            Button {
+                replyTarget = reply
+                composerFocused = true
+            } label: {
+                Label("Ответить", systemImage: "arrowshape.turn.up.left")
+            }
+            .accessibilityIdentifier("chat.replyAction")
+        }
         if !message.text.isEmpty {
             Button { selectingText = SelectableMessageText(text: message.text) } label: {
                 Label("Выделить текст", systemImage: "text.cursor")
@@ -2738,8 +2773,10 @@ struct RoleChatRoomScreen: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (!text.isEmpty || !pendingAttachments.isEmpty), !isSending, !isUploadingAttachment else { return }
         let pending = PendingOutgoing(id: "local-\(UUID().uuidString)", text: text,
-                                      attachments: pendingAttachments, mode: workMode, executionMode: chat.composerExecutionMode)
+                                      attachments: pendingAttachments, mode: workMode, executionMode: chat.composerExecutionMode,
+                                      replyToMessageID: replyTarget?.messageID)
         draft = ""
+        replyTarget = nil
         pendingAttachments = []
         // Отправил — лента идёт к низу: своё сообщение должно попасть в кадр.
         // Низ держит сама таблица ленты (`followsBottom`), отдельного механизма
@@ -2762,7 +2799,8 @@ struct RoleChatRoomScreen: View {
         do {
             let message = try await api.sendRoleChatMessage(chatID: chat.id, text: pending.text,
                                                             attachmentIDs: pending.attachments.map(\.id), mode: pending.mode, executionMode: pending.executionMode,
-                                                            model: chat.isAssistantOnly ? nil : modelChoice.selected)
+                                                            model: chat.isAssistantOnly ? nil : modelChoice.selected,
+                                                            replyToMessageID: pending.replyToMessageID)
             pendingOutgoing.removeAll { $0.id == pendingID }
             if !messages.contains(where: { $0.id == message.id }) {
                 // Своё отправленное сообщение занимает строку пузыря «в
@@ -2913,7 +2951,9 @@ struct RoleChatRoomScreen: View {
             let text: String
             if case .ready(let recognized) = message.transcript { text = recognized }
             else { text = "" }
-            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, executionMode: pendingVoiceExecutionModes[id] ?? chat.composerExecutionMode, model: chat.isAssistantOnly ? nil : modelChoice.selected)
+            let replyID = replyTarget?.messageID
+            let sent = try await api.sendRoleChatMessage(chatID: chat.id, text: text, attachmentIDs: [attachmentID], mode: pendingVoiceModes[id] ?? workMode, executionMode: pendingVoiceExecutionModes[id] ?? chat.composerExecutionMode, model: chat.isAssistantOnly ? nil : modelChoice.selected, replyToMessageID: replyID)
+            if replyTarget?.messageID == replyID { replyTarget = nil }
             if !messages.contains(where: { $0.id == sent.id }) { messages.append(sent) }
             pendingVoices.removeAll { $0.id == id }
             pendingVoiceModes[id] = nil
