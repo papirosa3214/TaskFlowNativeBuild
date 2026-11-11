@@ -41,6 +41,25 @@ final class HintCenterTests: XCTestCase {
         XCTAssertTrue(center.completed.contains(scenario.id))
     }
 
+    /// Цепочка «панель чата»: меню действий → окно сессии → строка контекста
+    /// → команды. Проверяет, что подсказка про расход контекста ведёт в окно
+    /// сессии (там она и живёт), а не в снятое кольцо панели ввода.
+    func testChatComposerControlsWalksThroughSessionContext() throws {
+        let scenario = try XCTUnwrap(HintScenarios.all.first { $0.id == "chat-composer-controls" })
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let center = HintCenter(defaults: defaults, scenarios: [scenario])
+        center.start(scenario.id)
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatComposerActions)
+        center.next()
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatSession)
+        center.next()
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatSessionContext)
+        center.next()
+        XCTAssertEqual(center.currentStep?.anchor, HintAnchorID.chatComposerActions)
+        center.next()
+        XCTAssertTrue(center.completed.contains(scenario.id))
+    }
+
     func testAssistantSessionHintCompletes() {
         let scenario = HintScenarios.assistantSession
         let center = HintCenter(defaults: defaults, scenarios: [scenario])

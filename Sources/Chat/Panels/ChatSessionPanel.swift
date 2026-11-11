@@ -70,6 +70,7 @@ struct ChatSessionPanel: View {
             .accessibilityLabel("Контекст модели")
             .accessibilityValue(context?.summary ?? "Нет замера")
             .accessibilityIdentifier("chat.session.context")
+            .hintAnchor(HintAnchorID.chatSessionContext)
 
             if let onAttachmentSource {
                 Divider()
