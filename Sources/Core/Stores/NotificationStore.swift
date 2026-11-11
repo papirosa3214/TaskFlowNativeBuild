@@ -9,8 +9,6 @@ public final class NotificationStore {
     public private(set) var isLoading = false
     public var errorMessage: String?
 
-    public var unreadCount: Int { notifications.count(where: { !$0.read }) }
-
     private let apiClient: APIClient
 
     public init(apiClient: APIClient) {
@@ -36,19 +34,6 @@ public final class NotificationStore {
             let data = try await apiClient.rawNotifications(unreadOnly: unreadOnly)
             notifications = try apiClient.decode([ApiNotification].self, from: data)
             try? LocalStore.shared.upsertNotifications(data)
-        } catch {
-            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-
-    public func markRead(id: String) async {
-        guard notifications.contains(where: { $0.id == id }) else { return }
-        do {
-            try await apiClient.markNotificationRead(id: id)
-            // `PATCH .../read` возвращает только `{ ok: true }`, поэтому
-            // перечитываем полный серверный снимок вместо локальной имитации
-            // неизменяемой `ApiNotification`.
-            await load()
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }

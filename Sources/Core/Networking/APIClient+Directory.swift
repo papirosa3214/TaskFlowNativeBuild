@@ -17,13 +17,10 @@ import Foundation
 //    (`src/screens/SearchScreen.tsx`) их так и показывает. Спека
 //    здесь просто устарела/неполна — в отчёте оркестратору.
 //
-// 2. Уведомления. Core `markNotificationRead` шлёт `PATCH /notifications/:id`
-//    с телом `{read:true}` — живой сервер (`server/src/routes/notifications.ts`)
-//    ждёт `PATCH /notifications/:id/read` БЕЗ тела. Так же нет в Core метода
-//    «прочитать все» — сервер его отдаёт (`POST /notifications/read-all`),
-//    веб `NotificationsScreen.tsx` его вызывает. Core здесь просто ошибается
-//    путём — в отчёте оркестратору, звонок с реальными данными делать
-//    осторожно (граница задачи: живой сервер — только чтение).
+// 2. Уведомления. Ошибочный дубль `APIClient.markNotificationRead` убран
+//    11.11.2026: путь `PATCH /notifications/:id/read` без тела здесь, в
+//    `directoryMarkNotificationRead`; массовый — `POST /notifications/read-all`
+//    в `directoryMarkAllNotificationsRead`.
 //
 // 3. `GET /notes` (список заметок с title/preview) и `GET /projects/:id/docs`
 //    (сводка документации проекта) — есть на сервере и в spec/API.md §5.9,

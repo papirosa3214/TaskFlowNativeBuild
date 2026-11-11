@@ -4,23 +4,12 @@ import SwiftUI
 // общего `NotificationStore` (Environment) — прогрет при старте приложения
 // и живёт по WS-событию `notification:new`, единый источник истины.
 //
-// ⚠️ Мутации — НЕ через `NotificationStore.markRead`. Проверено чтением
-// живого `server/src/routes/notifications.ts` (только чтение, спека сама
-// путей не даёт): реальные роуты — `PATCH /notifications/:id/read` (БЕЗ
-// тела), `POST /notifications/read-all`, `DELETE /notifications/:id`.
-// `Core/Networking/APIClient+Notifications.swift.markNotificationRead` шлёт
-// `PATCH /notifications/:id` С телом `{read:true}` — такого маршрута на
-// сервере нет вовсе, запрос получит 404. Использую вместо него
-// `directoryMarkNotificationRead`/`directoryMarkAllNotificationsRead` из
-// `Core/Networking/APIClient+Directory.swift` (уже заведены параллельным исполнителем по
-// той же причине) и после успеха перезагружаю стор целиком (`load()`,
-// публичный метод) — стор не даёт точечно поправить один элемент
-// (`notifications` — `private(set)`), а трогать чужой файл нельзя.
+// Мутации идут через `directoryMarkNotificationRead` /
+// `directoryMarkAllNotificationsRead` (`Core/Networking/APIClient+Directory.swift`):
+// живые роуты сервера — `PATCH /notifications/:id/read` без тела и
+// `POST /notifications/read-all`. После успеха стор перечитывается целиком
+// (`load()`): `notifications` — `private(set)`, точечно элемент не поправить.
 // `deleteNotification` в Core адресом верен — используется как есть.
-//
-// В отчёте оркестратору: `NotificationStore` стоит обзавестись реальными
-// `markRead`/`markAllRead`/`delete` с точечным обновлением массива — иначе
-// каждое действие здесь стоит полного рефетча уведомлений.
 struct NotificationsScreen: View {
     @Environment(NotificationStore.self) private var notificationStore
     @Environment(TaskStore.self) private var taskStore

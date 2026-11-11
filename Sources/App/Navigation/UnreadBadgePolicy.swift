@@ -11,10 +11,4 @@ enum UnreadBadgePolicy {
     static func todaySeenDate(current: String, today: String, isOnTodayTab: Bool) -> String {
         isOnTodayTab ? today : current
     }
-
-    /// Цифра на вкладке темы проекта: открытая тема прочитана, даже если
-    /// список тем пришёл раньше, чем сервер принял отметку прочтения.
-    static func topicCount(unread: Int, isOpen: Bool) -> Int {
-        isOpen ? 0 : unread
-    }
 }
