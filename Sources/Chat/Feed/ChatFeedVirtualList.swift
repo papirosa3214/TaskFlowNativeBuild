@@ -90,10 +90,23 @@ final class ChatFeedTableView: UITableView {
     /// (владелец 10.11.2026).
     var rowWidth: CGFloat = 0
 
+    /// Высота содержимого на прошлой раскладке: строка, выросшая сама
+    /// (самоинвалидация ячейки — дописывается ответ), двигает низ.
+    private var lastContentHeight: CGFloat = 0
+
     override func layoutSubviews() {
         let heightBefore = lastBoundsHeight
+        let contentBefore = lastContentHeight
         super.layoutSubviews()
         lastBoundsHeight = bounds.height
+        lastContentHeight = contentSize.height
+        // Строка выросла без пересборки таблицы (живой ход дописывает
+        // текст): лента, идущая за низом, держит низ — пока нет пальца.
+        if contentBefore > 0, contentSize.height - contentBefore > 0.5,
+           followsBottom, !isAdjustingOffset, !isTracking, !isDragging, !isDecelerating {
+            scrollToBottom(animated: false)
+            return
+        }
         // Клавиатура и поворот меняют высоту окна — не содержимого. Если лента
         // шла за низом, последнее сообщение поднимается вместе с клавиатурой
         // (владелец 10.11.2026: «текст остаётся внизу, а не поднимается»).
@@ -188,6 +201,9 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         table.isDirectionalLockEnabled = true
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 600
+        // Строка, чьё SwiftUI-содержимое выросло, сама просит таблицу
+        // перемерить её — без reloadData всей ленты.
+        table.selfSizingInvalidation = .enabledIncludingConstraints
         table.keyboardDismissMode = .interactive
         table.showsVerticalScrollIndicator = false
         table.register(ChatFeedHostingCell.self, forCellReuseIdentifier: chatFeedRowReuseID)
@@ -227,6 +243,10 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
         private var appliedKey = ""
         private var isNearBottom = true
         private var isNearTop = false
+        /// Измеренные высоты строк по id: оценка для строк вне экрана. Без
+        /// неё смещение при дорисовке старых сообщений считалось по формуле
+        /// «знаков / 38», и лента прыгала (аудит плавности 11.11.2026).
+        private var measuredHeights: [String: (width: CGFloat, height: CGFloat)] = [:]
 
         init(parent: ChatFeedVirtualList) {
             self.parent = parent
@@ -245,6 +265,11 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
                                             to: nil, from: nil, for: nil)
         }
 
+        /// Применить новые строки. Раньше любое отличие версий вело к
+        /// `reloadData()` всей таблицы — а живой ход менял версии на каждую
+        /// дельту сокета (7–12 раз в секунду). Теперь: смена переписки или
+        /// большая перестройка — `reloadData`; иначе точечные вставки и
+        /// удаления и `reconfigureRows` только для строк с новой версией.
         func apply(rows: [ChatFeedVirtualRow], contentKey: String, to table: ChatFeedTableView) {
             let keyChanged = contentKey != appliedKey
             guard keyChanged || rows != applied else { return }
@@ -252,13 +277,59 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
             let offsetBefore = table.contentOffset.y
             let firstBefore = applied.first?.id
             let follows = keyChanged ? true : table.followsBottom
+            let old = applied
 
-            applied = rows
-            appliedKey = contentKey
             parent.handle.indexByID = Dictionary(rows.enumerated().map { ($0.element.id, $0.offset) },
                                                  uniquingKeysWith: { first, _ in first })
             if keyChanged { table.followsBottom = true }
-            table.reloadData()
+
+            let oldIDs = old.map(\.id)
+            let newIDs = rows.map(\.id)
+            let uniqueIDs = Set(newIDs).count == newIDs.count && Set(oldIDs).count == oldIDs.count
+            let diff = newIDs.difference(from: oldIDs)
+            let structural = diff.count
+            if keyChanged || !uniqueIDs || old.isEmpty || structural > 40 || table.window == nil {
+                applied = rows
+                appliedKey = contentKey
+                table.reloadData()
+            } else {
+                // Версии сменились у строк, что остались на месте.
+                var oldVersion: [String: Int] = [:]
+                for row in old { oldVersion[row.id] = row.version }
+                let changed = rows.enumerated().compactMap { index, row -> IndexPath? in
+                    guard let previous = oldVersion[row.id], previous != row.version else { return nil }
+                    return IndexPath(row: index, section: 0)
+                }
+                if structural > 0 {
+                    var deletes: [IndexPath] = []
+                    var inserts: [IndexPath] = []
+                    for change in diff {
+                        switch change {
+                        case .remove(let offset, _, _): deletes.append(IndexPath(row: offset, section: 0))
+                        case .insert(let offset, _, _): inserts.append(IndexPath(row: offset, section: 0))
+                        }
+                    }
+                    UIView.performWithoutAnimation {
+                        table.performBatchUpdates {
+                            applied = rows
+                            appliedKey = contentKey
+                            table.deleteRows(at: deletes, with: .none)
+                            table.insertRows(at: inserts, with: .none)
+                        }
+                    }
+                } else {
+                    applied = rows
+                    appliedKey = contentKey
+                }
+                if !changed.isEmpty {
+                    // Только видимые: невидимые соберутся при показе.
+                    let visible = Set(table.indexPathsForVisibleRows ?? [])
+                    let targets = changed.filter { visible.contains($0) }
+                    if !targets.isEmpty {
+                        UIView.performWithoutAnimation { table.reconfigureRows(at: targets) }
+                    }
+                }
+            }
             table.layoutIfNeeded()
 
             if follows {
@@ -273,12 +344,32 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
 
         func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
             guard indexPath.row < applied.count else { return 600 }
-            return max(80, parent.estimatedHeight(applied[indexPath.row].id))
+            let id = applied[indexPath.row].id
+            if let measured = measuredHeights[id], abs(measured.width - tableView.bounds.width) < 0.5 {
+                return measured.height
+            }
+            return max(80, parent.estimatedHeight(id))
+        }
+
+        func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell,
+                       forRowAt indexPath: IndexPath) {
+            remember(cell: cell, at: indexPath, in: tableView)
+        }
+
+        func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell,
+                       forRowAt indexPath: IndexPath) {
+            remember(cell: cell, at: indexPath, in: tableView)
+        }
+
+        private func remember(cell: UITableViewCell, at indexPath: IndexPath, in tableView: UITableView) {
+            guard indexPath.row < applied.count, cell.bounds.height > 1 else { return }
+            measuredHeights[applied[indexPath.row].id] = (tableView.bounds.width, cell.bounds.height)
         }
 
         func forceReload(in table: ChatFeedTableView) {
             applied = []
             appliedKey = ""
+            measuredHeights.removeAll()
             table.reloadData()
         }
 
@@ -295,7 +386,12 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
             let side = parent.horizontalPadding
             let width = max(0, tableView.bounds.width - side * 2)
             cell.contentConfiguration = UIHostingConfiguration {
+                // Состояние строки (`@State`: раскрытия, высоты веб-блока и
+                // таблицы, картинка) привязано к её id: переиспользованная
+                // ячейка чужой строки начинает с чистого, а та же строка при
+                // `reconfigureRows` своё сохраняет.
                 row(id)
+                    .id(id)
                     .frame(width: width, alignment: .leading)
                     .padding(.horizontal, side)
                     .padding(.bottom, spacing)

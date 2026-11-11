@@ -1340,7 +1340,7 @@ struct RoleChatRoomScreen: View {
         // только строки, у которых версия сменилась.
         var rows: [ChatFeedVirtualRow] = []
         if messages.isEmpty || (orderedFeed.isEmpty && pendingVoices.isEmpty) {
-            rows.append(ChatFeedVirtualRow(id: Self.emptyRowID, version: roomEventRevision))
+            rows.append(ChatFeedVirtualRow(id: Self.emptyRowID, version: 0))
         }
         rows += orderedFeed.map { item in
             ChatFeedVirtualRow(id: item.id, version: rowVersion(item))
@@ -1350,7 +1350,7 @@ struct RoleChatRoomScreen: View {
         }
         if typing {
             rows.append(ChatFeedVirtualRow(id: Self.typingRowID,
-                                           version: roomEventRevision &+ visibleTypists.count))
+                                           version: visibleTypists.sorted { $0.key < $1.key }.description.hashValue &+ typistTools.sorted { $0.key < $1.key }.description.hashValue))
         }
         return ZStack(alignment: .top) {
             ChatFeedVirtualList(rows: rows,
@@ -1435,12 +1435,26 @@ struct RoleChatRoomScreen: View {
 
     /// Версия строки истории: событие по этому сообщению (сокет, отправка,
     /// остановка) и режим выбора. Всё остальное строку не пересобирает.
+    ///
+    /// Идущий ход версии от событий комнаты не берёт: текст он читает из
+    /// `RoleChatLiveStore` сам, и каждая дельта сокета иначе пересобирала
+    /// таблицу целиком (аудит плавности 11.11.2026). Выбор и открытие
+    /// вложения входят в версию — иначе галочка и спиннер в ячейке
+    /// запекались при её создании и не перерисовывались.
     private func rowVersion(_ item: FeedItem) -> Int {
-        var version = roomEventRevision
+        var version: Int
         if let message = item.message {
             version = messageEventRevisions[message.id] ?? 0
+            version = version &* 8
+            if selectedMessageIDs.contains(message.id) { version += 2 }
+            if (message.attachments ?? []).contains(where: { openingAttachmentIDs.contains($0.id) }) { version += 4 }
+        } else if let slot = item.liveSlot {
+            version = String(describing: slot).hashValue &* 8
+        } else if let pending = item.pending {
+            version = String(describing: pending).hashValue &* 8
+        } else {
+            version = roomEventRevision &* 8
         }
-        version = version &* 4
         if isSelecting { version += 1 }
         return version
     }
