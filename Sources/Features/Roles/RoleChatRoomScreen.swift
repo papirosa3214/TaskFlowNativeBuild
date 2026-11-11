@@ -2718,7 +2718,22 @@ struct RoleChatRoomScreen: View {
     /// должен стоить ноль байт, а не всю историю заново.
     private var messagesCursor: Int? {
         guard !messages.isEmpty else { return nil }
-        return try? LocalStore.shared.maxSequence(chatID: chat.id)
+        guard let newest = try? LocalStore.shared.maxSequence(chatID: chat.id) else { return nil }
+        return Self.syncCursor(newest: newest, messages: messages)
+    }
+
+    /// Курсор догрузки. Сервер отдаёт сообщения после курсора, а карточку
+    /// обращения («вопрос в очереди» → «ответ получен») он переписывает на
+    /// месте, номер её не меняется. Пока карточка открыта, курсор встаёт
+    /// перед ней — иначе закрытие не доезжало, и карточка висела «готовится
+    /// запуск» навсегда (владелец 11.11.2026).
+    static func syncCursor(newest: Int, messages: [RoleChatMessage]) -> Int {
+        let open = messages.lazy
+            .filter { $0.coordination.map { !$0.terminal } ?? false }
+            .compactMap(\.sequence)
+            .min()
+        guard let open else { return newest }
+        return min(newest, open - 1)
     }
 
     private func refresh() async {
@@ -2758,6 +2773,15 @@ struct RoleChatRoomScreen: View {
                     if closesLive || closesParked { insertIncoming(message) }
                 }
                 let receivedAfterRequest = Set(messageEventRevisions.filter { $0.value > eventRevision }.map(\.key))
+                // Карточка обращения закрылась на сервере, пока чат был
+                // закрыт: тот же id, новое тело — заменяем на месте.
+                for message in updatedMessages where message.coordination != nil && !receivedAfterRequest.contains(message.id) {
+                    if let index = messages.firstIndex(where: { $0.id == message.id }), messages[index].coordination?.status != message.coordination?.status {
+                        messages[index] = message
+                        roomEventRevision += 1
+                        messageEventRevisions[message.id] = roomEventRevision
+                    }
+                }
                 if cursor == nil {
                     // Полный снимок: он и есть вся история.
                     messages = RoleChatMessageOrder.mergingSnapshot(updatedMessages, current: messages, receivedAfterRequest: receivedAfterRequest)
