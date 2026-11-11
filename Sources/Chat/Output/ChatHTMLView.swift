@@ -15,8 +15,16 @@ struct ChatHTMLView: View {
     let html: String
     var allowsCommands = false
     @State private var commands = PanelCommandBridge()
-    @State private var height: CGFloat = 160
+    @State private var height: CGFloat
+    @State private var width: CGFloat = 0
     @State private var isFullScreen = false
+
+    init(html: String, allowsCommands: Bool = false) {
+        self.html = html
+        self.allowsCommands = allowsCommands
+        // Стартовая высота — из кэша прошлых замеров, чтобы строка не скакала.
+        _height = State(initialValue: ChatHTMLHeightCache.height(for: html, width: nil) ?? 160)
+    }
 
     /// Выше этого артефакт в ленте не растёт — дальше «развернуть».
     private static let inlineMaxHeight: CGFloat = 520
@@ -29,6 +37,16 @@ struct ChatHTMLView: View {
                 Divider()
                 ChatWebView(html: html, height: $height, isScrollEnabled: height > Self.inlineMaxHeight, commands: commands, allowsCommands: allowsCommands)
                     .frame(height: min(max(height, 60), Self.inlineMaxHeight))
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { newWidth in
+                        width = newWidth
+                        if let cached = ChatHTMLHeightCache.height(for: html, width: newWidth), abs(cached - height) > 1 {
+                            height = cached
+                        }
+                    }
+                    .onChange(of: height) { _, newHeight in
+                        guard width > 0 else { return }
+                        ChatHTMLHeightCache.store(newHeight, for: html, width: width)
+                    }
             }
         }
         .modifier(PanelCommandConfirmation(bridge: commands, active: !isFullScreen))
@@ -119,6 +137,36 @@ struct ChatHTMLView: View {
         """
     }
 }
+
+// MARK: ChatHTMLHeightCache
+/// Измеренная высота артефакта по хэшу содержимого и ширине. Ячейка ленты
+/// пересоздаётся при прокрутке; без кэша она каждый раз стартует со 160 и
+/// прыгает после загрузки страницы.
+enum ChatHTMLHeightCache {
+    private static var storage: [Int: [Int: CGFloat]] = [:]
+    private static var lastWidth: [Int: Int] = [:]
+    private static let lock = NSLock()
+
+    /// Высота для ширины; без ширины — последний замер этого содержимого.
+    static func height(for html: String, width: CGFloat?) -> CGFloat? {
+        lock.lock(); defer { lock.unlock() }
+        let key = html.hashValue
+        guard let byWidth = storage[key] else { return nil }
+        if let width { return byWidth[Int(width.rounded())] }
+        return lastWidth[key].flatMap { byWidth[$0] }
+    }
+
+    static func store(_ height: CGFloat, for html: String, width: CGFloat) {
+        guard height > 0, width > 0 else { return }
+        lock.lock(); defer { lock.unlock() }
+        let key = html.hashValue
+        let w = Int(width.rounded())
+        if storage[key] == nil, storage.count >= 300 { storage.removeAll(); lastWidth.removeAll() }
+        storage[key, default: [:]][w] = height
+        lastWidth[key] = w
+    }
+}
+// MARK: end ChatHTMLHeightCache
 
 /// WKWebView для артефакта: сообщает свою высоту, ссылки открывает в Safari.
 struct ChatWebView: UIViewRepresentable {
