@@ -164,6 +164,10 @@ struct RoleChatRoomScreen: View {
     /// Команды ленты. Лентой владеет таблица (`ChatFeedVirtualList`): экран
     /// только просит её подвинуться, а не ведёт смещение сам.
     @State private var feedScroll = ChatFeedScrollHandle()
+    /// Что раскрыто в ленте — живёт у экрана, а не в строке: строку ленты
+    /// пересобирает каждая смена версии и каждое переиспользование ячейки,
+    /// и раскрытое сворачивалось само при прокрутке (владелец 11.11.2026).
+    @StateObject private var feedExpansion = RoleFeedExpansion()
     @State private var chatIsNearBottom = true
     /// Лента идёт в движении от руки владельца. По этому признаку дорисовываются
     /// старые сообщения: при открытии короткого чата верх виден сразу, и
@@ -1384,6 +1388,12 @@ struct RoleChatRoomScreen: View {
                 .padding(.top, TFSpacing.sm)
             }
         }
+        .onChange(of: rows.map(\.id)) { _, ids in
+            // Старые сообщения ушли из окна ленты — их раскрытия тоже.
+            // Ключи живых строк остаются: доигрывание хода и смена версии
+            // строки раскрытие не сбрасывают.
+            feedExpansion.retain(rows: Set(ids))
+        }
         .onChange(of: contentsTargetID) { _, id in
             guard let id else { return }
             // Переход по оглавлению к старому сообщению: окно раскрываем до
@@ -1468,7 +1478,7 @@ struct RoleChatRoomScreen: View {
                     // целиком (владелец 06.11.2026).
                     RoleChatLiveSlotView(store: liveStore, slot: slot,
                                          completing: item.completingTurn) { turn in
-                        liveTurnRow(turn, replyExcerpts: replyExcerpts)
+                        liveTurnRow(turn, rowID: item.id, replyExcerpts: replyExcerpts)
                     }
                 } else if let pending = item.pending {
                     outgoingRow(pendingMessage(pending), pending: pending,
@@ -1862,7 +1872,8 @@ struct RoleChatRoomScreen: View {
         return liveStore.activityTools[userID]
     }
 
-    private func liveTurnRow(_ turn: RoleChatLiveTurn, replyExcerpts: [String: String]) -> some View {
+    private func liveTurnRow(_ turn: RoleChatLiveTurn, rowID: String,
+                             replyExcerpts: [String: String]) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
             replyContext(messageID: turn.triggerMessageID, sender: nil, excerpts: replyExcerpts)
             RoleLiveTurnBubble(turn: turn, showsName: chat.kind == "group", isComplete: endedTurnIDs.contains(turn.playbackID),
@@ -1873,6 +1884,8 @@ struct RoleChatRoomScreen: View {
                                // низ ленты дёргался (владелец 30.10.2026).
                                startsWithSnapshot: restoredTurnIDs.contains(turn.playbackID)
                                    || endedTurnIDs.contains(turn.playbackID),
+                               expansionRow: rowID,
+                               expansion: feedExpansion,
                                onPlaybackComplete: {
                                    ClientLog.shared.add("chat=\(chat.id) playback:done turn=\(turn.playbackID)")
                                    completingTurns[turn.playbackID] = nil
