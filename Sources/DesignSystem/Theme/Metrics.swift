@@ -145,27 +145,11 @@ public enum TFCreateMenuMetrics {
     public static let gapAboveTabBar: CGFloat = 8
 }
 
-/// Тумблер (`TaskFilterSheet.tsx`, `SettingsScreen.tsx`) — идентичен во всех местах
-/// приложения. Имя `Metrics`, потому что `TFToggle` занят одноимённым View-компонентом
-/// (`Components/TFToggle.swift`), как и у `TFButtonMetrics` выше.
-public enum TFToggleMetrics {
-    public static let trackWidth: CGFloat = 43
-    public static let trackHeight: CGFloat = 25
-    public static let knobSize: CGFloat = 20
-    public static let knobInset: CGFloat = 2.5
-}
-
 /// Поля ввода / FieldGroup.
 public enum TFField {
     public static let height: CGFloat = 52
     public static let iconTextGap: CGFloat = 12
     public static let cardInsetH: CGFloat = 16
-}
-
-/// Строка ввода чата — базовый ритм H=44 у всех элементов на одной линии.
-public enum TFChatComposer {
-    public static let elementHeight: CGFloat = 44
-    public static let iconSize: CGFloat = 32
 }
 
 /// Кнопки (`Button`, UI.tsx). Имя `Metrics`, потому что `TFButton` занят
@@ -175,10 +159,3 @@ public enum TFButtonMetrics {
     public static let radius: CGFloat = TFRadius.lg
 }
 
-/// Нижняя шторка.
-public enum TFSheet {
-    public static let handleWidth: CGFloat = 36
-    public static let handleHeight: CGFloat = 4
-    public static let headerCloseSize: CGFloat = 44
-    public static let maxWidthWide: CGFloat = 640 // ≥1024px десктоп — не растягивается на всё окно
-}
