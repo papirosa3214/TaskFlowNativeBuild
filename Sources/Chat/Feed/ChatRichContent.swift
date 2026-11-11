@@ -65,17 +65,10 @@ extension ChatRichContent {
         blocks.compactMap { block in
             switch block {
             case .doc(let doc, let chars):
-                guard let object = doc.foundationValue as? [String: Any] else { return nil }
-                return .document(NoteDocument.decode(fromObject: object).blocks, chars: chars)
+                guard let blocks = documentBlocks(doc) else { return nil }
+                return .document(blocks, chars: chars)
             case .table(let header, let align, let rows, _):
-                let headerRuns = header.map(runs)
-                let rowRuns = rows.map { $0.map(runs) }
-                return .table(ChatTable(
-                    header: headerRuns.map(plain),
-                    alignments: align.map { $0 == "center" ? .center : $0 == "trailing" ? .trailing : .leading },
-                    rows: rowRuns.map { $0.map(plain) },
-                    headerRuns: headerRuns,
-                    rowRuns: rowRuns))
+                return .table(table(header: header, align: align, rows: rows))
             case .widget(let json): return .widget(json)
             case .structuredJSON(let json): return .structuredJSON(json)
             case .structuredJSONStreaming(let json): return .structuredJSONStreaming(json)
@@ -90,6 +83,80 @@ extension ChatRichContent {
             case .unknown: return nil
             }
         }
+    }
+
+    // MARK: Инкрементальный разбор
+
+    /// Узел документа TipTap → блоки. Ключ — сам узел (`JSONValue`
+    /// хешируется по содержимому): на каждой дельте живого хода меняется
+    /// только хвост, и готовые абзацы берутся отсюда, перепарсивается лишь
+    /// последний недописанный.
+    private static let nodeBlocks = LRUCache<JSONValue, [NoteBlock]>(limit: 512)
+    /// Таблица по её содержимому — ячейки не размечаются заново на каждой дельте.
+    private static let tableCache = LRUCache<JSONValue, ChatTable>(limit: 64)
+
+    /// Блоки документа, собранные по узлам верхнего уровня. `id` блока
+    /// детерминирован: от содержимого узла, его места в документе и номера
+    /// блока внутри узла. Неизменённый абзац получает тот же `id`, поэтому
+    /// кэш готовых кусков `RoleReplyMarkdown.pieces(for:)` попадает, а
+    /// SwiftUI не пересоздаёт его строку.
+    static func documentBlocks(_ doc: JSONValue) -> [NoteBlock]? {
+        guard case .object(let object) = doc, case .array(let nodes)? = object["content"] else {
+            guard let object = doc.foundationValue as? [String: Any] else { return nil }
+            return NoteDocument.decode(fromObject: object).blocks
+        }
+        let emptyID = NoteDocument.empty.blocks.first?.id
+        var result: [NoteBlock] = []
+        for (position, node) in nodes.enumerated() {
+            let decoded: [NoteBlock]
+            if let cached = nodeBlocks.value(for: node) {
+                decoded = cached
+            } else {
+                let blocks = NoteDocument.decode(fromObject: ["content": [node.foundationValue]]).blocks
+                // Узел без блоков декодер отдаёт пустым документом — это не абзац.
+                decoded = blocks.count == 1 && blocks[0].id == emptyID ? [] : blocks
+                nodeBlocks.set(decoded, for: node)
+            }
+            let nodeHash = node.hashValue
+            for (index, block) in decoded.enumerated() {
+                result.append(NoteBlock(id: stableID(nodeHash, position, index),
+                                        kind: block.kind, level: block.level, runs: block.runs))
+            }
+        }
+        return result.isEmpty ? NoteDocument.empty.blocks : result
+    }
+
+    /// Детерминированный UUID из хеша узла и позиции: два независимых хеша
+    /// дают 128 бит. Сид `Hasher` постоянен в пределах запуска — для кэша в
+    /// памяти этого достаточно.
+    static func stableID(_ nodeHash: Int, _ position: Int, _ index: Int) -> UUID {
+        func half(_ salt: UInt8) -> UInt64 {
+            var hasher = Hasher()
+            hasher.combine(salt)
+            hasher.combine(nodeHash)
+            hasher.combine(position)
+            hasher.combine(index)
+            return UInt64(bitPattern: Int64(hasher.finalize()))
+        }
+        let a = half(1), b = half(2)
+        func byte(_ v: UInt64, _ i: Int) -> UInt8 { UInt8(truncatingIfNeeded: v >> (8 * i)) }
+        return UUID(uuid: (byte(a, 0), byte(a, 1), byte(a, 2), byte(a, 3), byte(a, 4), byte(a, 5), byte(a, 6), byte(a, 7),
+                           byte(b, 0), byte(b, 1), byte(b, 2), byte(b, 3), byte(b, 4), byte(b, 5), byte(b, 6), byte(b, 7)))
+    }
+
+    private static func table(header: [JSONValue], align: [String], rows: [[JSONValue]]) -> ChatTable {
+        let key = JSONValue.array([.array(header), .array(align.map(JSONValue.string)), .array(rows.map(JSONValue.array))])
+        if let cached = tableCache.value(for: key) { return cached }
+        let headerRuns = header.map(runs)
+        let rowRuns = rows.map { $0.map(runs) }
+        let table = ChatTable(
+            header: headerRuns.map(plain),
+            alignments: align.map { $0 == "center" ? .center : $0 == "trailing" ? .trailing : .leading },
+            rows: rowRuns.map { $0.map(plain) },
+            headerRuns: headerRuns,
+            rowRuns: rowRuns)
+        tableCache.set(table, for: key)
+        return table
     }
 
     /// Живой ход: показанное начало реплики → блок сервера, обрезанный по
