@@ -23,6 +23,7 @@
 | `Sources/Core/Models/TaskRoleContent.swift` | `Sources/Core/Models/` | Не используется; тест `Tests/TaskRoleContentTests.swift` перенесён вместе | — |
 | `Sources/Core/Models/AgentDetails.swift` | `Sources/Core/Models/` | Типы использовались только мёртвыми методами `APIClient+AgentDetails` | `Sources/Core/Networking/APIClient+AgentDetails.swift`: удалены `agentDetails`, `mcpServersCatalog`, `skillsCatalog`, `updateAgentConnection`, `updateAgentPermissions`, структуры `McpCatalogEntry`, `SkillCatalogEntry` и заголовки `// MARK: - Чтение`, `// MARK: - Каталожные записи`. Живые `saveAgentApiToken`, `rotateAgentApiToken`, `RotatedAgentToken` оставлены |
 | `Sources/Core/Networking/APIClient+ChatAttachments.swift` | `Sources/Core/Networking/` | `extractTasksFromAttachment`, `attachmentSupportsTaskExtraction` не вызываются | — |
+| `Sources/DesignSystem/Components/TFHeaderBackdrop.swift` | `Sources/DesignSystem/Components/` | Не используется: единственная ссылка — собственный `#Preview`; шапки экранов теперь системные (`.tfNativeHeader`), самодельные подложки не нужны | `COMPONENTS.md`: убран раздел «Подложка шапки»; `Sources/Features/Tasks/TaskCardContent.swift`: комментарий больше не ссылается на компонент |
 
 Тесты, перенесённые вместе с кодом: `Tests/SubagentRailTests.swift`, `Tests/ChatScrollTraceTests.swift`, `Tests/TaskRoleContentTests.swift`, `Tools/test_chat_scroll_trace.py`, `Tools/test_role_message_reveal_interrupt.py`.
 

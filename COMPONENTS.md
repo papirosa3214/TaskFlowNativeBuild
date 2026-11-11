@@ -158,12 +158,6 @@ DESIGN.md про разные наборы статус-иконок по экр
 `.alert` сторож (`Tools/design-system-guard.py`, правила `raw-empty-state`,
 `raw-loading`, `raw-error-banner`) больше не пропускает.
 
-## Подложка шапки — `Components/TFHeaderBackdrop.swift`
-
-| Компонент | Что это | Параметры |
-|---|---|---|
-| `TFHeaderBackdrop` | Плотная верхняя часть + градиентный хвост для плавного затухания контента при скролле под шапкой | `tail: CGFloat = 26, opacity: Double = 1` |
-
 ## Шапка экрана — `Components/TFNativeHeader.swift`
 
 | Компонент | Что это | Параметры |
