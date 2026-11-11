@@ -194,8 +194,11 @@ struct RoleChatRoomScreen: View {
         #endif
     }
 
+    /// Ответ роли печатается ровно по буквам (пейсер). Включён снова
+    /// 11.11.2026 на пробу по слову владельца; если поведёт себя плохо —
+    /// вернуть `false`, и текст встаёт кусками по мере прихода.
     private var pacesLiveText: Bool {
-        false
+        !readingPreview
     }
 
     #if DEBUG
