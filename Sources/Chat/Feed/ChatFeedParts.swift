@@ -28,6 +28,13 @@ struct TypingDot: View {
     }
 }
 
+/// Размер превью в ленте. Заглушка и готовая картинка одной высоты — иначе
+/// UITableView.automaticDimension прыгает после downloadAttachment.
+enum ChatAttachmentPreviewLayout {
+    static let width: CGFloat = 220
+    static let height: CGFloat = 140
+}
+
 /// Картинка-вложение: грузит сама, по id через API. Пока грузится — заглушка,
 /// не загрузилась — чип с именем файла вместо битой картинки.
 struct ChatAttachmentImage: View {
@@ -47,11 +54,11 @@ struct ChatAttachmentImage: View {
                 ChatFileChip(fileName: fileName)
             } else {
                 Color.tfCard2
-                    .frame(height: 140)
                     .overlay { ProgressView() }
             }
         }
-        .frame(maxWidth: 220)
+        .frame(width: ChatAttachmentPreviewLayout.width, height: ChatAttachmentPreviewLayout.height)
+        .clipped()
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .task {
             guard uiImage == nil else { return }
