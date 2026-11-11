@@ -22,13 +22,15 @@ struct TaskArchiveScreen: View {
                 historySection
 
                 TFErrorBanner(taskStore.archiveErrorMessage, variant: .inline)
+                TFErrorBanner(projectStore.archiveErrorMessage, variant: .inline)
 
                 if taskStore.isLoadingArchive && tasks.isEmpty {
                     TFLoading(.block)
-                } else if tasks.isEmpty && taskStore.archiveErrorMessage == nil {
+                } else if tasks.isEmpty && projectStore.archivedProjects.isEmpty
+                            && taskStore.archiveErrorMessage == nil {
                     TFEmptyState(
                         icon: "archivebox",
-                        text: "Задачи, отправленные в архив, можно восстановить или удалить окончательно."
+                        text: "Задачи и проекты из архива можно восстановить или удалить окончательно."
                     )
                     .padding(.horizontal, TFSpacing.xs)
                 } else if !tasks.isEmpty {
@@ -44,6 +46,8 @@ struct TaskArchiveScreen: View {
                         }
                     }
                 }
+
+                projectArchiveSection
 
             }
             .listRowInsets(EdgeInsets())
