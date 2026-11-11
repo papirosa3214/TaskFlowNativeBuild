@@ -440,7 +440,10 @@ struct RoleChatsScreen: View {
     private func homeRoleRow(_ role: ChatRoomsSnapshot.RoleRoom, photoOnAvatar: Bool = false, hintAvatar: Bool = false) -> some View {
         let mine = chats.filter { $0.others(excluding: session.currentUser?.id).contains { $0.id == role.id } }
         let unread = mine.reduce(0) { $0 + $1.unread }
-        let rooms = RoleSessionList.roomsCount(mine.count)
+        // Считаем те же комнаты, что откроются внутри роли: не все чаты, где
+        // роль участник (владелец 11.11.2026: «написано 19 комнат,
+        // проваливаюсь — две»).
+        let rooms = RoleSessionList.roomsCount(RoleSessionList.count(candidates, scope: .role(role.id)))
         let preview = dmPreview(role.lastMessage)
         let line = preview.isEmpty ? rooms : "\(rooms) · \(preview)"
         // Переход, а не переключение состояния: нижняя панель прячется сама,

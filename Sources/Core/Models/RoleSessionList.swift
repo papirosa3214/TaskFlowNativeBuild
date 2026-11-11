@@ -128,6 +128,12 @@ public enum RoleSessionList {
         rows(candidates, scope: scope).map(\.id)
     }
 
+    /// Сколько комнат откроется внутри пункта панели. Тем же отбором, что и у
+    /// списка: счётчик строки роли не считает групповые комнаты задач и топики.
+    public static func count(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope) -> Int {
+        candidates.reduce(0) { $0 + (belongs($1, to: scope) ? 1 : 0) }
+    }
+
     public static func rows(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope) -> [RoleSessionRow] {
         let visible = sorted(candidates.filter { belongs($0, to: scope) })
         let ids = Set(visible.map(\.id))

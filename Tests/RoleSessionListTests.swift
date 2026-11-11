@@ -18,6 +18,24 @@ final class RoleSessionListTests: XCTestCase {
         XCTAssertEqual(RoleSessionList.select(list, scope: .role("secretary")), ["mine"])
     }
 
+    /// Счётчик строки роли в корне «Чатов» (владелец 11.11.2026: «написано
+    /// 19 комнат, проваливаюсь — две»): считает те же комнаты, что откроются
+    /// внутри роли, а не все чаты, где роль участник — групповые комнаты задач
+    /// и топики в это число не входят.
+    func testRoleRoomCounterCountsOnlyRoomsShownInsideRole() {
+        let list = [
+            item("personal", others: ["secretary"], room: "personal", last: "2026-11-05 01:00:00"),
+            item("branch", others: ["secretary"], last: "2026-11-05 02:00:00", branchOf: "personal"),
+            item("group", others: ["secretary", "designer"], kind: "group", last: "2026-11-05 03:00:00"),
+            item("task", others: ["secretary"], room: "task", last: "2026-11-05 04:00:00"),
+            item("topic", others: ["secretary"], parent: "group", last: "2026-11-05 05:00:00"),
+            item("dm", others: ["designer"], room: "dm", last: "2026-11-05 06:00:00"),
+        ]
+        XCTAssertEqual(RoleSessionList.count(list, scope: .role("secretary")), 3)
+        XCTAssertEqual(RoleSessionList.count(list, scope: .role("secretary")),
+                       RoleSessionList.select(list, scope: .role("secretary")).count)
+    }
+
     func testPersonalRoomIsAnOrdinarySessionSortedByDate() {
         let list = [
             item("room", others: ["secretary"], room: "personal", last: "2026-11-03 01:00:00"),
