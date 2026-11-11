@@ -69,7 +69,7 @@ enum DirectoryDate {
         dueShort(dueDate)
     }
 
-    /// МСК-«сегодня» как `YYYY-MM-DD` — та же формула, что `TodayDate.todayString()`.
+    /// МСК-«сегодня» как `YYYY-MM-DD`.
     private static func todayStringMoscow() -> String {
         CalendarDateMath.dateString(Date(), timeZone: moscow)
     }

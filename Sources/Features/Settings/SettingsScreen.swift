@@ -3,11 +3,9 @@ import SwiftUI
 /// `/settings` — spec/SCREENS-2.md §6. Дерево настроек: профиль, тема/
 /// биометрия/иконка/шаблоны/метки, ИИ и команда, сервер с интеграциями, выход.
 ///
-/// Шапка — `SettingsHeaderChrome` (своя композиция, не `TFScreenHeader`):
-/// см. комментарий в файле компонента — веб держит здесь `variant="large"`
-/// (по умолчанию) СО стрелкой «назад» (правило добавлено в
-/// `ScreenHeader.tsx` 27.08.2026), а нативный `TFScreenHeader.large` стрелку
-/// не рисует вовсе — гэп, не мой файл чинить.
+/// Шапка — системная, `.tfNativeHeader("Настройки")`: заголовок и стрелку
+/// «назад» рисует навбар. Свои `TFScreenHeader`/`SettingsHeaderChrome` сняты
+/// 11.09.2026 — второго заголовка и второй стрелки здесь больше нет.
 struct SettingsScreen: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(AppAppearance.storageKey) private var appearanceRaw = AppAppearance.dark.rawValue
@@ -45,9 +43,8 @@ struct SettingsScreen: View {
                 .padding(.vertical, TFSpacing.lg)
             }
         }
-        // Своя шапка уже несёт заголовок и кнопку «назад» — системный навбар
-        // поверх неё давал ВТОРУЮ стрелку и лишнюю полосу.
-        // Нативная сворачивающаяся шапка по официальным гайдам SwiftUI.
+        // Шапка системная (`.tfNativeHeader` ниже): второй заголовок и вторая
+        // стрелка «назад» не рисуются.
         .tfSheet(isPresented: $showDevicePairing) {
             DevicePairingSheet().presentationDetents([.large])
         }

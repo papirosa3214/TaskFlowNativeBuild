@@ -596,7 +596,8 @@ final class TaskFormViewModel {
     }
 
     // MARK: - Подзадачи (просмотр — карточки-агенты) — перенесено буквально
-    // из TaskDetailViewModel, для `SubtaskFeedView` в режиме чтения.
+    // из TaskDetailViewModel (экран снят, архив 2026-09-11). Лента
+    // `SubtaskFeedView`, для которой это писалось, тоже в архиве с 11.11.2026.
 
     func toggleSubtaskDone(_ subtask: ApiSubtask) async {
         do {
