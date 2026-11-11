@@ -15,22 +15,29 @@ import SwiftUI
 // (владелец 11.11.2026: «чтобы поле ввода и все элементы внизу имели ту же
 // прозрачность, что нативные элементы сверху»).
 public extension View {
-    @ViewBuilder func voiceCircleSurface() -> some View {
-        if #available(iOS 26.0, *) { glassEffect(.clear, in: .circle) }
-        else { background(.thinMaterial, in: Circle()) }
+    /// Чат — плотное стекло `.regular` (владелец 11.11.2026: «плотнее
+    /// элементы», вокруг них прозрачно); `clear: true` — прежнее прозрачное.
+    @ViewBuilder func voiceCircleSurface(clear: Bool = false) -> some View {
+        if #available(iOS 26.0, *) {
+            if clear { glassEffect(.clear, in: .circle) } else { glassEffect(.regular, in: .circle) }
+        } else { background(clear ? .thinMaterial : .regularMaterial, in: Circle()) }
     }
 
-    @ViewBuilder func voiceCapsuleSurface() -> some View {
-        if #available(iOS 26.0, *) { glassEffect(.clear, in: .capsule) }
-        else { background(.thinMaterial, in: Capsule()) }
+    /// Чат — плотное стекло `.regular` (владелец 11.11.2026: «плотнее
+    /// элементы», вокруг них прозрачно); `clear: true` — прежнее прозрачное.
+    @ViewBuilder func voiceCapsuleSurface(clear: Bool = false) -> some View {
+        if #available(iOS 26.0, *) {
+            if clear { glassEffect(.clear, in: .capsule) } else { glassEffect(.regular, in: .capsule) }
+        } else { background(clear ? .thinMaterial : .regularMaterial, in: Capsule()) }
     }
 
     /// То же системное стекло для раскрываемых панелей, без цветной заливки.
-    @ViewBuilder func voiceRoundedSurface(cornerRadius: CGFloat) -> some View {
+    @ViewBuilder func voiceRoundedSurface(cornerRadius: CGFloat, clear: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
-            glassEffect(.clear, in: RoundedRectangle(cornerRadius: cornerRadius))
+            if clear { glassEffect(.clear, in: RoundedRectangle(cornerRadius: cornerRadius)) }
+            else { glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius)) }
         } else {
-            background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+            background(clear ? .thinMaterial : .regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
         }
     }
 

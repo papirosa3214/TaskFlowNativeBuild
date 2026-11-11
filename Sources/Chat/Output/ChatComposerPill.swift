@@ -32,7 +32,9 @@ struct ChatComposerPill: View {
     private var running: [ChatComposerStatus.Running] { status.activeRunning }
     private var planTotal: Int { plans.reduce(0) { $0 + $1.items.count } }
     private var planDone: Int { plans.reduce(0) { $0 + $1.doneCount } }
-    private var stretches: Bool { showsScrollDown }
+    /// Пилюля никогда не тянется: при появлении кружка «вниз» она держит
+    /// свой размер, пара «пилюля + кружок» стоит по центру (владелец 11.11.2026).
+    private var stretches: Bool { false }
     private var isEmpty: Bool { !isWorking && plans.isEmpty && running.isEmpty && status.queued.isEmpty }
 
     var body: some View {
@@ -40,10 +42,11 @@ struct ChatComposerPill: View {
             // Пилюли нет. Кружок «вниз» висит над полем ввода, не занимая
             // места: лента не сдвигается.
             Color.clear.frame(height: 0)
-                .overlay(alignment: .bottomTrailing) {
+                // Без пилюли кружок — по центру над полем ввода, как в T3 Code
+                // (владелец 11.11.2026).
+                .overlay(alignment: .bottom) {
                     if showsScrollDown {
                         ChatScrollToBottomButton(action: onScrollDown)
-                            .padding(.trailing, TFSpacing.lg)
                             .padding(.bottom, TFSpacing.xs)
                     }
                 }
@@ -55,18 +58,20 @@ struct ChatComposerPill: View {
                 // Одно стеклянное семейство: кружок отпочковывается от пилюли.
                 TFGlassGroup(spacing: 24) {
                     HStack(spacing: TFSpacing.sm) {
+                        // Пилюля по центру над полем ввода (владелец 11.11.2026).
+                        Spacer(minLength: 0)
                         pill
-                        if !stretches { Spacer(minLength: 0) }
                         if showsScrollDown {
                             ChatScrollToBottomButton(action: onScrollDown, glassNamespace: glassNamespace)
                         }
+                        Spacer(minLength: 0)
                     }
                 }
             }
             .animation(TFMotion.standard, value: stretches)
             .animation(TFMotion.standard, value: showsScrollDown)
             .animation(TFMotion.standard, value: segmentKey)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, TFSpacing.lg)
             .padding(.bottom, TFSpacing.xs)
         }

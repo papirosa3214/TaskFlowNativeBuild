@@ -83,7 +83,7 @@ struct MarkdownKeyboardAccessoryBar: View {
         }
         .padding(.horizontal, TFSpacing.sm)
         .padding(.vertical, TFSpacing.xs)
-        .voiceCapsuleSurface()
+        .voiceCapsuleSurface(clear: true)
         // Отделяем стеклянную Capsule от верхней кромки клавиатуры, не меняя
         // высоту аксессуара и тап-зоны её кнопок.
         .offset(y: -4)

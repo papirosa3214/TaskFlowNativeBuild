@@ -8,7 +8,7 @@ Sources/Features/Roles/RoleChatRoomScreen.swift | \.chatComposerBar \{ | пан�
 Sources/Chat/Composer/ChatVoiceComposer.swift | safeAreaBar\(edge: \.bottom | панель ввода без своей заливки, стекло рисует система
 Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.contentInsetAdjustmentBehavior = \.automatic | safe area ленты считает таблица
 Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.topEdgeEffect\.style = \.soft | мягкое затухание сверху
-Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.bottomEdgeEffect\.style = \.soft | мягкое затухание снизу
+Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.bottomEdgeEffect\.isHidden = true | снизу без плашки: стекло только на элементах, вокруг прозрачно (11.11.2026)
 Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.backgroundColor = \.clear | лента прозрачная
 
 # --- Чат: оптимизация ---

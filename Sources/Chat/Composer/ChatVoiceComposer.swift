@@ -199,7 +199,7 @@ struct ChatVoiceComposer: View {
         .frame(minHeight: compact ? Self.compactKnobSize : nil)
         .background {
             if compact {
-                Color.clear.voiceRoundedSurface(cornerRadius: 22)
+                Color.clear.voiceRoundedSurface(cornerRadius: Self.compactKnobSize / 2)
             }
         }
         .foregroundStyle(Color.secondary)
@@ -290,7 +290,8 @@ struct ChatVoiceComposer: View {
     /// Высота круглых кнопок новой панели — по высоте самой панели ввода
     /// (владелец 29.10.2026: «почему он, и правый шарик, они меньше, чем
     /// высота панели ввода. Надо, чтобы одинаковые были по высоте»).
-    private static let compactKnobSize: CGFloat = 44
+    /// Поле ввода и круглые кнопки рядом — 50, выше пилюли (44) (владелец 11.11.2026).
+    private static let compactKnobSize: CGFloat = 50
 
     /// Микрофон отдельной круглой кнопкой справа — на месте отправки, пока
     /// текста нет. Нажатие не ставит каретку: клавиатура не поднимается

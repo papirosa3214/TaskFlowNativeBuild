@@ -1266,6 +1266,11 @@ struct RoleChatRoomScreen: View {
             ChatFeedVirtualList(rows: rows,
                                contentKey: chat.id,
                                handle: feedScroll,
+                               // Нижняя граница ленты — над кружком «вниз»: последние
+                               // строки не уходят под поле ввода (владелец 11.11.2026).
+                               contentInsets: UIEdgeInsets(top: TFSpacing.sm, left: 0,
+                                                           bottom: TFSpacing.sm + TFHitTarget.min + TFSpacing.xs,
+                                                           right: 0),
                                estimatedHeight: { id in
                                    Self.estimatedRowHeight(id: id, feedByID: feedByID,
                                                            voicesByID: voicesByID)
@@ -1289,6 +1294,10 @@ struct RoleChatRoomScreen: View {
                 // фон экрана. Только .container — клавиатуру ленту по-прежнему
                 // поднимает (владелец 11.11.2026: «текст прячется под фон»).
                 .ignoresSafeArea(.container, edges: .bottom)
+                // Нижняя панель (safeAreaBar) сама включает затухание края —
+                // полосу во всю ширину. Выключено: стекло только на элементах
+                // (владелец 11.11.2026).
+                .hideComposerScrollEdgeEffect()
 
             // Карточка сжатия сессии — в безопасной области, поверх ленты:
             // сама лента уже вышла под шапку.

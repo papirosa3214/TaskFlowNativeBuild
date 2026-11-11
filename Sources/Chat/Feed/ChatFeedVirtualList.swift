@@ -212,7 +212,10 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
             // рисуется: сверху шапка, снизу панель ввода. Лента уходит под
             // обе, safe area считает сама таблица.
             table.topEdgeEffect.style = .soft
-            table.bottomEdgeEffect.style = .soft
+            // Снизу затухания нет: оно рисует плашку во всю ширину. Стекло —
+            // только на элементах (пилюля, кружок, поле ввода), вокруг них
+            // лента видна насквозь (владелец 11.11.2026).
+            table.bottomEdgeEffect.isHidden = true
         }
         context.coordinator.attach(table)
         handle.list = table
