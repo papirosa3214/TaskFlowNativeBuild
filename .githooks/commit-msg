@@ -22,9 +22,14 @@ for raw in (root / ".githooks/pinned-behavior.txt").read_text(encoding="utf-8").
     if not raw.strip() or raw.lstrip().startswith("#"):
         continue
     path, pattern, why = (p.strip() for p in raw.split("|", 2))
+    # Блокируется только коммит, который сам убирает закреплённое: в HEAD было,
+    # в индексе нет. Ветка, отрезанная до решения, работать не мешает.
+    before = subprocess.run(["git", "show", f"HEAD:{path}"], cwd=root, capture_output=True, text=True)
+    if before.returncode != 0 or not re.search(pattern, before.stdout):
+        continue
     text = staged(path)
     if text is None:
-        errors.append(f"  нет файла {path} — {why}")
+        errors.append(f"  удалён файл {path} — {why}")
     elif not re.search(pattern, text):
         errors.append(f"  {path}: пропало «{pattern}» — {why}")
 
