@@ -42,11 +42,21 @@ struct ChatAttachmentImage: View {
     let fileName: String
     @State private var uiImage: UIImage?
     @State private var failed = false
+    @Environment(\.displayScale) private var displayScale
     private let api = APIClient()
 
+    /// Длинная сторона миниатюры: размер показа × scale экрана.
+    private var pixelSize: Int {
+        ChatThumbnailCache.maxPixelSize(width: ChatAttachmentPreviewLayout.width,
+                                        height: ChatAttachmentPreviewLayout.height,
+                                        scale: displayScale)
+    }
+
     var body: some View {
+        // Повторный показ берёт миниатюру из кэша синхронно — без заглушки.
+        let shown = uiImage ?? ChatThumbnailCache.cachedImage(id: attachmentId, maxPixelSize: pixelSize)
         Group {
-            if let uiImage {
+            if let uiImage = shown {
                 Image(uiImage: uiImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -62,9 +72,15 @@ struct ChatAttachmentImage: View {
         .clipShape(RoundedRectangle(cornerRadius: TFRadius.xl))
         .task {
             guard uiImage == nil else { return }
+            let size = pixelSize
+            if let cached = ChatThumbnailCache.cachedImage(id: attachmentId, maxPixelSize: size) {
+                uiImage = cached
+                return
+            }
             do {
                 let data = try await api.downloadAttachment(id: attachmentId)
-                uiImage = UIImage(data: data)
+                let image = await ChatThumbnailCache.thumbnail(from: data, id: attachmentId, maxPixelSize: size)
+                uiImage = image.map { UIImage(cgImage: $0) }
                 if uiImage == nil { failed = true }
             } catch {
                 failed = true
