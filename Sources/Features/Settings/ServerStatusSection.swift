@@ -37,14 +37,6 @@ struct AgentServiceResponse: Decodable, Sendable {
     let enabled: Bool
 }
 
-/// `POST /agent-service` по контракту возвращает только подтверждение
-/// операции (`{ ok: true }`), а не снимок службы. После успешной мутации
-/// состояние перечитывается отдельным GET — это не даёт показать устаревшее
-/// значение и работает, даже если systemd применяет изменение не мгновенно.
-private struct AgentServiceMutationResponse: Decodable, Sendable {
-    let ok: Bool
-}
-
 /// Вью-модель блока «Сервер» — spec/SCREENS-2.md §6 п.5, состояния строго по
 /// факту запроса (не отвечает / грузится / успех). Отдельный `APIClient()` —
 /// тот же приём, что у `TodayViewModel` (клиент `Sendable`, второй экземпляр
@@ -65,7 +57,6 @@ final class ServerStatusViewModel {
     /// выключающий systemd-юнит НА СЕРВЕРЕ. Задача прямо запрещает трогать
     /// настройки живого сервера — проводка написана (штатная функция экрана
     /// для владельца), но сама я её ни разу не вызвала за время работы.
-    var isTogglingService = false
 
     func load() async {
         async let statusTask: ServerStatusResponse? = try? apiClient.request(.get, "/server-status")
@@ -92,22 +83,6 @@ final class ServerStatusViewModel {
         await load()
     }
 
-    func toggleAgentService(to enabled: Bool) async {
-        guard agentService != nil else { return }
-        isTogglingService = true
-        struct Body: Encodable { let on: Bool }
-        do {
-            let response: AgentServiceMutationResponse = try await apiClient.request(.post, "/agent-service", body: Body(on: enabled))
-            if response.ok {
-                await load()
-            } else {
-                agentServiceError = "Сервер не подтвердил изменение будильника"
-            }
-        } catch {
-            agentServiceError = "Не удалось изменить состояние будильника"
-        }
-        isTogglingService = false
-    }
 }
 
 /// Форматтеры — буквальные порты `fmtUptime`/`fmtBytes` из

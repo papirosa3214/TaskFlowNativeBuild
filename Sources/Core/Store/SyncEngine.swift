@@ -102,32 +102,6 @@ public final class SyncEngine {
         }
     }
 
-    /// Догрузить сообщения ВВЕРХ (прокрутка к началу).
-    ///
-    /// Возвращает `true`, если ещё есть что догружать. На сервере без
-    /// постраничной выдачи — `false`: там history и так приходит целиком.
-    @discardableResult
-    public func syncOlderMessages(chatID: String) async -> Bool {
-        guard store.syncState(SyncStateKeys.chatsPaging) == "1" else { return false }
-        guard let oldest = try? store.minSequence(chatID: chatID) else { return false }
-        do {
-            let page = try await attempt {
-                try await self.api.roleChatMessagesPage(
-                    id: chatID,
-                    before: oldest,
-                    limit: Self.pageSize
-                )
-            }
-            try store.upsertMessages(chatID: chatID, payload: page.data)
-            return page.hasMore ?? false
-        } catch is CancellationError {
-            return false
-        } catch {
-            fail(error)
-            return false
-        }
-    }
-
     // MARK: - Уведомления
 
     /// Лента уведомлений. На старте и при переподключении — только
