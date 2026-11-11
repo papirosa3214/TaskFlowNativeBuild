@@ -26,12 +26,16 @@ struct ChatListRow: View {
     /// без левого отступа: его занимает кружок.
     var omitsAvatar = false
 
-    /// Строка под превью: здесь видно, что роль работает.
+    /// Строка под превью: контекст и проект. Ход — в названии («· в работе»).
     private var metaLine: String? {
-        let parts = [turn?.running == true ? "Работает" : nil, contextLabel, projectName]
+        let parts = [contextLabel, projectName]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private var displayedTitle: String {
+        ChatWorkingMark.titled(title, running: turn?.running == true)
     }
 
     var body: some View {
@@ -42,7 +46,7 @@ struct ChatListRow: View {
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(displayedTitle)
                     .tfText(.body)
                     .fontWeight(unread > 0 ? .semibold : .regular)
                     .foregroundStyle(Color.tfText)

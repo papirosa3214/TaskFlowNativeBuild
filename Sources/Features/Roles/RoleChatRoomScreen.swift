@@ -798,7 +798,9 @@ struct RoleChatRoomScreen: View {
     private var composerNavigation: some View {
         composerContent
         .tint(Color.tfText)
-        .navigationTitle(chat.displayTitle(excluding: session.currentUser?.id))
+        .navigationTitle(ChatWorkingMark.titled(
+            chat.displayTitle(excluding: session.currentUser?.id),
+            running: liveStore.hasTurns || !typists.isEmpty || chat.turn?.running == true))
         .navigationBarTitleDisplayMode(.inline)
         // Ветка от сообщения — отдельный чат поверх основного; «назад»
         // возвращает в основной разговор (владелец 14.10.2026).

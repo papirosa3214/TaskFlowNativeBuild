@@ -116,3 +116,11 @@ public struct RoomTurn: Decodable, Sendable, Equatable {
         running = try c.decodeIfPresent(Bool.self, forKey: .running) ?? false
     }
 }
+/// Пометка «в работе» в названии роли и сессии (владелец 11.11.2026).
+public enum ChatWorkingMark {
+    public static let label = "в работе"
+
+    public static func titled(_ name: String, running: Bool) -> String {
+        running ? "\(name) · \(label)" : name
+    }
+}

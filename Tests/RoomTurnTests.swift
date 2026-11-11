@@ -37,4 +37,9 @@ final class RoomTurnTests: XCTestCase {
         """#)
         XCTAssertNil(snapshot.roles[0].personalTurn)
     }
+
+    func testWorkingMarkInTitle() {
+        XCTAssertEqual(ChatWorkingMark.titled("Разработчик", running: true), "Разработчик · в работе")
+        XCTAssertEqual(ChatWorkingMark.titled("Сессия", running: false), "Сессия")
+    }
 }
