@@ -29,16 +29,6 @@ public extension APIClient {
 
     // MARK: - Поиск (3 группы) — spec/SCREENS-2.md §11, живой search.ts
 
-    struct DirectorySearchResult: Decodable, Sendable {
-        public let tasks: [ApiTask]
-        public let projects: [ApiProject]
-        public let labels: [ApiLabel]
-    }
-
-    func directorySearch(_ query: String) async throws -> DirectorySearchResult {
-        try await request(.get, "/search", query: [URLQueryItem(name: "q", value: query)])
-    }
-
     // MARK: - Уведомления — пути, которые реально принимает сервер
 
     /// `PATCH /notifications/:id/read`, без тела — сервер молча игнорирует
@@ -59,30 +49,6 @@ public extension APIClient {
     }
 
     // MARK: - Заметки: список с превью (для секции «Документация» проекта)
-
-    struct DirectoryNoteSummary: Decodable, Identifiable, Sendable, Hashable {
-        public let id: String
-        public let title: String
-        public let folderId: Int?
-        public let preview: String?
-        public let createdAt: String?
-        public let updatedAt: String?
-
-        enum CodingKeys: String, CodingKey {
-            case id, title
-            case folderId = "folder_id"
-            case preview
-            case createdAt = "created_at"
-            case updatedAt = "updated_at"
-        }
-    }
-
-    private struct DirectoryNotesResponse: Decodable { let notes: [DirectoryNoteSummary] }
-
-    func directoryNotes() async throws -> [DirectoryNoteSummary] {
-        let response: DirectoryNotesResponse = try await request(.get, "/notes")
-        return response.notes
-    }
 
     // MARK: - Документация проекта одним запросом — spec/API.md §5.9,
     // `server/src/routes/notes.ts` (`GET /projects/:id/docs`). Русские ключи

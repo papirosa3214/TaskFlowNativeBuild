@@ -6,14 +6,6 @@ private struct TaskResponse: Decodable {
     let task: ApiTask
 }
 
-private struct TaskHeartbeatResponse: Decodable {
-    let leaseExpiresAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case leaseExpiresAt = "lease_expires_at"
-    }
-}
-
 private struct StructureTaskRequest: Encodable {
     let text: String
 }
@@ -322,21 +314,6 @@ public extension APIClient {
     // MARK: - Агентский протокол (spec §5.2/§7) — на карточке задачи владелец
     // видит статус агента/аренду, поэтому клиенту нужно уметь их читать; сами
     // мутации (claim/heartbeat/state) пригодятся экрану «Работа агента».
-
-    func claimTask(id: String, sessionId: String? = nil) async throws -> ApiTask {
-        var body: [String: JSONValue] = [:]
-        if let sessionId { body["session_id"] = .string(sessionId) }
-        let response: TaskResponse = try await request(.post, "/tasks/\(id)/claim", body: body)
-        return response.task
-    }
-
-    /// Сервер не возвращает задачу для heartbeat, только новый срок аренды.
-    func heartbeatTask(id: String, sessionId: String? = nil) async throws -> String? {
-        var body: [String: JSONValue] = [:]
-        if let sessionId { body["session_id"] = .string(sessionId) }
-        let response: TaskHeartbeatResponse = try await request(.post, "/tasks/\(id)/heartbeat", body: body)
-        return response.leaseExpiresAt
-    }
 
     /// Комментарий ОБЯЗАТЕЛЕН при переходе в `blocked`/`review` и при
     /// `review → in_progress` — без него сервер отвечает 400 (spec §7).

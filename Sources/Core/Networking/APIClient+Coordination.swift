@@ -121,26 +121,6 @@ public extension APIClient {
         }
     }
 
-    /// Конверт `GET /api/coordination/_metrics?window=hour|day` — счётчики
-    /// по причинам и действиям + список «непонятных» узлов.
-    struct CoordinationMetricsResponse: Decodable, Sendable, Equatable {
-        public let window: String
-        public let since: String
-        public let until: String
-        public let counts: [String: Int]
-        public let actions: [String: Int]
-        public let topUnknownSubtasks: [TopUnknown]
-        public struct TopUnknown: Decodable, Sendable, Equatable {
-            public let subtaskId: String
-            public let lastSeenAt: String
-
-            enum CodingKeys: String, CodingKey {
-                case subtaskId = "subtask_id"
-                case lastSeenAt = "last_seen_at"
-            }
-        }
-    }
-
     /// `GET /api/coordination/tasks/:id/resolve` — список `Resolution` по
     /// подзадачам карточки.
     func fetchTaskResolutions(taskId: String) async throws -> [CoordinationResolution] {
@@ -148,27 +128,6 @@ public extension APIClient {
         return response.items
     }
 
-    /// `GET /api/coordination/subtasks/:id/resolve` — один `Resolution`
-    /// по конкретному узлу (используется при тапе на узел графа для
-    /// детального sheet).
-    func fetchSubtaskResolution(subtaskId: String) async throws -> CoordinationResolution {
-        try await request(.get, "/coordination/subtasks/\(subtaskId)/resolve")
-    }
-
-    /// `GET /api/coordination/attempts/:id/resolve` — что случилось с
-    /// конкретной попыткой. Нужен для ленты «история шага» в Details.
-    func fetchAttemptResolution(attemptId: String) async throws -> CoordinationResolution {
-        try await request(.get, "/coordination/attempts/\(attemptId)/resolve")
-    }
-
-    /// `GET /api/coordination/_metrics?window=hour|day` — счётчики.
-    func fetchCoordinationMetrics(window: String = "hour") async throws -> CoordinationMetricsResponse {
-        try await request(
-            .get,
-            "/coordination/_metrics",
-            query: [URLQueryItem(name: "window", value: window)]
-        )
-    }
 }
 
 public extension APIClient.CoordinationResolution {

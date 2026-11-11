@@ -84,12 +84,6 @@ public extension APIClient {
         )
     }
 
-    func moveKnowledgeSection(id: Int, position: Int) async throws {
-        let _: APIOkResponse = try await request(
-            .patch, "/knowledge/sections/\(id)", body: ["position": JSONValue.number(Double(position))]
-        )
-    }
-
     func deleteKnowledgeSection(id: Int) async throws {
         let _: APIOkResponse = try await request(.delete, "/knowledge/sections/\(id)")
     }
@@ -225,18 +219,4 @@ public extension APIClient {
         return try await request(.post, "/knowledge/ask", body: body, timeout: 120)
     }
 
-    /// Что вообще лежит в базе знаний — включая документы проектов, которых
-    /// в TaskFlow уже нет: удаление проекта индекс не трогает, и это и есть
-    /// архив.
-    func knowledgeDocuments(page: Int = 1, pageSize: Int = 50) async throws -> [ApiKnowledgeDocument] {
-        struct Response: Decodable { let documents: [ApiKnowledgeDocument] }
-        let response: Response = try await request(
-            .get, "/knowledge/documents",
-            query: [
-                URLQueryItem(name: "page", value: String(page)),
-                URLQueryItem(name: "page_size", value: String(pageSize)),
-            ]
-        )
-        return response.documents
-    }
 }
