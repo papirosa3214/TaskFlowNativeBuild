@@ -122,9 +122,27 @@ public final class RealtimeClient {
         return id
     }
 
+    /// Подписчики одного чата: событие чата X будит только подписчиков X.
+    @ObservationIgnored private var chatObservers = ChatScopedObservers<RealtimeEvent>()
+
+    /// Подписаться на события одного чата. Чатовые события других чатов
+    /// сюда не приходят. `includeGlobal` — получать ещё и события без чата
+    /// (`connected`, `roles:changed`, задачи…); по умолчанию — только
+    /// `connected`, чтобы экран знал о переподключении.
+    @discardableResult
+    public func addChatObserver(
+        chatID: String,
+        includeGlobal: Bool = false,
+        _ observer: @escaping (RealtimeEvent) -> Void
+    ) -> UUID {
+        chatObservers.add(chatID: chatID, includeGlobal: includeGlobal, observer)
+    }
+
     /// Снять подписку. Чужой или уже снятый токен — не ошибка.
+    /// Снимает и общую, и чатовую подписку.
     public func removeObserver(_ id: UUID) {
         observers.removeValue(forKey: id)
+        chatObservers.remove(id)
     }
 
     /// Раздать событие: старый слот и новые подписчики.
@@ -132,6 +150,10 @@ public final class RealtimeClient {
     func dispatchToSubscribers(_ event: RealtimeEvent) {
         onEvent?(event)
         for observer in observers.values { observer(event) }
+        let scope = event.chatScopeID
+        var isConnected = false
+        if case .connected = event { isConnected = true }
+        chatObservers.dispatch(event, chatID: scope, alwaysGlobal: isConnected)
     }
     /// Только на ПЕРЕподключение (не на первое) — spec §4.2: сервер не хранит
     /// очередь пропущенных событий за время разрыва, сторам нужно обновиться
@@ -247,14 +269,18 @@ public final class RealtimeClient {
     private func listen(on socketTask: URLSessionWebSocketTask) {
         socketTask.receive { [weak self] result in
             guard let self else { return }
+            // Разбор JSON — здесь, на очереди URLSession, а не на главном:
+            // крупные `chats:live`/`chat:new` больше не держат кадр экрана.
+            // Подписчикам событие уходит уже на главном.
+            let prepared = result.map(PreparedSocketMessage.init)
             Task { @MainActor in
-                self.handleReceiveResult(result, task: socketTask)
+                self.handleReceiveResult(prepared, task: socketTask)
             }
         }
     }
 
     private func handleReceiveResult(
-        _ result: Result<URLSessionWebSocketTask.Message, Error>,
+        _ result: Result<PreparedSocketMessage, Error>,
         task socketTask: URLSessionWebSocketTask
     ) {
         switch result {
@@ -298,8 +324,9 @@ public final class RealtimeClient {
         }
     }
 
-    private func handle(message: URLSessionWebSocketTask.Message, task socketTask: URLSessionWebSocketTask) {
-        guard case .string(let text) = message, let data = text.data(using: .utf8) else { return }
+    private func handle(message: PreparedSocketMessage, task socketTask: URLSessionWebSocketTask) {
+        guard let text = message.text, let data = message.data else { return }
+        let typeName = message.typeName
         // Самый дешёвый факт приёма, без разбора: дошли ли чатовые байты.
         if text.contains("\"chats:") {
             rawChatMessages += 1
@@ -311,13 +338,13 @@ public final class RealtimeClient {
         // и получал watchdog `0x8BADF00D` в фоне (отчёты 03–28.10.2026, до
         // 48 с CPU за 10-секундное окно). Отбрасываем по одному дешёвому полю.
         if allowsBackgroundConnection, UIApplication.shared.applicationState != .active,
-           let type = RealtimeEvent.typeName(of: data), RealtimeEvent.isBackgroundIrrelevant(type) {
+           let type = typeName, RealtimeEvent.isBackgroundIrrelevant(type) {
             return
         }
-        guard let event = RealtimeEvent.parse(data) else {
+        guard let event = message.event ?? RealtimeEvent.parse(data) else {
             // Разбор не удался — событие есть, но в типы не легло: без этой
             // строки такая потеря невидима (в журнале сервера оно «отправлено»).
-            if let type = RealtimeEvent.typeName(of: data), type.contains("chat") {
+            if let type = typeName, type.contains("chat") {
                 ClientLog.shared.add("rx-fail:\(type)")
             }
             return
@@ -325,9 +352,9 @@ public final class RealtimeClient {
         // Ход роли по сокету не доходил до экрана (10.11.2026): сервер писал
         // `sent=1`, а в журнале клиента не было ни одного `live:start`.
         // Пишем сами факты приёма: дошли ли чатовые события вообще.
-        if let type = RealtimeEvent.typeName(of: data), !type.hasSuffix(":patch") {
+        if let type = typeName, !type.hasSuffix(":patch") {
             ClientLog.shared.add("rx:\(type)")
-        } else if RealtimeEvent.typeName(of: data) != nil {
+        } else if typeName != nil {
             patchCount += 1
             if patchCount <= 3 || patchCount % 50 == 0 {
                 ClientLog.shared.add("rx:patch#\(patchCount)")
@@ -451,3 +478,95 @@ public final class RealtimeClient {
         }
     }
 }
+
+/// Кадр сокета, разобранный вне главного потока: текст, тип и событие.
+/// `event == nil` при непустом `data` — разбор не удался (или отложен для
+/// типов, которые в фоне выбрасываются), главный поток решит сам.
+struct PreparedSocketMessage: @unchecked Sendable {
+    let text: String?
+    let data: Data?
+    let typeName: String?
+    let event: RealtimeEvent?
+
+    init(_ message: URLSessionWebSocketTask.Message) {
+        guard case .string(let text) = message, let data = text.data(using: .utf8) else {
+            self.text = nil; self.data = nil; self.typeName = nil; self.event = nil
+            return
+        }
+        self.text = text
+        self.data = data
+        let type = RealtimeEvent.typeName(of: data)
+        self.typeName = type
+        // Тяжёлое, что в фоне всё равно выбросят, не разбираем заранее:
+        // на активном экране главный разберёт его сам.
+        if let type, RealtimeEvent.isBackgroundIrrelevant(type) {
+            self.event = nil
+        } else {
+            self.event = RealtimeEvent.parse(data)
+        }
+    }
+}
+
+extension RealtimeEvent {
+    /// Чат, к которому относится событие; `nil` — событие не чатовое.
+    var chatScopeID: String? {
+        switch self {
+        case .roleChatMessage(let chatId, _): return chatId
+        case .roleChatTyping(let chatId, _, _, _, _): return chatId
+        case .roleChatLive(let chatId, _, _, _): return chatId
+        case .roleChatLiveInterrupt(let interrupt): return interrupt.chatID
+        case .roleChatLiveDelta(let delta):
+            switch delta {
+            case .start(let state): return state.chatID
+            case .patch(let chatID, _, _, _, _): return chatID
+            case .end(let chatID, _, _, _, _): return chatID
+            }
+        default: return nil
+        }
+    }
+}
+
+// MARK: chat-scoped-observers begin
+/// Подписчики по чатам. Чатовое событие будит только подписчиков своего
+/// чата; не чатовое — только тех, кто просил общие события (или всех, если
+/// `alwaysGlobal`, например `connected`). Чистая структура без UIKit —
+/// проверяется отдельным скриптом.
+struct ChatScopedObservers<Event> {
+    private struct Entry {
+        let chatID: String
+        let includeGlobal: Bool
+        let handler: (Event) -> Void
+    }
+    private var byChat: [String: [UUID: Entry]] = [:]
+    private var chatOf: [UUID: String] = [:]
+
+    var isEmpty: Bool { chatOf.isEmpty }
+
+    @discardableResult
+    mutating func add(chatID: String, includeGlobal: Bool, _ handler: @escaping (Event) -> Void) -> UUID {
+        let id = UUID()
+        byChat[chatID, default: [:]][id] = Entry(chatID: chatID, includeGlobal: includeGlobal, handler: handler)
+        chatOf[id] = chatID
+        return id
+    }
+
+    mutating func remove(_ id: UUID) {
+        guard let chatID = chatOf.removeValue(forKey: id) else { return }
+        byChat[chatID]?.removeValue(forKey: id)
+        if byChat[chatID]?.isEmpty == true { byChat.removeValue(forKey: chatID) }
+    }
+
+    func dispatch(_ event: Event, chatID: String?, alwaysGlobal: Bool = false) {
+        if let chatID {
+            guard let entries = byChat[chatID] else { return }
+            for entry in entries.values { entry.handler(event) }
+            return
+        }
+        for entries in byChat.values {
+            for entry in entries.values where alwaysGlobal || entry.includeGlobal {
+                entry.handler(event)
+            }
+        }
+    }
+}
+// MARK: chat-scoped-observers end
