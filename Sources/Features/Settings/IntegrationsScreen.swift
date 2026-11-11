@@ -67,27 +67,6 @@ final class IntegrationsViewModel {
         isWebhookStatusLoading = false
     }
 
-    func loadThingsBridge() async {
-        thingsBridgeAvailable = (try? await ThingsBridgeAPI.shared.health()) == true
-    }
-
-    func syncThings(taskStore: TaskStore, projectStore: ProjectStore) async {
-        errorMessage = nil
-        isThingsSyncing = true
-        defer { isThingsSyncing = false }
-        do {
-            let result = try await ThingsBridgeAPI.shared.sync()
-            await taskStore.load(silent: true)
-            await projectStore.load()
-            thingsBridgeAvailable = true
-            successMessage = "Things: импортировано \(result.imported), отправлено \(result.exported), обновлено \(result.updated)"
-            scheduleSuccessClear()
-        } catch {
-            thingsBridgeAvailable = false
-            errorMessage = "Ошибка синхронизации Things: \(Self.message(error))"
-        }
-    }
-
     func loadAppleState() {
         calPermGranted = AppleEventKitAccess.calendarGranted()
         remPermGranted = AppleEventKitAccess.remindersGranted()

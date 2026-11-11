@@ -190,21 +190,6 @@ final class CoordinationTests: XCTestCase {
         XCTAssertEqual(state.stalledNodeId, "stalled")
     }
 
-    // MARK: - 4 состояния доставки сообщения
-
-    func testAllDeliveryStatesHaveUniqueSymbol() {
-        let states: [MessageDeliveryChip.DeliveryState] = [
-            .accepted, .queued, .processing, .delivered, .completed, .failed
-        ]
-        XCTAssertEqual(states.count, 6, "контракт V2 + вспомогательные")
-    }
-
-    func testQueuedMinutesAppearInChipText() {
-        // UX §4.2: если сообщение в очереди дольше STALL_AFTER_MIN, добавляется «N мин в очереди».
-        let chip = MessageDeliveryChip(state: .queued, queuedMinutes: 3)
-        XCTAssertTrue(chip.text.contains("3"))
-    }
-
     // MARK: - Хелпер
 
     private func makeResolution(

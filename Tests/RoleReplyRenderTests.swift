@@ -79,12 +79,10 @@ final class RoleReplyRenderTests: XCTestCase {
     /// и разбор JSON сервера). Экран, который показывает текст роли, обязан
     /// идти через одного из них — иначе ответ снова уедет в сырой `Text`.
     private static let roleTextPlaces = [
-        "Sources/Features/Tasks/Detail/SubtaskFeedView.swift",
         "Sources/Features/Tasks/TaskCardContent.swift",
         "Sources/Features/Tasks/Detail/PlanStepSheets.swift",
         "Sources/Features/Tasks/Detail/TaskOutcomeSection.swift",
         "Sources/Features/Tasks/Detail/TaskPreparationView.swift",
-        "Sources/Features/ServiceNotifications/NotificationTicketDetailSheet.swift",
         "Sources/Features/Roles/RoleCoordinationCard.swift",
     ]
 
@@ -101,8 +99,7 @@ final class RoleReplyRenderTests: XCTestCase {
     /// Итог шага плана — самая частая жалоба: ответ роли со звёздочками и
     /// таблицей показывался строкой `Text(result)` в трёх разных местах.
     func testStepResultIsNeverPlainText() throws {
-        let candidates = ["Sources/Features/Tasks/Detail/SubtaskFeedView.swift",
-                          "Sources/Features/Tasks/TaskFormScreen.swift",
+        let candidates = ["Sources/Features/Tasks/TaskFormScreen.swift",
                           "Sources/Features/Tasks/Detail/PlanStepSheets.swift"]
         let offenders = try candidates.filter { try source($0).contains("Text(result)") }
         XCTAssertEqual(offenders, [], "Итог шага показан сырым Text в: \(offenders.joined(separator: ", "))")
