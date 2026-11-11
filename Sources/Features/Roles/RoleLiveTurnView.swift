@@ -163,8 +163,49 @@ struct RoleLiveItemsList: View {
     /// Показать строки подряд, без полосы «Действия»: так работа выглядит
     /// внутри своей шторки, где сворачивать уже нечего (владелец 10.11.2026).
     var ungrouped = false
+    /// Строка ленты, в которой стоит этот список: к ней привязаны ключи раскрытия.
+    var expansionRow: String = ""
+    /// Хранилище раскрытий комнаты. nil — раскрытие живёт в самой вью (шторка
+    /// «Работа»): сразу после открытия закрывать нечего, а пересборки строки
+    /// там нет.
+    var expansion: RoleFeedExpansion? = nil
+    /// Своё хранилище — там, где снаружи его нет (шторка «Работа»,
+    /// предпросмотры): вью живёт, пока её не пересоберут, раскрытие не теряется.
+    @StateObject private var ownExpansion = RoleFeedExpansion()
     @State private var detail: RoleLiveDetail?
     @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
+
+    var body: some View {
+        // Подписка на хранилище — во вложенной вью, а не здесь: `@ObservedObject`
+        // нельзя объявить на необязательном свойстве, а без подписки нажатие на
+        // полосу «Действия» меняло только таблицу ключей. Строка ленты живёт
+        // вне дерева SwiftUI (`ChatFeedVirtualList` собирает её в
+        // `cellForRowAt`), поэтому сама она не перерисовывалась — блок не
+        // раскрывался, у законченного хода вовсе (критик 11.11.2026).
+        RoleLiveItemsContent(items: items, textColor: textColor, fade: fade,
+                             isStreaming: isStreaming, stepDetailLoader: stepDetailLoader,
+                             showsActionPreview: showsActionPreview, ungrouped: ungrouped,
+                             expansionRow: expansionRow, store: expansion ?? ownExpansion,
+                             detail: $detail, detailLevel: detailLevel)
+    }
+}
+
+/// Содержимое списка элементов хода — уже подписанное на хранилище раскрытий.
+/// Хранилище приходит сюда готовым объектом, поэтому изменение `expandedKeys`
+/// инвалидирует именно эту вью, и полоса «Действия» раскрывается сразу после
+/// нажатия, без внешних обновлений ленты.
+private struct RoleLiveItemsContent: View {
+    let items: [RoleChatLiveItem]
+    var textColor: Color = .tfText
+    var fade: RoleTextFade?
+    var isStreaming = false
+    var stepDetailLoader: ((String) async -> RoleChatLiveStep?)?
+    var showsActionPreview = false
+    var ungrouped = false
+    var expansionRow = ""
+    @ObservedObject var store: RoleFeedExpansion
+    @Binding var detail: RoleLiveDetail?
+    var detailLevel: RoleWorkDetailLevel
 
     var body: some View {
         let visible = detailLevel.visible(items)
@@ -183,7 +224,9 @@ struct RoleLiveItemsList: View {
                     // «Стандарт» (владелец 20.10.2026): подряд идущие шаги и
                     // размышления — одной строкой, тап раскрывает весь список.
                     RoleActionGroup(items: group, isLive: isStreaming && identity == identities.last,
-                                    showsPreview: showsActionPreview) { item in
+                                    showsPreview: showsActionPreview,
+                                    isExpanded: isGroupExpanded(identity),
+                                    onToggle: { toggleGroup(identity) }) { item in
                         itemView(item)
                     }
                 }
@@ -193,6 +236,16 @@ struct RoleLiveItemsList: View {
             RoleLiveDetailSheet(detail: detail)
         }
         .roleTranslationRequests(finishedTexts)
+    }
+
+    /// Раскрыта ли группа действий — по ключу строки ленты и группы, а не по
+    /// номеру сегмента в списке.
+    private func isGroupExpanded(_ identity: String) -> Bool {
+        store.isExpanded(RoleFeedExpansionKey.actions(row: expansionRow, group: identity))
+    }
+
+    private func toggleGroup(_ identity: String) {
+        store.toggle(RoleFeedExpansionKey.actions(row: expansionRow, group: identity))
     }
 
     @ViewBuilder
@@ -325,6 +378,10 @@ struct RoleLiveTurnBubble: View {
     var isStopped = false
     var pacesText = false
     var startsWithSnapshot = false
+    /// Строка ленты и раскрытия комнаты: передаются в список действий, чтобы
+    /// раскрытая пачка не сворачивалась при пересборке строки.
+    var expansionRow: String = ""
+    var expansion: RoleFeedExpansion? = nil
     @State private var seeded = false
     @State private var playbackRevision = 0
     var onPlaybackComplete: () -> Void = {}
@@ -347,7 +404,9 @@ struct RoleLiveTurnBubble: View {
                 RoleLiveItemsList(items: pacesText ? visibleItems : turn.items,
                                   fade: pacesText && !reduceMotion ? fade : nil,
                                   isStreaming: !isComplete,
-                                  showsActionPreview: true)
+                                  showsActionPreview: true,
+                                  expansionRow: expansionRow,
+                                  expansion: expansion)
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
             if turn.thinking != nil && turn.runningThinking == nil && detailLevel != .minimal {

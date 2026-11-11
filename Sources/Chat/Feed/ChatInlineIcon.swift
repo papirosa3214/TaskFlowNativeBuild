@@ -5,24 +5,31 @@ import UIKit
 ///
 /// Владелец 10.11.2026: «иконки почему-то неровно чуть-чуть отражаются, сделай
 /// чтобы на одной линии». Инлайн-картинка в `Text` прижимается низом к базовой
-/// линии, поэтому ассет 64×64 вставал то выше, то ниже соседних букв. Здесь
-/// картинка собирается под кегль: высота канвы — `ascent + descent`, сама
-/// иконка размером с заглавную букву и низом ровно на базовой линии. Тогда все
-/// иконки в абзаце стоят одинаково.
+/// линии, поэтому ассет 64×64 вставал то выше, то ниже соседних букв.
+///
+/// Владелец 11.11.2026: «чипы у ссылок соразмерны тексту, не увеличивая высоту
+/// строки». Картинка стоит низом на базовой линии и всей высотой уходит вверх,
+/// поэтому канва не может быть выше подъёма шрифта (`ascender`): раньше она
+/// равнялась `ascender + descent` и каждая строка со ссылкой становилась выше
+/// соседних. Сама иконка — по заглавной букве (`capHeight`), а не 86% кегля.
+/// Тогда все иконки в абзаце стоят одинаково, а строка не растёт.
 enum ChatInlineIcon {
     /// Геометрия картинки. Чистая функция — проверяется тестом на хосте.
     /// - Returns: размер канвы и прямоугольник, куда рисовать саму иконку.
-    static func layout(pointSize: CGFloat, ascent: CGFloat, descent: CGFloat) -> (canvas: CGSize, icon: CGRect) {
-        let side = max(1, (pointSize * 0.86).rounded())
-        let height = max(side, (ascent + descent).rounded(.up))
+    static func layout(pointSize: CGFloat, ascent: CGFloat, capHeight: CGFloat) -> (canvas: CGSize, icon: CGRect) {
+        let cap = capHeight > 0 ? capHeight : pointSize * 0.7
+        let side = max(1, min(cap, max(1, ascent)).rounded())
+        let height = max(side, ascent)
+        let canvas = CGSize(width: side, height: height)
         let icon = CGRect(x: 0, y: height - side, width: side, height: side)
-        return (CGSize(width: side, height: height), icon)
+        return (canvas, icon)
     }
 
     /// Готовая картинка под кегль и цвет текста.
     static func image(_ icon: ChatLinkPresentation.Icon, pointSize: CGFloat, color: UIColor) -> UIImage {
         let font = UIFont.systemFont(ofSize: pointSize)
-        let (canvas, rect) = layout(pointSize: pointSize, ascent: font.ascender, descent: -font.descender)
+        let ascent = font.ascender
+        let (canvas, rect) = layout(pointSize: pointSize, ascent: ascent, capHeight: font.capHeight)
         let key = "\(identifier(icon))|\(Int(pointSize.rounded() * 10))|\(colorKey(color))" as NSString
         if let cached = cache.object(forKey: key) { return cached }
         let renderer = UIGraphicsImageRenderer(size: canvas)

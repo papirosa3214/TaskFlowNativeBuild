@@ -69,15 +69,20 @@ struct RoleActionGroup<Row: View>: View {
     /// привязана к низу: превью то появляется, то пропадает, и лента прыгает
     /// вверх-вниз (владелец 25.10.2026).
     var showsPreview = false
+    /// Раскрыта ли эта пачка. Состояние живёт у экрана (`RoleFeedExpansion`),
+    /// а не в строке: строку ленты пересобирает каждая смена версии и каждое
+    /// переиспользование ячейки, и `@State` начинался заново — блок
+    /// сворачивался сам при прокрутке (владелец 11.11.2026).
+    var isExpanded = false
+    var onToggle: () -> Void = {}
     @ViewBuilder let row: (RoleChatLiveItem) -> Row
 
-    @State private var expanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
             Button {
-                withAnimation(TFMotion.animation(TFMotion.standard, reduceMotion: reduceMotion)) { expanded.toggle() }
+                withAnimation(TFMotion.animation(TFMotion.standard, reduceMotion: reduceMotion)) { onToggle() }
             } label: {
                 header
                     .frame(maxWidth: .infinity, minHeight: TFHitTarget.min, alignment: .leading)
@@ -85,9 +90,9 @@ struct RoleActionGroup<Row: View>: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Действия роли: \(summary)")
-            .accessibilityHint(expanded ? "Свернуть действия" : "Показать все действия")
+            .accessibilityHint(isExpanded ? "Свернуть действия" : "Показать все действия")
 
-            if expanded {
+            if isExpanded {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     ForEach(Array(items.enumerated()), id: \.offset) { _, item in row(item) }
                 }
@@ -114,7 +119,7 @@ struct RoleActionGroup<Row: View>: View {
                 Text("Действия").tfText(.meta).foregroundStyle(Color.tfSub)
             }
             Text(summary).tfText(.caption).foregroundStyle(Color.tfDim)
-            Image(systemName: expanded ? "chevron.down" : "chevron.right")
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                 .tfTypeFont(size: 10, weight: .semibold)
                 .foregroundStyle(Color.tfDim)
         }
