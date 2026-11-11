@@ -16,7 +16,8 @@ import QuickLook
 /// (надиктовка → карточка), но в списке он выглядит как обычный собеседник.
 /// Владелец 21.09.2026: «сделай его просто как отдельный вид участника», без
 /// подписей-подсказок.
-/// Аватар роли стоит слева у строки её чата. Отдельного ряда сверху нет.
+/// Аватар роли стоит слева у строки её чата. В корне раздела над полем поиска —
+/// ряд ролей, как истории в Telegram (`ChatStoriesHeader.swift`, владелец 12.11.2026).
 struct RoleChatsScreen: View {
     /// Экран, открытый переходом: у него системный возврат и своя область
     /// (роль или групповые чаты), корень раздела внутри него не живёт.
@@ -58,6 +59,10 @@ struct RoleChatsScreen: View {
     @State private var query = ""
     @State private var hits: [ChatSearchHit] = []
     @State private var isSearching = false
+    /// Ряд ролей над поиском: где сейчас лента (кадры полёта кружков) и
+    /// положение прокрутки, которым ряд прячут под шапку и раскрывают.
+    @State private var storiesMotion = ChatStoriesMotion()
+    @State private var storiesScroll = ScrollPosition(edge: .top)
     /// Чат, у которого меняют название.
     @State private var renameTarget: RoleChat?
     @State private var renameText = ""
@@ -121,7 +126,7 @@ struct RoleChatsScreen: View {
     var body: some View {
         chatScroll
             .tfNativeHeader(headerTitle)
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Поиск по чатам")
+            .modifier(ChatsSystemSearch(enabled: openedScope != nil, text: $query))
             .tint(Color.tfText)
             .toolbar {
                 if isOwner, !isHome, openedScope == nil {
@@ -253,6 +258,12 @@ struct RoleChatsScreen: View {
     private var chatScroll: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
+                if openedScope == nil {
+                    if storiesActive {
+                        ChatStoriesRow(stories: stories, motion: storiesMotion)
+                    }
+                    ChatsSearchField(text: $query)
+                }
                 if isSearchMode {
                     searchResults
                 } else if isHome {
@@ -307,7 +318,54 @@ struct RoleChatsScreen: View {
             .padding(.bottom, TFSpacing.xl)
         }
         .scrollIndicators(.hidden)
+        .scrollPosition($storiesScroll)
+        .scrollTargetBehavior(ChatStoriesSnap(rowHeight: storiesActive ? ChatStoriesLayout.rowHeight : 0))
+        .onScrollGeometryChange(for: ChatStoriesGeometry.self) { geo in
+            ChatStoriesGeometry(offset: geo.contentOffset.y + geo.contentInsets.top,
+                                topInset: geo.contentInsets.top,
+                                spare: geo.contentSize.height + geo.contentInsets.top
+                                    + geo.contentInsets.bottom - geo.containerSize.height)
+        } action: { _, geo in
+            trackStories(geo)
+        }
+        .overlay {
+            if storiesActive {
+                ChatStoriesFlight(stories: stories, motion: storiesMotion, title: headerTitle) {
+                    withAnimation(TFMotion.standard) { storiesScroll.scrollTo(y: 0) }
+                }
+            }
+        }
         .tfScreenBackground()
+    }
+
+    /// Ряд ролей есть только в корне раздела, на «Все чаты».
+    private var storiesActive: Bool {
+        openedScope == nil && isOwner && isHome && !stories.isEmpty
+    }
+
+    /// Роли ряда — те же, что строками в списке и в том же порядке:
+    /// Помощник, роли, внешние агенты.
+    private var stories: [ChatStory] {
+        let roles = rooms?.roles.filter { $0.personalChatID != nil } ?? []
+        let secretary = roles.filter { $0.id == "u-secretary" }
+        let others = roles.filter { $0.id != "u-secretary" }
+        let internalRoles = others.filter { !RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
+        let externalRoles = others.filter { RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
+        return (secretary + internalRoles + externalRoles).map {
+            ChatStory(id: $0.id, name: $0.name, member: $0.member,
+                      working: $0.working || $0.personalTurn?.running == true)
+        }
+    }
+
+    /// Кадр прокрутки → полёт кружков. Первый раз, когда список дорос до
+    /// высоты, при которой ряд можно спрятать, лента встаёт на высоту ряда:
+    /// в покое кружки лежат стопкой у заголовка.
+    private func trackStories(_ geo: ChatStoriesGeometry) {
+        storiesMotion.offset = geo.offset
+        storiesMotion.topInset = geo.topInset
+        guard storiesActive, !storiesMotion.placed, geo.spare >= ChatStoriesLayout.rowHeight else { return }
+        storiesMotion.placed = true
+        storiesScroll.scrollTo(y: ChatStoriesLayout.rowHeight)
     }
 
     /// Поле поиска: пока введено что-то, вместо секций — выдача по всем чатам.
@@ -879,4 +937,14 @@ private struct SessionBranchLineShape: Shape {
 /// Обёртка для шторки фото: роль в списке — строка, `sheet(item:)` ждёт Identifiable.
 private struct AvatarRoleBox: Identifiable {
     let id: String
+}
+
+/// Что ряду ролей нужно знать о прокрутке списка.
+private struct ChatStoriesGeometry: Equatable {
+    /// Прокрутка от верха списка.
+    var offset: CGFloat
+    /// Строка состояния плюс шапка.
+    var topInset: CGFloat
+    /// На сколько список длиннее экрана.
+    var spare: CGFloat
 }
