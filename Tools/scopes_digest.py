@@ -82,10 +82,12 @@ def parse_row(line: str) -> dict | None:
     parts = line.rstrip('\n').split(' | ')
     if len(parts) < 5:
         return None
-    lock = parts[0].lstrip('| ').strip()
+    # Первая ячейка может быть в обратных кавычках — так пишут новые строки;
+    # без снятия кавычек такие записи молча выпадали из сводки.
+    lock = parts[0].lstrip('| ').strip().strip('`').strip()
     if not lock.startswith('LOCK-'):
         return None
-    status = parts[1].strip()
+    status = parts[1].strip().strip('`').strip()
 
     # Список файлов: по конвенции ячейка начинается с обратной кавычки и
     # перечисляет пути. Внутри описания тоже встречаются backtick-вставки,

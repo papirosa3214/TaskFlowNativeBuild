@@ -53,14 +53,10 @@ private func routeContent(_ route: AppRoute) -> some View {
         // Пуше внутрь NavigationStack, а не лист: свайп вниз здесь не
         // работает, поэтому карточке нужен явный «×» (LOCK-TICKET-PUSH-EXIT).
         TaskFormScreen(taskID: taskID, isPushedInNavigationStack: true)
-    case .taskCreate:
-        TaskFormScreen()
     case .notes:
         NotesScreen()
     case .noteCreate:
         NotesScreen(startsNewNote: true)
-    case .noteFolder(let folderID):
-        NotesScreen(focusFolderID: folderID)
     case .noteEditor(let noteID):
         NoteEditorScreen(noteID: noteID)
     case .projects:
@@ -69,7 +65,7 @@ private func routeContent(_ route: AppRoute) -> some View {
         ProjectsScreen(opensCreateForm: true)
     case .knowledge:
         // С 09.11.2026 «База знаний» — полки датасетов RAGFlow, а дневник
-        // заметок открывается оттуда (.notes/.noteCreate/.noteFolder).
+        // заметок открывается оттуда (.notes/.noteCreate).
         KnowledgeBaseScreen()
     case .projectTasks(let projectID):
         ProjectTasksScreen(projectID: projectID)
@@ -91,8 +87,6 @@ private func routeContent(_ route: AppRoute) -> some View {
         MemoryScreen()
     case .taskflowMemory:
         TaskflowMemoryScreen()
-    case .missionControl(let taskID):
-        MissionControlScreen(taskID: taskID)
     case .settings:
         SettingsScreen().tfSuppressRedOutline()
     case .hints:
@@ -135,12 +129,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         AgentProfileScreen(roleID: id)
     case .chatArchive:
         ChatArchiveScreen()
-    case .chatSearch:
-        ChatSearchScreen()
     case .chatRole(let id):
         RoleChatsScreen(openedScope: .role(id)).tfChatTypography()
-    case .chatGroups:
-        RoleChatsScreen(openedScope: .groups).tfChatTypography()
     case .roleChat(let id):
         // Комната грузится по идентификатору: маршрут несёт только id, а
         // состав и последнее сообщение берутся запросом (LOCK-195).
