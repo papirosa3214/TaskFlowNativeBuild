@@ -176,6 +176,38 @@ struct RoleLiveItemsList: View {
     @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     var body: some View {
+        // Подписка на хранилище — во вложенной вью, а не здесь: `@ObservedObject`
+        // нельзя объявить на необязательном свойстве, а без подписки нажатие на
+        // полосу «Действия» меняло только таблицу ключей. Строка ленты живёт
+        // вне дерева SwiftUI (`ChatFeedVirtualList` собирает её в
+        // `cellForRowAt`), поэтому сама она не перерисовывалась — блок не
+        // раскрывался, у законченного хода вовсе (критик 11.11.2026).
+        RoleLiveItemsContent(items: items, textColor: textColor, fade: fade,
+                             isStreaming: isStreaming, stepDetailLoader: stepDetailLoader,
+                             showsActionPreview: showsActionPreview, ungrouped: ungrouped,
+                             expansionRow: expansionRow, store: expansion ?? ownExpansion,
+                             detail: $detail, detailLevel: detailLevel)
+    }
+}
+
+/// Содержимое списка элементов хода — уже подписанное на хранилище раскрытий.
+/// Хранилище приходит сюда готовым объектом, поэтому изменение `expandedKeys`
+/// инвалидирует именно эту вью, и полоса «Действия» раскрывается сразу после
+/// нажатия, без внешних обновлений ленты.
+private struct RoleLiveItemsContent: View {
+    let items: [RoleChatLiveItem]
+    var textColor: Color = .tfText
+    var fade: RoleTextFade?
+    var isStreaming = false
+    var stepDetailLoader: ((String) async -> RoleChatLiveStep?)?
+    var showsActionPreview = false
+    var ungrouped = false
+    var expansionRow = ""
+    @ObservedObject var store: RoleFeedExpansion
+    @Binding var detail: RoleLiveDetail?
+    var detailLevel: RoleWorkDetailLevel
+
+    var body: some View {
         let visible = detailLevel.visible(items)
         let segments = RoleLiveSegment.split(visible,
                                              grouping: !ungrouped && detailLevel == .standard,
@@ -209,12 +241,10 @@ struct RoleLiveItemsList: View {
     /// Раскрыта ли группа действий — по ключу строки ленты и группы, а не по
     /// номеру сегмента в списке.
     private func isGroupExpanded(_ identity: String) -> Bool {
-        let store = expansion ?? ownExpansion
-        return store.isExpanded(RoleFeedExpansionKey.actions(row: expansionRow, group: identity))
+        store.isExpanded(RoleFeedExpansionKey.actions(row: expansionRow, group: identity))
     }
 
     private func toggleGroup(_ identity: String) {
-        let store = expansion ?? ownExpansion
         store.toggle(RoleFeedExpansionKey.actions(row: expansionRow, group: identity))
     }
 

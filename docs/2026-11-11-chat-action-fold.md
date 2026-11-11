@@ -81,3 +81,39 @@
   пересобирают без смены содержимого, но полного переноса в хранилище там нет.
   Отдельного переноса требует только если владелец увидит, что окошко
   размышлений теряется.
+
+## Доработка 11.11.2026: строка ленты подписана на хранилище (замечание критика)
+
+Критик нашёл блокирующий дефект первой версии: хранилище раскрытий сделали,
+но ни одна вью на него не подписалась. Нажатие на полосу «Действия» меняло
+только таблицу ключей, а видимая часть строки — `isExpanded: isGroupExpanded(...)`
+(`Sources/Features/Roles/RoleLiveTurnView.swift:196` до правки) — считалась лишь
+при пересоздании вью строки. Пересоздания нет: `ChatFeedVirtualList` собирает
+содержимое ячейки один раз в `cellForRowAt`
+(`Sources/Chat/Feed/ChatFeedVirtualList.swift:297`), а `apply()` при неизменных
+строках и `contentKey` выходит до `reloadData`
+(`Sources/Chat/Feed/ChatFeedVirtualList.swift:250`). Экран при тоггле
+перерисовывался (`@StateObject RoleChatRoomScreen.swift:170`), но ячейки ленты
+живут вне дерева SwiftUI. Последствие: у законченного хода полоса не
+раскрывалась вообще, у идущего — только с приходом следующей порции ответа.
+
+Исправление: `@ObservedObject` нельзя объявить на необязательном свойстве
+(`var expansion: RoleFeedExpansion?`), поэтому содержимое списка вынесено в
+отдельную вью `RoleLiveItemsContent`
+(`Sources/Features/Roles/RoleLiveTurnView.swift:197`), которая принимает
+хранилище уже готовым объектом — `@ObservedObject var store: RoleFeedExpansion`
+(`Sources/Features/Roles/RoleLiveTurnView.swift:206`). `RoleLiveItemsList`
+остаётся тонкой обёрткой (`Sources/Features/Roles/RoleLiveTurnView.swift:180-195`):
+она выбирает хранилище комнаты или своё `ownExpansion` для шторки «Работа» и
+предпросмотров и передаёт его внутрь. Чтение и переключение раскрытия теперь
+идут через подписанное хранилище
+(`Sources/Features/Roles/RoleLiveTurnView.swift:244-248`), поэтому изменение
+`expandedKeys` инвалидирует именно строку — полоса раскрывается сразу после
+нажатия, без внешних обновлений ленты. Тот же путь работает для
+`RoleLiveTurnBubble` без внешнего хранилища (`ownExpansion`).
+
+Проверка: в `Tools/test_role_feed_expansion.py` добавлен сторож — содержимое
+списка обязано быть подписано на `RoleFeedExpansion`. На коде до правки он
+красный (`git show HEAD:Sources/Features/Roles/RoleLiveTurnView.swift` не
+содержит `@ObservedObject var store: RoleFeedExpansion`), после правки прогон
+5/5 зелёный; `swiftc -parse` по файлу чистый, сторож дизайн-системы чистый.

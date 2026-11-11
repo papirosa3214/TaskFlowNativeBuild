@@ -32,8 +32,20 @@ if 'onToggle' not in group_text:
     print('RED: RoleActionGroup не сообщает о переключении наружу — раскрытие снова локальное')
     sys.exit(1)
 turn_view = root / 'Sources/Features/Roles/RoleLiveTurnView.swift'
-if 'expansion: RoleFeedExpansion' not in turn_view.read_text():
+turn_text = turn_view.read_text()
+if 'expansion: RoleFeedExpansion' not in turn_text:
     print('RED: RoleLiveTurnView не берёт раскрытие из RoleFeedExpansion')
+    sys.exit(1)
+
+# Строка ленты живёт вне дерева SwiftUI (ChatFeedVirtualList собирает её в
+# `cellForRowAt`), поэтому одной таблицы ключей мало: содержимое списка должно
+# быть ПОДПИСАНО на хранилище, иначе тап по полосе «Действия» не перерисовывает
+# строку и блок не раскрывается (критик 11.11.2026).
+if '@ObservedObject var store: RoleFeedExpansion' not in turn_text:
+    print('RED: список элементов хода не подписан на RoleFeedExpansion — тап не перерисовывает строку')
+    sys.exit(1)
+if 'store.isExpanded(RoleFeedExpansionKey' not in turn_text or 'store.toggle(RoleFeedExpansionKey' not in turn_text:
+    print('RED: раскрытие читается не из подписанного хранилища')
     sys.exit(1)
 
 with tempfile.TemporaryDirectory(prefix='role-feed-expansion-') as tmp:
