@@ -10,7 +10,7 @@ import SwiftUI
 /// «сейчас» и «выполнено» есть заблокированный пункт с причиной и остановка
 /// плана. Клиент ничего не додумывает: что пришло, то и нарисовано.
 /// Несколько ролей — по строке на каждую. Плана нет — строки нет.
-struct ChatWorkPlanStrip: View {
+struct ChatWorkPlanStrip<Content: View>: View {
     let chatID: String
     let members: [RoleChatMember]
     /// Растёт, когда сервер прислал новое сообщение.
@@ -18,24 +18,33 @@ struct ChatWorkPlanStrip: View {
     /// Последнее событие `chat:work_plan`: план берётся прямо из него,
     /// без повторного запроса (27.10.2026).
     var event: JSONValue? = nil
+    /// Что нарисовать из загруженных планов: полоса сама ничего не рисует,
+    /// планы показывает пилюля над полем ввода (владелец 11.11.2026).
+    /// Второй аргумент — «удалить чек-лист роли».
+    @ViewBuilder let content: ([ChatWorkPlan], @escaping (ChatWorkPlan) -> Void) -> Content
 
     @State private var plans: [ChatWorkPlan]
 
     /// Последний план чата в памяти: при повторном открытии строка стоит
     /// сразу, а не выезжает после загрузки и не сдвигает ленту (26.10.2026).
-    @MainActor private static var lastPlans: [String: [ChatWorkPlan]] = [:]
+    @MainActor private static var lastPlans: [String: [ChatWorkPlan]] {
+        get { ChatWorkPlanMemory.plans }
+        set { ChatWorkPlanMemory.plans = newValue }
+    }
 
-    init(chatID: String, members: [RoleChatMember], revision: Int, event: JSONValue? = nil) {
+    init(chatID: String, members: [RoleChatMember], revision: Int, event: JSONValue? = nil,
+         @ViewBuilder content: @escaping ([ChatWorkPlan], @escaping (ChatWorkPlan) -> Void) -> Content) {
         self.chatID = chatID
         self.members = members
         self.revision = revision
         self.event = event
+        self.content = content
         _plans = State(initialValue: Self.lastPlans[chatID] ?? [])
     }
 
     var body: some View {
-        ChatWorkPlanRows(plans: plans, members: members, floating: true,
-                         onDelete: { plan in Task { await delete(plan) } })
+        // Контейнер нужен, чтобы `.task` жил и при пустом содержимом.
+        VStack(spacing: 0) { content(plans, { plan in Task { await delete(plan) } }) }
             .task(id: "\(chatID):\(revision)") { await load() }
             .onChange(of: event) { _, event in
                 guard let event, let updated = ChatWorkPlan.applyingEvent(event, chatID: chatID, to: plans) else { return }
@@ -219,4 +228,9 @@ struct ChatDeliveryBadge: View {
         .accessibilityLabel("Доставка: \(state.label)")
         .accessibilityIdentifier("chat.delivery.\(state.rawValue)")
     }
+}
+
+/// Хранилище последних планов (в дженерик-типе статическое поле нельзя).
+@MainActor private enum ChatWorkPlanMemory {
+    static var plans: [String: [ChatWorkPlan]] = [:]
 }

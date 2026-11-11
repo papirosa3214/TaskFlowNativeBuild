@@ -93,6 +93,9 @@ struct RoleChatRoomScreen: View {
     /// Счётчик для строки рабочего плана роли (21.10.2026).
     @State private var workPlanRevision = 0
     @State private var workPlanEvent: JSONValue?
+    /// Отложенные сообщения и работающие роли для пилюли над полем ввода
+    /// (11.11.2026); хранит сервер, телефон только показывает.
+    @State private var composerStatus = ChatComposerStatus.empty
     @State private var refreshRevision = 0
     @State private var messageEventRevisions: [String: Int] = [:]
     /// Кто сейчас готовит ответ: userId → имя. Наполняет только сервер
@@ -547,14 +550,6 @@ struct RoleChatRoomScreen: View {
             // Рабочий план роли — висячей карточкой поверх ленты (28.10.2026):
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
-                .overlay(alignment: .bottom) {
-                    if !chatIsNearBottom && !isSelecting {
-                        ChatScrollToBottomButton {
-                            feedScroll.scrollToBottom()
-                        }
-                        .padding(.bottom, TFSpacing.xs)
-                    }
-                }
                 .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
                 // Панель ввода — штатная нижняя панель (`safeAreaBar`): стекло
                 // и затухание у нижней кромки рисует система. `safeAreaInset`
@@ -570,7 +565,18 @@ struct RoleChatRoomScreen: View {
     /// Панели лежат поверх ленты; кнопка «вниз» не участвует в расчёте inset.
     private var composerFooter: some View {
         VStack(spacing: 0) {
-            ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent)
+            ChatWorkPlanStrip(chatID: chat.id, members: chat.members, revision: workPlanRevision, event: workPlanEvent) { plans, deletePlan in
+                ChatComposerPill(
+                    plans: plans, members: chat.members, status: composerStatus,
+                    onDeletePlan: deletePlan,
+                    onOpenChat: { openRoute?(.roleChat(id: $0)) },
+                    onSendNow: { item in Task { await updateComposerStatus { try await api.sendQueuedNow(chatID: chat.id, messageID: item.messageID) } } },
+                    onRemove: { item in Task { await updateComposerStatus { try await api.removeQueued(chatID: chat.id, messageID: item.messageID) } } },
+                    onStop: (liveStore.hasTurns || !typists.isEmpty) ? { Task { await stopTurns() } } : nil,
+                    showsScrollDown: !chatIsNearBottom && !isSelecting,
+                    onScrollDown: { feedScroll.scrollToBottom() }
+                )
+            }
             discussionStatusBar
             if !mentionCandidates.isEmpty {
                 mentionSuggestions
@@ -1020,6 +1026,8 @@ struct RoleChatRoomScreen: View {
                 }
             case .unknown("chat:work_plan", let payload):
                 workPlanEvent = payload
+            case .unknown("chat.composer_status", .object(let payload)) where payload["chat_id"]?.stringValue == chatID:
+                Task { await loadComposerStatus() }
             case .roleChatMessage(let id, let message) where id == chatID:
                 roomEventRevision += 1
                 workPlanRevision += 1
@@ -1077,6 +1085,18 @@ struct RoleChatRoomScreen: View {
         ClientLog.shared.add("chat=\(chat.id) obs:add active=\(realtimeObserver.isActive) connected=\(realtime.isConnected)")
         // Чат открыт посреди ответа роли — подтягиваем, что уже сделано.
         await loadLiveTurns()
+        await loadComposerStatus()
+    }
+
+    /// Пилюля над полем ввода: ошибка или 404 (сервер ещё без ручки) — частей
+    /// «отложено» и «работают» просто нет.
+    private func loadComposerStatus() async {
+        await updateComposerStatus { try await api.chatComposerStatus(chatID: chat.id) }
+    }
+
+    private func updateComposerStatus(_ fetch: () async throws -> ChatComposerStatus) async {
+        let next = (try? await fetch()) ?? .empty
+        if next != composerStatus { composerStatus = next }
     }
 
     private func showLiveTurn(_ turn: RoleChatLiveTurn, userID: String) {
@@ -2807,6 +2827,12 @@ struct RoleChatRoomScreen: View {
                                                             model: chat.isAssistantOnly ? nil : modelChoice.selected,
                                                             replyToMessageID: pending.replyToMessageID)
             pendingOutgoing.removeAll { $0.id == pendingID }
+            if message.queued == true {
+                // Роль отвечает: сервер держит сообщение отложенным и в ленте
+                // не показывает — оно в пилюле над полем ввода.
+                await loadComposerStatus()
+                return
+            }
             if !messages.contains(where: { $0.id == message.id }) {
                 // Своё отправленное сообщение занимает строку пузыря «в
                 // пути»: строка не пересоздаётся, лента не прыгает.

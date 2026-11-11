@@ -230,6 +230,10 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
     /// Признак несёт сообщение владельца, которому роль должна ответить; у
     /// ответа роли он nil — доставлять его исполнителю некуда.
     public var queueDeliveryState: ChatMessageDeliveryState? = nil
+    /// Сообщение владельца отложено, пока роль отвечает (11.11.2026): сервер
+    /// не показывает его в ленте до доставки, телефон держит его в пилюле над
+    /// полем ввода. nil — не отложено или старый сервер.
+    public var queued: Bool? = nil
     /// Сервер разрешает отзыв только до передачи роли. nil — старый сервер.
     public var canWithdraw: Bool? = nil
     /// Прерванный ответ роли (карточка b504958a, доработка D1): сервер
@@ -297,6 +301,7 @@ public struct RoleChatMessage: Decodable, Identifiable, Sendable {
         case quickReplies = "quick_replies"
         case isSessionMarker = "is_session_marker"
         case queueDeliveryState = "queue_delivery_state"
+        case queued
         case canWithdraw = "can_withdraw"
         case stopReason = "stop_reason"
         case partialFlag = "partial"

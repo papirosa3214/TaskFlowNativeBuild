@@ -180,6 +180,7 @@ struct ChatFeedDivider: View {
 /// Кнопка «вниз» поверх ленты: появляется, когда владелец уехал вверх, и
 /// возвращает к последнему сообщению одним нажатием (владелец 03.10.2026:
 /// «чтобы я не скролил, а кнопочку нажал»).
+/// С 11.11.2026 — маленький круг справа над пилюлей/полем ввода, как в T3 Code.
 struct ChatScrollToBottomButton: View {
     let action: () -> Void
 
@@ -188,13 +189,14 @@ struct ChatScrollToBottomButton: View {
             // Вытянутая пилюля по центру над полем ввода (владелец 20.10.2026:
             // «в краешек пальцем лезть неудобно»). Владелец 07.11: вдвое
             // ниже и немного шире — 80×18; зона нажатия 88×44.
+            // С 11.11.2026 — круг (см. выше).
             Image(systemName: "chevron.down")
-                .tfTypeFont(size: 17, weight: .semibold)
+                .tfTypeFont(size: 15, weight: .semibold)
                 .foregroundStyle(Color.tfChatText)
-                .frame(width: 80, height: 18)
-                .voiceCapsuleSurface()
-                .frame(width: 88, height: TFHitTarget.min, alignment: .bottom)
-                .contentShape(Capsule())
+                .frame(width: 36, height: 36)
+                .voiceCircleSurface()
+                .frame(width: TFHitTarget.min, height: TFHitTarget.min)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Вниз, к последнему сообщению")
