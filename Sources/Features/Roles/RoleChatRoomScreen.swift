@@ -1177,7 +1177,9 @@ struct RoleChatRoomScreen: View {
         // один раз, а не на каждое событие (владелец 27.10.2026).
         guard !Task.isCancelled else { return }
         realtimeObserver.replace(add: {
-            realtime.addObserver { event in
+            // Только события этого чата и общие: дельты чужих чатов экран
+            // больше не будят (аудит плавности 11.11.2026).
+            realtime.addChatObserver(chatID: chat.id, includeGlobal: true) { event in
                 guard eventBatch.enqueue(event) else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: ChatEventCoalescer<RealtimeEvent>.window)
