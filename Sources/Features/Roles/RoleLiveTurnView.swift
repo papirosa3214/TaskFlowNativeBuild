@@ -236,6 +236,20 @@ private struct RoleLiveItemsContent: View {
             RoleLiveDetailSheet(detail: detail)
         }
         .roleTranslationRequests(finishedTexts)
+        // Каждый вставший блок — лёгкий тык (владелец 11.11.2026:
+        // «тык-тык-тык, аккуратненько так оно вставало»).
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.55), trigger: isStreaming ? settledBlockCount : 0) { old, new in
+            isStreaming && new > old
+        }
+    }
+
+    /// Сколько блоков хода уже встало: законченные абзацы текста и пункты.
+    private var settledBlockCount: Int {
+        items.enumerated().reduce(0) { total, entry in
+            guard case .text(let text) = entry.element else { return total + 1 }
+            let shown = entry.offset == items.count - 1 ? RoleLiveBlocks.settled(text) : text
+            return total + RoleLiveBlocks.count(shown)
+        }
     }
 
     /// Раскрыта ли группа действий — по ключу строки ленты и группы, а не по
@@ -253,7 +267,11 @@ private struct RoleLiveItemsContent: View {
         let expanded = detailLevel == .detailed
         Group {
             switch item {
-            case .text(let text):
+            case .text(let rawText):
+                // Идущий ответ встаёт целыми блоками (абзацами): хвост,
+                // который ещё пишется, не показывается до конца абзаца
+                // (владелец 11.11.2026, вместо пейсера по буквам).
+                let text = isStreaming && item == items.last ? RoleLiveBlocks.settled(rawText) : rawText
                 // Показ перевода (владелец 20.10.2026, вернули 08.11.2026:
                 // рефакторинг 07.11 выкинул `display`, и кнопка переключала
                 // только флаг). Готовые куски — переводом, остальное — как есть.
@@ -1167,5 +1185,37 @@ extension View {
     func roleReveal(_ fade: RoleTextFade?) -> some View {
         if let fade { self.modifier(RoleTextRevealModifier(fade: fade)) }
         else { self }
+    }
+}
+
+/// Блоки идущего ответа: показываются только законченные абзацы.
+enum RoleLiveBlocks {
+    /// Текст до последней границы абзаца. Граница внутри незакрытого
+    /// блока кода не считается — код встаёт целиком.
+    static func settled(_ text: String) -> String {
+        var cut = text.startIndex
+        var inFence = false
+        var lineStart = text.startIndex
+        var previousBlank = false
+        while lineStart < text.endIndex {
+            let lineEnd = text[lineStart...].firstIndex(of: "\n") ?? text.endIndex
+            let line = text[lineStart..<lineEnd]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                if !inFence, lineEnd < text.endIndex { cut = text.index(after: lineEnd) }
+            } else if !inFence, trimmed.isEmpty, !previousBlank, lineStart > text.startIndex {
+                cut = lineStart
+            }
+            previousBlank = trimmed.isEmpty
+            guard lineEnd < text.endIndex else { break }
+            lineStart = text.index(after: lineEnd)
+        }
+        return String(text[..<cut]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Число абзацев в тексте.
+    static func count(_ text: String) -> Int {
+        text.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
     }
 }
