@@ -618,6 +618,8 @@ enum RoleLiveFrame {
 }
 
 /// «Думает…» с бликом, пробегающим по буквам — как индикатор в Claude.
+/// Блик — анимация слоя Core Animation (как `ChatTickingText`): SwiftUI не
+/// пересобирает поддерево на каждом кадре, кадры считает рендер-сервер.
 struct RoleShimmerText: View {
     let text: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -627,27 +629,83 @@ struct RoleShimmerText: View {
         if reduceMotion {
             label.foregroundStyle(Color.tfSub)
         } else {
-            TimelineView(.animation(minimumInterval: RoleLiveFrame.seconds)) { context in
-                let period = 1.8
-                let phase = context.date.timeIntervalSinceReferenceDate
-                    .truncatingRemainder(dividingBy: period) / period
-                // Блик идёт от -0.3 до 1.3, чтобы входить и выходить за край.
-                let center = -0.3 + phase * 1.6
-                label
-                    .foregroundStyle(Color.tfSub)
-                    .overlay {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: center - 0.25),
-                                .init(color: Color.tfText, location: center),
-                                .init(color: .clear, location: center + 0.25),
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+            label
+                .foregroundStyle(Color.tfSub)
+                .overlay {
+                    RoleShimmerLayer(color: UIColor(Color.tfText))
                         .mask(label)
-                    }
+                }
+        }
+    }
+}
+
+/// Градиент блика: clear → цвет → clear шириной ±0.25, центр идёт от -0.3
+/// до 1.3 за 1.8 с линейно, по кругу — как прежний покадровый вариант.
+private struct RoleShimmerLayer: UIViewRepresentable {
+    let color: UIColor
+
+    func makeUIView(context: Context) -> ShimmerView {
+        let view = ShimmerView()
+        view.isUserInteractionEnabled = false
+        view.color = color
+        return view
+    }
+
+    func updateUIView(_ view: ShimmerView, context: Context) {
+        view.color = color
+    }
+
+    final class ShimmerView: UIView {
+        override class var layerClass: AnyClass { CAGradientLayer.self }
+        private var gradient: CAGradientLayer { layer as! CAGradientLayer }
+        private static let key = "tfShimmer"
+        private static let period: CFTimeInterval = 1.8
+
+        var color: UIColor = .label { didSet { applyColors() } }
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            gradient.startPoint = CGPoint(x: 0, y: 0.5)
+            gradient.endPoint = CGPoint(x: 1, y: 0.5)
+            gradient.locations = Self.locations(center: -0.3)
+            applyColors()
+            registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: ShimmerView, _) in
+                view.applyColors()
             }
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) не используется") }
+
+        private static func locations(center: Double) -> [NSNumber] {
+            [center - 0.25, center, center + 0.25].map { NSNumber(value: $0) }
+        }
+
+        private func applyColors() {
+            let resolved = color.resolvedColor(with: traitCollection)
+            gradient.colors = [resolved.withAlphaComponent(0).cgColor,
+                               resolved.cgColor,
+                               resolved.withAlphaComponent(0).cgColor]
+        }
+
+        /// Слой теряет анимацию, когда вью уходит из окна, — ставим заново.
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil else { gradient.removeAnimation(forKey: Self.key); return }
+            guard gradient.animation(forKey: Self.key) == nil else { return }
+            let animation = CABasicAnimation(keyPath: "locations")
+            animation.fromValue = Self.locations(center: -0.3)
+            animation.toValue = Self.locations(center: 1.3)
+            animation.duration = Self.period
+            animation.repeatCount = .infinity
+            animation.timingFunction = CAMediaTimingFunction(name: .linear)
+            animation.isRemovedOnCompletion = false
+            // Фаза от абсолютного времени, как в прежнем варианте: все блики
+            // на экране идут синхронно.
+            let now = CACurrentMediaTime()
+            animation.beginTime = now - Date().timeIntervalSinceReferenceDate
+                .truncatingRemainder(dividingBy: Self.period)
+            gradient.add(animation, forKey: Self.key)
         }
     }
 }
