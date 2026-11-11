@@ -306,6 +306,7 @@ struct RoleChatsScreen: View {
             }
             .padding(.bottom, TFSpacing.xl)
         }
+        .scrollIndicators(.hidden)
         .tfScreenBackground()
     }
 
