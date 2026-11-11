@@ -1,0 +1,29 @@
+# Закреплённое поведение (владелец). Формат: файл | регулярка, которая ОБЯЗАНА быть в файле | что держит
+# Убрать строку отсюда — только по слову владельца, с пометкой в сообщении коммита.
+
+# --- Чат: системное стекло и затухание сверху и снизу ---
+Sources/Features/Roles/RoleChatRoomScreen.swift | \.ignoresSafeArea\(edges: \.top\) | лента идёт под шапку — системное затухание сверху
+Sources/Features/Roles/RoleChatRoomScreen.swift | \.ignoresSafeArea\(\.container, edges: \.bottom\) | лента идёт под панель ввода — текст не прячется под фон (11.11.2026)
+Sources/Features/Roles/RoleChatRoomScreen.swift | \.chatComposerBar \{ | панель ввода — штатная нижняя панель
+Sources/Chat/Composer/ChatVoiceComposer.swift | safeAreaBar\(edge: \.bottom | панель ввода без своей заливки, стекло рисует система
+Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.contentInsetAdjustmentBehavior = \.automatic | safe area ленты считает таблица
+Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.topEdgeEffect\.style = \.soft | мягкое затухание сверху
+Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.bottomEdgeEffect\.style = \.soft | мягкое затухание снизу
+Sources/Chat/Feed/ChatFeedVirtualList.swift | table\.backgroundColor = \.clear | лента прозрачная
+
+# --- Чат: оптимизация ---
+Sources/Chat/Feed/ChatFeedVirtualList.swift | ChatFeedTableView\(frame | лента на нативной виртуализации (UITableView)
+Sources/Chat/Feed/ChatFeedVirtualList.swift | selfSizingInvalidation = \.enabledIncludingConstraints | строка перемеряется сама, без reloadData всей ленты
+Sources/Chat/Feed/ChatFeedVirtualList.swift | private func remember\(cell: | дельты хода без reloadData
+Sources/Features/Roles/RoleChatRoomScreen.swift | addChatObserver\(chatID: chat\.id | экран слушает сокет только по своему чату
+Sources/Features/Roles/RoleChatRoomScreen.swift | feedWindow = RoleChatFeedWindow\.step | чат открывается на окне истории
+Sources/Features/Roles/RoleChatRoomScreen.swift | onNearTop: \{ growFeedWindow\(\) \} | старое догружается при прокрутке вверх
+Sources/Features/Roles/RoleChatRoomScreen.swift | Self\.replyExcerpts\(from: messages\) | выдержки ответов — один проход, не квадратичный поиск
+Sources/Chat/Output/RoleReplyMarkdown.swift | runPieces = ParsedValueCache | кэш разметки ответа
+Sources/Chat/Output/RoleReplyMarkdown.swift | heightCache = ParsedValueCache | кэш высоты таблиц ответа
+Sources/Chat/Feed/ChatRichContent.swift | static func stableID\( | стабильные id блоков ответа
+Sources/Chat/Output/ChatHTMLView.swift | ChatHTMLHeightCache\.height\(for: | кэш высоты HTML — строка не скачет
+Sources/Chat/Feed/ChatFeedParts.swift | ChatThumbnailCache\.cachedImage\( | кэш миниатюр вложений
+Sources/Chat/Feed/ChatThumbnailCache.swift | kCGImageSourceShouldCache: false | миниатюры через ImageIO, без полной картинки
+Sources/Features/Roles/RoleChatsScreen.swift | LazyVStack\(spacing: 0\) | список чатов строится лениво
+Sources/Features/Roles/RoleChatsScreen.swift | Task\.detached | разбор списка чатов не на главном потоке
