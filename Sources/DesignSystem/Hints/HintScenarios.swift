@@ -44,7 +44,8 @@ enum HintAnchorID {
     static let memoryObserver = "memory.observer"
     static let chatDictation = "chat.dictation"
     static let chatComposerActions = "chat.composer.actions"
-    static let chatContextWindow = "chat.context-window"
+    /// Строка «Контекст модели» в окне сессии — там же, где кольцо расхода.
+    static let chatSessionContext = "chat.session-context"
     static let roleActions = "role.live-actions"
     static let chatMembersMenu = "chat.members-menu"
     /// Полоса чек-листа роли над полем ввода: серверные состояния пункта.
@@ -98,8 +99,10 @@ enum HintScenarios {
         id: "chat-composer-controls", title: "Панель чата", start: "actions",
         steps: [
             "actions": HintStep(anchor: HintAnchorID.chatComposerActions, title: "Действия в одном меню",
-                text: "Здесь вложения и режимы: Работа, Планирование, Цель, а у помощницы и исследователя — Исследование. В личном чате помощница работает только в чате. Выбор модели находится рядом; модели разложены по провайдерам.", next: "context"),
-            "context": HintStep(anchor: HintAnchorID.chatContextWindow, title: "Сколько осталось контекста",
+                text: "Здесь вложения и режимы: Работа, Планирование, Цель, а у помощницы и исследователя — Исследование. В личном чате помощница работает только в чате. Выбор модели находится рядом; модели разложены по провайдерам.", next: "session"),
+            "session": HintStep(anchor: HintAnchorID.chatSession, title: "Окно сессии",
+                text: "Кнопка «Сессия» открывает окно разговора: модель и уровень размышлений, рабочая папка, вложения, режим работы и расход контекста. Откройте его — следующий шаг покажет строку контекста.", next: "context"),
+            "context": HintStep(anchor: HintAnchorID.chatSessionContext, title: "Сколько осталось контекста",
                 text: "Здесь размер последнего измеренного окна и лимит фактической модели, а не суммарный расход беседы. Откройте строку, чтобы увидеть свежесть замера, обновить его, сжать контекст или начать новую сессию. После сжатия до нового ответа замер может быть неизвестен. Процент — ориентир, не гарантия места для следующего запроса.", next: "commands"),
             "commands": HintStep(anchor: HintAnchorID.chatComposerActions, title: "Навыки и инструменты",
                 text: "В личном чате наберите / или выберите «Навыки и инструменты» в меню. Список приходит от сервера для этого агента. Выбор вставит команду в поле; допишите поручение и отправьте сообщение. Сам выбор ничего не запускает.", next: nil)

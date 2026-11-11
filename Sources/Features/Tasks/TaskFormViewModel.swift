@@ -596,7 +596,8 @@ final class TaskFormViewModel {
     }
 
     // MARK: - Подзадачи (просмотр — карточки-агенты) — перенесено буквально
-    // из TaskDetailViewModel, для `SubtaskFeedView` в режиме чтения.
+    // из TaskDetailViewModel (экран снят, архив 2026-09-11). Лента
+    // `SubtaskFeedView`, для которой это писалось, тоже в архиве с 11.11.2026.
 
     func toggleSubtaskDone(_ subtask: ApiSubtask) async {
         do {
@@ -910,13 +911,6 @@ final class TaskFormViewModel {
         } catch {
             subtasks = snapshot
             saveErrorMessage = Self.message(error)
-        }
-    }
-
-    func reorderSubtasks(_ newOrder: [ApiSubtask]) async {
-        subtasks = newOrder
-        for (index, subtask) in newOrder.enumerated() where subtask.position != index {
-            _ = try? await apiClient.patchSubtask(id: subtask.id, fields: ["position": .number(Double(index))])
         }
     }
 

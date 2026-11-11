@@ -38,10 +38,6 @@ private struct CreateRoleChatBody: Encodable {
 }
 
 public extension APIClient {
-    func projectChat(projectID: String) async throws -> RoleChat {
-        let response: RoleChatEnvelope = try await request(.post, "/projects/\(projectID)/chat", body: [String: String]())
-        return response.chat
-    }
     func taskTopic(taskID: String) async throws -> RoleChat {
         let response: RoleChatEnvelope = try await request(.post, "/tasks/\(taskID)/topic", body: [String: String]())
         return response.chat
@@ -67,13 +63,6 @@ public extension APIClient {
     /// Панель «Комнаты» — `GET /api/chats/rooms` (21.10.2026).
     func chatRooms() async throws -> ChatRoomsSnapshot {
         try await request(.get, "/chats/rooms")
-    }
-
-    /// Закрыть или вернуть сессию; постоянные комнаты сервер не закрывает.
-    func closeRoleChat(id: String, closed: Bool) async throws -> RoleChat {
-        struct Body: Encodable { let closed: Bool }
-        let response: RoleChatEnvelope = try await request(.post, "/chats/\(id)/close", body: Body(closed: closed))
-        return response.chat
     }
 
     /// «В архив» (владелец 08.11.2026): чат уходит из списка, история остаётся.
@@ -171,22 +160,6 @@ public extension APIClient {
     func cachedRoleChatMessages(id: String) -> [RoleChatMessage]? {
         cached(RoleChatMessagesEnvelope.self, "/chats/\(id)/messages",
                query: [URLQueryItem(name: "projection", value: "list")])?.messages
-    }
-
-    /// Идущие сейчас ходы ролей в чате — снимок для открывшего чат посреди
-    /// ответа или после переподключения; дальше обновления идут `chats:live`.
-    func reactToRoleChatMessage(chatID: String, messageID: String, emoji: String?) async throws -> RoleChatMessage {
-        struct Body: Encodable {
-            let emoji: String?
-            enum CodingKeys: String, CodingKey { case emoji }
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                if let emoji { try container.encode(emoji, forKey: .emoji) }
-                else { try container.encodeNil(forKey: .emoji) }
-            }
-        }
-        let response: RoleChatMessageEnvelope = try await request(.post, "/chats/\(chatID)/messages/\(messageID)/reaction", body: Body(emoji: emoji))
-        return response.message
     }
 
     /// Отметка пункта checklist-виджета — один POST, ровно как у реакции
@@ -367,7 +340,6 @@ extension APIClient {
     }
 }
 
-private struct RoleChatDiscussionEnvelope: Decodable { let discussion: RoleChatDiscussion }
 private struct RoleChatDiscussionsEnvelope: Decodable { let discussions: [RoleChatDiscussion] }
 
 public extension APIClient {
@@ -375,44 +347,10 @@ public extension APIClient {
     // карточка 252c400e, этапы 3–4). Обсуждение — отдельная сущность: свой
     // жизненный цикл, свой итог и своё обязательство для исполнителя.
 
-    /// Открыть обсуждение карточки: `POST /api/tasks/:taskId/discussions`.
-    /// Открывает владелец карточки.
-    func createTaskDiscussion(taskID: String, subtaskID: String, role: String,
-                              title: String? = nil) async throws -> RoleChatDiscussion {
-        struct Body: Encodable {
-            let subtask_id: String
-            let role: String
-            let title: String?
-        }
-        let response: RoleChatDiscussionEnvelope = try await request(
-            .post, "/tasks/\(taskID)/discussions",
-            body: Body(subtask_id: subtaskID, role: role, title: title))
-        return response.discussion
-    }
-
     /// Обсуждения карточки: `GET /api/tasks/:taskId/discussions`.
     func taskDiscussions(taskID: String) async throws -> [RoleChatDiscussion] {
         let response: RoleChatDiscussionsEnvelope = try await request(.get, "/tasks/\(taskID)/discussions")
         return response.discussions
     }
 
-    /// Состояние обсуждения: `GET /api/discussions/:id`.
-    func taskDiscussion(id: String) async throws -> RoleChatDiscussion {
-        let response: RoleChatDiscussionEnvelope = try await request(.get, "/discussions/\(id)")
-        return response.discussion
-    }
-
-    /// Закрыть обсуждение: сервер собирает итог и обязательство для
-    /// исполнителя. Повторный вызов возвращает тот же итог, а не второй.
-    func closeTaskDiscussion(id: String, recipientSubtaskID: String? = nil) async throws -> RoleChatDiscussion {
-        let body: [String: JSONValue] = ["recipient_subtask_id": recipientSubtaskID.map { .string($0) } ?? .null]
-        let response: RoleChatDiscussionEnvelope = try await request(.post, "/discussions/\(id)/close", body: body)
-        return response.discussion
-    }
-
-    /// Принять обязательство: подтверждение, что итог доставлен исполнителю.
-    func acceptTaskDiscussion(id: String) async throws -> RoleChatDiscussion {
-        let response: RoleChatDiscussionEnvelope = try await request(.post, "/discussions/\(id)/accept", body: [String: JSONValue]())
-        return response.discussion
-    }
 }

@@ -159,7 +159,7 @@ final class CalendarDateMathTests: XCTestCase {
         // Тот же объём через экранный хелпер: он зовёт разбор даты и считает
         // подпись. Раньше на каждый вывод создавался `DateFormatter`.
         let helperStart = DispatchTime.now().uptimeNanoseconds
-        for sample in samples { _ = TodayDate.formatDueLabel(sample) }
+        for sample in samples { _ = DirectoryDate.formatDueLabel(sample) }
         let helperElapsed = Double(DispatchTime.now().uptimeNanoseconds - helperStart) / Double(samples.count)
 
         print("ЗАМЕР календарных дат: эталонный разбор \(String(format: "%.2f", referenceElapsed / 1000)) мкс, экранный хелпер \(String(format: "%.2f", helperElapsed / 1000)) мкс")
@@ -193,16 +193,11 @@ final class CalendarDateMathTests: XCTestCase {
     // MARK: - Поведение экранов не изменилось
 
     func testПодписиЭкрановНеИзменились() {
-        XCTAssertEqual(TodayDate.formatDuePlain("2026-10-24"), "24 окт")
-        XCTAssertEqual(TodayDate.formatWeekdayLabel("2026-10-24"), "Суббота")
-        XCTAssertEqual(TodayDate.formatColumnDateLabel("2026-10-24"), "24 окт. · Суббота")
         XCTAssertEqual(UpcomingDate.jsWeekday("2026-10-24"), 6)
         XCTAssertEqual(UpcomingDate.day("2026-10-24"), 24)
         XCTAssertEqual(UpcomingDate.yearMonth("2026-10-24").year, 2026)
         XCTAssertEqual(UpcomingDate.yearMonth("2026-10-24").month, 9)
         XCTAssertEqual(UpcomingDate.addDays("2026-10-24", 8), "2026-11-01")
         XCTAssertEqual(UpcomingDate.mondayOf("2026-10-24"), "2026-10-19")
-        XCTAssertEqual(TodayDate.addDays("2026-10-24", 8), "2026-11-01")
-        XCTAssertEqual(TodayDate.calendarDateString(reference.date(from: "2026-10-24")!), "2026-10-24")
     }
 }

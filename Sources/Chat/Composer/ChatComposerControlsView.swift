@@ -36,68 +36,6 @@ final class ChatComposerControlStore {
     }
 }
 
-struct ChatContextControl: View {
-    let snapshot: ChatContextSnapshot?
-    let roleName: String?
-    let loadError: String?
-    let onRefresh: () -> Void
-    @State private var showsDetails = false
-    @State private var contextDetent: PresentationDetent = .medium
-
-    var body: some View {
-        contextRingButton
-            .tfSheet(isPresented: $showsDetails) { contextSheet }
-    }
-
-    /// Кольцо в ряду ярлычков (владелец 26.10.2026): заполняется по мере
-    /// расхода окна — белое, жёлтое, красное; нажатие — расшифровка листом.
-    ///
-    /// Кнопка и шторка вынесены в отдельные свойства намеренно: единая цепочка
-    /// модификаторов не успевала type-check'иться на CI («the compiler is unable
-    /// to type-check this expression in reasonable time», `ChatComposerControlsView.swift:60`).
-    /// Вид не меняется — те же элементы, тот же порядок.
-    private var contextRingButton: some View {
-        Button { contextDetent = .medium; showsDetails = true } label: {
-            ChatContextRing(fraction: snapshot?.fraction ?? 0)
-                .frame(width: 20, height: 20)
-                .frame(width: 40, height: 40)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Контекст" + (roleName.map { ", " + $0 } ?? "") + ". " + (snapshot?.summary ?? "Нет замера"))
-        .accessibilityHint("Показать, из чего состоит контекст")
-        .accessibilityIdentifier("chat.context-window")
-        .hintAnchor(HintAnchorID.chatContextWindow)
-    }
-
-    /// Содержимое шторки с расшифровкой окна контекста.
-    private var contextSheet: some View {
-        ChatContextSheet(snapshot: snapshot, roleName: roleName, loadError: loadError, onRefresh: onRefresh)
-            .presentationDetents([.medium, .large], selection: $contextDetent)
-            .presentationDragIndicator(.visible)
-    }
-}
-
-/// Кольцо заполнения окна: дорожка и дуга по доле; цвет — по порогам.
-struct ChatContextRing: View {
-    let fraction: Double
-
-    private var color: Color {
-        fraction >= 0.85 ? .red : fraction >= 0.6 ? .yellow : .primary
-    }
-
-    var body: some View {
-        ZStack {
-            Circle().stroke(Color.primary.opacity(0.2), lineWidth: 2.5)
-            Circle()
-                .trim(from: 0, to: min(1, max(0, fraction)))
-                .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 /// Цвет части контекста — один и тот же в полосе и в расшифровке.
 enum ChatContextPalette {
     static func color(_ id: String) -> Color {

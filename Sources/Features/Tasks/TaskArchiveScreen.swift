@@ -22,13 +22,15 @@ struct TaskArchiveScreen: View {
                 historySection
 
                 TFErrorBanner(taskStore.archiveErrorMessage, variant: .inline)
+                TFErrorBanner(projectStore.archiveErrorMessage, variant: .inline)
 
                 if taskStore.isLoadingArchive && tasks.isEmpty {
                     TFLoading(.block)
-                } else if tasks.isEmpty && taskStore.archiveErrorMessage == nil {
+                } else if tasks.isEmpty && projectStore.archivedProjects.isEmpty
+                            && taskStore.archiveErrorMessage == nil {
                     TFEmptyState(
                         icon: "archivebox",
-                        text: "Задачи, отправленные в архив, можно восстановить или удалить окончательно."
+                        text: "Задачи и проекты из архива можно восстановить или удалить окончательно."
                     )
                     .padding(.horizontal, TFSpacing.xs)
                 } else if !tasks.isEmpty {
@@ -45,6 +47,8 @@ struct TaskArchiveScreen: View {
                     }
                 }
 
+                projectArchiveSection
+
             }
             .listRowInsets(EdgeInsets())
         }
@@ -56,7 +60,7 @@ struct TaskArchiveScreen: View {
         .accessibilityIdentifier("taskArchiveList")
         .tfNativeHeader("Архив", displayMode: .inline)
         .task { await loadArchive() }
-        .refreshable { await loadArchive() }
+        .refreshable { await loadArchive(force: true) }
         .confirmationDialog(pendingProjectDelete == nil ? "Удалить задачу окончательно?" : "Удалить проект окончательно?", isPresented: Binding(
             get: { pendingDelete != nil || pendingProjectDelete != nil },
             set: { if !$0 { pendingDelete = nil; pendingProjectDelete = nil } }
@@ -192,9 +196,9 @@ struct TaskArchiveScreen: View {
         DateFormats.sqliteUTC(raw)?.formatted(date: .abbreviated, time: .shortened) ?? raw
     }
 
-    private func loadArchive() async {
-        await taskStore.loadArchive()
-        await projectStore.loadArchive()
+    private func loadArchive(force: Bool = false) async {
+        await taskStore.loadArchive(force: force)
+        await projectStore.loadArchive(force: force)
     }
 
     private func restoreProject(_ project: ApiProject) {
