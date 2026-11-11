@@ -675,7 +675,11 @@ struct RoleChatsScreen: View {
 
     /// Слева у строки — собеседник, когда он один. В группе лиц несколько,
     /// один кружок за всех не ставится.
+    /// Внутри экрана конкретной роли кружка нет вовсе: роль названа заголовком,
+    /// а одинаковый кружок у каждой сессии только шумит (владелец 11.11.2026).
+    /// Общий список чатов (`isHome`) и каталог групп аватар сохраняют.
     private func rowMember(_ chat: RoleChat) -> RoleChatMember? {
+        guard isHome || RoleSessionList.showsAvatar(in: selectedScope) else { return nil }
         let others = chat.others(excluding: session.currentUser?.id)
         return others.count == 1 ? others.first : nil
     }
