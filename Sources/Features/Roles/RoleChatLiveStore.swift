@@ -18,9 +18,15 @@ import SwiftUI
 @Observable
 final class RoleChatLiveStore {
     /// Идущие ходы: userID → снимок хода. Меняется на каждую порцию ответа.
+    /// Строки ходов читают не его, а свой `turnBox(for:)`: дельта одной роли
+    /// будит только её строку, а не строки всех ролей.
     var turns: [String: RoleChatLiveTurn] = [:] {
-        didSet { refreshTurnDerived() }
+        didSet { syncBoxes(); refreshTurnDerived() }
     }
+
+    /// Наблюдаемый ход одной роли: userID → ячейка. Сам словарь не
+    /// наблюдается — ячейка создаётся при первом чтении и живёт, пока есть ход.
+    @ObservationIgnored private var boxes: [String: RoleChatLiveTurnBox] = [:]
 
     /// Ход дельтами: userID → состояние. Меняется на каждую порцию ответа.
     var deltas: [String: RoleChatLiveTurnState] = [:] {
@@ -42,6 +48,28 @@ final class RoleChatLiveStore {
     init(turns: [String: RoleChatLiveTurn] = [:]) {
         self.turns = turns
         refreshTurnDerived()
+    }
+
+    /// Ячейка хода роли — читатель подписывается только на неё.
+    func turnBox(for userID: String) -> RoleChatLiveTurnBox {
+        if let box = boxes[userID] { return box }
+        let box = RoleChatLiveTurnBox(turn: turns[userID])
+        boxes[userID] = box
+        return box
+    }
+
+    /// Ход роли с подпиской только на него.
+    func turn(for userID: String) -> RoleChatLiveTurn? {
+        turnBox(for: userID).turn
+    }
+
+    /// Разносит изменения словаря по ячейкам: пишется только изменившийся ход.
+    private func syncBoxes() {
+        for (userID, box) in boxes {
+            let new = turns[userID]
+            if new != box.turn { box.turn = new }
+            if new == nil { boxes[userID] = nil }
+        }
     }
 
     static func slot(for turn: RoleChatLiveTurn) -> RoleChatLiveSlot {
@@ -77,6 +105,18 @@ final class RoleChatLiveStore {
     }
 }
 
+/// Ход одной роли — отдельный наблюдаемый объект, чтобы порция ответа одной
+/// роли не будила строки других.
+@MainActor
+@Observable
+final class RoleChatLiveTurnBox {
+    var turn: RoleChatLiveTurn?
+
+    init(turn: RoleChatLiveTurn?) {
+        self.turn = turn
+    }
+}
+
 /// Строка живого хода: текст хода читает она сама, а не экран комнаты, —
 /// поэтому порция ответа перерисовывает только её.
 struct RoleChatLiveSlotView<Content: View>: View {
@@ -89,7 +129,7 @@ struct RoleChatLiveSlotView<Content: View>: View {
     @ViewBuilder let content: (RoleChatLiveTurn) -> Content
 
     var body: some View {
-        if let turn = Self.turn(completing: completing, live: store.turns[slot.userID], slot: slot) {
+        if let turn = Self.turn(completing: completing, live: store.turn(for: slot.userID), slot: slot) {
             content(turn)
         }
     }
