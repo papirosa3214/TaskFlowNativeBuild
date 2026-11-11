@@ -639,7 +639,7 @@ struct RoleChatsScreen: View {
     private func moveToArchive(_ chat: RoleChat) async {
         do {
             _ = try await api.archiveRoleChat(id: chat.id)
-            try? LocalStore.shared.hideChat(id: chat.id)
+            await hideLocalChat(id: chat.id)
             try await refreshList()
         } catch { errorMessage = error.localizedDescription }
     }
@@ -649,7 +649,7 @@ struct RoleChatsScreen: View {
     private func purge(_ chat: RoleChat) async {
         do {
             try await api.purgeRoleChat(id: chat.id)
-            try? LocalStore.shared.hideChat(id: chat.id)
+            await hideLocalChat(id: chat.id)
             try await refreshList()
         } catch { errorMessage = error.localizedDescription }
     }
@@ -712,15 +712,63 @@ struct RoleChatsScreen: View {
 
     // MARK: - Загрузка
 
+    /// Чтение локальной базы — в фоне, всегда.
+    ///
+    /// База на диске: двести с лишним чатов читаются и разбираются из JSON
+    /// заметное время. Ждали её на главном потоке — и переход с экрана чатов
+    /// в чаты роли вставал вместе со штатным полем поиска в шапке (владелец
+    /// 11.11.2026: «наверху поле ввода поиска… задержка какая-то идёт»).
+    /// `Task.detached` — не для порядка, а чтобы разбор шёл не там, где рисуют.
+    private func localChats(includeClosed: Bool) async -> [RoleChat]? {
+        await Task.detached(priority: .userInitiated) {
+            try? LocalStore.shared.chats(includeClosed: includeClosed)
+        }.value
+    }
+
+    /// Дисковый кэш ответов (`ResponseCache`) — тоже чтение файла; в фоне.
+    private func cachedChats(includeClosed: Bool) async -> [RoleChat]? {
+        await Task.detached(priority: .userInitiated) {
+            APIClient().cachedRoleChats(includeClosed: includeClosed)
+        }.value
+    }
+
+    private func cachedRooms() async -> ChatRoomsSnapshot? {
+        await Task.detached(priority: .userInitiated) {
+            APIClient().cachedChatRooms()
+        }.value
+    }
+
+    private func localETag() async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            LocalStore.shared.syncState(SyncStateKeys.chatsETag)
+        }.value
+    }
+
+    /// Запись ответа сервера в локальную базу — тоже в фоне: это чтение всех
+    /// id, запись (upsert) и уборка лишнего в одной транзакции.
+    private func storeChats(_ data: Data, keeping ids: Set<String>, etag: String?) async {
+        await Task.detached(priority: .utility) {
+            try? LocalStore.shared.upsertChats(data)
+            try? LocalStore.shared.hideChats(notIn: ids)
+            LocalStore.shared.setSyncState(SyncStateKeys.chatsETag, etag)
+        }.value
+    }
+
+    private func hideLocalChat(id: String) async {
+        await Task.detached(priority: .utility) {
+            try? LocalStore.shared.hideChat(id: id)
+        }.value
+    }
+
     private func load() async {
         // Локальная база: список виден сразу, без сети. Это первое, что
         // рисуется, — сеть его только обновит.
-        if chats.isEmpty, let local = try? LocalStore.shared.chats(includeClosed: showsClosed), !local.isEmpty {
+        if chats.isEmpty, let local = await localChats(includeClosed: showsClosed), !local.isEmpty {
             chats = local
         }
         // Прошлый список из кэша — виден сразу, сеть его обновит.
-        if chats.isEmpty, let cached = api.cachedRoleChats(includeClosed: showsClosed) { chats = cached }
-        if rooms == nil, isOwner { rooms = api.cachedChatRooms() }
+        if chats.isEmpty, let cached = await cachedChats(includeClosed: showsClosed) { chats = cached }
+        if rooms == nil, isOwner { rooms = await cachedRooms() }
         isLoading = true
         defer { isLoading = false }
         do { try await refreshList(forceFull: true) }
@@ -745,29 +793,27 @@ struct RoleChatsScreen: View {
         // С отпечатком: список чатов не менялся — сервер отвечает 304, и
         // список не качается заново. Отпечаток лежит в локальной базе,
         // поэтому перезапуск приложения его не теряет.
+        let etag = forceFull ? nil : await localETag()
         async let freshChats = api.roleChatsSync(
             includeClosed: showsClosed,
-            etag: forceFull ? nil : LocalStore.shared.syncState(SyncStateKeys.chatsETag)
+            etag: etag
         )
         let freshRooms: ChatRoomsSnapshot? = isOwner ? try? await api.chatRooms() : nil
         let result = try await freshChats
         guard version == listRequestVersion, !Task.isCancelled else { return }
         if result.notModified {
             // Список не менялся — берём его из локальной базы.
-            if let local = try? LocalStore.shared.chats(includeClosed: showsClosed), !local.isEmpty {
+            if let local = await localChats(includeClosed: showsClosed), !local.isEmpty {
                 chats = local
             }
         } else {
             let envelope = try api.decode(APIClient.RoleChatsSyncEnvelope.self, from: result.data)
             chats = envelope.chats
-            // В базу — сырое тело ответа сервера.
-            try? LocalStore.shared.upsertChats(result.data)
-            // Полный список — это ровно то, что видит владелец: всё прочее в
-            // локальной таблице устарело (закрытые сессии, уборка, правки с
-            // другого устройства). Без этого «удалённая» сессия возвращалась
-            // из локальной базы после перезапуска.
-            try? LocalStore.shared.hideChats(notIn: Set(envelope.chats.map(\.id)))
-            if let etag = result.etag { LocalStore.shared.setSyncState(SyncStateKeys.chatsETag, etag) }
+            // В базу — сырое тело ответа сервера. Полный список — это ровно то,
+            // что видит владелец: всё прочее в локальной таблице устарело
+            // (закрытые сессии, уборка, правки с другого устройства). Без
+            // уборки «удалённая» сессия возвращалась из базы после перезапуска.
+            await storeChats(result.data, keeping: Set(envelope.chats.map(\.id)), etag: result.etag)
         }
         if let freshRooms { rooms = freshRooms }
     }
