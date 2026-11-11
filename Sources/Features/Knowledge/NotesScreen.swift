@@ -17,11 +17,6 @@ public struct NotesScreen: View {
     @State private var isSearchingKnowledge = false
     @State private var knowledgeSearchError: String?
 
-    /// Открыть сразу на этой папке (её и предков разворачиваем, к ней же
-    /// скроллим) — просьба владельца 03.09.2026: шеврон «Документация» у
-    /// проекта вёл на общий несвязанный корень Дневника, не на папку,
-    /// показанную в превью карточки проекта. `nil` — обычный корень, как раньше.
-    private let focusFolderID: Int?
     /// Сценарий центрального «+»: не просто открыть базу, а сразу завести
     /// документ и перейти в его редактор.
     private let startsNewNote: Bool
@@ -42,8 +37,7 @@ public struct NotesScreen: View {
 
     private var isKnowledgeSearchActive: Bool { !trimmedKnowledgeQuery.isEmpty }
 
-    public init(focusFolderID: Int? = nil, startsNewNote: Bool = false) {
-        self.focusFolderID = focusFolderID
+    public init(startsNewNote: Bool = false) {
         self.startsNewNote = startsNewNote
     }
 
@@ -51,7 +45,7 @@ public struct NotesScreen: View {
         ZStack {
             TFScreenFill()
 
-            ScrollViewReader { proxy in
+            ScrollViewReader { _ in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     TFErrorBanner(viewModel.foldersErrorMessage)
@@ -93,13 +87,6 @@ public struct NotesScreen: View {
                     hasStartedNewNote = true
                     await createNoteAndNavigate()
                 }
-                guard let focusFolderID else { return }
-                expandAncestors(of: focusFolderID)
-                // Короткая пауза — дать LazyVStack отрисовать развёрнутые
-                // строки, прежде чем скроллить к ним (иначе scrollTo не
-                // находит ещё не выложенный id).
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                withAnimation { proxy.scrollTo("f:\(focusFolderID)", anchor: .top) }
             }
             }
         }
@@ -527,16 +514,6 @@ public struct NotesScreen: View {
         return body.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Разворачивает саму папку и всех её предков по цепочке `parentId` —
-    /// иначе целевая папка (и её заметки) остаётся свёрнутой глубоко в
-    /// дереве, а `scrollTo` в `.task` выше не находит невыложенную строку.
-    private func expandAncestors(of folderID: Int) {
-        var current: Int? = folderID
-        while let id = current {
-            viewModel.expandedFolderIDs.insert(id)
-            current = viewModel.folders.first { $0.id == id }?.parentId
-        }
-    }
 }
 
 /// Системный лист «Поделиться» показываем НАПРЯМУЮ, а не через SwiftUI
