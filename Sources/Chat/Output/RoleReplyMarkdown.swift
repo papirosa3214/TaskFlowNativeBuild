@@ -333,10 +333,11 @@ struct RoleReplyMarkdown: View, Equatable {
     /// ~2 мкс на прогон (замер 24.10.2026: 131 мкс на 60 прогонов) — это
     /// самая дорогая часть кадра проявления.
     ///
-    /// Устойчивые блоки приходят из кэша разбора с теми же `id`, поэтому
-    /// готовые куски переиспользуются; пересобирается только растущий хвост,
-    /// у которого `id` каждый раз новый. Ключ — `id` блока: содержимое блока
-    /// неизменно, поэтому ключ однозначно задаёт и куски.
+    /// `id` блока детерминирован от содержимого узла и его места
+    /// (`ChatRichContent.documentBlocks`), поэтому неизменённые абзацы на
+    /// каждой дельте живого хода получают те же `id` и куски берутся отсюда;
+    /// пересобирается только растущий хвост. Ключ — `id` блока: он меняется
+    /// вместе с содержимым, поэтому однозначно задаёт и куски.
     private static let runPieces = ParsedValueCache<[RunPiece]>(limit: 64)
 
     /// Куски текста блока — из кэша, если блок уже собирался.
@@ -427,6 +428,12 @@ struct ChatTableView: View {
     /// Выше — таблица листается внутри своего окошка, а не растягивает ленту.
     private static let maxHeight: CGFloat = 360
     @State private var bodyHeight: CGFloat = 0
+    /// Высота тела по содержимому, кеглю и ширинам колонок: пересозданная
+    /// `LazyVStack` вьюха сразу получает высоту, без второго прохода.
+    private static let heightCache = ParsedValueCache<CGFloat>(limit: 128)
+    /// Размеченные ячейки по прогонам, группе и ступени шрифта: сборка
+    /// `AttributedString` не повторяется на каждом проходе `body`.
+    private static let cellCache = ParsedValueCache<AttributedString>(limit: 1024)
     /// Ширины колонок — по содержимому и кеглю, один раз на всю жизнь таблицы.
     /// Измерение текста через NSString.size дорогое, а `LazyVStack` пересоздаёт
     /// вьюху на каждой прокрутке, поэтому кэш общий, а не `@State` (владелец
@@ -483,6 +490,8 @@ struct ChatTableView: View {
         // Ширины берутся один раз за проход и раздаются всем строкам: считать
         // их внутри каждой ячейки — это повторный проход по всей таблице.
         let widths = widths()
+        let heightKey = Self.cacheKey(table, size: bodySize) + "\u{1C}" + widths.map { String(Double($0)) }.joined(separator: ",")
+        let knownHeight = bodyHeight > 0 ? bodyHeight : (Self.heightCache.value(for: heightKey) ?? 0)
         return TFCard(padding: 0, surface: .dark, radius: TFRadius.lg) {
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -494,10 +503,13 @@ struct ChatTableView: View {
                             }
                         }
                         .fixedSize(horizontal: false, vertical: true)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            if height > 0 { Self.heightCache.set(height, for: heightKey) }
+                            if height != bodyHeight { bodyHeight = height }
+                        }
                     }
                     .scrollBounceBehavior(.basedOnSize, axes: [.vertical])
-                    .frame(height: bodyHeight > 0 ? min(bodyHeight, Self.maxHeight) : nil)
+                    .frame(height: knownHeight > 0 ? min(knownHeight, Self.maxHeight) : nil)
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 // Сетка как в заметке (владелец 08.11.2026: «таблица плавающая,
@@ -565,6 +577,21 @@ struct ChatTableView: View {
         .allowsHitTesting(false)
     }
 
+    /// Разметка ячейки — из кэша. Ступень шрифта (`typeRevision`) и кегль в
+    /// ключе: смена «Настройки → Шрифт» размечает ячейки заново.
+    private func cellAttributed(_ runs: [RichRun], chatGroup: TFChatTypeGroup) -> AttributedString {
+        var key = "\(typeRevision)\u{1F}\(Int(bodySize.rounded()))\u{1F}\(chatGroup.rawValue)"
+        for run in runs {
+            key += "\u{1D}" + run.text + "\u{1E}"
+            key += [run.bold, run.italic, run.underline, run.strike, run.highlight, run.code].map { $0 ? "1" : "0" }.joined()
+            key += "\u{1E}" + (run.linkHref ?? "")
+        }
+        if let cached = Self.cellCache.value(for: key) { return cached }
+        let built = RoleReplyMarkdown.attributed(runs, chatGroup: chatGroup)
+        Self.cellCache.set(built, for: key)
+        return built
+    }
+
     private func headerRuns(_ column: Int) -> [RichRun]? {
         guard let runs = table.headerRuns, runs.indices.contains(column) else { return nil }
         return runs[column]
@@ -578,7 +605,7 @@ struct ChatTableView: View {
     private func cell(_ text: String, runs: [RichRun]?, chatGroup: TFChatTypeGroup = .body, isHeader: Bool = false, column: Int, width: CGFloat) -> some View {
         let alignment = column < table.alignments.count ? table.alignments[column] : .leading
         // Ячейка приходит с сервера уже размеченной; локального разбора нет.
-        let attributed = RoleReplyMarkdown.attributed(runs ?? [RichRun(text: text)], chatGroup: textGroup == .thinking ? .thinking : chatGroup)
+        let attributed = cellAttributed(runs ?? [RichRun(text: text)], chatGroup: textGroup == .thinking ? .thinking : chatGroup)
         let content = Text(attributed)
             .foregroundStyle(color)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
