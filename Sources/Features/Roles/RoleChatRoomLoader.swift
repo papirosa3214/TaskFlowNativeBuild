@@ -52,7 +52,7 @@ struct RoleChatRoomLoader: View {
     /// (владелец 06.11.2026: «Чат не открылся» при пропавшей связи, хотя
     /// переписка уже лежала на телефоне).
     private func load() async {
-        if let local = try? LocalStore.shared.chats().first(where: { $0.id == chatID }) {
+        if let local = try? LocalStore.shared.chat(id: chatID) {
             chat = local
             return
         }

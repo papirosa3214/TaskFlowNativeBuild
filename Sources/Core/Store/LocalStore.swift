@@ -22,7 +22,9 @@ final class LocalStore: @unchecked Sendable {
 
     private let database = LocalDatabase.shared
 
-    private var queue: DatabaseQueue { database.queue }
+    /// Через протокол `DatabaseWriter`: переход `LocalDatabase` на
+    /// `DatabasePool` (WAL) не потребует правок стора.
+    private var queue: any DatabaseWriter { database.queue }
 
     private init() {}
 
@@ -136,6 +138,16 @@ final class LocalStore: @unchecked Sendable {
         }
     }
 
+    /// Один чат по id — без разбора всех остальных.
+    func chat(id: String, includeClosed: Bool = false) throws -> RoleChat? {
+        let sql = includeClosed
+            ? "SELECT payload_json FROM chat WHERE id = ?"
+            : "SELECT payload_json FROM chat WHERE id = ? AND archived_at IS NULL"
+        let raw = try queue.read { db in try Data.fetchOne(db, sql: sql, arguments: [id]) }
+        guard let raw else { return nil }
+        return try? JSONDecoder().decode(RoleChat.self, from: raw)
+    }
+
     // MARK: - Сообщения
 
     /// Записать ответ `GET /api/chats/:id/messages` (`{"messages":[…]}`).
@@ -191,6 +203,108 @@ final class LocalStore: @unchecked Sendable {
             .tracking { db in try Self.fetchMessages(db, chatID: chatID) }
             .removeDuplicates(by: { $0.map(\.id) == $1.map(\.id) })
             .values(in: queue)
+    }
+
+    // MARK: - Окно последних сообщений и постраничное чтение
+
+    /// Сколько сообщений чата экран показывает по умолчанию.
+    static let defaultMessageWindow = 30
+
+    /// Сырые строки сообщения: сравнение по ним ловит любую правку тела
+    /// (текст, `updated_at`, вложения), а не только смену набора id.
+    struct RawMessageRow: Equatable, Sendable {
+        let id: String
+        let sequence: Int
+        let payload: Data
+    }
+
+    /// Последние `limit` сообщений чата по возрастанию номера. Чтение и
+    /// декод — вне главного потока.
+    func latestMessages(chatID: String, limit: Int = LocalStore.defaultMessageWindow) async throws -> [RoleChatMessage] {
+        let rows = try await queue.read { db in try Self.fetchRawWindow(db, chatID: chatID, limit: limit, beforeSequence: nil) }
+        return Self.decode(rows)
+    }
+
+    /// Страница истории: `limit` сообщений строго старше `beforeSequence`
+    /// (курсор — `sequence` самого старого показанного сообщения), по
+    /// возрастанию. Пустой массив — дальше истории в базе нет.
+    func messages(chatID: String, beforeSequence: Int, limit: Int = LocalStore.defaultMessageWindow) async throws -> [RoleChatMessage] {
+        let rows = try await queue.read { db in try Self.fetchRawWindow(db, chatID: chatID, limit: limit, beforeSequence: beforeSequence) }
+        return Self.decode(rows)
+    }
+
+    /// Страница истории до сообщения с данным id (его `sequence` берётся из
+    /// базы). Неизвестный id — пустой массив.
+    func messages(chatID: String, beforeMessageID: String, limit: Int = LocalStore.defaultMessageWindow) async throws -> [RoleChatMessage] {
+        let rows = try await queue.read { db -> [RawMessageRow] in
+            guard let cursor = try Int.fetchOne(
+                db,
+                sql: "SELECT sequence FROM message WHERE chat_id = ? AND id = ?",
+                arguments: [chatID, beforeMessageID]
+            ) else { return [] }
+            return try Self.fetchRawWindow(db, chatID: chatID, limit: limit, beforeSequence: cursor)
+        }
+        return Self.decode(rows)
+    }
+
+    /// Окно последних `limit` сообщений чата с подпиской.
+    ///
+    /// Отличия от `messageUpdates(chatID:)`:
+    /// - читаются только последние `limit` строк (индекс `chat_id, sequence`);
+    /// - дубликаты отсекаются по сырому телу, поэтому правка сообщения
+    ///   (тот же id, новый текст/`updated_at`) доходит до экрана, а запись
+    ///   в чужой чат, не изменившая окно, экран не будит;
+    /// - выборка и декод JSON идут на фоновой очереди, значения приходят
+    ///   в `for await` на том акторе, где их читают (экран — главный).
+    ///
+    /// GRDB не умеет сузить регион наблюдения по `chat_id` (только по
+    /// rowid), поэтому запись в чужой чат перечитывает окно из индекса —
+    /// дёшево, — но до декода и до экрана такое событие не доходит.
+    func latestMessageUpdates(
+        chatID: String,
+        limit: Int = LocalStore.defaultMessageWindow
+    ) -> AsyncValueObservation<[RoleChatMessage]> {
+        ValueObservation
+            .tracking { db in try Self.fetchRawWindow(db, chatID: chatID, limit: limit, beforeSequence: nil) }
+            .removeDuplicates()
+            .map { Self.decode($0) }
+            .values(in: queue, scheduling: .async(onQueue: Self.observationQueue))
+    }
+
+    private static let observationQueue = DispatchQueue(label: "LocalStore.messages", qos: .userInitiated)
+
+    private static func fetchRawWindow(_ db: Database, chatID: String, limit: Int, beforeSequence: Int?) throws -> [RawMessageRow] {
+        let rows: [Row]
+        if let beforeSequence {
+            rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT id, sequence, payload_json FROM message
+                WHERE chat_id = ? AND sequence < ?
+                ORDER BY sequence DESC, id DESC LIMIT ?
+                """,
+                arguments: [chatID, beforeSequence, max(limit, 0)]
+            )
+        } else {
+            rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT id, sequence, payload_json FROM message
+                WHERE chat_id = ?
+                ORDER BY sequence DESC, id DESC LIMIT ?
+                """,
+                arguments: [chatID, max(limit, 0)]
+            )
+        }
+        return rows.reversed().compactMap { row in
+            guard let id: String = row["id"], let raw: Data = row["payload_json"] else { return nil }
+            return RawMessageRow(id: id, sequence: row["sequence"] ?? -1, payload: raw)
+        }
+    }
+
+    private static func decode(_ rows: [RawMessageRow]) -> [RoleChatMessage] {
+        let decoder = JSONDecoder()
+        return rows.compactMap { try? decoder.decode(RoleChatMessage.self, from: $0.payload) }
     }
 
     /// Удалить сообщения чата: отозванные и удалённые владельцем. Иначе
