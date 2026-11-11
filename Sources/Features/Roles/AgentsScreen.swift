@@ -36,6 +36,7 @@ struct AgentsScreen: View {
                     commonInstructionsEntry
                     runJobsEntry
                     memoryEntry
+                    roleRulesEntry
                 }
                 enabledSection
                 if !viewModel.disabledProfiles.isEmpty {
@@ -151,6 +152,26 @@ struct AgentsScreen: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("memory-entry")
+        }
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+    }
+
+    /// Вход в реестр правил ролей (11.11.2026) — только владельцу.
+    private var roleRulesEntry: some View {
+        TFCard(padding: 0) {
+            NavigationLink(value: AppRoute.roleRules) {
+                TFListRow(
+                    icon: "list.bullet.rectangle", iconStyle: .plain, title: "Реестр правил",
+                    trailing: AnyView(
+                        Image(systemName: "chevron.right")
+                            .tfTypeFont(size: 13)
+                            .foregroundStyle(Color.tfDim)
+                    ),
+                    titleStyle: .action, verticalPadding: TFSpacing.xs
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("role-rules-entry")
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }

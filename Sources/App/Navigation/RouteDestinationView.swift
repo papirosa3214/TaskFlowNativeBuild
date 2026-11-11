@@ -87,6 +87,8 @@ private func routeContent(_ route: AppRoute) -> some View {
         MemoryScreen()
     case .taskflowMemory:
         TaskflowMemoryScreen()
+    case .roleRules:
+        RoleRulesScreen()
     case .settings:
         SettingsScreen().tfSuppressRedOutline()
     case .hints:
