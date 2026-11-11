@@ -203,10 +203,15 @@ struct ChatStructuredOutputView: View {
     }
 
     private func listBlock(_ block: StructuredOutputBlock) -> some View {
-        StructuredDocumentBlocksView(blocks: (block.items ?? []).map { item in
-            .listItem(kind: block.ordered == true ? .ordered : .bullet, depth: 0, runs: [RichRun(text: item)])
-        })
-        .accessibilityIdentifier("chat.structured-output.list")
+        // Пункт — Markdown, как абзац: путь в `кавычках` и ссылка получают
+        // значок. Сырой RichRun показывал их голым текстом с 10.11.2026, когда
+        // сервер стал раскладывать ответ роли на блоки (владелец 11.11.2026).
+        let items = block.items ?? []
+        let markdown = items.enumerated().map { index, item in
+            (block.ordered == true ? "\(index + 1). " : "- ") + item
+        }.joined(separator: "\n")
+        return RoleReplyMarkdown(text: markdown, checklist: checklist)
+            .accessibilityIdentifier("chat.structured-output.list")
     }
 
     @ViewBuilder
