@@ -218,6 +218,13 @@ final class LocalStore: @unchecked Sendable {
         let payload: Data
     }
 
+    /// Последние `limit` сообщений синхронно — для первого кадра экрана:
+    /// читается и декодируется только окно, а не вся история чата.
+    func latestMessagesNow(chatID: String, limit: Int) throws -> [RoleChatMessage] {
+        let rows = try queue.read { db in try Self.fetchRawWindow(db, chatID: chatID, limit: limit, beforeSequence: nil) }
+        return Self.decode(rows)
+    }
+
     /// Последние `limit` сообщений чата по возрастанию номера. Чтение и
     /// декод — вне главного потока.
     func latestMessages(chatID: String, limit: Int = LocalStore.defaultMessageWindow) async throws -> [RoleChatMessage] {

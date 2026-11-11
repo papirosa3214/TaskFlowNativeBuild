@@ -78,6 +78,11 @@ struct RoleChatRoomScreen: View {
     /// скакала 30 000 → 63 000 → 57 000 pt — лента улетала вверх. Старые
     /// сообщения лежат в памяти и дорисовываются по 10, когда долистал вверх.
     @State private var feedWindow = RoleChatFeedWindow.step
+    /// В локальной базе может лежать история старше загруженной в память.
+    @State private var hasOlderInStore = true
+    @State private var isLoadingOlder = false
+    @State private var answeredMessageIDs: Set<String> = []
+    private static let initialHistoryLimit = 150
     @Environment(RealtimeClient.self) private var realtime
     @State private var realtimeObserver = RealtimeObserverSlot<UUID>()
     @State private var roomEventRevision = 0
@@ -350,7 +355,11 @@ struct RoleChatRoomScreen: View {
         // Лента — это локальная база (05.11.2026): своей копии в памяти у
         // экрана больше нет, иначе пришедшее, пока чат был закрыт, на экран
         // не попадало.
-        if let local = try? LocalStore.shared.messages(chatID: chat.id), !local.isEmpty {
+        // Только последнее окно истории: остальное догружается из базы
+        // страницами при подъёме к верху (аудит плавности 11.11.2026; раньше
+        // здесь синхронно декодировался весь чат).
+        if let local = try? LocalStore.shared.latestMessagesNow(chatID: chat.id, limit: Self.initialHistoryLimit),
+           !local.isEmpty {
             // Локальная база: переписка открывается сразу, без сети.
             _messages = State(initialValue: local)
             _hasLoadedMessages = State(initialValue: true)
@@ -1107,7 +1116,9 @@ struct RoleChatRoomScreen: View {
     private func followLocalStore() async {
         if readingPreview { return }
         do {
-            for try await stored in LocalStore.shared.messageUpdates(chatID: chat.id) {
+            // Окно последних сообщений: запись в базу больше не перечитывает
+            // и не декодирует весь чат на главном потоке.
+            for try await stored in LocalStore.shared.latestMessageUpdates(chatID: chat.id) {
                 let onScreen = Set(messages.map(\.id))
                 for message in stored where !onScreen.contains(message.id) {
                     insertIncoming(message)
@@ -1392,6 +1403,7 @@ struct RoleChatRoomScreen: View {
                 .padding(.top, TFSpacing.sm)
             }
         }
+        .onChange(of: messages.count, initial: true) { recomputeAnsweredIDs() }
         .onChange(of: rows.map(\.id)) { _, ids in
             // Старые сообщения ушли из окна ленты — их раскрытия тоже.
             // Ключи живых строк остаются: доигрывание хода и смена версии
@@ -1582,11 +1594,31 @@ struct RoleChatRoomScreen: View {
     /// только под рукой владельца и только когда над окном есть скрытые.
     private func growFeedWindow() {
         let hidden = visibleMessages.count - feedWindow
+        if hidden <= 0 { loadOlderFromStore() }
         guard RoleChatFeedWindow.shouldGrow(hidden: hidden, nearTop: true,
                                             scrolling: chatIsScrolling) else { return }
         // Старые строки появляются НАД видимой частью: коллекция сама
         // компенсирует смещение, лента не прыгает.
         feedWindow = RoleChatFeedWindow.grown(window: feedWindow)
+    }
+
+    /// Окно в памяти дошло до своего верха — следующая страница из базы.
+    private func loadOlderFromStore() {
+        guard hasOlderInStore, !isLoadingOlder, !readingPreview,
+              let oldest = messages.first?.id else { return }
+        isLoadingOlder = true
+        let chatID = chat.id
+        Task { @MainActor in
+            defer { isLoadingOlder = false }
+            let page = (try? await LocalStore.shared.messages(chatID: chatID, beforeMessageID: oldest,
+                                                              limit: 100)) ?? []
+            guard chatID == chat.id else { return }
+            let known = Set(messages.map(\.id))
+            let fresh = page.filter { !known.contains($0.id) }
+            if fresh.isEmpty { hasOlderInStore = false; return }
+            messages.insert(contentsOf: fresh, at: 0)
+            feedWindow = RoleChatFeedWindow.grown(window: feedWindow)
+        }
     }
 
     /// Живой ход виден и в группе: у каждого ответа своя подпись роли.
@@ -2552,7 +2584,7 @@ struct RoleChatRoomScreen: View {
         if isMine && message.canWithdraw == true
             && !liveStore.triggerIDs.contains(message.id)
             && !completingTurns.values.contains(where: { $0.triggerMessageID == message.id })
-            && !messages.contains(where: { $0.replyToMessageID == message.id && isAgentReply($0) }) {
+            && !answeredMessageIDs.contains(message.id) {
             Button(role: .destructive) { Task { await withdrawMessage(message) } } label: {
                 Label("Убрать сообщение", systemImage: "trash")
             }
@@ -2772,6 +2804,13 @@ struct RoleChatRoomScreen: View {
     ///
     /// Список — ВИДИМЫЕ сообщения: скрытые служебные строки варианты не
     /// отменяют (26.10.2026, была жалоба «кнопок не видно у вопроса»).
+    /// Сообщения, на которые уже ответила роль: «Убрать» для них скрыто.
+    /// Раньше контекстное меню каждой строки проходило всю историю.
+    /// Считается раз на смену набора сообщений (`onChange` ленты).
+    private func recomputeAnsweredIDs() {
+        answeredMessageIDs = Set(messages.lazy.filter { isAgentReply($0) }.compactMap(\.replyToMessageID))
+    }
+
     private func quickReplies(for message: RoleChatMessage) -> [String]? {
         ChatQuickReplyPolicy.replies(for: message, in: visibleMessages, ownerID: session.currentUser?.id)
     }
