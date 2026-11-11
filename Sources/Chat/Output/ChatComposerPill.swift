@@ -26,6 +26,7 @@ struct ChatComposerPill: View {
     var workStartedAt: Date? = nil
 
     @State private var expanded = false
+    @Namespace private var glassNamespace
     @State private var showsQueued = false
 
     private var running: [ChatComposerStatus.Running] { status.activeRunning }
@@ -51,10 +52,15 @@ struct ChatComposerPill: View {
                 if expanded { panel }
                 // Пилюля по ширине содержимого; с кружком «вниз» или с
                 // отложенным сообщением тянется, и ряд занимает всю ширину.
-                HStack(spacing: TFSpacing.sm) {
-                    pill
-                    if !stretches { Spacer(minLength: 0) }
-                    if showsScrollDown { ChatScrollToBottomButton(action: onScrollDown) }
+                // Одно стеклянное семейство: кружок отпочковывается от пилюли.
+                TFGlassGroup(spacing: 24) {
+                    HStack(spacing: TFSpacing.sm) {
+                        pill
+                        if !stretches { Spacer(minLength: 0) }
+                        if showsScrollDown {
+                            ChatScrollToBottomButton(action: onScrollDown, glassNamespace: glassNamespace)
+                        }
+                    }
                 }
             }
             .animation(TFMotion.standard, value: stretches)
@@ -84,6 +90,7 @@ struct ChatComposerPill: View {
         }
         .frame(maxWidth: stretches ? .infinity : nil, alignment: .leading)
         .voiceCapsuleSurface()
+        .tfGlassID("pill", in: glassNamespace)
         .fixedSize(horizontal: !stretches, vertical: true)
         .accessibilityIdentifier("chat.composerPill")
     }

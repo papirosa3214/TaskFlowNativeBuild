@@ -183,6 +183,8 @@ struct ChatFeedDivider: View {
 /// С 11.11.2026 — маленький круг справа над пилюлей/полем ввода, как в T3 Code.
 struct ChatScrollToBottomButton: View {
     let action: () -> Void
+    /// Общее пространство имён стекла с пилюлей: кружок отпочковывается от неё.
+    var glassNamespace: Namespace.ID? = nil
 
     var body: some View {
         Button(action: action) {
@@ -195,11 +197,19 @@ struct ChatScrollToBottomButton: View {
                 .foregroundStyle(Color.tfChatText)
                 .frame(width: 36, height: 36)
                 .voiceCircleSurface()
+                .modifier(GlassIDIfNeeded(namespace: glassNamespace))
                 .frame(width: TFHitTarget.min, height: TFHitTarget.min)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Вниз, к последнему сообщению")
         .accessibilityIdentifier("chat.scroll-to-bottom")
+    }
+}
+
+private struct GlassIDIfNeeded: ViewModifier {
+    let namespace: Namespace.ID?
+    func body(content: Content) -> some View {
+        if let namespace { content.tfGlassID("scrollDown", in: namespace) } else { content }
     }
 }

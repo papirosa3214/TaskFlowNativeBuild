@@ -34,4 +34,30 @@ public extension View {
         }
     }
 
+    /// Идентификатор стекла: фигуры одного `TFGlassGroup` с общим пространством
+    /// имён сливаются и отделяются друг от друга при появлении/исчезновении
+    /// (iOS 26). Раньше — без эффекта.
+    @ViewBuilder func tfGlassID(_ id: some Hashable & Sendable, in namespace: Namespace.ID) -> some View {
+        if #available(iOS 26.0, *) { glassEffectID(id, in: namespace) } else { self }
+    }
+}
+
+/// Контейнер жидкого стекла: фигуры внутри сливаются, когда подходят ближе
+/// `spacing`. До iOS 26 — обычный контейнер без эффекта.
+public struct TFGlassGroup<Content: View>: View {
+    let spacing: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    public init(spacing: CGFloat, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.content = content
+    }
+
+    public var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { content() }
+        } else {
+            content()
+        }
+    }
 }
