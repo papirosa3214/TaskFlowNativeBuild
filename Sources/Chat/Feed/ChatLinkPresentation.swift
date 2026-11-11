@@ -148,6 +148,18 @@ enum ChatLinkPresentation {
     static func presentation(href: String, text: String = "") -> Presentation? {
         let trimmed = href.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        // Заметка и карточка из TaskFlow (`note://id`, `task://id`) — ярлычок
+        // со значком; сервер так пишет материалы отчёта (владелец 11.11.2026).
+        switch ChatMaterialDestination.resolve(trimmed, kind: "link") {
+        case .note:
+            let label = hasOwnLabel(text, for: trimmed) ? text : "Заметка"
+            return Presentation(kind: .thread, label: label, icon: .symbol("doc.text"), tint: .note)
+        case .task:
+            let label = hasOwnLabel(text, for: trimmed) ? text : "Карточка"
+            return Presentation(kind: .thread, label: label, icon: .symbol("checklist"), tint: .note)
+        case .web, nil:
+            break
+        }
         if let file = filePresentation(href: trimmed) { return file }
         guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased() else { return nil }
         if scheme == "taskflow" || scheme == "thread" {
@@ -230,6 +242,9 @@ enum ChatLinkPresentation {
     /// только имя с известным расширением или известное имя (`Dockerfile`,
     /// `package.json`), иначе любое слово с точкой стало бы «файлом».
     static func looksLikeFilePath(_ path: String) -> Bool {
+        // Одни косые черты — не путь: разделитель « / » между словами в
+        // кавычках получал значок папки (владелец 11.11.2026).
+        guard path.contains(where: { $0.isLetter || $0.isNumber }) else { return false }
         let last = (path as NSString).lastPathComponent
         if !path.contains("/") {
             if iconByBasename[last.lowercased()] != nil { return true }

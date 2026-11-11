@@ -156,7 +156,9 @@ struct ChatVoiceComposer: View {
                 // компактной панели их раньше не было вовсе (ревью панели
                 // ввода п.A1).
                 if compact {
-                    if canSendText || isResponding {
+                    // «Стоп» — в пилюле над полем ввода; здесь, пока роль
+                    // работает, остаются микрофон и отправка (владелец 11.11.2026).
+                    if canSendText {
                         sendButton(knob: Self.compactKnobSize)
                     } else {
                         compactMicButton
@@ -340,38 +342,25 @@ struct ChatVoiceComposer: View {
         .hintAnchor(HintAnchorID.chatDictation)
     }
 
-    /// Отправка или остановка ответа — в обоих вариантах одна и та же.
+    /// Отправка — в обоих вариантах одна и та же.
     ///
     /// `knob` — высота круглой кнопки новой панели: там она одного роста с
     /// капсулой поля и круглым микрофоном (владелец 29.10.2026).
     @ViewBuilder private func sendButton(knob: CGFloat = 40) -> some View {
-        if isResponding, !canSendText, let onStop {
-            Button(action: onStop) {
-                Image(systemName: "stop.fill")
-                    .tfTypeFont(size: 15, weight: .semibold)
-                    .foregroundStyle(Color.primary)
-                    .frame(width: knob, height: knob)
-                    .voiceCircleSurface()
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isStopping)
-            .accessibilityLabel("Остановить ответ роли")
-            .accessibilityIdentifier("chat.stop")
-        } else {
-            Button(action: onSendText) {
-                Image(systemName: "arrow.up")
-                    .tfTypeFont(size: 17, weight: .semibold)
-                    .foregroundStyle(Color.primary.opacity(canSendText ? 1 : 0.25))
-                    .frame(width: knob, height: knob)
-                    .voiceCircleSurface()
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSendText)
-            .accessibilityLabel("Отправить")
-            .accessibilityIdentifier("chat.send")
+        // Квадрат «Стоп» здесь не показывается: остановка — в пилюле над
+        // полем ввода (владелец 11.11.2026).
+        Button(action: onSendText) {
+            Image(systemName: "arrow.up")
+                .tfTypeFont(size: 17, weight: .semibold)
+                .foregroundStyle(Color.primary.opacity(canSendText ? 1 : 0.25))
+                .frame(width: knob, height: knob)
+                .voiceCircleSurface()
+                .contentShape(Circle())
         }
+        .buttonStyle(.plain)
+        .disabled(!canSendText)
+        .accessibilityLabel("Отправить")
+        .accessibilityIdentifier("chat.send")
     }
 
     @ViewBuilder private var promptComposer: some View {

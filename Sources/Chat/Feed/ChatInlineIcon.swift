@@ -37,7 +37,7 @@ enum ChatInlineIcon {
             switch icon {
             case .asset(let name):
                 if let asset = UIImage(named: name) {
-                    asset.draw(in: rect)
+                    drawAsset(asset, named: name, in: rect)
                 } else {
                     drawSymbol("doc.text", in: rect, color: color)
                 }
@@ -51,6 +51,57 @@ enum ChatInlineIcon {
     }
 
     private static let cache = NSCache<NSString, UIImage>()
+
+    /// Ассет рисуется по видимой части, без прозрачных полей: у файлов набора
+    /// pierre поле вокруг значка, и он выходил мельче буквы и висел над базовой
+    /// линией (владелец 11.11.2026: «мизерные и стоят выше»). Видимая часть
+    /// вписывается в прямоугольник буквы и садится низом на базовую линию.
+    private static func drawAsset(_ asset: UIImage, named name: String, in rect: CGRect) {
+        let size = asset.size
+        let bounds = opaqueBounds(of: asset, named: name)
+            ?? CGRect(origin: .zero, size: CGSize(width: 1, height: 1))
+        guard bounds.width > 0, bounds.height > 0, size.width > 0, size.height > 0 else {
+            asset.draw(in: rect); return
+        }
+        let visible = CGSize(width: bounds.width * size.width, height: bounds.height * size.height)
+        let scale = min(rect.width / visible.width, rect.height / visible.height)
+        let full = CGSize(width: size.width * scale, height: size.height * scale)
+        let drawnVisible = CGSize(width: visible.width * scale, height: visible.height * scale)
+        let visibleOrigin = CGPoint(x: rect.minX + (rect.width - drawnVisible.width) / 2,
+                                    y: rect.maxY - drawnVisible.height)
+        let origin = CGPoint(x: visibleOrigin.x - bounds.minX * full.width,
+                             y: visibleOrigin.y - bounds.minY * full.height)
+        asset.draw(in: CGRect(origin: origin, size: full))
+    }
+
+    private static var opaqueCache: [String: CGRect] = [:]
+
+    /// Видимая часть картинки в долях (0…1) от её размера.
+    static func opaqueBounds(of image: UIImage, named name: String) -> CGRect? {
+        if let cached = opaqueCache[name] { return cached }
+        guard let cg = image.cgImage else { return nil }
+        let width = cg.width, height = cg.height
+        guard width > 0, height > 0 else { return nil }
+        var pixels = [UInt8](repeating: 0, count: width * height)
+        guard let context = CGContext(data: &pixels, width: width, height: height,
+                                      bitsPerComponent: 8, bytesPerRow: width,
+                                      space: CGColorSpaceCreateDeviceGray(),
+                                      bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue) else { return nil }
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        var minX = width, minY = height, maxX = -1, maxY = -1
+        for y in 0..<height {
+            for x in 0..<width where pixels[y * width + x] > 8 {
+                minX = min(minX, x); maxX = max(maxX, x)
+                minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        let result = CGRect(x: CGFloat(minX) / CGFloat(width), y: CGFloat(minY) / CGFloat(height),
+                            width: CGFloat(maxX - minX + 1) / CGFloat(width),
+                            height: CGFloat(maxY - minY + 1) / CGFloat(height))
+        opaqueCache[name] = result
+        return result
+    }
 
     private static func identifier(_ icon: ChatLinkPresentation.Icon) -> String {
         switch icon {

@@ -12,6 +12,7 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 source = root / 'Sources/Chat/Feed/ChatLinkPresentation.swift'
+destination = root / 'Sources/Chat/Panels/ChatMaterialDestination.swift'
 tests = root / 'Tests/ChatLinkPresentationTests.swift'
 
 if not source.exists():
@@ -38,6 +39,6 @@ with tempfile.TemporaryDirectory(prefix='chat-link-presentation-') as tmp:
         '-L', str(libraries),
         '-Xlinker', '-rpath', '-Xlinker', str(frameworks),
         '-Xlinker', '-rpath', '-Xlinker', str(libraries),
-        str(source), str(main), '-o', str(binary),
+        str(source), str(destination), str(main), '-o', str(binary),
     ], check=True)
     sys.exit(subprocess.run([str(binary)]).returncode)

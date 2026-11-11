@@ -686,6 +686,9 @@ struct RoleChatRoomScreen: View {
                 )
             }
         }
+        // Зазор между полем ввода и поднятой клавиатурой (владелец
+        // 11.11.2026). Без клавиатуры отступ даёт полоска «домой».
+        .padding(.bottom, composerFocused ? TFSpacing.sm : 0)
     }
 
     private var composerNavigation: some View {
@@ -1268,8 +1271,10 @@ struct RoleChatRoomScreen: View {
                                handle: feedScroll,
                                // Нижняя граница ленты — над кружком «вниз»: последние
                                // строки не уходят под поле ввода (владелец 11.11.2026).
+                               // +64: место под пилюлю над полем ввода («на 50, может
+                               // на 80 выше», владелец 11.11.2026).
                                contentInsets: UIEdgeInsets(top: TFSpacing.sm, left: 0,
-                                                           bottom: TFSpacing.sm + TFHitTarget.min + TFSpacing.xs,
+                                                           bottom: TFSpacing.sm + TFHitTarget.min + TFSpacing.xs + 64,
                                                            right: 0),
                                estimatedHeight: { id in
                                    Self.estimatedRowHeight(id: id, feedByID: feedByID,

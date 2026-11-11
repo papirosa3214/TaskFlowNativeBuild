@@ -144,4 +144,23 @@ final class ChatLinkPresentationTests: XCTestCase {
         let link = present("https://dev.azure.com/org/project/_git/repo")
         XCTAssertEqual(link?.icon, .asset("link-azure-devops"))
     }
+
+    /// Материал отчёта роли: сервер пишет его ссылкой `note://id` или
+    /// `task://id` — ярлычок со значком, а не голый текст (владелец 11.11.2026).
+    @objc func testNoteAndTaskLinksGetChip() {
+        let id = "3F2B1C4D-5E6F-4A7B-8C9D-0E1F2A3B4C5D"
+        let note = present("note://" + id, "Оценка шлака")
+        XCTAssertEqual(note?.label, "Оценка шлака")
+        XCTAssertEqual(note?.icon, .symbol("doc.text"))
+        let task = present("task://" + id, "Карточка задачи")
+        XCTAssertEqual(task?.icon, .symbol("checklist"))
+        XCTAssertNil(present("note://not-an-id", "x"))
+    }
+
+    /// Разделитель « / » между словами в кавычках — не папка (владелец 11.11.2026).
+    @objc func testBareSlashIsNotAPath() {
+        XCTAssertNil(present(" / "))
+        XCTAssertNil(present("/"))
+        XCTAssertEqual(present("Sources/")?.label, "Sources")
+    }
 }

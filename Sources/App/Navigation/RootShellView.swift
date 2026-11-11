@@ -205,6 +205,21 @@ struct RootShellView: View {
                 voiceSession.expand()
             }
         }
+        // Ссылки `note://id` и `task://id` в тексте ответа роли открывают
+        // заметку и карточку внутри приложения; системе такие адреса
+        // неизвестны, и нажатие молча пропадало (владелец 11.11.2026).
+        .environment(\.openURL, OpenURLAction { url in
+            switch ChatMaterialDestination.resolve(url.absoluteString, kind: "link") {
+            case .note(let id):
+                paths[selectedTab, default: NavigationPath()].append(AppRoute.noteEditor(noteID: id))
+                return .handled
+            case .task(let id):
+                paths[selectedTab, default: NavigationPath()].append(AppRoute.taskDetail(taskID: id))
+                return .handled
+            case .web, nil:
+                return .systemAction
+            }
+        })
         .onChange(of: selectedTab, initial: true) { previous, current in
             rememberTodayTabSeen(isOnTodayTab: previous == .upcoming || current == .upcoming)
         }

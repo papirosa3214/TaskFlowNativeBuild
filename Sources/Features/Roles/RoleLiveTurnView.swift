@@ -433,17 +433,13 @@ struct RoleLiveTurnBubble: View {
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
             // С 11.11.2026 индикатор без текста из ленты убран — он в пилюле.
+            // Пока ход идёт, подписи «Работает · 0:52» в ленте нет: время и
+            // «Стоп» — в пилюле над полем ввода (владелец 11.11.2026: «три
+            // надписи работает»). Итог хода остаётся.
             if isComplete {
                 Text(footer(now: completedAt ?? .now))
                     .tfChatText(.meta)
                     .foregroundStyle(Color.tfDim)
-            } else {
-                // Тикающая подпись пишется прямо в UILabel: `TimelineView`
-                // пересобирал поддерево каждый тик и дёргал ленту
-                // (владелец 10.11.2026).
-                ChatTickingText(format: { footer(now: $0) }, isLive: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .hintAnchor(HintAnchorID.roleActions)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -495,6 +491,14 @@ struct RoleLiveTurnBubble: View {
                 if driver.tick() { publish() }
                 let animating = driver.isAnimating(now: .now)
                 if animating != fade.isAnimating { fade.isAnimating = animating }
+            }
+            // Часы оборвались (задачу отменили), а ход уже закончен — текст
+            // показывается целиком, а не застревает на «things_t» и «Thi»
+            // (владелец 11.11.2026: «не до конца отобразился текст»).
+            if isComplete && driver.pacer.hasPendingText {
+                ClientLog.shared.add("bubble:flush-after-stop turn=\(turn.playbackID) pending=\(driver.pacer.pendingCharacters) cancelled=\(Task.isCancelled)")
+                driver.pacer.flush()
+                publish()
             }
             if !Task.isCancelled && isComplete && !completionReported {
                 completionReported = true

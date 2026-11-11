@@ -39,25 +39,27 @@ struct ChatComposerPill: View {
 
     var body: some View {
         if isEmpty {
-            // Пилюли нет. Кружок «вниз» висит над полем ввода, не занимая
-            // места: лента не сдвигается.
-            Color.clear.frame(height: 0)
-                // Без пилюли кружок — по центру над полем ввода, как в T3 Code
-                // (владелец 11.11.2026).
-                .overlay(alignment: .bottom) {
-                    if showsScrollDown {
-                        ChatScrollToBottomButton(action: onScrollDown)
-                            .padding(.bottom, TFSpacing.xs)
-                    }
-                }
+            // Без пилюли кружок — по центру над полем ввода, как в T3 Code
+            // (владелец 11.11.2026). Кружок занимает свой ряд: висящий в
+            // overlay нулевой высоты он был вне панели и не нажимался
+            // (владелец 11.11.2026: «кружочек не работает»).
+            if showsScrollDown {
+                ChatScrollToBottomButton(action: onScrollDown)
+                    .frame(maxWidth: .infinity, minHeight: TFHitTarget.min)
+                    .padding(.bottom, TFSpacing.xs)
+            } else {
+                Color.clear.frame(height: 0)
+            }
         } else {
             VStack(alignment: .leading, spacing: TFSpacing.xs) {
                 if expanded { panel }
                 // Пилюля по ширине содержимого; с кружком «вниз» или с
                 // отложенным сообщением тянется, и ряд занимает всю ширину.
                 // Одно стеклянное семейство: кружок отпочковывается от пилюли.
-                TFGlassGroup(spacing: 24) {
-                    HStack(spacing: TFSpacing.sm) {
+                // Кружок на фиксированном расстоянии от пилюли, стекло не
+                // сливается (как в T3 Code, владелец 11.11.2026).
+                TFGlassGroup(spacing: TFSpacing.sm) {
+                    HStack(spacing: TFSpacing.md) {
                         // Пилюля по центру над полем ввода (владелец 11.11.2026).
                         Spacer(minLength: 0)
                         pill
@@ -66,6 +68,9 @@ struct ChatComposerPill: View {
                         }
                         Spacer(minLength: 0)
                     }
+                    // Ряд всегда высотой кружка: пилюля не подпрыгивает от
+                    // поля ввода, когда кружок появляется (владелец 11.11.2026).
+                    .frame(minHeight: TFHitTarget.min)
                 }
             }
             .animation(TFMotion.standard, value: stretches)
@@ -78,6 +83,9 @@ struct ChatComposerPill: View {
     }
 
     // MARK: Пилюля
+
+    /// Высота пилюли — ниже поля ввода (владелец 11.11.2026: «чуть поуже по высоте»).
+    static let segmentHeight: CGFloat = 36
 
     /// Плавающая стеклянная капсула из сегментов через тонкие разделители:
     /// [люди · «Работают 2 роли»] | [Стоп] | [☑ 2/5] | [1 отложено].
@@ -114,7 +122,7 @@ struct ChatComposerPill: View {
         if let onStop {
             views.append(AnyView(
                 Button(action: onStop) {
-                    Text("Стоп").padding(.horizontal, TFSpacing.md).frame(minHeight: TFHitTarget.min)
+                    Text("Стоп").padding(.horizontal, TFSpacing.md).frame(minHeight: Self.segmentHeight)
                         .tfText(.meta).foregroundStyle(Color.tfChatText).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -154,7 +162,7 @@ struct ChatComposerPill: View {
             .tfText(.meta)
             .foregroundStyle(Color.tfChatText)
             .padding(.horizontal, TFSpacing.md)
-            .frame(minHeight: TFHitTarget.min)
+            .frame(minHeight: Self.segmentHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -177,7 +185,7 @@ struct ChatComposerPill: View {
             .tfText(.meta)
             .foregroundStyle(Color.tfChatText)
             .padding(.horizontal, TFSpacing.md)
-            .frame(minHeight: TFHitTarget.min)
+            .frame(minHeight: Self.segmentHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -93,19 +93,45 @@ struct RoleActionGroup<Row: View>: View {
             .accessibilityHint(isExpanded ? "Свернуть действия" : "Показать все действия")
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in row(item) }
+                // Не выше половины экрана, внутри своя прокрутка: длинный
+                // перечень не растягивает ленту чата (владелец 11.11.2026).
+                // Короткий перечень занимает свою высоту (`fixedSize`).
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in row(item) }
+                    }
+                    .padding(.leading, TFSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.leading, TFSpacing.md)
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxHeight: UIScreen.main.bounds.height * 0.5)
+                .fixedSize(horizontal: false, vertical: true)
                 .overlay(alignment: .leading) {
                     Rectangle().fill(Color.tfStroke).frame(width: 1)
                 }
                 .transition(.opacity)
             } else if (showsPreview || isLive), let last = items.last {
-                row(last)
+                // Превью — одна строка постоянной высоты: «думает», команда и
+                // чтение файла разной высоты, лента привязана к низу, и при
+                // смене шага строки над ним подпрыгивали (владелец 11.11.2026).
+                // Новый шаг сменяет прежний плавным наплывом.
+                ZStack(alignment: .leading) {
+                    row(last)
+                        .lineLimit(1)
+                        .id(items.count)
+                        .transition(.opacity)
+                }
+                .frame(maxWidth: .infinity, minHeight: Self.previewHeight,
+                       maxHeight: Self.previewHeight, alignment: .leading)
+                .clipped()
+                .animation(TFMotion.animation(TFMotion.standard, reduceMotion: reduceMotion),
+                           value: items.count)
             }
         }
     }
+
+    /// Высота строки превью: одна строка шага с иконкой.
+    private static var previewHeight: CGFloat { 32 }
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
@@ -113,8 +139,10 @@ struct RoleActionGroup<Row: View>: View {
                 .tfTypeFont(size: 12, weight: .medium)
                 .foregroundStyle(Color.tfDim)
                 .frame(width: 16)
+            // «Работает» — только в пилюле над полем ввода; здесь пачка
+            // подписана «Действия», пока ход идёт — с бликом (владелец 11.11.2026).
             if isLive {
-                RoleShimmerText(text: "Работает")
+                RoleShimmerText(text: "Действия")
             } else {
                 Text("Действия").tfText(.meta).foregroundStyle(Color.tfSub)
             }
