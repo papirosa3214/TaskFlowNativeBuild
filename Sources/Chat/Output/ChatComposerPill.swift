@@ -21,6 +21,10 @@ struct ChatComposerPill: View {
     var showsScrollDown = false
     var onScrollDown: () -> Void = {}
 
+    /// Идёт ход роли: пилюля есть всегда, с сегментом «Работает · 0:42».
+    var isWorking = false
+    var workStartedAt: Date? = nil
+
     @State private var expanded = false
     @State private var showsQueued = false
 
@@ -28,7 +32,7 @@ struct ChatComposerPill: View {
     private var planTotal: Int { plans.reduce(0) { $0 + $1.items.count } }
     private var planDone: Int { plans.reduce(0) { $0 + $1.doneCount } }
     private var stretches: Bool { showsScrollDown }
-    private var isEmpty: Bool { plans.isEmpty && running.isEmpty && status.queued.isEmpty }
+    private var isEmpty: Bool { !isWorking && plans.isEmpty && running.isEmpty && status.queued.isEmpty }
 
     var body: some View {
         if isEmpty {
@@ -55,6 +59,7 @@ struct ChatComposerPill: View {
             }
             .animation(TFMotion.standard, value: stretches)
             .animation(TFMotion.standard, value: showsScrollDown)
+            .animation(TFMotion.standard, value: segmentKey)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TFSpacing.lg)
             .padding(.bottom, TFSpacing.xs)
@@ -83,8 +88,14 @@ struct ChatComposerPill: View {
         .accessibilityIdentifier("chat.composerPill")
     }
 
+    /// Состав сегментов: при его смене пилюля плавно меняет ширину.
+    private var segmentKey: [Bool] {
+        [isWorking, !running.isEmpty, onStop != nil, !plans.isEmpty, !status.queued.isEmpty]
+    }
+
     private var segmentViews: [AnyView] {
         var views: [AnyView] = []
+        if isWorking { views.append(AnyView(workingSegment)) }
         if !running.isEmpty {
             views.append(AnyView(segment(symbol: "person.2", text: Self.runningText(running.count), id: "running")))
         }
@@ -106,6 +117,41 @@ struct ChatComposerPill: View {
             views.append(AnyView(queuedSegment))
         }
         return views
+    }
+
+    /// «Работает · 0:42»: значок пульсирует, таймер тикает раз в секунду
+    /// только здесь — лента и остальная пилюля не перерисовываются.
+    private var workingSegment: some View {
+        Button {
+            withAnimation(TFMotion.standard) { expanded.toggle() }
+        } label: {
+            HStack(spacing: TFSpacing.xs) {
+                Image(systemName: "brain")
+                    .symbolEffect(.pulse, options: .repeating)
+                    .accessibilityHidden(true)
+                if let start = workStartedAt {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text("Работает · \(Self.clock(from: start, to: context.date))")
+                            .monospacedDigit()
+                    }
+                } else {
+                    Text("Работает")
+                }
+            }
+            .lineLimit(1)
+            .tfText(.meta)
+            .foregroundStyle(Color.tfChatText)
+            .padding(.horizontal, TFSpacing.md)
+            .frame(minHeight: TFHitTarget.min)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("chat.composerPill.working")
+    }
+
+    static func clock(from start: Date, to now: Date) -> String {
+        let total = max(0, Int(now.timeIntervalSince(start)))
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     /// Ярлычок отложенных сообщений: значок и счётчик; тап открывает окошко

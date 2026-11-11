@@ -301,7 +301,12 @@ private struct RoleLiveItemsContent: View {
                 .accessibilityHint("Показать подробности")
             case .thinking(let thinking):
                 if thinking.isRunning {
-                    RoleThinkingLiveRow(thinking: thinking, startsExpanded: expanded)
+                    // Бегущее «Думает…» из ленты убрано (владелец 11.11.2026,
+                    // индикатор работы — в пилюле над полем ввода); остаётся
+                    // только строка с текстом размышления, если он пришёл.
+                    if !thinking.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        RoleThinkingLiveRow(thinking: thinking, startsExpanded: expanded)
+                    }
                 } else {
                     Button { detail = .thinking(thinking) } label: {
                         RoleThinkingDoneRow(thinking: thinking)
@@ -427,9 +432,7 @@ struct RoleLiveTurnBubble: View {
                                   expansion: expansion)
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
-            if turn.thinking != nil && turn.runningThinking == nil && detailLevel != .minimal {
-                RoleThinkingLiveRow(thinking: nil)
-            }
+            // С 11.11.2026 индикатор без текста из ленты убран — он в пилюле.
             if isComplete {
                 Text(footer(now: completedAt ?? .now))
                     .tfChatText(.meta)

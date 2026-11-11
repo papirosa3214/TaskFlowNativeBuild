@@ -574,7 +574,9 @@ struct RoleChatRoomScreen: View {
                     onRemove: { item in Task { await updateComposerStatus { try await api.removeQueued(chatID: chat.id, messageID: item.messageID) } } },
                     onStop: (liveStore.hasTurns || !typists.isEmpty) ? { Task { await stopTurns() } } : nil,
                     showsScrollDown: !chatIsNearBottom && !isSelecting,
-                    onScrollDown: { feedScroll.scrollToBottom() }
+                    onScrollDown: { feedScroll.scrollToBottom() },
+                    isWorking: liveStore.hasTurns || !typists.isEmpty,
+                    workStartedAt: liveStore.slots.compactMap(\.startDate).min()
                 )
             }
             discussionStatusBar
@@ -1257,10 +1259,9 @@ struct RoleChatRoomScreen: View {
         rows += pendingVoices.map { item in
             ChatFeedVirtualRow(id: Self.voiceRowID(item), version: rowVersion(pendingVoice: item))
         }
-        if typing {
-            rows.append(ChatFeedVirtualRow(id: Self.typingRowID,
-                                           version: visibleTypists.sorted { $0.key < $1.key }.description.hashValue &+ typistTools.sorted { $0.key < $1.key }.description.hashValue))
-        }
+        // Строка «печатает/работает» из ленты убрана (владелец 11.11.2026):
+        // работу роли показывает пилюля над полем ввода.
+        _ = typing
         return ZStack(alignment: .top) {
             ChatFeedVirtualList(rows: rows,
                                contentKey: chat.id,
