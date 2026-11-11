@@ -913,13 +913,6 @@ final class TaskFormViewModel {
         }
     }
 
-    func reorderSubtasks(_ newOrder: [ApiSubtask]) async {
-        subtasks = newOrder
-        for (index, subtask) in newOrder.enumerated() where subtask.position != index {
-            _ = try? await apiClient.patchSubtask(id: subtask.id, fields: ["position": .number(Double(index))])
-        }
-    }
-
     // MARK: - Связанные задачи (`tasks.parent_id`)
 
     /// Вывести задачу в островок (Dynamic Island).
