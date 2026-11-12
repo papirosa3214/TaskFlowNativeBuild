@@ -23,6 +23,9 @@ enum ChatAttachmentSource {
 struct ChatVoiceComposer: View {
     @Binding var text: String
     let placeholder: String
+    /// Вид поля в сессиях владельца (12.11.2026): плюс вместо трёх полосок,
+    /// белые значки микрофона и отправки, подсказка печатается и стирается.
+    var sessionLook = false
     let canSendText: Bool
     @Bindable var voice: RoleChatVoiceController
     let onAttachmentSource: (ChatAttachmentSource) -> Void
@@ -124,13 +127,13 @@ struct ChatVoiceComposer: View {
             }
         } label: {
             if circle {
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: sessionLook ? "plus" : "slider.horizontal.3")
                     .tfTypeFont(size: 19, weight: .regular)
                     .foregroundStyle(Color.secondary)
                     .frame(width: 40, height: 40)
                     .voiceCircleSurface()
             } else {
-                promptIcon("slider.horizontal.3")
+                promptIcon(sessionLook ? "plus" : "slider.horizontal.3")
             }
         }
         .accessibilityLabel("Действия чата" + (workMode.map { ": " + $0.wrappedValue.title } ?? ""))
@@ -182,8 +185,16 @@ struct ChatVoiceComposer: View {
     /// теряется при развороте.
     private func promptField(compact: Bool) -> some View {
         HStack(spacing: 4) {
-            TextField(placeholder, text: $text, axis: .vertical)
+            TextField(sessionLook ? "" : placeholder, text: $text, axis: .vertical)
                 .lineLimit(compact ? 1...4 : 2...5)
+                .overlay(alignment: .topLeading) {
+                    if sessionLook, text.isEmpty, !isRecording, preview == nil {
+                        ChatTypingPlaceholder(phrases: [placeholder, "Что сделать сегодня?", "Найди задачу…", "Спроси что угодно…"])
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityLabel(placeholder)
                 .textInputAutocapitalization(.sentences)
                 .focused(textFieldFocus)
                 .onSubmit { if !(isRecording || preview != nil) { onSubmitText() } }
@@ -302,7 +313,7 @@ struct ChatVoiceComposer: View {
         Button(action: startVoiceRecording) {
             Image(systemName: "mic")
                 .tfTypeFont(size: 19, weight: .regular)
-                .foregroundStyle(Color.secondary)
+                .foregroundStyle(sessionLook ? Color.white : Color.secondary)
                 .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
                 .voiceCircleSurface()
                 .contentShape(Circle())
@@ -334,7 +345,9 @@ struct ChatVoiceComposer: View {
     /// Кнопка диктовки — в обоих вариантах одна и та же.
     private var micButton: some View {
         Button(action: startVoiceRecording) {
-            promptIcon("mic").contentShape(Rectangle())
+            promptIcon("mic")
+                .foregroundStyle(sessionLook ? Color.white : Color.secondary)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Начать диктовку")
@@ -352,7 +365,7 @@ struct ChatVoiceComposer: View {
         Button(action: onSendText) {
             Image(systemName: "arrow.up")
                 .tfTypeFont(size: 17, weight: .semibold)
-                .foregroundStyle(Color.primary.opacity(canSendText ? 1 : 0.25))
+                .foregroundStyle((sessionLook ? Color.white : Color.primary).opacity(canSendText ? 1 : (sessionLook ? 0.45 : 0.25)))
                 .frame(width: knob, height: knob)
                 .voiceCircleSurface()
                 .contentShape(Circle())
@@ -752,6 +765,39 @@ private struct ChatSessionPopover: ViewModifier {
                     .presentationCompactAdaptation(.popover)
                     .onDisappear { if !isPresented { onDismiss?() } }
             }
+        }
+    }
+}
+
+/// Подсказка пустого поля, которая печатается и стирается по фразам
+/// (владелец 12.11.2026: «пишется и исчезает, потом пишется — парочку слов
+/// таким же сереньким цветом»). Цвет — системный цвет подсказки поля.
+struct ChatTypingPlaceholder: View {
+    let phrases: [String]
+    @State private var shown = ""
+
+    var body: some View {
+        Text(shown.isEmpty ? " " : shown)
+            .foregroundStyle(Color(uiColor: .placeholderText))
+            .lineLimit(1)
+            .task(id: phrases) { await run() }
+    }
+
+    private func run() async {
+        var index = 0
+        while !Task.isCancelled, !phrases.isEmpty {
+            let phrase = phrases[index % phrases.count]
+            for count in 1...max(phrase.count, 1) {
+                shown = String(phrase.prefix(count))
+                try? await Task.sleep(for: .milliseconds(55))
+            }
+            try? await Task.sleep(for: .milliseconds(1600))
+            while !shown.isEmpty, !Task.isCancelled {
+                shown.removeLast()
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+            try? await Task.sleep(for: .milliseconds(350))
+            index += 1
         }
     }
 }

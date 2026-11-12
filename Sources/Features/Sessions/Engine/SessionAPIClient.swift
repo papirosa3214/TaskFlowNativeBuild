@@ -158,6 +158,16 @@ final class SessionAPIClient: @unchecked Sendable {
         try await request(method: "POST", path: "/api/sessions/root")
     }
 
+    /// Новая сессия разговора (`POST /api/sessions`, идемпотентно по requestId).
+    func createSession(requestID: String = UUID().uuidString) async throws -> SessionResponse {
+        try await request(method: "POST", path: "/api/sessions", body: ["requestId": requestID])
+    }
+
+    /// Метки сессии: название, проект, закрепление, архив (`PATCH /api/sessions/:id`).
+    func patchSession(id: String, _ patch: SessionMetaPatch) async throws {
+        let _: SessionAck = try await request(method: "PATCH", path: "/api/sessions/\(id)", body: patch)
+    }
+
     func listSessions() async throws -> SessionListResponse {
         try await request(method: "GET", path: "/api/sessions")
     }
@@ -303,4 +313,37 @@ private struct SessionAnyEncodable: Encodable {
     private let encodeValue: (Encoder) throws -> Void
     init(_ value: any Encodable) { encodeValue = value.encode }
     func encode(to encoder: Encoder) throws { try encodeValue(encoder) }
+}
+
+/// Ответ без нужных клиенту полей — любой JSON-объект.
+private struct SessionAck: JSONValueDecodable {
+    init?(json: NewChatCore.JSONValue) {}
+}
+
+/// Тело `PATCH /api/sessions/:id`: уходят только заданные поля; проект
+/// снимается явным `null`.
+enum SessionMetaPatch: Encodable {
+    case title(String)
+    case project(String?)
+    case pinned(Bool)
+    case archived(Bool)
+
+    private struct Key: CodingKey {
+        var stringValue: String
+        init(_ value: String) { stringValue = value }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        var intValue: Int? { nil }
+        init?(intValue: Int) { nil }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: Key.self)
+        switch self {
+        case .title(let value): try container.encode(value, forKey: Key("title"))
+        case .project(let value?): try container.encode(value, forKey: Key("project_id"))
+        case .project(nil): try container.encodeNil(forKey: Key("project_id"))
+        case .pinned(let value): try container.encode(value, forKey: Key("pinned"))
+        case .archived(let value): try container.encode(value, forKey: Key("archived"))
+        }
+    }
 }

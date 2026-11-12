@@ -20,29 +20,55 @@ public struct SessionSummary: Equatable, Sendable, Identifiable, JSONValueDecoda
     public let name: String?
     public let parentSession: String?
     public let relation: SessionRelation?
+    /// Метки владельца и превью строки (сервер, 12.11.2026).
+    public var title: String?
+    public var firstMessage: String?
+    public var modified: String?
+    public var projectID: String?
+    public var pinned: Bool
+    public var archivedAt: String?
 
     public init(
         id: String,
         cwd: String,
         name: String? = nil,
         parentSession: String? = nil,
-        relation: SessionRelation? = nil
+        relation: SessionRelation? = nil,
+        title: String? = nil,
+        firstMessage: String? = nil,
+        modified: String? = nil,
+        projectID: String? = nil,
+        pinned: Bool = false,
+        archivedAt: String? = nil
     ) {
         self.id = id
         self.cwd = cwd
         self.name = name
         self.parentSession = parentSession
         self.relation = relation
+        self.title = title
+        self.firstMessage = firstMessage
+        self.modified = modified
+        self.projectID = projectID
+        self.pinned = pinned
+        self.archivedAt = archivedAt
     }
 
     public init?(json: JSONValue) {
         guard let id = json["id"]?.stringValue, let cwd = json["cwd"]?.stringValue else { return nil }
+        let pinned: Bool = if case .bool(let value)? = json["pinned"] { value } else { false }
         self.init(
             id: id,
             cwd: cwd,
             name: json["name"]?.stringValue,
             parentSession: json["parentSession"]?.stringValue,
-            relation: json["relation"]?.stringValue.flatMap(SessionRelation.init(rawValue:))
+            relation: json["relation"]?.stringValue.flatMap(SessionRelation.init(rawValue:)),
+            title: json["title"]?.stringValue,
+            firstMessage: json["firstMessage"]?.stringValue,
+            modified: json["modified"]?.stringValue,
+            projectID: json["projectId"]?.stringValue,
+            pinned: pinned,
+            archivedAt: json["archivedAt"]?.stringValue
         )
     }
 }

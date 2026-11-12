@@ -287,8 +287,38 @@ final class SessionViewModel {
         }
     }
 
+    /// Открыть сессию для экрана: существующую по id или новую.
+    func open(sessionID: String?) async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let response = if let sessionID {
+                try await apiClient.snapshot(sessionID: sessionID)
+            } else {
+                try await apiClient.createSession()
+            }
+            installSnapshot(response.session)
+            if !hasStarted {
+                hasStarted = true
+                realtime.connect(
+                    onEvent: { [weak self] event in self?.receive(event) },
+                    onReconnect: { [weak self] in await self?.recoverAfterReconnect() }
+                )
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func disconnect() {
+        realtime.disconnect()
+    }
+
     func send() async {
         guard let sessionID = activeSessionID else { return }
+        // Как у Claude Code: пока сессия отвечает, сообщение подмешивается в
+        // идущий ответ, а не ждёт в очереди (владелец 12.11.2026).
+        promptMode = isStreaming ? .steer : .prompt
         let text = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let request: PromptSessionRequest
@@ -300,6 +330,9 @@ final class SessionViewModel {
         }
         let requestID = request.requestId
         state.markCommandStarted(requestId: requestID)
+        // Поле очищается сразу: сервер подтверждает команду только после
+        // ответа, а держать текст в поле весь ответ — путаница. Ошибка вернёт его.
+        composerText = ""
         do {
             let response = try await apiClient.prompt(
                 sessionID: sessionID,
@@ -314,6 +347,7 @@ final class SessionViewModel {
         } catch {
             state.markCommandFailed(requestId: requestID, message: error.localizedDescription)
             pendingPrompt = nil
+            if composerText.isEmpty { composerText = text }
             errorMessage = error.localizedDescription
         }
     }

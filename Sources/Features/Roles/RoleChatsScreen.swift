@@ -1,4 +1,5 @@
 import SwiftUI
+import NewChatCore
 import AVFoundation
 import UniformTypeIdentifiers
 import PhotosUI
@@ -70,6 +71,17 @@ struct RoleChatsScreen: View {
     @State private var projects: [ApiProject] = []
     /// Выбранная папка; пустая строка — «Все».
     @AppStorage("chats.folder") private var folderID = ""
+    /// Новые сессии вместо чата Помощника — за флагом, пока старый чат рядом
+    /// (владелец 12.11.2026: «из помощника — обычные сессии»).
+    @AppStorage("chats.ownerSessions") private var ownerSessionsBeta = false
+    @State private var ownerSessions: [SessionSummary] = []
+    @State private var renamingSession: SessionSummary?
+    /// Идёт горизонтальный свайп по папкам — строки не открываются.
+    @State private var swipingFolders = false
+    /// Когда палец последний раз шёл вбок: тап строки сразу после свайпа
+    /// не открывает сессию (отключение нажатия посреди касания тап не отменяло).
+    @State private var folderSwipeAt = Date.distantPast
+    @State private var openedOwnerSession: OwnerSessionRoute?
     /// Правка порядка проектов в полоске; снимается тапом по пустому месту.
     @State private var folderEditing = false
     /// Меню проекта в полоске папок (владелец 12.11.2026).
@@ -155,7 +167,15 @@ struct RoleChatsScreen: View {
                             .accessibilityIdentifier("chats.newSession")
                     }
                 }
-                if isOwner, isHome {
+                if isOwner, isHome, ownerSessionsBeta {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink(value: OwnerSessionRoute(id: nil)) {
+                            Image(systemName: "square.and.pencil")
+                        }
+                        .accessibilityLabel("Новый чат")
+                        .accessibilityIdentifier("chats.newOwnerSession")
+                    }
+                } else if isOwner, isHome {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { Task { await startChat(withRole: Self.assistantID, projectID: folderID.isEmpty ? nil : folderID) } } label: {
                             Image(systemName: "square.and.pencil")
@@ -172,6 +192,12 @@ struct RoleChatsScreen: View {
                             Label("Архивные", systemImage: "archivebox")
                         }
                         .accessibilityIdentifier("chats.menu.archive")
+                        if isOwner {
+                            Button { ownerSessionsBeta.toggle() } label: {
+                                Label("Новые сессии (бета)", systemImage: ownerSessionsBeta ? "checkmark" : "sparkles")
+                            }
+                            .accessibilityIdentifier("chats.menu.ownerSessions")
+                        }
                         if let candidates = rooms?.externalCandidates, !candidates.isEmpty {
                             // Внешние агенты — без постоянной комнаты, пока владелец
                             // сам её не заведёт (21.10.2026).
@@ -188,6 +214,13 @@ struct RoleChatsScreen: View {
                 }
             }
             .task(id: query) { await runSearch() }
+            .task(id: ownerSessionsBeta) { await reloadOwnerSessions() }
+            .navigationDestination(for: OwnerSessionRoute.self) { route in
+                OwnerSessionScreen(route: route)
+            }
+            .navigationDestination(item: $openedOwnerSession) { route in
+                OwnerSessionScreen(route: route)
+            }
             .tfSheet(item: $editingProject) { project in
                 ScrollView {
                     ProjectEditForm(project: project, apiClient: api, onSaved: {
@@ -212,6 +245,17 @@ struct RoleChatsScreen: View {
                 Button("Отмена", role: .cancel) { deletingProject = nil }
             } message: {
                 Text("Проект уйдёт в архив вместе с задачами, его сессии закроются. Вернуть можно из архива проектов.")
+            }
+            .alert("Название чата", isPresented: Binding(
+                get: { renamingSession != nil }, set: { if !$0 { renamingSession = nil } })) {
+                TextField("Название", text: $renameText)
+                Button("Сохранить") {
+                    let id = renamingSession?.id
+                    let title = renameText.trimmingCharacters(in: .whitespaces)
+                    renamingSession = nil
+                    if let id { Task { await patchOwnerSession(id, .title(title)) } }
+                }
+                Button("Отмена", role: .cancel) { renamingSession = nil }
             }
             .alert("Название чата", isPresented: renamePresented) {
                 TextField("Название", text: $renameText)
@@ -367,7 +411,18 @@ struct RoleChatsScreen: View {
             // Свайп по списку влево/вправо — соседний проект, как папки в
             // Telegram (владелец 12.11.2026). Только явно горизонтальный жест:
             // вертикальная прокрутка его не задевает.
-            .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { value in
+            .simultaneousGesture(DragGesture(minimumDistance: 30).onChanged { value in
+                // Палец явно пошёл вбок — строки перестают ловить нажатие, иначе
+                // свайп между проектами открывал сессию под пальцем (владелец 12.11.2026).
+                let dx = value.translation.width, dy = value.translation.height
+                if abs(dx) > 20, abs(dx) > abs(dy) * 2 {
+                    swipingFolders = true
+                    folderSwipeAt = Date()
+                }
+            }.onEnded { value in
+                if swipingFolders {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { swipingFolders = false }
+                }
                 guard isOwner, isHome, !projects.isEmpty, !isSearchMode else { return }
                 let dx = value.translation.width, dy = value.translation.height
                 guard abs(dx) > 60, abs(dx) > abs(dy) * 2 else { return }
@@ -470,6 +525,7 @@ struct RoleChatsScreen: View {
                 if !item.row.lines.isEmpty { SessionBranchLines(lines: item.row.lines) }
                 sessionLink(item.chat, isBranch: !item.row.lines.isEmpty)
             }
+            .allowsHitTesting(!swipingFolders)
             .fixedSize(horizontal: false, vertical: true)
             // Под сессией с ветками линии не прерываем разделителем.
             if index < rows.count - 1, rows[index + 1].row.lines.isEmpty {
@@ -526,6 +582,99 @@ struct RoleChatsScreen: View {
     /// на сервере не трогаются.
     @ViewBuilder
     private var chatsHome: some View {
+        if ownerSessionsBeta {
+            ownerSessionsHome
+        } else {
+            assistantChatsHome
+        }
+    }
+
+    /// Корень вкладки на новых сессиях: только корневые сессии разговора,
+    /// ответвления и субагенты — внутри сессии.
+    @ViewBuilder
+    private var ownerSessionsHome: some View {
+        let all = ownerSessions.filter { $0.relation == nil || $0.relation == .root }
+        let roots = folderID.isEmpty ? all : all.filter { $0.projectID == folderID }
+        let pinned = roots.filter(\.pinned)
+        let rest = roots.filter { !$0.pinned }
+        if !pinned.isEmpty {
+            homeHeader("Закреплённые")
+            ownerSessionRows(pinned)
+            homeHeader("Сессии")
+        }
+        if roots.isEmpty {
+            Text("Пока нет сессий.")
+                .tfText(.action)
+                .foregroundStyle(Color.tfDim)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.top, TFSpacing.xl)
+        } else {
+            ownerSessionRows(rest)
+        }
+    }
+
+    /// Строки сессий — та же строка, что у чатов: название (своё или первая
+    /// реплика), превью первой реплики, время последнего изменения.
+    @ViewBuilder
+    private func ownerSessionRows(_ rows: [SessionSummary]) -> some View {
+        ForEach(Array(rows.enumerated()), id: \.element.id) { index, summary in
+            Button {
+                guard Date().timeIntervalSince(folderSwipeAt) > 0.4 else { return }
+                openedOwnerSession = OwnerSessionRoute(id: summary.id)
+            } label: {
+                ChatListRow(
+                    title: summary.title ?? summary.firstMessage.map { String($0.prefix(60)) } ?? "Новый чат",
+                    preview: summary.title == nil ? "" : (summary.firstMessage ?? ""),
+                    time: ChatListTime.label(summary.modified),
+                    unread: 0
+                )
+            }
+            .buttonStyle(.plain)
+            .contextMenu { ownerSessionMenu(summary) }
+            .accessibilityIdentifier("chats.ownerSession.\(summary.id)")
+            if index < rows.count - 1 { rowDivider() }
+        }
+    }
+
+    @ViewBuilder
+    private func ownerSessionMenu(_ summary: SessionSummary) -> some View {
+        Button { Task { await patchOwnerSession(summary.id, .pinned(!summary.pinned)) } } label: {
+            Label(summary.pinned ? "Открепить" : "Закрепить", systemImage: summary.pinned ? "pin.slash" : "pin")
+        }
+        Button {
+            renameText = summary.title ?? ""
+            renamingSession = summary
+        } label: { Label("Переименовать", systemImage: "pencil") }
+        if !projects.isEmpty {
+            Menu {
+                ForEach(projects) { project in
+                    Button(project.name) { Task { await patchOwnerSession(summary.id, .project(project.id)) } }
+                }
+                if summary.projectID != nil {
+                    Button("Без проекта") { Task { await patchOwnerSession(summary.id, .project(nil)) } }
+                }
+            } label: { Label("Перенести в проект", systemImage: "folder") }
+        }
+        Button(role: .destructive) { Task { await patchOwnerSession(summary.id, .archived(true)) } } label: {
+            Label("В архив", systemImage: "archivebox")
+        }
+    }
+
+    private func patchOwnerSession(_ id: String, _ patch: SessionMetaPatch) async {
+        do {
+            try await SessionAPIClient().patchSession(id: id, patch)
+            await reloadOwnerSessions()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func reloadOwnerSessions() async {
+        guard ownerSessionsBeta, isOwner else { return }
+        if let list = try? await SessionAPIClient().listSessions() { ownerSessions = list.sessions }
+    }
+
+    @ViewBuilder
+    private var assistantChatsHome: some View {
         let all = isOwner ? sessionRows(for: .role(Self.assistantID)) : visibleRows
         let rows = folderID.isEmpty ? all : all.filter { $0.chat.projectID == folderID }
         let pinned = rows.filter { pinnedIDs.contains($0.chat.id) && $0.row.lines.isEmpty }
