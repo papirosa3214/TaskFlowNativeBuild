@@ -130,7 +130,9 @@ struct ChatVoiceComposer: View {
                 Image(systemName: sessionLook ? "plus" : "slider.horizontal.3")
                     .tfTypeFont(size: 19, weight: .regular)
                     .foregroundStyle(Color.secondary)
-                    .frame(width: 40, height: 40)
+                    // Тот же размер, что у правого кружка компактной панели:
+                    // были 40 против 50, кружки разной высоты (владелец 12.11.2026).
+                    .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
                     .voiceCircleSurface()
             } else {
                 promptIcon(sessionLook ? "plus" : "slider.horizontal.3")
