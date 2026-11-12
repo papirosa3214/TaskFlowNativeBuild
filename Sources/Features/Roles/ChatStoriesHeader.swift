@@ -436,7 +436,9 @@ struct ChatsFolderBar: View {
     let projects: [ApiProject]
     @Binding var selected: String
     var actions: Actions? = nil
-    @Namespace private var lens
+    /// Ширины плашек по id проекта («» — «Все»): по ним режутся сегменты
+    /// системного переключателя под плашками.
+    @State private var chipWidths: [String: CGFloat] = [:]
     /// Режим правки (владелец 12.11.2026 вместо «Левее/Правее»): плашки
     /// таскают пальцем внутри той же стеклянной полоски, у каждой крестик.
     /// Кнопки «Готово» нет — правка кончается тапом по пустому месту
@@ -474,8 +476,30 @@ struct ChatsFolderBar: View {
                         item(title: "Все", id: "")
                         ForEach(projects) { project in
                             item(title: project.name, id: project.id)
-                                .contextMenu { if let actions { menu(project, actions) } }
                         }
+                    }
+                }
+                // Под плашками — системный сегментный переключатель с пустыми
+                // подписями и спрятанной дорожкой: линзу выбранного, её перелив
+                // и перетаскивание рисует сама iOS, как у «Сегодня / 7 / 30 дней»
+                // (владелец 12.11.2026; приём библиотеки unionst/union-tab-view).
+                // Касания принимает он: тап — выбор, долгое нажатие — меню
+                // проекта под пальцем.
+                .background {
+                    if !editing {
+                        FolderSystemLens(widths: segmentWidths, selectedIndex: selectedIndex,
+                                         onSelect: { index in
+                                             withAnimation(TFMotion.standard) { selected = segmentIDs[index] }
+                                         },
+                                         menu: { index in
+                                             guard index > 0, let actions else { return nil }
+                                             return uiMenu(projects[index - 1], actions)
+                                         })
+                        // Переключатель шире плашек на `lensBleed` с каждой
+                        // стороны: системный ползунок рисуется с внутренним
+                        // отступом, и без этого чёрная капсула выходила узкой
+                        // и далеко от края полосы (владелец 13.11.2026).
+                        .padding(-Self.lensBleed)
                     }
                 }
                 .padding(4)
@@ -491,44 +515,58 @@ struct ChatsFolderBar: View {
         }
     }
 
+    /// id сегментов слева направо: «Все» и проекты.
+    private var segmentIDs: [String] { [""] + projects.map(\.id) }
+    private var selectedIndex: Int { segmentIDs.firstIndex(of: selected) ?? 0 }
+    /// Насколько переключатель выходит за плашки с каждой стороны.
+    private static let lensBleed: CGFloat = 3
+    /// Ширина сегмента — плашка и зазор после неё, чтобы сегменты шли встык;
+    /// крайние сегменты шире на выступ переключателя.
+    private var segmentWidths: [CGFloat] {
+        let ids = segmentIDs
+        return ids.enumerated().map { index, id in
+            (chipWidths[id] ?? 0) + (index < ids.count - 1 ? 2 : 0)
+                + (index == 0 ? Self.lensBleed : 0) + (index == ids.count - 1 ? Self.lensBleed : 0)
+        }
+    }
+
     /// Меню проекта (владелец 12.11.2026): настройки — те же, что в
     /// «Проектах»; плюс собрать сессии в проект, порядок, экспорт, удаление.
-    @ViewBuilder
-    private func menu(_ project: ApiProject, _ actions: Actions) -> some View {
-        Button { actions.edit(project) } label: { Label("Изменить", systemImage: "pencil") }
-        Button { actions.addSessions(project) } label: { Label("Добавить сессии", systemImage: "plus.bubble") }
+    private func uiMenu(_ project: ApiProject, _ actions: Actions) -> UIMenu {
+        var items: [UIMenuElement] = [
+            UIAction(title: "Изменить", image: UIImage(systemName: "pencil")) { _ in actions.edit(project) },
+            UIAction(title: "Добавить сессии", image: UIImage(systemName: "plus.bubble")) { _ in actions.addSessions(project) },
+        ]
         if projects.count > 1 {
-            Button {
+            items.append(UIAction(title: "Изменить порядок", image: UIImage(systemName: "arrow.left.arrow.right")) { _ in
                 order = projects
                 withAnimation(TFMotion.standard) { editing = true }
-            } label: { Label("Изменить порядок", systemImage: "arrow.left.arrow.right") }
+            })
         }
-        Button { actions.export(project) } label: {
-            Label("Экспорт сессий в Markdown", systemImage: "square.and.arrow.up")
-        }
-        Button(role: .destructive) { actions.delete(project) } label: { Label("Удалить", systemImage: "trash") }
+        items.append(UIAction(title: "Экспорт сессий в Markdown", image: UIImage(systemName: "square.and.arrow.up")) { _ in
+            actions.export(project)
+        })
+        items.append(UIAction(title: "Удалить", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in
+            actions.delete(project)
+        })
+        return UIMenu(children: items)
     }
 
     private func item(title: String, id: String) -> some View {
         let isOn = selected == id
         let group = TFTypeGroup.projects
-        return Button {
-            withAnimation(TFMotion.standard) { selected = id }
-        } label: {
-            Text(title)
-                .font(TFTypeFace.saved(for: .app, group: group.rawValue).font(size: group.size, weight: .semibold))
-                // Выбранный пункт красный, как вкладка нижней панели
-                // (владелец 12.11.2026: «где линза — чтобы тоже красным рисовала»).
-                .foregroundStyle(isOn ? Color.tfRed : Color.tfSub)
-                .lineLimit(1)
-                .padding(.horizontal, TFSpacing.md)
-                .frame(minHeight: 34)
-                .background {
-                    if isOn { FolderSelection().matchedGeometryEffect(id: "lens", in: lens) }
-                }
-        }
-        .buttonStyle(.plain)
-        .id(id.isEmpty ? "all" : id)
+        // Плашка только рисует название: касания уходят в системный
+        // переключатель под ней.
+        return Text(title)
+            .font(TFTypeFace.saved(for: .app, group: group.rawValue).font(size: group.size, weight: .semibold))
+            // Выбранный — красный, как вкладка нижней панели (владелец 12.11.2026).
+            .foregroundStyle(isOn ? Color.tfRed : Color.tfSub)
+            .lineLimit(1)
+            .padding(.horizontal, TFSpacing.md)
+            .frame(minHeight: 34)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { chipWidths[id] = $0 }
+            .allowsHitTesting(false)
+            .id(id.isEmpty ? "all" : id)
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("chats.folder.\(id.isEmpty ? "all" : id)")
     }
@@ -600,22 +638,14 @@ private struct FolderLens: View {
     }
 }
 
-/// Подложка выбранного проекта — как у выбранной вкладки нижней панели:
-/// тёмная капсула внутри стекла, а не своё светлое стекло (владелец
-/// 12.11.2026: «точно такой же компонент, как нижняя панель»).
-private struct FolderSelection: View {
-    var body: some View {
-        Capsule().fill(Color.tfFieldDark)
-    }
-}
-
+/// Линза выбранного проекта — прозрачное стекло с бликом, отзывается на касание.
 private extension View {
-    /// Полоска целиком — то же стекло, что у нижней панели вкладок: отзывается
-    /// на касание; раньше iOS 26 — заливка полей.
+    /// Полоска целиком — прозрачное стекло `.clear`: на чёрном фоне почти не
+    /// осветляет (владелец 13.11.2026); раньше iOS 26 — заливка полей.
     @ViewBuilder
     func folderBarSurface() -> some View {
         if #available(iOS 26.0, *) {
-            glassEffect(.regular.interactive(), in: Capsule())
+            glassEffect(.clear, in: Capsule())
         } else {
             background(Color(uiColor: .tertiarySystemFill), in: Capsule()).clipShape(Capsule())
         }
@@ -666,6 +696,102 @@ struct ChatsProjectSessionsSheet: View {
                 }
             }
             .onAppear { chosen = Set(sessions.filter { $0.projectID == project.id }.map(\.id)) }
+        }
+    }
+}
+
+/// Системная линза выделения: `UISegmentedControl` с пустыми подписями и
+/// спрятанной дорожкой лежит под плашками, сегменты — по их ширинам. Сама
+/// линза, её перелив и перетаскивание — системные (iOS 26+).
+/// Допущение: линза — последний подслой контрола (так устроен UIKit iOS 26/27;
+/// приём из unionst/union-tab-view). Если Apple поменяет порядок, проступит
+/// серая дорожка, но выбор и меню продолжат работать.
+private struct FolderSystemLens: UIViewRepresentable {
+    let widths: [CGFloat]
+    let selectedIndex: Int
+    let onSelect: (Int) -> Void
+    let menu: (Int) -> UIMenu?
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> TracklessSegmentedControl {
+        let control = TracklessSegmentedControl()
+        control.backgroundColor = .clear
+        // Остановившаяся линза — почти чёрная капсула, как подложка выбранной
+        // вкладки нижней панели (#090909 по кадру); при перетаскивании система
+        // сама показывает прозрачную линзу с бликом (владелец 13.11.2026).
+        control.selectedSegmentTintColor = UIColor(red: 9 / 255, green: 9 / 255, blue: 9 / 255, alpha: 1)
+        control.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .valueChanged)
+        control.addInteraction(UIContextMenuInteraction(delegate: context.coordinator))
+        context.coordinator.control = control
+        return control
+    }
+
+    func updateUIView(_ control: TracklessSegmentedControl, context: Context) {
+        context.coordinator.parent = self
+        if control.numberOfSegments != widths.count {
+            control.removeAllSegments()
+            for index in widths.indices { control.insertSegment(withTitle: "", at: index, animated: false) }
+        }
+        for (index, width) in widths.enumerated() where width > 0 {
+            control.setWidth(width, forSegmentAt: index)
+        }
+        if control.selectedSegmentIndex != selectedIndex { control.selectedSegmentIndex = selectedIndex }
+    }
+
+    /// Переключатель занимает весь отведённый прямоугольник: своя высота
+    /// у него ~32 pt, и ползунок выходил ниже полосы на 7 pt с каждой стороны.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: TracklessSegmentedControl, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? widths.reduce(0, +), height: proposal.height ?? 32)
+    }
+
+    final class Coordinator: NSObject, UIContextMenuInteractionDelegate {
+        var parent: FolderSystemLens?
+        weak var control: UISegmentedControl?
+
+        @objc func changed(_ control: UISegmentedControl) {
+            parent?.onSelect(control.selectedSegmentIndex)
+        }
+
+        private func frame(of index: Int) -> CGRect? {
+            guard let parent, parent.widths.indices.contains(index), let control else { return nil }
+            let x = parent.widths.prefix(index).reduce(0, +)
+            return CGRect(x: x, y: 0, width: parent.widths[index], height: control.bounds.height)
+        }
+
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+            guard let parent else { return nil }
+            var x: CGFloat = 0
+            var hit: Int?
+            for (index, width) in parent.widths.enumerated() {
+                if location.x >= x && location.x < x + width { hit = index; break }
+                x += width
+            }
+            guard let hit, let menu = parent.menu(hit) else { return nil }
+            return UIContextMenuConfiguration(identifier: hit as NSNumber, previewProvider: nil) { _ in menu }
+        }
+
+        /// При долгом нажатии подсвечивается только проект под пальцем.
+        func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                    configuration: UIContextMenuConfiguration,
+                                    highlightPreviewForItemWithIdentifier identifier: any NSCopying) -> UITargetedPreview? {
+            guard let control, let index = (identifier as? NSNumber)?.intValue, let rect = frame(of: index) else { return nil }
+            let parameters = UIPreviewParameters()
+            parameters.visiblePath = UIBezierPath(roundedRect: rect, cornerRadius: rect.height / 2)
+            parameters.backgroundColor = .clear
+            return UITargetedPreview(view: control, parameters: parameters)
+        }
+    }
+}
+
+/// Сегментный переключатель без дорожки: видна только системная линза.
+private final class TracklessSegmentedControl: UISegmentedControl {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let lens = subviews.last
+        for subview in subviews where subview is UIImageView && subview !== lens {
+            subview.alpha = 0
         }
     }
 }
