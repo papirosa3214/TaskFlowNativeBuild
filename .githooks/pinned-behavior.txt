@@ -25,5 +25,4 @@ Sources/Chat/Feed/ChatRichContent.swift | static func stableID\( | стабил�
 Sources/Chat/Output/ChatHTMLView.swift | ChatHTMLHeightCache\.height\(for: | кэш высоты HTML — строка не скачет
 Sources/Chat/Feed/ChatFeedParts.swift | ChatThumbnailCache\.cachedImage\( | кэш миниатюр вложений
 Sources/Chat/Feed/ChatThumbnailCache.swift | kCGImageSourceShouldCache: false | миниатюры через ImageIO, без полной картинки
-Sources/Features/Roles/RoleChatsScreen.swift | LazyVStack\(spacing: 0\) | список чатов строится лениво
 Sources/Features/Roles/RoleChatsScreen.swift | Task\.detached | разбор списка чатов не на главном потоке
