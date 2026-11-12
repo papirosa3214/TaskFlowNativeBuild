@@ -23,6 +23,7 @@ struct OwnerSessionScreen: View {
     @State private var voice = RoleChatVoiceController()
     @FocusState private var composerFocused: Bool
     @Environment(\.dismiss) private var dismiss
+    @Environment(SecretaryVoiceViewModel.self) private var voiceSession: SecretaryVoiceViewModel?
     /// Метки этой сессии (название, проект, закрепление) — из списка сессий.
     @State private var summary: SessionSummary?
     @State private var projects: [ApiProject] = []
@@ -73,7 +74,17 @@ struct OwnerSessionScreen: View {
         .tfScreenBackground()
         .tfNativeHeader(headerTitle, displayMode: .inline)
         .toolbar {
-            if model.activeSessionID != nil {
+            if let id = model.activeSessionID {
+                if let voiceSession {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        // Голосовой разговор с Помощником в этой сессии: мост
+                        // пишет реплики в сессию (владелец 12.11.2026).
+                        TFIconButton("waveform", label: "Голосовой разговор с Помощником владельца") {
+                            Task { await voiceSession.start(chatID: id) }
+                        }
+                        .accessibilityIdentifier("session.voice.start")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { isContentsPresented = true } label: {
                         Image(systemName: "list.bullet.indent")
@@ -122,6 +133,9 @@ struct OwnerSessionScreen: View {
         // Внутри сессии нижней панели вкладок нет — как в комнате чата
         // (владелец 08.11.2026: панель только на главных экранах).
         .onAppear { ChatSectionState.shared.setNested(true) }
+        .onChange(of: voiceSession?.presentation.isActive ?? false) { _, active in
+            if !active { Task { await model.refresh() } }
+        }
         .onDisappear {
             model.disconnect()
             ChatSectionState.shared.setNested(false)

@@ -255,6 +255,14 @@ final class SessionViewModel {
         }
     }
 
+    /// Перечитать снимок сессии (после голосового разговора реплики голоса
+    /// пишет сервер мимо потока событий).
+    func refresh() async {
+        guard let id = activeSessionID,
+              let response = try? await apiClient.snapshot(sessionID: id) else { return }
+        installSnapshot(response.session)
+    }
+
     func reload() async {
         await refreshSessions()
     }
@@ -515,6 +523,12 @@ final class SessionViewModel {
     private static func items(from entry: NewChatCore.JSONValue) -> [SessionTimelineItem] {
         guard case let .object(object) = entry else { return [] }
         let entryID = object.string("id")
+        // Реплика голосового разговора в сессии (сервер, 12.11.2026).
+        if object.string("type") == "custom_message", object.string("customType") == "taskflow.voice",
+           let details = object.object("details"), let text = details.string("text"), !text.isEmpty {
+            let role = details.string("role") == "assistant" ? "assistant" : "user"
+            return [messageItem(id: entryID ?? UUID().uuidString, entryID: entryID, role: role, text: text)]
+        }
         let messageObject = object.object("message") ?? object
         guard let role = messageObject.string("role") else { return [] }
         guard role != "system" else { return [] }
