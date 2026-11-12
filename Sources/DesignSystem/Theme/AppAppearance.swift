@@ -217,6 +217,9 @@ enum TFTypeFace: String, CaseIterable, Identifiable {
 /// ставят `.tfTypeSettingsEnabled(false)`.
 enum TFTypeGroup: String, CaseIterable, Identifiable {
     case heading, subheading, body, secondary, tertiary
+    /// Папки-проекты над списком сессий чата (владелец 12.11.2026: «шрифт
+    /// проектов — новая градация в настройках, как минимум подзаголовочный»).
+    case projects
 
     var id: String { rawValue }
     var storageKey: String { "taskflow_type_\(rawValue)" }
@@ -229,6 +232,7 @@ enum TFTypeGroup: String, CaseIterable, Identifiable {
         case .body: 15
         case .secondary: 13
         case .tertiary: 11
+        case .projects: 17
         }
     }
 
@@ -239,6 +243,7 @@ enum TFTypeGroup: String, CaseIterable, Identifiable {
         case .body: "Основной текст"
         case .secondary: "Второстепенный текст"
         case .tertiary: "Мелкий текст"
+        case .projects: "Проекты"
         }
     }
 
@@ -249,16 +254,42 @@ enum TFTypeGroup: String, CaseIterable, Identifiable {
         case .body: "Названия задач, основной текст"
         case .secondary: "Описание, срок, статус"
         case .tertiary: "Бейджи, счётчики, дни недели"
+        case .projects: "Папки над списком чатов"
         }
     }
 
-    /// Множитель выбранной ступени этой группы.
-    var multiplier: CGFloat { TFTypeScale.saved(for: self).multiplier }
+    /// Множитель группы: выбранный размер в пунктах к базовому кеглю.
+    var multiplier: CGFloat { size / baseSize }
+
+    /// Выбранный размер в пунктах (владелец 12.11.2026: «нужен числовой выбор
+    /// шрифта и нормальный диапазон»). Прежний выбор ступенью переводится в
+    /// пункты, пока владелец не поставит число.
+    var size: CGFloat {
+        TFTypeSize.saved(key: storageKey, fallback: baseSize * TFTypeScale.saved(for: self).multiplier)
+    }
 
     static func saved(_ group: TFTypeGroup) -> TFTypeScale { TFTypeScale.saved(for: group) }
 }
 
+/// Размер группы шрифта числом, в пунктах (владелец 12.11.2026). Пять ступеней
+/// «Мельче — Крупнее» давали диапазон всего ±15%; теперь любое целое число из
+/// `range`. Хранится рядом с прежней ступенью под своим ключом.
+enum TFTypeSize {
+    static let range: ClosedRange<Int> = 9...40
+
+    static func saved(key: String, fallback: CGFloat) -> CGFloat {
+        let value = UserDefaults.standard.integer(forKey: key + "_pt")
+        return value > 0 ? CGFloat(value) : fallback.rounded()
+    }
+
+    static func save(_ size: Int, key: String) {
+        UserDefaults.standard.set(min(max(size, range.lowerBound), range.upperBound), forKey: key + "_pt")
+        TFTypeScale.bumpRevision()
+    }
+}
+
 /// Ступень регулятора группы: множитель к базовому кеглю группы.
+/// Остался для перевода прежнего выбора в пункты (`TFTypeSize`).
 enum TFTypeScale: String, CaseIterable, Identifiable {
     case small, compact, standard, large, xlarge
 
@@ -310,7 +341,7 @@ enum TFTypeScale: String, CaseIterable, Identifiable {
         bumpRevision()
     }
 
-    private static func bumpRevision() {
+    static func bumpRevision() {
         let next = UserDefaults.standard.integer(forKey: revisionKey) + 1
         UserDefaults.standard.set(next, forKey: revisionKey)
     }
@@ -359,7 +390,9 @@ enum TFChatTypeGroup: String, CaseIterable, Identifiable {
         }
     }
 
-    var size: CGFloat { baseSize * TFTypeScale.saved(forChat: self).multiplier }
+    var size: CGFloat {
+        TFTypeSize.saved(key: storageKey, fallback: baseSize * TFTypeScale.saved(forChat: self).multiplier)
+    }
 }
 
 /// Размер текста приложения поверх системного Dynamic Type: одна настройка на всё

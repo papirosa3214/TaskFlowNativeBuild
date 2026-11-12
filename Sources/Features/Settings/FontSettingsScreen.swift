@@ -106,21 +106,22 @@ struct FontSettingsScreen: View {
                 if context == .app {
                     ForEach(Array(TFTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
                         if index > 0 { TFDivider(inset: TFSpacing.md) }
-                        sizeRow(title: group.title, groupID: group.rawValue, baseSize: group.baseSize, binding: scaleBinding(for: group))
+                        sizeRow(title: group.title, groupID: group.rawValue, binding: sizeBinding(key: group.storageKey, current: group.size))
                     }
                 } else {
                     ForEach(Array(TFChatTypeGroup.allCases.enumerated()), id: \.element.id) { index, group in
                         if index > 0 { TFDivider(inset: TFSpacing.md) }
-                        sizeRow(title: group.title, groupID: group.rawValue, baseSize: group.baseSize, binding: scaleBinding(for: group))
+                        sizeRow(title: group.title, groupID: group.rawValue, binding: sizeBinding(key: group.storageKey, current: group.size))
                     }
                 }
             }
         }
     }
 
-    /// Ячейки с кеглем вместо ползунка (владелец 05.11.2026): ступеней всего
-    /// пять, и плавный на вид `Slider` прыгал между ними и опаздывал с цифрой.
-    private func sizeRow(title: String, groupID: String, baseSize: CGFloat, binding: Binding<TFTypeScale>) -> some View {
+    /// Размер числом в пунктах, шаг 1, диапазон `TFTypeSize.range` (владелец
+    /// 12.11.2026: «нужен именно числовой выбор шрифта и нормальный диапазон»;
+    /// раньше было пять ступеней в ±15%).
+    private func sizeRow(title: String, groupID: String, binding: Binding<Int>) -> some View {
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
           HStack(spacing: TFSpacing.md) {
             Text(title)
@@ -128,13 +129,16 @@ struct FontSettingsScreen: View {
                 .foregroundStyle(Color.tfText)
                 .frame(width: 118, alignment: .leading)
                 .lineLimit(1)
-            Picker(title, selection: binding) {
-                ForEach(TFTypeScale.allCases) { scale in
-                    Text(String(Int((baseSize * scale.multiplier).rounded()))).tag(scale)
-                }
+            Spacer(minLength: 0)
+            Stepper(value: binding, in: TFTypeSize.range) {
+                Text("\(binding.wrappedValue) pt")
+                    .tfText(.action)
+                    .foregroundStyle(Color.tfText)
+                    .monospacedDigit()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .pickerStyle(.segmented)
             .sensoryFeedback(.selection, trigger: binding.wrappedValue)
+            .accessibilityIdentifier("font.size.\(groupID)")
           }
           Menu {
               Button("По общему стилю") { TFTypeFace.save(nil, for: context, group: groupID) }
@@ -173,6 +177,7 @@ struct FontSettingsScreen: View {
                 previewText("Сверить изменённую логику и отчёт.", group: .body, color: tone)
                 previewText("Сегодня · В работе", group: .secondary, color: tone.opacity(0.72))
                 previewText("ВЛАДЕЛЕЦ · 3 ШАГА", group: .tertiary, color: tone.opacity(0.62))
+                previewText("Все · TaskFlow · Дом", group: .projects, color: tone, weight: .semibold)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -230,17 +235,10 @@ struct FontSettingsScreen: View {
         else { chatFaceRaw = face.rawValue }
     }
 
-    private func scaleBinding(for group: TFTypeGroup) -> Binding<TFTypeScale> {
+    private func sizeBinding(key: String, current: CGFloat) -> Binding<Int> {
         Binding(
-            get: { .saved(for: group) },
-            set: { TFTypeScale.save($0, for: group) }
-        )
-    }
-
-    private func scaleBinding(for group: TFChatTypeGroup) -> Binding<TFTypeScale> {
-        Binding(
-            get: { .saved(forChat: group) },
-            set: { TFTypeScale.save($0, forChat: group) }
+            get: { Int(current.rounded()) },
+            set: { TFTypeSize.save($0, key: key) }
         )
     }
 
@@ -252,7 +250,7 @@ struct FontSettingsScreen: View {
     ) -> some View {
         Text(value)
             .font(TFTypeFace.saved(for: .app, group: group.rawValue)
-                .font(size: group.baseSize * TFTypeScale.saved(for: group).multiplier, weight: weight))
+                .font(size: group.size, weight: weight))
             .foregroundStyle(color)
     }
 
@@ -261,7 +259,7 @@ struct FontSettingsScreen: View {
         weight: Font.Weight = .regular,
         design: Font.Design = .default
     ) -> Font {
-        let size = group.baseSize * TFTypeScale.saved(forChat: group).multiplier
+        let size = group.size
         return TFTypeFace.saved(for: .chat, group: group.rawValue)
             .font(size: size, weight: weight, design: group == .mono ? .monospaced : design)
     }
